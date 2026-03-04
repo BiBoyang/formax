@@ -1,6 +1,14 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { ThreadSummary } from '../../types'
 import { selectSortedThreadViewModels } from '../core/threadViewModel'
+
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return false
+  }
+  return true
+}
 
 export function useThreadSelection(args: {
   threads: ThreadSummary[]
@@ -9,6 +17,7 @@ export function useThreadSelection(args: {
   setSelectedCwd: (cwd: string | null) => void
 }) {
   const { threads, activeThreadId, selectedCwd, setSelectedCwd } = args
+  const cwdOptionsRef = useRef<string[]>([])
 
   const sortedThreads = useMemo(
     () => selectSortedThreadViewModels(threads),
@@ -24,6 +33,10 @@ export function useThreadSelection(args: {
       seen.add(cwd)
       values.push(cwd)
     }
+    if (areStringArraysEqual(cwdOptionsRef.current, values)) {
+      return cwdOptionsRef.current
+    }
+    cwdOptionsRef.current = values
     return values
   }, [sortedThreads])
   const cwdOptionSet = useMemo(() => new Set(cwdOptions), [cwdOptions])

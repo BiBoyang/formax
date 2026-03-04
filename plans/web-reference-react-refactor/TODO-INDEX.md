@@ -8,7 +8,6 @@
 
 ## 当前待办
 
-- [ ] Slice H：`useThreadSelection` 派生结果结构复用（`useThreadSelection.ts` + 对应 test）
 - [ ] Slice I：`TranscriptPane` 错误详情字符串缓存进一步收敛（`TranscriptPane.tsx` + 对应 test）
 
 ## 再生规则（当“当前待办”为空时）

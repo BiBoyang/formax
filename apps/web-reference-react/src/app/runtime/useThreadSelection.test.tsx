@@ -60,4 +60,34 @@ describe('useThreadSelection', () => {
       expect(setSelectedCwd).toHaveBeenCalledWith('/repo-b')
     })
   })
+
+  it('keeps cwd options reference stable when cwd list/order is unchanged', async () => {
+    const setSelectedCwd = vi.fn()
+
+    const { result, rerender } = renderHook(
+      (props: { inputThreads: typeof threads }) =>
+        useThreadSelection({
+          threads: props.inputThreads,
+          activeThreadId: null,
+          selectedCwd: '/repo-b',
+          setSelectedCwd,
+        }),
+      {
+        initialProps: { inputThreads: threads },
+      },
+    )
+
+    const firstCwdOptions = result.current.cwdOptions
+
+    rerender({
+      inputThreads: [
+        { ...threads[0], label: 'Older relabeled' },
+        { ...threads[1], label: 'Newest relabeled' },
+      ],
+    })
+
+    await waitFor(() => {
+      expect(result.current.cwdOptions).toBe(firstCwdOptions)
+    })
+  })
 })

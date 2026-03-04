@@ -6,7 +6,7 @@
 
 ## 执行状态（Active）
 
-- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G 已完成，已再生 Slice H/I）
+- 进行中：运行时状态更新去抖回合（Slice A/B/C/D/E/F/G/H 已完成，继续 Slice I）
 - 当前待办：以 `plans/web-reference-react-refactor/TODO-INDEX.md` 为准
 
 ## 范围约束（严格）
@@ -17,7 +17,6 @@
 
 ## 当前任务清单（唯一来源）
 
-- Slice H：`useThreadSelection` 派生结果结构复用（降低 sidebar 线程列表 props 变化频率）
 - Slice I：`TranscriptPane` 错误详情字符串缓存进一步收敛（避免重复 JSON stringify）
 
 ## 执行循环（固定）
