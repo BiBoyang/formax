@@ -260,6 +260,25 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
   })
 
+  it('renders compact welcome canvas without legacy prompt labels', () => {
+    const { container } = render(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          logs: [],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Welcome to Formax')).toBeInTheDocument()
+    expect(screen.queryByText(/^formax$/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Build a classic Snake game in this repo.')).toBeInTheDocument()
+    expect(screen.getByText('Create a one-page $pdf that summarizes this app.')).toBeInTheDocument()
+    expect(screen.getByText('Create a plan to...')).toBeInTheDocument()
+    expect(screen.queryByText('Prompt idea')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-radix-scroll-area-viewport]')).toBeNull()
+  })
+
   it('does not render finalized thinking rows in the primary transcript', () => {
     render(
       <TranscriptPane

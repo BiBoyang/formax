@@ -140,7 +140,9 @@ export function createThreadActions(ctx: ThreadActionsContext) {
       void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
       return
     }
-    void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
+    if (!ctx.state.activeThreadId) {
+      void ctx.refreshWorkspaceDiff(cwd).catch(() => undefined)
+    }
   }
 
   const renameThread = async (threadId: string, label: string) => {

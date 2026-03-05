@@ -1,6 +1,7 @@
-import { memo, useCallback, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
+import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
 import { TranscriptPane } from '../../components/TranscriptPane'
@@ -19,6 +20,13 @@ const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
+
+type DesktopBridge = NonNullable<Window['formaxDesktop']>
+
+function readDesktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null
+  return window.formaxDesktop ?? null
+}
 
 export type AppShellProps = {
   sortedThreads: ThreadViewModel[]
@@ -80,6 +88,8 @@ export type AppShellProps = {
 }
 
 export function AppShell(props: AppShellProps) {
+  const desktopBridge = useMemo(() => readDesktopBridge(), [])
+  const isDesktopClient = desktopBridge != null
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE
@@ -91,10 +101,35 @@ export function AppShell(props: AppShellProps) {
   const pendingRightRailPercentRef = useRef(rightRailPercent)
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
+  const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
+  const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
+  const previousSidebarOpenRef = useRef(props.isSidebarOpen)
   const showDevLoadAllButton = props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning
+
+  useEffect(() => {
+    if (!props.isSidebarOpen) return
+    lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
+  }, [props.isSidebarOpen, props.sidebarWidth])
+
+  useEffect(() => {
+    const panelGroup = panelGroupRef.current
+    if (!panelGroup) return
+    if (previousSidebarOpenRef.current === props.isSidebarOpen) return
+    previousSidebarOpenRef.current = props.isSidebarOpen
+    const currentLayout = panelGroup.getLayout()
+    if (currentLayout.length < 2) return
+
+    if (!props.isSidebarOpen) {
+      panelGroup.setLayout([0, 100])
+      return
+    }
+
+    const restoredSidebarWidth = clampSidebarWidth(lastOpenSidebarWidthRef.current)
+    panelGroup.setLayout([restoredSidebarWidth, Math.max(0, 100 - restoredSidebarWidth)])
+  }, [props.isSidebarOpen])
 
   const commitSidebarWidth = useCallback((nextSidebarWidth: number) => {
     props.setSidebarWidth((previous) => (Math.abs(nextSidebarWidth - previous) >= 1 ? nextSidebarWidth : previous))
@@ -143,12 +178,27 @@ export function AppShell(props: AppShellProps) {
   }, [commitRightRailWidth, props.rightRailWidth])
 
   const onToggleSidebar = useCallback(() => {
-    props.setIsSidebarOpen((previous) => !previous)
-  }, [props.setIsSidebarOpen])
+    if (props.isSidebarOpen) {
+      lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
+      props.setIsSidebarOpen(false)
+      return
+    }
+
+    const restoredSidebarWidth = clampSidebarWidth(lastOpenSidebarWidthRef.current)
+    props.setSidebarWidth(restoredSidebarWidth)
+    props.setIsSidebarOpen(true)
+  }, [props.isSidebarOpen, props.setIsSidebarOpen, props.setSidebarWidth, props.sidebarWidth])
 
   const onDevLoadAllEarlier = useCallback(() => {
     props.onDevLoadAllEarlier?.()
   }, [props.onDevLoadAllEarlier])
+
+  const onCreateProject = useCallback(async () => {
+    if (!desktopBridge?.pickProjectFolder) return
+    const nextCwd = await desktopBridge.pickProjectFolder()
+    if (!nextCwd) return
+    props.onStartThreadInCwd(nextCwd)
+  }, [desktopBridge, props.onStartThreadInCwd])
 
   const leftRailProps = useMemo(
     () => ({
@@ -164,6 +214,8 @@ export function AppShell(props: AppShellProps) {
       hiddenGroupCwds: props.hiddenGroupCwds,
       onHideThreadGroup: props.onHideThreadGroup,
       isBusy: props.isThreadActionBusy,
+      isDesktopClient,
+      onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
     }),
     [
       props.activeThreadId,
@@ -178,6 +230,9 @@ export function AppShell(props: AppShellProps) {
       props.onStartThreadInCwd,
       props.selectedCwd,
       props.sortedThreads,
+      isDesktopClient,
+      desktopBridge,
+      onCreateProject,
     ],
   )
 
@@ -274,8 +329,15 @@ export function AppShell(props: AppShellProps) {
   )
 
   return (
-    <div data-testid="app-shell" className="h-screen w-screen min-w-0 bg-sidebar overflow-hidden ui-text-base relative">
+    <div
+      data-testid="app-shell"
+      className={cn(
+        'h-screen w-screen min-w-0 bg-sidebar overflow-hidden ui-text-base relative',
+        isDesktopClient && 'app-shell-desktop',
+      )}
+    >
       <ResizablePanelGroup
+        ref={panelGroupRef}
         direction="horizontal"
         className="h-full w-full"
       >
@@ -285,13 +347,16 @@ export function AppShell(props: AppShellProps) {
           minSize={props.isSidebarOpen ? sidebarMinPercent : 0}
           maxSize={props.isSidebarOpen ? sidebarMaxPercent : 0}
           onResize={onLeftResize}
-          className={cn('bg-sidebar overflow-hidden', !props.isSidebarOpen && 'pointer-events-none')}
+          className={cn(
+            'relative z-10 bg-sidebar overflow-hidden app-shell-panel-motion',
+            !props.isSidebarOpen && 'pointer-events-none',
+          )}
         >
           <div
             data-testid="left-rail"
             className={cn(
-              'transition-opacity duration-200 ease-out h-full w-full overflow-hidden bg-sidebar',
-              props.isSidebarOpen ? 'opacity-100' : 'opacity-0',
+              'h-full w-full overflow-hidden bg-sidebar app-shell-sidebar-content-motion',
+              props.isSidebarOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4',
             )}
           >
             <MemoLeftRail {...leftRailProps} />
@@ -306,29 +371,50 @@ export function AppShell(props: AppShellProps) {
           onDragging={onLeftDragStateChange}
         />
 
-        <ResizablePanel defaultSize={centerDefaultSize} minSize={35}>
+        <ResizablePanel defaultSize={centerDefaultSize} minSize={35} className="relative z-20 app-shell-panel-motion">
           <div
             className={cn(
               'h-full min-w-0 flex flex-col',
               props.isSidebarOpen
-                ? 'rounded-l-[22px] bg-background overflow-hidden'
+                ? 'rounded-l-[22px] bg-background overflow-hidden border-l border-border/70'
                 : 'bg-background',
             )}
           >
-            <header className="h-14 flex-none border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-              <div className="h-full min-w-0 flex items-center px-4">
+            <header
+              className={cn(
+                'h-[var(--desktop-chrome-height)] flex-none border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75',
+                isDesktopClient && 'app-shell-drag-region',
+              )}
+            >
+              <div
+                className={cn(
+                  'h-full min-w-0 flex items-center px-4 app-shell-header-row-motion',
+                  isDesktopClient && !props.isSidebarOpen && 'app-shell-header-row-shifted',
+                )}
+              >
                 <div className="flex-1 min-w-0 flex items-center gap-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    className={cn(
+                      'h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground',
+                      isDesktopClient && 'app-shell-no-drag',
+                    )}
                     onClick={onToggleSidebar}
                     aria-label="Toggle sidebar"
                   >
-                    <PanelLeft className="h-4 w-4" />
+                    <PanelLeft
+                      className={cn(
+                        'h-4 w-4 app-shell-header-icon-motion',
+                        !props.isSidebarOpen && 'rotate-180',
+                      )}
+                    />
                   </Button>
                   <div className="min-w-0 flex flex-col leading-tight">
                     <div className="truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
+                    <div className="ui-text-meta text-muted-foreground/80 truncate">
+                      {isDesktopClient ? 'Desktop workspace' : 'Web reference workspace'}
+                    </div>
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
@@ -338,7 +424,10 @@ export function AppShell(props: AppShellProps) {
                       variant="ghost"
                       size="sm"
                       data-testid="header-dev-load-all-earlier"
-                      className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground"
+                      className={cn(
+                        'h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground',
+                        isDesktopClient && 'app-shell-no-drag',
+                      )}
                       onClick={onDevLoadAllEarlier}
                       disabled={devLoadAllDisabled}
                     >

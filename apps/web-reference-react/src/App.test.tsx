@@ -338,6 +338,32 @@ describe('App thread history integration', () => {
     }
   })
 
+  it('restores sidebar width after close and reopen toggle', async () => {
+    render(<App />)
+
+    const readLeftPanelSize = () =>
+      Number.parseFloat(screen.getByTestId('left-rail').parentElement?.getAttribute('data-panel-size') ?? '0')
+
+    await waitFor(() => {
+      expect(readLeftPanelSize()).toBeGreaterThan(0)
+    })
+
+    const beforeToggle = readLeftPanelSize()
+    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
+
+    await waitFor(() => {
+      expect(readLeftPanelSize()).toBeLessThan(0.25)
+    })
+
+    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
+
+    await waitFor(() => {
+      const afterToggle = readLeftPanelSize()
+      expect(afterToggle).toBeGreaterThan(beforeToggle - 0.6)
+      expect(afterToggle).toBeLessThan(beforeToggle + 0.6)
+    })
+  })
+
   it('reads bridge url from runtime config when provided', async () => {
     const runtimeWindow = window as Window & { __FORMAX_BRIDGE_URL__?: string }
     runtimeWindow.__FORMAX_BRIDGE_URL__ = 'ws://127.0.0.1:4777'
@@ -481,6 +507,13 @@ describe('App thread history integration', () => {
         (entry) =>
           entry.method === 'thread/messages' &&
           (entry.params as { threadId?: string } | undefined)?.threadId === 'thread-beta',
+      ),
+    ).toBe(false)
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'bridge/readDiff' &&
+          (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
       ),
     ).toBe(false)
   })

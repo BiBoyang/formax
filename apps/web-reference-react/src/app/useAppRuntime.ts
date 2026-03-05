@@ -266,10 +266,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setIsRefreshingDiff: setIsRefreshingDiffStable,
         setDiffSnapshot,
         resolveDiffCwd: () => {
-          if (selectedCwdRef.current) return selectedCwdRef.current
           const activeThreadId = activeThreadIdRef.current
-          if (!activeThreadId) return null
-          return threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
+          if (activeThreadId) {
+            const activeThreadCwd = threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
+            if (activeThreadCwd) return activeThreadCwd
+          }
+          if (selectedCwdRef.current) return selectedCwdRef.current
+          return null
         },
       }),
     [request, setIsRefreshingDiffStable],

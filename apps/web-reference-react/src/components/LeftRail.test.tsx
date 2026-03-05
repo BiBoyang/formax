@@ -254,6 +254,26 @@ describe('LeftRail', () => {
     expect(screen.getByTitle('/repo-b')).toBeInTheDocument()
   })
 
+  it('shows fixed bottom settings menu trigger', () => {
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const settingsTrigger = screen.getByRole('button', { name: '设置' })
+    expect(settingsTrigger).toBeInTheDocument()
+    expect(settingsTrigger).toHaveAttribute('aria-haspopup', 'menu')
+  })
+
   it('keeps cwd group order stable by folder name even when thread recency changes', () => {
     const unorderedThreads = [
       {

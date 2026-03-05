@@ -140,7 +140,7 @@ describe('threadActions', () => {
     expect(ctx.setSelectedCwd).toHaveBeenCalledWith('/repo-b')
     expect(ctx.activeThreadIdRef.current).toBe('prev-thread')
     expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_thread', threadId: 'thread-b' })
-    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-b')
+    expect(ctx.refreshWorkspaceDiff).not.toHaveBeenCalled()
   })
 
   it('refreshes workspace diff with selected thread cwd', async () => {

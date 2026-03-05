@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -12,8 +12,23 @@ const LOAD_RETRY_INTERVAL_MS = 500
 const MANAGED_RUNTIME_WAIT_TIMEOUT_MS = 30_000
 const MANAGED_RUNTIME_WAIT_POLL_MS = 250
 const MANAGED_RUNTIME_KILL_GRACE_MS = 4_000
+const DESKTOP_CHROME_HEIGHT_PX = 56
+const MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX = 20
+const MAC_TRAFFIC_LIGHT_INSET_X_PX = 20
+const MAC_TRAFFIC_LIGHT_SIZE_PX = 14
+const MAC_TRAFFIC_LIGHT_INSET_Y_PX = Math.round(
+  (DESKTOP_CHROME_HEIGHT_PX - MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX) / 2,
+)
+const MAC_TRAFFIC_LIGHT_POSITION = {
+  x: MAC_TRAFFIC_LIGHT_INSET_X_PX,
+  y: MAC_TRAFFIC_LIGHT_INSET_Y_PX + Math.round((MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX - MAC_TRAFFIC_LIGHT_SIZE_PX) / 2),
+}
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
+const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
+const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
+
+type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -421,6 +436,48 @@ async function loadWindowWithRetry(window: BrowserWindow, startUrl: string): Pro
   throw lastError instanceof Error ? lastError : new Error('Failed to load window URL')
 }
 
+function registerDesktopIpcHandlers(): void {
+  ipcMain.removeHandler(PICK_PROJECT_FOLDER_CHANNEL)
+  ipcMain.removeHandler(WINDOW_CONTROL_CHANNEL)
+
+  ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    const ownerWindow = focused ?? BrowserWindow.getAllWindows()[0] ?? undefined
+    const result = await dialog.showOpenDialog(ownerWindow, {
+      title: 'Select project folder',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled) return null
+    return result.filePaths[0] ?? null
+  })
+
+  ipcMain.handle(WINDOW_CONTROL_CHANNEL, (_event, action: DesktopWindowControl) => {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (!focused) return false
+
+    if (action === 'close') {
+      focused.close()
+      return true
+    }
+
+    if (action === 'minimize') {
+      focused.minimize()
+      return true
+    }
+
+    if (action === 'toggle-maximize') {
+      if (focused.isMaximized()) {
+        focused.unmaximize()
+      } else {
+        focused.maximize()
+      }
+      return true
+    }
+
+    return false
+  })
+}
+
 function wireNavigationGuards(window: BrowserWindow): void {
   window.webContents.on('will-navigate', (event, url) => {
     if (isAllowedLocalUrl(url)) return
@@ -441,6 +498,12 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
+    ...(process.platform === 'darwin'
+      ? {
+          frame: false,
+          titleBarStyle: 'hidden',
+        }
+      : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -448,6 +511,10 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
       preload: preloadPath,
     },
   })
+
+  if (process.platform === 'darwin' && typeof window.setWindowButtonPosition === 'function') {
+    window.setWindowButtonPosition(MAC_TRAFFIC_LIGHT_POSITION)
+  }
 
   wireNavigationGuards(window)
   try {
@@ -470,6 +537,7 @@ async function bootstrap(): Promise<void> {
   process.stderr.write(`[formax-desktop] mode=${mode}\n`)
 
   await app.whenReady()
+  registerDesktopIpcHandlers()
 
   try {
     await startManagedRuntimeIfNeeded(startUrl)

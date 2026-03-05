@@ -1,5 +1,18 @@
 :root {
   color-scheme: light;
+  --desktop-chrome-height: 3rem;
+  --desktop-chrome-row-height: 2rem;
+  --desktop-chrome-row-padding-y: calc((var(--desktop-chrome-height) - var(--desktop-chrome-row-height)) / 2);
+  --desktop-traffic-light-size: 14px;
+  --desktop-traffic-light-safe-height: 20px;
+  --desktop-traffic-light-safe-width: 72px;
+  --desktop-traffic-light-inset-x: 20px;
+  --desktop-traffic-light-offset-y: calc(
+    (var(--desktop-chrome-height) - var(--desktop-traffic-light-safe-height)) / 2
+  );
+  --desktop-header-leading-shift: calc(var(--desktop-traffic-light-inset-x) + var(--desktop-traffic-light-safe-width) + 4px);
+  --desktop-pane-motion-duration: 220ms;
+  --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Modern Scrollbar Styling (macOS inspired) */
@@ -64,6 +77,52 @@ body {
   overflow: hidden;
 }
 
+.app-shell-desktop .app-shell-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.app-shell-desktop .app-shell-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.left-rail-scroll-body {
+  scrollbar-gutter: stable both-edges;
+}
+
+.app-shell-panel-motion {
+  transition-property: flex-grow;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: flex-grow;
+}
+
+.app-shell-sidebar-content-motion {
+  transition-property: opacity, transform;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: opacity, transform;
+}
+
+.app-shell-header-row-motion {
+  transition-property: padding-left;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: padding-left;
+}
+
+.app-shell-header-row-shifted {
+  padding-left: calc(1rem + var(--desktop-header-leading-shift));
+}
+
+.app-shell-header-icon-motion {
+  transition-property: transform;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: transform;
+}
 
 /* Layout styles removed in favor of Tailwind utility classes */
 
