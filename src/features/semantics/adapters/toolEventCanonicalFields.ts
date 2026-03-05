@@ -1,3 +1,5 @@
+import { toolResultContentToText } from '../../../shared/utils/toolResultContent'
+
 type ToolResultLike = {
   content?: unknown
   is_error?: unknown
@@ -39,7 +41,7 @@ export function readCanonicalToolEndSummary(
   }
 
   const resultLike = result as ToolResultLike
-  const content = String(resultLike.content ?? '').trim()
+  const content = toolResultContentToText(resultLike.content as any).trim()
   if (content) return content
 
   if (Boolean(resultLike.is_error)) return 'error'

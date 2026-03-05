@@ -12,7 +12,7 @@ import { sourceFromInputKind } from '../shared/inputContracts.js'
 import { sourceFromRuntimeEventType } from '../shared/runtimeEventSource.js'
 import type { StreamEvent } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
-import { buildSkillToolSpecForCwd } from '../tools/modules/skill/index.js'
+import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
 import type {
   InputEnvelopeMeta,
@@ -31,6 +31,8 @@ import {
   type ReplMode,
 } from '../features/semantics/core/replModeTransition.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
+import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
+import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -56,6 +58,7 @@ export type TurnRunnerOptions = {
   defaultInputTtlMs?: number
   maxPendingInputsPerThread?: number
   ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
+  runtimeFlags?: RuntimeFlags
 }
 
 type RunningTurn = {
@@ -87,10 +90,6 @@ export const DEFAULT_INPUT_TTL_MS = 5 * 60_000
 export const DEFAULT_MAX_PENDING_INPUTS_PER_THREAD = 32
 const MANUAL_COMPACT_KEEP_LAST_TURNS = 0
 const COMPACT_BANNER_TEXT = 'Conversation compacted. Summary kept for future turns.'
-
-function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
-  return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
-}
 
 function sourceFromStreamEvent(event: StreamEvent): InputEnvelopeMeta['source'] {
   return sourceFromRuntimeEventType(event.type)
@@ -177,7 +176,7 @@ function toToolEndPayload(event: Extract<StreamEvent, { type: 'tool_end' }>): {
   lines: string[]
 } {
   const status: 'completed' | 'error' = event.result?.is_error ? 'error' : 'completed'
-  const raw = typeof event.result?.content === 'string' ? event.result.content : ''
+  const raw = toolResultContentToText(event.result?.content ?? '')
   const lines = raw
     .split('\n')
     .map((line) => line.trimEnd())
@@ -223,6 +222,7 @@ export class TurnRunner {
   private readonly defaultInputTtlMs: number
   private readonly maxPendingInputsPerThread: number
   private readonly ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
+  private readonly runtimeFlags: RuntimeFlags
   private readonly threadFilePathById = new Map<string, string>()
   private readonly runningByThreadId = new Map<string, RunningTurn>()
   private readonly autoTitleAttemptedThreadIds = new Set<string>()
@@ -247,6 +247,7 @@ export class TurnRunner {
       DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
     )
     this.ensureThreadFilePath = args.ensureThreadFilePath
+    this.runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(this.env ?? process.env)
   }
 
   async startTurn(params: TurnStartRuntimeParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
@@ -406,9 +407,16 @@ export class TurnRunner {
       }
       await writer.appendStableMsg(userMsg)
 
+      const toolExposure = resolveDeferredToolExposureForTurn({
+        cwd: running.cwd,
+        tools: this.tools,
+        deferredToolExposureEnabled: this.runtimeFlags.deferredToolExposureEnabled === true,
+        explicitSessionKey: `app-server:${running.threadId}`,
+      })
+      const exposureInjectedBlockCount = toolExposure.injectedPromptBlocks.length
       const user = {
         role: 'user' as const,
-        content: running.modelUserContent,
+        content: [...toolExposure.injectedPromptBlocks, ...running.modelUserContent],
       }
       const system = buildSystemPrompt({
         allowedSubagents: this.allowedSubagents,
@@ -416,7 +424,7 @@ export class TurnRunner {
         model: this.model,
         profile: this.promptProfile,
       })
-      const tools = patchToolsForTurn(this.tools, running.cwd)
+      const tools = toolExposure.toolsForTurn
 
       let assistantText = ''
       let nextHistoryForSnapshot: ChatHistory = history
@@ -612,6 +620,7 @@ export class TurnRunner {
           user,
           system,
           tools,
+          ...(toolExposure.resolveToolsForCall ? { resolveToolsForCall: toolExposure.resolveToolsForCall } : {}),
           onEvent,
           cwd: running.cwd,
           signal: running.abortController.signal,
@@ -622,14 +631,21 @@ export class TurnRunner {
             getReplMode,
             setReplMode,
             trace: turnTrace,
+            ...(toolExposure.toolExposureSessionKey
+              ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey }
+              : {}),
           },
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
         }
         nextHistoryForSnapshot =
-          running.semanticBlockCount > 0
-            ? stripInjectedBlocksFromHistory(nextHistory as ChatHistory, history.length, running.semanticBlockCount)
+          running.semanticBlockCount + exposureInjectedBlockCount > 0
+            ? stripInjectedBlocksFromHistory(
+                nextHistory as ChatHistory,
+                history.length,
+                running.semanticBlockCount + exposureInjectedBlockCount,
+              )
             : (nextHistory as ChatHistory)
       }
 

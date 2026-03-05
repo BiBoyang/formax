@@ -1,6 +1,7 @@
 import type { CanonicalEvent } from '../core/canonicalEvents'
 import { formatToolInputAsParamsText } from '../../tools/presentation/paramsText'
 import { readCanonicalToolEndSummary, readCanonicalToolUpdateLine } from './toolEventCanonicalFields'
+import { toolResultContentToText } from '../../../shared/utils/toolResultContent'
 
 type StreamPayloadEvent = Record<string, unknown>
 
@@ -38,7 +39,7 @@ function readToolInput(event: StreamPayloadEvent): Record<string, unknown> | und
 function readToolResultContent(event: StreamPayloadEvent): string {
   const result = event.result
   if (!result || typeof result !== 'object') return ''
-  return String((result as Record<string, unknown>).content ?? '')
+  return toolResultContentToText((result as Record<string, unknown>).content as any)
 }
 
 function readToolResultError(event: StreamPayloadEvent): boolean {

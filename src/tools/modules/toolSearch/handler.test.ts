@@ -30,11 +30,15 @@ describe('createToolSearchToolHandler', () => {
     )
 
     expect(result.is_error).not.toBe(true)
-    expect(result.content).toContain('Matched tools:')
+    expect(Array.isArray(result.content)).toBe(true)
+    if (Array.isArray(result.content)) {
+      expect(result.content.some((block: any) => block?.type === 'tool_reference' && block?.name === 'Bash')).toBe(true)
+    }
     expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual([
       'ToolSearch',
       'Bash',
     ])
+    expect(store.resolveToolsForModel(sessionKey)[1]?.defer_loading).toBe(true)
   })
 
   it('returns an error when query is missing', async () => {

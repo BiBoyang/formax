@@ -37,7 +37,7 @@ describe('AskUserQuestionToolHandler', () => {
     userInput.submitAnswers('ask-1', { Choice: 'A' })
 
     const res = await exec
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed).toEqual({ answers: { Choice: 'A' } })
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -74,7 +74,7 @@ describe('AskUserQuestionToolHandler', () => {
     )
 
     expect(res.is_error).toBeUndefined()
-    expect(JSON.parse(res.content)).toEqual({ answers: { Choice: 'B' } })
+    expect(JSON.parse(String(res.content))).toEqual({ answers: { Choice: 'B' } })
   })
 
   it('returns error when questions are missing', async () => {
@@ -131,7 +131,7 @@ describe('AskUserQuestionToolHandler', () => {
     userInput.submitAnswers('ask-2', { Choice: 'B' })
     const res = await exec
     expect(res.is_error).toBeUndefined()
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.answers).toEqual({ Choice: 'B' })
   })
 
@@ -202,7 +202,7 @@ describe('AskUserQuestionToolHandler', () => {
     )
 
     expect(res.is_error).toBeUndefined()
-    expect(JSON.parse(res.content)).toEqual({ answers: { existing: '1' } })
+    expect(JSON.parse(String(res.content))).toEqual({ answers: { existing: '1' } })
   })
 
   it('returns error when input includes unknown fields', async () => {

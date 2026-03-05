@@ -8,7 +8,10 @@ import { createRuntime } from '../../runtime/createRuntime.js'
 import { buildSystemPrompt } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
-import { buildSkillToolSpecForCwd } from '../../tools/modules/skill/index.js'
+import {
+  patchToolsForTurnWithSkillDescriptions,
+  resolveDeferredToolExposureForTurn,
+} from '../../tools/runtime/deferredToolExposureResolver.js'
 import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import { AbortError } from '../errors.js'
@@ -132,11 +135,6 @@ function isSystemPromptPresetInput(input: unknown): input is SystemPromptPresetI
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false
   const record = input as Record<string, unknown>
   return record.type === 'preset' && record.preset === 'claude_code'
-}
-
-function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
-  // Skill tool spec depends on workspace state and should be refreshed each turn.
-  return tools.map((tool) => (tool.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : tool))
 }
 
 function filterToolsForQuery(args: {
@@ -397,11 +395,24 @@ function assertPluginAndElicitationOptionsSupported(args: {
   void args.onElicitation
 }
 
-function toUserPromptMessage(prompt: string): PromptMessage {
+function toUserPromptMessage(prompt: string, injectedBlocks: PromptBlock[] = []): PromptMessage {
   return {
     role: 'user',
-    content: [{ type: 'text', text: prompt }],
+    content: [...injectedBlocks, { type: 'text', text: prompt }],
   }
+}
+
+function stripInjectedBlocksFromHistory(history: PromptMessage[], userIndex: number, injectedCount: number): PromptMessage[] {
+  if (injectedCount <= 0) return history
+  const message = history[userIndex]
+  if (!message || message.role !== 'user' || !Array.isArray(message.content)) return history
+  if (message.content.length <= injectedCount) return history
+
+  const stripped: PromptMessage = {
+    ...message,
+    content: message.content.slice(injectedCount),
+  }
+  return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
 }
 
 function promptMessageToText(message: PromptMessage): string {
@@ -1183,11 +1194,18 @@ async function* runQuery(
       })
       const externalSignal = combineOptionalSignals(options.signal, options.abortController?.signal)
       runSignal = combineSignals(externalSignal, controller.signal)
+      const getPatchedRuntimeTools = (runtimeBundle: RuntimeBundle): ToolDefinition[] =>
+        patchToolsForTurnWithSkillDescriptions({
+          tools: runtimeBundle.tools,
+          cwd,
+          includeAvailableSkillsInDescription:
+            runtimeBundle.runtimeFlags?.deferredToolExposureEnabled !== true,
+        })
       if (Array.isArray(options.tools) && options.tools.length > 0) {
         runtime = await createRuntime({ cwd, env })
         // Validate tools early so invalid tool lists fail before async prompt stream consumption.
         void selectToolsForQuery({
-          tools: patchToolsForTurn(runtime.tools, cwd),
+          tools: getPatchedRuntimeTools(runtime),
           toolsOption: options.tools,
         })
       }
@@ -1251,7 +1269,7 @@ async function* runQuery(
       })
 
       const selectedTools = selectToolsForQuery({
-        tools: patchToolsForTurn(runtime.tools, cwd),
+        tools: getPatchedRuntimeTools(runtime),
         toolsOption: options.tools,
       })
       const filteredTools = filterToolsForQuery({
@@ -1259,11 +1277,34 @@ async function* runQuery(
         allowedTools: allowTools,
         disallowedTools,
       })
-      const tools = parseToolDefinitions(
+      const toolExposure = resolveDeferredToolExposureForTurn({
+        cwd,
+        tools: filteredTools,
+        deferredToolExposureEnabled: runtime.runtimeFlags?.deferredToolExposureEnabled === true,
+        explicitSessionKey: sessionId,
+      })
+      const structuredOutputTool =
         outputFormat?.type === 'json_schema'
-          ? [...filteredTools, buildStructuredOutputToolDefinition(outputFormat.schema)]
-          : filteredTools,
-      )
+          ? buildStructuredOutputToolDefinition(outputFormat.schema)
+          : null
+      const toolsForTurn = structuredOutputTool
+        ? [...toolExposure.toolsForTurn, structuredOutputTool]
+        : toolExposure.toolsForTurn
+      const resolveToolsForCall = toolExposure.resolveToolsForCall
+        ? () => {
+            const resolved = toolExposure.resolveToolsForCall!()
+            return structuredOutputTool ? [...resolved, structuredOutputTool] : resolved
+          }
+        : undefined
+      const allowToolsForExec = allowTools
+        ? (() => {
+            if (!toolExposure.resolveToolsForCall) return allowTools
+            const merged = new Set(allowTools)
+            merged.add('ToolSearch')
+            return [...merged]
+          })()
+        : undefined
+      const tools = parseToolDefinitions(toolsForTurn)
 
       const initMessage: SystemMessage = {
         type: 'system',
@@ -1363,11 +1404,13 @@ async function* runQuery(
       let didStructuredOutputFail = false
 
       for (let attempt = 0; attempt <= outputMaxRetries; attempt += 1) {
-        nextHistory = await runtime.engine.runTurn({
+        const userForTurn = toUserPromptMessage(currentPrompt, toolExposure.injectedPromptBlocks)
+        const nextHistoryRaw = await runtime.engine.runTurn({
           history: currentHistory,
-          user: toUserPromptMessage(currentPrompt),
+          user: userForTurn,
           system,
           tools,
+          ...(resolveToolsForCall ? { resolveToolsForCall } : {}),
           onEvent,
           cwd,
           signal: runSignal,
@@ -1376,12 +1419,18 @@ async function* runQuery(
           exec: {
             interactive,
             replMode,
-            ...(allowTools ? { allowTools } : {}),
+            ...(allowToolsForExec ? { allowTools: allowToolsForExec } : {}),
             ...(disallowedTools ? { denyTools: disallowedTools } : {}),
+            ...(toolExposure.toolExposureSessionKey
+              ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey }
+              : {}),
           },
         })
-
-        nextHistory = parsePromptHistory(nextHistory)
+        nextHistory = stripInjectedBlocksFromHistory(
+          parsePromptHistory(nextHistoryRaw),
+          currentHistory.length,
+          toolExposure.injectedPromptBlocks.length,
+        )
         assistantBlocks = extractLastAssistantMessage(nextHistory)
 
         if (!(outputFormat?.type === 'json_schema')) {

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
+import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure.js'
 import { AbortError } from './errors.js'
 import { query } from './query.js'
 import type { QueryArgs, QueryMessage, QueryOptions, SDKUserMessage } from './types.js'
@@ -2826,6 +2827,72 @@ describe('sdk query()', () => {
     if (result?.type === 'result') {
       expect(result.subtype).toBe('success')
     }
+  })
+
+  it('uses deferred tool exposure semantics when runtime flag is enabled', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      const toolNames = (turnArgs.tools as ToolDefinition[]).map((tool) => tool.name)
+      expect(toolNames).toEqual(['ToolSearch'])
+      expect(typeof turnArgs.resolveToolsForCall).toBe('function')
+      expect(turnArgs.exec.allowTools).toContain('ToolSearch')
+      expect(turnArgs.exec.allowTools).toContain('Bash')
+
+      const userText = (turnArgs.user.content as Array<{ text?: string }>)
+        .map((block) => String(block?.text || ''))
+        .join('\n')
+      expect(userText).toContain('<available-deferred-tools>')
+      expect(userText).toContain('Bash')
+
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      tools: [createTool('Bash')],
+      runTurn,
+    })
+    runtime.runtimeFlags = {
+      sessionSaveEnabled: true,
+      isVitest: true,
+      hooksDebugEnabled: false,
+      userShellPath: null,
+      deferredToolExposureEnabled: true,
+      requestDryRunEnabled: false,
+      requestDryRunOutputDir: null,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'pwd',
+      options: {
+        allowedTools: ['Bash'],
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type !== 'system') return
+
+    const turnArgs = runTurn.mock.calls[0]?.[0]
+    expect(turnArgs.exec.toolExposureSessionKey).toBe(init.session_id)
+    const resolveToolsForCall = turnArgs.resolveToolsForCall as (() => ToolDefinition[]) | undefined
+    expect(resolveToolsForCall).toBeDefined()
+    if (resolveToolsForCall) {
+      expect(resolveToolsForCall().map((tool) => tool.name)).toEqual(['ToolSearch'])
+      const store = getDeferredToolExposureStore()
+      store.searchAndLoad({
+        sessionKey: init.session_id,
+        query: 'select:Bash',
+      })
+      expect(resolveToolsForCall().map((tool) => tool.name)).toEqual(['ToolSearch', 'Bash'])
+      expect(resolveToolsForCall()[1]?.defer_loading).toBe(true)
+    }
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type !== 'result') return
+    const userMessage = result.history.find((message) => message.role === 'user')
+    expect(userMessage?.content[0]).toEqual({ type: 'text', text: 'pwd' })
+    expect(JSON.stringify(userMessage?.content || [])).not.toContain('<available-deferred-tools>')
   })
 
   it('keeps default tool set when options.tools preset is provided', async () => {

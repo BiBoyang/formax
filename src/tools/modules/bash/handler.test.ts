@@ -29,7 +29,7 @@ describe('BashToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('running')
     expect(typeof parsed.task_id).toBe('string')
 
@@ -176,7 +176,7 @@ describe('BashToolHandler', () => {
       { id: '1', name: 'Bash', input: { command: nodeCommand('process.exit(7)'), run_in_background: true } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const exitTaskId = JSON.parse(exitResult.content).task_id as string
+    const exitTaskId = JSON.parse(String(exitResult.content)).task_id as string
     const exitWaited = await taskManager.wait(exitTaskId, { timeoutMs: 5000 })
     expect(exitWaited.snapshot.status).toBe('error')
     expect(exitWaited.snapshot.result?.content).toContain('Exit code 7')
@@ -190,7 +190,7 @@ describe('BashToolHandler', () => {
       } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const timedOutTaskId = JSON.parse(timedOutResult.content).task_id as string
+    const timedOutTaskId = JSON.parse(String(timedOutResult.content)).task_id as string
     const timedOutWaited = await taskManager.wait(timedOutTaskId, { timeoutMs: 5000 })
     expect(timedOutWaited.snapshot.status).toBe('error')
     expect(timedOutWaited.snapshot.result?.content).toContain(`Timed out after ${timeoutMs}ms`)
@@ -199,7 +199,7 @@ describe('BashToolHandler', () => {
       { id: '1', name: 'Bash', input: { command: nodeCommand(`setTimeout(()=>{}, 10000)`), run_in_background: true } } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const cancelTaskId = JSON.parse(cancelResult.content).task_id as string
+    const cancelTaskId = JSON.parse(String(cancelResult.content)).task_id as string
     taskManager.cancel(cancelTaskId)
     const cancelWaited = await taskManager.wait(cancelTaskId, { timeoutMs: 5000 })
     expect(cancelWaited.snapshot.status).toBe('error')
@@ -213,7 +213,7 @@ describe('BashToolHandler', () => {
       } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const exitSignalTaskId = JSON.parse(exitSignalResult.content).task_id as string
+    const exitSignalTaskId = JSON.parse(String(exitSignalResult.content)).task_id as string
     const exitSignalWaited = await taskManager.wait(exitSignalTaskId, { timeoutMs: 5000 })
     expect(exitSignalWaited.snapshot.status).toBe('error')
     const exitSignalContent = exitSignalWaited.snapshot.result?.content ?? ''
@@ -232,7 +232,7 @@ describe('BashToolHandler', () => {
       } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const throttledTaskId = JSON.parse(throttledUpdateResult.content).task_id as string
+    const throttledTaskId = JSON.parse(String(throttledUpdateResult.content)).task_id as string
     const throttledWaited = await taskManager.wait(throttledTaskId, { timeoutMs: 5000 })
     expect(throttledWaited.snapshot.status).toBe('completed')
     expect(throttledWaited.snapshot.result?.content).toContain('tick')
@@ -248,7 +248,7 @@ describe('BashToolHandler', () => {
       } as any,
       { cwd: process.cwd(), agentDepth: 0, replMode: 'normal' },
     )
-    const stderrTaskId = JSON.parse(stderrOnlyResult.content).task_id as string
+    const stderrTaskId = JSON.parse(String(stderrOnlyResult.content)).task_id as string
     const stderrWaited = await taskManager.wait(stderrTaskId, { timeoutMs: 5000 })
     expect(stderrWaited.snapshot.status).toBe('completed')
     expect(stderrWaited.snapshot.result?.content).toContain('stderr:')

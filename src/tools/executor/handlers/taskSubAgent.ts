@@ -4,6 +4,7 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../index'
 import type { ManagedTaskResult, TaskManager } from '../../runtime/taskManager'
 import { formatToolCallParts, formatToolResult } from '../../../shared/utils/toolFormatting'
+import { toolResultContentToText } from '../../../shared/utils/toolResultContent'
 import type { StreamEvent, TokenUsage } from '../../../streaming/types'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { loadRuntimeConfig } from '../../../config/config.js'
@@ -185,19 +186,19 @@ export function createTaskSubAgentToolHandler(deps: {
           if (ev.type === 'tool_end') {
             const idx = entries.findIndex((e) => e.id === ev.id)
             if (idx >= 0) {
-              const raw = ev.result?.content ?? ''
+              const raw = toolResultContentToText(ev.result?.content ?? '')
               const display =
-                ev.result?.is_error && typeof raw === 'string' && raw.startsWith('Error: ')
+                ev.result?.is_error && raw.startsWith('Error: ')
                   ? raw.slice('Error: '.length)
                   : raw
 
-              const formatted = formatToolResult(entries[idx]!.name, String(display || ''), Boolean(ev.result?.is_error))
+              const formatted = formatToolResult(entries[idx]!.name, display || '', Boolean(ev.result?.is_error))
 
               entries[idx] = {
                 ...entries[idx]!,
                 status: ev.result?.is_error ? 'error' : 'completed',
                 summary: formatted.summary,
-                rawResult: String(display || ''),
+                rawResult: display || '',
               }
               emitProgress()
             }

@@ -62,7 +62,7 @@ describe('ReadToolHandler', () => {
     )
 
     expect(result.is_error).toBeUndefined()
-    const parts = result.content.split('\t')
+    const parts = String(result.content).split('\t')
     expect(parts[0]).toBe('     1')
     expect(parts[1]).toBe('a'.repeat(2000))
     await fsp.unlink(tmpFile)

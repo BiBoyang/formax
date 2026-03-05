@@ -1,7 +1,10 @@
 import type { ToolDefinition } from '../types'
 import { toolSearchToolSpec } from '../modules/toolSearch/spec'
+import { toToolReferenceBlock } from '../../shared/utils/toolResultContent'
+import type { ToolResultContent } from '../../shared/toolContracts'
 
 const MAX_KEYWORD_MATCHES = 5
+const MAX_DEFERRED_EXPOSURE_SESSIONS = 200
 
 type DeferredSession = {
   catalog: ToolDefinition[]
@@ -13,7 +16,7 @@ export type DeferredToolSearchResult = {
   isError: boolean
   loadedNames: string[]
   matchedNames: string[]
-  content: string
+  content: ToolResultContent
 }
 
 export class DeferredToolExposureStore {
@@ -29,7 +32,7 @@ export class DeferredToolExposureStore {
 
     const catalog = args.tools
       .filter((tool) => tool && typeof tool.name === 'string' && tool.name !== toolSearchToolSpec.name)
-      .map((tool) => ({ ...tool }))
+      .map((tool) => ({ ...tool, defer_loading: true }))
 
     const catalogByLowerName = new Map<string, ToolDefinition>()
     for (const tool of catalog) {
@@ -43,11 +46,14 @@ export class DeferredToolExposureStore {
       }
     }
 
+    // Refresh insertion order so most recently touched sessions stay resident.
+    this.sessions.delete(key)
     this.sessions.set(key, {
       catalog,
       catalogByLowerName,
       loadedNames,
     })
+    this.trimExcessSessions()
   }
 
   buildAvailableDeferredToolsBlock(sessionKey: string): string {
@@ -113,11 +119,24 @@ export class DeferredToolExposureStore {
     lines.push('Currently loaded tools:')
     for (const name of loadedNames) lines.push(`- ${name}`)
 
+    const matchedToolBlocks = matched.map((tool) => toToolReferenceBlock(tool))
+
     return {
       isError: false,
       loadedNames,
       matchedNames,
-      content: lines.join('\n'),
+      content: [
+        { type: 'text', text: lines.join('\n') },
+        ...matchedToolBlocks,
+      ],
+    }
+  }
+
+  private trimExcessSessions(): void {
+    while (this.sessions.size > MAX_DEFERRED_EXPOSURE_SESSIONS) {
+      const oldestKey = this.sessions.keys().next().value
+      if (typeof oldestKey !== 'string' || !oldestKey) break
+      this.sessions.delete(oldestKey)
     }
   }
 }

@@ -1,6 +1,7 @@
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import { computeContextBudget } from './budget'
 import { estimatePromptTokens } from './estimate'
+import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 const MAX_TOOL_RESULT_CHARS = 8_000
 const MAX_EPHEMERAL_TEXT_CHARS = 8_000
@@ -117,7 +118,7 @@ function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): Prompt
     if (!b || typeof b !== 'object') continue
     if (b.type === 'text') chunks.push(String(b.text ?? ''))
     else if (b.type === 'thinking') chunks.push(String(b.thinking ?? ''))
-    else if (b.type === 'tool_result') chunks.push(String(b.content ?? ''))
+    else if (b.type === 'tool_result') chunks.push(toolResultContentToText(b.content))
     else if (b.type === 'tool_use') chunks.push(`[tool_use ${String(b.name ?? '')}]`)
     else chunks.push(JSON.stringify(b))
   }
@@ -193,7 +194,7 @@ function truncateHotContent(msg: PromptMessage): PromptMessage {
   let changed = false
   const next = msg.content.map((b: any) => {
     if (b?.type === 'tool_result') {
-      const raw = typeof b.content === 'string' ? b.content : String(b.content ?? '')
+      const raw = toolResultContentToText(b.content)
       if (raw.length <= MAX_TOOL_RESULT_CHARS) return b
       changed = true
       return {

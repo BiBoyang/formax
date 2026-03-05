@@ -71,6 +71,7 @@ const toolDefinitionSchema = z
     name: z.string(),
     description: z.string(),
     input_schema: z.unknown(),
+    defer_loading: z.boolean().optional(),
   })
   .strict()
 
@@ -528,7 +529,7 @@ const streamEventSchema = z.discriminatedUnion('type', [
       result: z
         .object({
           tool_use_id: z.string(),
-          content: z.string(),
+          content: z.unknown(),
           is_error: z.boolean().optional(),
           extraTextBlocks: z.array(z.string()).optional(),
         })

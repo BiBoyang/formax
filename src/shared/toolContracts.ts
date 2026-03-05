@@ -2,6 +2,7 @@ export type ToolDefinition = {
   name: string
   description: string
   input_schema: unknown
+  defer_loading?: boolean
 }
 
 export type ToolCall = {
@@ -12,8 +13,28 @@ export type ToolCall = {
 
 export type ToolResult = {
   tool_use_id: string
-  content: string
+  content: ToolResultContent
   is_error?: boolean
   // Optional additional text blocks appended after tool_result in the next model call.
   extraTextBlocks?: string[]
 }
+
+export type ToolResultTextBlock = {
+  type: 'text'
+  text: string
+}
+
+export type ToolReferenceBlock = {
+  type: 'tool_reference'
+  name: string
+  description: string
+  input_schema: unknown
+  defer_loading?: boolean
+}
+
+export type ToolResultContentBlock =
+  | ToolResultTextBlock
+  | ToolReferenceBlock
+  | Record<string, unknown>
+
+export type ToolResultContent = string | ToolResultContentBlock[]

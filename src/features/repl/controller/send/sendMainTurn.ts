@@ -11,11 +11,7 @@ import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
-import {
-  buildAvailableSkillsSystemReminderText,
-  buildSkillToolSpecForCwdWithOptions,
-} from '../../../../tools/modules/skill'
-import { getDeferredToolExposureStore, resolveToolExposureSessionKey } from '../../../../tools/runtime/deferredToolExposure'
+import { resolveDeferredToolExposureForTurn } from '../../../../tools/runtime/deferredToolExposureResolver'
 import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
 import type { PlanSessionManager } from '../../planSession'
@@ -110,40 +106,12 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
 
     const cwd = process.cwd()
     const deferredToolExposureEnabled = args.runtimeFlags?.deferredToolExposureEnabled === true
-    const baseToolsForTurn = patchToolsForTurn(args.tools, cwd, {
-      includeAvailableSkillsInDescription: !deferredToolExposureEnabled,
+    const toolExposure = resolveDeferredToolExposureForTurn({
+      cwd,
+      tools: args.tools,
+      deferredToolExposureEnabled,
+      explicitSessionKey: args.deferredToolExposureSessionKeyRef?.current,
     })
-    const deferredToolStore = deferredToolExposureEnabled ? getDeferredToolExposureStore() : null
-    const deferredToolExposureSessionKey = deferredToolExposureEnabled
-      ? resolveToolExposureSessionKey({
-          explicitSessionKey: args.deferredToolExposureSessionKeyRef?.current,
-          cwd,
-        })
-      : null
-
-    if (deferredToolStore && deferredToolExposureSessionKey) {
-      deferredToolStore.registerCatalog({
-        sessionKey: deferredToolExposureSessionKey,
-        tools: baseToolsForTurn,
-      })
-    }
-    const deferredToolExposureBlock: PromptBlock | null = deferredToolStore && deferredToolExposureSessionKey
-      ? {
-          type: 'text',
-          text: deferredToolStore.buildAvailableDeferredToolsBlock(deferredToolExposureSessionKey),
-          cache_control: { type: 'ephemeral' },
-        }
-      : null
-    const availableSkillsReminderText = deferredToolExposureEnabled
-      ? buildAvailableSkillsSystemReminderText(cwd)
-      : null
-    const availableSkillsReminderBlock: PromptBlock | null = availableSkillsReminderText
-      ? {
-          type: 'text',
-          text: availableSkillsReminderText,
-          cache_control: { type: 'ephemeral' },
-        }
-      : null
 
     const turnInput = buildTurnInput({
       rawText: args.text,
@@ -154,8 +122,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     })
 
     const injectedBlocks: PromptBlock[] = [
-      ...(deferredToolExposureBlock ? [deferredToolExposureBlock] : []),
-      ...(availableSkillsReminderBlock ? [availableSkillsReminderBlock] : []),
+      ...toolExposure.injectedPromptBlocks,
       ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...turnInput.semanticBlocks,
@@ -248,13 +215,11 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       getReplMode: args.getReplMode,
       setReplMode: args.setReplMode,
       getPlanPath: () => args.planSession?.getPlanPath() ?? null,
-      ...(deferredToolExposureSessionKey ? { toolExposureSessionKey: deferredToolExposureSessionKey } : {}),
+      ...(toolExposure.toolExposureSessionKey ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey } : {}),
     }
     const historyLen = prunedHistory.length
-    const resolveToolsForCall = deferredToolStore && deferredToolExposureSessionKey
-      ? () => deferredToolStore.resolveToolsForModel(deferredToolExposureSessionKey)
-      : undefined
-    const toolsForTurn = resolveToolsForCall ? resolveToolsForCall() : baseToolsForTurn
+    const resolveToolsForCall = toolExposure.resolveToolsForCall
+    const toolsForTurn = toolExposure.toolsForTurn
     const nextHistory = await args.engine.runTurn({
       history: prunedHistory,
       user: prunedUser,
@@ -342,24 +307,6 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
   }
 
   return { userMessageId: userMsg.id, turnOutcome }
-}
-
-function patchToolsForTurn(
-  tools: ToolDefinition[],
-  cwd: string,
-  options?: {
-    includeAvailableSkillsInDescription?: boolean
-  },
-): ToolDefinition[] {
-  const includeAvailableSkillsInDescription = options?.includeAvailableSkillsInDescription !== false
-
-  // Some tools (e.g. Skill) depend on the current workspace state and should be
-  // regenerated per turn so the model sees up-to-date info.
-  return tools.map((t) =>
-    t.name === 'Skill'
-      ? buildSkillToolSpecForCwdWithOptions(cwd, { includeAvailableSkillsInDescription })
-      : t,
-  )
 }
 
 function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {

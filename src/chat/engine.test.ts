@@ -8,6 +8,8 @@ import type { AuditEventV1 } from '../core/audit/schema.js'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { createToolSearchToolHandler } from '../tools/modules/toolSearch/handler'
+import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure'
 
 describe('ChatEngine', () => {
   it('captures request payload and skips network when request dry-run is enabled', async () => {
@@ -122,6 +124,117 @@ describe('ChatEngine', () => {
     expect(out[2]!.role).toBe('user')
     expect((out[2]!.content[0] as any).type).toBe('tool_result')
     expect(events.some((e) => e.type === 'complete')).toBe(true)
+  })
+
+  it('supports deferred tool chain: pwd -> ToolSearch(select:Bash) -> Bash', async () => {
+    const sessionKey = 'engine-deferred-pwd-chain'
+    const store = getDeferredToolExposureStore()
+    store.resetSession(sessionKey)
+    store.registerCatalog({
+      sessionKey,
+      tools: [{ name: 'Bash', description: 'Execute shell command', input_schema: { type: 'object' } }],
+    })
+
+    const toolSearch = createToolSearchToolHandler()
+    const toolsSeenByCall: string[][] = []
+    let streamCount = 0
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        toolsSeenByCall.push((args.tools || []).map((tool) => tool.name))
+        streamCount += 1
+
+        if (streamCount === 1) {
+          const toolCall = {
+            id: 'tool-search-1',
+            name: 'ToolSearch',
+            input: { query: 'select:Bash' },
+          }
+          const toolResult = await args.executeTool(toolCall)
+          return {
+            assistantBlocks: [
+              { type: 'tool_use', id: toolCall.id, name: toolCall.name, input: toolCall.input },
+            ],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+
+        if (streamCount === 2) {
+          const toolCall = {
+            id: 'bash-1',
+            name: 'Bash',
+            input: { command: 'pwd' },
+          }
+          const toolResult = await args.executeTool(toolCall)
+          return {
+            assistantBlocks: [
+              { type: 'tool_use', id: toolCall.id, name: toolCall.name, input: toolCall.input },
+            ],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executedToolNames: string[] = []
+    const executor: ToolExecutor = async (call, ctx) => {
+      executedToolNames.push(call.name)
+      if (call.name === 'ToolSearch') {
+        return await toolSearch.execute(call, {
+          ...ctx,
+          cwd: '/repo',
+          agentDepth: 0,
+          toolExposureSessionKey: sessionKey,
+        })
+      }
+      if (call.name === 'Bash') {
+        return { tool_use_id: call.id, content: '/repo\n' }
+      }
+      return { tool_use_id: call.id, content: `Error: unsupported tool ${call.name}`, is_error: true }
+    }
+
+    const engine = createChatEngine({ client, executor })
+    const history = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'pwd' }] },
+      system: [],
+      tools: store.resolveToolsForModel(sessionKey),
+      resolveToolsForCall: () => store.resolveToolsForModel(sessionKey),
+      onEvent: (_event) => undefined,
+      cwd: '/repo',
+      exec: {
+        toolExposureSessionKey: sessionKey,
+      },
+    })
+
+    expect(executedToolNames).toEqual(['ToolSearch', 'Bash'])
+    expect(toolsSeenByCall).toEqual([
+      ['ToolSearch'],
+      ['ToolSearch', 'Bash'],
+      ['ToolSearch', 'Bash'],
+    ])
+    expect(store.resolveToolsForModel(sessionKey).find((tool) => tool.name === 'Bash')?.defer_loading).toBe(true)
+
+    const toolResultCarrier = history.find(
+      (message) =>
+        message.role === 'user' &&
+        message.content.some((block: any) => block?.type === 'tool_result' && block?.tool_use_id === 'tool-search-1'),
+    )
+    const toolResultBlock = (toolResultCarrier?.content || []).find(
+      (block: any) => block?.type === 'tool_result' && block?.tool_use_id === 'tool-search-1',
+    ) as any
+    expect(Array.isArray(toolResultBlock?.content)).toBe(true)
+    expect(
+      (toolResultBlock?.content as any[]).some((block) => block?.type === 'tool_reference' && block?.name === 'Bash'),
+    ).toBe(true)
   })
 
   it('appends ToolResult.extraTextBlocks as text blocks after tool_result', async () => {

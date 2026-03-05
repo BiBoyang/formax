@@ -4,6 +4,7 @@ import type { ToolResult } from '../../../../tools/types'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'
 import { parseBackgroundTaskId, parseTaskTranscript } from '../../../semantics/selectors/taskResultParsing'
 import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
+import { toolResultContentToText } from '../../../../shared/utils/toolResultContent'
 
 export type TaskToolCompletionStats = {
   startedAt: number
@@ -25,7 +26,7 @@ export function buildCompletedToolMessage(args: {
   const priorToolInfo = args.toolMessage?.toolInfo
   const baseId = args.toolMessage?.id ?? `tool-${args.toolUseId}`
   const baseTimestamp = args.toolMessage?.timestamp ?? new Date()
-  const rawResult = args.result.content
+  const rawResult = toolResultContentToText(args.result.content)
   const displayResult =
     args.result.is_error && rawResult.startsWith('Error: ') ? rawResult.slice('Error: '.length) : rawResult
 

@@ -1,6 +1,7 @@
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamTurnResult, TokenUsage } from '../types'
+import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 export interface OpenAiStreamClientConfig {
   apiKey: string
@@ -144,7 +145,7 @@ function promptMessagesToOpenAiMessages(
       if (!block || typeof block !== 'object') continue
       const type = String((block as any).type || '')
       if (type === 'tool_result') {
-        const rawContent = String((block as any).content || '')
+        const rawContent = toolResultContentToText((block as any).content ?? '')
         const isError = Boolean((block as any).is_error)
         const toolContent = isError
           ? rawContent

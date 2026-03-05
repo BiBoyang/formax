@@ -42,11 +42,21 @@ describe('DeferredToolExposureStore', () => {
 
     expect(result.isError).toBe(false)
     expect(result.matchedNames).toEqual(['Read', 'Bash'])
+    expect(Array.isArray(result.content)).toBe(true)
+    if (Array.isArray(result.content)) {
+      const refs = result.content.filter((block: any) => block?.type === 'tool_reference')
+      expect(refs.map((block: any) => block.name)).toEqual(['Read', 'Bash'])
+      expect(refs.every((block: any) => block.defer_loading === true)).toBe(true)
+    }
     expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual([
       'ToolSearch',
       'Bash',
       'Read',
     ])
+    expect(store.resolveToolsForModel(sessionKey).every((tool) => {
+      if (tool.name === 'ToolSearch') return true
+      return tool.defer_loading === true
+    })).toBe(true)
   })
 
   it('supports keyword search and returns errors for empty matches', () => {
@@ -74,6 +84,22 @@ describe('DeferredToolExposureStore', () => {
     })
     expect(miss.isError).toBe(true)
     expect(miss.matchedNames).toEqual([])
+  })
+
+  it('evicts oldest sessions when catalog registrations exceed cap', () => {
+    const store = new DeferredToolExposureStore()
+    const total = 220
+    for (let i = 0; i < total; i += 1) {
+      store.registerCatalog({
+        sessionKey: `session-${i}`,
+        tools: [{ name: 'Bash', description: 'Run shell', input_schema: {} }],
+      })
+    }
+
+    expect(store.resolveToolsForModel('session-0').map((tool) => tool.name)).toEqual(['ToolSearch'])
+    expect(store.buildAvailableDeferredToolsBlock('session-0')).toBe('<available-deferred-tools>\n</available-deferred-tools>')
+    expect(store.resolveToolsForModel(`session-${total - 1}`).map((tool) => tool.name)).toEqual(['ToolSearch'])
+    expect(store.buildAvailableDeferredToolsBlock(`session-${total - 1}`)).toContain('Bash')
   })
 })
 

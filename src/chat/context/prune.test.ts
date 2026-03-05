@@ -358,7 +358,7 @@ describe('pruneForPromptBudget', () => {
     expect(out.messages.length).toBeGreaterThan(0)
     const flattened = JSON.stringify(out.messages)
     expect(flattened).toContain('internal reasoning')
-    expect(flattened).toContain('[object Object]')
+    expect(flattened).not.toContain('[object Object]')
     expect(flattened).toContain('unknown_kind')
   })
 

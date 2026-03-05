@@ -95,7 +95,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('completed')
     expect(parsed.summary).toBe('looks good')
     expect(parsed.response).toBe('looks good')
@@ -179,7 +179,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.summary).toHaveLength(501)
     expect(parsed.summary.endsWith('…')).toBe(true)
   })
@@ -221,7 +221,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('completed')
     expect(parsed.summary).toBe('ok')
     expect(parsed.artifacts).toEqual(['a.txt'])
@@ -265,7 +265,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('error')
     expect(parsed.error).toBe('boom')
     expect(parsed.agent_id).toBe('agent-1')
@@ -305,7 +305,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBe(true)
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('error')
     expect(parsed.summary).toBe('')
   })
@@ -571,7 +571,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
 
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('running')
     expect(parsed.agent_id).toBe('resume-agent-123')
     expect(typeof parsed.task_id).toBe('string')
@@ -680,8 +680,70 @@ describe('TaskSubAgentToolHandler', () => {
 
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(result.is_error).toBeFalsy()
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('completed')
+  })
+
+  it('normalizes structured nested tool_end results instead of rendering object dumps', async () => {
+    const agent = {
+      name: 'code-reviewer',
+      description: 'Reviews code',
+      tools: [],
+      systemPrompt: 'Return summary only.',
+    }
+    const registryOk: SubAgentRegistry = {
+      async loadFromDirectory() {},
+      async loadFromDirectories() {},
+      get() {
+        return agent
+      },
+      list() {
+        return [{ name: agent.name, description: agent.description }]
+      },
+    }
+    const runner: SubAgentRunner = {
+      async run(args) {
+        args.onEvent?.({ type: 'tool_start', id: 't1', name: 'ToolSearch' })
+        args.onEvent?.({ type: 'tool_input', id: 't1', input: { query: 'select:Bash' } })
+        args.onEvent?.({
+          type: 'tool_end',
+          id: 't1',
+          result: {
+            tool_use_id: 't1',
+            content: [
+              { type: 'text', text: 'Loaded 1 tool(s) for query: select:Bash' },
+              {
+                type: 'tool_reference',
+                name: 'Bash',
+                description: 'Execute shell command',
+                input_schema: { type: 'object' },
+                defer_loading: true,
+              },
+            ],
+          },
+        } as any)
+        return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+      },
+    }
+
+    const handler = createTaskSubAgentToolHandler({
+      registry: registryOk,
+      runner,
+      taskManager: new TaskManager(),
+    })
+    const call: ToolCall = {
+      id: '1',
+      name: 'Task',
+      input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review' },
+    }
+
+    const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
+    expect(result.is_error).toBeFalsy()
+    const parsed = JSON.parse(String(result.content))
+    const transcript = Array.isArray(parsed.transcript) ? parsed.transcript.join('\n') : ''
+    expect(transcript).toContain('Loaded 1 tool(s)')
+    expect(transcript).toContain('Bash')
+    expect(transcript).not.toContain('[object Object]')
   })
 
   it('supports run_in_background and stores result', async () => {
@@ -724,7 +786,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
 
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('running')
     expect(typeof parsed.task_id).toBe('string')
     expect(parsed.agent_id).toBe(parsed.task_id)
@@ -772,7 +834,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
 
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('completed')
     expect(typeof waited.snapshot.result?.content).toBe('string')
@@ -808,7 +870,7 @@ describe('TaskSubAgentToolHandler', () => {
       input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
     }
     const result = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
     expect(waited.snapshot.result?.is_error).toBe(true)
   })
@@ -883,7 +945,7 @@ describe('TaskSubAgentToolHandler', () => {
     expect(Array.isArray(lastUpdate.middleLines)).toBe(true)
     expect(lastUpdate.middleLines.some((l: string) => l.includes('+3 more tool uses'))).toBe(true)
 
-    const parsed = JSON.parse(result.content)
+    const parsed = JSON.parse(String(result.content))
     const transcript = Array.isArray(parsed.transcript) ? parsed.transcript.join('\n') : ''
     expect(transcript).toContain('… +5 more')
     expect(transcript).toContain('Exit code 1')

@@ -1,3 +1,5 @@
+import type { ToolResultContent } from '../shared/toolContracts'
+
 export type CacheControl = { type: 'ephemeral' }
 
 export type TextBlock = {
@@ -16,7 +18,7 @@ export type ToolUseBlock = {
 export type ToolResultBlock = {
   type: 'tool_result'
   tool_use_id: string
-  content: string
+  content: ToolResultContent
   is_error?: boolean
 }
 
@@ -38,4 +40,3 @@ export type PromptMessage = {
   role: 'user' | 'assistant'
   content: PromptBlock[]
 }
-

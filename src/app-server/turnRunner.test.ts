@@ -7,6 +7,7 @@ import type { ChatHistory } from '../chat/engine.js'
 import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
 import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
+import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure.js'
 import * as sessionTitle from '../features/sessionTitle/index.js'
 import { __turnRunnerTestOnly, TurnRunner } from './turnRunner.js'
 
@@ -223,6 +224,64 @@ describe('TurnRunner', () => {
         (n) => n.method === 'turn/inputRequested' && n.params?.input?.kind === 'approval',
       ),
     ).toBe(true)
+  })
+
+  it('applies deferred tool exposure semantics when runtime flag is enabled', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    getDeferredToolExposureStore().resetSession(`app-server:${fixture.threadId}`)
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(args.tools.map((tool: any) => tool.name)).toEqual(['ToolSearch'])
+      expect(typeof args.resolveToolsForCall).toBe('function')
+      expect(args.exec.toolExposureSessionKey).toBe(`app-server:${fixture.threadId}`)
+
+      const userText = args.user.content.map((block: any) => String(block?.text || '')).join('\n')
+      expect(userText).toContain('<available-deferred-tools>')
+      expect(userText).toContain('Bash')
+
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: {
+        runTurn: engineRunTurn,
+      },
+      tools: [{ name: 'Bash', description: 'shell', input_schema: {} } as any],
+      allowedSubagents: [],
+      model: 'test-model',
+      promptProfile: 'lite',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      runtimeFlags: {
+        sessionSaveEnabled: true,
+        isVitest: true,
+        hooksDebugEnabled: false,
+        userShellPath: null,
+        deferredToolExposureEnabled: true,
+        requestDryRunEnabled: false,
+        requestDryRunOutputDir: null,
+      },
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'pwd' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    expect(engineRunTurn).toHaveBeenCalled()
+
+    const callArgs = engineRunTurn.mock.calls[0]?.[0]
+    const resolveToolsForCall = callArgs?.resolveToolsForCall as (() => any[]) | undefined
+    expect(resolveToolsForCall).toBeDefined()
+    if (resolveToolsForCall) {
+      expect(resolveToolsForCall().map((tool: any) => tool.name)).toEqual(['ToolSearch'])
+      const store = getDeferredToolExposureStore()
+      store.searchAndLoad({
+        sessionKey: `app-server:${fixture.threadId}`,
+        query: 'select:Bash',
+      })
+      expect(resolveToolsForCall().map((tool: any) => tool.name)).toEqual(['ToolSearch', 'Bash'])
+      expect(resolveToolsForCall()[1]?.defer_loading).toBe(true)
+    }
   })
 
   it('covers private runner utilities and guard branches', async () => {

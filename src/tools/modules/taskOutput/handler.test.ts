@@ -26,7 +26,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('running')
   })
 
@@ -47,7 +47,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('running')
     expect(parsed.output).toBe('partial')
   })
@@ -65,7 +65,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('completed')
     expect(parsed.output).toBe('ok')
   })
@@ -83,7 +83,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('running')
     expect(parsed.timed_out).toBe(true)
   })
@@ -105,7 +105,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('running')
     expect(parsed.timed_out).toBe(true)
     expect(parsed.output).toBe('partial')
@@ -118,7 +118,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe('missing')
     expect(parsed.output).toContain("Task 'missing' not found")
@@ -136,7 +136,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toBe('bad')
   })
@@ -148,7 +148,7 @@ describe('TaskOutputToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toContain('Missing required field task_id')
   })
@@ -161,7 +161,7 @@ describe('TaskOutputToolHandler', () => {
     })
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toContain('Missing required field task_id')
   })
@@ -174,7 +174,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toContain('TaskOutput.input must be an object')
   })
@@ -187,7 +187,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toContain('Missing required field task_id')
   })
@@ -204,7 +204,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe(taskId)
     expect(parsed.output).toContain('timeout must be a number')
@@ -221,7 +221,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe(taskId)
     expect(parsed.output).toContain('timeout must be >= 0')
@@ -238,7 +238,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe(taskId)
     expect(parsed.output).toContain('timeout must be <=')
@@ -255,7 +255,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.task_id).toBe(taskId)
     expect(parsed.output).toContain('Error:')
@@ -278,7 +278,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toBe('(no output)')
   })
@@ -298,7 +298,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toBe('(no output)')
   })
@@ -318,7 +318,7 @@ describe('TaskOutputToolHandler', () => {
     )
 
     expect(res.is_error).toBeUndefined()
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('completed')
     expect(parsed.output).toBe('done')
   })
@@ -335,7 +335,7 @@ describe('TaskOutputToolHandler', () => {
 
     const res = await handler.execute(call, { cwd: process.cwd(), agentDepth: 0 })
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed.status).toBe('error')
     expect(parsed.output).toContain('Error: boom')
   })

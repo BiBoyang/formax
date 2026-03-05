@@ -71,7 +71,7 @@ describe('KillShellToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    const parsed = JSON.parse(res.content)
+    const parsed = JSON.parse(String(res.content))
     expect(parsed).toEqual({ shell_id: taskId, status: 'completed', ok: false })
   })
 
@@ -98,7 +98,7 @@ describe('KillShellToolHandler', () => {
     )
 
     expect(res.is_error).toBe(true)
-    expect(JSON.parse(res.content)).toEqual({ shell_id: 's1', ok: false })
+    expect(JSON.parse(String(res.content))).toEqual({ shell_id: 's1', ok: false })
   })
 
   it('returns a compact strict input error for unexpected fields', async () => {
@@ -153,7 +153,7 @@ describe('KillShellToolHandler', () => {
       { cwd: process.cwd(), agentDepth: 0 },
     )
 
-    expect(JSON.parse(result.content)).toEqual({ shell_id: taskId, ok: true })
+    expect(JSON.parse(String(result.content))).toEqual({ shell_id: taskId, ok: true })
 
     const waited = await taskManager.wait(taskId, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('error')
