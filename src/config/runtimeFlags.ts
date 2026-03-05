@@ -3,6 +3,7 @@ export type RuntimeFlags = {
   isVitest: boolean
   hooksDebugEnabled: boolean
   userShellPath: string | null
+  deferredToolExposureEnabled: boolean
 }
 
 function normalizeOptionalString(value: unknown): string | null {
@@ -29,5 +30,6 @@ export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): Runtim
     isVitest: String(env.VITEST ?? '').trim().length > 0,
     hooksDebugEnabled: parseTruthy(env.FORMAX_HOOKS_DEBUG),
     userShellPath: normalizeOptionalString(env.SHELL),
+    deferredToolExposureEnabled: parseTruthy(env.FORMAX_DEFERRED_TOOL_EXPOSURE),
   }
 }

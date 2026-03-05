@@ -12,6 +12,7 @@ import { formatErrorSubline } from '../shared/errorSubline'
 import { makeMessageId } from '../shared/ids'
 import { isAbortLikeError } from '../shared/utils'
 import { maybeRunAutoCompactBeforeTurn } from './sendAutoCompact'
+import { getDeferredToolExposureStore } from '../../../../tools/runtime/deferredToolExposure'
 
 vi.mock('../../../../chat/context/budget', () => ({
   computeContextStats: vi.fn(),
@@ -367,6 +368,71 @@ describe('runMainSendTurn', () => {
     expect(result.turnOutcome).toBe('completed')
     expect(harness._spies.setLoadingText).toHaveBeenCalledWith('Plan Thinking')
     expect(existingReminderService.generateInjectedBlocks).toHaveBeenCalledTimes(1)
+  })
+
+  it('enables deferred tool exposure in REPL when runtime flag is set', async () => {
+    const sessionKey = 'repl-deferred-test'
+    getDeferredToolExposureStore().resetSession(sessionKey)
+
+    const harness = createHarness({
+      deps: {
+        engine: {
+          runTurn: vi.fn(async (args: any) => [
+            ...(args.history || []),
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'assistant' }] },
+          ]),
+        },
+        cfg: createCfg(),
+        promptProfile: undefined,
+        planSession: {
+          getPlanPath: () => '/plans/current.md',
+          startNewPlan: () => '/plans/new.md',
+        },
+        reminderServiceRef: { current: null },
+        tools: [{ name: 'Skill' }, { name: 'Read' }],
+        runtimeFlags: { deferredToolExposureEnabled: true },
+        allowedSubagents: [],
+        mode: 'normal',
+        getReplMode: () => 'normal',
+        setReplMode: vi.fn(),
+        handleEvent: vi.fn(),
+      },
+      refs: {
+        historyRef: { current: [] as any[] },
+        pendingInjectedBlocksRef: { current: [] as any[] },
+        contextBudgetConfigRef: { current: null },
+        abortControllerRef: { current: null as AbortController | null },
+        assistantBufferRef: { current: '' },
+        thinkingBufferRef: { current: '' },
+        thinkingLastFlushAtRef: { current: 0 },
+        currentAssistantIdRef: { current: null as string | null },
+        pendingExitPlanReminderRef: { current: true },
+        deferredToolExposureSessionKeyRef: { current: sessionKey },
+        sendSeqRef: { current: 0 },
+        lastAutoCompactSeqRef: { current: 0 },
+        onCompactLifecycle: vi.fn(),
+      },
+    })
+
+    await runMainSendTurn(harness as any)
+
+    const callArgs = harness.deps.engine.runTurn.mock.calls[0][0]
+    expect(callArgs.tools.map((tool: any) => tool.name)).toEqual(['ToolSearch'])
+    expect(typeof callArgs.resolveToolsForCall).toBe('function')
+
+    const userText = callArgs.user.content
+      .map((block: any) => String(block?.text || ''))
+      .join('\n')
+    expect(userText).toContain('<available-deferred-tools>')
+    expect(userText).toContain('Read')
+    expect(userText).toContain('Skill')
+
+    getDeferredToolExposureStore().searchAndLoad({
+      sessionKey,
+      query: 'select:Read',
+    })
+    expect(callArgs.resolveToolsForCall().map((tool: any) => tool.name)).toEqual(['ToolSearch', 'Read'])
   })
 
   it('uses Thinking fallback for llm slash effect without loadingText', async () => {

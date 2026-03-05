@@ -47,6 +47,8 @@
 - Harness Governance（2026-02-23）：`docs/learnings/2026-02-23-harness-governance.md`
 - App-server Session Grouping 与 Hidden CWDs（2026-02-25）：`docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
 - Web User Message Canonical（2026-02-26）：`docs/learnings/2026-02-26-web-user-message-canonical.md`
+- Claude Code Current Capture Keypoints（2026-03-05）：`docs/learnings/2026-03-05-cc-current-capture-keypoints-toolsearch-and-prompts.md`
+- Formax Capture vs CC Deferred Tool Exposure（2026-03-05）：`docs/learnings/2026-03-05-formax-capture-224737-vs-cc-deferred-tool-exposure.md`
 
 ## 盘点（Inventories）
 

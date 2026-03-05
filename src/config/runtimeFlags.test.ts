@@ -8,14 +8,17 @@ describe('createRuntimeFlags', () => {
     expect(flags.isVitest).toBe(false)
     expect(flags.hooksDebugEnabled).toBe(false)
     expect(flags.userShellPath).toBe(null)
+    expect(flags.deferredToolExposureEnabled).toBe(false)
   })
 
   it('parses truthy flags and normalized shell values', () => {
     const flags = createRuntimeFlags({
       FORMAX_HOOKS_DEBUG: 'Yes',
+      FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
       SHELL: ' /bin/bash ',
     })
     expect(flags.hooksDebugEnabled).toBe(true)
+    expect(flags.deferredToolExposureEnabled).toBe(true)
     expect(flags.userShellPath).toBe('/bin/bash')
   })
 

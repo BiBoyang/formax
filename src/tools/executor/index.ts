@@ -39,6 +39,9 @@ export type ExecutionContext = {
 
   // Optional trace context for audit/event correlation.
   trace?: TraceContext
+
+  // Optional session key for deferred tool exposure (ToolSearch).
+  toolExposureSessionKey?: string
 }
 
 export interface ToolHandler {
@@ -74,6 +77,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     denyTools: ctx.denyTools,
     hooks: ctx.hooks,
     trace: ctx.trace,
+    toolExposureSessionKey: ctx.toolExposureSessionKey,
   }
 }
 

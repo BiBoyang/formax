@@ -5,12 +5,14 @@ import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindo
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { RuntimeConfig } from '../../../../config/config'
+import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import { buildSkillToolSpecForCwd } from '../../../../tools/modules/skill'
+import { getDeferredToolExposureStore, resolveToolExposureSessionKey } from '../../../../tools/runtime/deferredToolExposure'
 import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
 import type { PlanSessionManager } from '../../planSession'
@@ -37,6 +39,7 @@ type RunMainSendTurnArgs = {
     planSession?: PlanSessionManager | null
     reminderServiceRef: { current: ReminderService | null }
     tools: ToolDefinition[]
+    runtimeFlags?: RuntimeFlags
     allowedSubagents: Array<{ name: string; description: string }>
     mode: ReplMode
     getReplMode: () => ReplMode
@@ -45,6 +48,7 @@ type RunMainSendTurnArgs = {
   }
   refs: SendTurnSharedRefs & {
     pendingExitPlanReminderRef: { current: boolean }
+    deferredToolExposureSessionKeyRef?: { current: string }
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
@@ -102,6 +106,30 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         : args.planSession?.getPlanPath() ?? null
 
     const cwd = process.cwd()
+    const baseToolsForTurn = patchToolsForTurn(args.tools, cwd)
+    const deferredToolExposureEnabled = args.runtimeFlags?.deferredToolExposureEnabled === true
+    const deferredToolStore = deferredToolExposureEnabled ? getDeferredToolExposureStore() : null
+    const deferredToolExposureSessionKey = deferredToolExposureEnabled
+      ? resolveToolExposureSessionKey({
+          explicitSessionKey: args.deferredToolExposureSessionKeyRef?.current,
+          cwd,
+        })
+      : null
+
+    if (deferredToolStore && deferredToolExposureSessionKey) {
+      deferredToolStore.registerCatalog({
+        sessionKey: deferredToolExposureSessionKey,
+        tools: baseToolsForTurn,
+      })
+    }
+    const deferredToolExposureBlock: PromptBlock | null = deferredToolStore && deferredToolExposureSessionKey
+      ? {
+          type: 'text',
+          text: deferredToolStore.buildAvailableDeferredToolsBlock(deferredToolExposureSessionKey),
+          cache_control: { type: 'ephemeral' },
+        }
+      : null
+
     const turnInput = buildTurnInput({
       rawText: args.text,
       mode: args.mode,
@@ -111,6 +139,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     })
 
     const injectedBlocks: PromptBlock[] = [
+      ...(deferredToolExposureBlock ? [deferredToolExposureBlock] : []),
       ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...turnInput.semanticBlocks,
@@ -203,14 +232,19 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       getReplMode: args.getReplMode,
       setReplMode: args.setReplMode,
       getPlanPath: () => args.planSession?.getPlanPath() ?? null,
+      ...(deferredToolExposureSessionKey ? { toolExposureSessionKey: deferredToolExposureSessionKey } : {}),
     }
     const historyLen = prunedHistory.length
-    const toolsForTurn = patchToolsForTurn(args.tools, cwd)
+    const resolveToolsForCall = deferredToolStore && deferredToolExposureSessionKey
+      ? () => deferredToolStore.resolveToolsForModel(deferredToolExposureSessionKey)
+      : undefined
+    const toolsForTurn = resolveToolsForCall ? resolveToolsForCall() : baseToolsForTurn
     const nextHistory = await args.engine.runTurn({
       history: prunedHistory,
       user: prunedUser,
       system,
       tools: toolsForTurn,
+      resolveToolsForCall,
       onEvent: args.handleEvent,
       cwd,
       signal: abortController.signal,

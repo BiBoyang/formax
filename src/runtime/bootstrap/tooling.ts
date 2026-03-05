@@ -6,6 +6,7 @@ import { createTaskOutputToolModule } from '../../tools/modules/taskOutput/index
 import { createUserInputManager } from '../../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../../tools/modules/killShell/index.js'
+import { createToolSearchToolModule } from '../../tools/modules/toolSearch/index.js'
 import { LocalBashPresenter } from '../../components/tool/LocalBashPresenter.js'
 import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 
@@ -25,6 +26,7 @@ export function createToolingRuntime(args: {
   const userInputManager = createUserInputManager()
 
   registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager, cwd: args.cwd })
+  toolRegistry.register(createToolSearchToolModule())
   toolRegistry.register({ name: 'LocalBash', presenter: LocalBashPresenter })
   toolRegistry.register(
     createWebFetchToolModule({

@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine } from '../../../../chat/engine'
 import type { RuntimeConfig } from '../../../../config/config'
+import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { ToolDefinition } from '../../../../tools/types'
@@ -32,6 +33,7 @@ type RunReplModelSendFlowArgs = {
     planSession?: PlanSessionManager
     commandRegistry?: SlashCommandRegistry
     tools: ToolDefinition[]
+    runtimeFlags?: RuntimeFlags
     allowedSubagents: Array<{ name: string; description: string }>
   }
   sendContext: {
@@ -41,6 +43,7 @@ type RunReplModelSendFlowArgs = {
   }
   turnRefs: {
     pendingExitPlanReminderRef: { current: boolean }
+    deferredToolExposureSessionKeyRef?: { current: string }
     sendSeqRef: { current: number }
     autoCompactSeqRef: { current: number }
     reminderServiceRef: { current: ReminderService | null }
@@ -121,12 +124,14 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     planSession: args.deps.planSession ?? null,
     reminderServiceRef: args.turnRefs.reminderServiceRef,
     tools: args.deps.tools,
+    runtimeFlags: args.deps.runtimeFlags,
     allowedSubagents: args.deps.allowedSubagents,
     mode: args.deps.mode,
     replModeAccess,
     handleEvent: args.callbacks.handleEvent,
     sendTurnSharedRefs,
     pendingExitPlanReminderRef: args.turnRefs.pendingExitPlanReminderRef,
+    deferredToolExposureSessionKeyRef: args.turnRefs.deferredToolExposureSessionKeyRef,
     sendSeqRef: args.turnRefs.sendSeqRef,
     lastAutoCompactSeqRef: args.turnRefs.autoCompactSeqRef,
     onCompactLifecycle: args.callbacks.onCompactLifecycle,

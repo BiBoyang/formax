@@ -19,6 +19,7 @@ export interface ChatEngine {
     user: PromptMessage
     system: PromptBlock[]
     tools: ToolDefinition[]
+    resolveToolsForCall?: () => ToolDefinition[]
     onEvent: StreamSink
     cwd: string
     signal?: AbortSignal
@@ -38,6 +39,7 @@ export interface ChatEngine {
         | 'getPlanPath'
         | 'planPath'
         | 'interactive'
+        | 'toolExposureSessionKey'
       >
     >
 }): Promise<ChatHistory>
@@ -79,6 +81,7 @@ export function createChatEngine(deps: {
       user,
       system,
       tools,
+      resolveToolsForCall,
       onEvent,
       cwd,
       signal,
@@ -114,6 +117,7 @@ export function createChatEngine(deps: {
         denyTools: exec?.denyTools,
         hooks: deps.hooks,
         trace: exec?.trace,
+        toolExposureSessionKey: exec?.toolExposureSessionKey,
       }
 
       const runSessionStart = async (): Promise<void> => {
@@ -293,12 +297,17 @@ export function createChatEngine(deps: {
                   baselineTokens: promptBudget.baselineTokens,
                 }).messages
               : injectedWithUserPromptSubmit
+          const toolsForCall = resolveToolsForCall?.() ?? tools
+          executorCtxBase.allowTools = intersectAllowTools({
+            requestedAllowTools: exec?.allowTools,
+            exposedTools: toolsForCall,
+          })
 
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
               messages: messagesForCall.slice(),
               system: systemForThisCall,
-              tools,
+              tools: toolsForCall,
               onEvent,
               executeTool,
               signal,
@@ -427,4 +436,16 @@ function buildMessagesWithUserPromptSubmitText(messages: ChatHistory, extra: str
   for (const text of extra) nextBlocks.push({ type: 'text', text })
 
   return [...messages.slice(0, -1), { ...last, content: nextBlocks }]
+}
+
+function intersectAllowTools(args: {
+  requestedAllowTools: string[] | undefined
+  exposedTools: ToolDefinition[]
+}): string[] {
+  const exposedNames = Array.from(new Set(args.exposedTools.map((tool) => tool.name)))
+  if (!args.requestedAllowTools || args.requestedAllowTools.length === 0) return exposedNames
+  if (args.requestedAllowTools.includes('*')) return exposedNames
+
+  const requested = new Set(args.requestedAllowTools)
+  return exposedNames.filter((name) => requested.has(name))
 }

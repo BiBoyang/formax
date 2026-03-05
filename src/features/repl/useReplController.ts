@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { randomUUID } from 'node:crypto'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../config/config'
@@ -74,6 +75,7 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { toPersistedAppToolEventData } from './sessionSave/appToolEventPayload'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
+import { getDeferredToolExposureStore } from '../../tools/runtime/deferredToolExposure'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 
@@ -380,7 +382,7 @@ export function useReplController(deps: {
     contextBudgetConfigRef: useRef<ContextBudgetConfig | null>(null),
     pendingInjectedBlocksRef: useRef<PromptBlock[]>([]),
   }
-	  const runtimeStateRefs = {
+  const runtimeStateRefs = {
 	    sendSeqRef: useRef(0),
 	    autoCompactSeqRef: useRef(-1_000_000),
 	    previousIsLoadingRef: useRef(false),
@@ -388,6 +390,7 @@ export function useReplController(deps: {
 	    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
 	    pendingStaticSurfaceResetRef: useRef(false),
   }
+  const deferredToolExposureSessionKeyRef = useRef<string>(randomUUID())
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
   const bashModeInFlightRef = useRef(false)
   const sessionTransitionQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -444,6 +447,7 @@ export function useReplController(deps: {
 
   useEffect(() => {
     return () => {
+      getDeferredToolExposureStore().resetSession(deferredToolExposureSessionKeyRef.current)
       if (!sessionSaveEnabled) return
       void shutdownSessionWriter()
     }
@@ -547,6 +551,10 @@ export function useReplController(deps: {
   )
 
   const resetSessionRefs = useCallback(() => {
+    const deferredToolStore = getDeferredToolExposureStore()
+    deferredToolStore.resetSession(deferredToolExposureSessionKeyRef.current)
+    deferredToolExposureSessionKeyRef.current = randomUUID()
+
     historyRef.current = []
     turnFlowRefs.pendingInjectedBlocksRef.current = []
     turnFlowRefs.pendingExitPlanReminderRef.current = false
@@ -1067,6 +1075,7 @@ export function useReplController(deps: {
           planSession: deps.planSession,
           commandRegistry: deps.commandRegistry,
           tools: deps.tools,
+          runtimeFlags,
           allowedSubagents,
         },
         sendContext: {
@@ -1076,6 +1085,7 @@ export function useReplController(deps: {
         },
         turnRefs: {
           pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
+          deferredToolExposureSessionKeyRef,
           sendSeqRef: runtimeStateRefs.sendSeqRef,
           autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
           reminderServiceRef: turnFlowRefs.reminderServiceRef,

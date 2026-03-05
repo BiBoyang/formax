@@ -57,6 +57,7 @@ These are used by development, diagnostics, or legacy paths and are not a stable
 - `FORMAX_SKILL_BODY_CHAR_BUDGET`
 - `FORMAX_SKILL_TOOL_CHAR_BUDGET`
 - `FORMAX_SKILL_STORE_CACHE_TTL_MS`
+- `FORMAX_DEFERRED_TOOL_EXPOSURE` (enable REPL deferred tool exposure mode; default disabled)
 - `FORMAX_WEBFETCH_MODEL`
 - `FORMAX_WEBFETCH_MAX_TOKENS`
 - `FORMAX_WEBFETCH_MAX_INPUT_CHARS`

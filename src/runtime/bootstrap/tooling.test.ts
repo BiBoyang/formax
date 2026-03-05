@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const createUserInputManager = vi.fn()
   const createAskUserQuestionToolModule = vi.fn()
   const createKillShellToolModule = vi.fn()
+  const createToolSearchToolModule = vi.fn()
   const LocalBashPresenter = { name: 'LocalBashPresenter' }
 
   class ToolRegistry {
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => {
     createUserInputManager,
     createAskUserQuestionToolModule,
     createKillShellToolModule,
+    createToolSearchToolModule,
     LocalBashPresenter,
     toolRegistryInstances,
     taskManagerInstances,
@@ -67,6 +69,9 @@ vi.mock('../../tools/modules/askUserQuestion/index.js', () => ({
 vi.mock('../../tools/modules/killShell/index.js', () => ({
   createKillShellToolModule: mocks.createKillShellToolModule,
 }))
+vi.mock('../../tools/modules/toolSearch/index.js', () => ({
+  createToolSearchToolModule: mocks.createToolSearchToolModule,
+}))
 vi.mock('../../components/tool/LocalBashPresenter.js', () => ({
   LocalBashPresenter: mocks.LocalBashPresenter,
 }))
@@ -83,6 +88,7 @@ describe('createToolingRuntime', () => {
     mocks.createTaskOutputToolModule.mockReturnValue({ name: 'TaskOutput' })
     mocks.createKillShellToolModule.mockReturnValue({ name: 'KillShell' })
     mocks.createAskUserQuestionToolModule.mockReturnValue({ name: 'AskUserQuestion' })
+    mocks.createToolSearchToolModule.mockReturnValue({ name: 'ToolSearch' })
   })
 
   it('registers builtins plus extra tool modules and returns runtime objects', () => {
@@ -105,7 +111,9 @@ describe('createToolingRuntime', () => {
       userInput: { kind: 'user-input' },
       cwd: '/repo',
     })
-    expect(registry.register).toHaveBeenNthCalledWith(1, {
+    expect(mocks.createToolSearchToolModule).toHaveBeenCalledTimes(1)
+    expect(registry.register).toHaveBeenNthCalledWith(1, { name: 'ToolSearch' })
+    expect(registry.register).toHaveBeenNthCalledWith(2, {
       name: 'LocalBash',
       presenter: mocks.LocalBashPresenter,
     })
@@ -114,13 +122,13 @@ describe('createToolingRuntime', () => {
       maxTokens: 4096,
       maxInputChars: 240000,
     })
-    expect(registry.register).toHaveBeenNthCalledWith(2, { name: 'WebFetch' })
+    expect(registry.register).toHaveBeenNthCalledWith(3, { name: 'WebFetch' })
     expect(mocks.createTaskOutputToolModule).toHaveBeenCalledWith(taskManager)
-    expect(registry.register).toHaveBeenNthCalledWith(3, { name: 'TaskOutput' })
+    expect(registry.register).toHaveBeenNthCalledWith(4, { name: 'TaskOutput' })
     expect(mocks.createKillShellToolModule).toHaveBeenCalledWith(taskManager)
-    expect(registry.register).toHaveBeenNthCalledWith(4, { name: 'KillShell' })
+    expect(registry.register).toHaveBeenNthCalledWith(5, { name: 'KillShell' })
     expect(mocks.createAskUserQuestionToolModule).toHaveBeenCalledWith({ kind: 'user-input' })
-    expect(registry.register).toHaveBeenNthCalledWith(5, { name: 'AskUserQuestion' })
+    expect(registry.register).toHaveBeenNthCalledWith(6, { name: 'AskUserQuestion' })
 
     expect(out.toolRegistry).toBe(registry)
     expect(out.taskManager).toBe(taskManager)
