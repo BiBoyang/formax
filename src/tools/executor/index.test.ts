@@ -3,6 +3,7 @@ import { createToolExecutor, type ToolHandler } from './index'
 import type { ToolCall, ToolResult } from '../types'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { AuditEventV1 } from '../../core/audit/schema.js'
+import { getDeferredToolExposureStore } from '../runtime/deferredToolExposure'
 
 describe('createToolExecutor', () => {
   it('checks abort before handler resolution', async () => {
@@ -123,6 +124,78 @@ describe('createToolExecutor', () => {
     expect(hooksCalls).toBe(0)
     expect(preflightCalls).toBe(0)
     expect(handlerCalls).toBe(0)
+  })
+
+  it('soft-fallback auto-loads deferred tool when allow list only exposes ToolSearch', async () => {
+    const sessionKey = 'exec-soft-fallback'
+    const store = getDeferredToolExposureStore()
+    store.resetSession(sessionKey)
+    store.registerCatalog({
+      sessionKey,
+      tools: [{ name: 'Bash', description: 'shell', input_schema: { type: 'object' } } as any],
+    })
+
+    let handlerCalls = 0
+    const handler: ToolHandler = {
+      canHandle: (name) => name === 'Bash',
+      execute: async (call): Promise<ToolResult> => {
+        handlerCalls++
+        return { tool_use_id: call.id, content: '/repo\n' }
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 't-soft', name: 'Bash', input: { command: 'pwd' } } as ToolCall,
+      {
+        cwd: process.cwd(),
+        agentDepth: 0,
+        allowTools: ['ToolSearch'],
+        toolExposureSessionKey: sessionKey,
+        deferredToolSoftFallback: true,
+      },
+    )
+
+    expect(res.is_error).toBeUndefined()
+    expect(handlerCalls).toBe(1)
+    expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual(['ToolSearch', 'Bash'])
+    store.resetSession(sessionKey)
+  })
+
+  it('keeps strict deny when deferred soft-fallback is disabled', async () => {
+    const sessionKey = 'exec-soft-fallback-disabled'
+    const store = getDeferredToolExposureStore()
+    store.resetSession(sessionKey)
+    store.registerCatalog({
+      sessionKey,
+      tools: [{ name: 'Bash', description: 'shell', input_schema: { type: 'object' } } as any],
+    })
+
+    let handlerCalls = 0
+    const handler: ToolHandler = {
+      canHandle: (name) => name === 'Bash',
+      execute: async (call): Promise<ToolResult> => {
+        handlerCalls++
+        return { tool_use_id: call.id, content: '/repo\n' }
+      },
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 't-soft-off', name: 'Bash', input: { command: 'pwd' } } as ToolCall,
+      {
+        cwd: process.cwd(),
+        agentDepth: 0,
+        allowTools: ['ToolSearch'],
+        toolExposureSessionKey: sessionKey,
+        deferredToolSoftFallback: false,
+      },
+    )
+
+    expect(String(res.content)).toBe('Error: Tool not allowed: Bash')
+    expect(res.is_error).toBe(true)
+    expect(handlerCalls).toBe(0)
+    store.resetSession(sessionKey)
   })
 
   it('uses default ctx values when partial context omits cwd and agentDepth', async () => {

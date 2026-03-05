@@ -189,6 +189,76 @@ describe('REPL', () => {
     })
   })
 
+  describe('internal tool visibility', () => {
+    it('hides ToolSearch rows by default', async () => {
+      const prev = process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS
+      delete process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS
+      const initialSession = {
+        filePath: '/tmp/session.jsonl',
+        history: [] as PromptMessage[],
+        messages: [
+          {
+            id: 'tool-search-1',
+            role: 'tool' as const,
+            content: 'Loaded 1 tool(s) for query: select:Bash',
+            timestamp: new Date(1),
+            toolInfo: {
+              name: 'ToolSearch',
+              toolUseId: 'tool-search-1',
+              input: { query: 'select:Bash' },
+              status: 'completed' as const,
+              result: 'Loaded 1 tool(s) for query: select:Bash',
+            },
+          },
+        ],
+      }
+
+      try {
+        const { lastFrame, unmount } = render(<REPL engine={engine} tools={[]} cfg={cfg} initialSession={initialSession} />)
+        await tick()
+        expect(lastFrame() || '').not.toContain('ToolSearch')
+        unmount()
+      } finally {
+        if (prev === undefined) delete process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS
+        else process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS = prev
+      }
+    })
+
+    it('shows ToolSearch rows when FORMAX_TUI_SHOW_INTERNAL_TOOLS is enabled', async () => {
+      const prev = process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS
+      process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS = '1'
+      const initialSession = {
+        filePath: '/tmp/session.jsonl',
+        history: [] as PromptMessage[],
+        messages: [
+          {
+            id: 'tool-search-2',
+            role: 'tool' as const,
+            content: 'Loaded 1 tool(s) for query: select:Bash',
+            timestamp: new Date(1),
+            toolInfo: {
+              name: 'ToolSearch',
+              toolUseId: 'tool-search-2',
+              input: { query: 'select:Bash' },
+              status: 'completed' as const,
+              result: 'Loaded 1 tool(s) for query: select:Bash',
+            },
+          },
+        ],
+      }
+
+      try {
+        const { lastFrame, unmount } = render(<REPL engine={engine} tools={[]} cfg={cfg} initialSession={initialSession} />)
+        await tick()
+        expect(lastFrame() || '').toContain('ToolSearch')
+        unmount()
+      } finally {
+        if (prev === undefined) delete process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS
+        else process.env.FORMAX_TUI_SHOW_INTERNAL_TOOLS = prev
+      }
+    })
+  })
+
   describe('error rendering', () => {
     it('shows status-first command subline and suppresses duplicate global API error', async () => {
       const failingEngine: ChatEngine = {

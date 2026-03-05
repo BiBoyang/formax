@@ -2855,7 +2855,9 @@ describe('sdk query()', () => {
       hooksDebugEnabled: false,
       userShellPath: null,
       deferredToolExposureEnabled: true,
+      deferredToolSoftFallbackEnabled: true,
       toolSearchEngine: 'bm25',
+      showInternalToolsInTui: false,
       requestDryRunEnabled: false,
       requestDryRunOutputDir: null,
     }

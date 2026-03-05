@@ -120,6 +120,7 @@ export function createChatEngine(deps: {
         hooks: deps.hooks,
         trace: exec?.trace,
         toolExposureSessionKey: exec?.toolExposureSessionKey,
+        deferredToolSoftFallback: runtimeFlags.deferredToolSoftFallbackEnabled,
       }
 
       const runSessionStart = async (): Promise<void> => {

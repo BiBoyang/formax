@@ -4,7 +4,9 @@ export type RuntimeFlags = {
   hooksDebugEnabled: boolean
   userShellPath: string | null
   deferredToolExposureEnabled: boolean
+  deferredToolSoftFallbackEnabled: boolean
   toolSearchEngine: string | null
+  showInternalToolsInTui: boolean
   requestDryRunEnabled: boolean
   requestDryRunOutputDir: string | null
 }
@@ -27,6 +29,14 @@ function parseSessionSaveEnabled(env: NodeJS.ProcessEnv): boolean {
   return true
 }
 
+function parseEnabledByDefault(envValue: unknown): boolean {
+  const raw = String(envValue ?? '').trim().toLowerCase()
+  if (!raw) return true
+  if (raw === '0' || raw === 'false' || raw === 'no') return false
+  if (raw === '1' || raw === 'true' || raw === 'yes') return true
+  return true
+}
+
 export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): RuntimeFlags {
   return {
     sessionSaveEnabled: parseSessionSaveEnabled(env),
@@ -34,7 +44,9 @@ export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): Runtim
     hooksDebugEnabled: parseTruthy(env.FORMAX_HOOKS_DEBUG),
     userShellPath: normalizeOptionalString(env.SHELL),
     deferredToolExposureEnabled: parseTruthy(env.FORMAX_DEFERRED_TOOL_EXPOSURE),
+    deferredToolSoftFallbackEnabled: parseEnabledByDefault(env.FORMAX_DEFERRED_TOOL_SOFT_FALLBACK),
     toolSearchEngine: normalizeOptionalString(env.FORMAX_TOOLSEARCH_ENGINE)?.toLowerCase() ?? null,
+    showInternalToolsInTui: parseTruthy(env.FORMAX_TUI_SHOW_INTERNAL_TOOLS),
     requestDryRunEnabled: parseTruthy(env.FORMAX_REQUEST_DRY_RUN),
     requestDryRunOutputDir: normalizeOptionalString(env.FORMAX_REQUEST_DRY_RUN_DIR),
   }

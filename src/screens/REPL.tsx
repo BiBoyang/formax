@@ -48,6 +48,7 @@ import { createRuntimeFlags } from '../config/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/ui'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared'
 import { parseModelTier, resolveModelForTier, type ModelTier } from '../config/modelTier'
+import { isInternalToolName } from '../tools/internalTools'
 
 type Props = {
   onExit?: () => void
@@ -293,7 +294,14 @@ export function REPL({
     ],
   )
 
-  const allMessages = useMemo(() => [...state.staticMessages, ...state.transientMessages], [state.staticMessages, state.transientMessages])
+  const allMessages = useMemo(() => {
+    const merged = [...state.staticMessages, ...state.transientMessages]
+    if (runtimeFlags.showInternalToolsInTui) return merged
+    return merged.filter(
+      (message) =>
+        !(message.role === 'tool' && isInternalToolName(message.toolInfo?.name)),
+    )
+  }, [runtimeFlags.showInternalToolsInTui, state.staticMessages, state.transientMessages])
   const suppressGlobalError = useMemo(
     () => shouldSuppressGlobalError({ messages: allMessages, currentError: state.error }),
     [allMessages, state.error],

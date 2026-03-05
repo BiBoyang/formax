@@ -28,6 +28,7 @@ These are intended for normal user configuration.
 ### Setup and session controls
 
 - `FORMAX_SESSION_SAVE`: enable/disable session save (default enabled; `0|false|no` disables)
+- `FORMAX_TUI_SHOW_INTERNAL_TOOLS`: show internal tool rows in TUI (`ToolSearch` etc.); default hidden
 
 ### Config-by-env patch keys (advanced)
 
@@ -58,6 +59,7 @@ These are used by development, diagnostics, or legacy paths and are not a stable
 - `FORMAX_SKILL_TOOL_CHAR_BUDGET`
 - `FORMAX_SKILL_STORE_CACHE_TTL_MS`
 - `FORMAX_DEFERRED_TOOL_EXPOSURE` (enable REPL deferred tool exposure mode; default disabled)
+- `FORMAX_DEFERRED_TOOL_SOFT_FALLBACK` (when deferred exposure is active, auto-load direct deferred tool calls via internal `select:<tool>` fallback; default enabled)
 - `FORMAX_TOOLSEARCH_ENGINE` (optional deferred ToolSearch engine for plain queries: `bm25` [default], `regex`, `keyword`, `hybrid`; per-query prefixes like `regex:` and `bm25:` still override)
 - `FORMAX_REQUEST_DRY_RUN` (construct request payload only, dump to file, skip real network request)
 - `FORMAX_REQUEST_DRY_RUN_DIR` (optional output directory for dry-run request payload dumps; defaults to `<cwd>/proxy/request-dry-run`)

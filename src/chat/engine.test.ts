@@ -10,6 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createToolSearchToolHandler } from '../tools/modules/toolSearch/handler'
 import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure'
+import { createToolExecutor } from '../tools/executor'
 
 describe('ChatEngine', () => {
   it('captures request payload and skips network when request dry-run is enabled', async () => {
@@ -38,7 +39,9 @@ describe('ChatEngine', () => {
         hooksDebugEnabled: false,
         userShellPath: null,
         deferredToolExposureEnabled: false,
+        deferredToolSoftFallbackEnabled: true,
         toolSearchEngine: null,
+        showInternalToolsInTui: false,
         requestDryRunEnabled: true,
         requestDryRunOutputDir: outputDir,
       },
@@ -238,6 +241,93 @@ describe('ChatEngine', () => {
         (block) => block?.type === 'tool_reference' && (block?.tool_name === 'Bash' || block?.name === 'Bash'),
       ),
     ).toBe(true)
+  })
+
+  it('soft-fallback executes direct deferred tool call without explicit ToolSearch call', async () => {
+    const sessionKey = 'engine-deferred-soft-fallback'
+    const store = getDeferredToolExposureStore()
+    store.resetSession(sessionKey)
+    store.registerCatalog({
+      sessionKey,
+      tools: [{ name: 'Bash', description: 'Execute shell command', input_schema: { type: 'object' } }],
+    })
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        const toolResult = await args.executeTool({
+          id: 'bash-direct-1',
+          name: 'Bash',
+          input: { command: 'pwd' },
+        } as any)
+        return {
+          assistantBlocks: [{ type: 'tool_use', id: 'bash-direct-1', name: 'Bash', input: { command: 'pwd' } }],
+          stopReason: 'tool_use',
+          toolResults: [toolResult],
+        }
+      },
+    }
+
+    let calls = 0
+    const terminalClient: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        calls++
+        if (calls === 1) return client.streamOnce(args)
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor = createToolExecutor([
+      {
+        canHandle: (name) => name === 'Bash',
+        execute: async (call) => ({ tool_use_id: call.id, content: '/repo\n' }),
+      },
+    ])
+
+    const engine = createChatEngine({
+      client: terminalClient,
+      executor,
+      runtimeFlags: {
+        sessionSaveEnabled: true,
+        isVitest: true,
+        hooksDebugEnabled: false,
+        userShellPath: null,
+        deferredToolExposureEnabled: true,
+        deferredToolSoftFallbackEnabled: true,
+        toolSearchEngine: 'bm25',
+        showInternalToolsInTui: false,
+        requestDryRunEnabled: false,
+        requestDryRunOutputDir: null,
+      },
+    })
+
+    const history = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'pwd' }] },
+      system: [],
+      tools: store.resolveToolsForModel(sessionKey),
+      resolveToolsForCall: () => store.resolveToolsForModel(sessionKey),
+      onEvent: () => undefined,
+      cwd: '/repo',
+      exec: {
+        toolExposureSessionKey: sessionKey,
+      },
+    })
+
+    const toolResultCarrier = history.find(
+      (message) =>
+        message.role === 'user' &&
+        message.content.some((block: any) => block?.type === 'tool_result' && block?.tool_use_id === 'bash-direct-1'),
+    )
+    const toolResult = (toolResultCarrier?.content || []).find(
+      (block: any) => block?.type === 'tool_result' && block?.tool_use_id === 'bash-direct-1',
+    ) as any
+    expect(toolResult?.is_error).not.toBe(true)
+    expect(String(toolResult?.content || '')).toContain('/repo')
+    expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual(['ToolSearch', 'Bash'])
   })
 
   it('appends ToolResult.extraTextBlocks as text blocks after tool_result', async () => {

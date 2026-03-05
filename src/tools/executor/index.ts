@@ -6,6 +6,8 @@ import { SUBAGENT_DENY_TOOLS_SET } from './subagentDenyTools'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
 import type { HookRun } from '../../hooks/types.js'
+import { getDeferredToolExposureStore } from '../runtime/deferredToolExposure'
+import { TOOL_SEARCH_NAME } from '../internalTools'
 
 export type ReplMode = 'normal' | 'acceptEdits' | 'plan'
 
@@ -42,6 +44,9 @@ export type ExecutionContext = {
 
   // Optional session key for deferred tool exposure (ToolSearch).
   toolExposureSessionKey?: string
+
+  // Optional soft fallback for deferred exposure: auto-load direct deferred tool calls once.
+  deferredToolSoftFallback?: boolean
 }
 
 export interface ToolHandler {
@@ -78,6 +83,7 @@ function normalizeCtx(ctx: Partial<ExecutionContext>): ExecutionContext {
     hooks: ctx.hooks,
     trace: ctx.trace,
     toolExposureSessionKey: ctx.toolExposureSessionKey,
+    deferredToolSoftFallback: ctx.deferredToolSoftFallback,
   }
 }
 
@@ -96,9 +102,25 @@ function stepDenySubagentTools(state: ExecutorStepState): ToolResult | null {
   }
 }
 
+function canSoftAllowViaDeferredToolSearch(state: ExecutorStepState): boolean {
+  if (state.ctx.deferredToolSoftFallback !== true) return false
+  if (!state.ctx.toolExposureSessionKey) return false
+  const allowTools = state.ctx.allowTools
+  if (!allowTools || !allowTools.includes(TOOL_SEARCH_NAME)) return false
+  if (state.call.name === TOOL_SEARCH_NAME) return false
+
+  const result = getDeferredToolExposureStore().searchAndLoad({
+    sessionKey: state.ctx.toolExposureSessionKey,
+    query: `select:${state.call.name}`,
+  })
+  if (result.isError) return false
+  return result.matchedNames.includes(state.call.name)
+}
+
 function stepAllowDenyLists(state: ExecutorStepState): ToolResult | null {
   const allowAll = state.ctx.allowTools?.includes('*') ?? false
   if (state.ctx.allowTools && !allowAll && !state.ctx.allowTools.includes(state.call.name)) {
+    if (canSoftAllowViaDeferredToolSearch(state)) return null
     return {
       tool_use_id: state.call.id,
       content: `Error: Tool not allowed: ${state.call.name}`,
