@@ -61,7 +61,7 @@ npm --prefix apps/desktop-electron run build:mac
 
 - `FORMAX_ELECTRON_START_URL`
   - Start URL for Electron window. Default: `http://127.0.0.1:3781`
-  - `scripts/run.mjs` also uses this host/port for readiness checks and runtime startup args
+  - `apps/desktop-electron/scripts/run.mjs` also uses this host/port for readiness checks and runtime startup args
 - `FORMAX_ELECTRON_OPEN_DEVTOOLS`
   - `1` opens renderer DevTools automatically
 - `FORMAX_ELECTRON_MODE`
@@ -75,7 +75,7 @@ npm --prefix apps/desktop-electron run build:mac
 
 ## Notes
 
-- `scripts/run.mjs` waits for web readiness (up to 30 seconds) before launching Electron.
+- `apps/desktop-electron/scripts/run.mjs` waits for web readiness (up to 30 seconds) before launching Electron.
 - In `debug` mode, main process inspector runs on `9229` via `electron:start:debug`.
 - Navigation is restricted to local URLs (`127.0.0.1`, `localhost`, `::1`); external links open in system browser.
 - `build:mac` disables identity auto discovery to keep local packaging deterministic (`CSC_IDENTITY_AUTO_DISCOVERY=false`).
