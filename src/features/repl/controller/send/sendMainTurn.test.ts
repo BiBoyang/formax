@@ -6,7 +6,10 @@ import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindo
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
-import { buildSkillToolSpecForCwd } from '../../../../tools/modules/skill'
+import {
+  buildAvailableSkillsSystemReminderText,
+  buildSkillToolSpecForCwdWithOptions,
+} from '../../../../tools/modules/skill'
 import { buildTurnInput } from '../../../semantics/adapters/turnInputBuilder'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { makeMessageId } from '../shared/ids'
@@ -39,7 +42,8 @@ vi.mock('../../../../prompts/reminders/outputStyle', () => ({
 }))
 
 vi.mock('../../../../tools/modules/skill', () => ({
-  buildSkillToolSpecForCwd: vi.fn(),
+  buildSkillToolSpecForCwdWithOptions: vi.fn(),
+  buildAvailableSkillsSystemReminderText: vi.fn(),
 }))
 
 vi.mock('../../reminders/ReminderService', () => ({
@@ -198,7 +202,10 @@ describe('runMainSendTurn', () => {
       messages,
       pruned: false,
     }))
-    vi.mocked(buildSkillToolSpecForCwd).mockReturnValue({ name: 'Skill', patched: true } as any)
+    vi.mocked(buildSkillToolSpecForCwdWithOptions).mockReturnValue({ name: 'Skill', patched: true } as any)
+    vi.mocked(buildAvailableSkillsSystemReminderText).mockReturnValue(
+      '<system-reminder>\n<available_skills>\n<skill>\n<name>\nalpha\n</name>\n</skill>\n</available_skills>\n</system-reminder>',
+    )
     vi.mocked(maybeRunAutoCompactBeforeTurn).mockResolvedValue(undefined)
     vi.mocked(formatErrorSubline).mockImplementation((msg: string) => `ERR:${msg}`)
     vi.mocked(isAbortLikeError).mockReturnValue(false)
@@ -222,6 +229,10 @@ describe('runMainSendTurn', () => {
       { name: 'Skill', patched: true },
       { name: 'Read' },
     ])
+    expect(buildSkillToolSpecForCwdWithOptions).toHaveBeenCalledWith(
+      expect.any(String),
+      { includeAvailableSkillsInDescription: true },
+    )
     expect(harness._spies.setContext).toHaveBeenCalledWith({
       usedTokens: 1234,
       limitTokens: 9000,
@@ -420,11 +431,16 @@ describe('runMainSendTurn', () => {
     const callArgs = harness.deps.engine.runTurn.mock.calls[0][0]
     expect(callArgs.tools.map((tool: any) => tool.name)).toEqual(['ToolSearch'])
     expect(typeof callArgs.resolveToolsForCall).toBe('function')
+    expect(buildSkillToolSpecForCwdWithOptions).toHaveBeenCalledWith(
+      expect.any(String),
+      { includeAvailableSkillsInDescription: false },
+    )
 
     const userText = callArgs.user.content
       .map((block: any) => String(block?.text || ''))
       .join('\n')
     expect(userText).toContain('<available-deferred-tools>')
+    expect(userText).toContain('<available_skills>')
     expect(userText).toContain('Read')
     expect(userText).toContain('Skill')
 

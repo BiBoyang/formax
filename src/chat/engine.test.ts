@@ -5,8 +5,75 @@ import type { ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamEvent, StreamTurnResult } from '../streaming/types'
 import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditEventV1 } from '../core/audit/schema.js'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 describe('ChatEngine', () => {
+  it('captures request payload and skips network when request dry-run is enabled', async () => {
+    const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-'))
+    let streamCalls = 0
+
+    const client: LlmStreamClient = {
+      async streamOnce(): Promise<StreamTurnResult> {
+        streamCalls += 1
+        return {
+          assistantBlocks: [{ type: 'text', text: 'should-not-run' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const events: StreamEvent[] = []
+    const engine = createChatEngine({
+      client,
+      executor,
+      runtimeFlags: {
+        sessionSaveEnabled: true,
+        isVitest: true,
+        hooksDebugEnabled: false,
+        userShellPath: null,
+        deferredToolExposureEnabled: false,
+        requestDryRunEnabled: true,
+        requestDryRunOutputDir: outputDir,
+      },
+    })
+
+    try {
+      const out = await engine.runTurn({
+        history: [],
+        user: { role: 'user', content: [{ type: 'text', text: 'preview this request' }] },
+        system: [{ type: 'text', text: 'system-seed' }],
+        tools: [{ name: 'Read', description: 'read file', input_schema: { type: 'object' } }],
+        onEvent: (ev) => events.push(ev),
+        cwd: '/tmp',
+      })
+
+      expect(streamCalls).toBe(0)
+      expect(events.some((ev) => ev.type === 'complete')).toBe(true)
+      expect(JSON.stringify(out)).toContain('[dry-run] Request payload captured')
+      const dryRunDelta = events.find((ev) => ev.type === 'assistant_delta') as
+        | Extract<StreamEvent, { type: 'assistant_delta' }>
+        | undefined
+      expect(dryRunDelta).toBeDefined()
+      expect(String(dryRunDelta?.text || '')).toContain('[dry-run] Request payload captured')
+      expect(String(dryRunDelta?.text || '')).toContain(outputDir)
+
+      const files = await fsp.readdir(outputDir)
+      expect(files.length).toBe(1)
+      const saved = JSON.parse(await fsp.readFile(path.join(outputDir, files[0]!), 'utf8'))
+      expect(saved.kind).toBe('formax_request_preview_v1')
+      expect(saved.system[0].text).toBe('system-seed')
+      expect(saved.messages[0].role).toBe('user')
+      expect(saved.messages[0].content[0].text).toBe('preview this request')
+      expect(saved.tools.map((tool: any) => tool.name)).toEqual(['Read'])
+    } finally {
+      await fsp.rm(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
     let callCount = 0
 

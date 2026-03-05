@@ -4,6 +4,8 @@ export type RuntimeFlags = {
   hooksDebugEnabled: boolean
   userShellPath: string | null
   deferredToolExposureEnabled: boolean
+  requestDryRunEnabled: boolean
+  requestDryRunOutputDir: string | null
 }
 
 function normalizeOptionalString(value: unknown): string | null {
@@ -31,5 +33,7 @@ export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): Runtim
     hooksDebugEnabled: parseTruthy(env.FORMAX_HOOKS_DEBUG),
     userShellPath: normalizeOptionalString(env.SHELL),
     deferredToolExposureEnabled: parseTruthy(env.FORMAX_DEFERRED_TOOL_EXPOSURE),
+    requestDryRunEnabled: parseTruthy(env.FORMAX_REQUEST_DRY_RUN),
+    requestDryRunOutputDir: normalizeOptionalString(env.FORMAX_REQUEST_DRY_RUN_DIR),
   }
 }

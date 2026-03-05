@@ -11,7 +11,10 @@ import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
-import { buildSkillToolSpecForCwd } from '../../../../tools/modules/skill'
+import {
+  buildAvailableSkillsSystemReminderText,
+  buildSkillToolSpecForCwdWithOptions,
+} from '../../../../tools/modules/skill'
 import { getDeferredToolExposureStore, resolveToolExposureSessionKey } from '../../../../tools/runtime/deferredToolExposure'
 import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
@@ -106,8 +109,10 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         : args.planSession?.getPlanPath() ?? null
 
     const cwd = process.cwd()
-    const baseToolsForTurn = patchToolsForTurn(args.tools, cwd)
     const deferredToolExposureEnabled = args.runtimeFlags?.deferredToolExposureEnabled === true
+    const baseToolsForTurn = patchToolsForTurn(args.tools, cwd, {
+      includeAvailableSkillsInDescription: !deferredToolExposureEnabled,
+    })
     const deferredToolStore = deferredToolExposureEnabled ? getDeferredToolExposureStore() : null
     const deferredToolExposureSessionKey = deferredToolExposureEnabled
       ? resolveToolExposureSessionKey({
@@ -129,6 +134,16 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           cache_control: { type: 'ephemeral' },
         }
       : null
+    const availableSkillsReminderText = deferredToolExposureEnabled
+      ? buildAvailableSkillsSystemReminderText(cwd)
+      : null
+    const availableSkillsReminderBlock: PromptBlock | null = availableSkillsReminderText
+      ? {
+          type: 'text',
+          text: availableSkillsReminderText,
+          cache_control: { type: 'ephemeral' },
+        }
+      : null
 
     const turnInput = buildTurnInput({
       rawText: args.text,
@@ -140,6 +155,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
 
     const injectedBlocks: PromptBlock[] = [
       ...(deferredToolExposureBlock ? [deferredToolExposureBlock] : []),
+      ...(availableSkillsReminderBlock ? [availableSkillsReminderBlock] : []),
       ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...turnInput.semanticBlocks,
@@ -328,10 +344,22 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
   return { userMessageId: userMsg.id, turnOutcome }
 }
 
-function patchToolsForTurn(tools: ToolDefinition[], cwd: string): ToolDefinition[] {
+function patchToolsForTurn(
+  tools: ToolDefinition[],
+  cwd: string,
+  options?: {
+    includeAvailableSkillsInDescription?: boolean
+  },
+): ToolDefinition[] {
+  const includeAvailableSkillsInDescription = options?.includeAvailableSkillsInDescription !== false
+
   // Some tools (e.g. Skill) depend on the current workspace state and should be
   // regenerated per turn so the model sees up-to-date info.
-  return tools.map((t) => (t.name === 'Skill' ? buildSkillToolSpecForCwd(cwd) : t))
+  return tools.map((t) =>
+    t.name === 'Skill'
+      ? buildSkillToolSpecForCwdWithOptions(cwd, { includeAvailableSkillsInDescription })
+      : t,
+  )
 }
 
 function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number, injectedCount: number): ChatHistory {

@@ -9,16 +9,22 @@ describe('createRuntimeFlags', () => {
     expect(flags.hooksDebugEnabled).toBe(false)
     expect(flags.userShellPath).toBe(null)
     expect(flags.deferredToolExposureEnabled).toBe(false)
+    expect(flags.requestDryRunEnabled).toBe(false)
+    expect(flags.requestDryRunOutputDir).toBe(null)
   })
 
   it('parses truthy flags and normalized shell values', () => {
     const flags = createRuntimeFlags({
       FORMAX_HOOKS_DEBUG: 'Yes',
       FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+      FORMAX_REQUEST_DRY_RUN: 'true',
+      FORMAX_REQUEST_DRY_RUN_DIR: ' proxy/preview ',
       SHELL: ' /bin/bash ',
     })
     expect(flags.hooksDebugEnabled).toBe(true)
     expect(flags.deferredToolExposureEnabled).toBe(true)
+    expect(flags.requestDryRunEnabled).toBe(true)
+    expect(flags.requestDryRunOutputDir).toBe('proxy/preview')
     expect(flags.userShellPath).toBe('/bin/bash')
   })
 

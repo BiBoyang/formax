@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { buildSkillToolSpecForCwd } from './index'
+import {
+  buildAvailableSkillsSystemReminderText,
+  buildSkillToolSpecForCwd,
+  buildSkillToolSpecForCwdWithOptions,
+} from './index'
 
 async function writeFileEnsuringDir(filePath: string, content: string) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true })
@@ -102,6 +106,62 @@ describe('buildSkillToolSpecForCwd', () => {
       if (prevBudget === undefined) delete process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET
       else process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET = prevBudget
 
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      await fsp.rm(project, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('buildSkillToolSpecForCwdWithOptions', () => {
+  it('keeps description static when available skills injection is disabled', async () => {
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-static-'))
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    const project = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-project-static-'))
+
+    try {
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'alpha', 'SKILL.md'),
+        ['---', 'description: Alpha skill', '---', '', 'Do alpha'].join('\n'),
+      )
+
+      const spec = buildSkillToolSpecForCwdWithOptions(project, {
+        includeAvailableSkillsInDescription: false,
+      })
+
+      expect(spec.description).toContain('<available_skills>')
+      expect(spec.description).toContain('</available_skills>')
+      expect(spec.description).not.toContain('<name>\nalpha\n</name>')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      await fsp.rm(project, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('buildAvailableSkillsSystemReminderText', () => {
+  it('returns reminder text containing available skills without filesystem leakage', async () => {
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-reminder-'))
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    const project = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-project-reminder-'))
+
+    try {
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'alpha', 'SKILL.md'),
+        ['---', 'description: Alpha skill', '---', '', 'Do alpha'].join('\n'),
+      )
+
+      const reminder = buildAvailableSkillsSystemReminderText(project)
+      expect(reminder).toContain('<system-reminder>')
+      expect(reminder).toContain('<available_skills>')
+      expect(reminder).toContain('<name>\nalpha\n</name>')
+      expect(reminder).not.toContain(path.join(project, '.formax', 'skills'))
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
       await fsp.rm(globalConfigDir, { recursive: true, force: true })
       await fsp.rm(project, { recursive: true, force: true })
     }

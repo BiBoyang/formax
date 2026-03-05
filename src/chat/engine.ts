@@ -3,6 +3,8 @@ import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
 import type { ContextBudgetConfig } from './context/budget'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { pruneForPromptBudget } from './context/prune'
 import type { HooksRuntime } from '../hooks/runtime'
 import type { AuditLog } from '../adapters/audit/auditLog.js'
@@ -302,6 +304,32 @@ export function createChatEngine(deps: {
             requestedAllowTools: exec?.allowTools,
             exposedTools: toolsForCall,
           })
+          if (runtimeFlags.requestDryRunEnabled) {
+            const dump = await writeRequestDryRunSnapshot({
+              cwd,
+              outputDir: runtimeFlags.requestDryRunOutputDir,
+              model,
+              thinkingEnabled,
+              system: systemForThisCall,
+              messages: messagesForCall,
+              tools: toolsForCall,
+              iteration,
+            })
+            const dryRunNotice =
+              '[dry-run] Request payload captured. No network request was sent.\n' +
+              `Path: ${dump.filePath}`
+            onEvent({ type: 'assistant_delta', text: dryRunNotice })
+            loopMessages.push({
+              role: 'assistant',
+              content: [
+                {
+                  type: 'text',
+                  text: dryRunNotice,
+                },
+              ],
+            })
+            break
+          }
 
           const { assistantBlocks, stopReason, toolResults } =
             await deps.client.streamOnce({
@@ -448,4 +476,42 @@ function intersectAllowTools(args: {
 
   const requested = new Set(args.requestedAllowTools)
   return exposedNames.filter((name) => requested.has(name))
+}
+
+async function writeRequestDryRunSnapshot(args: {
+  cwd: string
+  outputDir: string | null
+  model: string | undefined
+  thinkingEnabled: boolean | undefined
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  tools: ToolDefinition[]
+  iteration: number
+}): Promise<{ filePath: string }> {
+  const targetDir = resolveRequestDryRunOutputDir(args.cwd, args.outputDir)
+  await fs.mkdir(targetDir, { recursive: true })
+
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const fileName = `${ts}__iter-${args.iteration + 1}__${randomUUID()}.json`
+  const filePath = path.join(targetDir, fileName)
+  const payload = {
+    kind: 'formax_request_preview_v1',
+    createdAt: new Date().toISOString(),
+    iteration: args.iteration + 1,
+    cwd: args.cwd,
+    model: args.model ?? null,
+    thinkingEnabled: args.thinkingEnabled ?? null,
+    system: args.system,
+    messages: args.messages,
+    tools: args.tools,
+  }
+
+  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+  return { filePath }
+}
+
+function resolveRequestDryRunOutputDir(cwd: string, outputDir: string | null): string {
+  const explicit = String(outputDir || '').trim()
+  if (explicit) return path.resolve(cwd, explicit)
+  return path.resolve(cwd, 'proxy', 'request-dry-run')
 }

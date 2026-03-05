@@ -22,6 +22,7 @@
     "desktop:electron:build": "npm --prefix apps/desktop-electron run build",
     "toole": "tsx ./src/entrypoints/tool-examples.tsx",
     "loade": "tsx ./src/entrypoints/loading-examples.tsx",
+    "request:preview": "tsx ./scripts/repl-request-preview.ts",
     "perf:transcript": "tsx ./src/entrypoints/perf-transcript.tsx",
     "tools:coverage": "tsx ./scripts/tools-coverage.ts",
     "tools:parity": "tsx ./scripts/tools-parity.ts",
