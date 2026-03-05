@@ -257,6 +257,7 @@ describe('TurnRunner', () => {
         hooksDebugEnabled: false,
         userShellPath: null,
         deferredToolExposureEnabled: true,
+        toolSearchEngine: 'bm25',
         requestDryRunEnabled: false,
         requestDryRunOutputDir: null,
       },

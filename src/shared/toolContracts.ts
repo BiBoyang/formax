@@ -26,9 +26,11 @@ export type ToolResultTextBlock = {
 
 export type ToolReferenceBlock = {
   type: 'tool_reference'
-  name: string
-  description: string
-  input_schema: unknown
+  tool_name: string
+  // Backward-compatible alias for older payloads/tests; prefer `tool_name`.
+  name?: string
+  description?: string
+  input_schema?: unknown
   defer_loading?: boolean
 }
 

@@ -11,6 +11,7 @@ export type DeferredToolExposureResolverArgs = {
   tools: ToolDefinition[]
   deferredToolExposureEnabled: boolean
   explicitSessionKey?: string | null
+  toolSearchEngine?: string | null
   includeSkillsReminderBlock?: boolean
 }
 
@@ -69,6 +70,7 @@ export function resolveDeferredToolExposureForTurn(
   store.registerCatalog({
     sessionKey,
     tools: baseToolsForTurn,
+    toolSearchEngine: args.toolSearchEngine ?? undefined,
   })
 
   const injectedPromptBlocks: PromptBlock[] = [

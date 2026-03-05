@@ -17,7 +17,7 @@ describe('toolResultContentToText', () => {
       { type: 'text', text: 'Loaded 1 tool(s)' },
       {
         type: 'tool_reference',
-        name: 'Bash',
+        tool_name: 'Bash',
         description: 'Execute shell command',
         input_schema: { type: 'object' },
         defer_loading: true,
@@ -42,6 +42,7 @@ describe('toToolReferenceBlock', () => {
       }),
     ).toEqual({
       type: 'tool_reference',
+      tool_name: 'Read',
       name: 'Read',
       description: 'Read file',
       input_schema: { type: 'object' },

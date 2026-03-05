@@ -714,7 +714,7 @@ describe('TaskSubAgentToolHandler', () => {
               { type: 'text', text: 'Loaded 1 tool(s) for query: select:Bash' },
               {
                 type: 'tool_reference',
-                name: 'Bash',
+                tool_name: 'Bash',
                 description: 'Execute shell command',
                 input_schema: { type: 'object' },
                 defer_loading: true,

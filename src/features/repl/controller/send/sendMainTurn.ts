@@ -111,6 +111,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       tools: args.tools,
       deferredToolExposureEnabled,
       explicitSessionKey: args.deferredToolExposureSessionKeyRef?.current,
+      toolSearchEngine: args.runtimeFlags?.toolSearchEngine,
     })
 
     const turnInput = buildTurnInput({

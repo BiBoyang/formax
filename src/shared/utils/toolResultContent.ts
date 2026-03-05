@@ -14,7 +14,11 @@ function stringifyUnknownBlock(block: ToolResultContentBlock): string {
 }
 
 function toolReferenceToText(block: ToolReferenceBlock): string {
-  const name = typeof block.name === 'string' ? block.name.trim() : ''
+  const name = typeof block.tool_name === 'string'
+    ? block.tool_name.trim()
+    : typeof block.name === 'string'
+      ? block.name.trim()
+      : ''
   const description = typeof block.description === 'string' ? block.description.trim() : ''
   if (!name) return description
   return description ? `${name}: ${description}` : name
@@ -53,6 +57,7 @@ export function toolResultContentToText(content: ToolResultContent): string {
 export function toToolReferenceBlock(tool: ToolDefinition): ToolReferenceBlock {
   return {
     type: 'tool_reference',
+    tool_name: tool.name,
     name: tool.name,
     description: tool.description,
     input_schema: tool.input_schema,

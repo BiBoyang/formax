@@ -4,6 +4,7 @@ export type RuntimeFlags = {
   hooksDebugEnabled: boolean
   userShellPath: string | null
   deferredToolExposureEnabled: boolean
+  toolSearchEngine: string | null
   requestDryRunEnabled: boolean
   requestDryRunOutputDir: string | null
 }
@@ -33,6 +34,7 @@ export function createRuntimeFlags(env: NodeJS.ProcessEnv = process.env): Runtim
     hooksDebugEnabled: parseTruthy(env.FORMAX_HOOKS_DEBUG),
     userShellPath: normalizeOptionalString(env.SHELL),
     deferredToolExposureEnabled: parseTruthy(env.FORMAX_DEFERRED_TOOL_EXPOSURE),
+    toolSearchEngine: normalizeOptionalString(env.FORMAX_TOOLSEARCH_ENGINE)?.toLowerCase() ?? null,
     requestDryRunEnabled: parseTruthy(env.FORMAX_REQUEST_DRY_RUN),
     requestDryRunOutputDir: normalizeOptionalString(env.FORMAX_REQUEST_DRY_RUN_DIR),
   }

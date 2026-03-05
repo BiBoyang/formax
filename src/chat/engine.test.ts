@@ -38,6 +38,7 @@ describe('ChatEngine', () => {
         hooksDebugEnabled: false,
         userShellPath: null,
         deferredToolExposureEnabled: false,
+        toolSearchEngine: null,
         requestDryRunEnabled: true,
         requestDryRunOutputDir: outputDir,
       },
@@ -233,7 +234,9 @@ describe('ChatEngine', () => {
     ) as any
     expect(Array.isArray(toolResultBlock?.content)).toBe(true)
     expect(
-      (toolResultBlock?.content as any[]).some((block) => block?.type === 'tool_reference' && block?.name === 'Bash'),
+      (toolResultBlock?.content as any[]).some(
+        (block) => block?.type === 'tool_reference' && (block?.tool_name === 'Bash' || block?.name === 'Bash'),
+      ),
     ).toBe(true)
   })
 

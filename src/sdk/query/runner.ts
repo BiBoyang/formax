@@ -1282,6 +1282,7 @@ async function* runQuery(
         tools: filteredTools,
         deferredToolExposureEnabled: runtime.runtimeFlags?.deferredToolExposureEnabled === true,
         explicitSessionKey: sessionId,
+        toolSearchEngine: runtime.runtimeFlags?.toolSearchEngine,
       })
       const structuredOutputTool =
         outputFormat?.type === 'json_schema'

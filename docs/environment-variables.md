@@ -58,6 +58,7 @@ These are used by development, diagnostics, or legacy paths and are not a stable
 - `FORMAX_SKILL_TOOL_CHAR_BUDGET`
 - `FORMAX_SKILL_STORE_CACHE_TTL_MS`
 - `FORMAX_DEFERRED_TOOL_EXPOSURE` (enable REPL deferred tool exposure mode; default disabled)
+- `FORMAX_TOOLSEARCH_ENGINE` (optional deferred ToolSearch engine for plain queries: `bm25` [default], `regex`, `keyword`, `hybrid`; per-query prefixes like `regex:` and `bm25:` still override)
 - `FORMAX_REQUEST_DRY_RUN` (construct request payload only, dump to file, skip real network request)
 - `FORMAX_REQUEST_DRY_RUN_DIR` (optional output directory for dry-run request payload dumps; defaults to `<cwd>/proxy/request-dry-run`)
 - `FORMAX_WEBFETCH_MODEL`

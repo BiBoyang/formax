@@ -412,6 +412,7 @@ export class TurnRunner {
         tools: this.tools,
         deferredToolExposureEnabled: this.runtimeFlags.deferredToolExposureEnabled === true,
         explicitSessionKey: `app-server:${running.threadId}`,
+        toolSearchEngine: this.runtimeFlags.toolSearchEngine,
       })
       const exposureInjectedBlockCount = toolExposure.injectedPromptBlocks.length
       const user = {

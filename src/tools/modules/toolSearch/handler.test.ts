@@ -32,7 +32,11 @@ describe('createToolSearchToolHandler', () => {
     expect(result.is_error).not.toBe(true)
     expect(Array.isArray(result.content)).toBe(true)
     if (Array.isArray(result.content)) {
-      expect(result.content.some((block: any) => block?.type === 'tool_reference' && block?.name === 'Bash')).toBe(true)
+      expect(
+        result.content.some(
+          (block: any) => block?.type === 'tool_reference' && (block?.tool_name === 'Bash' || block?.name === 'Bash'),
+        ),
+      ).toBe(true)
     }
     expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual([
       'ToolSearch',

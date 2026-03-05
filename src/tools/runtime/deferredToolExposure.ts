@@ -2,6 +2,14 @@ import type { ToolDefinition } from '../types'
 import { toolSearchToolSpec } from '../modules/toolSearch/spec'
 import { toToolReferenceBlock } from '../../shared/utils/toolResultContent'
 import type { ToolResultContent } from '../../shared/toolContracts'
+import {
+  buildToolSearchIndex,
+  parseToolSearchQuery,
+  resolveToolSearchEngineMode,
+  searchToolsWithMode,
+  type ToolSearchEngineMode,
+  type ToolSearchIndex,
+} from './toolSearchEngine'
 
 const MAX_KEYWORD_MATCHES = 5
 const MAX_DEFERRED_EXPOSURE_SESSIONS = 200
@@ -10,6 +18,8 @@ type DeferredSession = {
   catalog: ToolDefinition[]
   catalogByLowerName: Map<string, ToolDefinition>
   loadedNames: Set<string>
+  searchEngine: ToolSearchEngineMode
+  searchIndex: ToolSearchIndex
 }
 
 export type DeferredToolSearchResult = {
@@ -26,13 +36,19 @@ export class DeferredToolExposureStore {
     this.sessions.delete(normalizeSessionKey(sessionKey))
   }
 
-  registerCatalog(args: { sessionKey: string; tools: ToolDefinition[] }): void {
+  registerCatalog(args: {
+    sessionKey: string
+    tools: ToolDefinition[]
+    toolSearchEngine?: string | null
+  }): void {
     const key = normalizeSessionKey(args.sessionKey)
     const previous = this.sessions.get(key)
 
     const catalog = args.tools
       .filter((tool) => tool && typeof tool.name === 'string' && tool.name !== toolSearchToolSpec.name)
       .map((tool) => ({ ...tool, defer_loading: true }))
+    const searchEngine = resolveToolSearchEngineMode(args.toolSearchEngine ?? previous?.searchEngine)
+    const searchIndex = buildToolSearchIndex(catalog)
 
     const catalogByLowerName = new Map<string, ToolDefinition>()
     for (const tool of catalog) {
@@ -52,6 +68,8 @@ export class DeferredToolExposureStore {
       catalog,
       catalogByLowerName,
       loadedNames,
+      searchEngine,
+      searchIndex,
     })
     this.trimExcessSessions()
   }
@@ -94,9 +112,30 @@ export class DeferredToolExposureStore {
       }
     }
 
-    const matched = query.toLowerCase().startsWith('select:')
-      ? selectByName(state, query.slice('select:'.length))
-      : searchByKeywords(state, query)
+    const parsedQuery = parseToolSearchQuery(query, state.searchEngine)
+    let searchError: string | null = null
+    let matched: ToolDefinition[] = []
+    if (parsedQuery.mode === 'select') {
+      matched = selectByName(state, parsedQuery.query)
+    } else {
+      const searched = searchToolsWithMode({
+        index: state.searchIndex,
+        mode: parsedQuery.mode,
+        query: parsedQuery.query,
+        maxMatches: MAX_KEYWORD_MATCHES,
+      })
+      matched = searched.matches
+      searchError = searched.error || null
+    }
+
+    if (searchError) {
+      return {
+        isError: true,
+        loadedNames: state.catalog.filter((tool) => state.loadedNames.has(tool.name)).map((tool) => tool.name),
+        matchedNames: [],
+        content: searchError,
+      }
+    }
 
     for (const tool of matched) state.loadedNames.add(tool.name)
 
@@ -154,43 +193,6 @@ function selectByName(state: DeferredSession, raw: string): ToolDefinition[] {
     if (!out.some((item) => item.name === tool.name)) out.push(tool)
   }
   return out
-}
-
-function searchByKeywords(state: DeferredSession, raw: string): ToolDefinition[] {
-  const query = raw.trim().toLowerCase()
-  if (!query) return []
-
-  const required = query.startsWith('+') ? query.slice(1).split(/\s+/)[0] || '' : ''
-  const terms = query
-    .replace(/^\+/, '')
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-
-  const scored: Array<{ tool: ToolDefinition; score: number }> = []
-  for (const tool of state.catalog) {
-    const haystack = `${tool.name} ${tool.description}`.toLowerCase()
-    if (required && !haystack.includes(required)) continue
-
-    let score = 0
-    for (const term of terms) {
-      if (!haystack.includes(term)) continue
-      score += tool.name.toLowerCase() === term ? 6 : 1
-    }
-
-    if (score <= 0 && terms.length > 0) continue
-    if (score <= 0 && terms.length === 0 && haystack.includes(query)) score = 1
-    if (score <= 0) continue
-
-    scored.push({ tool, score })
-  }
-
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score
-    return a.tool.name.localeCompare(b.tool.name)
-  })
-
-  return scored.slice(0, MAX_KEYWORD_MATCHES).map((item) => item.tool)
 }
 
 function normalizeSessionKey(input: string): string {

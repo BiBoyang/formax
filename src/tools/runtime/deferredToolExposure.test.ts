@@ -45,7 +45,7 @@ describe('DeferredToolExposureStore', () => {
     expect(Array.isArray(result.content)).toBe(true)
     if (Array.isArray(result.content)) {
       const refs = result.content.filter((block: any) => block?.type === 'tool_reference')
-      expect(refs.map((block: any) => block.name)).toEqual(['Read', 'Bash'])
+      expect(refs.map((block: any) => block.tool_name || block.name)).toEqual(['Read', 'Bash'])
       expect(refs.every((block: any) => block.defer_loading === true)).toBe(true)
     }
     expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual([
@@ -59,7 +59,7 @@ describe('DeferredToolExposureStore', () => {
     })).toBe(true)
   })
 
-  it('supports keyword search and returns errors for empty matches', () => {
+  it('supports bm25 keyword-like search and returns errors for empty matches', () => {
     const store = new DeferredToolExposureStore()
     const sessionKey = 'session-keyword'
 
@@ -84,6 +84,27 @@ describe('DeferredToolExposureStore', () => {
     })
     expect(miss.isError).toBe(true)
     expect(miss.matchedNames).toEqual([])
+  })
+
+  it('supports regex queries via regex: prefix', () => {
+    const store = new DeferredToolExposureStore()
+    const sessionKey = 'session-regex'
+
+    store.registerCatalog({
+      sessionKey,
+      tools: [
+        { name: 'Bash', description: 'Execute shell command', input_schema: {} },
+        { name: 'Read', description: 'Read file from disk', input_schema: {} },
+      ],
+      toolSearchEngine: 'bm25',
+    })
+
+    const regex = store.searchAndLoad({
+      sessionKey,
+      query: 'regex:ba(sh)?',
+    })
+    expect(regex.isError).toBe(false)
+    expect(regex.matchedNames).toEqual(['Bash'])
   })
 
   it('evicts oldest sessions when catalog registrations exceed cap', () => {

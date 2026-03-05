@@ -49,3 +49,29 @@ Because `tool_result.content` is no longer string-only:
 - text-only consumers use `toolResultContentToText(...)` fallback.
 
 This prevents regressions in OpenAI mapping, tool end summaries, REPL tool completion rendering, and prompt pruning.
+
+## Follow-up alignment (A path): regex/BM25 search engines + tool reference key
+
+To get closer to Claude ToolSearch behavior without switching to Anthropic server-side tool types:
+
+- Added configurable plain-query engine modes:
+  - `bm25` (default),
+  - `regex`,
+  - `keyword` (legacy lexical),
+  - `hybrid` (BM25-first with lexical fill).
+- Added per-query overrides:
+  - `regex:<pattern>`,
+  - `bm25:<query>`,
+  - `keyword:<query>`,
+  - `hybrid:<query>`,
+  - existing `select:<tool_name>` retained.
+- Wired engine selection through runtime flag:
+  - `FORMAX_TOOLSEARCH_ENGINE`
+  - propagated across REPL/app-server/SDK via shared resolver.
+
+Also aligned `tool_reference` payload keying with captures/docs:
+
+- primary key now emits `tool_name`,
+- backward-compatible alias `name` is still emitted/read during transition.
+
+This keeps current consumers stable while matching observed Claude payload shape more closely.
