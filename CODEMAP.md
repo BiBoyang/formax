@@ -180,7 +180,6 @@ This file is a “where to change what” index for quickly navigating the codeb
 ### Tool registry + loader
 - Tool definitions (ToolDefinition): `src/tools/types.ts`
 - Tool module registry: `src/tools/registry.ts`
-- Tool loader (collect modules into runtime tools list): `src/tools/loader.ts`
 - Built-in tool modules registration: `src/tools/modules/index.ts`
 
 ### Tool execution pipeline
@@ -203,7 +202,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 
 ### Tool specs (“model-facing contract”)
 - Each tool module owns its spec under `src/tools/modules/<tool>/spec.ts`.
-- A convenient reference list/spec mapping exists in: `src/tools/specs/toolsCopy.ts`
+- Reference snapshot for parity checks: `src/tools/specs/reference/tools-copy.json`
 - Spec/handler drift tracking: `src/tools/SPEC_HANDLER_MISMATCHES.md`
 
 ## Key Tool Modules (where to implement behavior)

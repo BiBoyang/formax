@@ -44,6 +44,8 @@
     "ui:boundaries": "node ./scripts/check-ui-boundaries.mjs",
     "features:boundaries": "node ./scripts/check-feature-boundaries.mjs",
     "type-check": "tsc --noEmit && node ./scripts/check-core-boundaries.mjs && node ./scripts/check-ui-boundaries.mjs && node ./scripts/check-feature-boundaries.mjs && node ./scripts/check-layer-coverage.mjs && node ./scripts/check-shared-types.mjs && node ./scripts/check-doc-paths.mjs",
+    "lint:unused": "knip --config knip.json --exclude duplicates",
+    "lint:duplicates": "knip --config knip.json --include duplicates",
     "test": "vitest run",
     "test:surface-smoke": "vitest run src/screens/repl/surfaceSmoke.test.tsx",
     "test:surface-screen-model": "tsx ./scripts/surface-screen-model-smoke.tsx",
@@ -87,13 +89,13 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
     "@types/node": "^24.1.0",
     "@types/react": "^19.1.8",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
     "fast-check": "^4.5.3",
     "ink-testing-library": "^4.0.0",
+    "knip": "^5.85.0",
     "typescript": "^5.9.2",
     "vitest": "^4.0.18"
   },

@@ -8,7 +8,6 @@ Last verified: 2026-01-13
 
 - **做什么**：
   - Registry（注册表）：集中管理 tool 的 handler、presenter、spec 和元数据
-  - Loader（加载器）：从 JSON 文件加载工具定义（外部工具）
   - Executor（执行器）：路由工具调用、校验 allow/deny list、分发给 handler 执行
   - Runtime（运行时）：管理后台任务（TaskManager）和用户输入请求（UserInputManager）
   - Presenter（呈现器）：为每个工具提供 Ink UI 渲染组件
@@ -23,7 +22,6 @@ Last verified: 2026-01-13
 | ------------------- | ------------------------------------- |
 | `registry.ts`       | ToolRegistry 类，注册并查询工具       |
 | `executor/index.ts` | createToolExecutor 工厂，返回执行函数 |
-| `loader.ts`         | loadToolDefinitions 加载外部 JSON     |
 
 上层 chat engine (`src/chat/engine.ts`) 在初始化时：
 
