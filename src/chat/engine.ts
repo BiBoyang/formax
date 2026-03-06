@@ -472,7 +472,8 @@ function intersectAllowTools(args: {
   exposedTools: ToolDefinition[]
 }): string[] {
   const exposedNames = Array.from(new Set(args.exposedTools.map((tool) => tool.name)))
-  if (!args.requestedAllowTools || args.requestedAllowTools.length === 0) return exposedNames
+  if (!args.requestedAllowTools) return exposedNames
+  if (args.requestedAllowTools.length === 0) return []
   if (args.requestedAllowTools.includes('*')) return exposedNames
 
   const requested = new Set(args.requestedAllowTools)

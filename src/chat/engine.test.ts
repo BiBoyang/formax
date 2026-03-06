@@ -1331,4 +1331,54 @@ describe('ChatEngine', () => {
     expect(JSON.stringify(out)).toContain('Tool not allowed: Bash')
   })
 
+  it('preserves explicit empty allowTools as deny-all', async () => {
+    let callCount = 0
+    const seenAllowLists: Array<string[] | undefined> = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount += 1
+        if (callCount === 1) {
+          const result = await args.executeTool({ id: 't1', name: 'Bash', input: { command: 'pwd' } } as any)
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } }],
+            stopReason: 'tool_use',
+            toolResults: [result],
+          }
+        }
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async (call, ctx) => {
+      seenAllowLists.push(ctx.allowTools ? [...ctx.allowTools] : undefined)
+      const allowed = ctx.allowTools?.includes(call.name) === true
+      return {
+        tool_use_id: call.id,
+        content: allowed ? 'ok' : `Error: Tool not allowed: ${call.name}`,
+        ...(allowed ? {} : { is_error: true }),
+      }
+    }
+
+    const engine = createChatEngine({ client, executor })
+    const out = await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [{ name: 'Bash', description: 'bash', input_schema: {} }],
+      onEvent: (_ev: StreamEvent) => undefined,
+      cwd: '/tmp',
+      exec: {
+        allowTools: [],
+      },
+    })
+
+    expect(seenAllowLists[0]).toEqual([])
+    expect(JSON.stringify(out)).toContain('Tool not allowed: Bash')
+  })
+
 })

@@ -185,14 +185,30 @@ describe('resolveRuntimeConfig', () => {
     expect(res.warnings.some((w) => w.includes('FORMAX_ENABLE_AUTO_COMPACT'))).toBe(false)
   })
 
-  it('adds a warning and ignores invalid patches', () => {
+  it('keeps valid sibling fields when one field is invalid', () => {
     const res = resolveRuntimeConfig({
-      globalConfig: { llm: { timeoutMs: 'nope' } },
-      projectConfig: { llm: { model: 'p' } },
+      globalConfig: { llm: { model: 'g', timeoutMs: 'nope' } },
     })
 
-    expect(res.config.llm.model).toBe('p')
-    expect(res.warnings.some((w) => w.includes('global config is invalid'))).toBe(true)
+    expect(res.config.llm.model).toBe('g')
+    expect(res.config.llm.timeoutMs).toBe(600000)
+    expect(res.warnings.some((w) => w.includes('global config field "llm.timeoutMs"'))).toBe(true)
+  })
+
+  it('ignores unknown ui keys without dropping known ui values', () => {
+    const res = resolveRuntimeConfig({
+      globalConfig: {
+        llm: { model: 'g' },
+        ui: {
+          assistantTextMode: 'stream',
+          promptProfile: 'full',
+        },
+      },
+    })
+
+    expect(res.config.llm.model).toBe('g')
+    expect(res.config.ui.assistantTextMode).toBe('stream')
+    expect(res.warnings.some((w) => w.includes('global config is invalid'))).toBe(false)
   })
 
   it('applies env path/ui/context overrides and tracks env sources', () => {

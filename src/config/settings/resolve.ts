@@ -1,5 +1,13 @@
 import type { AuthStoreV1, FormaxConfigV1, FormaxConfigV1Patch, ProviderId } from './schema'
-import { AuthStoreV1Schema, FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema'
+import {
+  AuthStoreV1Schema,
+  ContextConfigPatchSchema,
+  FormaxConfigV1PatchSchema,
+  FormaxConfigV1Schema,
+  LlmConfigPatchSchema,
+  PathsConfigPatchSchema,
+  UiConfigPatchSchema,
+} from './schema'
 
 export type ConfigSource = 'flags' | 'env' | 'project' | 'global' | 'default'
 
@@ -61,11 +69,88 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
   return `${trimmed}/v1`
 }
 
+function isPlainObject(input: unknown): input is Record<string, unknown> {
+  return !!input && typeof input === 'object' && !Array.isArray(input)
+}
+
+type SectionShape = Record<string, { safeParse: (value: unknown) => { success: boolean; data?: unknown } }>
+
+function parseConfigSectionPatch<T extends Record<string, unknown>>(args: {
+  source: ConfigSource
+  section: 'llm' | 'paths' | 'ui' | 'context'
+  input: unknown
+  shape: SectionShape
+  warnings: string[]
+}): T | undefined {
+  if (args.input === undefined) return undefined
+  if (!isPlainObject(args.input)) {
+    args.warnings.push(`${args.source} config field "${args.section}" is invalid and was ignored`)
+    return undefined
+  }
+
+  const out: Record<string, unknown> = {}
+  for (const [key, schema] of Object.entries(args.shape)) {
+    if (!Object.prototype.hasOwnProperty.call(args.input, key)) continue
+    const parsed = schema.safeParse((args.input as Record<string, unknown>)[key])
+    if (parsed.success) {
+      out[key] = parsed.data
+      continue
+    }
+    args.warnings.push(`${args.source} config field "${args.section}.${key}" is invalid and was ignored`)
+  }
+  return Object.keys(out).length > 0 ? (out as T) : undefined
+}
+
 function parsePatch(source: ConfigSource, input: unknown, warnings: string[]): FormaxConfigV1Patch {
-  const res = FormaxConfigV1PatchSchema.safeParse(input ?? {})
-  if (res.success) return res.data
-  warnings.push(`${source} config is invalid and was ignored`)
-  return {}
+  const raw = input ?? {}
+  if (!isPlainObject(raw)) {
+    warnings.push(`${source} config is invalid and was ignored`)
+    return {}
+  }
+
+  const patch: FormaxConfigV1Patch = {}
+  if (Object.prototype.hasOwnProperty.call(raw, 'version')) {
+    if (raw.version === 1) patch.version = 1
+    else warnings.push(`${source} config field "version" is invalid and was ignored`)
+  }
+
+  const llm = parseConfigSectionPatch<NonNullable<FormaxConfigV1Patch['llm']>>({
+    source,
+    section: 'llm',
+    input: raw.llm,
+    shape: LlmConfigPatchSchema.shape as SectionShape,
+    warnings,
+  })
+  if (llm) patch.llm = llm
+
+  const paths = parseConfigSectionPatch<NonNullable<FormaxConfigV1Patch['paths']>>({
+    source,
+    section: 'paths',
+    input: raw.paths,
+    shape: PathsConfigPatchSchema.shape as SectionShape,
+    warnings,
+  })
+  if (paths) patch.paths = paths
+
+  const ui = parseConfigSectionPatch<NonNullable<FormaxConfigV1Patch['ui']>>({
+    source,
+    section: 'ui',
+    input: raw.ui,
+    shape: UiConfigPatchSchema.shape as SectionShape,
+    warnings,
+  })
+  if (ui) patch.ui = ui
+
+  const context = parseConfigSectionPatch<NonNullable<FormaxConfigV1Patch['context']>>({
+    source,
+    section: 'context',
+    input: raw.context,
+    shape: ContextConfigPatchSchema.shape as SectionShape,
+    warnings,
+  })
+  if (context) patch.context = context
+
+  return patch
 }
 
 function parseAuthStore(input: unknown, warnings: string[]): AuthStoreV1 | null {
