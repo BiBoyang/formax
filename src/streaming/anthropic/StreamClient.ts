@@ -6,6 +6,7 @@ import {
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamTurnResult } from '../types'
+import { normalizeAnthropicPromptCachingLayout } from './promptCachingLayout'
 
 export function sortToolResultsByCallOrder(
   toolCallOrder: string[],
@@ -78,7 +79,6 @@ function shouldRetryWithoutThinking(errorText: string): boolean {
   return (
     t.includes('thinking') ||
     t.includes('interleaved-thinking') ||
-    t.includes('anthropic-beta') ||
     t.includes('unknown field') ||
     t.includes('unrecognized') ||
     t.includes('additional properties') ||
@@ -86,15 +86,50 @@ function shouldRetryWithoutThinking(errorText: string): boolean {
   )
 }
 
-function addThinkingHeaders(headers: Record<string, string>): Record<string, string> {
+function shouldRetryWithoutBeta(errorText: string): boolean {
+  const t = (errorText || '').toLowerCase()
+  if (!t) return false
+  return (
+    t.includes('anthropic-beta') ||
+    t.includes('beta header') ||
+    t.includes('unknown beta')
+  )
+}
+
+function shouldRetryWithoutBetaFallback(args: {
+  status: number
+  errorText: string
+}): boolean {
+  if (shouldRetryWithoutBeta(args.errorText)) return true
+  // Some gateways strip error details and only return generic 400/422 bodies.
+  return args.status === 400 || args.status === 422
+}
+
+const BASE_BETA_FEATURES = [
+  'claude-code-20250219',
+  'prompt-caching-scope-2026-01-05',
+  'effort-2025-11-24',
+] as const
+
+const THINKING_BETA_FEATURES = [
+  'adaptive-thinking-2026-01-28',
+] as const
+
+function addAnthropicBetaHeaders(
+  headers: Record<string, string>,
+  args: { thinkingEnabled: boolean },
+): Record<string, string> {
+  const features = args.thinkingEnabled
+    ? [BASE_BETA_FEATURES[0], THINKING_BETA_FEATURES[0], BASE_BETA_FEATURES[1], BASE_BETA_FEATURES[2]]
+    : [...BASE_BETA_FEATURES]
+
   return {
     ...headers,
-    'anthropic-beta':
-      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    'anthropic-beta': features.join(','),
   }
 }
 
-function stripThinkingHeaders(headers: Record<string, string>): Record<string, string> {
+function stripAnthropicBetaHeaders(headers: Record<string, string>): Record<string, string> {
   const next: Record<string, string> = { ...headers }
   delete next['anthropic-beta']
   return next
@@ -116,12 +151,16 @@ export class AnthropicStreamClient implements LlmStreamClient {
   async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
     const thinkingEnabled = args.thinkingEnabled ?? true
     const modelForRequest = String(args.model || this.config.model || '').trim() || this.config.model
+    const normalizedPrompt = normalizeAnthropicPromptCachingLayout({
+      system: args.system,
+      messages: args.messages,
+    })
     const basePayload = {
       stream: true,
       model: modelForRequest,
       max_tokens: args.maxTokens ?? 16000,
-      messages: args.messages,
-      system: args.system,
+      messages: normalizedPrompt.messages,
+      system: normalizedPrompt.system,
       tools: args.tools,
     }
 
@@ -150,9 +189,13 @@ export class AnthropicStreamClient implements LlmStreamClient {
     const isAborted = () => combinedSignal.aborted
 
     try {
-      const requestHeaders = thinkingEnabled
-        ? addThinkingHeaders(this.headers)
-        : stripThinkingHeaders(this.headers)
+      const requestHeaders = addAnthropicBetaHeaders(this.headers, {
+        thinkingEnabled,
+      })
+      const noThinkingHeaders = addAnthropicBetaHeaders(this.headers, {
+        thinkingEnabled: false,
+      })
+
       let response = await fetch(`${this.config.baseUrl}/messages`, {
         method: 'POST',
         headers: requestHeaders,
@@ -163,17 +206,65 @@ export class AnthropicStreamClient implements LlmStreamClient {
       if (!response.ok) {
         const errorText = await response.text()
 
-        if (thinkingEnabled && shouldRetryWithoutThinking(errorText)) {
+        if (
+          thinkingEnabled &&
+          shouldRetryWithoutThinking(errorText) &&
+          !shouldRetryWithoutBeta(errorText)
+        ) {
           response = await fetch(`${this.config.baseUrl}/messages`, {
             method: 'POST',
-            headers: stripThinkingHeaders(this.headers),
+            headers: noThinkingHeaders,
             body: JSON.stringify(basePayload),
             signal: combinedSignal,
           })
 
           if (!response.ok) {
             const retryErrorText = await response.text()
-            throw new Error(`HTTP ${response.status}: ${retryErrorText}`)
+            if (shouldRetryWithoutBetaFallback({
+              status: response.status,
+              errorText: retryErrorText,
+            })) {
+              response = await fetch(`${this.config.baseUrl}/messages`, {
+                method: 'POST',
+                headers: stripAnthropicBetaHeaders(this.headers),
+                body: JSON.stringify(basePayload),
+                signal: combinedSignal,
+              })
+              if (!response.ok) {
+                const retryNoBetaErrorText = await response.text()
+                throw new Error(`HTTP ${response.status}: ${retryNoBetaErrorText}`)
+              }
+            } else {
+              throw new Error(`HTTP ${response.status}: ${retryErrorText}`)
+            }
+          }
+        } else if (shouldRetryWithoutBetaFallback({
+          status: response.status,
+          errorText,
+        })) {
+          const fallbackPayload = payload
+          response = await fetch(`${this.config.baseUrl}/messages`, {
+            method: 'POST',
+            headers: stripAnthropicBetaHeaders(this.headers),
+            body: JSON.stringify(fallbackPayload),
+            signal: combinedSignal,
+          })
+          if (!response.ok) {
+            const retryNoBetaErrorText = await response.text()
+            if (thinkingEnabled && shouldRetryWithoutThinking(retryNoBetaErrorText)) {
+              response = await fetch(`${this.config.baseUrl}/messages`, {
+                method: 'POST',
+                headers: stripAnthropicBetaHeaders(this.headers),
+                body: JSON.stringify(basePayload),
+                signal: combinedSignal,
+              })
+              if (!response.ok) {
+                const retryNoBetaNoThinkingErrorText = await response.text()
+                throw new Error(`HTTP ${response.status}: ${retryNoBetaNoThinkingErrorText}`)
+              }
+            } else {
+              throw new Error(`HTTP ${response.status}: ${retryNoBetaErrorText}`)
+            }
           }
         } else {
           throw new Error(`HTTP ${response.status}: ${errorText}`)

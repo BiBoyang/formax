@@ -8,6 +8,7 @@ import { runMainSendTurn } from '../src/features/repl/controller/send/sendMainTu
 import { getDeferredToolExposureStore } from '../src/tools/runtime/deferredToolExposure.js'
 import type { PromptBlock, PromptMessage } from '../src/prompts/index.js'
 import type { ToolDefinition } from '../src/tools/types.js'
+import { normalizeAnthropicPromptCachingLayout } from '../src/streaming/anthropic/promptCachingLayout.js'
 
 type CliOptions = {
   text: string
@@ -314,10 +315,18 @@ async function writeProxyStyleSnapshot(args: WriteSnapshotArgs): Promise<{ rawFi
   const pathPart = requestPath.replace(/[^\w.-]+/g, '_').slice(0, 60) || 'root'
   const seqStr = String(args.sequence).padStart(4, '0')
 
+  const normalizedPrompt =
+    args.provider === 'openai'
+      ? null
+      : normalizeAnthropicPromptCachingLayout({
+          system: args.payload.system,
+          messages: args.payload.messages,
+        })
+
   const body = {
     model: args.payload.model,
-    system: args.payload.system,
-    messages: args.payload.messages,
+    system: normalizedPrompt?.system ?? args.payload.system,
+    messages: normalizedPrompt?.messages ?? args.payload.messages,
     tools: args.payload.tools,
     stream: true,
     max_tokens: 16000,

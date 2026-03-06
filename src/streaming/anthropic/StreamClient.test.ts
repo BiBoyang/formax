@@ -112,6 +112,89 @@ describe('AnthropicStreamClient.streamOnce', () => {
     )
   })
 
+  it('normalizes cache_control placement to cc-style before request', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    const system = [
+      { type: 'text', text: 'identity' },
+      { type: 'text', text: 'instructions', cache_control: { type: 'ephemeral' as const } },
+    ]
+
+    const messages = [
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'text', text: '<system-reminder>injected</system-reminder>', cache_control: { type: 'ephemeral' as const } },
+          { type: 'text', text: 'todo reminder', cache_control: { type: 'ephemeral' as const } },
+          { type: 'text', text: 'run pwd' },
+        ],
+      },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'thinking', thinking: '...', signature: 'sig' },
+          { type: 'tool_use', id: 'call_1', name: 'Bash', input: { command: 'pwd' }, cache_control: { type: 'ephemeral' as const } },
+        ],
+      },
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'tool_result', tool_use_id: 'call_1', content: '/tmp', is_error: false },
+        ],
+      },
+    ]
+
+    await client.streamOnce({
+      messages,
+      system,
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+
+    // system blocks are always cache breakpoints.
+    expect(body.system[0].cache_control).toEqual({ type: 'ephemeral' })
+    expect(body.system[1].cache_control).toEqual({ type: 'ephemeral' })
+
+    // only the newest two messages keep a trailing cache breakpoint.
+    expect(body.messages[0].content[0].cache_control).toBeUndefined()
+    expect(body.messages[0].content[1].cache_control).toBeUndefined()
+    expect(body.messages[0].content[2].cache_control).toBeUndefined()
+    expect(body.messages[1].content[0].cache_control).toBeUndefined()
+    expect(body.messages[1].content[1].cache_control).toEqual({ type: 'ephemeral' })
+    expect(body.messages[2].content[0].cache_control).toEqual({ type: 'ephemeral' })
+
+    // input objects are not mutated by request normalization.
+    expect((messages[0] as any).content[0].cache_control).toEqual({ type: 'ephemeral' })
+    expect((messages[0] as any).content[2].cache_control).toBeUndefined()
+    expect((system[0] as any).cache_control).toBeUndefined()
+  })
+
   it('normalizes empty baseUrl and falls back model from client config when args model is blank', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
@@ -274,7 +357,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(events.some((e) => e.type === 'usage' && e.model === 'm-override')).toBe(true)
   })
 
-  it('omits thinking and thinking headers when thinkingEnabled is false', async () => {
+  it('omits thinking but keeps base beta headers when thinkingEnabled is false', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
     ;(globalThis.fetch as any).mockResolvedValueOnce({
@@ -311,7 +394,9 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
     expect(body.thinking).toBeUndefined()
-    expect(init.headers['anthropic-beta']).toBeUndefined()
+    expect(init.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
   })
 
   it('retries without thinking when provider rejects thinking fields', async () => {
@@ -366,7 +451,176 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     const secondBody = JSON.parse(secondInit.body)
     expect(secondBody.thinking).toBeUndefined()
+    expect(secondInit.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
+  })
+
+  it('retries once without beta headers when provider rejects anthropic-beta', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unsupported header anthropic-beta',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      thinkingEnabled: false,
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(2)
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    expect(firstInit.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
+  })
+
+  it('keeps thinking payload when retrying without beta headers', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unsupported header anthropic-beta',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(2)
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    const firstBody = JSON.parse(firstInit.body)
+    const secondBody = JSON.parse(secondInit.body)
+    expect(firstBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(secondBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(secondInit.headers['anthropic-beta']).toBeUndefined()
+  })
+
+  it('retries without thinking after no-beta retry is still rejected for thinking fields', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unsupported header anthropic-beta',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'Unknown field: thinking',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(3)
+
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    const [, thirdInit] = (globalThis.fetch as any).mock.calls[2]
+
+    const firstBody = JSON.parse(firstInit.body)
+    const secondBody = JSON.parse(secondInit.body)
+    const thirdBody = JSON.parse(thirdInit.body)
+
+    expect(firstInit.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
+    expect(secondInit.headers['anthropic-beta']).toBeUndefined()
+    expect(thirdInit.headers['anthropic-beta']).toBeUndefined()
+
+    expect(firstBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(secondBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(thirdBody.thinking).toBeUndefined()
   })
 
   it('throws retry HTTP error when fallback request also fails', async () => {
@@ -404,12 +658,12 @@ describe('AnthropicStreamClient.streamOnce', () => {
     ).rejects.toThrow('HTTP 500: retry-failed')
   })
 
-  it('does not retry when error text is empty/falsy', async () => {
+  it('does not retry when non-4xx error text is empty/falsy', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
     ;(globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
-      status: 400,
+      status: 500,
       text: async () => undefined,
       body: null,
     })
@@ -429,9 +683,59 @@ describe('AnthropicStreamClient.streamOnce', () => {
         onEvent: () => {},
         executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
       }),
-    ).rejects.toThrow('HTTP 400: undefined')
+    ).rejects.toThrow('HTTP 500: undefined')
 
     expect((globalThis.fetch as any).mock.calls).toHaveLength(1)
+  })
+
+  it('retries without beta headers on generic 400 even when body is empty', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => '',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      thinkingEnabled: false,
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(2)
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    expect(firstInit.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
+    expect(secondInit.headers['anthropic-beta']).toBeUndefined()
   })
 
   it('emits tool_start/tool_input/tool_end and returns sorted toolResults', async () => {
