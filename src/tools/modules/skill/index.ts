@@ -21,29 +21,43 @@ function getSkillToolCharBudget(): number {
   return n
 }
 
-function buildAvailableSkillsSection(cwd: string): string {
+type AvailableSkillMeta = {
+  name: string
+  scope: string
+  description: string
+}
+
+function listAvailableSkillsForCwd(cwd: string): AvailableSkillMeta[] {
   const configPaths = getConfigPaths({ cwd, env: process.env })
   const store = createSkillStore({ cwd, globalConfigDir: configPaths.globalConfigDir })
-  const entries = store
+  return store
     .list()
     .filter((s) => !s.disableModelInvocation)
-    .map((s) => {
-      const scopedDescription = `${s.description} (${s.scope})`
-      return [
-        '<skill>',
-        '<name>',
-        escapeXml(s.name),
-        '</name>',
-        '<description>',
-        escapeXml(scopedDescription),
-        '</description>',
-        '<location>',
-        'managed',
-        '</location>',
-        '</skill>',
-        '',
-      ].join('\n')
-    })
+    .map((s) => ({
+      name: s.name,
+      scope: s.scope,
+      description: s.description,
+    }))
+}
+
+function buildAvailableSkillsSection(cwd: string): string {
+  const entries = listAvailableSkillsForCwd(cwd).map((s) => {
+    const scopedDescription = `${s.description} (${s.scope})`
+    return [
+      '<skill>',
+      '<name>',
+      escapeXml(s.name),
+      '</name>',
+      '<description>',
+      escapeXml(scopedDescription),
+      '</description>',
+      '<location>',
+      'managed',
+      '</location>',
+      '</skill>',
+      '',
+    ].join('\n')
+  })
 
   if (entries.length === 0) return ''
 
@@ -85,17 +99,34 @@ export function buildSkillToolSpecForCwdWithOptions(cwd: string, options: BuildS
 }
 
 export function buildAvailableSkillsSystemReminderText(cwd: string): string | null {
-  const skillsSection = buildAvailableSkillsSection(cwd).trim()
-  if (!skillsSection) return null
+  const entries = listAvailableSkillsForCwd(cwd).map(
+    (skill) =>
+      `- ${sanitizeSystemReminderText(skill.name)}: ${sanitizeSystemReminderText(skill.description)}\n`,
+  )
+  if (entries.length === 0) return null
+
+  const { kept, truncated } = truncateByCharBudget(entries, getSkillToolCharBudget())
+  const bulletList = kept.join('')
+  if (!bulletList.trim()) return null
+
+  const truncatedSuffix = truncated ? '- ... (some skills omitted due prompt size limits)\n' : ''
 
   return (
     '<system-reminder>\n' +
-    'Available skills for the Skill tool are listed below.\n' +
-    '<available_skills>\n' +
-    `${skillsSection}\n` +
-    '</available_skills>\n' +
+    'The following skills are available for use with the Skill tool:\n\n' +
+    `${bulletList}${truncatedSuffix}` +
     '</system-reminder>'
   )
+}
+
+function sanitizeSystemReminderText(value: string): string {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 const spec: ToolDefinition = buildSkillToolSpecForCwd(process.cwd())

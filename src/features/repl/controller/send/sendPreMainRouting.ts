@@ -1,5 +1,6 @@
 import type { ChatEngine } from '../../../../chat/engine'
 import type { RuntimeConfig } from '../../../../config/config'
+import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { ReplMode } from '../../mode'
@@ -19,6 +20,7 @@ export async function resolvePreMainSendRouting(args: {
   providerError?: string | null
   engine: ChatEngine
   cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
   promptProfile?: SystemPromptProfile
   allowedSubagents: Array<{ name: string; description: string }>
   mode: ReplMode
@@ -63,6 +65,7 @@ export async function resolvePreMainSendRouting(args: {
       provider: args.provider,
       engine: args.engine,
       cfg: args.cfg,
+      runtimeFlags: args.runtimeFlags,
       promptProfile: args.promptProfile,
       allowedSubagents: args.allowedSubagents,
       mode: args.mode,

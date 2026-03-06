@@ -4,7 +4,11 @@ import path from 'node:path'
 import { rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { PromptBlock } from '../prompts/index.js'
-import { buildSystemPrompt, type SystemPromptProfile } from '../prompts/index.js'
+import {
+  buildSystemPrompt,
+  resolveSystemPromptVariant,
+  type SystemPromptProfile,
+} from '../prompts/index.js'
 import { buildCompactRequest } from '../prompts/compact.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
@@ -407,10 +411,11 @@ export class TurnRunner {
       }
       await writer.appendStableMsg(userMsg)
 
+      const deferredToolExposureEnabled = this.runtimeFlags.deferredToolExposureEnabled === true
       const toolExposure = resolveDeferredToolExposureForTurn({
         cwd: running.cwd,
         tools: this.tools,
-        deferredToolExposureEnabled: this.runtimeFlags.deferredToolExposureEnabled === true,
+        deferredToolExposureEnabled,
         explicitSessionKey: `app-server:${running.threadId}`,
         toolSearchEngine: this.runtimeFlags.toolSearchEngine,
       })
@@ -424,6 +429,7 @@ export class TurnRunner {
         cwd: running.cwd,
         model: this.model,
         profile: this.promptProfile,
+        variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
       })
       const tools = toolExposure.toolsForTurn
 

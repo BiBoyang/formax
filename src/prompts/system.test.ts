@@ -1,7 +1,7 @@
 import childProcess from 'node:child_process'
 import fs from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildSystemPrompt } from './system'
+import { buildSystemPrompt, resolveSystemPromptVariant } from './system'
 
 describe('buildSystemPrompt', () => {
   afterEach(() => {
@@ -28,6 +28,73 @@ describe('buildSystemPrompt', () => {
       .map((b: any) => b.text)
       .join('\n')
     expect(text).toContain('Task tool is available')
+  })
+
+  it('resolves prompt variant from deferred tool exposure flag', () => {
+    expect(resolveSystemPromptVariant()).toBe('legacy')
+    expect(resolveSystemPromptVariant({ deferredToolExposureEnabled: false })).toBe('legacy')
+    expect(resolveSystemPromptVariant({ deferredToolExposureEnabled: true })).toBe('deferred_aligned')
+  })
+
+  it('renders deferred-aligned full prompt without optional capability sections by default', () => {
+    const blocks = buildSystemPrompt(
+      { profile: 'full', variant: 'deferred_aligned', cwd: '/repo', model: 'm' },
+      {
+        platform: 'test-platform',
+        getToday: () => '2020-01-01',
+        osType: () => 'TestOS',
+        osRelease: () => '1.2.3',
+        isGitRepository: () => false,
+      },
+    )
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('\n')
+
+    expect(text).toContain('You are an interactive agent that helps users with software engineering tasks.')
+    expect(text).toContain('# System')
+    expect(text).toContain('# Doing tasks')
+    expect(text).toContain('# Executing actions with care')
+    expect(text).toContain('# Using your tools')
+    expect(text).toContain('# Environment')
+    expect(text).not.toContain('# auto memory')
+    expect(text).not.toContain('# VSCode Extension Context')
+    expect(text).not.toContain('<fast_mode_info>')
+  })
+
+  it('allows enabling deferred optional sections via code-level capability overrides', () => {
+    const blocks = buildSystemPrompt(
+      {
+        profile: 'full',
+        variant: 'deferred_aligned',
+        cwd: '/repo',
+        capabilities: {
+          includeAgentSdkIdentitySuffix: true,
+          includeAutoMemorySection: true,
+          includeVsCodeExtensionContextSection: true,
+          includeFastModeInfoSection: true,
+          includeModelFamilyHint: true,
+        },
+      },
+      {
+        platform: 'test-platform',
+        getToday: () => '2020-01-01',
+        osType: () => 'TestOS',
+        osRelease: () => '1.2.3',
+        isGitRepository: () => false,
+      },
+    )
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('\n')
+
+    expect(text).toContain('running within the Claude Agent SDK')
+    expect(text).toContain('# auto memory')
+    expect(text).toContain('# VSCode Extension Context')
+    expect(text).toContain('<fast_mode_info>')
+    expect(text).toContain('Model family hint')
   })
 
   it('lists allowed subagents in lite profile', () => {

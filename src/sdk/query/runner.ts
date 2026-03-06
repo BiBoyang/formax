@@ -5,7 +5,7 @@ import { createSlashCommandRegistry } from '../../features/commands/registry.js'
 import { getDefaultModels, inferModelMetadata } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
-import { buildSystemPrompt } from '../../prompts/system.js'
+import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
 import {
@@ -1277,10 +1277,11 @@ async function* runQuery(
         allowedTools: allowTools,
         disallowedTools,
       })
+      const deferredToolExposureEnabled = runtime.runtimeFlags?.deferredToolExposureEnabled === true
       const toolExposure = resolveDeferredToolExposureForTurn({
         cwd,
         tools: filteredTools,
-        deferredToolExposureEnabled: runtime.runtimeFlags?.deferredToolExposureEnabled === true,
+        deferredToolExposureEnabled,
         explicitSessionKey: sessionId,
         toolSearchEngine: runtime.runtimeFlags?.toolSearchEngine,
       })
@@ -1327,6 +1328,7 @@ async function* runQuery(
         cwd,
         model,
         profile: promptProfile,
+        variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
       })
       const systemOverride = isSystemPromptPresetInput(options.systemPrompt)
         ? []

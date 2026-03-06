@@ -23,7 +23,7 @@ describe('deferredToolExposureResolver', () => {
       input_schema: {},
     } as any)
     vi.mocked(buildAvailableSkillsSystemReminderText).mockReturnValue(
-      '<system-reminder>\n<available_skills>\nalpha\n</available_skills>\n</system-reminder>',
+      '<system-reminder>\nThe following skills are available for use with the Skill tool:\n\n- alpha: Alpha skill\n</system-reminder>',
     )
   })
 
@@ -68,7 +68,7 @@ describe('deferredToolExposureResolver', () => {
       .join('\n')
     expect(combinedText).toContain('<available-deferred-tools>')
     expect(combinedText).toContain('Bash')
-    expect(combinedText).toContain('<available_skills>')
+    expect(combinedText).toContain('The following skills are available for use with the Skill tool:')
 
     getDeferredToolExposureStore().searchAndLoad({
       sessionKey,

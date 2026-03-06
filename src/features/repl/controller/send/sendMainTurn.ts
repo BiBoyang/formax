@@ -9,7 +9,7 @@ import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
-import type { SystemPromptProfile } from '../../../../prompts/system'
+import { resolveSystemPromptVariant, type SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import { resolveDeferredToolExposureForTurn } from '../../../../tools/runtime/deferredToolExposureResolver'
 import type { ToolDefinition } from '../../../../tools/types'
@@ -138,6 +138,9 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       cwd,
       model: args.cfg.llm.model,
       profile: promptProfile,
+      variant: resolveSystemPromptVariant({
+        deferredToolExposureEnabled,
+      }),
     })
 
     const contextWindowTokens =

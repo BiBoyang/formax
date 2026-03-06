@@ -7,9 +7,10 @@ import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
+import type { RuntimeFlags } from '../../../../config/runtimeFlags'
+import { resolveSystemPromptVariant, type SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
-import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { ReplMode } from '../../mode'
 import { slashEffectToCommandResult, isSlashCommandResultData } from '../../../commands/adapter'
 import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../../../commands/registry'
@@ -56,6 +57,7 @@ export async function maybeHandleCompactCommand(args: {
   provider: 'openai' | 'anthropic'
   engine: ChatEngine
   cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
   promptProfile?: SystemPromptProfile
   allowedSubagents: Array<{ name: string; description: string }>
   mode: ReplMode
@@ -124,6 +126,9 @@ export async function maybeHandleCompactCommand(args: {
       cwd,
       model: args.cfg.llm.model,
       profile: promptProfile,
+      variant: resolveSystemPromptVariant({
+        deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
+      }),
     })
 
     const contextWindowTokens =

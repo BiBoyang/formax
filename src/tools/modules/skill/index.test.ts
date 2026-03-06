@@ -156,8 +156,8 @@ describe('buildAvailableSkillsSystemReminderText', () => {
 
       const reminder = buildAvailableSkillsSystemReminderText(project)
       expect(reminder).toContain('<system-reminder>')
-      expect(reminder).toContain('<available_skills>')
-      expect(reminder).toContain('<name>\nalpha\n</name>')
+      expect(reminder).toContain('The following skills are available for use with the Skill tool:')
+      expect(reminder).toContain('- alpha: Alpha skill')
       expect(reminder).not.toContain(path.join(project, '.formax', 'skills'))
     } finally {
       if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR

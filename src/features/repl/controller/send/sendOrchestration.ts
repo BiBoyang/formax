@@ -82,6 +82,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     providerError: args.input.providerError,
     engine: args.deps.engine,
     cfg: args.deps.cfg,
+    runtimeFlags: args.deps.runtimeFlags,
     promptProfile: args.deps.promptProfile,
     allowedSubagents: args.deps.allowedSubagents,
     mode: args.deps.mode,

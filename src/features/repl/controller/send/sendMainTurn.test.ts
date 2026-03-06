@@ -204,7 +204,7 @@ describe('runMainSendTurn', () => {
     }))
     vi.mocked(buildSkillToolSpecForCwdWithOptions).mockReturnValue({ name: 'Skill', patched: true } as any)
     vi.mocked(buildAvailableSkillsSystemReminderText).mockReturnValue(
-      '<system-reminder>\n<available_skills>\n<skill>\n<name>\nalpha\n</name>\n</skill>\n</available_skills>\n</system-reminder>',
+      '<system-reminder>\nThe following skills are available for use with the Skill tool:\n\n- alpha: Alpha skill\n</system-reminder>',
     )
     vi.mocked(maybeRunAutoCompactBeforeTurn).mockResolvedValue(undefined)
     vi.mocked(formatErrorSubline).mockImplementation((msg: string) => `ERR:${msg}`)
@@ -225,6 +225,9 @@ describe('runMainSendTurn', () => {
     expect(harness.refs.pendingInjectedBlocksRef.current).toEqual([])
     expect(harness.refs.abortControllerRef.current).toBeNull()
     expect(harness._spies.engine.runTurn).toHaveBeenCalledTimes(1)
+    expect(buildSystemPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'legacy' }),
+    )
     expect(harness._spies.engine.runTurn.mock.calls[0][0].tools).toEqual([
       { name: 'Skill', patched: true },
       { name: 'Read' },
@@ -435,12 +438,15 @@ describe('runMainSendTurn', () => {
       expect.any(String),
       { includeAvailableSkillsInDescription: false },
     )
+    expect(buildSystemPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'deferred_aligned' }),
+    )
 
     const userText = callArgs.user.content
       .map((block: any) => String(block?.text || ''))
       .join('\n')
     expect(userText).toContain('<available-deferred-tools>')
-    expect(userText).toContain('<available_skills>')
+    expect(userText).toContain('The following skills are available for use with the Skill tool:')
     expect(userText).toContain('Read')
     expect(userText).toContain('Skill')
 
