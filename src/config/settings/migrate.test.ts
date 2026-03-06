@@ -18,7 +18,7 @@ describe('configMigrate', () => {
       const env = { FORMAX_CONFIG_DIR: globalConfigDir } as any
       const paths = getConfigPaths({ cwd, homedir, platform: 'darwin', env })
 
-      const legacyConfig = '{"version":1,"ui":{"promptProfile":"lite"}}\n'
+      const legacyConfig = '{"version":1,"ui":{"assistantTextMode":"stream"}}\n'
       const legacyAuth = '{"version":1,"providers":{"anthropic":{"default":{"apiKey":"sk-legacy"}}}}\n'
       const legacyRules = '{"version":1,"rules":[]}\n'
 
@@ -49,8 +49,8 @@ describe('configMigrate', () => {
       const env = { FORMAX_CONFIG_DIR: globalConfigDir } as any
       const paths = getConfigPaths({ cwd, homedir, platform: 'darwin', env })
 
-      const legacyConfig = '{"version":1,"ui":{"promptProfile":"lite"}}\n'
-      const globalConfig = '{"version":1,"ui":{"promptProfile":"full"}}\n'
+      const legacyConfig = '{"version":1,"ui":{"assistantTextMode":"stream"}}\n'
+      const globalConfig = '{"version":1,"ui":{"assistantTextMode":"buffered"}}\n'
 
       await store.writeTextAtomic(paths.legacyConfigPath, legacyConfig)
       await store.writeTextAtomic(paths.globalConfigPath, globalConfig)

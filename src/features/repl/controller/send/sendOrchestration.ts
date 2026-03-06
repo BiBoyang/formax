@@ -2,7 +2,6 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine } from '../../../../chat/engine'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
-import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
@@ -28,7 +27,6 @@ type RunReplModelSendFlowArgs = {
   deps: {
     engine: ChatEngine
     cfg: RuntimeConfig
-    promptProfile?: SystemPromptProfile
     mode: ReplMode
     planSession?: PlanSessionManager
     commandRegistry?: SlashCommandRegistry
@@ -83,7 +81,6 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     engine: args.deps.engine,
     cfg: args.deps.cfg,
     runtimeFlags: args.deps.runtimeFlags,
-    promptProfile: args.deps.promptProfile,
     allowedSubagents: args.deps.allowedSubagents,
     mode: args.deps.mode,
     ...replModeAccess,
@@ -121,7 +118,6 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
   const mainTurnExecutionContext = createMainTurnExecutionContext({
     engine: args.deps.engine,
     cfg: args.deps.cfg,
-    promptProfile: args.deps.promptProfile,
     planSession: args.deps.planSession ?? null,
     reminderServiceRef: args.turnRefs.reminderServiceRef,
     tools: args.deps.tools,

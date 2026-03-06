@@ -209,7 +209,6 @@ describe('TurnRunner', () => {
       tools: [{ name: 'Skill' } as any],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -248,7 +247,6 @@ describe('TurnRunner', () => {
       tools: [{ name: 'Bash', description: 'shell', input_schema: {} } as any],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       runtimeFlags: {
@@ -299,7 +297,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -362,7 +359,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification() {},
@@ -397,7 +393,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       userInputManager: { submitAnswers: vi.fn().mockReturnValue(true) } as any,
@@ -431,7 +426,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       userInputManager: { submitAnswers: vi.fn().mockReturnValue(false) } as any,
@@ -471,7 +465,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -521,7 +514,6 @@ describe('TurnRunner', () => {
         tools: [],
         allowedSubagents: [],
         model: 'test-model',
-        promptProfile: 'lite',
         cwd: fixture.cwd,
         env: fixture.env,
         emitNotification(method, params) {
@@ -562,7 +554,6 @@ describe('TurnRunner', () => {
         tools: [],
         allowedSubagents: [],
         model: 'test-model',
-        promptProfile: 'lite',
         cwd: fixture.cwd,
         env: fixture.env,
         emitNotification(method, params) {
@@ -590,7 +581,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       ensureThreadFilePath,
@@ -616,7 +606,6 @@ describe('TurnRunner', () => {
         tools: [],
         allowedSubagents: [],
         model: 'test-model',
-        promptProfile: 'lite',
         cwd: fixture.cwd,
         env: fixture.env,
         emitNotification(method, params) {
@@ -643,7 +632,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -671,7 +659,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -700,7 +687,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -729,7 +715,6 @@ describe('TurnRunner', () => {
         tools: [],
         allowedSubagents: [],
         model: 'test-model',
-        promptProfile: 'lite',
         cwd: fixture.cwd,
         env: fixture.env,
         emitNotification(method, params) {
@@ -761,7 +746,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -853,7 +837,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -878,7 +861,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       env: fixture.env,
       emitNotification(method, params) {
         notifications.push({ method, params })
@@ -895,7 +877,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       userInputManager: { reject: vi.fn() } as any,
@@ -941,7 +922,6 @@ describe('TurnRunner', () => {
         tools: [],
         allowedSubagents: [],
         model: 'test-model',
-        promptProfile: 'lite',
         cwd: fixture.cwd,
         env: fixture.env,
         emitNotification(method, params) {
@@ -973,7 +953,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd,
       env,
       emitNotification(method, params) {
@@ -1006,7 +985,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd,
       env,
       emitNotification() {},
@@ -1045,7 +1023,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: runnerCwd,
       env,
       emitNotification(method, params) {
@@ -1082,7 +1059,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: runnerCwd,
       env,
       emitNotification(method, params) {
@@ -1147,7 +1123,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1228,7 +1203,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1289,7 +1263,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       userInputManager: userInput,
@@ -1346,7 +1319,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       userInputManager: userInput,
@@ -1402,7 +1374,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1439,7 +1410,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1477,7 +1447,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1542,7 +1511,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1604,7 +1572,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1673,7 +1640,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1728,7 +1694,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1797,7 +1762,6 @@ describe('TurnRunner', () => {
       tools: [toolStub],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1895,7 +1859,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -1960,7 +1923,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {
@@ -2030,7 +1992,6 @@ describe('TurnRunner', () => {
       tools: [],
       allowedSubagents: [],
       model: 'test-model',
-      promptProfile: 'lite',
       cwd: fixture.cwd,
       env: fixture.env,
       emitNotification(method, params) {

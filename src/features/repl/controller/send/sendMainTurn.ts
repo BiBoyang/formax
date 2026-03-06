@@ -9,7 +9,7 @@ import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
-import { resolveSystemPromptVariant, type SystemPromptProfile } from '../../../../prompts/system'
+import { resolveSystemPromptVariant } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import { resolveDeferredToolExposureForTurn } from '../../../../tools/runtime/deferredToolExposureResolver'
 import type { ToolDefinition } from '../../../../tools/types'
@@ -34,7 +34,6 @@ type RunMainSendTurnArgs = {
   deps: {
     engine: ChatEngine
     cfg: RuntimeConfig
-    promptProfile?: SystemPromptProfile
     planSession?: PlanSessionManager | null
     reminderServiceRef: { current: ReminderService | null }
     tools: ToolDefinition[]
@@ -97,8 +96,6 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
 
   try {
     if (!args.reminderServiceRef.current) args.reminderServiceRef.current = new ReminderService()
-
-    const promptProfile = args.promptProfile ?? args.cfg.ui.promptProfile
     const planPath =
       args.mode === 'plan'
         ? args.planSession?.getPlanPath() ?? args.planSession?.startNewPlan() ?? null
@@ -124,7 +121,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
 
     const injectedBlocks: PromptBlock[] = [
       ...toolExposure.injectedPromptBlocks,
-      ...(promptProfile === 'full' ? args.reminderServiceRef.current.generateInjectedBlocks({ cwd }) : []),
+      ...args.reminderServiceRef.current.generateInjectedBlocks({ cwd }),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...turnInput.semanticBlocks,
       ...args.pendingInjectedBlocksRef.current,
@@ -137,7 +134,6 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       allowedSubagents: args.allowedSubagents,
       cwd,
       model: args.cfg.llm.model,
-      profile: promptProfile,
       variant: resolveSystemPromptVariant({
         deferredToolExposureEnabled,
       }),

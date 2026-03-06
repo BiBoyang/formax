@@ -1,18 +1,13 @@
-# Prompt Profiles
+# System Prompt Status
 
-This project supports two system prompt profiles:
+This project uses a single system prompt path in runtime.
 
-- `full`: Claude Code-style, more prescriptive guidance (default)
-- `lite`: Minimal prompt for fast/low-noise functional testing
-
-Select via:
-
-- Env: `FORMAX_PROMPT_PROFILE=full|lite`
-- Runtime: `/prompt full|lite`
+- Runtime always builds the full prompt.
+- Prompt shape differences now come from `SystemPromptVariant` (for example `legacy` vs `deferred_aligned`) rather than a user-switchable profile.
 
 ## Porting TODOs (Claude Code parity)
 
-These items are intentionally omitted or simplified in `full` until implemented:
+These items are intentionally omitted or simplified until implemented:
 
 - Per-turn `CLAUDE.md` injection: ✅ project `CLAUDE.md` is injected as a `<system-reminder>#claudeMd` block; ✅ optional user-level global `~/.formax/CLAUDE.md` (or `${FORMAX_CONFIG_DIR}/CLAUDE.md`); TODO: add discoverability entrypoints (README / `formax setup` / `/doctor`) and consider env-gating if needed
 - TodoWrite reminders: ✅ empty-list reminder; ✅ stale reminder text + current todo contents; ✅ tool-loop injection by appending the reminder to the last `tool_result` content (Claude Code style); ✅ per-session todo store file under `~/.formax/todos/<sessionId>-agent-<sessionId>.json`; TODO: tune threshold/TTL against more captures

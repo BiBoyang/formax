@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import type { PromptBlock } from './types'
 
-export type SystemPromptProfile = 'lite' | 'full'
 export type SystemPromptVariant = 'legacy' | 'deferred_aligned'
 
 export type SystemPromptCapabilities = {
@@ -54,20 +53,16 @@ export function buildSystemPrompt(args?: {
   allowedSubagents?: Array<{ name: string; description: string }>
   cwd?: string
   model?: string
-  profile?: SystemPromptProfile
   variant?: SystemPromptVariant
   capabilities?: Partial<SystemPromptCapabilities>
 }, deps?: SystemPromptRuntimeDeps): PromptBlock[] {
-  const profile: SystemPromptProfile = args?.profile ?? 'full'
   const variant = args?.variant ?? 'legacy'
   const capabilities = resolveSystemPromptCapabilities({
     variant,
     overrides: args?.capabilities,
   })
 
-  return profile === 'lite'
-    ? buildLiteSystemPrompt(args, capabilities)
-    : buildFullSystemPrompt(args, deps, { variant, capabilities })
+  return buildFullSystemPrompt(args, deps, { variant, capabilities })
 }
 
 export function resolveSystemPromptVariant(args?: {
@@ -91,47 +86,6 @@ function buildSystemIdentityLine(capabilities: SystemPromptCapabilities): string
   const base = "You are Claude Code, Anthropic's official CLI for Claude."
   if (!capabilities.includeAgentSdkIdentitySuffix) return base
   return "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK."
-}
-
-function buildLiteSystemPrompt(args?: {
-  appName?: string
-  version?: string
-  allowedSubagents?: Array<{ name: string; description: string }>
-  cwd?: string
-  model?: string
-}, capabilities?: SystemPromptCapabilities): PromptBlock[] {
-  const base = buildSystemIdentityLine(capabilities ?? LEGACY_SYSTEM_PROMPT_CAPABILITIES)
-  const cwd = args?.cwd?.trim()
-  const fsNote =
-    (cwd ? `Current working directory: ${cwd}\n\n` : '') +
-    'When calling file tools (Read/Write/Edit/...), prefer paths under the current working directory unless the user specifies otherwise. ' +
-    'Do not guess other users home directories; if unsure, call Bash(pwd) first.'
-
-  const allowed = args?.allowedSubagents?.filter((a) => a?.name) ?? []
-  if (allowed.length === 0) {
-    return [
-      {
-        type: 'text',
-        text: `${base}\n\n${fsNote}`,
-        cache_control: { type: 'ephemeral' },
-      },
-    ]
-  }
-
-  const list = allowed
-    .map((a) => `- ${a.name}${a.description ? `: ${a.description}` : ''}`)
-    .join('\n')
-
-  return [
-    {
-      type: 'text',
-      text:
-        `${base}\n\n${fsNote}\n\n` +
-        `Available subagents for Task.subagent_type:\n${list}\n\n` +
-        `When calling Task, subagent_type MUST be one of the names above.`,
-      cache_control: { type: 'ephemeral' },
-    },
-  ]
 }
 
 function buildFullSystemPrompt(args?: {

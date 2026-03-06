@@ -1742,7 +1742,7 @@ describe('__mainTestOnly helpers', () => {
       },
       config: {
         llm: { provider: 'anthropic', baseUrl: 'u', model: 'm', timeoutMs: 1, authRef: 'default' },
-        ui: { promptProfile: 'lite', assistantTextMode: 'buffered' },
+        ui: { assistantTextMode: 'buffered' },
         paths: { logsDir: '/logs', subagentsDir: '/agents', planDir: '/plans' },
       },
       sources: {},
@@ -1773,7 +1773,7 @@ describe('__mainTestOnly helpers', () => {
       },
       config: {
         llm: { provider: 'anthropic', baseUrl: 'u', model: 'm', timeoutMs: 1, authRef: 'default' },
-        ui: { promptProfile: 'lite', assistantTextMode: 'buffered' },
+        ui: { assistantTextMode: 'buffered' },
         paths: { logsDir: '/logs', subagentsDir: '/agents', planDir: '/plans' },
       },
       sources: { 'llm.provider': 'env' },

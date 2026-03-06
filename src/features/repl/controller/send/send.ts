@@ -8,7 +8,7 @@ import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
-import { resolveSystemPromptVariant, type SystemPromptProfile } from '../../../../prompts/system'
+import { resolveSystemPromptVariant } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { ReplMode } from '../../mode'
@@ -58,7 +58,6 @@ export async function maybeHandleCompactCommand(args: {
   engine: ChatEngine
   cfg: RuntimeConfig
   runtimeFlags?: RuntimeFlags
-  promptProfile?: SystemPromptProfile
   allowedSubagents: Array<{ name: string; description: string }>
   mode: ReplMode
   getReplMode: () => ReplMode
@@ -117,7 +116,6 @@ export async function maybeHandleCompactCommand(args: {
   args.contextBudgetConfigRef.current = null
 
   try {
-    const promptProfile = args.promptProfile ?? args.cfg.ui.promptProfile
     const cwd = process.cwd()
     const previousHistory = args.historyRef.current
 
@@ -125,7 +123,6 @@ export async function maybeHandleCompactCommand(args: {
       allowedSubagents: args.allowedSubagents,
       cwd,
       model: args.cfg.llm.model,
-      profile: promptProfile,
       variant: resolveSystemPromptVariant({
         deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
       }),

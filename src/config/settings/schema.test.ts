@@ -18,7 +18,6 @@ describe('FormaxConfigV1Schema', () => {
       paths: {},
       ui: {
         assistantTextMode: 'buffered',
-        promptProfile: 'full',
         showContextMeter: true,
         showAutoCompactNotice: true,
         outputStyle: 'default',

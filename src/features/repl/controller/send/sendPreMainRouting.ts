@@ -1,7 +1,6 @@
 import type { ChatEngine } from '../../../../chat/engine'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
-import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { ReplMode } from '../../mode'
 import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../../../commands/registry'
@@ -21,7 +20,6 @@ export async function resolvePreMainSendRouting(args: {
   engine: ChatEngine
   cfg: RuntimeConfig
   runtimeFlags?: RuntimeFlags
-  promptProfile?: SystemPromptProfile
   allowedSubagents: Array<{ name: string; description: string }>
   mode: ReplMode
   getPlanPath: () => string | null
@@ -66,7 +64,6 @@ export async function resolvePreMainSendRouting(args: {
       engine: args.engine,
       cfg: args.cfg,
       runtimeFlags: args.runtimeFlags,
-      promptProfile: args.promptProfile,
       allowedSubagents: args.allowedSubagents,
       mode: args.mode,
       getReplMode: args.getReplMode,

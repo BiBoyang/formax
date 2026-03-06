@@ -60,7 +60,6 @@ describe('Expanded Transcript (ctrl+o)', () => {
     },
     ui: {
       assistantTextMode: 'stream',
-      promptProfile: 'lite',
       showContextMeter: false,
       showAutoCompactNotice: false,
       outputStyle: 'default',

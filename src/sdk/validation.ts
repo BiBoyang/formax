@@ -131,7 +131,6 @@ const queryOptionsSchema = z
     cwd: z.string().optional(),
     env: z.record(z.string(), z.string().optional()).optional(),
     model: z.string().optional(),
-    promptProfile: z.enum(['lite', 'full']).optional(),
     systemPrompt: systemPromptInputSchema.optional(),
     appendSystemPrompt: systemPromptInputSchema.optional(),
     includePartialMessages: z.boolean().optional(),

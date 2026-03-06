@@ -141,12 +141,12 @@ describe('readConfigPatch', () => {
 describe('merge/update config patch', () => {
   it('mergeConfigPatches deep-merges nested groups', () => {
     const merged = mergeConfigPatches(
-      { llm: { model: 'a' }, ui: { promptProfile: 'lite' } },
+      { llm: { model: 'a' }, ui: { } },
       { llm: { timeoutMs: 1 }, paths: { logsDir: '/tmp' } },
     )
     expect(merged).toEqual({
       llm: { model: 'a', timeoutMs: 1 },
-      ui: { promptProfile: 'lite' },
+      ui: { },
       paths: { logsDir: '/tmp' },
       context: {},
     })

@@ -11,8 +11,6 @@ export function createReplCommandRegistry(args: {
   cfg: RuntimeConfig
   taskManager?: TaskManager
   planSession: PlanSessionManager
-  promptProfile: RuntimeConfig['ui']['promptProfile']
-  setPromptProfile: (next: RuntimeConfig['ui']['promptProfile']) => void
   setDefaultModelTier: (next: ModelTier) => Promise<ModelTier>
   workspaceRoots: string[]
   workspaceRootWarnings: string[]
@@ -21,8 +19,6 @@ export function createReplCommandRegistry(args: {
     cfg,
     taskManager,
     planSession,
-    promptProfile,
-    setPromptProfile,
     setDefaultModelTier,
     workspaceRoots,
     workspaceRootWarnings,
@@ -32,7 +28,6 @@ export function createReplCommandRegistry(args: {
     cwd: process.cwd(),
     taskManager,
     plan: planSession,
-    promptProfile: { get: () => promptProfile, set: setPromptProfile },
     modelTier: {
       get: () => (cfg.llm.defaultTier ?? 'sonnet') as ModelTier,
       set: setDefaultModelTier,
@@ -52,7 +47,7 @@ export function createReplCommandRegistry(args: {
                 apiKey: cfg.llm.apiKey,
               },
               paths: cfg.paths,
-              ui: { promptProfile, assistantTextMode: cfg.ui.assistantTextMode },
+              ui: { assistantTextMode: cfg.ui.assistantTextMode },
             },
             workspaceRoots,
           })

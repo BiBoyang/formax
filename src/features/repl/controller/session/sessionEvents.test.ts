@@ -98,7 +98,6 @@ describe('sessionEvents', () => {
 
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
-      promptProfile: 'full',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,
@@ -117,7 +116,6 @@ describe('sessionEvents', () => {
 
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: false,
-      promptProfile: 'full',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,
@@ -125,7 +123,6 @@ describe('sessionEvents', () => {
     })
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
-      promptProfile: 'lite',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,
@@ -135,7 +132,6 @@ describe('sessionEvents', () => {
     vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(EMPTY_CLAUDE_MD_META as any)
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
-      promptProfile: 'full',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,
@@ -151,7 +147,6 @@ describe('sessionEvents', () => {
     lastSigRef.current = JSON.stringify(repeatedMeta)
     recordClaudeMdInjectionEvent({
       sessionSaveEnabled: true,
-      promptProfile: 'full',
       cwd: '/tmp/project',
       env: {},
       lastSigRef,

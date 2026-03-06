@@ -6,9 +6,6 @@ export type ProviderId = z.infer<typeof ProviderIdSchema>
 export const AssistantTextModeSchema = z.enum(['stream', 'buffered'])
 export type AssistantTextMode = z.infer<typeof AssistantTextModeSchema>
 
-export const PromptProfileSchema = z.enum(['lite', 'full'])
-export type PromptProfile = z.infer<typeof PromptProfileSchema>
-
 export const OutputStyleSchema = z.enum(['default', 'explanatory', 'learning'])
 export type OutputStyle = z.infer<typeof OutputStyleSchema>
 
@@ -86,7 +83,6 @@ export type PathsConfigPatch = z.infer<typeof PathsConfigPatchSchema>
 export const UiConfigSchema = z
   .object({
     assistantTextMode: AssistantTextModeSchema.default('buffered'),
-    promptProfile: PromptProfileSchema.default('full'),
     showContextMeter: z.boolean().default(true),
     showAutoCompactNotice: z.boolean().default(true),
     outputStyle: OutputStyleSchema.default('default'),
@@ -100,7 +96,6 @@ export type UiConfig = z.infer<typeof UiConfigSchema>
 export const UiConfigPatchSchema = z
   .object({
     assistantTextMode: AssistantTextModeSchema.optional(),
-    promptProfile: PromptProfileSchema.optional(),
     showContextMeter: z.boolean().optional(),
     showAutoCompactNotice: z.boolean().optional(),
     outputStyle: OutputStyleSchema.optional(),

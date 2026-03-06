@@ -1,5 +1,5 @@
 import type { ConfigShowResult } from '../../config/settings/show.js'
-import type { AssistantTextMode, PromptProfile } from '../../config/settings/schema.js'
+import type { AssistantTextMode } from '../../config/settings/schema.js'
 
 export type RuntimeStatusSnapshot = {
   llm: {
@@ -15,7 +15,6 @@ export type RuntimeStatusSnapshot = {
     planDir: string
   }
   ui: {
-    promptProfile: PromptProfile
     assistantTextMode: AssistantTextMode
   }
 }
@@ -38,7 +37,7 @@ export function createStatusSnapshot(args: {
   runtime: {
     llm: { provider: string; baseUrl: string; model: string; timeoutMs: number; apiKey?: string }
     paths: { logsDir: string; subagentsDir: string; planDir: string }
-    ui: { promptProfile: PromptProfile; assistantTextMode: AssistantTextMode }
+    ui: { assistantTextMode: AssistantTextMode }
   }
   shown?: ConfigShowResult
 }): StatusSnapshot {
@@ -67,7 +66,6 @@ export function createStatusSnapshot(args: {
         planDir: args.runtime.paths.planDir,
       },
       ui: {
-        promptProfile: args.runtime.ui.promptProfile,
         assistantTextMode: args.runtime.ui.assistantTextMode,
       },
     },

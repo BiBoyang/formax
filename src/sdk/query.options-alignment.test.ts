@@ -56,7 +56,7 @@ function createRuntimeFixture(runTurn?: (turnArgs: any) => Promise<PromptMessage
   const runtime: any = {
     cfg: {
       llm: { model: 'claude-default', thinkingMode: true },
-      ui: { promptProfile: 'full' },
+      ui: { },
     },
     allowedSubagents: [],
     tools: [createTool('Read'), createTool('Write'), createTool('AskUserQuestion')],

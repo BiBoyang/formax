@@ -1,5 +1,4 @@
 import type { PromptBlock, PromptMessage } from '../prompts/index.js'
-import type { SystemPromptProfile } from '../prompts/system.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ReplMode } from '../tools/executor/index.js'
 import type { ToolDefinition } from '../tools/types.js'
@@ -168,7 +167,6 @@ export type QueryOptions = {
   cwd?: string
   env?: NodeJS.ProcessEnv
   model?: string
-  promptProfile?: SystemPromptProfile
   systemPrompt?: SystemPromptInput
   appendSystemPrompt?: SystemPromptInput
   includePartialMessages?: boolean

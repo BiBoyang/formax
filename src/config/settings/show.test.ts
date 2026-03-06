@@ -23,7 +23,7 @@ describe('configShow', () => {
           },
         },
       })
-      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { promptProfile: 'lite' } })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { } })
       const paths = getConfigPaths({ cwd: projectDir, env: { FORMAX_CONFIG_DIR: globalConfigDir } as any })
 
       const res = await configShow({
@@ -35,7 +35,7 @@ describe('configShow', () => {
       expect(res.auth?.provider).toBe('anthropic')
       expect(res.auth?.source).toBe('global')
       expect(res.auth?.authRef).toBe('default')
-      expect(res.config.ui.promptProfile).toBe('lite')
+      expect(res.config.ui.assistantTextMode).toBe('buffered')
 
       const serialized = JSON.stringify(res)
       expect(serialized.includes(apiKey)).toBe(false)

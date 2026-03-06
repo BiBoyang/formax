@@ -8,14 +8,17 @@ describe('buildSystemPrompt', () => {
     vi.restoreAllMocks()
   })
 
-  it('includes cwd note in lite profile', () => {
-    const blocks = buildSystemPrompt({ profile: 'lite', cwd: '/repo' })
+  it('includes cwd note in system prompt', () => {
+    const blocks = buildSystemPrompt({cwd: '/repo' })
     expect(blocks.length).toBeGreaterThan(0)
-    const firstText = blocks.find((b) => b.type === 'text') as any
-    expect(String(firstText?.text || '')).toContain('Current working directory: /repo')
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => String(b?.text ?? ''))
+      .join('\n')
+    expect(text).toContain('Current working directory: /repo')
   })
 
-  it('defaults to full profile when profile is omitted', () => {
+  it('builds the default full prompt when profile is omitted', () => {
     const blocks = buildSystemPrompt(undefined, {
       platform: 'test-platform',
       getToday: () => '2020-01-01',
@@ -38,7 +41,7 @@ describe('buildSystemPrompt', () => {
 
   it('renders deferred-aligned full prompt without optional capability sections by default', () => {
     const blocks = buildSystemPrompt(
-      { profile: 'full', variant: 'deferred_aligned', cwd: '/repo', model: 'm' },
+      {variant: 'deferred_aligned', cwd: '/repo', model: 'm' },
       {
         platform: 'test-platform',
         getToday: () => '2020-01-01',
@@ -66,7 +69,6 @@ describe('buildSystemPrompt', () => {
   it('allows enabling deferred optional sections via code-level capability overrides', () => {
     const blocks = buildSystemPrompt(
       {
-        profile: 'full',
         variant: 'deferred_aligned',
         cwd: '/repo',
         capabilities: {
@@ -97,9 +99,8 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('Model family hint')
   })
 
-  it('lists allowed subagents in lite profile', () => {
+  it('lists allowed subagents in system prompt', () => {
     const blocks = buildSystemPrompt({
-      profile: 'lite',
       allowedSubagents: [
         { name: 'Explore', description: 'scan codebase' },
         { name: 'Fix', description: '' },
@@ -115,9 +116,9 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('- Fix')
   })
 
-  it('includes a deterministic env snapshot in full profile when deps are provided', () => {
+  it('includes a deterministic env snapshot when deps are provided', () => {
     const blocks = buildSystemPrompt(
-      { profile: 'full', cwd: '/repo', model: 'm' },
+      {cwd: '/repo', model: 'm' },
       {
         platform: 'test-platform',
         getToday: () => '2020-01-01',
@@ -141,7 +142,7 @@ describe('buildSystemPrompt', () => {
 
   it('includes git snapshot when the repo is detected', () => {
     const blocks = buildSystemPrompt(
-      { profile: 'full', cwd: '/repo' },
+      {cwd: '/repo' },
       {
         getToday: () => '2020-01-01',
         osType: () => 'TestOS',
@@ -170,7 +171,7 @@ describe('buildSystemPrompt', () => {
         stdout: `abcdef0 ${'x'.repeat(160)}\n1234567 short\n`,
       } as any)
 
-    const blocks = buildSystemPrompt({ profile: 'full', cwd: '/repo', model: 'runtime-model' })
+    const blocks = buildSystemPrompt({cwd: '/repo', model: 'runtime-model' })
     const text = blocks
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)
@@ -188,7 +189,7 @@ describe('buildSystemPrompt', () => {
     vi.spyOn(childProcess, 'spawnSync').mockReturnValue({ status: 1, stdout: '' } as any)
     vi.spyOn(fs, 'existsSync').mockImplementation((target) => String(target).endsWith('/repo/.git'))
 
-    const blocks = buildSystemPrompt({ profile: 'full', cwd: '/repo', model: 'fallback-model' })
+    const blocks = buildSystemPrompt({cwd: '/repo', model: 'fallback-model' })
     const text = blocks
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)
@@ -205,7 +206,7 @@ describe('buildSystemPrompt', () => {
       throw new Error('fs failed')
     })
 
-    const blocks = buildSystemPrompt({ profile: 'full', cwd: '/repo', model: 'error-model' })
+    const blocks = buildSystemPrompt({cwd: '/repo', model: 'error-model' })
     const text = blocks
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)
@@ -217,7 +218,7 @@ describe('buildSystemPrompt', () => {
   it('does not crash when injected deps throw', () => {
     expect(() =>
       buildSystemPrompt(
-        { profile: 'full', cwd: '/repo' },
+        {cwd: '/repo' },
         {
           getToday: () => '2020-01-01',
           osType: () => 'TestOS',
@@ -235,7 +236,6 @@ describe('buildSystemPrompt', () => {
   it('renders full task notes with configured subagents and custom app name', () => {
     const blocks = buildSystemPrompt(
       {
-        profile: 'full',
         appName: '  CustomApp  ',
         cwd: '/repo',
         allowedSubagents: [{ name: 'Explore', description: 'Inspect implementation' }],
@@ -258,10 +258,9 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('- Explore: Inspect implementation')
   })
 
-  it('handles full profile subagent entries without descriptions', () => {
+  it('handles subagent entries without descriptions', () => {
     const blocks = buildSystemPrompt(
       {
-        profile: 'full',
         allowedSubagents: [
           { name: 'Explore', description: 'Inspect implementation' },
           { name: 'Fix', description: '' },
@@ -289,8 +288,8 @@ describe('buildSystemPrompt', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('/cached-cwd')
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
 
-    const first = buildSystemPrompt({ profile: 'full', cwd: '   ', model: 'cached-model' })
-    const second = buildSystemPrompt({ profile: 'full', cwd: '   ', model: 'cached-model' })
+    const first = buildSystemPrompt({cwd: '   ', model: 'cached-model' })
+    const second = buildSystemPrompt({cwd: '   ', model: 'cached-model' })
     const firstText = first
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)
@@ -312,7 +311,7 @@ describe('buildSystemPrompt', () => {
     } as any)
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
 
-    const blocks = buildSystemPrompt({ profile: 'full', cwd: '/repo', model: 'spawn-error-model' })
+    const blocks = buildSystemPrompt({cwd: '/repo', model: 'spawn-error-model' })
     const text = blocks
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)
@@ -320,18 +319,15 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('Is directory a git repo: No')
   })
 
-  it('falls back to process.cwd when full profile cwd is omitted', () => {
+  it('falls back to process.cwd when cwd is omitted', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('/process-cwd')
-    const blocks = buildSystemPrompt(
-      { profile: 'full' },
-      {
-        platform: 'test-platform',
-        getToday: () => '2020-01-01',
-        osType: () => 'TestOS',
-        osRelease: () => '1.2.3',
-        isGitRepository: () => false,
-      },
-    )
+    const blocks = buildSystemPrompt(undefined, {
+      platform: 'test-platform',
+      getToday: () => '2020-01-01',
+      osType: () => 'TestOS',
+      osRelease: () => '1.2.3',
+      isGitRepository: () => false,
+    })
 
     const text = blocks
       .filter((b) => b.type === 'text')
@@ -342,16 +338,13 @@ describe('buildSystemPrompt', () => {
 
   it('executes empty-trim cwd fallback branch safely', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('')
-    const blocks = buildSystemPrompt(
-      { profile: 'full' },
-      {
-        platform: 'test-platform',
-        getToday: () => '2020-01-01',
-        osType: () => 'TestOS',
-        osRelease: () => '1.2.3',
-        isGitRepository: () => false,
-      },
-    )
+    const blocks = buildSystemPrompt(undefined, {
+      platform: 'test-platform',
+      getToday: () => '2020-01-01',
+      osType: () => 'TestOS',
+      osRelease: () => '1.2.3',
+      isGitRepository: () => false,
+    })
     const text = blocks
       .filter((b) => b.type === 'text')
       .map((b: any) => b.text)

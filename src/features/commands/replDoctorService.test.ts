@@ -69,7 +69,6 @@ function makeRuntimeConfig(): RuntimeConfig {
     },
     ui: {
       assistantTextMode: 'stream',
-      promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',

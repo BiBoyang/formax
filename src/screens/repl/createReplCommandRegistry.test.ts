@@ -35,8 +35,6 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'full',
-      setPromptProfile: () => {},
       setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
@@ -60,8 +58,6 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'full',
-      setPromptProfile: () => {},
       setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: ['extra-1', 'extra-2'],
@@ -85,8 +81,6 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'full',
-      setPromptProfile: () => {},
       setDefaultModelTier: async () => 'sonnet',
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
@@ -97,8 +91,7 @@ describe('createReplCommandRegistry', () => {
     expect(runReplDoctorMock).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes promptProfile/modelTier accessors and fallback tier', async () => {
-    const setPromptProfile = vi.fn()
+  it('exposes modelTier accessors and fallback tier', async () => {
     const setDefaultModelTier = vi.fn(async (_next: 'haiku' | 'sonnet' | 'opus') => 'haiku' as const)
     const registry: any = createReplCommandRegistry({
       cfg: {
@@ -113,16 +106,10 @@ describe('createReplCommandRegistry', () => {
         ui: { assistantTextMode: 'default' },
       } as any,
       planSession: {} as any,
-      promptProfile: 'lite',
-      setPromptProfile,
       setDefaultModelTier,
       workspaceRoots: ['/tmp/repo'],
       workspaceRootWarnings: [],
     })
-
-    expect(registry.promptProfile.get()).toBe('lite')
-    registry.promptProfile.set('full')
-    expect(setPromptProfile).toHaveBeenCalledWith('full')
 
     // Fallback when cfg.llm.defaultTier is unset.
     expect(registry.modelTier.get()).toBe('sonnet')
@@ -148,8 +135,6 @@ describe('createReplCommandRegistry', () => {
           ui: { assistantTextMode: 'default' },
         } as any,
         planSession: {} as any,
-        promptProfile: 'full',
-        setPromptProfile: () => {},
         setDefaultModelTier: async () => 'sonnet',
         workspaceRoots: ['/tmp/repo'],
         workspaceRootWarnings: [],

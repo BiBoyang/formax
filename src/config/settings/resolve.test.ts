@@ -161,7 +161,6 @@ describe('resolveRuntimeConfig', () => {
     const res = resolveRuntimeConfig({})
     expect(res.sources['llm.provider']).toBe('default')
     expect(res.sources['llm.defaultTier']).toBe('default')
-    expect(res.sources['ui.promptProfile']).toBe('default')
   })
 
   it('ignores invalid FORMAX_TIMEOUT_MS with warning', () => {
@@ -272,21 +271,18 @@ describe('resolveRuntimeConfig', () => {
     }
   })
 
-  it('applies llm context-window and ui profile/text mode from env', () => {
+  it('applies llm context-window and ui text mode from env', () => {
     const res = resolveRuntimeConfig({
       env: {
         FORMAX_CONTEXT_WINDOW_TOKENS: '64000',
         FORMAX_ASSISTANT_TEXT_MODE: 'stream',
-        FORMAX_PROMPT_PROFILE: 'lite',
       },
     })
 
     expect(res.config.llm.contextWindowTokens).toBe(64000)
     expect(res.config.ui.assistantTextMode).toBe('stream')
-    expect(res.config.ui.promptProfile).toBe('lite')
     expect(res.sources['llm.contextWindowTokens']).toBe('env')
     expect(res.sources['ui.assistantTextMode']).toBe('env')
-    expect(res.sources['ui.promptProfile']).toBe('env')
   })
 
   it('applies env ui patch when only one ui field is provided', () => {
@@ -301,16 +297,6 @@ describe('resolveRuntimeConfig', () => {
     expect(res.config.ui.showAutoCompactNotice).toBe(false)
     expect(res.sources['ui.assistantTextMode']).toBe('env')
     expect(res.sources['ui.showAutoCompactNotice']).toBe('env')
-  })
-
-  it('applies env ui patch when only prompt profile is provided', () => {
-    const res = resolveRuntimeConfig({
-      env: {
-        FORMAX_PROMPT_PROFILE: 'full',
-      },
-    })
-    expect(res.config.ui.promptProfile).toBe('full')
-    expect(res.sources['ui.promptProfile']).toBe('env')
   })
 
   it('applies env ui show-auto-compact without prior ui patch', () => {

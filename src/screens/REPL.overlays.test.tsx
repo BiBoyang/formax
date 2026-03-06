@@ -106,7 +106,6 @@ function makeCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
     },
     ui: {
       assistantTextMode: 'stream',
-      promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',

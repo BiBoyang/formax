@@ -15,7 +15,7 @@ describe('loadConfigFiles', () => {
 
       await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), { version: 1, llm: { model: 'x' } })
       await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), { version: 1, providers: { anthropic: {} } })
-      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { promptProfile: 'lite' } })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { } })
 
       const res = await loadConfigFiles({
         fileStore: store,
@@ -28,7 +28,7 @@ describe('loadConfigFiles', () => {
       expect(res.paths.globalConfigDir).toBe(globalConfigDir)
       expect(res.paths.projectConfigDir).toBe(path.join(projectDir, '.formax'))
       expect(res.globalConfig).toEqual({ version: 1, llm: { model: 'x' } })
-      expect(res.projectConfig).toEqual({ version: 1, ui: { promptProfile: 'lite' } })
+      expect(res.projectConfig).toEqual({ version: 1, ui: { } })
       expect(res.authStore).toEqual({ version: 1, providers: { anthropic: {} } })
       expect(res.warnings).toEqual([])
     } finally {

@@ -50,7 +50,6 @@ describe('writeSetupFiles', () => {
       expect(config.llm.timeoutMs).toBe(600000)
       expect(config.paths.logsDir).toBe(res.logsDir)
       expect(config.ui.assistantTextMode).toBe('buffered')
-      expect(config.ui.promptProfile).toBe('full')
 
       const auth = JSON.parse(await fs.readFile(res.authPath, 'utf8'))
       expect(auth.version).toBe(1)
@@ -70,7 +69,7 @@ describe('writeSetupFiles', () => {
       const globalConfigDir = path.join(dir, 'global')
       const cwd = path.join(dir, 'repo')
 
-      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), { version: 1, ui: { promptProfile: 'lite' } })
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), { version: 1, ui: { } })
 
       const res = await writeSetupFiles({
         fileStore: store,
@@ -85,7 +84,7 @@ describe('writeSetupFiles', () => {
       })
 
       const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
-      expect(config.ui.promptProfile).toBe('lite')
+      expect(config.ui.assistantTextMode).toBe('buffered')
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

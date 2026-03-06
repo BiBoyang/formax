@@ -361,7 +361,7 @@ describe('SlashCommandRegistry', () => {
             apiKey: '',
           },
           paths: { logsDir: '/tmp/logs', subagentsDir: '/tmp/subagents', planDir: '/tmp/plans' },
-          ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+          ui: { assistantTextMode: 'stream' },
         },
       })
 
@@ -437,7 +437,7 @@ describe('SlashCommandRegistry', () => {
             apiKey: '',
           },
           paths: { logsDir: '/tmp/logs', subagentsDir: '/tmp/subagents', planDir: '/tmp/plans' },
-          ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+          ui: { assistantTextMode: 'stream' },
         },
       })
 
@@ -526,73 +526,6 @@ describe('SlashCommandRegistry', () => {
       expect(effect?.kind).toBe('local')
       if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
       expect(effect.stdout).toContain('No plan found')
-    } finally {
-      await fsp.rm(cwd, { recursive: true, force: true })
-    }
-  })
-
-  it('dispatches /prompt with usage when no args provided', async () => {
-    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
-    try {
-      const reg = createSlashCommandRegistry({
-        cwd,
-        globalConfigDir: cwd,
-        promptProfile: { get: () => 'lite', set: () => {} },
-      })
-      const effect = reg.dispatch('/prompt')
-      expect(effect?.kind).toBe('local')
-      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
-      expect(effect.stdout).toContain('Prompt profile: lite')
-      expect(effect.stdout).toContain('/prompt full')
-    } finally {
-      await fsp.rm(cwd, { recursive: true, force: true })
-    }
-  })
-
-  it('dispatches /prompt with unknown profile message', async () => {
-    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
-    try {
-      const reg = createSlashCommandRegistry({
-        cwd,
-        globalConfigDir: cwd,
-        promptProfile: { get: () => 'full', set: () => {} },
-      })
-      const effect = reg.dispatch('/prompt weird')
-      expect(effect?.kind).toBe('local')
-      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
-      expect(effect.stdout).toContain('Unknown profile: weird')
-    } finally {
-      await fsp.rm(cwd, { recursive: true, force: true })
-    }
-  })
-
-  it('dispatches /prompt and updates profile when value is valid', async () => {
-    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
-    try {
-      const set = vi.fn()
-      const reg = createSlashCommandRegistry({
-        cwd,
-        globalConfigDir: cwd,
-        promptProfile: { get: () => 'full', set },
-      })
-      const effect = reg.dispatch('/prompt lite')
-      expect(effect?.kind).toBe('local')
-      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
-      expect(set).toHaveBeenCalledWith('lite')
-      expect(effect.stdout).toContain('Prompt profile set to: lite')
-    } finally {
-      await fsp.rm(cwd, { recursive: true, force: true })
-    }
-  })
-
-  it('dispatches /prompt with default full profile when promptProfile service is missing', async () => {
-    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
-    try {
-      const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
-      const effect = reg.dispatch('/prompt')
-      expect(effect?.kind).toBe('local')
-      if (!effect || effect.kind !== 'local') throw new Error('Expected local effect')
-      expect(effect.stdout).toContain('Prompt profile: full')
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true })
     }

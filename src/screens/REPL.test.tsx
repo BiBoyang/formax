@@ -84,13 +84,18 @@ describe('REPL', () => {
     }
   }
 
+  function stripSystemReminders(text: string): string {
+    return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim()
+  }
+
   function getUserText(msg: PromptMessage): string {
     const content = msg.content as any
-    if (typeof content === 'string') return content
+    if (typeof content === 'string') return stripSystemReminders(content)
     if (!Array.isArray(content)) return ''
-    return content
+    const joined = content
       .map((b: PromptBlock) => (b?.type === 'text' ? String((b as any).text ?? '') : ''))
       .join('')
+    return stripSystemReminders(joined)
   }
 
   function isAutoTitlePrompt(text: string): boolean {
@@ -127,7 +132,6 @@ describe('REPL', () => {
     },
     ui: {
       assistantTextMode: 'stream',
-      promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',

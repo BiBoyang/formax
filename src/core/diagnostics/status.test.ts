@@ -10,7 +10,7 @@ describe('createStatusSnapshot', () => {
       runtime: {
         llm: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'm1', timeoutMs: 1234, apiKey: 'sk-test' },
         paths: { logsDir: '/repo/logs', subagentsDir: '/repo/.agent/subagents', planDir: '/repo/plans' },
-        ui: { promptProfile: 'full', assistantTextMode: 'buffered' },
+        ui: { assistantTextMode: 'buffered' },
       },
     })
 
@@ -49,7 +49,7 @@ describe('createStatusSnapshot', () => {
         version: 1,
         llm: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'm1', timeoutMs: 1, authRef: 'default' },
         paths: {},
-        ui: { promptProfile: 'full', assistantTextMode: 'buffered' },
+        ui: { assistantTextMode: 'buffered' },
       },
       sources: {},
       auth: { provider: 'anthropic', authRef: 'default', source: 'global' },
@@ -62,7 +62,7 @@ describe('createStatusSnapshot', () => {
       runtime: {
         llm: { provider: 'anthropic', baseUrl: 'u', model: 'm', timeoutMs: 1, apiKey: '' },
         paths: { logsDir: '/repo/logs', subagentsDir: '/repo/.agent/subagents', planDir: '/repo/plans' },
-        ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+        ui: { assistantTextMode: 'stream' },
       },
       shown,
     })
@@ -81,7 +81,7 @@ describe('createStatusSnapshot', () => {
       runtime: {
         llm: { provider: 'anthropic', baseUrl: 'u', model: 'm', timeoutMs: 1, apiKey: '' },
         paths: { logsDir: '/repo/logs', subagentsDir: '/repo/.agent/subagents', planDir: '/repo/plans' },
-        ui: { promptProfile: 'lite', assistantTextMode: 'stream' },
+        ui: { assistantTextMode: 'stream' },
       },
     })
 

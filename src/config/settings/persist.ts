@@ -91,7 +91,6 @@ export function stripDefaultsFromPatch(patch: FormaxConfigV1Patch): FormaxConfig
   if (out.ui) {
     const ui = { ...out.ui }
     if (ui.assistantTextMode === DEFAULT_CONFIG.ui.assistantTextMode) delete ui.assistantTextMode
-    if (ui.promptProfile === DEFAULT_CONFIG.ui.promptProfile) delete ui.promptProfile
     if (ui.showContextMeter === DEFAULT_CONFIG.ui.showContextMeter) delete ui.showContextMeter
     if (ui.showAutoCompactNotice === DEFAULT_CONFIG.ui.showAutoCompactNotice) delete ui.showAutoCompactNotice
     if (ui.outputStyle === DEFAULT_CONFIG.ui.outputStyle) delete ui.outputStyle

@@ -73,8 +73,6 @@ export type SlashCommandRegistry = {
   dispatch: (input: string, opts?: { preferredSpecId?: string }) => SlashCommandEffect | null
 }
 
-export type PromptProfile = 'lite' | 'full'
-
 type CommandEntry = {
   spec: SlashCommandSpec
   dispatch?: (args: { command: string; args: string }) => SlashCommandEffect
@@ -98,7 +96,6 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
     implemented: true,
   },
   { id: 'builtin:/plan', source: 'builtin', command: '/plan', description: 'Show current plan', implemented: true },
-  { id: 'builtin:/prompt', source: 'builtin', command: '/prompt', description: 'Switch system prompt profile (full/lite)', implemented: true },
   {
     id: 'builtin:/clear',
     source: 'builtin',
@@ -138,7 +135,6 @@ export function createSlashCommandRegistry(deps: {
   globalConfigDir?: string
   taskManager?: TaskManager
   plan?: { getPlanPath: () => string | null }
-  promptProfile?: { get: () => PromptProfile; set: (next: PromptProfile) => void }
   modelTier?: { get: () => ModelTier; set: (next: ModelTier) => Promise<ModelTier> }
   status?: { get: () => StatusSnapshot }
   doctor?: { run: () => Promise<string> }
@@ -269,28 +265,6 @@ export function createSlashCommandRegistry(deps: {
     } catch {
       return { kind: 'local', stdout: 'No plan found for current session.' }
     }
-  })
-
-  setBuiltinDispatcher('/prompt', (invocation) => {
-    const current = deps.promptProfile?.get?.() ?? 'full'
-    const raw = (invocation.args || '').trim().toLowerCase()
-    if (!raw) {
-      return {
-        kind: 'local',
-        stdout:
-          `Prompt profile: ${current}\n\n` +
-          `Usage:\n` +
-          `- /prompt full\n` +
-          `- /prompt lite`,
-      }
-    }
-
-    if (raw !== 'full' && raw !== 'lite') {
-      return { kind: 'local', stdout: `Unknown profile: ${raw}\n\nUse: /prompt full|lite` }
-    }
-
-    deps.promptProfile?.set(raw)
-    return { kind: 'local', stdout: `Prompt profile set to: ${raw}` }
   })
 
   setBuiltinDispatcher('/status', () => {
@@ -529,7 +503,6 @@ function formatHelpOutput(specs: SlashCommandSpec[]): string {
   lines.push('')
   lines.push('Tips:')
   lines.push('- Type "/" to see command suggestions; use Tab/Arrow keys to navigate.')
-  lines.push('- Use "/prompt full|lite" to switch system prompt profiles.')
   lines.push('- Press Shift+Tab to cycle modes (normal → acceptEdits → plan).')
   lines.push('- Press Esc to cancel interactive prompts (AskUserQuestion / approvals).')
 

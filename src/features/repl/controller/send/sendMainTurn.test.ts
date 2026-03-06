@@ -82,7 +82,6 @@ function createCfg(overrides?: Record<string, unknown>): any {
       contextWindowTokens: 200_000,
     },
     ui: {
-      promptProfile: 'full',
       outputStyle: 'default',
     },
     context: {
@@ -126,7 +125,6 @@ function createHarness(overrides?: Record<string, unknown>): any {
     deps: {
       engine,
       cfg: createCfg(),
-      promptProfile: undefined,
       planSession: {
         getPlanPath: () => '/plans/current.md',
         startNewPlan: () => '/plans/new.md',
@@ -398,7 +396,6 @@ describe('runMainSendTurn', () => {
           ]),
         },
         cfg: createCfg(),
-        promptProfile: undefined,
         planSession: {
           getPlanPath: () => '/plans/current.md',
           startNewPlan: () => '/plans/new.md',
@@ -477,7 +474,6 @@ describe('runMainSendTurn', () => {
       semanticBlocks: [],
     } as any)
     const harness = createHarness()
-    harness.deps.promptProfile = 'lite'
     harness.refs.pendingInjectedBlocksRef.current = []
     harness._spies.engine.runTurn.mockResolvedValueOnce([
       { role: 'user', content: [{ type: 'text', text: 'plain-user' }] },

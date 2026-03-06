@@ -64,7 +64,6 @@ function createResolvedConfig(overrides: Partial<any> = {}): any {
       },
       ui: {
         assistantTextMode: 'buffered',
-        promptProfile: 'full',
         showContextMeter: true,
         showAutoCompactNotice: true,
         outputStyle: 'default',

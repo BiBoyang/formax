@@ -57,7 +57,6 @@ export function formatStatusHuman(snapshot: StatusSnapshot): string {
 
   lines.push('')
   lines.push('UI:')
-  lines.push(`- promptProfile: ${snapshot.runtime.ui.promptProfile}`)
   lines.push(`- assistantTextMode: ${snapshot.runtime.ui.assistantTextMode}`)
 
   if (snapshot.config) {
@@ -87,7 +86,6 @@ export function formatStatusHuman(snapshot: StatusSnapshot): string {
         'llm.defaultTier',
         'llm.timeoutMs',
         'llm.authRef',
-        'ui.promptProfile',
         'ui.assistantTextMode',
         'paths.logsDir',
         'paths.subagentsDir',

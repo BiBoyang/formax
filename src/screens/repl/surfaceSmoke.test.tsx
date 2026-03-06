@@ -45,17 +45,22 @@ async function waitForFrame(
   throw new Error(`Timed out waiting for UI update. Last frame:\n${frame}`)
 }
 
+function stripSystemReminders(text: string): string {
+  return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim()
+}
+
 function getUserText(msg: PromptMessage): string {
   const content = msg.content as unknown
-  if (typeof content === 'string') return content
+  if (typeof content === 'string') return stripSystemReminders(content)
   if (!Array.isArray(content)) return ''
-  return content
+  const joined = content
     .map((block) => {
       if (!block || typeof block !== 'object') return ''
       const promptBlock = block as PromptBlock
       return promptBlock.type === 'text' ? String((promptBlock as { text?: unknown }).text ?? '') : ''
     })
     .join('')
+  return stripSystemReminders(joined)
 }
 
 const cfg: RuntimeConfig = {
@@ -82,7 +87,6 @@ const cfg: RuntimeConfig = {
   },
   ui: {
     assistantTextMode: 'buffered',
-    promptProfile: 'lite',
     showContextMeter: true,
     showAutoCompactNotice: true,
     outputStyle: 'default',

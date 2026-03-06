@@ -10,7 +10,6 @@ import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { LocalCommandRecord } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
-import type { SystemPromptProfile } from '../../prompts/system'
 import { ReminderService } from './reminders/ReminderService'
 import type { ContextBudgetConfig } from '../../chat/context/budget'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
@@ -300,7 +299,6 @@ export function useReplController(deps: {
   allowedSubagents?: Array<{ name: string; description: string }>
   reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
   mode: ReplMode
-  promptProfile?: SystemPromptProfile
   onModeChange?: (mode: ReplMode) => void
   commandRegistry?: SlashCommandRegistry
   planSession?: PlanSessionManager
@@ -1035,7 +1033,6 @@ export function useReplController(deps: {
 
       recordClaudeMdInjectionEvent({
         sessionSaveEnabled,
-        promptProfile: deps.promptProfile ?? deps.cfg.ui.promptProfile,
         cwd: runtimeCwd,
         env: runtimeEnv,
         lastSigRef: runtimeStateRefs.claudeMdMetaSigRef,
@@ -1070,7 +1067,6 @@ export function useReplController(deps: {
         deps: {
           engine: deps.engine,
           cfg: deps.cfg,
-          promptProfile: deps.promptProfile,
           mode: deps.mode,
           planSession: deps.planSession,
           commandRegistry: deps.commandRegistry,
@@ -1146,7 +1142,6 @@ export function useReplController(deps: {
       deps.engine,
       deps.mode,
       deps.planSession,
-      deps.promptProfile,
       deps.reloadSubagents,
       deps.tools,
       closeOverlay,

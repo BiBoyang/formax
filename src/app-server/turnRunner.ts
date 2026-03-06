@@ -7,7 +7,6 @@ import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
   resolveSystemPromptVariant,
-  type SystemPromptProfile,
 } from '../prompts/index.js'
 import { buildCompactRequest } from '../prompts/compact.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
@@ -51,7 +50,6 @@ export type TurnRunnerOptions = {
   tools: ToolDefinition[]
   allowedSubagents: Array<{ name: string; description: string }>
   model: string
-  promptProfile: SystemPromptProfile
   thinkingEnabled?: boolean
   cwd?: string
   env?: NodeJS.ProcessEnv
@@ -215,7 +213,6 @@ export class TurnRunner {
   private readonly tools: ToolDefinition[]
   private readonly allowedSubagents: Array<{ name: string; description: string }>
   private readonly model: string
-  private readonly promptProfile: SystemPromptProfile
   private readonly thinkingEnabled: boolean
   private readonly cwd: string
   private readonly env?: NodeJS.ProcessEnv
@@ -237,7 +234,6 @@ export class TurnRunner {
     this.tools = args.tools
     this.allowedSubagents = args.allowedSubagents
     this.model = args.model
-    this.promptProfile = args.promptProfile
     this.thinkingEnabled = Boolean(args.thinkingEnabled)
     this.cwd = args.cwd ? path.resolve(args.cwd) : process.cwd()
     this.env = args.env
@@ -428,7 +424,6 @@ export class TurnRunner {
         allowedSubagents: this.allowedSubagents,
         cwd: running.cwd,
         model: this.model,
-        profile: this.promptProfile,
         variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
       })
       const tools = toolExposure.toolsForTurn

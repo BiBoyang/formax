@@ -32,7 +32,6 @@ function createBaseCfg() {
     },
     ui: {
       assistantTextMode: 'buffered',
-      promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',
@@ -54,7 +53,6 @@ function createRoutingHarness(overrides?: Partial<Parameters<typeof resolvePreMa
     provider: 'anthropic',
     engine: { runTurn: vi.fn() } as any,
     cfg: createBaseCfg(),
-    promptProfile: 'lite',
     allowedSubagents: [],
     mode: 'normal',
     getReplMode: () => 'normal',

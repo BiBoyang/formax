@@ -35,7 +35,6 @@ export type RuntimeConfig = {
   }
   ui: {
     assistantTextMode: 'stream' | 'buffered'
-    promptProfile: 'lite' | 'full'
     showContextMeter: boolean
     showAutoCompactNotice: boolean
     outputStyle: 'default' | 'explanatory' | 'learning'
@@ -108,7 +107,6 @@ export async function loadRuntimeConfig(
   const contextWindowTokens = resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
   const assistantTextMode = resolved.config.ui.assistantTextMode
-  const promptProfile = resolved.config.ui.promptProfile
   const showContextMeter = resolved.config.ui.showContextMeter
   const showAutoCompactNotice = resolved.config.ui.showAutoCompactNotice
   const outputStyle = resolved.config.ui.outputStyle
@@ -143,7 +141,6 @@ export async function loadRuntimeConfig(
     },
     ui: {
       assistantTextMode,
-      promptProfile,
       showContextMeter,
       showAutoCompactNotice,
       outputStyle,

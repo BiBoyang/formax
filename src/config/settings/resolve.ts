@@ -41,7 +41,6 @@ const KNOWN_SOURCE_KEYS = [
   'paths.subagentsDir',
   'paths.planDir',
   'ui.assistantTextMode',
-  'ui.promptProfile',
   'ui.showContextMeter',
   'ui.showAutoCompactNotice',
   'ui.outputStyle',
@@ -119,9 +118,6 @@ function envToPatch(
   const assistantTextModeRaw = (env.FORMAX_ASSISTANT_TEXT_MODE || '').trim().toLowerCase()
   const assistantTextMode =
     assistantTextModeRaw === 'stream' ? 'stream' : assistantTextModeRaw === 'buffered' ? 'buffered' : undefined
-
-  const promptProfileRaw = (env.FORMAX_PROMPT_PROFILE || '').trim().toLowerCase()
-  const promptProfile = promptProfileRaw === 'lite' ? 'lite' : promptProfileRaw === 'full' ? 'full' : undefined
 
   const showContextMeterRaw = (env.FORMAX_SHOW_CONTEXT_METER || '').trim().toLowerCase()
   const showContextMeter =
@@ -254,11 +250,10 @@ function envToPatch(
     }
   }
 
-  if (assistantTextMode || promptProfile) {
+  if (assistantTextMode) {
     patch.ui = {
       ...(patch.ui || {}),
       ...(assistantTextMode ? { assistantTextMode } : {}),
-      ...(promptProfile ? { promptProfile } : {}),
     }
   }
 

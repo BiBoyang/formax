@@ -1,7 +1,6 @@
 import { getClaudeMdInjectionMeta } from '../../injectedBlocks'
 import { getLocalCommandInjectionStats } from './localCommandInjection'
 import type { LocalCommandRecord } from '../../../commands/registry'
-import type { SystemPromptProfile } from '../../../../prompts/system'
 import type { SessionWriter } from '../../sessionSave/writer'
 
 type SessionEventWriter = Pick<SessionWriter, 'appendEvent'> | null
@@ -31,13 +30,12 @@ export function recordLocalCommandInjectionEvent(args: {
 
 export function recordClaudeMdInjectionEvent(args: {
   sessionSaveEnabled: boolean
-  promptProfile: SystemPromptProfile
   cwd: string
   env: NodeJS.ProcessEnv
   lastSigRef: { current: string | null }
   writer: SessionEventWriter
 }): void {
-  if (!args.sessionSaveEnabled || args.promptProfile !== 'full') return
+  if (!args.sessionSaveEnabled) return
 
   const meta = getClaudeMdInjectionMeta({ cwd: args.cwd, env: args.env })
   if (!meta.global && !meta.project) return
@@ -48,4 +46,3 @@ export function recordClaudeMdInjectionEvent(args: {
   args.lastSigRef.current = sig
   void args.writer?.appendEvent('claude_md_injection', meta)
 }
-

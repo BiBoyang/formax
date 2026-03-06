@@ -60,7 +60,6 @@ function createCfg(overrides?: Record<string, unknown>): any {
       contextWindowTokens: 200_000,
     },
     ui: {
-      promptProfile: 'lite',
     },
     context: {
       effectiveContextWindowPercent: 0.9,
@@ -165,7 +164,6 @@ describe('send handlers', () => {
       cfg: createCfg({
         llm: { model: 'claude-3-5-sonnet-latest', thinkingMode: true, contextWindowTokens: undefined },
       }),
-      promptProfile: undefined,
       allowedSubagents: [],
       mode: 'normal',
       getReplMode: () => 'normal',

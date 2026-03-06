@@ -108,7 +108,6 @@ function formatConfigShowHuman(res: Awaited<ReturnType<typeof configShow>>): str
   lines.push(`- llm.model: ${res.config.llm.model} (source: ${res.sources['llm.model'] ?? 'unknown'})`)
   lines.push(`- llm.timeoutMs: ${res.config.llm.timeoutMs} (source: ${res.sources['llm.timeoutMs'] ?? 'unknown'})`)
   lines.push(`- llm.authRef: ${res.config.llm.authRef} (source: ${res.sources['llm.authRef'] ?? 'unknown'})`)
-  lines.push(`- ui.promptProfile: ${res.config.ui.promptProfile} (source: ${res.sources['ui.promptProfile'] ?? 'unknown'})`)
   lines.push(`- ui.assistantTextMode: ${res.config.ui.assistantTextMode} (source: ${res.sources['ui.assistantTextMode'] ?? 'unknown'})`)
   lines.push(`- paths.logsDir: ${res.config.paths.logsDir} (source: ${res.sources['paths.logsDir'] ?? 'unknown'})`)
   lines.push(`- paths.subagentsDir: ${res.config.paths.subagentsDir} (source: ${res.sources['paths.subagentsDir'] ?? 'unknown'})`)

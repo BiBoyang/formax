@@ -37,7 +37,6 @@ function createArgs(overrides?: Record<string, unknown>): any {
     deps: {
       engine: { runTurn: vi.fn() },
       cfg: {},
-      promptProfile: 'lite',
       mode: 'normal',
       planSession: null,
       commandRegistry: undefined,
@@ -115,7 +114,6 @@ describe('runReplModelSendFlow', () => {
       deps: {
         engine: { runTurn: vi.fn() },
         cfg: {},
-        promptProfile: 'lite',
         mode: 'normal',
         planSession: { getPlanPath: () => '/plans/current.md' },
         commandRegistry: undefined,

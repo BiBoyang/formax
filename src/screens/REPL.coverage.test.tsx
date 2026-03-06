@@ -182,7 +182,6 @@ const cfg: RuntimeConfig = {
   },
   ui: {
     assistantTextMode: 'stream',
-    promptProfile: 'lite',
     showContextMeter: true,
     showAutoCompactNotice: true,
     outputStyle: 'default',
@@ -233,7 +232,7 @@ describe('REPL.tsx coverage branches', () => {
     loadRuntimeConfigMock.mockResolvedValue({
       ...cfg,
       llm: { ...cfg.llm, defaultTier: 'opus' },
-      ui: { ...cfg.ui, promptProfile: 'default' },
+      ui: { ...cfg.ui, },
     })
 
     loadWorkspaceRootsMock.mockClear()
@@ -277,7 +276,7 @@ describe('REPL.tsx coverage branches', () => {
     loadRuntimeConfigMock.mockResolvedValueOnce({
       ...cfg,
       llm: { ...cfg.llm, defaultTier: 'invalid-tier' },
-      ui: { ...cfg.ui, promptProfile: 'lite' },
+      ui: { ...cfg.ui, },
     })
     const fallbackTier = await commandRegistryArgs.setDefaultModelTier('haiku')
     expect(fallbackTier).toBe('sonnet')
@@ -285,7 +284,7 @@ describe('REPL.tsx coverage branches', () => {
     loadRuntimeConfigMock.mockResolvedValueOnce({
       ...cfg,
       llm: { ...cfg.llm, defaultTier: 'opus' },
-      ui: { ...cfg.ui, promptProfile: 'default' },
+      ui: { ...cfg.ui, },
     })
     const parsedTier = await commandRegistryArgs.setDefaultModelTier('sonnet')
     expect(parsedTier).toBe('opus')

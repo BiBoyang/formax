@@ -52,7 +52,6 @@ function createCfg(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     },
     ui: {
       assistantTextMode: 'stream',
-      promptProfile: 'full',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',

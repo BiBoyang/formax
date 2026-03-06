@@ -120,7 +120,6 @@ export function REPL({
   const theme = useMemo(() => getTheme(), [])
   const [runtimeCfg, setRuntimeCfg] = useState(cfg)
   const [mode, setMode] = useState<ReplMode>('normal')
-  const [promptProfile, setPromptProfile] = useState(cfg.ui.promptProfile)
   const [workspaceRoots, setWorkspaceRoots] = useState<string[]>([process.cwd()])
   const [workspaceRootWarnings, setWorkspaceRootWarnings] = useState<string[]>([])
   const [loadingStartedAtMs, setLoadingStartedAtMs] = useState<number | null>(null)
@@ -168,10 +167,9 @@ export function REPL({
     [runtimeCfg.llm.configuredModel, runtimeCfg.llm.tierModels],
   )
 
-  const reloadCfg = useCallback(async (opts?: { syncPromptProfile?: boolean }) => {
+  const reloadCfg = useCallback(async () => {
     const next = await loadRuntimeConfig(process.env, process.cwd())
     setRuntimeCfg(next)
-    if (opts?.syncPromptProfile) setPromptProfile(next.ui.promptProfile)
     return next
   }, [])
 
@@ -212,8 +210,6 @@ export function REPL({
         cfg: runtimeCfg,
         taskManager,
         planSession,
-        promptProfile,
-        setPromptProfile,
         setDefaultModelTier,
         workspaceRoots,
         workspaceRootWarnings,
@@ -228,7 +224,6 @@ export function REPL({
       runtimeCfg.paths,
       runtimeCfg.ui.assistantTextMode,
       planSession,
-      promptProfile,
       workspaceRoots,
       workspaceRootWarnings,
       taskManager,
@@ -244,7 +239,6 @@ export function REPL({
     allowedSubagents,
     reloadSubagents,
     mode,
-    promptProfile,
     onModeChange: (nextMode) => {
       if (nextMode === 'plan') ensurePlanPath()
       setMode(nextMode)
@@ -259,7 +253,7 @@ export function REPL({
   const handleConfigExit = useCallback(
     (exit: ConfigDialogExit) => {
       actions.closeConfigDialog(exit)
-      if (exit.kind === 'changed') void reloadCfg({ syncPromptProfile: true })
+      if (exit.kind === 'changed') void reloadCfg()
     },
     [actions, reloadCfg],
   )

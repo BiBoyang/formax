@@ -1230,7 +1230,6 @@ async function* runQuery(
 
       runtime = runtime ?? await createRuntime({ cwd, env })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
-      const promptProfile = options.promptProfile ?? runtime.cfg.ui.promptProfile
       const shouldPersistSession =
         options.persistSession === true || options.enableFileCheckpointing === true
 
@@ -1327,7 +1326,6 @@ async function* runQuery(
         allowedSubagents: runtime.allowedSubagents,
         cwd,
         model,
-        profile: promptProfile,
         variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
       })
       const systemOverride = isSystemPromptPresetInput(options.systemPrompt)

@@ -17,7 +17,7 @@ const { state } = vi.hoisted(() => ({
       allowedSubagents: [],
       cfg: {
         llm: { model: 'claude-3-5-sonnet', thinkingMode: true },
-        ui: { promptProfile: 'default' },
+        ui: { },
       },
       userInputManager: {},
     })),

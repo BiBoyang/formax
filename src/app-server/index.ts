@@ -217,7 +217,6 @@ export async function runAppServer(args?: {
         tools: runtime.tools,
         allowedSubagents: runtime.allowedSubagents,
         model: runtime.cfg.llm.model,
-        promptProfile: runtime.cfg.ui.promptProfile,
         thinkingEnabled: runtime.cfg.llm.thinkingMode,
         cwd,
         env,

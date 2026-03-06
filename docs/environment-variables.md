@@ -35,7 +35,6 @@ These are intended for normal user configuration.
 These map to config fields in `src/config/settings/resolve.ts`.
 
 - `FORMAX_ASSISTANT_TEXT_MODE`
-- `FORMAX_PROMPT_PROFILE`
 - `FORMAX_SHOW_CONTEXT_METER`
 - `FORMAX_SHOW_AUTO_COMPACT_NOTICE`
 - `FORMAX_CONTEXT_WINDOW_TOKENS`

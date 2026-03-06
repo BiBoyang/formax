@@ -61,7 +61,6 @@ describe('diagnostics format', () => {
           planDir: '/plan',
         },
         ui: {
-          promptProfile: 'full',
           assistantTextMode: 'stream',
         },
       },
@@ -93,7 +92,6 @@ describe('diagnostics format', () => {
         },
         sources: {
           'llm.provider': 'project',
-          'ui.promptProfile': 'default',
           'paths.logsDir': 'env',
         },
       },
@@ -138,7 +136,6 @@ describe('diagnostics format', () => {
           planDir: '/plans',
         },
         ui: {
-          promptProfile: 'full',
           assistantTextMode: 'buffered',
         },
       },
@@ -171,7 +168,6 @@ describe('diagnostics format', () => {
           planDir: '/plan',
         },
         ui: {
-          promptProfile: 'lite',
           assistantTextMode: 'buffered',
         },
       },

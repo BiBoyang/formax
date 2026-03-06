@@ -264,7 +264,6 @@ function createCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
     },
     ui: {
       assistantTextMode: 'buffered',
-      promptProfile: 'lite',
       showContextMeter: true,
       showAutoCompactNotice: true,
       outputStyle: 'default',
@@ -1246,7 +1245,7 @@ describe('useReplController', () => {
       renderTracked(
         <Harness
           engine={engine}
-          cfg={createCfg({ ui: { ...createCfg().ui, promptProfile: 'full' } })}
+          cfg={createCfg({ ui: { ...createCfg().ui, } })}
           onController={(c) => (controller = c)}
         />,
       )
@@ -2709,7 +2708,7 @@ describe('useReplController sessionSave injected events', () => {
         },
       }
 
-      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
       const userInput = createUserInputManager()
       let controller!: ReturnType<typeof useReplController>
       renderTracked(
@@ -2793,7 +2792,7 @@ describe('useReplController sessionSave injected events', () => {
         },
       }
 
-      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
       const userInput = createUserInputManager()
       let controller!: ReturnType<typeof useReplController>
       renderTracked(
@@ -2890,7 +2889,7 @@ describe('useReplController sessionSave injected events', () => {
         },
       }
 
-      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
 
       const commandRegistry = {
         dispatch(input: string) {
@@ -2980,7 +2979,7 @@ describe('useReplController sessionSave injected events', () => {
         },
       }
 
-      const cfg = createCfg({ ui: { ...createCfg().ui, promptProfile: 'full', showContextMeter: false } })
+      const cfg = createCfg({ ui: { ...createCfg().ui, showContextMeter: false } })
 
       const commandRegistry = {
         dispatch(input: string) {
