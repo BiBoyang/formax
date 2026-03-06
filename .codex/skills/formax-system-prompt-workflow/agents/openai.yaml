@@ -1,0 +1,4 @@
+interface:
+  display_name: "Formax System Prompt Workflow"
+  short_description: "System prompt and deferred exposure alignment workflow"
+  default_prompt: "Update Formax system prompt/reminder behavior and keep FORMAX_DEFERRED_TOOL_EXPOSURE request semantics aligned across TUI, app-server, and SDK."
