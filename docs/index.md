@@ -45,6 +45,7 @@
 ## 操作手册（Runbooks）
 
 - 本地与 CI 失败修复路径：`docs/runbooks/runbook.md`
+- permissions / policy 排障：`docs/runbooks/permissions-troubleshooting.md`
 - REPL transcript surface 排障：`docs/runbooks/repl-surface-debugging.md`
 - app-server 人工验收 runbook：`docs/runbooks/app-server-manual-runbook.md`
 

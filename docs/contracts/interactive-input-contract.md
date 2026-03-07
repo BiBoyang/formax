@@ -162,6 +162,6 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 1. 先更新本文件。
 2. 在同一变更中更新实现与测试。
 3. 将 `docs/contracts/app-server-interaction-contract.md`、`docs/references/app-server-api-reference.md`、`docs/frontend/app-server-ui-spec.md` 保持为摘要 + 链接，不重复完整语义。
-4. 对行为对齐变更，在 `docs/learnings/` 下补充一条简短学习记录（必要时再关联 `plans/app-server/`）。
+4. 对行为对齐变更，在 `docs/learnings/` 下补充一条简短学习记录。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

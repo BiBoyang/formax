@@ -71,7 +71,7 @@ Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection
 1. 先更新本文件。
 2. 再更新 `src/features/semantics/*` 与对应 adapter。
 3. 同步更新 `docs/contracts/app-server-interaction-contract.md`、`docs/frontend/app-server-ui-spec.md`、`docs/references/app-server-api-reference.md` 的摘要描述（只做链接与摘要，不复制完整语义）。
-4. 在 `docs/learnings/` 记录学习条目或变更决策（必要时再关联 `plans/app-server/` 执行文档）。
+4. 在 `docs/learnings/` 记录学习条目或变更决策。
 
 ## 5. 一致性测试映射
 

@@ -22,7 +22,7 @@ This repository is primarily a learning and reference implementation for Claude 
 - It focuses on architecture, behavior parity, and implementation transparency rather than polished end-user product experience.
 - Current release status is Beta; behavior can change and regressions are still possible.
 - If you are evaluating production usage, treat this project as experimental first.
-- For code reading and extension, start with [`CODEMAP.md`](CODEMAP.md) and subsystem READMEs.
+- For code reading and extension, start with [`CODEMAP.md`](CODEMAP.md), then use [`docs/index.md`](docs/index.md) to locate canonical docs.
 
 ## Install
 
@@ -159,6 +159,7 @@ bun run test -- src/tools/registry.test.ts
 
 ## Architecture & Deep Dives
 
+- Canonical docs map (contracts/runbooks/references): [`docs/index.md`](docs/index.md)
 - Code navigation index: [`CODEMAP.md`](CODEMAP.md)
 - Core configuration and setup internals: [`src/core/README.md`](src/core/README.md)
 - Tool registry/execution/presentation internals: [`src/tools/README.md`](src/tools/README.md)
@@ -166,6 +167,10 @@ bun run test -- src/tools/registry.test.ts
 - Sub-agent registry and runner internals: [`src/features/subagents/README.md`](src/features/subagents/README.md)
 
 ## Troubleshooting
+
+Detailed runbooks:
+- [`docs/runbooks/runbook.md`](docs/runbooks/runbook.md)
+- [`docs/runbooks/permissions-troubleshooting.md`](docs/runbooks/permissions-troubleshooting.md)
 
 Check effective runtime/config state:
 

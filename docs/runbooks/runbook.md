@@ -8,9 +8,10 @@
 4. `bun run check:layer-coverage`
 5. `bun run check:shared-types`
 6. `bun run check:doc-paths`
-7. `bun run check:golden-principles`
-8. `bun run test:repl-semantic-gate`
-9. `bun run type-check`
+7. `bun run check:docs-artifact-placement`
+8. `bun run check:golden-principles`
+9. `bun run test:repl-semantic-gate`
+10. `bun run type-check`
 
 与暂存文件相关的定向测试可用：`bun run test:changed`。
 非阻断漂移观察：`bun run check:presenter-parity`（默认告警，`--strict` 才阻断）。
@@ -29,9 +30,10 @@
 - `bun run check:layer-coverage`
 - `bun run check:shared-types`
 - `bun run check:doc-paths`
+- `bun run check:docs-artifact-placement`（当 `code` 或 `docs_policy` 变更时）
 - `bun run check:golden-principles`
 - `bun run check:presenter-parity`（告警步骤，`continue-on-error: true`）
-- `node ./scripts/check-plan-traceability.mjs`（当 `code` 或 `harness_governance` 变更时）
+- `bun run check:plan-traceability`（当 `code` 或 `harness_governance` 变更时）
 
 ## 失败分类与修复路径
 

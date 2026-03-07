@@ -124,7 +124,7 @@ jobs:
           node-version: '20'
 
       - uses: oven-sh/setup-bun@v2
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true' || steps.changes.outputs.docs_policy == 'true'
         with:
           bun-version: latest
 
@@ -155,11 +155,11 @@ jobs:
 
       - name: Harness plan traceability
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true'
-        run: node ./scripts/check-plan-traceability.mjs
+        run: bun run check:plan-traceability
 
       - name: Harness docs artifact placement
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.docs_policy == 'true'
-        run: node ./scripts/check-docs-artifact-placement.mjs
+        run: bun run check:docs-artifact-placement
 
       - name: Skip (no code changes)
         if: steps.changes.outputs.code != 'true' && steps.changes.outputs.harness_governance != 'true' && steps.changes.outputs.docs_policy != 'true'
