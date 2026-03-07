@@ -34,6 +34,7 @@
     "check:layer-coverage": "node ./scripts/check-layer-coverage.mjs",
     "check:shared-types": "node ./scripts/check-shared-types.mjs",
     "check:doc-paths": "node ./scripts/check-doc-paths.mjs",
+    "check:docs-artifact-placement": "node ./scripts/check-docs-artifact-placement.mjs",
     "check:golden-principles": "node ./scripts/check-golden-principles.mjs",
     "check:presenter-parity": "node ./scripts/check-duplicate-presenters-parity.mjs",
     "build": "bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external --minify",
