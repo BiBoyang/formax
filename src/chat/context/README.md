@@ -102,10 +102,10 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“/compact（P4）”
 
-尚未实现（参见 `plans/_archive/ctx-manage/TODO.md`）。
-建议未来入口：
-- slash command：`src/features/commands/registry.ts`
-- 行为落点：`src/features/repl/useReplController.ts`（重写 historyRef + 插入 UI 提示）
+`/compact` 已实现。主要入口：
+- pre-main 路由：`src/features/repl/controller/send/sendPreMainRouting.ts`
+- compact flow：`src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle）
+- history 重建：`src/chat/context/compact.ts`
 
 ---
 

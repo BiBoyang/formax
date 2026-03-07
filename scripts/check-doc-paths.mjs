@@ -8,7 +8,7 @@ const ROOT_MARKDOWN_FILES = ['AGENTS.md', 'README.md', 'CODEMAP.md', 'CLAUDE.md'
 const DOC_DIRS = ['docs', '.codex/skills']
 const PLAN_DIR = 'plans'
 const README_SCAN_DIRS = ['src', 'apps']
-const PLAN_EXCLUDE_DIRS = new Set(['_archive', 'node_modules'])
+const PLAN_EXCLUDE_DIRS = new Set(['node_modules'])
 const README_EXCLUDE_DIRS = new Set(['node_modules', '.git', 'dist'])
 
 const LOCAL_PATH_PREFIXES = [

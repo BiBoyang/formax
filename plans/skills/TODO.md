@@ -8,5 +8,4 @@
 
 ## Notes
 
-- skills 相关的抓包材料/截图/实验记录属于“证据”，建议放到 `plans/_archive/skills/`，避免主线 TODO 混入大量历史细节。
 - `Skill` 权限语义已落地并由测试覆盖（默认必须审批，allow 后跳过；deny 不弹 UI；approve_remember 落盘并立即生效）。
