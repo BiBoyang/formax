@@ -32,13 +32,18 @@ export function recordClaudeMdInjectionEvent(args: {
   sessionSaveEnabled: boolean
   cwd: string
   env: NodeJS.ProcessEnv
+  includeAutoMemory?: boolean
   lastSigRef: { current: string | null }
   writer: SessionEventWriter
 }): void {
   if (!args.sessionSaveEnabled) return
 
-  const meta = getClaudeMdInjectionMeta({ cwd: args.cwd, env: args.env })
-  if (!meta.global && !meta.project) return
+  const meta = getClaudeMdInjectionMeta({
+    cwd: args.cwd,
+    env: args.env,
+    includeAutoMemory: args.includeAutoMemory,
+  })
+  if (!meta.global && !meta.project && !meta.memory) return
 
   const sig = JSON.stringify(meta)
   if (args.lastSigRef.current === sig) return

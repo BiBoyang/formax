@@ -5,6 +5,7 @@ import fsp from 'node:fs/promises'
 import { ReminderService } from './ReminderService'
 import { InMemoryReminderStateStore } from './ReminderStateStore'
 import { resolveTodosPath } from '../../../tools/runtime/todosFile'
+import { buildAutoMemoryDirectoryPath } from '../../../shared/utils/autoMemoryPath'
 
 function restoreEnv(
   name: 'FORMAX_TODOS_PATH' | 'FORMAX_CONFIG_DIR' | 'FORMAX_TODOS_SESSION_ID',
@@ -40,12 +41,92 @@ describe('ReminderService', () => {
       )
 
       const service = new ReminderService()
-      const blocks = service.generateInjectedBlocks({ cwd: dir, now: 1 })
+      const blocks = service.generateInjectedBlocks({ cwd: dir, now: 1, includeAutoMemory: true })
 
       expect(blocks).toHaveLength(1)
       expect((blocks[0] as any).text).toContain('# claudeMd')
       expect((blocks[0] as any).text).toContain('Contents of')
       expect((blocks[0] as any).text).toContain('# CLAUDE.md')
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('injects MEMORY.md content through the claudeMd reminder block', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'y' }] }, null, 2),
+        'utf8',
+      )
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: dir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), '# User Memory\n- prefer fp\n', 'utf8')
+
+      const service = new ReminderService()
+      const blocks = service.generateInjectedBlocks({ cwd: dir, now: 1 })
+
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('# claudeMd')
+      expect(text).toContain("user's auto-memory, persists across conversations")
+      expect(text).toContain('# User Memory')
+      expect(text).toContain('- prefer fp')
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not inject MEMORY.md when includeAutoMemory is false', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'y' }] }, null, 2),
+        'utf8',
+      )
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: dir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), '# User Memory\n- hidden\n', 'utf8')
+
+      const service = new ReminderService()
+      const blocks = service.generateInjectedBlocks({ cwd: dir, now: 1, includeAutoMemory: false })
+      expect(blocks).toEqual([])
     } finally {
       restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
       restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)

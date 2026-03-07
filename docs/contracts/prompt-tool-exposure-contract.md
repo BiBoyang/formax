@@ -116,6 +116,15 @@ resolver 生成的 helper blocks MUST NOT 进入长期持久化历史，包括�
 `PTE-404`  
 若请求路径需要返回 stripped history，则 stripped 结果 MUST 以去除 injected helper blocks 后的用户消息作为持久化/对外历史版本。
 
+`PTE-405`  
+`# claudeMd` helper block（`<system-reminder>`）MUST 由同一注入器统一组装，按以下顺序拼接上下文：
+1. 全局 `CLAUDE.md`（若存在）
+2. 项目 `CLAUDE.md`（若存在）
+3. auto-memory `MEMORY.md`（仅在 `FORMAX_DEFERRED_TOOL_EXPOSURE=1` 且文件存在时）
+
+`PTE-406`  
+auto-memory 文件路径 MUST 与 system prompt 中声明的 memory 目录一致（同一 `buildAutoMemoryDirectoryPath` 规则），并且 `MEMORY.md` 注入内容 MUST 在 200 行内（超过部分截断）。当 `FORMAX_DEFERRED_TOOL_EXPOSURE=0` 时，`MEMORY.md` MUST NOT 注入。
+
 ## 6. Request Dry-Run Preview 合同
 
 `PTE-501`  

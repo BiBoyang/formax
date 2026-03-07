@@ -9,7 +9,7 @@ This project uses a single system prompt path in runtime.
 
 These items are intentionally omitted or simplified until implemented:
 
-- Per-turn `CLAUDE.md` injection: ✅ project `CLAUDE.md` is injected as a `<system-reminder>#claudeMd` block; ✅ optional user-level global `~/.formax/CLAUDE.md` (or `${FORMAX_CONFIG_DIR}/CLAUDE.md`); TODO: add discoverability entrypoints (README / `formax setup` / `/doctor`) and consider env-gating if needed
+- Per-turn context injection: ✅ project `CLAUDE.md` is injected as a `<system-reminder>#claudeMd` block; ✅ optional user-level global `~/.formax/CLAUDE.md` (or `${FORMAX_CONFIG_DIR}/CLAUDE.md`); ✅ `${FORMAX_CONFIG_DIR}/projects/<encoded-cwd>/memory/MEMORY.md` is injected into the same block (first 200 lines, only when `FORMAX_DEFERRED_TOOL_EXPOSURE=1`); TODO: add discoverability entrypoints (README / `formax setup` / `/doctor`) and consider env-gating if needed
 - TodoWrite reminders: ✅ empty-list reminder; ✅ stale reminder text + current todo contents; ✅ tool-loop injection by appending the reminder to the last `tool_result` content (Claude Code style); ✅ per-session todo store file under `~/.formax/todos/<sessionId>-agent-<sessionId>.json`; TODO: tune threshold/TTL against more captures
 - `/help` exists (local command), but help content parity is still incomplete
 - Tool policy sections that reference tools/behaviors we don’t have yet (e.g. `gh` workflows)

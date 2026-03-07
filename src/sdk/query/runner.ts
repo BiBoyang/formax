@@ -1327,6 +1327,8 @@ async function* runQuery(
         cwd,
         model,
         variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
+      }, {
+        env,
       })
       const systemOverride = isSystemPromptPresetInput(options.systemPrompt)
         ? []

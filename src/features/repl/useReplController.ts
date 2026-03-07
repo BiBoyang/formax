@@ -1035,6 +1035,7 @@ export function useReplController(deps: {
         sessionSaveEnabled,
         cwd: runtimeCwd,
         env: runtimeEnv,
+        includeAutoMemory: runtimeFlags.deferredToolExposureEnabled === true,
         lastSigRef: runtimeStateRefs.claudeMdMetaSigRef,
         writer: sessionWriterRef.current,
       })

@@ -69,7 +69,7 @@ export class ReminderService {
     })
   }
 
-  generateInjectedBlocks(args: { cwd: string; now?: number }): PromptBlock[] {
+  generateInjectedBlocks(args: { cwd: string; now?: number; includeAutoMemory?: boolean }): PromptBlock[] {
     const now = args.now ?? Date.now()
 
     const reminders: PromptBlock[] = []
@@ -78,7 +78,11 @@ export class ReminderService {
     const todoReminders = this.buildTodoReminders({ cwd: args.cwd, now, state })
     reminders.push(...todoReminders)
 
-    const context = buildClaudeMdInjectedBlocks({ cwd: args.cwd, env: process.env })
+    const context = buildClaudeMdInjectedBlocks({
+      cwd: args.cwd,
+      env: process.env,
+      includeAutoMemory: args.includeAutoMemory,
+    })
     return [...reminders, ...context]
   }
 

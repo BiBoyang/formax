@@ -425,6 +425,8 @@ export class TurnRunner {
         cwd: running.cwd,
         model: this.model,
         variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
+      }, {
+        env: this.env ?? process.env,
       })
       const tools = toolExposure.toolsForTurn
 

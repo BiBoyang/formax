@@ -2,6 +2,7 @@ import childProcess from 'node:child_process'
 import fs from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, resolveSystemPromptVariant } from './system'
+import { buildAutoMemoryDirectoryPath } from '../shared/utils/autoMemoryPath'
 
 describe('buildSystemPrompt', () => {
   afterEach(() => {
@@ -33,13 +34,28 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('Task tool is available')
   })
 
+  it('builds auto-memory directory path from cwd', () => {
+    const out = buildAutoMemoryDirectoryPath({
+      cwd: '/Users/test/repo',
+      configDir: '/Users/test/.config-dir',
+      resolveRealPath: (cwd) => cwd,
+    })
+
+    expect(out).toMatch(/^\/Users\/test\/\.config-dir\/projects\/-Users-test-repo-[a-z0-9]+\/memory\/$/)
+  })
+
   it('resolves prompt variant from deferred tool exposure flag', () => {
     expect(resolveSystemPromptVariant()).toBe('legacy')
     expect(resolveSystemPromptVariant({ deferredToolExposureEnabled: false })).toBe('legacy')
     expect(resolveSystemPromptVariant({ deferredToolExposureEnabled: true })).toBe('deferred_aligned')
   })
 
-  it('renders deferred-aligned full prompt without optional capability sections by default', () => {
+  it('renders deferred-aligned full prompt with auto-memory section by default', () => {
+    const expectedAutoMemoryDir = buildAutoMemoryDirectoryPath({
+      cwd: '/repo',
+      configDir: '/test-config',
+      resolveRealPath: (input) => input,
+    })
     const blocks = buildSystemPrompt(
       {variant: 'deferred_aligned', cwd: '/repo', model: 'm' },
       {
@@ -48,6 +64,8 @@ describe('buildSystemPrompt', () => {
         osType: () => 'TestOS',
         osRelease: () => '1.2.3',
         isGitRepository: () => false,
+        autoMemoryConfigDir: '/test-config',
+        resolveRealPath: (input) => input,
       },
     )
     const text = blocks
@@ -61,9 +79,41 @@ describe('buildSystemPrompt', () => {
     expect(text).toContain('# Executing actions with care')
     expect(text).toContain('# Using your tools')
     expect(text).toContain('# Environment')
-    expect(text).not.toContain('# auto memory')
+    expect(text).toContain('# auto memory')
+    expect(text).toContain(`persistent auto memory directory at \`${expectedAutoMemoryDir}\``)
+    expect(text).toContain('## How to save memories:')
+    expect(text).toContain('`MEMORY.md` may be loaded into your conversation context by this runtime')
+    expect(text).toContain('## What to save:')
+    expect(text).toContain('## What NOT to save:')
+    expect(text).toContain('## Explicit user requests:')
     expect(text).not.toContain('# VSCode Extension Context')
     expect(text).not.toContain('<fast_mode_info>')
+  })
+
+  it('uses runtime env FORMAX_CONFIG_DIR when auto-memory config dir is not explicitly provided', () => {
+    const expectedAutoMemoryDir = buildAutoMemoryDirectoryPath({
+      cwd: '/repo',
+      configDir: '/env-config',
+      resolveRealPath: (input) => input,
+    })
+    const blocks = buildSystemPrompt(
+      { variant: 'deferred_aligned', cwd: '/repo', model: 'm' },
+      {
+        env: { FORMAX_CONFIG_DIR: '/env-config' } as any,
+        platform: 'test-platform',
+        getToday: () => '2020-01-01',
+        osType: () => 'TestOS',
+        osRelease: () => '1.2.3',
+        isGitRepository: () => false,
+        resolveRealPath: (input) => input,
+      },
+    )
+
+    const text = blocks
+      .filter((b) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('\n')
+    expect(text).toContain(`persistent auto memory directory at \`${expectedAutoMemoryDir}\``)
   })
 
   it('allows enabling deferred optional sections via code-level capability overrides', () => {
@@ -73,7 +123,6 @@ describe('buildSystemPrompt', () => {
         cwd: '/repo',
         capabilities: {
           includeAgentSdkIdentitySuffix: true,
-          includeAutoMemorySection: true,
           includeVsCodeExtensionContextSection: true,
           includeFastModeInfoSection: true,
           includeModelFamilyHint: true,

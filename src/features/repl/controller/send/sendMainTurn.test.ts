@@ -380,6 +380,9 @@ describe('runMainSendTurn', () => {
     expect(result.turnOutcome).toBe('completed')
     expect(harness._spies.setLoadingText).toHaveBeenCalledWith('Plan Thinking')
     expect(existingReminderService.generateInjectedBlocks).toHaveBeenCalledTimes(1)
+    expect(existingReminderService.generateInjectedBlocks).toHaveBeenCalledWith(
+      expect.objectContaining({ includeAutoMemory: false }),
+    )
   })
 
   it('enables deferred tool exposure in REPL when runtime flag is set', async () => {
@@ -452,6 +455,43 @@ describe('runMainSendTurn', () => {
       query: 'select:Read',
     })
     expect(callArgs.resolveToolsForCall().map((tool: any) => tool.name)).toEqual(['ToolSearch', 'Read'])
+  })
+
+  it('passes includeAutoMemory=true to reminder injection when deferred exposure is enabled', async () => {
+    const existingReminderService = {
+      generateInjectedBlocks: vi.fn(() => [{ type: 'text', text: 'existing-reminder' }]),
+    }
+    const harness = createHarness({
+      deps: {
+        engine: {
+          runTurn: vi.fn(async (args: any) => [
+            ...(args.history || []),
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'assistant' }] },
+          ]),
+        },
+        cfg: createCfg(),
+        planSession: {
+          getPlanPath: () => '/plans/current.md',
+          startNewPlan: () => '/plans/new.md',
+        },
+        reminderServiceRef: { current: existingReminderService },
+        tools: [{ name: 'Skill' }, { name: 'Read' }],
+        runtimeFlags: { deferredToolExposureEnabled: true },
+        allowedSubagents: [],
+        mode: 'normal',
+        getReplMode: () => 'normal',
+        setReplMode: vi.fn(),
+        handleEvent: vi.fn(),
+      },
+    })
+
+    await runMainSendTurn(harness as any)
+
+    expect(existingReminderService.generateInjectedBlocks).toHaveBeenCalledTimes(1)
+    expect(existingReminderService.generateInjectedBlocks).toHaveBeenCalledWith(
+      expect.objectContaining({ includeAutoMemory: true }),
+    )
   })
 
   it('uses Thinking fallback for llm slash effect without loadingText', async () => {

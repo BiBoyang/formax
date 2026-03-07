@@ -5,8 +5,10 @@ import crypto from 'node:crypto'
 import type { PromptBlock } from '../../prompts'
 import type { LocalCommandRecord } from '../commands/registry'
 import { getConfigPaths } from '../../adapters/fs/configPaths.js'
+import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath'
 
 const MAX_CLAUDE_MD_CHARS = 200_000
+const MAX_AUTO_MEMORY_LINES = 200
 const MAX_BASH_MODE_OUTPUT_CHARS = 30_000
 
 const TRUNCATED_MARKER = '\n\n(Truncated)\n'
@@ -26,6 +28,17 @@ export type ClaudeMdInjectionMeta = {
   capChars: number
   global: ClaudeMdFileMeta | null
   project: ClaudeMdFileMeta | null
+  memory: AutoMemoryFileMeta | null
+}
+
+export type AutoMemoryFileMeta = {
+  filePath: string
+  sizeBytes: number
+  mtimeMs: number
+  includedSha256: string
+  originalLines: number
+  includedLines: number
+  truncated: boolean
 }
 
 function truncateWithMarker(input: string, maxChars: number): string {
@@ -61,6 +74,13 @@ type ClaudeMdSource = OptionalFileRaw & {
   truncated: boolean
 }
 
+type AutoMemorySource = OptionalFileRaw & {
+  includedSha256: string
+  originalLines: number
+  includedLines: number
+  truncated: boolean
+}
+
 function getClaudeMdPaths(args: {
   cwd: string
   env?: NodeJS.ProcessEnv
@@ -74,6 +94,82 @@ function getClaudeMdPaths(args: {
   const globalClaudeMdPath = path.join(path.resolve(args.cwd, configPaths.globalConfigDir), 'CLAUDE.md')
   const projectClaudeMdPath = path.join(args.cwd, 'CLAUDE.md')
   return { globalClaudeMdPath, projectClaudeMdPath }
+}
+
+function getAutoMemoryPath(args: {
+  cwd: string
+  env?: NodeJS.ProcessEnv
+  platform?: string
+  homedir?: string
+}): string {
+  const env = args.env ?? process.env
+  const platform = args.platform ?? process.platform
+  const homedir = args.homedir ?? os.homedir()
+  const configPaths = getConfigPaths({ cwd: args.cwd, env, platform, homedir })
+  const memoryDir = buildAutoMemoryDirectoryPath({
+    cwd: args.cwd,
+    configDir: configPaths.globalConfigDir,
+  })
+  return path.join(memoryDir, 'MEMORY.md')
+}
+
+function splitToLines(input: string): string[] {
+  if (!input) return []
+  const normalized = input.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
+function truncateToLineLimit(input: string, maxLines: number): {
+  contents: string
+  originalLines: number
+  includedLines: number
+  truncated: boolean
+} {
+  const limit = Math.max(0, maxLines)
+  const lines = splitToLines(input)
+  const originalLines = lines.length
+  if (originalLines <= limit) {
+    return {
+      contents: input,
+      originalLines,
+      includedLines: originalLines,
+      truncated: false,
+    }
+  }
+
+  return {
+    contents: lines.slice(0, limit).join('\n'),
+    originalLines,
+    includedLines: limit,
+    truncated: true,
+  }
+}
+
+function readAndCapAutoMemory(args: {
+  cwd: string
+  env?: NodeJS.ProcessEnv
+  platform?: string
+  homedir?: string
+}): AutoMemorySource | null {
+  const memoryPath = getAutoMemoryPath(args)
+  const raw = readOptionalFileRaw(memoryPath)
+  if (!raw) return null
+
+  const { contents, originalLines, includedLines, truncated } = truncateToLineLimit(
+    raw.contents,
+    MAX_AUTO_MEMORY_LINES,
+  )
+
+  return {
+    ...raw,
+    contents,
+    includedSha256: sha256Hex(contents),
+    originalLines,
+    includedLines,
+    truncated,
+  }
 }
 
 function readAndCapClaudeMd(args: {
@@ -133,8 +229,10 @@ export function getClaudeMdInjectionMeta(args: {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  includeAutoMemory?: boolean
 }): ClaudeMdInjectionMeta {
   const { global, project } = readAndCapClaudeMd(args)
+  const memory = args.includeAutoMemory === false ? null : readAndCapAutoMemory(args)
 
   const toMeta = (src: ClaudeMdSource | null): ClaudeMdFileMeta | null => {
     if (!src) return null
@@ -150,10 +248,23 @@ export function getClaudeMdInjectionMeta(args: {
     }
   }
 
+  const memoryMeta: AutoMemoryFileMeta | null = memory
+    ? {
+        filePath: memory.filePath,
+        sizeBytes: memory.sizeBytes,
+        mtimeMs: memory.mtimeMs,
+        includedSha256: memory.includedSha256,
+        originalLines: memory.originalLines,
+        includedLines: memory.includedLines,
+        truncated: memory.truncated,
+      }
+    : null
+
   return {
     capChars: MAX_CLAUDE_MD_CHARS,
     global: toMeta(global),
     project: toMeta(project),
+    memory: memoryMeta,
   }
 }
 
@@ -162,9 +273,11 @@ export function buildClaudeMdInjectedBlocks(args: {
   env?: NodeJS.ProcessEnv
   platform?: string
   homedir?: string
+  includeAutoMemory?: boolean
 }): PromptBlock[] {
   const { global, project } = readAndCapClaudeMd(args)
-  if (!global && !project) return []
+  const memory = args.includeAutoMemory === false ? null : readAndCapAutoMemory(args)
+  if (!global && !project && !memory) return []
 
   const text =
     '<system-reminder>\n' +
@@ -178,6 +291,9 @@ export function buildClaudeMdInjectedBlocks(args: {
       : '') +
     (project && project.contents.trim()
       ? `Contents of ${project.filePath} (project instructions, checked into the codebase):\n\n${project.contents}\n\n`
+      : '') +
+    (memory
+      ? `Contents of ${memory.filePath} (user's auto-memory, persists across conversations):\n\n${memory.contents}\n\n`
       : '') +
     '\n\n' +
     'IMPORTANT: this context may or may not be relevant to your tasks. ' +

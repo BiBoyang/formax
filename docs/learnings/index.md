@@ -26,6 +26,7 @@
 - `docs/learnings/2026-03-06-deferred-tool-exposure-shared-resolver.md`
 - `docs/learnings/2026-03-06-request-dry-run-preview.md`
 - `docs/learnings/2026-03-07-anthropic-prompt-caching-alignment.md`
+- `docs/learnings/2026-03-08-auto-memory-reminder-injection-parity.md`
 
 ## Web Reference Runtime / Performance
 

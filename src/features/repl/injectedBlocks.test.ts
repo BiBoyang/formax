@@ -10,6 +10,7 @@ import {
   buildLocalCommandInjectedBlocks,
   getClaudeMdInjectionMeta,
 } from './injectedBlocks'
+import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath'
 
 describe('repl injected blocks', () => {
   it('injects CLAUDE.md context when present', async () => {
@@ -22,6 +23,135 @@ describe('repl injected blocks', () => {
       expect((blocks[0] as any).text).toContain('# claudeMd')
       expect((blocks[0] as any).text).toContain('Contents of')
       expect((blocks[0] as any).text).toContain('# CLAUDE.md')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('injects auto-memory contents into the claudeMd reminder block', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      await fsp.writeFile(path.join(dir, 'CLAUDE.md'), '# PROJECT\n', 'utf8')
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: globalDir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), '# Memory\nline-1\n', 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('Contents of')
+      expect(text).toContain("user's auto-memory, persists across conversations")
+      expect(text).toContain('# Memory')
+      expect(text).toContain('line-1')
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('injects memory-only context when CLAUDE.md files are absent', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: globalDir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), 'memory-only\n', 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('# claudeMd')
+      expect(text).toContain('memory-only')
+      expect(text).toContain("user's auto-memory, persists across conversations")
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('truncates injected MEMORY.md content to 200 lines', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: globalDir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      const memoryText = Array.from({ length: 220 }, (_, i) => `line-${i + 1}`).join('\n')
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), memoryText, 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+
+      expect(blocks).toHaveLength(1)
+      const text = String((blocks[0] as any).text || '')
+      expect(text).toContain('line-200')
+      expect(text).not.toContain('line-201')
+
+      const meta = getClaudeMdInjectionMeta({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+      })
+      expect(meta.memory?.originalLines).toBe(220)
+      expect(meta.memory?.includedLines).toBe(200)
+      expect(meta.memory?.truncated).toBe(true)
+      expect(meta.memory?.includedSha256).toMatch(/^[a-f0-9]{64}$/)
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not inject MEMORY.md when auto-memory is disabled for the turn', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-injected-'))
+    try {
+      const globalDir = path.join(dir, 'global')
+      await fsp.mkdir(globalDir, { recursive: true })
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: dir,
+        configDir: globalDir,
+      })
+      await fsp.mkdir(memoryDir, { recursive: true })
+      await fsp.writeFile(path.join(memoryDir, 'MEMORY.md'), 'should-not-appear\n', 'utf8')
+
+      const blocks = buildClaudeMdInjectedBlocks({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+        includeAutoMemory: false,
+      })
+      expect(blocks).toEqual([])
+
+      const meta = getClaudeMdInjectionMeta({
+        cwd: dir,
+        env: { FORMAX_CONFIG_DIR: globalDir } as any,
+        homedir: dir,
+        includeAutoMemory: false,
+      })
+      expect(meta.memory).toBeNull()
     } finally {
       await fsp.rm(dir, { recursive: true, force: true })
     }

@@ -5,7 +5,7 @@ import {
   recordLocalCommandInjectionEvent,
 } from './sessionEvents'
 
-const EMPTY_CLAUDE_MD_META = { capChars: 200_000, global: null, project: null } as const
+const EMPTY_CLAUDE_MD_META = { capChars: 200_000, global: null, project: null, memory: null } as const
 
 function createClaudeMdFileMeta(scope: 'global' | 'project') {
   return {
@@ -93,6 +93,78 @@ describe('sessionEvents', () => {
       capChars: 200_000,
       global: createClaudeMdFileMeta('global'),
       project: null,
+      memory: null,
+    }
+    vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(meta as any)
+
+    recordClaudeMdInjectionEvent({
+      sessionSaveEnabled: true,
+      cwd: '/tmp/project',
+      env: {},
+      includeAutoMemory: true,
+      lastSigRef,
+      writer: { appendEvent },
+    })
+
+    expect(appendEvent).toHaveBeenCalledTimes(1)
+    expect(appendEvent).toHaveBeenCalledWith('claude_md_injection', meta)
+    expect(lastSigRef.current).toBe(JSON.stringify(meta))
+  })
+
+  it('skips memory-only claude_md_injection when includeAutoMemory is false', async () => {
+    const appendEvent = vi.fn()
+    const lastSigRef = { current: null as string | null }
+    const { getClaudeMdInjectionMeta } = await import('../../injectedBlocks')
+    const meta = {
+      capChars: 200_000,
+      global: null,
+      project: null,
+      memory: {
+        filePath: '/home/user/.formax/projects/-tmp-memory/memory/MEMORY.md',
+        sizeBytes: 64,
+        mtimeMs: 1_700_000_000_000,
+        includedSha256: 'abc123',
+        originalLines: 10,
+        includedLines: 10,
+        truncated: false,
+      },
+    }
+    vi.mocked(getClaudeMdInjectionMeta).mockImplementation((args: any) => {
+      if (args?.includeAutoMemory === false) {
+        return { capChars: 200_000, global: null, project: null, memory: null } as any
+      }
+      return meta as any
+    })
+
+    recordClaudeMdInjectionEvent({
+      sessionSaveEnabled: true,
+      cwd: '/tmp/project',
+      env: {},
+      includeAutoMemory: false,
+      lastSigRef,
+      writer: { appendEvent },
+    })
+
+    expect(appendEvent).not.toHaveBeenCalled()
+  })
+
+  it('records claude_md_injection when only auto-memory metadata exists', async () => {
+    const appendEvent = vi.fn()
+    const lastSigRef = { current: null as string | null }
+    const { getClaudeMdInjectionMeta } = await import('../../injectedBlocks')
+    const meta = {
+      capChars: 200_000,
+      global: null,
+      project: null,
+      memory: {
+        filePath: '/home/user/.formax/projects/-tmp-memory/memory/MEMORY.md',
+        sizeBytes: 64,
+        mtimeMs: 1_700_000_000_000,
+        includedSha256: 'abc123',
+        originalLines: 10,
+        includedLines: 10,
+        truncated: false,
+      },
     }
     vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(meta as any)
 
@@ -106,7 +178,6 @@ describe('sessionEvents', () => {
 
     expect(appendEvent).toHaveBeenCalledTimes(1)
     expect(appendEvent).toHaveBeenCalledWith('claude_md_injection', meta)
-    expect(lastSigRef.current).toBe(JSON.stringify(meta))
   })
 
   it('skips claude_md_injection when disabled/non-full/empty/same-signature', async () => {
@@ -142,6 +213,7 @@ describe('sessionEvents', () => {
       capChars: 200_000,
       global: createClaudeMdFileMeta('global'),
       project: null,
+      memory: null,
     }
     vi.mocked(getClaudeMdInjectionMeta).mockReturnValue(repeatedMeta as any)
     lastSigRef.current = JSON.stringify(repeatedMeta)

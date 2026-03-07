@@ -121,7 +121,10 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
 
     const injectedBlocks: PromptBlock[] = [
       ...toolExposure.injectedPromptBlocks,
-      ...args.reminderServiceRef.current.generateInjectedBlocks({ cwd }),
+      ...args.reminderServiceRef.current.generateInjectedBlocks({
+        cwd,
+        includeAutoMemory: deferredToolExposureEnabled,
+      }),
       ...buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle),
       ...turnInput.semanticBlocks,
       ...args.pendingInjectedBlocksRef.current,

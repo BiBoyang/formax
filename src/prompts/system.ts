@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { PromptBlock } from './types'
+import { buildAutoMemoryDirectoryPath } from '../shared/utils/autoMemoryPath'
+import { getConfigPaths } from '../config/configPaths'
 
 export type SystemPromptVariant = 'legacy' | 'deferred_aligned'
 
 export type SystemPromptCapabilities = {
   includeAgentSdkIdentitySuffix: boolean
-  includeAutoMemorySection: boolean
   includeVsCodeExtensionContextSection: boolean
   includeFastModeInfoSection: boolean
   includeModelFamilyHint: boolean
@@ -16,7 +17,6 @@ export type SystemPromptCapabilities = {
 
 const LEGACY_SYSTEM_PROMPT_CAPABILITIES: SystemPromptCapabilities = {
   includeAgentSdkIdentitySuffix: false,
-  includeAutoMemorySection: false,
   includeVsCodeExtensionContextSection: false,
   includeFastModeInfoSection: false,
   includeModelFamilyHint: false,
@@ -27,7 +27,6 @@ const LEGACY_SYSTEM_PROMPT_CAPABILITIES: SystemPromptCapabilities = {
 // Enable each switch only after the corresponding runtime feature is implemented.
 const DEFERRED_ALIGNED_SYSTEM_PROMPT_CAPABILITIES: SystemPromptCapabilities = {
   includeAgentSdkIdentitySuffix: false,
-  includeAutoMemorySection: false,
   includeVsCodeExtensionContextSection: false,
   includeFastModeInfoSection: false,
   includeModelFamilyHint: false,
@@ -45,6 +44,9 @@ export type SystemPromptRuntimeDeps = {
   osRelease?: () => string
   isGitRepository?: (cwd: string) => boolean
   buildGitSnapshot?: (cwd: string) => string
+  env?: NodeJS.ProcessEnv
+  autoMemoryConfigDir?: string
+  resolveRealPath?: (cwd: string) => string
 }
 
 export function buildSystemPrompt(args?: {
@@ -239,13 +241,48 @@ function buildDeferredAlignedFullSystemPrompt(args?: {
     'IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.'
 
   const optionalSections: string[] = []
-  if (capabilities.includeAutoMemorySection) {
-    optionalSections.push(
-      '# auto memory\n' +
-        '- You can persist durable project learnings in the memory workspace.\n' +
-        '- Keep memory concise, remove stale entries, and avoid session-only notes.',
-    )
-  }
+  const autoMemoryConfigDir =
+    deps?.autoMemoryConfigDir ??
+    getConfigPaths({
+      cwd: cwd ?? process.cwd(),
+      env: deps?.env ?? process.env,
+      homedir: os.homedir(),
+    }).globalConfigDir
+  const autoMemoryDir = buildAutoMemoryDirectoryPath({
+    cwd: cwd ?? process.cwd(),
+    configDir: autoMemoryConfigDir,
+    resolveRealPath: deps?.resolveRealPath,
+  })
+  optionalSections.push(
+    '# auto memory\n' +
+      `\nYou have a persistent auto memory directory at \`${autoMemoryDir}\`. Its contents persist across conversations.\n` +
+      '\n' +
+      'As you work, consult your memory files to build on previous experience.\n' +
+      '\n' +
+      '## How to save memories:\n' +
+      '- Organize memory semantically by topic, not chronologically\n' +
+      '- Use the Write and Edit tools to update your memory files\n' +
+      '- `MEMORY.md` may be loaded into your conversation context by this runtime — when loaded, lines after 200 will be truncated, so keep it concise\n' +
+      '- Create separate topic files (e.g., `debugging.md`, `patterns.md`) for detailed notes and link to them from MEMORY.md\n' +
+      '- Update or remove memories that turn out to be wrong or outdated\n' +
+      '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.\n' +
+      '\n' +
+      '## What to save:\n' +
+      '- Stable patterns and conventions confirmed across multiple interactions\n' +
+      '- Key architectural decisions, important file paths, and project structure\n' +
+      '- User preferences for workflow, tools, and communication style\n' +
+      '- Solutions to recurring problems and debugging insights\n' +
+      '\n' +
+      '## What NOT to save:\n' +
+      '- Session-specific context (current task details, in-progress work, temporary state)\n' +
+      '- Information that might be incomplete — verify against project docs before writing\n' +
+      '- Anything that duplicates or contradicts existing CLAUDE.md instructions\n' +
+      '- Speculative or unverified conclusions from reading a single file\n' +
+      '\n' +
+      '## Explicit user requests:\n' +
+      '- When the user asks you to remember something across sessions (e.g., "always use bun", "never auto-commit"), save it — no need to wait for multiple interactions\n' +
+      '- When the user asks to forget or stop remembering something, find and remove the relevant entries from your memory files',
+  )
   if (capabilities.includeVsCodeExtensionContextSection) {
     optionalSections.push(
       '# VSCode Extension Context\n' +
