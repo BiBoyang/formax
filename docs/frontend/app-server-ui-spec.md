@@ -1,15 +1,20 @@
 # Formax App Server UI Spec（功能型规范）
 
-更新时间：2026-02-13
+更新时间：2026-03-07
 
 本文件规定 reference client 的功能行为规范，不定义品牌视觉。  
 目标是：任何实现者都能做出“行为一致”的调试 UI。
 
 相关文档：
 
-- 产品边界：`plans/app-server/PRODUCT-SPEC.md`
+- 项目语义边界：`docs/contracts/semantics-contract.md`
 - 协议合同：`docs/contracts/app-server-interaction-contract.md`
-- 执行清单：`plans/app-server/TODO-INDEX.md`
+- 交互输入唯一事实源：`docs/contracts/interactive-input-contract.md`
+- Web adapter / reducer / cursor 唯一事实源：`docs/contracts/web-parity-adapter-contract.md`
+- 接口参考：`docs/references/app-server-api-reference.md`
+- 前端治理入口：`docs/FRONTEND.md`
+
+本文件定义 reference client 的行为规范；执行计划与过程文档不是本规范的上游。
 
 ## 1. UI 目标
 
@@ -179,8 +184,9 @@ Transcript 类型要求（必须可区分）：
 
 1. UI 层只消费状态与 action，不直接管理 WebSocket 请求映射。
 2. 协议请求/响应管理在 `rpcClient` 层。
-3. 语义状态迁移（mode/input/transcript segment）应集中在共享 semantics projector，UI reducer 仅承接投影结果与本地交互状态。
-4. 组件只做展示与事件派发，不持有业务状态机。
+3. `eventAdapters` / `store` / `turnEventCursor` 的共享边界以 `docs/contracts/web-parity-adapter-contract.md` 为准。
+4. 语义状态迁移（mode/input/transcript segment）应集中在共享 semantics projector，UI reducer 仅承接投影结果与本地交互状态。
+5. 组件只做展示与事件派发，不持有业务状态机。
 
 ## 9. 验收清单（UI）
 

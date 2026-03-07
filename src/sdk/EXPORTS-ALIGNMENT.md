@@ -1,12 +1,23 @@
 # Formax SDK Exports Alignment (Phase 1)
 
-需求来源：
-- `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
+当前对齐锚点：
+- `src/sdk/api.ts`
+- `src/sdk/index.ts`
+- `src/sdk/query.ts`
+- `src/sdk/query.test.ts`
+- `src/sdk/query.options-alignment.test.ts`
+- `src/sdk/v2.test.ts`
+
+相关合同：
+- `docs/contracts/semantics-contract.md`
+- `docs/contracts/interactive-input-contract.md`
+- `docs/contracts/permissions-policy-contract.md`
 
 说明：
 - 本文档仅记录“当前已对齐/已暴露”的 SDK 导出状态。
 - 不做 `@anthropic-ai/claude-agent-sdk` 全量 1:1 映射。
 - 未支持能力不做占位实现；若已暴露同名方法，则应明确“显式未支持”语义。
+- 本文档是当前导出状态的自包含记录，不以 `plans/*` 过程文档作为上游。
 
 ## Top-level Exports
 
@@ -72,5 +83,7 @@
 
 ## Note
 
-- 更完整的 options 字段对齐请参考：
-  - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`
+- 更完整的 query / options 对齐请交叉阅读：
+  - `src/sdk/query.ts`
+  - `src/sdk/query.test.ts`
+  - `src/sdk/query.options-alignment.test.ts`

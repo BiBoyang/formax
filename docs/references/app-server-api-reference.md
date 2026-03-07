@@ -4,7 +4,7 @@
 
 优先级说明：
 
-- 若与产品/合同文档冲突，以 `plans/app-server/PRODUCT-SPEC.md`、`docs/contracts/semantics-contract.md`、`docs/contracts/app-server-interaction-contract.md` 与 `docs/contracts/interactive-input-contract.md` 为准。
+- 若与合同文档冲突，以 `docs/contracts/semantics-contract.md`、`docs/contracts/app-server-interaction-contract.md`、`docs/contracts/interactive-input-contract.md` 与 `docs/frontend/app-server-ui-spec.md` 为准。
 - 本文档主要用于“字段结构 + 示例 + 对接实现参考”，不作为协议决策源。
 
 - 传输：`stdio` + `JSONL`（每行一个 JSON）
@@ -331,6 +331,7 @@ AskUserQuestion payload：
 
 说明：
 
+- 详细 session / resume / stale-input 合同见 `docs/contracts/session-persistence-contract.md`。
 - `staleInputs` 表示服务重启后恢复出的“过期输入”（`status = "expired"`，`reason = "server_restart"`）。
 - 客户端应在恢复线程后把这些输入标记为不可提交。
 

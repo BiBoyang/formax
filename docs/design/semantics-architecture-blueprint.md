@@ -1,6 +1,6 @@
 # Semantics Architecture Blueprint（Next）
 
-更新时间：2026-02-17
+更新时间：2026-03-07
 
 ## 1. 目的
 
@@ -119,11 +119,12 @@
 
 ## 9. 与现有文档关系
 
-- 产品边界：`plans/app-server/PRODUCT-SPEC.md`
+- 项目语义合同：`docs/contracts/semantics-contract.md`
 - 交互合同：`docs/contracts/app-server-interaction-contract.md`
+- 交互输入合同：`docs/contracts/interactive-input-contract.md`
 - 接口手册：`docs/references/app-server-api-reference.md`
 - UI 规范：`docs/frontend/app-server-ui-spec.md`
-- 当前执行清单：`plans/app-server/TODO-INDEX.md`
-- 架构路线图（归档）：`plans/_archive/app-server/ARCHITECTURE-ROADMAP.md`
+- Single-writer 审计：`docs/audits/repl-single-writer-audit.md`
+- 性能基线：`docs/baselines/semantic-streaming-perf.md`
 
-本蓝图用于约束“下一阶段语义架构方向”，不替代上述文档。
+本蓝图用于约束“下一阶段语义架构方向”，不替代上述文档，也不以 `plans/*` 过程文档作为上游。

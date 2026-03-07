@@ -17,6 +17,7 @@
 
 相关文档（信息性镜像）：
 - `docs/contracts/app-server-interaction-contract.md`
+- `docs/contracts/permissions-policy-contract.md`
 - `docs/references/app-server-api-reference.md`
 - `docs/frontend/app-server-ui-spec.md`
 - `docs/inventories/interactive-input-inventory.md`
@@ -75,20 +76,13 @@ Renderer 的视觉流程 MAY 不同（单步或多步），但提交后的决策
 任何 renderer 变更都不能改变 app-server preflight/policy 语义。
 
 `APPROVAL-005`  
-通过 `.formax/settings.local.json` 与 `permissions.allow` 的自然传播 MUST 保持由服务端/preflight 所有，且 MUST NOT 通过仅 renderer 代码打补丁实现。
+renderer 变更 MUST NOT 改变 permissions/policy 的 canonical 结果；allow/ask/deny、remember、workspace 边界语义由 `docs/contracts/permissions-policy-contract.md` 所有。
 
-### 3.1 Remember 行为矩阵（语义效果）
+### 3.1 Remember 语义归属
 
-| Action 类别 | Remember 效果 |
-|---|---|
-| `bash.exec` | 持久化仓库本地 allow key（permissions allow list） |
-| `fs.write` | 切换到会话级 edit-accept 模式（`acceptEdits`） |
-| 带 `workspaceRequest.dir` 的 `fs.read` | 会话/工作区目录级 allow 行为，不做全局 policy rule 持久化 |
-| 其他 policy action | 走 session/project/global policy rule 路径 |
+`approve_remember` 的语义结果、scope 生效范围、workspace allow 与 `acceptEdits` side effects 的唯一事实源为：`docs/contracts/permissions-policy-contract.md`。
 
-说明：
-- 该矩阵定义的是语义结果，不是强制 UI 文案。
-- scope 提示 UI 可以因 renderer 而异，但结果必须符合此矩阵。
+本文件只约束 approval payload 形状与提交语义，不重复完整 policy semantics。
 
 ### 3.2 Scope 提示适用规则（Web Reference UI 规则）
 
@@ -99,7 +93,7 @@ Renderer 的视觉流程 MAY 不同（单步或多步），但提交后的决策
 4. 其他支持 policy-scope 的 action：出现 scope 步骤
 5. 缺失 `action.kind`：出现 scope 步骤（保守回退）
 
-这属于 renderer 行为。最终语义结果仍由第 3.1 节约束。
+这属于 renderer 行为。最终语义结果由 `docs/contracts/permissions-policy-contract.md` 约束。
 
 ## 4. Ask User Question 合同
 

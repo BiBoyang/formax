@@ -1,0 +1,56 @@
+# Learnings Index
+
+`docs/learnings/` 保存决策史、经验沉淀与实现对齐记录。
+
+它的角色是：
+
+- 记录“为什么这样做”
+- 保留排查和对齐过程中的关键观察
+- 为后续将成熟规则升格到 `contracts/`、`runbooks/`、`references/` 提供来源
+
+它不是默认的唯一事实源。
+当某条 learning 变成长期规则时，应把规则升格到 canonical doc，并在 learning 中保留回链。
+
+## Governance / App-Server / Semantics
+
+- `docs/learnings/2026-02-23-harness-governance.md`
+- `docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
+- `docs/learnings/2026-02-26-web-user-message-canonical.md`
+- `docs/learnings/2026-03-04-app-server-bounded-queues-and-overload.md`
+
+## Prompt / Capture / Tool Exposure
+
+- `docs/learnings/2026-03-05-cc-current-capture-keypoints-toolsearch-and-prompts.md`
+- `docs/learnings/2026-03-05-formax-capture-224737-vs-cc-deferred-tool-exposure.md`
+- `docs/learnings/2026-03-06-deferred-prompt-variant-and-skills-reminder.md`
+- `docs/learnings/2026-03-06-deferred-tool-exposure-shared-resolver.md`
+- `docs/learnings/2026-03-06-request-dry-run-preview.md`
+- `docs/learnings/2026-03-07-anthropic-prompt-caching-alignment.md`
+
+## Web Reference Runtime / Performance
+
+- `docs/learnings/2026-03-04-web-bundle-report-baseline.md`
+- `docs/learnings/2026-03-04-web-entry-chunk-split-and-markdown-e2e.md`
+- `docs/learnings/2026-03-04-web-history-cache-write-dedup.md`
+- `docs/learnings/2026-03-04-web-left-rail-group-stabilization.md`
+- `docs/learnings/2026-03-04-web-markdown-render-dedup.md`
+- `docs/learnings/2026-03-04-web-markdown-shiki-runtime-slimming.md`
+- `docs/learnings/2026-03-04-web-parity-browser-safe-adapters.md`
+- `docs/learnings/2026-03-04-web-reducer-noop-guards.md`
+- `docs/learnings/2026-03-04-web-render-hotpath-optimization.md`
+- `docs/learnings/2026-03-04-web-rpc-queue-guard-coverage.md`
+- `docs/learnings/2026-03-04-web-runtime-ref-sync-scope-reduction.md`
+- `docs/learnings/2026-03-04-web-runtime-refs-effect-consolidation.md`
+- `docs/learnings/2026-03-04-web-thread-actions-stable-context.md`
+- `docs/learnings/2026-03-04-web-transcript-perf-gate-ci.md`
+- `docs/learnings/2026-03-05-web-appshell-props-partition-and-folder-toggle-stability-m.md`
+- `docs/learnings/2026-03-05-web-left-rail-row-memoization.md`
+- `docs/learnings/2026-03-05-web-runtime-composition-polish-r.md`
+- `docs/learnings/2026-03-05-web-runtime-dev-loadall-and-scroll-sync-l.md`
+- `docs/learnings/2026-03-05-web-runtime-domain-boundary-consolidation-p.md`
+- `docs/learnings/2026-03-05-web-runtime-state-dedup-batch-k.md`
+- `docs/learnings/2026-03-05-web-thread-selection-cwd-options-stability.md`
+- `docs/learnings/2026-03-05-web-transcript-render-view-single-filter-path.md`
+- `docs/learnings/2026-03-05-web-transcript-rpc-error-details-cache-safety.md`
+- `docs/learnings/2026-03-05-web-useappruntime-composition-root-slimming-q.md`
+- `docs/learnings/2026-03-05-web-useappruntime-domain-handler-stability-n.md`

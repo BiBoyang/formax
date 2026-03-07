@@ -1,5 +1,13 @@
 # src/hooks
 
+Status: Informative deep dive.
+
+Canonical docs:
+- [docs/contracts/hooks-contract.md](../../docs/contracts/hooks-contract.md)
+- [docs/references/hooks-payload-reference.md](../../docs/references/hooks-payload-reference.md)
+
+本文件用于代码近侧说明、扩展步骤和调试提示；涉及稳定语义、事件边界、payload 形状时，先更新上面的 canonical docs。
+
 Formax 的 Claude Code 风格 hooks 子系统：在“关键时机”运行本地脚本（`type: command`），并把结果用于审计/调试/（可选）影响下一轮模型上下文。
 
 > 原则：**稳定优先**。新增 hook 事件必须可回滚、可测试、且不改变既有 UI 文案/交互（除非明确要求）。

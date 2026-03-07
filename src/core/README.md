@@ -1,5 +1,16 @@
 # src/core
 
+Status: Informative deep dive.
+
+Canonical docs:
+- [docs/contracts/config-settings-contract.md](../../docs/contracts/config-settings-contract.md)
+- [docs/contracts/layer-contract.md](../../docs/contracts/layer-contract.md)
+- [docs/contracts/invariants.md](../../docs/contracts/invariants.md)
+- [docs/contracts/permissions-policy-contract.md](../../docs/contracts/permissions-policy-contract.md)
+- [docs/environment-variables.md](../../docs/environment-variables.md)
+
+本文件用于代码近侧说明、边界总览和扩展/排障提示；涉及长期规则、权限语义和运行时配置时，先更新上面的 canonical docs。
+
 Last verified: 2026-01-13
 
 ## 1) 作用（What）

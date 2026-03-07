@@ -1,30 +1,33 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-02-09
+更新时间：2026-03-07
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
 
 相关文档：
 
-- 产品边界：`plans/app-server/PRODUCT-SPEC.md`
+- 项目语义边界：`docs/contracts/semantics-contract.md`
 - UI 行为：`docs/frontend/app-server-ui-spec.md`
 - 接口参考：`docs/references/app-server-api-reference.md`
 - 交互输入唯一事实源：`docs/contracts/interactive-input-contract.md`
+- Session persistence / resume 唯一事实源：`docs/contracts/session-persistence-contract.md`
 - 学习记录（非规范）：`docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
+
+本合同自身承担 app-server 行为边界，不以 `plans/*` 过程文档作为规范性上游。
 
 ## 1. 传输与握手合同
 
 1. 传输协议固定为 `stdio + JSONL + JSON-RPC 2.0`。
 2. 客户端握手顺序：
-   - `initialize`（request）
-   - `initialized`（notification）
+  - `initialize`（request）
+  - `initialized`（notification）
 3. 除 `initialize` 外，任何 request 在初始化前都返回 `NOT_INITIALIZED`。
 4. `initialize.result` 必须包含：
-   - `serverInfo`
-   - `protocolVersion`
-   - `serverInstanceId`
-   - `limits`
+  - `serverInfo`
+  - `protocolVersion`
+  - `serverInstanceId`
+  - `limits`
 
 ## 2. 方法合同（Method Contract）
 
@@ -39,6 +42,8 @@
 
 - 入参：`{ threadId: string }`
 - 返回：`{ thread, staleInputs }`
+- 共享恢复语义：
+  - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 
@@ -123,13 +128,13 @@
 `schemaVersion` 升级流程（必须按顺序）：
 
 1. 先在本文件定义“变更类型”：
-   - 向后兼容扩展：新增可选字段 / 新增可忽略 kind。
-   - 破坏性变更：修改既有语义、必填字段、排序主键或终局判定规则。
+  - 向后兼容扩展：新增可选字段 / 新增可忽略 kind。
+  - 破坏性变更：修改既有语义、必填字段、排序主键或终局判定规则。
 2. 若为破坏性变更：先升级 `schemaVersion`，并在 adapter 中增加双版本兼容分支。
 3. 同步更新：
-   - `docs/references/app-server-api-reference.md`
-   - `src/features/semantics/core/canonicalEvents.ts`
-   - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
+  - `docs/references/app-server-api-reference.md`
+  - `src/features/semantics/core/canonicalEvents.ts`
+  - `src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
 4. 增加跨入口 contract fixture（stream / notification / replay-like）回归测试。
 5. 通过后才能切默认版本；旧版本下线需单独发布迁移公告。
 
@@ -325,25 +330,28 @@ turn 通知到 canonical 的最小映射保证：
 
 ## 10. 合同条目 -> 实现映射
 
-| 合同条目 | 主要实现 | 主要测试 |
-| --- | --- | --- |
-| `initialize` / `initialized` 握手 | `src/app-server/server.ts`, `src/app-server/protocol.ts` | `src/app-server/server.test.ts`, `src/app-server/index.test.ts` |
-| 未初始化拦截（`NOT_INITIALIZED`） | `src/app-server/server.ts`, `src/app-server/jsonrpc.ts` | `src/app-server/server.test.ts`, `src/app-server/index.test.ts` |
-| `thread/start` | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/features/repl/sessionSave/index.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts` |
-| `thread/resume` + `staleInputs` | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
-| `thread/list`（`limit/cursor`） | `src/app-server/protocol.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
-| `thread/read` | `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts` |
-| `thread/messages`（最新页 + 向前分页） | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/threadStore.ts` | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts` |
-| `thread/replay` + runtime state snapshot | `src/app-server/server.ts`, `src/features/semantics/runtime/threadRuntimeState.ts` | `src/app-server/server.test.ts`, `src/features/semantics/runtime/threadRuntimeState.test.ts` |
-| `turn/start`（单线程单 in-flight） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
-| `turn/interrupt` | `src/app-server/server.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
-| `turn/event` 转发 | `src/app-server/turnRunner.ts`, `src/streaming/types.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts` |
-| `turn/modeChanged`（运行期 mode 同步） | `src/app-server/turnRunner.ts`, `src/features/semantics/core/replModeTransition.ts` | `src/app-server/turnRunner.test.ts`, `apps/web-reference-react/src/App.test.tsx` |
-| `turn/inputRequested` / `turn/inputResolved` | `src/app-server/turnRunner.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/protocol/input.ts` | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts` |
-| `turn/input/submit` + `inputId/toolUseId` fallback | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`, `src/app-server/turnRunner.test.ts` |
-| 提交幂等与冲突（`already_submitted_same` / `conflict_already_submitted`） | `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts` |
-| 过期提交（`INPUT_EXPIRED`） | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts` | `src/app-server/server.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
-| envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts` | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts` |
-| 错误码常量 | `src/app-server/jsonrpc.ts` | `src/app-server/jsonrpc.test.ts` |
-| ingress/process/outbound 有界队列与过载拒绝 | `src/app-server/index.ts`, `src/app-server/jsonrpc.ts` | `src/app-server/index.test.ts`, `src/app-server/index.coverage.test.ts` |
-| `PAYLOAD_TOO_LARGE`（request/event） | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts` | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts` |
+
+| 合同条目                                                                  | 主要实现                                                                                                                          | 主要测试                                                                                                                     |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `initialize` / `initialized` 握手                                       | `src/app-server/server.ts`, `src/app-server/protocol.ts`                                                                      | `src/app-server/server.test.ts`, `src/app-server/index.test.ts`                                                          |
+| 未初始化拦截（`NOT_INITIALIZED`）                                             | `src/app-server/server.ts`, `src/app-server/jsonrpc.ts`                                                                       | `src/app-server/server.test.ts`, `src/app-server/index.test.ts`                                                          |
+| `thread/start`                                                        | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/features/repl/sessionSave/index.ts`                         | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts`                                                    |
+| `thread/resume` + `staleInputs`                                       | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts`                     | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts`, `src/app-server/store/sessionEventReader.test.ts` |
+| `thread/list`（`limit/cursor`）                                         | `src/app-server/protocol.ts`, `src/app-server/threadStore.ts`                                                                 | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts`                                                    |
+| `thread/read`                                                         | `src/app-server/server.ts`, `src/app-server/threadStore.ts`                                                                   | `src/app-server/threadStore.test.ts`, `src/app-server/server.test.ts`                                                    |
+| `thread/messages`（最新页 + 向前分页）                                         | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/threadStore.ts`                                     | `src/app-server/server.test.ts`, `src/app-server/threadStore.test.ts`                                                    |
+| `thread/replay` + runtime state snapshot                              | `src/app-server/server.ts`, `src/features/semantics/runtime/threadRuntimeState.ts`                                            | `src/app-server/server.test.ts`, `src/features/semantics/runtime/threadRuntimeState.test.ts`                             |
+| `turn/start`（单线程单 in-flight）                                          | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`                                                                    | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`                                                     |
+| `turn/interrupt`                                                      | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`                                                                    | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`                                                     |
+| `turn/event` 转发                                                       | `src/app-server/turnRunner.ts`, `src/streaming/types.ts`                                                                      | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`                                                     |
+| `turn/modeChanged`（运行期 mode 同步）                                       | `src/app-server/turnRunner.ts`, `src/features/semantics/core/replModeTransition.ts`                                           | `src/app-server/turnRunner.test.ts`, `apps/web-reference-react/src/App.test.tsx`                                         |
+| `turn/inputRequested` / `turn/inputResolved`                          | `src/app-server/turnRunner.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/protocol/input.ts`                       | `src/app-server/turnRunner.test.ts`, `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`           |
+| `turn/input/submit` + `inputId/toolUseId` fallback                    | `src/app-server/protocol.ts`, `src/app-server/server.ts`, `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts` | `src/app-server/server.test.ts`, `src/app-server/turn/inputStore.test.ts`, `src/app-server/turnRunner.test.ts`           |
+| 提交幂等与冲突（`already_submitted_same` / `conflict_already_submitted`）      | `src/app-server/turn/inputStore.ts`, `src/app-server/turnRunner.ts`                                                           | `src/app-server/turn/inputStore.test.ts`, `src/app-server/server.test.ts`                                                |
+| 过期提交（`INPUT_EXPIRED`）                                                 | `src/app-server/server.ts`, `src/app-server/threadStore.ts`, `src/app-server/store/sessionEventReader.ts`                     | `src/app-server/server.test.ts`, `src/app-server/store/sessionEventReader.test.ts`                                       |
+| envelope 元字段（`schemaVersion/replaySeq/traceId/seq/ts/eventId/source`） | `src/app-server/server.ts`, `src/app-server/turnRunner.ts`, `src/app-server/protocol/input.ts`                                | `src/app-server/server.test.ts`, `src/app-server/turnRunner.test.ts`                                                     |
+| 错误码常量                                                                 | `src/app-server/jsonrpc.ts`                                                                                                   | `src/app-server/jsonrpc.test.ts`                                                                                         |
+| ingress/process/outbound 有界队列与过载拒绝                                    | `src/app-server/index.ts`, `src/app-server/jsonrpc.ts`                                                                        | `src/app-server/index.test.ts`, `src/app-server/index.coverage.test.ts`                                                  |
+| `PAYLOAD_TOO_LARGE`（request/event）                                    | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts`                                                                | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts`                                                 |
+
+

@@ -261,32 +261,31 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Streaming (SSE parsing + tool execution): `src/streaming/README.md`
 - Sub-agents (registry/runner/allowlist): `src/features/subagents/README.md`
 
-## Docs Governance (Contracts / Invariants)
-- Docs source-of-truth index: `docs/index.md`
-- Project semantics contract (TUI/app-server/Web): `docs/contracts/semantics-contract.md`
-- Interactive input semantic contract (approval + ask): `docs/contracts/interactive-input-contract.md`
-- Runtime environment-variable source of truth: `docs/environment-variables.md`
-- App-server interaction contract: `docs/contracts/app-server-interaction-contract.md`
-- App-server API reference: `docs/references/app-server-api-reference.md`
-- App-server Web UI spec: `docs/frontend/app-server-ui-spec.md`
-- Interactive input form inventory (informative): `docs/inventories/interactive-input-inventory.md`
-- Frontend governance index: `docs/FRONTEND.md`
-- App-server manual runbook: `docs/runbooks/app-server-manual-runbook.md`
-- Semantic streaming perf baseline: `docs/baselines/semantic-streaming-perf.md`
-- REPL single-writer audit: `docs/audits/repl-single-writer-audit.md`
-- Semantics blueprint + learnings: `docs/design/semantics-architecture-blueprint.md`, `docs/learnings/*`
-- Pitfalls deep-dive index: `docs/pitfalls/index.md`
-- Layer contract config + baseline:
-  - `scripts/layer-contract.config.json`
-  - `scripts/check-layer-contracts.mjs`
-  - `scripts/baselines/layer-contract-violations.json`
-- Golden principles checks + baseline:
-  - `scripts/check-golden-principles.mjs`
-  - `scripts/baselines/golden-principles-violations.json`
-- Single-writer gate: `scripts/check-repl-single-writer.mjs`
+## Docs Governance (Quick Links)
+- Docs source-of-truth map: `docs/index.md`
+- Core contracts:
+  - Semantics: `docs/contracts/semantics-contract.md`
+  - Interactive input: `docs/contracts/interactive-input-contract.md`
+  - Permissions/policy: `docs/contracts/permissions-policy-contract.md`
+  - Transcript surface: `docs/contracts/transcript-surface-contract.md`
+  - Prompt/tool exposure: `docs/contracts/prompt-tool-exposure-contract.md`
+  - Tool runtime: `docs/contracts/tool-runtime-contract.md`
+- Runtime config / env:
+  - `docs/contracts/config-settings-contract.md`
+  - `docs/environment-variables.md`
+- App-server + Web summaries:
+  - `docs/contracts/app-server-interaction-contract.md`
+  - `docs/references/app-server-api-reference.md`
+  - `docs/frontend/app-server-ui-spec.md`
+  - `docs/contracts/web-parity-adapter-contract.md`
+- Verification / troubleshooting:
+  - `docs/runbooks/runbook.md`
+  - `docs/audits/repl-single-writer-audit.md`
+  - `docs/pitfalls/index.md`
 
-## If You’re Adding a Feature, Start Here
-- UI behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
-- New tool: add `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}`, then register in `src/tools/registry.ts`
-- New slash command: add to `src/features/commands/registry.ts` (and optionally implement LLM tool exposure later)
-- Sub-agent capability/prompt: update `src/features/subagents/builtins.ts` and related prompt sources under `src/features/subagents/prompts/`
+## If You're Adding a Feature, Start Here
+- UI / REPL behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
+- New tool: `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}` + register in `src/tools/registry.ts`
+- New slash command: `src/features/commands/registry.ts` + `src/features/commands/adapter.ts`
+- Cross-surface semantic change: `src/features/semantics/*` first, then app-server / TUI / Web adapters
+- Sub-agent capability / prompt: `src/features/subagents/builtins.ts` + `src/features/subagents/prompts/*`

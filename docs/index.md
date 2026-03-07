@@ -1,6 +1,23 @@
-# Docs 文档索引（唯一事实源）
+# Docs 文档索引（Canonical Map）
 
-`docs/` 目录是 Formax 文档治理的系统事实来源（system of record）。
+`docs/` 目录是 Formax 仓库长期文档知识的系统事实来源（system of record）。
+
+本文件只做 `docs/` 内部总索引，不承载完整运行手册、检查命令清单或实现细节正文。
+
+## 使用方式
+
+- 先按任务类型选择文档类别（`contracts` / `runbooks` / `references` / `design`）。
+- 若同一主题同时存在多份文档，以 `contracts/*` 为规范性事实源。
+- `learnings/`、`inventories/`、`pitfalls/` 主要提供背景、盘点与排障，不默认视为唯一真值。
+
+## 类别边界
+
+- `contracts/*`：长期成立的规则、语义与边界。
+- `runbooks/*`：验证、恢复、失败修复路径。
+- `references/*`：字段、模板、对接与辅助说明。
+- `design/*`：架构蓝图与设计模式。
+- `learnings/*`：决策史与经验沉淀。
+- `pitfalls/*`：深度排障与反模式。
 
 ## 合同（Contracts）
 
@@ -9,16 +26,26 @@
 - Golden Principles 护栏：`docs/contracts/golden-principles.md`
 - 项目语义唯一事实源（跨端 semantics）：`docs/contracts/semantics-contract.md`
 - 交互输入语义唯一事实源（approval / ask）：`docs/contracts/interactive-input-contract.md`
+- Permissions / policy 唯一事实源（allow / ask / deny / remember / workspace）：`docs/contracts/permissions-policy-contract.md`
+- Transcript surface 唯一事实源（reset / remount / clear / resume）：`docs/contracts/transcript-surface-contract.md`
+- Prompt / tool exposure 唯一事实源（deferred tools / skills reminder / request preview）：`docs/contracts/prompt-tool-exposure-contract.md`
+- Tool runtime / ToolSearch / ToolResult 边界唯一事实源：`docs/contracts/tool-runtime-contract.md`
+- Hooks 唯一事实源（events / matcher / additionalContext）：`docs/contracts/hooks-contract.md`
+- Session persistence / resume / stale-input 唯一事实源：`docs/contracts/session-persistence-contract.md`
+- Web parity adapter / reducer / cursor 唯一事实源：`docs/contracts/web-parity-adapter-contract.md`
 - Skills 目录与调用行为唯一事实源：`docs/contracts/skills-contract.md`
+- Slash command 发现 / dispatch / subline / injection 唯一事实源：`docs/contracts/slash-command-contract.md`
 - app-server 行为合同（protocol behavior）：`docs/contracts/app-server-interaction-contract.md`
 
 ## 配置（Configuration）
 
+- runtime config / `/config` 合同（merge / sources / sparse write / injection）：`docs/contracts/config-settings-contract.md`
 - 环境变量与分类唯一事实源：`docs/environment-variables.md`
 
 ## 操作手册（Runbooks）
 
 - 本地与 CI 失败修复路径：`docs/runbooks/runbook.md`
+- REPL transcript surface 排障：`docs/runbooks/repl-surface-debugging.md`
 - app-server 人工验收 runbook：`docs/runbooks/app-server-manual-runbook.md`
 
 ## 前端（Frontend）
@@ -29,6 +56,7 @@
 ## 参考（References）
 
 - app-server 接口对接手册：`docs/references/app-server-api-reference.md`
+- hooks payload / stdout 参考：`docs/references/hooks-payload-reference.md`
 
 ## 设计（Design）
 
@@ -44,12 +72,7 @@
 
 ## 学习记录（Learnings）
 
-- Harness Governance（2026-02-23）：`docs/learnings/2026-02-23-harness-governance.md`
-- App-server Session Grouping 与 Hidden CWDs（2026-02-25）：`docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
-- Web User Message Canonical（2026-02-26）：`docs/learnings/2026-02-26-web-user-message-canonical.md`
-- Claude Code Current Capture Keypoints（2026-03-05）：`docs/learnings/2026-03-05-cc-current-capture-keypoints-toolsearch-and-prompts.md`
-- Formax Capture vs CC Deferred Tool Exposure（2026-03-05）：`docs/learnings/2026-03-05-formax-capture-224737-vs-cc-deferred-tool-exposure.md`
-- Request Dry-Run Preview（2026-03-06）：`docs/learnings/2026-03-06-request-dry-run-preview.md`
+- Learning 总索引：`docs/learnings/index.md`
 
 ## 盘点（Inventories）
 
@@ -60,19 +83,7 @@
 - 深度排障记录索引：`docs/pitfalls/index.md`
 - 长期 pitfall 摘要日志：`pitfalls.md`
 
-## 当前检查项
+## 验证与恢复入口
 
-- `bun run type-check`
-- `bun run test:repl-semantic-gate`
-- `bun run check:layer-contracts`
-- `bun run check:layer-coverage`
-- `bun run check:shared-types`
-- `bun run check:doc-paths`
-- `bun run check:golden-principles`
-- `bun run check:presenter-parity`（告警型漂移观察）
-- `bun run check:plan-traceability`（任务来源可追溯性）
-
-## 执行模型
-
-- 新约束先以 CI 软门禁上线（`continue-on-error: true`）。
-- 稳定后在 workflow 中取消软门禁，切换为硬阻断。
+- Harness 检查项与失败修复路径：`docs/runbooks/runbook.md`
+- app-server 人工验收路径：`docs/runbooks/app-server-manual-runbook.md`

@@ -7,13 +7,17 @@ description: Use when implementing or extending /config (storage, prompt injecti
 
 ## Goal
 
-Add or change `/config` settings in Formax while keeping:
-- Stable read/write semantics (immediate persistence, sparse writes)
-- Clear separation: UI output vs model-context injection
-- Predictable runtime “immediate effect” behavior (no restart)
-- Strong regression coverage with targeted tests
+Use this skill when changing runtime config merge semantics, `/config` persistence, or the current settings exposed by the config dialog.
 
-## Where to change what
+## Read First
+
+- `docs/contracts/config-settings-contract.md`
+- `docs/environment-variables.md`
+- `docs/contracts/prompt-tool-exposure-contract.md` when a setting affects prompt injection or request composition
+
+These docs are canonical. If stable behavior changes, update them before or with code.
+
+## Code Map
 
 - **Config schema + merge semantics**
   - `src/config/settings/schema.ts` (add fields + defaults; validate values)
@@ -28,64 +32,51 @@ Add or change `/config` settings in Formax while keeping:
   - `src/tui/config/constants.ts` / `src/tui/config/reducer.ts` / `src/tui/config/ui.tsx`
   - `src/screens/REPL.tsx` (mount overlay + reload runtime config on exit)
 - **Runtime wiring (effects)**
-  - Prompt injection: `src/features/repl/controller/send/send.ts` + `src/prompts/reminders/*`
+  - Prompt injection: `src/features/repl/controller/send/sendMainTurn.ts` + `src/features/repl/controller/session/localCommandInjection.ts` + `src/prompts/reminders/*`
   - Request parameters: `src/chat/engine.ts` → `src/streaming/**`
   - UI-only flags: `src/screens/REPL.tsx` and small helpers under `src/screens/repl/*`
-- **Command injection rule (only when prompt semantics changed)**
-  - `src/features/repl/useReplController.ts` (e.g. inject only for output-style changes)
+- **Current `/config` subset**
+  - `src/features/commands/configDialogService.ts` currently owns `outputStyle`, `thinkingMode`, `verboseOutput`
 
-## Patterns
+## Current Behavior Checkpoints
 
-- **Classify each setting first (required)**
-  - `Prompt injection`: affects how the model should respond (inject into next turn).
-  - `Request parameter`: affects the LLM API payload/headers for the next request.
-  - `UI-only`: affects only rendering; must not change prompt contents.
+- Classify each setting before coding:
+  - prompt-affecting
+  - request-parameter
+  - UI-only
+- Storage rule:
+  - User scope -> `$FORMAX_CONFIG_DIR/config.json`
+  - Project scope -> `<repo>/.formax/config.json`
+  - Prefer sparse writes; do not persist defaults just because a dialog touched them
+- Immediate effect:
+  - `/config` saves are expected to reload effective runtime config in-process
+  - avoid "restart required" behavior unless that is an explicit change
+- Exit-message contract:
+  - unchanged dialog -> `Status dialog dismissed`
+  - changed setting -> `Set <field> to <value>` style subline
 
-- **Storage rule (v0)**
-  - Only two scopes: **User** (`$FORMAX_CONFIG_DIR/config.json`) and **Project** (`<repo>/.formax/config.json`).
-  - Prefer **sparse writes**: write only non-default overrides.
+## Minimal Workflow
 
-- **Immediate effect**
-  - After saving in `/config`, reload the effective runtime config in-process and update REPL state.
-  - Avoid “restart required” behavior for v0.
+1. Classify the setting first: prompt-affecting, request-parameter, or UI-only.
+2. Update the config settings contract first; if env names or classification changed, also update `docs/environment-variables.md`.
+3. Change schema / resolve / persist before changing dialog wiring or runtime effects.
+4. Preserve sparse writes and immediate in-process reload behavior.
+5. Only output-style style changes may inject next-turn local command blocks; non prompt-affecting settings must stay out of model context.
+6. Run the minimum regression set below before review.
 
-- **Injection rule (prompt semantics only)**
-  - If a `/config` change affects prompt semantics, record a local-command injection for the next turn.
-  - If UI-only, do not inject `<command-name>`/`<local-command-stdout>`.
+## Minimum Regression
 
-- **Message formatting**
-  - Keep `/config` exit subline aligned with Claude Code:
-    - No changes → “Status dialog dismissed”
-    - One change → “Set <field> to <value>”
-
-## Tests to update
-
-- UI overlay read/write:
-  - `src/tui/config/ConfigDialog.test.tsx`
-- Prompt injection behavior:
-  - `src/features/repl/useReplController.test.tsx` (injection decisions)
-  - `src/screens/REPL.test.tsx` / `src/screens/REPL.overlays.test.tsx` (only if you touch REPL wiring)
-- Request payload behavior:
-  - `src/streaming/anthropic/StreamClient.test.ts`
-  - `src/chat/engine.test.ts` (if you change engine args/loop wiring)
-- UI-only rendering switches:
-  - `src/screens/repl/thinkingBlock.test.tsx` (or the relevant view helper)
-
-**Test command policy**
-- Do **not** run `bun run test:coverage` while iterating.
-- Run only targeted tests for the files you touched, e.g.:
-  - `bun run test -- src/tui/config/ConfigDialog.test.tsx`
-  - `bun run test -- src/streaming/anthropic/StreamClient.test.ts`
+- `bun run test -- src/config/settings/schema.test.ts src/config/settings/resolve.test.ts src/config/settings/persist.test.ts`
+- `bun run test -- src/features/commands/configDialogService.test.ts`
+- `bun run test -- src/tui/config/ConfigDialog.test.tsx` when dialog UI changes
+- `bun run test -- src/features/repl/controller/session/localCommandInjection.test.ts src/features/repl/controller/send/sendMainTurn.test.ts` when prompt-affecting config changes
+- `bun run test -- src/screens/repl/thinkingBlock.test.tsx` when UI-only thinking visibility changes
+- `bun run type-check` when config shape or runtime wiring changes
 
 ## Guardrails
 
-- **UI parity**
-  - Do not change UI copy/spacing/colors unless explicitly aligning Claude Code.
-  - Do not add heavy rendering/highlighting libraries for v0.
-- **No scope creep**
-  - Don’t introduce extra config layers (`cache.json`/`runtime.json`) without an explicit decision.
-  - Don’t implement editor-mode/Vim parity unless asked.
-- **Stability-first**
-  - Add/extend tests before refactors; tests are not the full spec—manual parity matters.
-- **Review + commit discipline**
-  - Before committing, run review using `AGENTS.md` -> `Review Profile (Single Source of Truth)` and fix high/medium findings.
+- Do not add new config scopes or extra config files (`cache.json`, `runtime.json`, etc.) without an explicit decision.
+- Do not inject next-turn prompt blocks for UI-only or request-only settings.
+- Do not let `docs/environment-variables.md` and config behavior drift into two separate truths; names live there, merge/persist semantics live in the contract.
+- Do not change dialog copy/spacing/colors unless explicitly requested.
+- Add/extend targeted tests before refactoring config wiring; tests are not the whole spec, but they should lock current persistence semantics first.

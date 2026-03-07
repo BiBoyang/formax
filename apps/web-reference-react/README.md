@@ -1,5 +1,17 @@
 # Web Reference Client (React + Vite)
 
+Status: Informative deep dive.
+
+Canonical docs:
+- [docs/contracts/semantics-contract.md](../../docs/contracts/semantics-contract.md)
+- [docs/contracts/interactive-input-contract.md](../../docs/contracts/interactive-input-contract.md)
+- [docs/contracts/app-server-interaction-contract.md](../../docs/contracts/app-server-interaction-contract.md)
+- [docs/contracts/web-parity-adapter-contract.md](../../docs/contracts/web-parity-adapter-contract.md)
+- [docs/frontend/app-server-ui-spec.md](../../docs/frontend/app-server-ui-spec.md)
+- [docs/runbooks/app-server-manual-runbook.md](../../docs/runbooks/app-server-manual-runbook.md)
+
+Use this README for local app bootstrap, test commands, and implementation-local performance notes. Stable protocol, Web adapter/reducer/cursor behavior, or UI behavior changes should update the linked docs first.
+
 This is an isolated React client for Formax app-server development validation.
 It uses its own `package.json` and does not share dependencies with the repo root.
 

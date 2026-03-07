@@ -7,51 +7,66 @@ description: Use when adding/modifying Formax slash commands (/permissions /agen
 
 ## Goal
 
-Make changes to slash commands while keeping:
-- UI output parity (spacing/copy/colors stay the same unless explicitly requested)
-- “Show in UI” vs “inject into model context” **orthogonal**
-- tests updated to lock the behavior
+Use this skill when changing slash command discovery, dispatch, overlay dismissal output, or next-turn injection behavior.
 
-## Where to change what (common paths)
+## Read First
+
+- `docs/contracts/slash-command-contract.md`
+- `docs/contracts/semantics-contract.md` when command behavior crosses canonical UI messages or routing
+- `docs/contracts/config-settings-contract.md` when the change touches `/config`
+
+These docs are canonical. If stable behavior changes, update them before or with code.
+
+## Code Map
 
 ### 1) Command discovery + dispatch
 - `src/features/commands/registry.ts`: command list/suggest/dispatch wiring
 - `src/features/commands/CommandStore.ts`: disk scanning + precedence (project overrides user)
+- `src/features/semantics/core/commandRouting.ts`: exact `/clear` / `/compact` and command-dispatch routing boundary
 
 ### 2) Command result contract (UI vs model)
 - `src/features/commands/contracts.ts`: `UiEffect` / `UiMessage` / `ModelEffect` shapes
 - `src/features/commands/adapter.ts`: maps command execution output → `CommandResult`
-  - If you want Claude-style “subline output”, emit messages with `ui: { kind: 'command_subline' }`
-  - If you want next-turn injection, keep using the existing `recordForNextTurn` / injected-blocks path
+- `src/features/repl/controller/send/send.ts`: consumed slash handling, `local_async`, and injected-block plumbing
 
 ### 3) Overlay dismissal “subline output”
 - `src/features/repl/controller/ui/overlays.ts`: overlay open/close + append “dismissed” sublines
 
 ### 4) REPL message plumbing + rendering
-- `src/features/repl/controller/send/send.ts`: applies `UiEffect.appendMessages` to `Msg` (make sure `Msg.ui` passes through)
+- `src/features/repl/controller/send/send.ts`: applies `UiEffect.appendMessages` to `Msg`
 - `src/screens/REPL.tsx`: render `msg.ui.kind === 'command_subline'` as `⎿  ...` (no `⏺`)
+- `src/screens/REPL.slashSuggestions.test.tsx`: duplicate command selection / `preferredSlashSpecId`
 
-## Patterns
+## High-Signal Patterns
 
-### Pattern A: one-line overlay dismissal
-When a dialog closes, append a single assistant `Msg` with `ui.kind='command_subline'`, e.g.:
-- `Permissions dialog dismissed`
+- Pattern A: one-line overlay dismissal
+  - append a single assistant `Msg` with `ui.kind='command_subline'`
+  - keep copy stable unless the user explicitly requests copy changes
+- Pattern B: multi-line local output
+  - split output into multiple `command_subline` rows
+  - this is UI only; model injection remains separately controlled
+- Pattern C: inject-but-don't-spam
+  - when a command needs to inform the model, keep UI output minimal and preserve `recordForNextTurn` / injected-block behavior separately
 
-### Pattern B: multi-line local output (still not a tool_result)
-Split output into lines and append *multiple* `command_subline` messages.
-This is the UI side only; model injection is controlled separately.
+## Minimal Workflow
 
-### Pattern C: inject-but-don’t-spam UI
-If a command needs to inform the model (e.g. `/todos` producing `<local-command-stdout>`), keep injection, but keep the UI output minimal via sublines.
+1. Classify the change first: discovery / precedence, local UI output, next-turn injection, or overlay dismiss behavior.
+2. Update the slash command contract first.
+3. Preserve “show in UI” vs “inject into model context” as separate concerns; local output alone must not imply injection.
+4. Use `command_subline` for Claude-style sublines; do not invent new message shapes.
+5. Run the minimum regression set below before review.
 
-## Tests to update (minimum)
+## Minimum Regression
 
-- `src/features/repl/controller/ui/overlays.test.tsx`: overlay open/close adds the right sublines
-- `src/features/commands/adapter.test.ts`: contract mapping for `/todos` vs other commands
+- `bun run test -- src/features/commands/registry.test.ts src/features/commands/CommandStore.test.ts src/features/commands/adapter.test.ts src/features/commands/contracts.test.ts`
+- `bun run test -- src/features/repl/controller/ui/overlays.test.tsx`
+- `bun run test -- src/features/repl/controller/send/send.test.ts src/features/repl/useReplController.test.tsx`
+- `bun run test -- src/screens/REPL.slashSuggestions.test.tsx src/screens/repl/inputHint.test.ts`
+- `bun run type-check` when command shapes or routing plumbing changes
 
-## Guardrails (do not regress)
+## Guardrails
 
-- Do not add “2D-like” bespoke structures (e.g. `commandSubLines`)—use `Msg.ui.kind='command_subline'`.
-- Do not change UI copy/spacing/colors as a side-effect.
-- If behavior is unclear, add/extend an Ink test first (tests are *not* the only spec, but are required for refactors).
-
+- Do not add bespoke `commandSubLines`-style structures; use `Msg.ui.kind='command_subline'`.
+- Do not change UI copy / spacing / colors as a side-effect of routing changes.
+- Do not patch only overlay output if the real bug is discovery or dispatch precedence.
+- If behavior is unclear, add or extend an Ink test first; tests are not the only spec, but they should lock the visible key path.

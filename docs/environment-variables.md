@@ -2,6 +2,9 @@
 
 This document is the source of truth for runtime environment variables in Formax.
 
+It only owns env-variable names and classification. Runtime config merge precedence, `/config` persistence,
+and setting side effects are defined in `docs/contracts/config-settings-contract.md`.
+
 ## Public (user-facing)
 
 These are intended for normal user configuration.

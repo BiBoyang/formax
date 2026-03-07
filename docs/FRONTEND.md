@@ -1,6 +1,6 @@
 # FRONTEND（Docs 索引）
 
-最后更新：2026-02-27
+最后更新：2026-03-07
 
 本文档是前端治理入口（index），不承载完整行为细节。  
 具体行为规范请在对应子文档维护，避免与合同重复。
@@ -10,8 +10,9 @@
 1. 项目语义合同（SoT）：`docs/contracts/semantics-contract.md`
 2. 交互输入合同（SoT）：`docs/contracts/interactive-input-contract.md`
 3. app-server 行为合同：`docs/contracts/app-server-interaction-contract.md`
-4. app-server UI 行为规范（前端具体实现摘要）：`docs/frontend/app-server-ui-spec.md`
-5. app-server API 参考（字段与示例）：`docs/references/app-server-api-reference.md`
+4. Web parity adapter 合同（event adapter / reducer / cursor）：`docs/contracts/web-parity-adapter-contract.md`
+5. app-server UI 行为规范（前端具体实现摘要）：`docs/frontend/app-server-ui-spec.md`
+6. app-server API 参考（字段与示例）：`docs/references/app-server-api-reference.md`
 
 ## 2. 责任边界
 
@@ -36,4 +37,4 @@
 当前端行为变更涉及语义或交互输入时：
 1. 先更新 `docs/contracts/*.md`（事实源）。
 2. 再更新实现与测试。
-3. 最后更新 `docs/{frontend,references}/*.md` 摘要（必要时再同步 `plans/app-server/*` 过程文档）。
+3. 最后更新 `docs/{frontend,references}/*.md` 摘要与链接；过程记录如需保留，放到 `docs/learnings/*`。

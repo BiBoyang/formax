@@ -7,86 +7,92 @@ description: Use when implementing or debugging Formax permissions/policy/approv
 
 ## Goal
 
-Make changes to permissions and approvals while keeping:
-- allow/ask/deny semantics correct and explainable
-- approvals UI parity (copy/spacing/colors/keys) unless explicitly requested
-- “UI output” vs “model context injection” orthogonal
-- regressions locked by targeted tests
+Use this skill when changing policy preflight, approval prompts, remember side-effects, or `/permissions` management.
 
-## Where to change what
+## Read First
 
-### 1) Policy preflight (ToolCall → allow/ask/deny decision)
-- `src/tools/executor/policyPreflight.ts`: turns ToolCall into a PolicyAction + decides deny/prompt/allow
-- `src/tools/executor/policyAction.ts`: ToolCall → PolicyAction mapping
-- `src/tools/executor/policyExplain.ts`: explain/debug text for decisions
-- `src/tools/modules/bash/policy.ts`: Bash risk classification (some “safe” Bash can bypass approvals)
+- `docs/contracts/permissions-policy-contract.md`
+- `docs/contracts/interactive-input-contract.md`
+- `docs/contracts/semantics-contract.md` when the change crosses TUI / app-server / Web
+
+These docs are canonical. If stable behavior changes, update them before or with code.
+
+## Code Map
+
+### 1) Policy preflight (ToolCall -> allow/ask/deny decision)
+- `src/tools/executor/policyPreflight.ts`: turns `ToolCall` into a `PolicyAction` and decides deny / prompt / allow
+- `src/tools/executor/policyAction.ts`: `ToolCall` -> `PolicyAction` mapping
+- `src/tools/executor/policyExplain.ts`: explain / debug text for decisions
+- `src/tools/modules/bash/policy.ts`: Bash risk classification
 
 ### 2) Permissions storage + matching (rules & precedence)
-- `src/adapters/permissions/permissionsStore.ts`: read/write settings + merge precedence (user/project/projectLocal)
-- `src/adapters/permissions/permissionKeys.ts`: stable keys/paths for settings
-- `src/adapters/permissions/matcher.ts`: matcher semantics (including `:*` vs `*` rules per docs)
+- `src/adapters/permissions/permissionsStore.ts`: read / write settings and merge precedence
+- `src/adapters/permissions/permissionKeys.ts`: stable keys / paths for settings
+- `src/adapters/permissions/matcher.ts`: matcher semantics
 
 ### 3) Approvals (prompt UI + persistence side-effects)
-- `src/tools/executor/approvalService.ts`: “ensureApproved” flow, integrates UI prompts + writes allow/ask/deny when applicable
-- UI prompts (tool-level approvals):
+- `src/tools/executor/approvalService.ts`: `ensureApproved` flow and remember writes
+- UI prompts:
   - `src/components/tool/bashApprovalPrompt.tsx`
   - `src/components/tool/fsReadApprovalPrompt.tsx`
   - `src/components/tool/fsWriteApprovalPrompt.tsx`
   - `src/components/tool/skillApprovalPrompt.tsx`
   - `src/components/tool/editApprovalPrompt.tsx`
 - Shared pieces:
-  - `src/components/ui/ApprovalHeader.tsx`: Claude-style divider + permission-colored title
-  - `src/components/ui/ConfirmMenu.tsx`: menu input + highlight rules
+  - `src/components/ui/ApprovalHeader.tsx`
+  - `src/components/ui/ConfirmMenu.tsx`
 
-### 4) /permissions overlay (manage rules & workspace)
+### 4) /permissions overlay (manage rules + workspace)
 - `src/tui/permissions/PermissionsDialog.tsx`: state machine + key handling
-- `src/tui/permissions/ui.tsx`: rendering primitives (Tabs, lists, confirm views)
-- `src/features/repl/controller/ui/overlays.ts`: overlay open/close + “command_subline” dismissal messages
+- `src/tui/permissions/ui.tsx`: rendering primitives
+- `src/features/repl/controller/ui/overlays.ts`: overlay open / close and dismissal messages
 - Slash command wiring:
-  - `src/features/commands/registry.ts` (or `src/screens/repl/createReplCommandRegistry.ts`): `/permissions` opens overlay
+  - `src/features/commands/registry.ts`
+  - `src/screens/repl/createReplCommandRegistry.ts`
 
-## Patterns (parity rules)
+If app-server or Web input behavior moves, also inspect:
+- `src/app-server/turn/inputStore.ts`
+- `src/app-server/server.ts`
+- `apps/web-reference-react/src/store.ts`
 
-### Pattern A: Tool approval prompt (3 options + Esc)
-Use when we need “approve + remember + type feedback”:
-- Options:
-  1) `Yes`
-  2) `Yes, ...` (remember/allow in repo/session)
-  3) `Type here to tell Claude what to do differently` (inline editor)
-- Do **not** add a “Cancel” menu item; cancellation is `Esc to cancel`.
-- Title + divider line + active item color should use `theme.permission`.
+## High-Signal Patterns
 
-### Pattern B: Pure confirm prompt (Yes/No)
-Use when confirming a destructive UI action (delete rule, remove dir):
-- Options: `Yes` / `No`
-- Also support `Esc to cancel` as a fast exit.
+- Pattern A: tool approval prompt (3 options + Esc)
+  - `Yes`
+  - `Yes, ...` (remember / allow in repo or session)
+  - `Type here to tell Claude what to do differently`
+  - cancellation remains `Esc to cancel`, not a bespoke menu item
+- Pattern B: destructive confirm prompt
+  - use `Yes / No`
+  - still support `Esc to cancel`
+- Pattern C: partial emphasis in menu options
+  - use `ConfirmMenu` emphasis support instead of ad-hoc JSX or ANSI
+  - selected rows must not leave mismatched emphasis colors behind
 
-### Pattern C: Partial emphasis in menu options
-When a single substring should be white/bold (e.g. `capture-terminal/`):
-- Use `ConfirmMenu`’s emphasis mechanism (don’t build bespoke JSX in each prompt).
-- Selected row must override emphasis color to `theme.permission` (no white “holes”).
+## Minimal Workflow
 
-## Tests (minimum regression set)
+1. Read the canonical contract(s) above and define the exact behavior delta.
+2. Change the narrowest canonical code path first (`policyPreflight`, matcher / store, `approvalService`, or overlay state machine).
+3. Preserve existing UI copy / spacing / colors / keys unless the user explicitly asks for UI changes.
+4. Keep “what the user sees” separate from “what is injected back into model context”.
+5. Run the minimum regression set below, then review via `AGENTS.md` before commit.
 
-Run targeted tests close to your change:
+## Minimum Regression
+
 - `bun run test -- src/tools/executor/policyPreflight.test.ts`
 - `bun run test -- src/tools/executor/approvalService.test.ts`
 - `bun run test -- src/components/tool/bashApprovalPrompt.test.tsx`
-- `bun run test -- src/components/tool/fsReadApprovalPrompt.test.tsx` (if present)
+- `bun run test -- src/components/tool/fsReadApprovalPrompt.test.tsx`
 - `bun run test -- src/components/tool/fsWriteApprovalPrompt.test.tsx`
 - `bun run test -- src/components/tool/skillApprovalPrompt.test.tsx`
 - `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
-
-## Workflow (use every time)
-
-1) **Lock behavior first**: add/extend tests for the exact keypaths (↑↓, Enter, Esc, numeric select).
-2) **Implement smallest change**: preserve UI copy/spacing/colors unless explicitly requested.
-3) **Run targeted tests** (above).
-4) **Run review**: follow `AGENTS.md` -> `Review Profile (Single Source of Truth)` (fix high/medium findings).
-5) Commit with Conventional Commit (`fix(permissions): ...` / `refactor(approval): ...`).
+- If app-server / Web input behavior changed:
+  - `bun run test -- src/app-server/turn/inputStore.test.ts src/app-server/server.test.ts`
+  - `npm --prefix apps/web-reference-react run test -- src/store.test.ts`
 
 ## Guardrails
 
-- Do not “simplify” UI as a side-effect of refactor (tests are not the only spec).
-- Keep “show in UI” vs “inject into model context” orthogonal.
-- Prefer shared components (`ApprovalHeader`, `ConfirmMenu`) over raw ANSI or one-off key handling.
+- Do not encode permission semantics inside prompt components; contracts live in policy / approval layers.
+- Do not add bespoke key handling or ANSI styling when shared approval components already cover the case.
+- Do not loosen permissions or remember scope just to make parity demos pass.
+- Preserve approval UI copy / spacing / colors / key paths unless the user explicitly asks for UI changes.

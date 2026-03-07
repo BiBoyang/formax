@@ -1,5 +1,15 @@
 # Formax SDK (TypeScript)
 
+Status: Informative deep dive.
+
+Canonical docs for overlapping behavior:
+- [docs/contracts/semantics-contract.md](../../docs/contracts/semantics-contract.md)
+- [docs/contracts/interactive-input-contract.md](../../docs/contracts/interactive-input-contract.md)
+- [docs/contracts/permissions-policy-contract.md](../../docs/contracts/permissions-policy-contract.md)
+- [docs/contracts/session-persistence-contract.md](../../docs/contracts/session-persistence-contract.md)
+
+Use this README for implementation layout and contributor notes. When stable behavior changes, update the linked contracts first. A dedicated SDK API reference has not yet been promoted into `docs/`.
+
 `src/sdk` provides a unified in-process SDK surface for TypeScript callers.
 
 ## Unified Entry
@@ -120,6 +130,7 @@ These remain out of scope for SDK phase-1:
 
 ## Query Alignment Reference
 
+Historical alignment references only. They are not the canonical source of truth:
 - Query contract alignment matrix:
   - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`
 - SDK exports alignment index:
@@ -172,11 +183,13 @@ Result subtypes:
 
 ## Session Resume Limitation
 
+- Canonical resume / persistence behavior lives in [docs/contracts/session-persistence-contract.md](../../docs/contracts/session-persistence-contract.md).
 - `unstable_v2_resumeSession` currently supports in-process resume only.
 - The `sessionId` must come from a session created in the same Node.js process.
 
 ## Session Query Notes
 
+- Canonical session discovery / resume / stale-input behavior lives in [docs/contracts/session-persistence-contract.md](../../docs/contracts/session-persistence-contract.md).
 - `listSessions` and `getSessionMessages` reuse Formax local session storage reader behavior.
 - `listSessions` is scoped by `options.dir` (or current working directory when omitted).
 - `getSessionMessages` resolves `sessionId` within the same `options.dir` scope.

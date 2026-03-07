@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## AGENTS Scope
+- Keep high-frequency operational guidance here (review workflow/profile, commonly used commands/scripts, commit workflow, and day-to-day guardrails).
+- Keep canonical product/runtime semantics in `docs/contracts/*` and related canonical docs.
+- Keep code navigation in `CODEMAP.md` ("where to change what"), with AGENTS linking to it instead of duplicating path-level maps.
+
 ## Project Structure & Module Organization
 - `src/` contains TypeScript source.
   - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
@@ -84,48 +89,65 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - Run `git commit -m "<message>"`
 
 ## Documentation Hygiene
-- Treat `CODEMAP.md` as a “where to change what” index; update it when key entrypoints or ownership move.
-- Docs governance source of truth index: `docs/index.md` (layer contracts, invariants, runbook, golden principles).
-- Project semantics source of truth (TUI/app-server/Web shared semantics): `docs/contracts/semantics-contract.md`; semantics changes must update this file first.
-- Interactive input semantics source of truth (`approval` / `ask_user_question`): `docs/contracts/interactive-input-contract.md`; when behavior changes, update this file first, then update `docs/contracts/app-server-interaction-contract.md`, `docs/references/app-server-api-reference.md`, and `docs/frontend/app-server-ui-spec.md` as linked summaries.
-- Runtime environment-variable source of truth: `docs/environment-variables.md`; runtime config/env changes must update this file.
-- **CODEMAP update triggers**: If you (a) add a new entrypoint/wiring point, (b) extract a cross-cutting helper used by multiple subsystems (e.g. audit/logging), or (c) move/rename user-facing UI/tool files, update `CODEMAP.md` in the same commit so future debugging follows the new “go-to” path.
-- When you ship a behavior-alignment change, add/update a short learning note under `docs/learnings/` (and link from active plan if needed) so mapping decisions remain traceable.
-- For complex subsystems that have a local deep-dive README, keep it in sync when you change boundaries, control-flow, invariants, or extension points:
+- Treat `CODEMAP.md` as the "where to change what" index; update it when key entrypoints or ownership move.
+- Canonical docs map: `docs/index.md`
+- Semantics source of truth: `docs/contracts/semantics-contract.md`
+- Interactive input source of truth: `docs/contracts/interactive-input-contract.md`
+- Permissions/policy source of truth: `docs/contracts/permissions-policy-contract.md`
+- Transcript surface source of truth: `docs/contracts/transcript-surface-contract.md`
+- Prompt/tool exposure source of truth: `docs/contracts/prompt-tool-exposure-contract.md`
+- Tool runtime / ToolSearch source of truth: `docs/contracts/tool-runtime-contract.md`
+- Hooks source of truth: `docs/contracts/hooks-contract.md`
+- Session persistence / resume source of truth: `docs/contracts/session-persistence-contract.md`
+- Web parity adapter / reducer source of truth: `docs/contracts/web-parity-adapter-contract.md`
+- Slash command source of truth: `docs/contracts/slash-command-contract.md`
+- Config settings source of truth: `docs/contracts/config-settings-contract.md`
+- Runtime env-variable reference: `docs/environment-variables.md`
+- Verification and failure-recovery path: `docs/runbooks/runbook.md`
+- **CODEMAP update triggers**: If you (a) add a new entrypoint/wiring point, (b) extract a cross-cutting helper used by multiple subsystems (e.g. audit/logging), or (c) move/rename user-facing UI/tool files, update `CODEMAP.md` in the same commit.
+- When semantics or interactive input behavior changes, update the canonical contract first, then update linked summaries/references.
+- When permissions, remember side effects, or workspace approval behavior changes, update the permissions/policy contract first.
+- When `/clear` `/resume` transcript remount, Ctrl+O/Ctrl+E view reset, or legacy terminal clear behavior changes, update the transcript surface contract first.
+- When deferred tool exposure, skills reminder, or request dry-run behavior changes, update the prompt/tool exposure contract first.
+- When tool protocol shape, executor gate order, ToolSearch runtime, or ToolResult vs CommandResult boundaries change, update the tool runtime contract first.
+- When hook events, matcher semantics, or `additionalContext` injection behavior changes, update the hooks contract first.
+- When session persistence roots, `query(...).resume/continue`, `unstable_v2_resumeSession`, `thread/start` provisional-file behavior, or `thread/resume` stale-input recovery changes, update the session persistence contract first.
+- When Web history adapters, reducer/projection baselines, active-thread canonical gating, or `turnEventCursor` ordering behavior changes, update the web parity adapter contract first.
+- When slash command discovery, overlay-dismiss sublines, command dispatch precedence, or next-turn injection behavior changes, update the slash command contract first.
+- When config merge precedence, `/config` persistence targets, or output-style / thinking-mode / verbose-output behavior changes, update the config settings contract first.
+- When only env-variable names or user-facing classification changes, update `docs/environment-variables.md`.
+- When you ship a behavior-alignment change, add/update a short learning note under `docs/learnings/` so mapping decisions remain traceable.
+- For complex subsystems with repo-local deep dives, keep the local README aligned when you move boundaries, control flow, invariants, or extension points:
   - `src/tools/README.md`
   - `src/core/README.md`
   - `src/streaming/README.md`
   - `src/features/subagents/README.md`
+- Keep repo-local deep-dive READMEs aligned with their canonical docs; do not let them become a second source of truth.
 - Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
 
 ## Configuration & Runtime Notes
-- Runtime config is loaded via `loadRuntimeConfig()` (`src/config/config.ts`) and supports:
-  - env vars (loaded via `dotenv/config` in `src/entrypoints/cli.tsx`)
-  - global config files under `FORMAX_CONFIG_DIR` (default `~/.formax/`)
-  - per-project overrides under `<repo>/.formax/`
-- Key env vars:
-  - LLM: `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`
-  - Tier mapping: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`
+- Runtime config entrypoint: `src/config/config.ts`
+- Runtime config still merges env vars, global config under `FORMAX_CONFIG_DIR` (default `~/.formax/`), and per-project overrides under `<repo>/.formax/`.
+- Key env families to remember:
+  - LLM/auth: `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`
+  - Model mapping: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`
   - Paths: `FORMAX_CONFIG_DIR`, `FORMAX_LOGS_DIR`, `FORMAX_SUBAGENTS_DIR`, `FORMAX_PLAN_DIR`
-  - Full list and classification: `docs/environment-variables.md`
+- Full environment-variable and config classification reference: `docs/environment-variables.md`
 
 ## Security & Config Tips
 - Do not commit secrets. Local config uses `.env` (e.g., `FORMAX_API_KEY`); keep `.env` and traffic logs out of git.
 - When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting.
 
 ## Pitfalls & Gotchas (Keep Updated)
-When you hit a non-obvious pitfall (tooling quirks, repo conventions, environment traps), record it:
-1) in `pitfalls.md` (canonical long-term log), and
-2) here **and** in `CLAUDE.md` if it affects day-to-day agent behavior.
-
-- **Repomix + `.gitignore`**: Repomix respects `.gitignore` by default. If you export with repomix and files under `src/tools/specs/reference/` (e.g. `src/tools/specs/reference/tools-copy.json`) go missing, use `--no-gitignore` (and keep using `--include`/`--ignore` per `.cursor/commands/repomix.md`).
-- **Repomix default ignore patterns**: Repomix may exclude lockfiles (e.g. `bun.lock`) unless you add `--no-default-patterns`. Only enable this when you explicitly need lockfiles in the export.
-- **Compact + Ctrl+O duplicated rows**: If `HeaderBanner`/compact banner repeats after toggles, do not “fix” by moving header/messages out of `Static`; treat it as surface-transition ownership/race first.
-- **Static test parity**: default Vitest can miss real TTY regressions; for compact/expanded changes, validate forced-Static + terminal-model smoke (`surfaceSmoke` and `test:surface-screen-model`).
-- **Clear vs reset on Static paths**: for view-return paths touching `Static`, avoid clear-only behavior; use reset-style clear+remount transactions to prevent stale append artifacts.
-- **Surface reset skill (mandatory for clear/reset paths)**: when touching `/resume`, `/clear`, `onClearTerminal`, `transcriptSeq`, or `Static` remount logic, use `formax-surface-reset-workflow` first, and keep `/resume`/`/clear` on shared `replaceTranscript` transaction path.
-- **Vitest session isolation**: keep test session writes under `FORMAX_VITEST_SESSION_CONFIG_DIR` (system tmp) instead of `~/.formax`; use `bun run test:sessions:cleanup` for temp-root retention cleanup and `bun run test:sessions:cleanup:legacy` for one-off historical marker cleanup.
-- **Anthropic `/v1/messages` fake-overload triage**: first separate main turns from auto-title requests (`tools=0` + `thinking=false`), then debug `thinking.signature` propagation and header routing independently; see `docs/pitfalls/anthropic-fake-overload-and-header-routing.md`.
+- Record reproducible pitfalls in `pitfalls.md` and keep `docs/pitfalls/index.md` in sync when a deep-dive doc exists.
+- If a pitfall changes day-to-day agent behavior, mirror a brief pointer in `CLAUDE.md`.
+- Prefer linking to the existing pitfall doc or skill instead of duplicating the full troubleshooting narrative here.
+- High-signal recurring pitfalls worth keeping in view:
+  - Repomix respects `.gitignore`; if reference specs disappear from exports, use `--no-gitignore` deliberately.
+  - Static-heavy surface fixes need real smoke validation; Vitest alone can miss duplicate-row / stale-surface regressions.
+  - `/clear`, `/resume`, compact, and Ctrl+O/Ctrl+E paths must stay on the shared surface-reset transaction.
+  - Keep Vitest session writes under `FORMAX_VITEST_SESSION_CONFIG_DIR`, not `~/.formax`.
+  - For Anthropic fake-overload triage, separate main turns from auto-title traffic before debugging prompt headers or thinking signatures.
 
 ## Local Paths
 - Avoid hardcoding machine-specific absolute paths in repo docs.

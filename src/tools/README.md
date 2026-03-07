@@ -1,6 +1,18 @@
 # src/tools
 
-Last verified: 2026-01-13
+Status: Informative deep dive.
+
+Canonical docs:
+- [docs/contracts/semantics-contract.md](../../docs/contracts/semantics-contract.md)
+- [docs/contracts/tool-runtime-contract.md](../../docs/contracts/tool-runtime-contract.md)
+- [docs/contracts/prompt-tool-exposure-contract.md](../../docs/contracts/prompt-tool-exposure-contract.md)
+- [docs/contracts/interactive-input-contract.md](../../docs/contracts/interactive-input-contract.md)
+- [docs/contracts/permissions-policy-contract.md](../../docs/contracts/permissions-policy-contract.md)
+- [docs/contracts/hooks-contract.md](../../docs/contracts/hooks-contract.md)
+
+本文件用于代码近侧说明、扩展路径和调试提示；涉及稳定工具执行顺序、`ToolSearch` runtime、`ToolResult` / `CommandResult` 边界、用户输入语义、权限规则或 hooks 交互时，先更新上面的 canonical docs。
+
+Last verified: 2026-03-07
 
 ## 1) 作用（What）
 
@@ -50,27 +62,19 @@ flowchart LR
 
 ## 4) 边界与约束（Boundaries / Invariants）
 
-### ✅ 允许
+稳定边界先看 [docs/contracts/tool-runtime-contract.md](../../docs/contracts/tool-runtime-contract.md)：
+
+- executor gate 顺序、subagent deny set、soft-fallback ToolSearch
+- `ToolResult` block 形状与 `tool_reference` 使用规则
+- tools pipeline 与 slash-command `CommandResult` 的职责分层
+
+本 README 只保留 contributor heuristics：
 
 - 新增 tool module 到 `modules/` 并在 registry 注册
-- Handler 可异步、可请求用户输入（通过 UserInputManager）
-- Handler 可创建后台任务（通过 TaskManager）
-- Presenter 可访问 tool call 的 input/result
-- Executor 可在 sub-agent context 中限制工具（agentDepth > 0 自动禁用 Task/Agent/Dispatch）
-
-### ❌ 禁止
-
-- Handler 不得直接操作 UI（只能返回 ToolResult 或发送 StreamEvent）
-- Handler 不得修改 registry 状态
-- Presenter 不得执行副作用（只负责渲染）
-- 禁止在 handler 中 import streaming 模块（依赖方向应为 streaming → tools）
-- Sub-agent 禁用 Task/Agent/Dispatch/SlashCommand/AskUserQuestion/EnterPlanMode/ExitPlanMode 工具（由 NESTED_DENY_TOOLS 硬编码）
-
-### 关键不变量
-
-1. **Spec-Handler 一一对应**：每个 spec.name 应有且仅有一个 handler 能 canHandle
-2. **执行顺序**：allow/deny 校验 → agentDepth 校验 → handler 路由 → 执行
-3. **状态归属**：TaskManager 管后台任务生命周期；UserInputManager 管用户输入 promise
+- handler 可异步、可请求用户输入（通过 `UserInputManager`）、可创建后台任务（通过 `TaskManager`）
+- handler 不直接操作 overlay / command-subline UI；这些属于 slash-command pipeline
+- presenter 负责渲染，不承担副作用或协议定义
+- deferred `ToolSearch` 的“何时暴露给模型”看 prompt/tool exposure 合同，不在这里重复
 
 ## 5) 如何扩展（How to extend）
 
