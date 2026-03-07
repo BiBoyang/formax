@@ -7,7 +7,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(scriptDir, '../dist')
 const assetsDir = path.join(distDir, 'assets')
 const TOP_LIMIT = 12
-const DEFAULT_BASELINE_PATH = path.resolve(scriptDir, '../../../docs/perf/web-reference-react-bundle-baseline.json')
+const DEFAULT_BASELINE_PATH = path.resolve(scriptDir, '../perf/web-reference-react-bundle-baseline.json')
 const DIST_DIR_LABEL = path.relative(path.resolve(scriptDir, '..'), distDir) || 'dist'
 
 function formatBytes(bytes) {

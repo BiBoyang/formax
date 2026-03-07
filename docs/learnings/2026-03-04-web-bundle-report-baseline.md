@@ -47,7 +47,7 @@ Observed key numbers:
 - The assets list includes chunks emitted for both main app graph and markdown worker graph.
 - This is expected after introducing worker-side markdown rendering.
 - For startup performance tracking, prioritize `Entry Assets` section; for overall payload monitoring, use `Bundle Summary`.
-- Baseline file path defaults to `docs/perf/web-reference-react-bundle-baseline.json` (repo root).
+- Baseline file path defaults to `apps/web-reference-react/perf/web-reference-react-bundle-baseline.json` (repo root).
 - JSON mode outputs a single valid JSON document:
   - `--json`
   - `--json --compare-baseline` returns `{ current, baseline }`.
@@ -57,4 +57,4 @@ Observed key numbers:
   - CI path now uses a small tolerance (`1024` bytes for `total`, `1024` bytes for `entry`).
 - Baseline sync mode:
   - `--verify-baseline-sync` compares current build bytes against committed baseline snapshot.
-  - used as a guardrail to catch code changes that forgot to update `docs/perf/web-reference-react-bundle-baseline.json`.
+  - used as a guardrail to catch code changes that forgot to update `apps/web-reference-react/perf/web-reference-react-bundle-baseline.json`.
