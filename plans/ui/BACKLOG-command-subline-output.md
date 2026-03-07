@@ -1,6 +1,6 @@
 # Backlog — Slash Command 子行输出（扩展范围）
 
-说明：这不是“今日清空”的 TODO 文件，只用于记录后续扩展方向，避免把 `plans/ui/TODO-command-subline-output.md` 变成大而全的清单。
+说明：这不是“今日清空”的 TODO 文件，只用于记录后续扩展方向，避免变成大而全的清单。
 
 ## dismissed 归属边界（回归测试）
 

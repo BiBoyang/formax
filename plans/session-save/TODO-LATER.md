@@ -1,6 +1,6 @@
 # TODO (Later) — Session Save
 
-This file tracks follow-up work beyond Phase 1 in `plans/session-save/TODO.md`.
+This file tracks follow-up work beyond the Phase 1 baseline in `plans/session-save/DESIGN.md`.
 
 ## Phase 2 — Make settings affect behavior
 
@@ -18,4 +18,3 @@ This file tracks follow-up work beyond Phase 1 in `plans/session-save/TODO.md`.
 - [ ] Export sessions (redacted bundle vs raw)
 - [ ] Delete sessions / retention management commands
 - [ ] More robust failure modes (disk full, permission errors) + user-facing errors
-

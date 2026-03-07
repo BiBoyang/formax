@@ -1,6 +1,6 @@
 # TODO：Skills（仅保留 pending）
 
-主线是 `plans/iam/TODO.md`（统一 permissions/审批体系 + `/permissions`）。这里仅记录 skills 还未通过抓包/未落地的部分，避免多 TODO 漂移与重复维护。
+主线以 `plans/TODO-INDEX.md` 为准。这里仅记录 skills 还未通过抓包/未落地的部分，避免多 TODO 漂移与重复维护。
 
 ## Pending（后置增强）
 

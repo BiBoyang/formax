@@ -11,21 +11,10 @@
 
 ## 并行参考（不作为主线推进）
 
-- `plans/iam/TODO.md`：统一 permissions/审批体系 + `/permissions`（既有基座，后续与 app-server 交互会有交叉）
 - `plans/harness-refactor-loop/TODO-INDEX.md`：Harness 分层债务滚动清理（固定循环：实现 -> 定向测试 -> review -> 提交）
 - `plans/ui/ui-TODO-INDEX.md`：UI TODO 索引（串联 `plans/ui/` 下各 TODO）
 - `plans/ui/BACKLOG-command-subline-output.md`：Slash command 子行输出（扩展范围 / 后置）
 - `plans/ui/BACKLOG-approval-preview.md`：Approval UI 后置增强项（不作为执行清单）
-- `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与 IAM 主线会交叉但以 IAM 为准
+- `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与权限主线会交叉
 - `plans/sdk-contract-alignment-loop/TODO-INDEX.md`：SDK 对齐滚动循环（原则：外部契约对齐 + 内部实现解耦，未支持能力不做）
-- `plans/system-reminder/TODO.md`：TodoWrite reminders（不走 hooks，优先控 token）
 - `plans/hooks/TODO.md`：Hooks 事件清单 & matcher 规则（哪些已实现/待接线）
-
-## 暂停（等 IAM 稳定后再继续）
-
-- `plans/code-refactor/TODO.md`：结构性重构（/commands + skills + /agents + 契约层/overlay），容易与 IAM 同时改导致返工
-
-## 大项目（建议单独分支）
-
-- `plans/product-strategy/PR6-improvements.md`：ApprovalService/审计/统一拦截等产品化改造（会改 executor/交互）
-- `plans/product-strategy/PR9-multiprovider.md`：多 provider（Anthropic/OpenAI/Gemini）适配与 streaming 解耦

@@ -3,7 +3,7 @@
 目标：让用户**随时关闭/重开** Formax 都能**无缝续接**当前工作，不再“因为怕丢上下文而不敢退出”。
 
 > 说明：本设计是“先把保存/恢复跑通并稳定”的 Phase 1；每个开关对真实功能生效（Phase 2）可以后置。  
-> Codex 参考实现要点见 `plans/session-save/codex.md`（主要是 JSONL + append-only + meta-first + resume picker）。
+> Codex 参考实现要点：JSONL + append-only + meta-first + resume picker。
 
 ---
 

@@ -4,7 +4,7 @@ This folder contains notes gathered from:
 
 - Manual `/config` toggling experiments (`plans/config-settings/compare.txt`)
 - Traffic logs (`proxy/traffic-config/*_REQ__v1_messages*.json`)
-- Claude Code docs extracts (`plans/config-settings/settings.md`, `plans/config-settings/terminal-config.md`)
+- Claude Code docs extracts (`plans/config-settings/terminal-config.md`)
 
 This document is intentionally separate from any TODO list so we can delete completed TODOs without losing the evidence trail.
 
