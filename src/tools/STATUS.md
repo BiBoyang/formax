@@ -97,10 +97,9 @@
 - “allow all edits during this session” 会把 mode 切到 `acceptEdits`
 - REPL 在出现上述交互提示时会隐藏输入框，避免键盘事件冲突
 
-## tools-copy.json 还缺什么（未实现）
+## tools-copy.json 对齐缺口（待完善）
 
-来自 `src/tools/specs/reference/tools-copy.json`（对齐目标）但目前仍缺：
-- `Skill`（技能执行：需要定义“skill 是什么/从哪里来/是否允许访问哪些能力”）
+来自 `src/tools/specs/reference/tools-copy.json`（对齐目标），当前 `Skill` 模块已接入；待完善点主要在执行语义边界（skill 来源、能力范围、权限约束）。
 
 ## 后续建议路线（按价值/依赖排序）
 

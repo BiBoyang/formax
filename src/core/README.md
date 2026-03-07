@@ -79,7 +79,7 @@ flowchart TD
 - core 不得 import `ui/`、`cli/`、`screens/`（禁止反向依赖）
 - core 不得 import `tools/`、`streaming/`
 - Policy engine 不做实际文件操作（只返回 decision）
-- Auth store 不得存储明文密码以外的敏感信息（TODO(verify) 如 OAuth token）
+- Auth store 仅允许保存认证所必需的凭据，不得额外存储无关敏感信息。
 
 ### 关键不变量
 

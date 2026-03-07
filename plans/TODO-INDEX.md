@@ -18,3 +18,10 @@
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与权限主线会交叉
 - `plans/sdk-contract-alignment-loop/TODO-INDEX.md`：SDK 对齐滚动循环（原则：外部契约对齐 + 内部实现解耦，未支持能力不做）
 - `plans/hooks/TODO.md`：Hooks 事件清单 & matcher 规则（哪些已实现/待接线）
+
+## 参考材料（非执行清单）
+
+- `plans/config-settings/`：`/config` 历史验证与设计记录
+- `plans/session-save/`：session save 设计与后续草案
+- `plans/coverage/`：覆盖率快照与历史清单
+- `plans/web-reference-react-refactor/`：web reference 重构循环历史记录
