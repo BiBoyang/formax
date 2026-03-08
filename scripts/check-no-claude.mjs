@@ -8,6 +8,8 @@ const FORBIDDEN_PATTERNS = [
   /(^|[^A-Za-z0-9._-])~\/\.claude\//,
   /(^|[^A-Za-z0-9._-])\/\.claude\//,
   /(^|[^A-Za-z0-9._-])\.claude\//,
+  // literal path segment string (e.g. path.join(home, '.claude'))
+  /['"`]\.claude['"`]/,
   // windows-ish
   /(^|[^A-Za-z0-9._-])~\\\.claude\\/,
   /(^|[^A-Za-z0-9._-])\\\.claude\\/,
