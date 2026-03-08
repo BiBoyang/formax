@@ -171,9 +171,10 @@ sub-agent 或 non-interactive 路径 MUST NOT 进入 prompt；若该动作需要
 ## 6. Workspace 边界合同
 
 `PERM-501`  
-effective workspace roots MUST 由以下两部分组成：
+effective workspace roots MUST 由以下部分组成：
 1. 仓库/运行时检测得到的 workspace roots
 2. session workspace additions
+3. 当 `FORMAX_DEFERRED_TOOL_EXPOSURE=1` 时，按当前 `cwd` 计算出的 auto-memory 目录（`buildAutoMemoryDirectoryPath`）作为内建白名单根
 
 `PERM-502`  
 `permissions.workspace.additionalDirectories` 的磁盘字段 MAY 被解析以保持前向兼容，但当前 runtime MUST NOT 让它直接成为 effective workspace roots。
@@ -185,6 +186,12 @@ workspace additions 当前 MUST 是 project-root 级 session state，不得持�
 当 `fs.read` / `fs.write` / `Grep`（含 symlink escape）访问 canonical roots 外路径时：
 1. interactive main path -> MUST 走 approval prompt，并附带 `workspaceRequest.dir`
 2. non-interactive 或 sub-agent path -> MUST 直接 deny
+
+`PERM-505`  
+当 `FORMAX_DEFERRED_TOOL_EXPOSURE=0` 时，auto-memory 目录 MUST NOT 被加入 workspace 白名单。
+
+`PERM-506`  
+当 `FORMAX_DEFERRED_TOOL_EXPOSURE=1` 且 action 为 `fs.write` 且目标位于 auto-memory 目录时，runtime MAY 将默认 `prompt` 提升为 `allow` 以避免交互审批；但显式 `prompt` 与显式 `deny` MUST 保持原决策。
 
 ## 7. Remember Side Effects 合同
 

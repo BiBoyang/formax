@@ -72,7 +72,7 @@ describe('createPolicyAndHooksRuntime', () => {
 
     expect(createNodeAuditLog).toHaveBeenCalledWith({ logsDir: '/tmp/logs' })
     expect(createApprovalService).toHaveBeenCalledWith({ fileStore, userInput: userInputManager, audit })
-    expect(createPolicyPreflight).toHaveBeenCalledWith({ fileStore, approval, audit })
+    expect(createPolicyPreflight).toHaveBeenCalledWith({ fileStore, approval, audit, env })
     expect(createSkillPreflight).toHaveBeenCalledWith({ fileStore, userInput: userInputManager })
     expect(createHooksRuntime).toHaveBeenCalledWith({ fileStore, env })
 

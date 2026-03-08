@@ -24,7 +24,7 @@ export function createPolicyAndHooksRuntime(args: {
 }): PolicyHooksRuntime {
   const audit = createNodeAuditLog({ logsDir: args.cfgPathsLogsDir })
   const approval = createApprovalService({ fileStore: args.fileStore, userInput: args.userInputManager, audit })
-  const policyPreflight = createPolicyPreflight({ fileStore: args.fileStore, approval, audit })
+  const policyPreflight = createPolicyPreflight({ fileStore: args.fileStore, approval, audit, env: args.env })
   const skillPreflight = createSkillPreflight({ fileStore: args.fileStore, userInput: args.userInputManager })
   const preflight: ToolPreflight = async (call, ctx) =>
     (await skillPreflight(call, ctx)) ?? policyPreflight(call, ctx)

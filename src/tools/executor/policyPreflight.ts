@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
-import type { Platform } from '../../adapters/fs/configPaths.js'
+import { getConfigPaths, type Platform } from '../../adapters/fs/configPaths.js'
 import { loadPolicyRules } from '../../core/policy/store.js'
 import type { PolicyAction } from '../../core/policy/types.js'
 import type { ToolCall, ToolResult } from '../types.js'
@@ -21,6 +21,8 @@ import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
 import { formatPathForDisplay, normalizePathForCompare } from '../../shared/utils/paths.js'
 import type { HookRun } from '../../hooks/types.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
+import { createRuntimeFlags } from '../../config/runtimeFlags.js'
+import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath.js'
 
 function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
   const normalized = normalizePathForCompare(rawPath, cwd)
@@ -189,8 +191,25 @@ export function createPolicyPreflight(args: {
   homedir?: string
 }): ToolPreflight {
   const env = args.env ?? process.env
+  const deferredToolExposureEnabled = createRuntimeFlags(env).deferredToolExposureEnabled
   const grepSymlinkScanCache = new Map<string, GrepSymlinkScanCacheEntry>()
   const grepSymlinkScanInFlight = new Map<string, Promise<string | null>>()
+  const getAutoMemoryWhitelistRoot = (cwd: string): string | null => {
+    if (!deferredToolExposureEnabled) return null
+    const globalConfigDir = getConfigPaths({
+      cwd,
+      env,
+      platform: args.platform,
+      homedir: args.homedir,
+    }).globalConfigDir
+    return normalizeWorkspacePath(
+      buildAutoMemoryDirectoryPath({
+        cwd,
+        configDir: globalConfigDir,
+      }),
+      cwd,
+    )
+  }
   const resolveFirstEscapedGrepSymlinkDir = async (scanArgs: {
     rootDir: string
     workspaceRoots: string[]
@@ -225,6 +244,7 @@ export function createPolicyPreflight(args: {
 
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
+    let isAutoMemoryWriteTarget = false
     const traceForCall: TraceContext = { ...(ctx.trace ?? {}), toolUseId: call.id }
     let workspaceRequest: WorkspaceAccessRequest | null = null
     const auditHookRuns = (eventName: string, runs: HookRun[]) => {
@@ -340,9 +360,18 @@ export function createPolicyPreflight(args: {
     if (action.kind === 'fs.read' || action.kind === 'fs.write') {
       const rootsResult = await detectWorkspaceRoots({ fileStore: args.fileStore, cwd })
       const permissions = await getMergedPermissions()
+      const autoMemoryWhitelistRoot = getAutoMemoryWhitelistRoot(cwd)
+      const canonicalAutoMemoryRoot = autoMemoryWhitelistRoot
+        ? await canonicalizeForWorkspaceCheck({
+            fileStore: args.fileStore,
+            rawPath: autoMemoryWhitelistRoot,
+            cwd,
+          })
+        : null
       const rootCandidates = [
         ...rootsResult.workspaceRoots,
         ...permissions.workspace.additionalDirectories.map((entry) => entry.dir),
+        ...(autoMemoryWhitelistRoot ? [autoMemoryWhitelistRoot] : []),
       ]
       const normalizedRoots = Array.from(
         new Set(
@@ -367,6 +396,9 @@ export function createPolicyPreflight(args: {
         rawPath: action.path,
         cwd,
       })
+      if (action.kind === 'fs.write' && canonicalTargetPath && canonicalAutoMemoryRoot) {
+        isAutoMemoryWriteTarget = isPathWithinRoot(canonicalTargetPath, path.resolve(canonicalAutoMemoryRoot))
+      }
 
       if (canonicalTargetPath && canonicalRoots.length && !isPathWithinRoots(canonicalTargetPath, canonicalRoots)) {
         const isInteractiveMain = ctx.agentDepth === 0 && ctx.interactive !== false && Boolean(args.approval)
@@ -418,6 +450,7 @@ export function createPolicyPreflight(args: {
     const sessionRules = args.approval?.getSessionRules() ?? []
     const explained = explainPolicy({ action, rules: [...sessionRules, ...loaded.mergedRules] })
     let effectiveDecision = explained.decision
+    const promptByPolicyRule = Boolean(explained.matchedRule && explained.decision === 'prompt')
     let deniedByPermission = false
 
     // acceptEdits mode: treat prompts as implicitly approved (still respects deny rules).
@@ -427,6 +460,15 @@ export function createPolicyPreflight(args: {
 
     if (workspaceRequest && effectiveDecision !== 'deny') {
       effectiveDecision = 'prompt'
+    }
+
+    if (
+      action.kind === 'fs.write' &&
+      isAutoMemoryWriteTarget &&
+      effectiveDecision === 'prompt' &&
+      !promptByPolicyRule
+    ) {
+      effectiveDecision = 'allow'
     }
 
     // Bash: require approval for commands our classifier marks as confirm (unless an allow rule matched).

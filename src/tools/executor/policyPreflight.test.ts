@@ -15,6 +15,7 @@ import {
 import { createUserInputManager } from '../runtime/userInputManager.js'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { AuditEventV1 } from '../../core/audit/schema.js'
+import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath.js'
 
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
@@ -302,6 +303,222 @@ describe('createPolicyPreflight', () => {
       expect(res).toBeNull()
     } finally {
       resetWorkspaceSessionForTests()
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows fs.read from auto-memory path without workspace prompt when deferred exposure is enabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+      await fs.writeFile(memoryFile, '# memory\n', 'utf8')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'm1', name: 'Read', input: { file_path: memoryFile } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows fs.write to auto-memory path without approval when deferred exposure is enabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-write-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'mw1', name: 'Write', input: { file_path: memoryFile, content: '# memory\n' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps explicit fs.write deny rules for auto-memory paths', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-write-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'deny-auto-memory-write',
+            createdAt: '2026-03-08T00:00:00Z',
+            scope: 'global',
+            decision: 'deny',
+            match: { kind: 'fs.write', path: memoryDir },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'mw2', name: 'Write', input: { file_path: memoryFile, content: '# memory\n' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Policy denied fs.write')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps explicit fs.write prompt rules for auto-memory paths', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-write-prompt-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'rules.json'), {
+        version: 1,
+        rules: [
+          {
+            ruleId: 'prompt-auto-memory-write',
+            createdAt: '2026-03-08T00:00:00Z',
+            scope: 'global',
+            decision: 'prompt',
+            match: { kind: 'fs.write', path: memoryDir },
+          },
+        ],
+      })
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'mw3', name: 'Write', input: { file_path: memoryFile, content: '# memory\n' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Approval required for fs.write')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps auto-memory path outside workspace when deferred exposure is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-disabled-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+      await fs.writeFile(memoryFile, '# memory\n', 'utf8')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '0',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'm2', name: 'Read', input: { file_path: memoryFile } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('outside the workspace')
+    } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
   })
