@@ -71,7 +71,11 @@
     "release:prerelease": "npm version prerelease --preid=beta -m \"chore(release): %s\"",
     "release:prepatch": "npm version prepatch --preid=beta -m \"chore(release): %s\"",
     "release:preminor": "npm version preminor --preid=beta -m \"chore(release): %s\"",
-    "release:premajor": "npm version premajor --preid=beta -m \"chore(release): %s\""
+    "release:premajor": "npm version premajor --preid=beta -m \"chore(release): %s\"",
+    "release:beta": "node ./scripts/release-beta.mjs",
+    "release:beta:prepatch": "node ./scripts/release-beta.mjs --bump prepatch",
+    "release:beta:preminor": "node ./scripts/release-beta.mjs --bump preminor",
+    "release:beta:premajor": "node ./scripts/release-beta.mjs --bump premajor"
   },
   "bin": {
     "formax": "bin/formax.js"
