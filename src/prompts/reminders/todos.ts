@@ -1,3 +1,5 @@
+import { paragraph, rawText, renderPromptText } from '../authoring'
+
 export const TODO_EMPTY_REMINDER_BODY =
   'This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. ' +
   'If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. ' +
@@ -35,11 +37,11 @@ export function buildTodoUnusedWithListReminderBody(
   const formatted = formatTodosForClaude(todos, config)
   if (!formatted) return null
 
-  return (
-    `${TODO_UNUSED_REMINDER_PREFIX}\n\n` +
-    'Here are the existing contents of your todo list:\n\n' +
-    formatted
-  )
+  return renderPromptText([
+    paragraph(TODO_UNUSED_REMINDER_PREFIX),
+    paragraph('Here are the existing contents of your todo list:'),
+    rawText(formatted),
+  ])
 }
 
 export function formatTodosForClaude(todos: TodoLike[], config?: Partial<TodoTrimConfig>): string | null {

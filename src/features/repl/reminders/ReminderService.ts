@@ -1,4 +1,4 @@
-import type { PromptBlock } from '../../../prompts'
+import { makeSystemReminderBlock, type PromptBlock } from '../../../prompts'
 import { readTodos } from '../../../tools/runtime/todosFile'
 import { TODO_EMPTY_REMINDER_BODY, buildTodoUnusedReminderBody, buildTodoUnusedWithListReminderBody } from '../../../prompts/reminders/todos'
 import { buildClaudeMdInjectedBlocks } from '../injectedBlocks'
@@ -156,11 +156,7 @@ export class ReminderService {
 }
 
 function makeSystemReminder(text: string): PromptBlock {
-  return {
-    type: 'text',
-    text: `<system-reminder>\n${text}\n</system-reminder>`,
-    cache_control: { type: 'ephemeral' },
-  }
+  return makeSystemReminderBlock(text)
 }
 
 function countReminderPrefix(remindersSentAt: Record<string, number>, prefix: string): number {

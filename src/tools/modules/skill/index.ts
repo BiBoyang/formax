@@ -3,6 +3,7 @@ import type { ToolDefinition } from '../../types'
 import { SkillToolHandler } from './handler'
 import { SkillToolPresenter } from './presenter'
 import { baseSpec } from './spec'
+import { bulletList, paragraph, renderSystemReminderText } from '../../../prompts/authoring'
 import { getConfigPaths } from '../../../adapters/fs/configPaths'
 import { createSkillStore } from '../../../features/skills/SkillStore'
 import { truncateByCharBudget } from '../../../shared/invokables/charBudget'
@@ -100,23 +101,23 @@ export function buildSkillToolSpecForCwdWithOptions(cwd: string, options: BuildS
 
 export function buildAvailableSkillsSystemReminderText(cwd: string): string | null {
   const entries = listAvailableSkillsForCwd(cwd).map(
-    (skill) =>
-      `- ${sanitizeSystemReminderText(skill.name)}: ${sanitizeSystemReminderText(skill.description)}\n`,
+    (skill) => `${sanitizeSystemReminderText(skill.name)}: ${sanitizeSystemReminderText(skill.description)}`,
   )
   if (entries.length === 0) return null
 
-  const { kept, truncated } = truncateByCharBudget(entries, getSkillToolCharBudget())
-  const bulletList = kept.join('')
-  if (!bulletList.trim()) return null
+  const budgetedEntries = entries.map((entry) => `- ${entry}`)
+  const { kept, truncated } = truncateByCharBudget(budgetedEntries, getSkillToolCharBudget())
+  if (kept.length === 0) return null
 
-  const truncatedSuffix = truncated ? '- ... (some skills omitted due prompt size limits)\n' : ''
+  const reminderItems = kept.map((entry) => entry.slice(2))
 
-  return (
-    '<system-reminder>\n' +
-    'The following skills are available for use with the Skill tool:\n\n' +
-    `${bulletList}${truncatedSuffix}` +
-    '</system-reminder>'
-  )
+  return renderSystemReminderText([
+    paragraph('The following skills are available for use with the Skill tool:'),
+    bulletList([
+      ...reminderItems,
+      ...(truncated ? ['... (some skills omitted due prompt size limits)'] : []),
+    ]),
+  ])
 }
 
 function sanitizeSystemReminderText(value: string): string {

@@ -1,4 +1,5 @@
 export * from './types'
+export * from './authoring'
 export * from './system'
 export * from './init'
 export * from './user'

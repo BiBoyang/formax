@@ -172,6 +172,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Prompts
 - System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
 - Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`
+- Prompt authoring primitives (sections, reminder wrappers, text rendering): `src/prompts/authoring.ts`
 - TodoWrite reminder text + formatting helpers: `src/prompts/reminders/todos.ts`
 - Prompt porting status/TODOs: `src/prompts/STATUS.md`, `system-prompts/PORTING-STATUS.md`
 

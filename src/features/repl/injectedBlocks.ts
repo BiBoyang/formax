@@ -3,6 +3,7 @@ import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import type { PromptBlock } from '../../prompts'
+import { makeSystemReminderBlock, paragraph, rawText, section, type PromptTextNode } from '../../prompts/authoring'
 import type { LocalCommandRecord } from '../commands/registry'
 import { getConfigPaths } from '../../adapters/fs/configPaths.js'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath'
@@ -279,28 +280,29 @@ export function buildClaudeMdInjectedBlocks(args: {
   const memory = args.includeAutoMemory === false ? null : readAndCapAutoMemory(args)
   if (!global && !project && !memory) return []
 
-  const text =
-    '<system-reminder>\n' +
-    "As you answer the user's questions, you can use the following context:\n" +
-    '# claudeMd\n' +
-    'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' +
-    'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.\n\n' +
-    'Precedence: project instructions override global user instructions.\n\n' +
-    (global && global.contents.trim()
-      ? `Contents of ${global.filePath} (global user instructions, optional):\n\n${global.contents}\n\n`
-      : '') +
-    (project && project.contents.trim()
-      ? `Contents of ${project.filePath} (project instructions, checked into the codebase):\n\n${project.contents}\n\n`
-      : '') +
-    (memory
-      ? `Contents of ${memory.filePath} (user's auto-memory, persists across conversations):\n\n${memory.contents}\n\n`
-      : '') +
-    '\n\n' +
-    'IMPORTANT: this context may or may not be relevant to your tasks. ' +
-    'You should not respond to this context unless it is highly relevant to your task.\n' +
-    '</system-reminder>\n'
+  const nodes: PromptTextNode[] = [
+    paragraph("As you answer the user's questions, you can use the following context:"),
+    section('# claudeMd', [
+      paragraph(
+        'Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.',
+      ),
+    ]),
+    paragraph('Precedence: project instructions override global user instructions.'),
+    ...(global && global.contents.trim()
+      ? [rawText(`Contents of ${global.filePath} (global user instructions, optional):\n\n${global.contents}`)]
+      : []),
+    ...(project && project.contents.trim()
+      ? [rawText(`Contents of ${project.filePath} (project instructions, checked into the codebase):\n\n${project.contents}`)]
+      : []),
+    ...(memory
+      ? [rawText(`Contents of ${memory.filePath} (user's auto-memory, persists across conversations):\n\n${memory.contents}`)]
+      : []),
+    paragraph(
+      'IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.',
+    ),
+  ]
 
-  return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }]
+  return [makeSystemReminderBlock(nodes, { trailingNewline: true })]
 }
 
 export function buildLocalCommandInjectedBlocks(rec: LocalCommandRecord): PromptBlock[] {

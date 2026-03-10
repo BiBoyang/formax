@@ -166,4 +166,38 @@ describe('buildAvailableSkillsSystemReminderText', () => {
       await fsp.rm(project, { recursive: true, force: true })
     }
   })
+
+  it('accounts for bullet prefixes when truncating reminder entries', async () => {
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevBudget = process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET
+    const globalConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-global-reminder-budget-'))
+    process.env.FORMAX_CONFIG_DIR = globalConfigDir
+    process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET = '13'
+    const project = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-skill-project-reminder-budget-'))
+
+    try {
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'a', 'SKILL.md'),
+        ['---', 'description: x', '---', '', 'Do a'].join('\n'),
+      )
+      await writeFileEnsuringDir(
+        path.join(project, '.formax', 'skills', 'b', 'SKILL.md'),
+        ['---', 'description: y', '---', '', 'Do b'].join('\n'),
+      )
+
+      const reminder = buildAvailableSkillsSystemReminderText(project)
+      expect(reminder).toContain('- a: x')
+      expect(reminder).not.toContain('- b: y')
+      expect(reminder).toContain('... (some skills omitted due prompt size limits)')
+    } finally {
+      if (prevConfigDir === undefined) delete process.env.FORMAX_CONFIG_DIR
+      else process.env.FORMAX_CONFIG_DIR = prevConfigDir
+
+      if (prevBudget === undefined) delete process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET
+      else process.env.FORMAX_SKILL_TOOL_CHAR_BUDGET = prevBudget
+
+      await fsp.rm(globalConfigDir, { recursive: true, force: true })
+      await fsp.rm(project, { recursive: true, force: true })
+    }
+  })
 })
