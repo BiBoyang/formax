@@ -23,10 +23,50 @@ export type ApprovalLikePromptResult<TAnswer extends ApprovalLikeAnswer> =
       result: ToolResult
     }
 
+export type ApprovalLikeResolvedOutcome =
+  | { type: 'approve' }
+  | { type: 'approve_remember' }
+  | { type: 'feedback'; result: ToolResult }
+  | { type: 'cancel'; result: ToolResult }
+
 export function buildToolUseRejectedContent(args: { message?: string }): string {
   const msg = String(args.message ?? '').trim()
   if (msg) return `Tool use rejected with user message: ${msg}`
   return 'Tool use rejected by user.'
+}
+
+export function resolveApprovalLikeOutcome(args: {
+  call: Pick<ToolCall, 'id'>
+  decision: string
+  feedback: string
+}): ApprovalLikeResolvedOutcome {
+  if (args.decision === 'approve') {
+    return { type: 'approve' }
+  }
+
+  if (args.decision === 'approve_remember') {
+    return { type: 'approve_remember' }
+  }
+
+  if (args.decision === 'feedback' && args.feedback) {
+    return {
+      type: 'feedback',
+      result: {
+        tool_use_id: args.call.id,
+        content: buildToolUseRejectedContent({ message: args.feedback }),
+        is_error: true,
+      },
+    }
+  }
+
+  return {
+    type: 'cancel',
+    result: {
+      tool_use_id: args.call.id,
+      content: buildToolUseRejectedContent({}),
+      is_error: true,
+    },
+  }
 }
 
 export async function promptForApprovalLikeAnswer<TAnswer extends ApprovalLikeAnswer>(args: {

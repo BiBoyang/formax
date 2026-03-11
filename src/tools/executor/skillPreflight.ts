@@ -7,8 +7,8 @@ import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapter
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import {
-  buildToolUseRejectedContent,
   promptForApprovalLikeAnswer,
+  resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
 
 type SkillApprovalAnswer = {
@@ -77,11 +77,15 @@ export function createSkillPreflight(args: {
       },
     })
     if (promptResult.ok !== true) return promptResult.result
-    const { decision, feedback } = promptResult
+    const outcome = resolveApprovalLikeOutcome({
+      call,
+      decision: promptResult.decision,
+      feedback: promptResult.feedback,
+    })
 
-    if (decision === 'approve') return null
+    if (outcome.type === 'approve') return null
 
-    if (decision === 'approve_remember') {
+    if (outcome.type === 'approve_remember') {
       try {
         await persistProjectSkillAllow({ fileStore: args.fileStore, cwd, key })
       } catch (e) {
@@ -91,11 +95,6 @@ export function createSkillPreflight(args: {
       return null
     }
 
-    if (decision === 'feedback') {
-      if (!feedback) return { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true }
-      return { tool_use_id: call.id, content: buildToolUseRejectedContent({ message: feedback }), is_error: true }
-    }
-
-    return { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true }
+    return outcome.result
   }
 }

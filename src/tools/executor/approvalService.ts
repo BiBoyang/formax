@@ -23,8 +23,8 @@ import {
 import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import {
-  buildToolUseRejectedContent,
   promptForApprovalLikeAnswer,
+  resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
 
 export type WorkspaceAccessRequest = {
@@ -317,7 +317,13 @@ export function createApprovalService(args: {
       }
     }
 
-    if (decision === 'approve') {
+    const outcome = resolveApprovalLikeOutcome({
+      call,
+      decision,
+      feedback,
+    })
+
+    if (outcome.type === 'approve') {
       if (args.audit) {
         void args.audit.append({
           schemaVersion: 1,
@@ -333,7 +339,7 @@ export function createApprovalService(args: {
       return { ok: true }
     }
 
-    if (decision === 'approve_remember') {
+    if (outcome.type === 'approve_remember') {
       if (args.audit) {
         void args.audit.append({
           schemaVersion: 1,
@@ -420,44 +426,6 @@ export function createApprovalService(args: {
       return { ok: true }
     }
 
-    if (decision === 'feedback') {
-      if (!feedback) {
-        if (args.audit) {
-          void args.audit.append({
-            schemaVersion: 1,
-            ts: nowIso(),
-            kind: 'approval.result',
-            agentDepth: ctx.agentDepth,
-            trace: traceForCall,
-            tool: { name: call.name, toolUseId: call.id },
-            action: args2.action,
-            outcome: 'cancel',
-          })
-        }
-        return { ok: false, result: { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true } }
-      }
-      if (args.audit) {
-        void args.audit.append({
-          schemaVersion: 1,
-          ts: nowIso(),
-          kind: 'approval.result',
-          agentDepth: ctx.agentDepth,
-          trace: traceForCall,
-          tool: { name: call.name, toolUseId: call.id },
-          action: args2.action,
-          outcome: 'feedback',
-        })
-      }
-      return {
-        ok: false,
-        result: {
-          tool_use_id: call.id,
-          content: buildToolUseRejectedContent({ message: feedback }),
-          is_error: true,
-        },
-      }
-    }
-
     if (args.audit) {
       void args.audit.append({
         schemaVersion: 1,
@@ -467,10 +435,10 @@ export function createApprovalService(args: {
         trace: traceForCall,
         tool: { name: call.name, toolUseId: call.id },
         action: args2.action,
-        outcome: 'cancel',
+        outcome: outcome.type === 'feedback' ? 'feedback' : 'cancel',
       })
     }
-    return { ok: false, result: { tool_use_id: call.id, content: buildToolUseRejectedContent({}), is_error: true } }
+    return { ok: false, result: outcome.result }
   }
 
   return { getSessionRules, ensureApproved }
