@@ -1,6 +1,7 @@
 import type { ToolCall, ToolResult } from '../types.js'
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ExecutionContext } from './index.js'
+import { runInteractivePromptTransaction } from '../runtime/interactivePromptTransaction.js'
 
 export type ApprovalLikeAnswer = {
   decision?: string
@@ -34,53 +35,24 @@ export async function promptForApprovalLikeAnswer<TAnswer extends ApprovalLikeAn
   requireInteractive?: boolean
   beforeRequest?: () => void
 }): Promise<ApprovalLikePromptResult<TAnswer>> {
-  if (!args.userInput || (args.requireInteractive === true && args.ctx.interactive === false)) {
-    return {
-      ok: false,
-      result: {
-        tool_use_id: args.call.id,
-        content: args.unavailableContent,
-        is_error: true,
-      },
-    }
-  }
-
-  if (args.ctx.signal?.aborted) {
-    return {
-      ok: false,
-      result: {
-        tool_use_id: args.call.id,
-        content: args.abortedContent,
-        is_error: true,
-      },
-    }
-  }
-
-  args.beforeRequest?.()
-  const answersPromise = args.userInput.requestAnswers({
-    toolUseId: args.call.id,
-    // Intentionally empty: approval-like choices are rendered from tool context,
-    // not AskUserQuestion-form question rows.
+  const tx = await runInteractivePromptTransaction<TAnswer>({
+    call: args.call,
+    ctx: args.ctx,
+    userInput: args.userInput,
+    // Approval-like choices are rendered from tool context, not
+    // AskUserQuestion-form question rows.
     questions: [],
-    signal: args.ctx.signal,
+    unavailableContent: args.unavailableContent,
+    abortedContent: args.abortedContent,
+    requireInteractive: args.requireInteractive,
+    beforeRequest: args.beforeRequest,
   })
-  args.ctx.onEvent?.({ type: 'tool_update', id: args.call.id, middleLines: [] })
 
-  let answers: TAnswer
-  try {
-    answers = (await answersPromise) as TAnswer
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    return {
-      ok: false,
-      result: {
-        tool_use_id: args.call.id,
-        content: `Error: ${msg}`,
-        is_error: true,
-      },
-    }
+  if (tx.ok !== true) {
+    return tx
   }
 
+  const answers = tx.answers
   return {
     ok: true,
     answers,
