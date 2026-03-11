@@ -6,16 +6,14 @@ import { assertNoExtraKeys, requirePlainObject } from '../utils/strictInput.js'
 import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapters/permissions/skillAllowList.js'
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
+import {
+  buildToolUseRejectedContent,
+  promptForApprovalLikeAnswer,
+} from './approvalLikePrompt.js'
 
 type SkillApprovalAnswer = {
   decision?: string
   feedback?: string
-}
-
-function buildToolUseRejectedContent(args: { message?: string }): string {
-  const msg = String(args.message ?? '').trim()
-  if (msg) return `Tool use rejected with user message: ${msg}`
-  return 'Tool use rejected by user.'
 }
 
 function parseSkillName(call: ToolCall): string {
@@ -61,37 +59,16 @@ export function createSkillPreflight(args: {
     }
     if (perm.decision === 'allow') return null
 
-    if (!args.userInput || ctx.interactive === false) {
-      return {
-        tool_use_id: call.id,
-        content: 'Error: Skill requires user approval.',
-        is_error: true,
-      }
-    }
-
-    if (ctx.signal?.aborted) {
-      return { tool_use_id: call.id, content: 'Request aborted', is_error: true }
-    }
-
-    const answersPromise = args.userInput.requestAnswers({
-      toolUseId: call.id,
-      // Intentionally empty: approval UI (approve / remember / feedback) is driven
-      // by tool context and the consumer, not AskUserQuestion-style prompts.
-      questions: [],
-      signal: ctx.signal,
+    const promptResult = await promptForApprovalLikeAnswer<SkillApprovalAnswer>({
+      call,
+      ctx,
+      userInput: args.userInput,
+      unavailableContent: 'Error: Skill requires user approval.',
+      abortedContent: 'Request aborted',
+      requireInteractive: true,
     })
-    ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
-
-    let answers: SkillApprovalAnswer
-    try {
-      answers = (await answersPromise) as SkillApprovalAnswer
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
-    }
-
-    const decision = String(answers.decision || '').trim().toLowerCase()
-    const feedback = String(answers.feedback || '').trim()
+    if (promptResult.ok !== true) return promptResult.result
+    const { decision, feedback } = promptResult
 
     if (decision === 'approve') return null
 

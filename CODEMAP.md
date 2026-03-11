@@ -144,6 +144,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - ToolCall → PolicyAction mapping: `src/tools/executor/policyAction.ts`
 - Policy explain formatter (CLI/debug): `src/tools/executor/policyExplain.ts`
 - Approval service (user prompts, remember, auditable decision): `src/tools/executor/approvalService.ts`
+- Shared approval-like prompt transaction helper (approval + skill preflight): `src/tools/executor/approvalLikePrompt.ts`
 - Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
 - `/permissions` wiring (slash command → open overlay): `src/features/commands/registry.ts`, `src/features/commands/adapter.ts`, `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
 - `/permissions` UI: `src/tui/permissions/PermissionsDialog.tsx`

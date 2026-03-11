@@ -22,6 +22,10 @@ import {
 } from '../../adapters/permissions/permissionsStore.js'
 import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
+import {
+  buildToolUseRejectedContent,
+  promptForApprovalLikeAnswer,
+} from './approvalLikePrompt.js'
 
 export type WorkspaceAccessRequest = {
   dir: string
@@ -59,12 +63,6 @@ export function createApprovalService(args: {
   const sessionRules: PolicyRule[] = []
 
   const getSessionRules = () => sessionRules.slice()
-
-  function buildToolUseRejectedContent(args2: { message?: string }): string {
-    const msg = String(args2.message ?? '').trim()
-    if (msg) return `Tool use rejected with user message: ${msg}`
-    return 'Tool use rejected by user.'
-  }
 
   async function validateUpdatedInput(args2: {
     call: ToolCall
@@ -218,68 +216,49 @@ export function createApprovalService(args: {
     const { call, ctx } = args2
     const traceForCall: TraceContext = { ...(ctx.trace ?? {}), toolUseId: call.id }
 
-    if (!args.userInput) {
-      return {
-        ok: false,
-        result: {
-          tool_use_id: call.id,
-          content: `Error: Approval required for ${args2.action.kind}`,
-          is_error: true,
-        },
-      }
-    }
-
-    if (ctx.signal?.aborted) {
-      return { ok: false, result: { tool_use_id: call.id, content: 'Error: Request aborted', is_error: true } }
-    }
-
-    if (args.audit) {
-      void args.audit.append({
-        schemaVersion: 1,
-        ts: nowIso(),
-        kind: 'approval.prompt',
-        agentDepth: ctx.agentDepth,
-        trace: traceForCall,
-        tool: { name: call.name, toolUseId: call.id },
-        action: args2.action,
-        effectiveDecision: args2.effectiveDecision,
-      })
-    }
-
     const suggestions = formatPolicyExplainLines({
       effectiveDecision: args2.effectiveDecision,
       explained: args2.explained,
     })
     const decisionReason = args2.explained.matchedRule?.reason?.trim()
-    ctx.onEvent?.({
-      type: 'approval_request',
-      toolUseId: call.id,
-      toolName: call.name,
-      action: args2.action,
-      effectiveDecision: args2.effectiveDecision,
-      suggestions,
-      ...(decisionReason ? { decisionReason } : {}),
-      ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
-      ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
-    })
+    const promptResult = await promptForApprovalLikeAnswer<ApprovalAnswer>({
+      call,
+      ctx,
+      userInput: args.userInput,
+      unavailableContent: `Error: Approval required for ${args2.action.kind}`,
+      abortedContent: 'Error: Request aborted',
+      beforeRequest: () => {
+        if (args.audit) {
+          void args.audit.append({
+            schemaVersion: 1,
+            ts: nowIso(),
+            kind: 'approval.prompt',
+            agentDepth: ctx.agentDepth,
+            trace: traceForCall,
+            tool: { name: call.name, toolUseId: call.id },
+            action: args2.action,
+            effectiveDecision: args2.effectiveDecision,
+          })
+        }
 
-    const answersPromise = args.userInput.requestAnswers({
-      toolUseId: call.id,
-      questions: [],
-      signal: ctx.signal,
+        ctx.onEvent?.({
+          type: 'approval_request',
+          toolUseId: call.id,
+          toolName: call.name,
+          action: args2.action,
+          effectiveDecision: args2.effectiveDecision,
+          suggestions,
+          ...(decisionReason ? { decisionReason } : {}),
+          ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
+          ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
+        })
+      },
     })
-    ctx.onEvent?.({ type: 'tool_update', id: call.id, middleLines: [] })
-
-    let answers: ApprovalAnswer
-    try {
-      answers = (await answersPromise) as ApprovalAnswer
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { ok: false, result: { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true } }
+    if (promptResult.ok !== true) {
+      return { ok: false, result: promptResult.result }
     }
 
-    const decision = String(answers.decision || '').trim().toLowerCase()
-    const feedback = String(answers.feedback || '').trim()
+    const { answers, decision, feedback } = promptResult
     const scopeRaw = String(answers.scope || '').trim().toLowerCase()
     const scope: PolicyScope = scopeRaw === 'global' ? 'global' : scopeRaw === 'project' ? 'project' : 'session'
     const workspaceDir = String(args2.workspaceRequest?.dir || '').trim()
