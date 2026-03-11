@@ -307,6 +307,76 @@ describe('createPolicyPreflight', () => {
     }
   })
 
+  it('allows fs.read from FORMAX_CONFIG_DIR/plans when deferred exposure is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-plans-read-disabled-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const plansDir = path.join(globalConfigDir, 'plans')
+      await fs.mkdir(plansDir, { recursive: true })
+      const plansFile = path.join(plansDir, 'snake-plan.md')
+      await fs.writeFile(plansFile, '# plan\n', 'utf8')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '0',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'p1', name: 'Read', input: { file_path: plansFile } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows fs.read from FORMAX_CONFIG_DIR/plans when deferred exposure is enabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-plans-read-enabled-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const plansDir = path.join(globalConfigDir, 'plans')
+      await fs.mkdir(plansDir, { recursive: true })
+      const plansFile = path.join(plansDir, 'snake-plan.md')
+      await fs.writeFile(plansFile, '# plan\n', 'utf8')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '1',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'p2', name: 'Read', input: { file_path: plansFile } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('allows fs.read from auto-memory path without workspace prompt when deferred exposure is enabled', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-allow-'))
     try {
@@ -373,6 +443,43 @@ describe('createPolicyPreflight', () => {
 
       const res = await preflight(
         { id: 'mw1', name: 'Write', input: { file_path: memoryFile, content: '# memory\n' } },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(res).toBeNull()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows fs.write to auto-memory path without approval when deferred exposure is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-write-disabled-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const memoryDir = buildAutoMemoryDirectoryPath({
+        cwd: projectDir,
+        configDir: globalConfigDir,
+      })
+      await fs.mkdir(memoryDir, { recursive: true })
+      const memoryFile = path.join(memoryDir, 'MEMORY.md')
+
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: {
+          FORMAX_CONFIG_DIR: globalConfigDir,
+          FORMAX_DEFERRED_TOOL_EXPOSURE: '0',
+        } as any,
+        platform: 'linux',
+        homedir: dir,
+      })
+
+      const res = await preflight(
+        { id: 'mw1b', name: 'Write', input: { file_path: memoryFile, content: '# memory\n' } },
         { cwd: projectDir, agentDepth: 0, interactive: false },
       )
 
@@ -484,8 +591,8 @@ describe('createPolicyPreflight', () => {
     }
   })
 
-  it('keeps auto-memory path outside workspace when deferred exposure is disabled', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-disabled-'))
+  it('allows fs.read from auto-memory path when deferred exposure is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-auto-memory-disabled-allow-'))
     try {
       const store = createNodeFileStore()
       const globalConfigDir = path.join(dir, 'global')
@@ -516,8 +623,7 @@ describe('createPolicyPreflight', () => {
         { cwd: projectDir, agentDepth: 0, interactive: false },
       )
 
-      expect(res?.is_error).toBe(true)
-      expect(res?.content).toContain('outside the workspace')
+      expect(res).toBeNull()
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

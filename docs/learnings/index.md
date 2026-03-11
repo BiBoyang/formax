@@ -28,6 +28,8 @@
 - `docs/learnings/2026-03-07-anthropic-prompt-caching-alignment.md`
 - `docs/learnings/2026-03-08-auto-memory-reminder-injection-parity.md`
 - `docs/learnings/2026-03-08-auto-memory-permission-whitelist.md`
+- `docs/learnings/2026-03-12-auto-memory-whitelist-unconditional.md`
+- `docs/learnings/2026-03-12-config-plans-whitelist.md`
 
 ## Web Reference Runtime / Performance
 

@@ -1,6 +1,6 @@
 # Permissions 与 Policy 合同（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-03-12  
 状态：规范性（Normative）
 
 本文档定义 Formax 中 permissions / policy preflight / approval remember side effects 的唯一事实来源。
@@ -174,7 +174,8 @@ sub-agent 或 non-interactive 路径 MUST NOT 进入 prompt；若该动作需要
 effective workspace roots MUST 由以下部分组成：
 1. 仓库/运行时检测得到的 workspace roots
 2. session workspace additions
-3. 当 `FORMAX_DEFERRED_TOOL_EXPOSURE=1` 时，按当前 `cwd` 计算出的 auto-memory 目录（`buildAutoMemoryDirectoryPath`）作为内建白名单根
+3. `<FORMAX_CONFIG_DIR>/plans` 目录作为内建白名单根（与 `FORMAX_DEFERRED_TOOL_EXPOSURE` 无关）
+4. 按当前 `cwd` 计算出的 auto-memory 目录（`buildAutoMemoryDirectoryPath`）作为内建白名单根（与 `FORMAX_DEFERRED_TOOL_EXPOSURE` 无关）
 
 `PERM-502`  
 `permissions.workspace.additionalDirectories` 的磁盘字段 MAY 被解析以保持前向兼容，但当前 runtime MUST NOT 让它直接成为 effective workspace roots。
@@ -188,10 +189,13 @@ workspace additions 当前 MUST 是 project-root 级 session state，不得持�
 2. non-interactive 或 sub-agent path -> MUST 直接 deny
 
 `PERM-505`  
-当 `FORMAX_DEFERRED_TOOL_EXPOSURE=0` 时，auto-memory 目录 MUST NOT 被加入 workspace 白名单。
+`FORMAX_DEFERRED_TOOL_EXPOSURE` 开关 MUST NOT 影响 auto-memory 目录是否加入 workspace 白名单。
 
 `PERM-506`  
-当 `FORMAX_DEFERRED_TOOL_EXPOSURE=1` 且 action 为 `fs.write` 且目标位于 auto-memory 目录时，runtime MAY 将默认 `prompt` 提升为 `allow` 以避免交互审批；但显式 `prompt` 与显式 `deny` MUST 保持原决策。
+当 action 为 `fs.write` 且目标位于 auto-memory 目录时，runtime MAY 将默认 `prompt` 提升为 `allow` 以避免交互审批；但显式 `prompt` 与显式 `deny` MUST 保持原决策。
+
+`PERM-507`  
+`<FORMAX_CONFIG_DIR>/plans` 目录 MUST 始终被视为 workspace 白名单根，不受 `FORMAX_DEFERRED_TOOL_EXPOSURE` 开关影响。
 
 ## 7. Remember Side Effects 合同
 

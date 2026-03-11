@@ -21,7 +21,6 @@ import { detectWorkspaceRoots } from '../../adapters/fs/workspaceRoots.js'
 import { formatPathForDisplay, normalizePathForCompare } from '../../shared/utils/paths.js'
 import type { HookRun } from '../../hooks/types.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
-import { createRuntimeFlags } from '../../config/runtimeFlags.js'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath.js'
 
 function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
@@ -191,17 +190,17 @@ export function createPolicyPreflight(args: {
   homedir?: string
 }): ToolPreflight {
   const env = args.env ?? process.env
-  const deferredToolExposureEnabled = createRuntimeFlags(env).deferredToolExposureEnabled
   const grepSymlinkScanCache = new Map<string, GrepSymlinkScanCacheEntry>()
   const grepSymlinkScanInFlight = new Map<string, Promise<string | null>>()
-  const getAutoMemoryWhitelistRoot = (cwd: string): string | null => {
-    if (!deferredToolExposureEnabled) return null
-    const globalConfigDir = getConfigPaths({
+  const getGlobalConfigDir = (cwd: string): string =>
+    getConfigPaths({
       cwd,
       env,
       platform: args.platform,
       homedir: args.homedir,
     }).globalConfigDir
+  const getAutoMemoryWhitelistRoot = (cwd: string): string | null => {
+    const globalConfigDir = getGlobalConfigDir(cwd)
     return normalizeWorkspacePath(
       buildAutoMemoryDirectoryPath({
         cwd,
@@ -210,6 +209,8 @@ export function createPolicyPreflight(args: {
       cwd,
     )
   }
+  const getPlansWhitelistRoot = (cwd: string): string | null =>
+    normalizeWorkspacePath(path.join(getGlobalConfigDir(cwd), 'plans'), cwd)
   const resolveFirstEscapedGrepSymlinkDir = async (scanArgs: {
     rootDir: string
     workspaceRoots: string[]
@@ -361,6 +362,7 @@ export function createPolicyPreflight(args: {
       const rootsResult = await detectWorkspaceRoots({ fileStore: args.fileStore, cwd })
       const permissions = await getMergedPermissions()
       const autoMemoryWhitelistRoot = getAutoMemoryWhitelistRoot(cwd)
+      const plansWhitelistRoot = getPlansWhitelistRoot(cwd)
       const canonicalAutoMemoryRoot = autoMemoryWhitelistRoot
         ? await canonicalizeForWorkspaceCheck({
             fileStore: args.fileStore,
@@ -371,6 +373,7 @@ export function createPolicyPreflight(args: {
       const rootCandidates = [
         ...rootsResult.workspaceRoots,
         ...permissions.workspace.additionalDirectories.map((entry) => entry.dir),
+        ...(plansWhitelistRoot ? [plansWhitelistRoot] : []),
         ...(autoMemoryWhitelistRoot ? [autoMemoryWhitelistRoot] : []),
       ]
       const normalizedRoots = Array.from(

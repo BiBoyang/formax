@@ -339,34 +339,50 @@ function ExitPlanModePrompt({
     )
   }, [planText])
   const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
+  const staticPromptSection = useMemo(
+    () => (
+      <>
+        <Text color={PLAN_PROMPT_BORDER_COLOR}>{separator}</Text>
+
+        <Box flexDirection="column" marginTop={1} marginLeft={1}>
+          <Text bold color={theme.permission}>
+            {question}
+          </Text>
+        </Box>
+
+        <Box flexDirection="column" marginLeft={1} marginTop={1}>
+          <Text>Here is Claude's plan:</Text>
+        </Box>
+
+        <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
+          {planDivider}
+        </Text>
+        <Box flexDirection="column" marginLeft={1}>
+          <Text>{planBody}</Text>
+        </Box>
+        <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
+          {planDivider}
+        </Text>
+
+        <Box flexDirection="column" marginLeft={1} marginTop={1} marginBottom={1}>
+          <Text color={theme.secondaryText}>Would you like to proceed?</Text>
+        </Box>
+      </>
+    ),
+    [planBody, planDivider, question, separator, theme.permission, theme.secondaryText],
+  )
+  const staticFooter = useMemo(
+    () => (
+      <Box marginTop={1}>
+        <Text color={theme.secondaryText}>ctrl-g to edit in VS Code · {planPathDisplay}</Text>
+      </Box>
+    ),
+    [planPathDisplay, theme.secondaryText],
+  )
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text color={PLAN_PROMPT_BORDER_COLOR}>{separator}</Text>
-
-      <Box flexDirection="column" marginTop={1} marginLeft={1}>
-        <Text bold color={theme.permission}>
-          {question}
-        </Text>
-      </Box>
-
-      <Box flexDirection="column" marginLeft={1} marginTop={1}>
-        <Text>Here is Claude's plan:</Text>
-      </Box>
-
-      <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
-        {planDivider}
-      </Text>
-      <Box flexDirection="column" marginLeft={1}>
-        <Text>{planBody}</Text>
-      </Box>
-      <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
-        {planDivider}
-      </Text>
-
-      <Box flexDirection="column" marginLeft={1} marginTop={1} marginBottom={1}>
-        <Text color={theme.secondaryText}>Would you like to proceed?</Text>
-      </Box>
+      {staticPromptSection}
 
       <Box flexDirection="column" marginLeft={1}>
         <MenuRow cursor={cursor === 0} index={1} label={autoLabel} />
@@ -390,9 +406,7 @@ function ExitPlanModePrompt({
         </Box>
       </Box>
 
-      <Box marginTop={1}>
-        <Text color={theme.secondaryText}>ctrl-g to edit in VS Code · {planPathDisplay}</Text>
-      </Box>
+      {staticFooter}
     </Box>
   )
 }
