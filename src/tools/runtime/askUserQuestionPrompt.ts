@@ -1,14 +1,21 @@
-import type { ToolCall } from '../types.js'
+import type { ToolCall, ToolResult } from '../types.js'
 import type { AskUserQuestion, AskUserAnswers, UserInputManager } from './userInputManager.js'
 import type { ExecutionContext } from '../executor/index.js'
-import { runInteractivePromptTransaction } from './interactivePromptTransaction.js'
+import {
+  runInteractivePromptTransaction,
+  throwInteractivePromptFailure,
+} from './interactivePromptTransaction.js'
 
-export async function requestAskUserQuestionAnswers(args: {
+export type AskUserQuestionPromptResult =
+  | { ok: true; answers: AskUserAnswers }
+  | { ok: false; result: ToolResult }
+
+export async function requestAskUserQuestionAnswersResult(args: {
   call: ToolCall
   ctx: ExecutionContext
   userInput: UserInputManager
   questions: AskUserQuestion[]
-}): Promise<AskUserAnswers> {
+}): Promise<AskUserQuestionPromptResult> {
   const tx = await runInteractivePromptTransaction<AskUserAnswers>({
     call: args.call,
     ctx: args.ctx,
@@ -25,12 +32,22 @@ export async function requestAskUserQuestionAnswers(args: {
     unavailableContent: 'User input unavailable',
     abortedContent: 'Request aborted',
   })
+
   if (tx.ok !== true) {
-    const content = String(tx.result.content ?? '').trim()
-    if (content.startsWith('Error: ')) {
-      throw new Error(content.slice('Error: '.length))
-    }
-    throw new Error(content || 'Request failed')
+    return tx
   }
-  return tx.answers
+  return { ok: true, answers: tx.answers }
+}
+
+export async function requestAskUserQuestionAnswers(args: {
+  call: ToolCall
+  ctx: ExecutionContext
+  userInput: UserInputManager
+  questions: AskUserQuestion[]
+}): Promise<AskUserAnswers> {
+  const result = await requestAskUserQuestionAnswersResult(args)
+  if (result.ok !== true) {
+    throwInteractivePromptFailure({ result: result.result })
+  }
+  return result.answers
 }

@@ -3,7 +3,8 @@ import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
-import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
+import { toInteractivePromptFailureToolResult } from '../../runtime/interactivePromptTransaction'
+import { requestAskUserQuestionAnswersResult } from '../../runtime/askUserQuestionPrompt'
 
 const QUESTIONS: AskUserQuestion[] = [ENTER_PLAN_MODE_PROMPT]
 
@@ -31,14 +32,20 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
         const input = requirePlainObject(call.input || {}, 'EnterPlanMode.input')
         assertNoExtraKeys(input, [], 'EnterPlanMode.input')
 
-        const answers = await requestAskUserQuestionAnswers({
+        const answersResult = await requestAskUserQuestionAnswersResult({
           call,
           ctx,
           userInput,
           questions: QUESTIONS,
         })
+        if (answersResult.ok !== true) {
+          return toInteractivePromptFailureToolResult({
+            toolUseId: call.id,
+            result: answersResult.result,
+          })
+        }
 
-        const choice = resolveEnterPlanChoice(answers)
+        const choice = resolveEnterPlanChoice(answersResult.answers)
         if (choice === 'enter') {
           ctx.setReplMode?.('plan')
           return {

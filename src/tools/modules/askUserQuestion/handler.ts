@@ -2,7 +2,8 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
-import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
+import { toInteractivePromptFailureToolResult } from '../../runtime/interactivePromptTransaction'
+import { requestAskUserQuestionAnswersResult } from '../../runtime/askUserQuestionPrompt'
 
 export function createAskUserQuestionToolHandler(userInput: UserInputManager): ToolHandler {
   return {
@@ -49,16 +50,22 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
           }
         }
 
-        const answers = await requestAskUserQuestionAnswers({
+        const answersResult = await requestAskUserQuestionAnswersResult({
           call,
           ctx,
           userInput,
           questions,
         })
+        if (answersResult.ok !== true) {
+          return toInteractivePromptFailureToolResult({
+            toolUseId: call.id,
+            result: answersResult.result,
+          })
+        }
 
         return {
           tool_use_id: call.id,
-          content: JSON.stringify({ answers }, null, 2),
+          content: JSON.stringify({ answers: answersResult.answers }, null, 2),
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)

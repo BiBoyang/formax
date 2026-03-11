@@ -3,7 +3,8 @@ import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildExitedPlanModeSystemReminder } from '../../../shared/utils/planMode'
 import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
-import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
+import { toInteractivePromptFailureToolResult } from '../../runtime/interactivePromptTransaction'
+import { requestAskUserQuestionAnswersResult } from '../../runtime/askUserQuestionPrompt'
 
 const QUESTIONS: AskUserQuestion[] = [EXIT_PLAN_MODE_PROMPT]
 
@@ -30,14 +31,20 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
 
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
 
-        const answers = await requestAskUserQuestionAnswers({
+        const answersResult = await requestAskUserQuestionAnswersResult({
           call,
           ctx,
           userInput,
           questions: QUESTIONS,
         })
+        if (answersResult.ok !== true) {
+          return toInteractivePromptFailureToolResult({
+            toolUseId: call.id,
+            result: answersResult.result,
+          })
+        }
 
-        const resolved = resolveExitPlanChoice(answers)
+        const resolved = resolveExitPlanChoice(answersResult.answers)
         const choice = resolved.choice
         const feedback = resolved.feedback
 

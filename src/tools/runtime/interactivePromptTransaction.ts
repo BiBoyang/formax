@@ -4,10 +4,61 @@ import type { ToolCall, ToolResult } from '../types.js'
 import type { AskUserAnswers, AskUserQuestion, UserInputManager } from './userInputManager.js'
 
 type InteractiveRequestEvent = Extract<StreamEvent, { type: 'approval_request' | 'ask_user_question' }>
+const TOOL_ERROR_PREFIX = 'Error: '
+
+export type ApprovalLikeAnswerShape = {
+  decision?: string
+  feedback?: string
+}
 
 export type InteractivePromptTransactionResult<TAnswers extends AskUserAnswers> =
   | { ok: true; answers: TAnswers }
   | { ok: false; result: ToolResult }
+
+export function getInteractivePromptFailureMessage(args: {
+  result: Pick<ToolResult, 'content'>
+  fallbackMessage?: string
+}): string {
+  const content = String(args.result.content ?? '').trim()
+  if (!content) return args.fallbackMessage ?? 'Request failed'
+  if (content.startsWith(TOOL_ERROR_PREFIX)) {
+    return content.slice(TOOL_ERROR_PREFIX.length)
+  }
+  return content
+}
+
+export function throwInteractivePromptFailure(args: {
+  result: Pick<ToolResult, 'content'>
+  fallbackMessage?: string
+}): never {
+  throw new Error(getInteractivePromptFailureMessage(args))
+}
+
+export function toInteractivePromptFailureToolResult(args: {
+  toolUseId: string
+  result: Pick<ToolResult, 'content'>
+  fallbackMessage?: string
+}): ToolResult {
+  const message = getInteractivePromptFailureMessage({
+    result: args.result,
+    fallbackMessage: args.fallbackMessage,
+  })
+  return {
+    tool_use_id: args.toolUseId,
+    content: `${TOOL_ERROR_PREFIX}${message}`,
+    is_error: true,
+  }
+}
+
+export function normalizeApprovalLikeAnswer<TAnswer extends ApprovalLikeAnswerShape>(answers: TAnswer): {
+  decision: string
+  feedback: string
+} {
+  return {
+    decision: String(answers.decision || '').trim().toLowerCase(),
+    feedback: String(answers.feedback || '').trim(),
+  }
+}
 
 export async function runInteractivePromptTransaction<TAnswers extends AskUserAnswers>(args: {
   call: ToolCall

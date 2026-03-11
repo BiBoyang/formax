@@ -1,7 +1,10 @@
 import type { ToolCall, ToolResult } from '../types.js'
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ExecutionContext } from './index.js'
-import { runInteractivePromptTransaction } from '../runtime/interactivePromptTransaction.js'
+import {
+  normalizeApprovalLikeAnswer,
+  runInteractivePromptTransaction,
+} from '../runtime/interactivePromptTransaction.js'
 
 export type ApprovalLikeAnswer = {
   decision?: string
@@ -53,10 +56,11 @@ export async function promptForApprovalLikeAnswer<TAnswer extends ApprovalLikeAn
   }
 
   const answers = tx.answers
+  const normalized = normalizeApprovalLikeAnswer(answers)
   return {
     ok: true,
     answers,
-    decision: String(answers.decision || '').trim().toLowerCase(),
-    feedback: String(answers.feedback || '').trim(),
+    decision: normalized.decision,
+    feedback: normalized.feedback,
   }
 }

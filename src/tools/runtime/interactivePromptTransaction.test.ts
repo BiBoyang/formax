@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { UserInputManager } from './userInputManager.js'
-import { runInteractivePromptTransaction } from './interactivePromptTransaction.js'
+import {
+  getInteractivePromptFailureMessage,
+  normalizeApprovalLikeAnswer,
+  runInteractivePromptTransaction,
+  toInteractivePromptFailureToolResult,
+  throwInteractivePromptFailure,
+} from './interactivePromptTransaction.js'
 
 function createUserInput(overrides: Partial<UserInputManager> = {}): UserInputManager {
   return {
@@ -133,5 +139,86 @@ describe('runInteractivePromptTransaction', () => {
     expect(res.ok).toBe(false)
     if (res.ok !== false) throw new Error('Expected failure')
     expect(res.result.content).toBe('Error: boom')
+  })
+})
+
+describe('getInteractivePromptFailureMessage', () => {
+  it('strips Error prefix when present', () => {
+    const message = getInteractivePromptFailureMessage({
+      result: { content: 'Error: boom' },
+    })
+    expect(message).toBe('boom')
+  })
+
+  it('returns trimmed content when no Error prefix is present', () => {
+    const message = getInteractivePromptFailureMessage({
+      result: { content: '  Request aborted  ' },
+    })
+    expect(message).toBe('Request aborted')
+  })
+
+  it('falls back when content is empty', () => {
+    const message = getInteractivePromptFailureMessage({
+      result: { content: '   ' },
+      fallbackMessage: 'Fallback error',
+    })
+    expect(message).toBe('Fallback error')
+  })
+})
+
+describe('throwInteractivePromptFailure', () => {
+  it('throws parsed failure message', () => {
+    expect(() =>
+      throwInteractivePromptFailure({
+        result: { content: 'Error: request rejected' },
+      }),
+    ).toThrowError('request rejected')
+  })
+})
+
+describe('toInteractivePromptFailureToolResult', () => {
+  it('returns Error-prefixed tool result with parsed message', () => {
+    const result = toInteractivePromptFailureToolResult({
+      toolUseId: 'tool-1',
+      result: { content: 'Error: boom' },
+    })
+    expect(result).toEqual({
+      tool_use_id: 'tool-1',
+      content: 'Error: boom',
+      is_error: true,
+    })
+  })
+
+  it('prefixes non-prefixed content to preserve tool-error shape', () => {
+    const result = toInteractivePromptFailureToolResult({
+      toolUseId: 'tool-2',
+      result: { content: 'Request aborted' },
+    })
+    expect(result).toEqual({
+      tool_use_id: 'tool-2',
+      content: 'Error: Request aborted',
+      is_error: true,
+    })
+  })
+})
+
+describe('normalizeApprovalLikeAnswer', () => {
+  it('normalizes decision and feedback fields', () => {
+    const normalized = normalizeApprovalLikeAnswer({
+      decision: '  APPROVE_REMEMBER ',
+      feedback: '  please persist  ',
+    })
+    expect(normalized).toEqual({
+      decision: 'approve_remember',
+      feedback: 'please persist',
+    })
+  })
+
+  it('handles missing decision and feedback as empty strings', () => {
+    const normalized = normalizeApprovalLikeAnswer({})
+    expect(normalized).toEqual({
+      decision: '',
+      feedback: '',
+    })
   })
 })
