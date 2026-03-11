@@ -229,6 +229,12 @@ approval 返回未知 scope 时，canonical fallback MUST 为 `session`。
 `PERM-609`  
 对 `fs.write` 与 workspace read 而言，UI 中出现或缺失的 scope 选择不改变其 canonical remember 结果；scope 仅对第 `PERM-606` 条的“普通 policy action”生效。
 
+`PERM-610`  
+approval-like 决策解释（`approve` / `approve_remember` / `feedback` / `cancel`）MUST 由共享 resolver 统一收口，不得在 `approvalService` 与 `skillPreflight` 中维护分叉实现。规范锚点：
+1. `src/tools/executor/approvalLikePrompt.ts`（`resolveApprovalLikeOutcome`）
+2. `src/tools/executor/approvalService.ts`
+3. `src/tools/executor/skillPreflight.ts`
+
 ## 8. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：

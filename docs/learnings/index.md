@@ -18,6 +18,7 @@
 - `docs/learnings/2026-02-26-web-user-message-canonical.md`
 - `docs/learnings/2026-03-04-app-server-bounded-queues-and-overload.md`
 - `docs/learnings/2026-03-12-app-server-plan-path-parity.md`
+- `docs/learnings/2026-03-12-interactive-preflight-unified-orchestration.md`
 - `docs/learnings/2026-03-12-skill-preflight-protocolized-approval.md`
 
 ## Prompt / Capture / Tool Exposure

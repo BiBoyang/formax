@@ -62,7 +62,28 @@ canonical 协议输入类型 MUST 仅包含以下两类：
 `MATRIX-003`  
 `EnterPlanMode` / `ExitPlanMode` MUST 视为“plan-mode 语义交互入口”，它们在协议层 MUST 归一到 `ask_user_question`，不得新增第三种协议 `kind`。
 
-### 1.2 Skill preflight 协议化规则
+### 1.2 共享编排实现约束（防漂移）
+
+`MATRIX-201`  
+`AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` 这三条 `ask_user_question` 语义入口 MUST 复用同一事务编排主路径：
+1. `src/tools/runtime/interactivePromptTransaction.ts`
+2. `src/tools/runtime/askUserQuestionPrompt.ts`
+
+`MATRIX-202`  
+上述三条入口在 handler 层 SHOULD 优先使用 `requestAskUserQuestionAnswersResult` 的 `ok/result` 显式分支；若需要抛错语义，MAY 使用 `requestAskUserQuestionAnswers` 包装层，但不得自行重复实现 `Error:` 前缀解析。
+
+`MATRIX-203`  
+approval-like 入口（policy approval + skill approval）MUST 复用：
+1. `src/tools/executor/approvalLikePrompt.ts` 的 `promptForApprovalLikeAnswer`
+2. `src/tools/executor/approvalLikePrompt.ts` 的 `resolveApprovalLikeOutcome`
+
+`MATRIX-204`  
+交互入口层（tool handler / preflight）MUST NOT 各自重写以下规范化逻辑：
+1. 决策字符串标准化（如 `decision` 大小写/空白处理）
+2. rejection 文案构建（`Tool use rejected ...`）
+3. 交互失败 `ToolResult.content` 到最终错误文本的前缀处理
+
+### 1.3 Skill preflight 协议化规则
 
 `MATRIX-101`  
 `Skill` preflight（`src/tools/executor/skillPreflight.ts`）在需要人工确认时 MUST 发出 `approval_request` 事件，并进入 canonical `approval` 输入生命周期（`turn/inputRequested` -> `turn/inputResolved`）。
