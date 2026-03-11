@@ -40,6 +40,7 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
 
     return (
       <ExitPlanModePrompt
+        planPath={planPath}
         planText={planText}
         onAuto={() => userInput.submitAnswers(toolUseId, { choice: 'auto' })}
         onManual={() => userInput.submitAnswers(toolUseId, { choice: 'manual' })}
@@ -100,12 +101,14 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
 }
 
 function ExitPlanModePrompt({
+  planPath,
   planText,
   onAuto,
   onManual,
   onFeedback,
   onCancel,
 }: {
+  planPath?: string | null
   planText: string
   onAuto: () => void
   onManual: () => void
@@ -327,7 +330,7 @@ function ExitPlanModePrompt({
   const feedbackLine = typingValue.trim() ? typingValue.trim() : ''
   const planBody = useMemo(() => {
     const raw = (planText || '').trimEnd()
-    if (!raw) return '(empty plan)'
+    if (!raw) return 'No plan found. Please write your plan to the plan file first.'
     const lines = raw.split(/\r?\n/)
     if (lines.length <= MAX_PLAN_PROMPT_LINES) return raw
     return (
@@ -335,43 +338,52 @@ function ExitPlanModePrompt({
       `\n… (${lines.length - MAX_PLAN_PROMPT_LINES} more lines)`
     )
   }, [planText])
+  const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text color={theme.secondaryText}>{separator}</Text>
+      <Text color={PLAN_PROMPT_BORDER_COLOR}>{separator}</Text>
 
       <Box flexDirection="column" marginTop={1} marginLeft={1}>
-        <Text bold>{question}</Text>
+        <Text bold color={theme.permission}>
+          {question}
+        </Text>
       </Box>
 
       <Box flexDirection="column" marginLeft={1} marginTop={1}>
-        <Text color={theme.secondaryText}>Here is Claude's plan:</Text>
+        <Text>Here is Claude's plan:</Text>
       </Box>
 
-      <Text color={theme.secondaryText}>{planDivider}</Text>
+      <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
+        {planDivider}
+      </Text>
       <Box flexDirection="column" marginLeft={1}>
         <Text>{planBody}</Text>
       </Box>
-      <Text color={theme.secondaryText}>{planDivider}</Text>
+      <Text color={PLAN_PROMPT_DIVIDER_COLOR} dimColor>
+        {planDivider}
+      </Text>
 
       <Box flexDirection="column" marginLeft={1} marginTop={1} marginBottom={1}>
         <Text color={theme.secondaryText}>Would you like to proceed?</Text>
       </Box>
 
       <Box flexDirection="column" marginLeft={1}>
-        <MenuRow cursor={cursor === 0} label={`1. ${autoLabel}`} />
-        <MenuRow cursor={cursor === 1} label={`2. ${manualLabel}`} />
+        <MenuRow cursor={cursor === 0} index={1} label={autoLabel} />
+        <MenuRow cursor={cursor === 1} index={2} label={manualLabel} />
         <Box>
-          <Text>{cursor === 2 ? '❯ ' : '  '}</Text>
-          <Text color={cursor === 2 ? theme.text : theme.secondaryText}>3. </Text>
+          <Text color={cursor === 2 ? theme.permission : undefined}>{cursor === 2 ? '❯ ' : '  '}</Text>
+          <Text color={cursor === 2 ? theme.permission : undefined} dimColor>
+            3.{' '}
+          </Text>
           {typing ? (
-            <Text color={theme.text}>
+            <Text color={theme.permission}>
               {typingBeforeCursor}
               ▏
               {typingAfterCursor}
             </Text>
           ) : feedbackLine ? (
-            <Text color={cursor === 2 ? theme.text : theme.secondaryText}>{feedbackLine}</Text>
+            <Text color={cursor === 2 ? theme.permission : theme.secondaryText}>{feedbackLine}</Text>
           ) : (
             <Text color={theme.secondaryText}>{feedbackPlaceholder}</Text>
           )}
@@ -379,25 +391,31 @@ function ExitPlanModePrompt({
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>Esc to cancel · ctrl-g to edit in VS Code</Text>
+        <Text color={theme.secondaryText}>ctrl-g to edit in VS Code · {planPathDisplay}</Text>
       </Box>
     </Box>
   )
 }
 
-function MenuRow({ cursor, label, dim }: { cursor: boolean; label: string; dim?: boolean }): React.ReactNode {
+function MenuRow({ cursor, index, label }: { cursor: boolean; index: number; label: string }): React.ReactNode {
   const theme = getTheme()
-  const color = cursor ? theme.text : dim ? theme.secondaryText : theme.secondaryText
+  const prefixColor = cursor ? theme.permission : undefined
+  const labelColor = cursor ? theme.permission : undefined
   return (
     <Box>
-      <Text>{cursor ? '❯ ' : '  '}</Text>
-      <Text color={color}>{label}</Text>
+      <Text color={prefixColor}>{cursor ? '❯ ' : '  '}</Text>
+      <Text color={labelColor} dimColor>
+        {index}.{' '}
+      </Text>
+      <Text color={labelColor}>{label}</Text>
     </Box>
   )
 }
 
 const MAX_PLAN_PROMPT_LINES = 80
 const MAX_PLAN_APPROVED_LINES = 40
+const PLAN_PROMPT_BORDER_COLOR = '#48968c'
+const PLAN_PROMPT_DIVIDER_COLOR = '#505050'
 
 function safeReadFile(filePath: string): string {
   try {

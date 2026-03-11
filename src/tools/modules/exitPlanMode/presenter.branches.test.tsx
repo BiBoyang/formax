@@ -71,7 +71,7 @@ describe('ExitPlanMode presenter branch coverage', () => {
     expect(lastFrame()).toContain('Yes, and auto-accept edits')
     expect(lastFrame()).toContain('Type here to tell Claude what to change')
 
-    const row = render(__testOnlyExitPlanMode.MenuRow({ cursor: false, label: 'x', dim: true }) as any)
+    const row = render(__testOnlyExitPlanMode.MenuRow({ cursor: false, index: 2, label: 'x' }) as any)
     expect(row.lastFrame()).toContain('x')
     expect(__testOnlyExitPlanMode.indentBlock('a\nb', 2, 1)).toContain('… (1 more lines)')
     expect(__testOnlyExitPlanMode.indentBlock('' as any, 2, 1)).toContain('  ')

@@ -754,7 +754,7 @@ describe('ExitPlanModeToolPresenter', () => {
     )
 
     await tick()
-    expect(lastFrame()).toContain('(empty plan)')
+    expect(lastFrame()).toContain('No plan found. Please write your plan to the plan file first.')
   })
 
   it('uses unprefixed tool id as-is when submitting answers', async () => {

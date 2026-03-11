@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import { getTheme } from '../../tui/theme'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
@@ -70,6 +70,7 @@ function InteractiveAsk({
   onAbort: () => void
 }): React.ReactNode {
   const theme = getTheme()
+  const { stdout } = useStdout()
   const scope = 'prompt:askUserQuestion'
   useScopeActivation(scope)
 
@@ -78,6 +79,10 @@ function InteractiveAsk({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submittedRef = useRef(false)
   const [state, setState] = useState<QuestionState[]>(() => questions.map(() => createInitialQuestionState()))
+  const separator = useMemo(() => {
+    const width = Math.max(20, stdout?.columns ?? 80)
+    return '─'.repeat(width)
+  }, [stdout?.columns])
 
   const submitTab = questions.length
   const isSubmitTab = activeTab >= submitTab
@@ -295,30 +300,51 @@ function InteractiveAsk({
 
   const chipLine = (
     <Box>
-      <Text color={theme.secondaryText}>&lt;-  </Text>
+      <Text>←  </Text>
       {questions.map((q, i) => {
         const active = activeTab === i
         const mark = answeredFlags[i] ? '☒' : '☐'
         return (
           <Box key={`${toolUseId}-${q.header || i}`} marginRight={1}>
-            <Text inverse={active} color={active ? theme.text : theme.secondaryText}>
-              {mark} {truncate(q.header || `Q${i + 1}`, 12)}
-            </Text>
+            {active ? (
+              <Text color="black" backgroundColor={theme.permission}>
+                {' '}
+                {mark} {truncate(q.header || `Q${i + 1}`, 12)}{' '}
+              </Text>
+            ) : (
+              <Text>
+                {mark} {truncate(q.header || `Q${i + 1}`, 12)}
+              </Text>
+            )}
           </Box>
         )
       })}
       <Box marginLeft={1}>
-        <Text inverse={isSubmitTab} color={isSubmitTab ? theme.text : theme.secondaryText}>
-          ✓ Submit
-        </Text>
+        {isSubmitTab ? (
+          <Text color="black" backgroundColor={theme.permission}>
+            {' '}
+            ✔ Submit{' '}
+          </Text>
+        ) : (
+          <Text>✔ Submit</Text>
+        )}
       </Box>
-      <Text color={theme.secondaryText}>  -&gt;</Text>
+      <Text>  →</Text>
     </Box>
   )
 
+  const controlsHint =
+    !isSubmitTab && currentQ?.multiSelect
+      ? 'Enter to select · Space to toggle · Tab/Arrow keys to navigate · Esc to cancel'
+      : 'Enter to select · Tab/Arrow keys to navigate · Esc to cancel'
+
   return (
     <Box flexDirection="column">
-      {chipLine}
+      <Text color={theme.secondaryText} dimColor>
+        {separator}
+      </Text>
+
+      <Box marginTop={1}>{chipLine}</Box>
 
       <Box marginTop={1} flexDirection="column">
         {isSubmitTab ? (
@@ -334,8 +360,8 @@ function InteractiveAsk({
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.secondaryText}>
-          Enter to select · Space to toggle · Tab/Arrow keys to navigate · Esc to cancel
+        <Text color={theme.secondaryText} dimColor>
+          {controlsHint}
         </Text>
       </Box>
     </Box>
@@ -374,8 +400,12 @@ function QuestionPage({ q, s }: { q: AskQuestion; s: QuestionState | undefined }
 
         {q.multiSelect ? (
           <Box marginTop={1}>
-            <Text color={theme.secondaryText}>{state.cursor === q.options.length ? '> ' : '  '}</Text>
-            <Text bold>Submit</Text>
+            <Text color={state.cursor === q.options.length ? theme.permission : undefined}>
+              {state.cursor === q.options.length ? '❯ ' : '  '}
+            </Text>
+            <Text bold color={state.cursor === q.options.length ? theme.permission : undefined}>
+              Submit
+            </Text>
           </Box>
         ) : (
           <OtherRow
@@ -448,8 +478,8 @@ function MenuRow({ isCursor, label }: { isCursor: boolean; label: string }): Rea
   const theme = getTheme()
   return (
     <Box>
-      <Text>{isCursor ? '> ' : '  '}</Text>
-      <Text color={isCursor ? theme.text : theme.secondaryText}>{label}</Text>
+      <Text color={isCursor ? theme.permission : undefined}>{isCursor ? '❯ ' : '  '}</Text>
+      <Text color={isCursor ? theme.permission : theme.secondaryText}>{label}</Text>
     </Box>
   )
 }
@@ -470,17 +500,19 @@ function OptionRow({
   description: string
 }): React.ReactNode {
   const theme = getTheme()
-  const prefix = isCursor ? '>' : ' '
-  const mark = multi ? (selected ? '[✓]' : '[ ]') : ''
+  const prefix = isCursor ? '❯' : ' '
+  const mark = multi ? (selected ? '[✔]' : '[ ]') : ''
   const tail = !multi && selected ? ' ✓' : ''
 
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={theme.secondaryText}>{prefix} </Text>
-        <Text color={theme.secondaryText}>{index}. </Text>
-        {multi ? <Text color={selected ? theme.success : theme.secondaryText}>{mark} </Text> : null}
-        <Text color={!multi && selected ? theme.success : undefined} bold={selected}>
+        <Text color={isCursor ? theme.permission : undefined}>{prefix} </Text>
+        <Text color={isCursor ? theme.permission : undefined} dimColor>
+          {index}.{' '}
+        </Text>
+        {multi ? <Text color={selected ? theme.success : undefined}>{mark} </Text> : null}
+        <Text color={isCursor ? theme.permission : !multi && selected ? theme.success : undefined} bold={selected}>
           {label}
           {tail}
         </Text>
@@ -510,27 +542,29 @@ function OtherRow({
   typing: boolean
 }): React.ReactNode {
   const theme = getTheme()
-  const prefix = isCursor ? '>' : ' '
+  const prefix = isCursor ? '❯' : ' '
   const committed = value || ''
   const hasCommitted = Boolean(committed.trim())
   const hasDraft = Boolean((draft || '').length > 0)
   const tail = !typing && isAnswer ? ' ✓' : ''
 
   const displayText = typing
-    ? `${draft}|`
+    ? `${draft}▏`
     : hasCommitted
       ? committed
       : hasDraft
-        ? draft + (isCursor ? '|' : '')
-        : `Type something.${isCursor ? '|' : ''}`
+        ? draft + (isCursor ? '▏' : '')
+        : `Type something.${isCursor ? '▏' : ''}`
 
-  const color = typing ? theme.text : isAnswer ? theme.success : theme.secondaryText
+  const color = typing ? theme.permission : isAnswer ? theme.success : theme.secondaryText
 
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={theme.secondaryText}>{prefix} </Text>
-        <Text color={theme.secondaryText}>{index}. </Text>
+        <Text color={isCursor ? theme.permission : undefined}>{prefix} </Text>
+        <Text color={isCursor ? theme.permission : undefined} dimColor>
+          {index}.{' '}
+        </Text>
         <Text color={color} bold={typing || isAnswer}>
           {displayText}
           {tail}
