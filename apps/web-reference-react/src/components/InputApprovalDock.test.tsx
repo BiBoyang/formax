@@ -122,6 +122,22 @@ const approvalInputScopeApplicable: PendingInput = {
   },
 }
 
+const approvalInputSkill: PendingInput = {
+  inputId: 'approval-skill-1',
+  threadId: 'thread-1',
+  turnId: 'turn-1',
+  toolUseId: 'tool-approval-skill-1',
+  kind: 'approval',
+  status: 'pending',
+  createdAt: '2026-02-09T00:00:00.000Z',
+  expiresAt: '2030-02-09T00:05:00.000Z',
+  payload: {
+    toolName: 'Skill',
+    action: { kind: 'skill.use', skill: 'frontend-design' },
+    effectiveDecision: { decision: 'prompt' },
+  },
+}
+
 function AskHarness(props: {
   input?: PendingInput
   onSubmitInput?: (inputId: string, answers: Record<string, string>) => void
@@ -261,6 +277,30 @@ describe('InputApprovalDock', () => {
     expect(onSubmitInput).toHaveBeenCalledWith('ask-multi', {
       languages: 'TypeScript, Rust',
     })
+  })
+
+  it('submits skill remember directly without entering scope step', () => {
+    const onSubmitInput = vi.fn()
+    render(
+      <InputApprovalDock
+        input={approvalInputSkill}
+        isAskOpen
+        askPageIndex={0}
+        askDraftValues={{}}
+        isSubmitting={false}
+        onAskOpen={vi.fn()}
+        onAskDismiss={vi.fn()}
+        onAskPageChange={vi.fn()}
+        onAskDraftChange={vi.fn()}
+        onSubmitInput={onSubmitInput}
+      />,
+    )
+
+    expect(screen.getByLabelText('Approval step')).toHaveTextContent('1 of 1')
+    fireEvent.click(screen.getByRole('button', { name: /2\. Approve and remember/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    expect(onSubmitInput).toHaveBeenCalledWith('approval-skill-1', { decision: 'approve_remember' })
   })
 
   it('preserves comma-containing labels in multi-select answers', () => {

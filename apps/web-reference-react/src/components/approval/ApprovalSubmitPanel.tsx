@@ -51,8 +51,11 @@ function hasWorkspaceDir(payload: Record<string, unknown>): boolean {
 function shouldPromptScopeStep(payload: Record<string, unknown>): boolean {
   const action = toRecord(payload.action)
   const actionKind = typeof action.kind === 'string' ? action.kind.trim() : ''
+  const toolName = typeof payload.toolName === 'string' ? payload.toolName.trim() : ''
 
+  if (toolName === 'Skill') return false
   if (!actionKind) return true
+  if (actionKind === 'skill.use') return false
   if (actionKind === 'bash.exec') return false
   if (actionKind === 'fs.write') return false
   if (actionKind === 'fs.read' && hasWorkspaceDir(payload)) return false

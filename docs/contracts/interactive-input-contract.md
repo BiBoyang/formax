@@ -54,6 +54,7 @@ canonical 协议输入类型 MUST 仅包含以下两类：
 | 语义入口 | 入口层级 | 主实现路径（规范锚点） | 触发事件 | 协议 `input.kind` | 提交载荷 |
 |---|---|---|---|---|---|
 | policy / workspace approval | preflight | `src/tools/executor/policyPreflight.ts` + `src/tools/executor/approvalService.ts` | `approval_request` | `approval` | `approve / approve_remember / feedback / cancel` |
+| `Skill` preflight approval | preflight | `src/tools/executor/skillPreflight.ts` | `approval_request` | `approval` | `approve / approve_remember / feedback / cancel` |
 | `AskUserQuestion` tool | tool handler | `src/tools/modules/askUserQuestion/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>` |
 | `EnterPlanMode` tool | tool handler | `src/tools/modules/enterPlanMode/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>`（典型字段：`choice`） |
 | `ExitPlanMode` tool | tool handler | `src/tools/modules/exitPlanMode/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>`（典型字段：`choice`/`feedback`） |
@@ -61,13 +62,13 @@ canonical 协议输入类型 MUST 仅包含以下两类：
 `MATRIX-003`  
 `EnterPlanMode` / `ExitPlanMode` MUST 视为“plan-mode 语义交互入口”，它们在协议层 MUST 归一到 `ask_user_question`，不得新增第三种协议 `kind`。
 
-### 1.2 非协议交互入口（实现现状）
+### 1.2 Skill preflight 协议化规则
 
 `MATRIX-101`  
-`Skill` preflight 当前存在 approval-like 交互路径（`src/tools/executor/skillPreflight.ts`），其实现为直接调用 `requestAnswers`，未经过 `approval_request`/`turn/inputRequested` 协议生命周期。
+`Skill` preflight（`src/tools/executor/skillPreflight.ts`）在需要人工确认时 MUST 发出 `approval_request` 事件，并进入 canonical `approval` 输入生命周期（`turn/inputRequested` -> `turn/inputResolved`）。
 
 `MATRIX-102`  
-`Skill` preflight 的该路径 MUST 视为“非协议交互入口（out-of-band）”，不计入 canonical `input.kind` 集合；若后续迁移到协议层，必须先更新本合同矩阵与生命周期规则。
+`Skill` preflight 的 approval payload SHOULD 使用 `toolName='Skill'` 与 `action.kind='skill.use'`，用于 renderer 在不引入 policy-scope 语义的前提下渲染审批流程。
 
 ## 2. 生命周期规则
 
@@ -121,8 +122,9 @@ renderer 变更 MUST NOT 改变 permissions/policy 的 canonical 结果；allow/
 1. `bash.exec`：不出现 scope 步骤
 2. `fs.write`：不出现 scope 步骤
 3. 带 `workspaceRequest.dir` 的 `fs.read`：不出现 scope 步骤
-4. 其他支持 policy-scope 的 action：出现 scope 步骤
-5. 缺失 `action.kind`：出现 scope 步骤（保守回退）
+4. `skill.use`（或 `toolName='Skill'`）：不出现 scope 步骤
+5. 其他支持 policy-scope 的 action：出现 scope 步骤
+6. 缺失 `action.kind`：出现 scope 步骤（保守回退）
 
 这属于 renderer 行为。最终语义结果由 `docs/contracts/permissions-policy-contract.md` 约束。
 
@@ -192,7 +194,7 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 当变更以下任一行为时：
 1. `approval` / `ask_user_question` 生命周期与提交语义
 2. `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` 到协议 `kind` 的映射
-3. `Skill` preflight 的交互入口是否进入协议层（out-of-band -> protocolized）
+3. `Skill` preflight 的 approval payload 形状或协议映射（`approval_request` / `action.kind='skill.use'`）
 
 必须：
 1. 先更新本文件。

@@ -178,6 +178,51 @@ describe('createSkillPreflight', () => {
     }
   })
 
+  it('emits approval_request metadata before waiting for skill approval answers', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-approval-event-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(projectDir, { recursive: true })
+      const onEvent = vi.fn()
+
+      const requestAnswers = vi.fn(async () => ({ decision: 'approve' }))
+      const userInput: UserInputManager = {
+        requestAnswers,
+        submitAnswers: () => true,
+        reject: () => true,
+        rejectAllPending: () => 0,
+        clearBufferedAnswers: () => {},
+        isPending: () => false,
+      }
+
+      const preflight = createSkillPreflight({ fileStore: store, userInput })
+      const res = await preflight(
+        { id: 't-approval-event', name: 'Skill', input: { skill: 'frontend-design' } },
+        { cwd: projectDir, agentDepth: 0, onEvent },
+      )
+
+      expect(res).toBeNull()
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'approval_request',
+          toolUseId: 't-approval-event',
+          toolName: 'Skill',
+          action: expect.objectContaining({ kind: 'skill.use', skill: 'frontend-design' }),
+          effectiveDecision: 'prompt',
+        }),
+      )
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 't-approval-event' }))
+
+      const approvalRequestIndex = onEvent.mock.calls.findIndex((call) => call[0]?.type === 'approval_request')
+      const toolUpdateIndex = onEvent.mock.calls.findIndex((call) => call[0]?.type === 'tool_update')
+      expect(approvalRequestIndex).toBeGreaterThanOrEqual(0)
+      expect(toolUpdateIndex).toBeGreaterThan(approvalRequestIndex)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('applies persisted allow immediately (no restart needed)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-skill-preflight-immediate-'))
     try {

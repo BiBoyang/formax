@@ -66,6 +66,15 @@ export function createSkillPreflight(args: {
       unavailableContent: 'Error: Skill requires user approval.',
       abortedContent: 'Request aborted',
       requireInteractive: true,
+      beforeRequest: () => {
+        ctx.onEvent?.({
+          type: 'approval_request',
+          toolUseId: call.id,
+          toolName: 'Skill',
+          action: { kind: 'skill.use', skill },
+          effectiveDecision: 'prompt',
+        })
+      },
     })
     if (promptResult.ok !== true) return promptResult.result
     const { decision, feedback } = promptResult
