@@ -23,7 +23,11 @@ describe('planMode', () => {
     expect(out).toContain('<system-reminder>')
     expect(out).toContain('Plan mode is active.')
     expect(out).toContain('MUST NOT make any edits')
+    expect(out).toContain('This supercedes any other instructions you have received.')
     expect(out).not.toContain('Plan File Info:')
+    expect(out).toContain('## Plan Workflow')
+    expect(out).toContain('use AskUserQuestion to clarify')
+    expect(out).toContain('call ExitPlanMode')
   })
 
   it('buildPlanModeSystemReminder includes plan path info when planPath is provided', () => {
@@ -32,6 +36,8 @@ describe('planMode', () => {
     expect(out).toContain('Plan File Info:')
     expect(out).toContain('A plan file already exists at /x/plan.md.')
     expect(out).toContain('only file you are allowed to edit')
+    expect(out).toContain('## Plan Workflow')
+    expect(out).toContain('your plan-mode turn should end with either AskUserQuestion')
   })
 
   it('buildExitedPlanModeSystemReminder includes plan path only when provided', () => {
@@ -42,4 +48,3 @@ describe('planMode', () => {
     expect(buildExitedPlanModeSystemReminder('/x/plan.md')).toContain('The plan file is located at /x/plan.md')
   })
 })
-

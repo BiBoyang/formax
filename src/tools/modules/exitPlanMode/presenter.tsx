@@ -22,7 +22,9 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { status } = message.toolInfo
-  const toolUseId = message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id
+  const toolUseId =
+    message.toolInfo.toolUseId ??
+    (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   const planPath = planSession?.getPlanPath() ?? null
   const planText = useMemo(() => (planPath ? safeReadFile(planPath) : ''), [planPath])

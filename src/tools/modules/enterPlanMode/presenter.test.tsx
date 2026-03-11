@@ -127,6 +127,33 @@ describe('EnterPlanModeToolPresenter', () => {
     expect(submitAnswers).toHaveBeenCalledWith('raw-id', { choice: 'enter' })
   })
 
+  it('prefers explicit toolUseId over canonical message id when submitting', async () => {
+    const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+    const userInput = createUserInput(submitAnswers)
+
+    const message: Msg = {
+      ...createRunningMessage(),
+      id: 'turn-1:tool:2:call_enter_456',
+      toolInfo: {
+        ...createRunningMessage().toolInfo!,
+        toolUseId: 'call_enter_456',
+      },
+    }
+    const { stdin } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={message} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    stdin.write('\r')
+    await tick()
+
+    expect(submitAnswers).toHaveBeenCalledWith('call_enter_456', { choice: 'enter' })
+  })
+
   it('submits skip on Escape', async () => {
     const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
     const userInput = createUserInput(submitAnswers)

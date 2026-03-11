@@ -791,6 +791,44 @@ describe('ExitPlanModeToolPresenter', () => {
     }
   })
 
+  it('prefers explicit toolUseId over canonical message id when submitting', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
+      const userInput = createUserInput(submitAnswers)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const message: Msg = {
+        ...createRunningExitPlanModeMessage(),
+        id: 'turn-1:tool:3:call_exit_123',
+        toolInfo: {
+          ...createRunningExitPlanModeMessage().toolInfo!,
+          toolUseId: 'call_exit_123',
+        },
+      }
+
+      const { stdin } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={message} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      stdin.write('\r')
+      await tick()
+      expect(submitAnswers).toHaveBeenCalledWith('call_exit_123', { choice: 'auto' })
+    } finally {
+      cleanup()
+    }
+  })
+
   it('renders completed non-error state without first line when result/content are empty', async () => {
     const message: Msg = {
       id: 'tool-1',

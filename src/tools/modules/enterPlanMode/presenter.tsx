@@ -16,7 +16,9 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
   const { status } = message.toolInfo
-  const toolUseId = message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id
+  const toolUseId =
+    message.toolInfo.toolUseId ??
+    (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
   if (status === 'running') {
     if (!userInput) {
