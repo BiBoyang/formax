@@ -1,11 +1,14 @@
 # TUI Interactive Input Inventory（approval / ask_user_question）
 
-更新时间：2026-02-26
+更新时间：2026-03-12
+
+> 重要说明：本文件是 **informative inventory**（盘点）而非规范。  
+> 交互入口矩阵与协议映射的唯一事实源已升级为：`docs/contracts/interactive-input-contract.md`。
 
 本文件是信息性盘点（informative inventory），用于统计当前形态。  
 `approval` / `ask_user_question` 的规范性唯一事实源已固定为：`docs/contracts/interactive-input-contract.md`。
 
-范围约束：
+范围约束（本文件）：
 - 本轮只统计 `approval` 与 `ask_user_question` 两类输入形态。
 - 暂不并入 `EnterPlanMode` / `ExitPlanMode` 的专用提示 UI（可在下一轮补充为附录）。
 

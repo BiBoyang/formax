@@ -1,13 +1,14 @@
 # 交互输入合同（唯一事实源）
 
-最后更新：2026-02-26  
+最后更新：2026-03-12  
 状态：规范性（Normative）
 
 本文档是 Formax 中交互输入行为的唯一事实来源（Single Source of Truth）。
 
 范围：
-- `approval`
-- `ask_user_question`
+- canonical 协议输入类型：`approval` / `ask_user_question`
+- 语义交互入口与协议映射（含 `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode`）
+- 交互 preflight 入口归类（含 policy approval 与 skill approval-like 现状）
 - 覆盖 app-server、TUI、Web 共享的生命周期与提交语义
 
 不在范围内：
@@ -40,7 +41,37 @@
 4. expired
 5. failed
 
+### 1.1 交互入口矩阵（语义层 -> 协议层）
+
+`MATRIX-001`  
+canonical 协议输入类型 MUST 仅包含以下两类：
+1. `approval`
+2. `ask_user_question`
+
+`MATRIX-002`  
+语义入口到协议层的映射 MUST 以如下矩阵为准：
+
+| 语义入口 | 入口层级 | 主实现路径（规范锚点） | 触发事件 | 协议 `input.kind` | 提交载荷 |
+|---|---|---|---|---|---|
+| policy / workspace approval | preflight | `src/tools/executor/policyPreflight.ts` + `src/tools/executor/approvalService.ts` | `approval_request` | `approval` | `approve / approve_remember / feedback / cancel` |
+| `AskUserQuestion` tool | tool handler | `src/tools/modules/askUserQuestion/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>` |
+| `EnterPlanMode` tool | tool handler | `src/tools/modules/enterPlanMode/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>`（典型字段：`choice`） |
+| `ExitPlanMode` tool | tool handler | `src/tools/modules/exitPlanMode/handler.ts` | `ask_user_question` | `ask_user_question` | `Record<string,string>`（典型字段：`choice`/`feedback`） |
+
+`MATRIX-003`  
+`EnterPlanMode` / `ExitPlanMode` MUST 视为“plan-mode 语义交互入口”，它们在协议层 MUST 归一到 `ask_user_question`，不得新增第三种协议 `kind`。
+
+### 1.2 非协议交互入口（实现现状）
+
+`MATRIX-101`  
+`Skill` preflight 当前存在 approval-like 交互路径（`src/tools/executor/skillPreflight.ts`），其实现为直接调用 `requestAnswers`，未经过 `approval_request`/`turn/inputRequested` 协议生命周期。
+
+`MATRIX-102`  
+`Skill` preflight 的该路径 MUST 视为“非协议交互入口（out-of-band）”，不计入 canonical `input.kind` 集合；若后续迁移到协议层，必须先更新本合同矩阵与生命周期规则。
+
 ## 2. 生命周期规则
+
+以下规则针对 canonical 协议输入（`approval` / `ask_user_question`）。
 
 `INPUT-001`  
 每个 pending input MUST 来源于 `turn/inputRequested`。
@@ -158,7 +189,12 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 
 ## 8. 变更控制
 
-当变更 `approval` 或 `ask_user_question` 行为时：
+当变更以下任一行为时：
+1. `approval` / `ask_user_question` 生命周期与提交语义
+2. `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` 到协议 `kind` 的映射
+3. `Skill` preflight 的交互入口是否进入协议层（out-of-band -> protocolized）
+
+必须：
 1. 先更新本文件。
 2. 在同一变更中更新实现与测试。
 3. 将 `docs/contracts/app-server-interaction-contract.md`、`docs/references/app-server-api-reference.md`、`docs/frontend/app-server-ui-spec.md` 保持为摘要 + 链接，不重复完整语义。

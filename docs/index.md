@@ -25,7 +25,7 @@
 - 不变量与所有权规则：`docs/contracts/invariants.md`
 - Golden Principles 护栏：`docs/contracts/golden-principles.md`
 - 项目语义唯一事实源（跨端 semantics）：`docs/contracts/semantics-contract.md`
-- 交互输入语义唯一事实源（approval / ask）：`docs/contracts/interactive-input-contract.md`
+- 交互输入语义唯一事实源（approval / ask / plan-mode 映射 / preflight 入口矩阵）：`docs/contracts/interactive-input-contract.md`
 - Permissions / policy 唯一事实源（allow / ask / deny / remember / workspace）：`docs/contracts/permissions-policy-contract.md`
 - Transcript surface 唯一事实源（reset / remount / clear / resume）：`docs/contracts/transcript-surface-contract.md`
 - Prompt / tool exposure 唯一事实源（deferred tools / skills reminder / request preview）：`docs/contracts/prompt-tool-exposure-contract.md`
@@ -78,7 +78,7 @@
 
 ## 盘点（Inventories）
 
-- TUI 交互输入形态盘点（informative）：`docs/inventories/interactive-input-inventory.md`
+- TUI 交互输入形态盘点（informative，规范以 `contracts/interactive-input-contract.md` 为准）：`docs/inventories/interactive-input-inventory.md`
 
 ## 陷阱库（Pitfalls）
 
