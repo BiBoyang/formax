@@ -1,6 +1,6 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-03-07
+更新时间：2026-03-12
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
@@ -78,6 +78,11 @@
 
 - 入参：`{ threadId, input: { text }, cwd?: string }`
 - 返回：`{ turn: { id, threadId, status: "running" } }`
+- mode 语义约束（当 `mode="plan"`）：
+  - app-server MUST 为该 thread 维护稳定的 plan file 路径（跨多个 plan turn 保持一致，直到 thread 生命周期结束或显式切换上下文）。
+  - app-server MUST 将该 plan path 同时注入：
+    - `buildTurnInput(..., planPath)`（用于 plan-mode system reminder）
+    - engine `exec.getPlanPath/exec.planPath`（用于 preflight 对 `Write/Edit` 的 plan-file 白名单判断）
 - 并发约束：
   - 同一 `threadId` 同时最多 1 个 in-flight turn
   - 冲突时返回 `INVALID_PARAMS`（`Turn already running...`）
@@ -353,5 +358,4 @@ turn 通知到 canonical 的最小映射保证：
 | 错误码常量                                                                 | `src/app-server/jsonrpc.ts`                                                                                                   | `src/app-server/jsonrpc.test.ts`                                                                                         |
 | ingress/process/outbound 有界队列与过载拒绝                                    | `src/app-server/index.ts`, `src/app-server/jsonrpc.ts`                                                                        | `src/app-server/index.test.ts`, `src/app-server/index.coverage.test.ts`                                                  |
 | `PAYLOAD_TOO_LARGE`（request/event）                                    | `src/app-server/index.ts`, `src/app-server/transport/stdio.ts`                                                                | `src/app-server/index.test.ts`, `src/app-server/transport/stdio.test.ts`                                                 |
-
 

@@ -36,6 +36,8 @@ import {
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
+import { loadRuntimeConfig } from '../config/config.js'
+import { createPlanSessionManager, type PlanSessionManager } from '../features/repl/planSession.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -75,6 +77,8 @@ type RunningTurn = {
   modelUserContent: PromptBlock[]
   semanticBlockCount: number
   replMode: ReplMode
+  planSession: PlanSessionManager | null
+  planPath: string | null
   abortController: AbortController
   inputStore: TurnInputStore
   writer: SessionWriter | null
@@ -225,6 +229,7 @@ export class TurnRunner {
   private readonly ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
   private readonly runtimeFlags: RuntimeFlags
   private readonly threadFilePathById = new Map<string, string>()
+  private readonly planSessionByThreadId = new Map<string, PlanSessionManager>()
   private readonly runningByThreadId = new Map<string, RunningTurn>()
   private readonly autoTitleAttemptedThreadIds = new Set<string>()
   private readonly autoTitleCheckedTopicPromptKeys = new Set<string>()
@@ -258,10 +263,24 @@ export class TurnRunner {
     const filePath = await this.resolveOrCreateThreadFilePath({ threadId: params.threadId, cwd })
 
     const initialMode = normalizeReplMode(params.mode, 'normal')
+    let planSession = this.planSessionByThreadId.get(params.threadId) ?? null
+    if (initialMode === 'plan' && !planSession) {
+      const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
+        platform: this.platform,
+        homedir: this.homedir,
+      })
+      planSession = createPlanSessionManager({ planDir: runtimeConfig.paths.planDir })
+      this.planSessionByThreadId.set(params.threadId, planSession)
+    }
+    const planPath =
+      initialMode === 'plan'
+        ? planSession?.getPlanPath() ?? planSession?.startNewPlan() ?? null
+        : planSession?.getPlanPath() ?? null
+
     const turnInput = buildTurnInput({
       rawText: params.input.text,
       mode: initialMode,
-      planPath: null,
+      planPath,
       includeExitPlanReminder: Boolean(params.includeExitPlanReminder),
     })
     const commandRouting = resolveCommandRouting(params.input.text)
@@ -280,6 +299,8 @@ export class TurnRunner {
       modelUserContent: [...turnInput.semanticBlocks, ...turnInput.userBlocks],
       semanticBlockCount: turnInput.semanticBlocks.length,
       replMode: initialMode,
+      planSession,
+      planPath,
       abortController: new AbortController(),
       inputStore: new TurnInputStore({
         threadId: params.threadId,
@@ -449,6 +470,13 @@ export class TurnRunner {
       const setReplMode = (nextMode: ReplMode) => {
         const transition = resolveReplModeTransition({ current: running.replMode, next: nextMode })
         if (!transition) return
+        if (running.planSession) {
+          if (transition.to === 'plan' && !running.planPath) {
+            running.planPath = running.planSession.getPlanPath() ?? running.planSession.startNewPlan()
+          } else {
+            running.planPath = running.planSession.getPlanPath()
+          }
+        }
         running.replMode = transition.to
         this.emitTurnNotification(running, 'turn/modeChanged', 'engine', {
           threadId: running.threadId,
@@ -597,6 +625,8 @@ export class TurnRunner {
             replMode: running.replMode,
             getReplMode,
             setReplMode,
+            getPlanPath: () => running.planPath,
+            planPath: running.planPath,
             trace: turnTrace,
           },
         })
@@ -634,6 +664,8 @@ export class TurnRunner {
             replMode: running.replMode,
             getReplMode,
             setReplMode,
+            getPlanPath: () => running.planPath,
+            planPath: running.planPath,
             trace: turnTrace,
             ...(toolExposure.toolExposureSessionKey
               ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey }

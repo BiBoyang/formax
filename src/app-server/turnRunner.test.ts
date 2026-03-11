@@ -1830,6 +1830,7 @@ describe('TurnRunner', () => {
     let capturedReplMode: string | undefined
     let capturedInteractive: boolean | undefined
     let capturedFirstUserTextBlock: string | undefined
+    let capturedPlanPath: string | null = null
 
     const runner = new TurnRunner({
       engine: {
@@ -1847,6 +1848,7 @@ describe('TurnRunner', () => {
           capturedFirstUserTextBlock = userText
           capturedReplMode = args.exec?.replMode as string | undefined
           capturedInteractive = args.exec?.interactive
+          capturedPlanPath = args.exec?.getPlanPath?.() ?? args.exec?.planPath ?? null
           args.onEvent({ type: 'assistant_delta', text: 'ok' })
           args.onEvent({ type: 'complete' })
           return [
@@ -1876,6 +1878,10 @@ describe('TurnRunner', () => {
     expect(capturedFirstUserTextBlock).toContain('Plan mode is active')
     expect(capturedReplMode).toBe('plan')
     expect(capturedInteractive).toBe(true)
+    expect(capturedPlanPath).toBeTruthy()
+    expect(capturedFirstUserTextBlock).toContain(String(capturedPlanPath))
+    const planStat = await fs.stat(String(capturedPlanPath))
+    expect(planStat.isFile()).toBe(true)
 
     const filePath = await findSessionFileBySessionId({
       cwd: fixture.cwd,
@@ -1890,6 +1896,75 @@ describe('TurnRunner', () => {
       ? String((latestUser.content[0] as { text?: string } | undefined)?.text ?? '')
       : ''
     expect(latestUserText).toBe('mode test')
+  })
+
+  it('keeps a stable plan path across plan-mode turns for the same thread', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const capturedPlanPaths: string[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userTextBlocks = Array.isArray(args.user.content)
+            ? args.user.content
+                .filter((block) => (block as any)?.type === 'text')
+                .map((block) => String((block as any)?.text ?? ''))
+            : []
+          const userText = userTextBlocks.join('\n\n')
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Stable Plan Path Title' }] },
+            ] as ChatHistory
+          }
+          const planPath = args.exec?.getPlanPath?.() ?? args.exec?.planPath ?? null
+          if (typeof planPath === 'string' && planPath.trim()) {
+            capturedPlanPaths.push(planPath)
+          }
+          args.onEvent({ type: 'assistant_delta', text: 'ok' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const turn1 = await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'plan turn one' },
+      mode: 'plan',
+    })
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && n.params?.turn?.id === turn1.turn.id,
+    )
+
+    const turn2 = await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'plan turn two' },
+      mode: 'plan',
+    })
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && n.params?.turn?.id === turn2.turn.id,
+    )
+
+    expect(capturedPlanPaths).toHaveLength(2)
+    expect(capturedPlanPaths[0]).toBeTruthy()
+    expect(capturedPlanPaths[1]).toBe(capturedPlanPaths[0])
   })
 
   it('injects exit-plan reminder when explicitly requested', async () => {

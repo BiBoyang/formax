@@ -17,6 +17,7 @@
 - `docs/learnings/2026-02-25-app-server-session-grouping-and-hidden-cwds.md`
 - `docs/learnings/2026-02-26-web-user-message-canonical.md`
 - `docs/learnings/2026-03-04-app-server-bounded-queues-and-overload.md`
+- `docs/learnings/2026-03-12-app-server-plan-path-parity.md`
 
 ## Prompt / Capture / Tool Exposure
 
