@@ -12,7 +12,7 @@ Canonical docs:
 
 本文件用于代码近侧说明、扩展路径和调试提示；涉及稳定工具执行顺序、`ToolSearch` runtime、`ToolResult` / `CommandResult` 边界、用户输入语义、权限规则或 hooks 交互时，先更新上面的 canonical docs。
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 ## 1) 作用（What）
 
@@ -87,9 +87,9 @@ flowchart LR
 
 ### 给工具添加审批流程
 
-1. Handler 调用 `userInputManager.requestAnswers(...)` 返回 Promise
-2. UI 层（如 `editApprovalPrompt.tsx`）监听 pending 状态并渲染选项
-3. 用户选择后调用 `userInputManager.submitAnswers(...)`
+1. Handler / preflight 优先复用共享编排 helper（`runtime/interactivePromptTransaction.ts`、`runtime/askUserQuestionPrompt.ts`、`executor/approvalLikePrompt.ts`），不要在入口层重复实现 decision/error 规范化。
+2. 仅在 runtime 封装层直接调用 `userInputManager.requestAnswers(...)`；业务入口层优先走 `ok/result` 或已有包装函数。
+3. UI 层（如 `editApprovalPrompt.tsx`）监听 pending 状态并渲染选项，用户选择后调用 `userInputManager.submitAnswers(...)`。
 
 ### 添加后台长任务
 
