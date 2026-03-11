@@ -2,6 +2,7 @@ import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
+import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
 
 export function createAskUserQuestionToolHandler(userInput: UserInputManager): ToolHandler {
   return {
@@ -48,16 +49,11 @@ export function createAskUserQuestionToolHandler(userInput: UserInputManager): T
           }
         }
 
-        ctx.onEvent?.({
-          type: 'ask_user_question',
-          toolUseId: call.id,
+        const answers = await requestAskUserQuestionAnswers({
+          call,
+          ctx,
+          userInput,
           questions,
-        })
-
-        const answers = await userInput.requestAnswers({
-          toolUseId: call.id,
-          questions,
-          signal: ctx.signal,
         })
 
         return {

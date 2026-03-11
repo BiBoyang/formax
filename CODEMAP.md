@@ -189,6 +189,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Executor handlers (e.g. Task): `src/tools/executor/handlers/*`
 - Runtime task manager (background tasks, cancel): `src/tools/runtime/taskManager.ts`
 - Runtime user input manager (approval prompts / AskUserQuestion answers): `src/tools/runtime/userInputManager.ts`
+- Runtime ask-user-question transaction helper: `src/tools/runtime/askUserQuestionPrompt.ts`
 - Deferred tool exposure store + ToolSearch session state: `src/tools/runtime/deferredToolExposure.ts`
 - Cross-entry deferred exposure resolver (REPL/app-server/SDK shared wiring): `src/tools/runtime/deferredToolExposureResolver.ts`
 - ToolSearch engine core (mode parsing + regex/BM25/hybrid ranking): `src/tools/runtime/toolSearchEngine.ts`

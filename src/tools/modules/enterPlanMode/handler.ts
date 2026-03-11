@@ -3,6 +3,7 @@ import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { assertNoExtraKeys, requirePlainObject } from '../../utils/strictInput'
 import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
+import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
 
 const QUESTIONS: AskUserQuestion[] = [ENTER_PLAN_MODE_PROMPT]
 
@@ -30,16 +31,11 @@ export function createEnterPlanModeToolHandler(userInput: UserInputManager): Too
         const input = requirePlainObject(call.input || {}, 'EnterPlanMode.input')
         assertNoExtraKeys(input, [], 'EnterPlanMode.input')
 
-        ctx.onEvent?.({
-          type: 'ask_user_question',
-          toolUseId: call.id,
+        const answers = await requestAskUserQuestionAnswers({
+          call,
+          ctx,
+          userInput,
           questions: QUESTIONS,
-        })
-
-        const answers = await userInput.requestAnswers({
-          toolUseId: call.id,
-          questions: QUESTIONS,
-          signal: ctx.signal,
         })
 
         const choice = resolveEnterPlanChoice(answers)

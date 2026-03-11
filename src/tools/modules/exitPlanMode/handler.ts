@@ -3,6 +3,7 @@ import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
 import { buildExitedPlanModeSystemReminder } from '../../../shared/utils/planMode'
 import { EXIT_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
+import { requestAskUserQuestionAnswers } from '../../runtime/askUserQuestionPrompt'
 
 const QUESTIONS: AskUserQuestion[] = [EXIT_PLAN_MODE_PROMPT]
 
@@ -29,16 +30,11 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
 
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
 
-        ctx.onEvent?.({
-          type: 'ask_user_question',
-          toolUseId: call.id,
+        const answers = await requestAskUserQuestionAnswers({
+          call,
+          ctx,
+          userInput,
           questions: QUESTIONS,
-        })
-
-        const answers = await userInput.requestAnswers({
-          toolUseId: call.id,
-          questions: QUESTIONS,
-          signal: ctx.signal,
         })
 
         const resolved = resolveExitPlanChoice(answers)
