@@ -6,6 +6,20 @@ import type { AskUserAnswers, AskUserQuestion, UserInputManager } from './userIn
 type InteractiveRequestEvent = Extract<StreamEvent, { type: 'approval_request' | 'ask_user_question' }>
 const TOOL_ERROR_PREFIX = 'Error: '
 
+export type InteractivePromptDescriptor =
+  | {
+      kind: 'approval'
+      requestEvent: Extract<StreamEvent, { type: 'approval_request' }>
+      questions?: AskUserQuestion[]
+      emitToolUpdate?: boolean
+    }
+  | {
+      kind: 'ask_user_question'
+      requestEvent: Extract<StreamEvent, { type: 'ask_user_question' }>
+      questions: AskUserQuestion[]
+      emitToolUpdate?: boolean
+    }
+
 export type ApprovalLikeAnswerShape = {
   decision?: string
   feedback?: string
@@ -14,6 +28,53 @@ export type ApprovalLikeAnswerShape = {
 export type InteractivePromptTransactionResult<TAnswers extends AskUserAnswers> =
   | { ok: true; answers: TAnswers }
   | { ok: false; result: ToolResult }
+
+export function createAskUserQuestionPromptDescriptor(args: {
+  call: Pick<ToolCall, 'id'>
+  questions: AskUserQuestion[]
+  emitToolUpdate?: boolean
+}): InteractivePromptDescriptor {
+  return {
+    kind: 'ask_user_question',
+    questions: args.questions,
+    requestEvent: {
+      type: 'ask_user_question',
+      toolUseId: args.call.id,
+      questions: args.questions,
+    },
+    ...(args.emitToolUpdate !== undefined ? { emitToolUpdate: args.emitToolUpdate } : {}),
+  }
+}
+
+export function createApprovalPromptDescriptor(args: {
+  call: Pick<ToolCall, 'id'>
+  toolName: string
+  action: unknown
+  effectiveDecision: unknown
+  suggestions?: string[]
+  workspaceRequest?: { dir: string } | null
+  blockedPath?: string
+  decisionReason?: string
+  agentID?: string
+  emitToolUpdate?: boolean
+}): InteractivePromptDescriptor {
+  return {
+    kind: 'approval',
+    requestEvent: {
+      type: 'approval_request',
+      toolUseId: args.call.id,
+      toolName: args.toolName,
+      action: args.action,
+      effectiveDecision: args.effectiveDecision,
+      ...(args.suggestions ? { suggestions: args.suggestions } : {}),
+      ...(args.workspaceRequest !== undefined ? { workspaceRequest: args.workspaceRequest } : {}),
+      ...(args.blockedPath ? { blockedPath: args.blockedPath } : {}),
+      ...(args.decisionReason ? { decisionReason: args.decisionReason } : {}),
+      ...(args.agentID ? { agentID: args.agentID } : {}),
+    },
+    ...(args.emitToolUpdate !== undefined ? { emitToolUpdate: args.emitToolUpdate } : {}),
+  }
+}
 
 export function getInteractivePromptFailureMessage(args: {
   result: Pick<ToolResult, 'content'>
@@ -64,7 +125,8 @@ export async function runInteractivePromptTransaction<TAnswers extends AskUserAn
   call: ToolCall
   ctx: ExecutionContext
   userInput: UserInputManager | null
-  questions: AskUserQuestion[]
+  questions?: AskUserQuestion[]
+  descriptor?: InteractivePromptDescriptor
   requestEvent?: InteractiveRequestEvent
   beforeRequest?: () => void
   unavailableContent: string
@@ -72,6 +134,13 @@ export async function runInteractivePromptTransaction<TAnswers extends AskUserAn
   requireInteractive?: boolean
   emitToolUpdate?: boolean
 }): Promise<InteractivePromptTransactionResult<TAnswers>> {
+  const questions =
+    args.descriptor?.kind === 'ask_user_question'
+      ? args.descriptor.questions
+      : (args.descriptor?.questions ?? args.questions ?? [])
+  const requestEvent = args.descriptor?.requestEvent ?? args.requestEvent
+  const emitToolUpdate = args.descriptor?.emitToolUpdate ?? args.emitToolUpdate
+
   if (!args.userInput || (args.requireInteractive === true && args.ctx.interactive === false)) {
     return {
       ok: false,
@@ -96,17 +165,17 @@ export async function runInteractivePromptTransaction<TAnswers extends AskUserAn
 
   args.beforeRequest?.()
 
-  if (args.requestEvent) {
-    args.ctx.onEvent?.(args.requestEvent)
+  if (requestEvent) {
+    args.ctx.onEvent?.(requestEvent)
   }
 
   const answersPromise = args.userInput.requestAnswers({
     toolUseId: args.call.id,
-    questions: args.questions,
+    questions,
     signal: args.ctx.signal,
   })
 
-  if (args.emitToolUpdate !== false) {
+  if (emitToolUpdate !== false) {
     args.ctx.onEvent?.({ type: 'tool_update', id: args.call.id, middleLines: [] })
   }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { UserInputManager } from './userInputManager.js'
 import {
+  createApprovalPromptDescriptor,
+  createAskUserQuestionPromptDescriptor,
   getInteractivePromptFailureMessage,
   normalizeApprovalLikeAnswer,
   runInteractivePromptTransaction,
@@ -139,6 +141,120 @@ describe('runInteractivePromptTransaction', () => {
     expect(res.ok).toBe(false)
     if (res.ok !== false) throw new Error('Expected failure')
     expect(res.result.content).toBe('Error: boom')
+  })
+
+  it('uses descriptor request payload and emitToolUpdate override', async () => {
+    const onEvent = vi.fn()
+    const userInput = createUserInput({
+      requestAnswers: async () => ({ decision: 'approve' }),
+    })
+    const descriptor = createApprovalPromptDescriptor({
+      call: { id: 't1' },
+      toolName: 'Bash',
+      action: { kind: 'bash.exec', command: 'echo hi' },
+      effectiveDecision: 'prompt',
+      emitToolUpdate: false,
+    })
+    const res = await runInteractivePromptTransaction({
+      call: { id: 't1', name: 'Bash', input: { command: 'echo hi' } } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
+      userInput,
+      descriptor,
+      questions: [{ question: 'ignored', header: 'Ignored', options: [], multiSelect: false }],
+      unavailableContent: 'Error: unavailable',
+      abortedContent: 'Request aborted',
+    })
+
+    expect(res.ok).toBe(true)
+    if (res.ok !== true) throw new Error('Expected success')
+    expect(res.answers).toEqual({ decision: 'approve' })
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'approval_request',
+        toolUseId: 't1',
+        toolName: 'Bash',
+      }),
+    )
+    expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 't1' }))
+  })
+
+  it('uses ask descriptor questions when descriptor is provided', async () => {
+    const userInput = createUserInput({
+      requestAnswers: async () => ({ Choice: 'A' }),
+    })
+    const requestAnswersSpy = vi.spyOn(userInput, 'requestAnswers')
+    const descriptor = createAskUserQuestionPromptDescriptor({
+      call: { id: 'ask-1' },
+      questions: [{ question: 'Pick', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      emitToolUpdate: false,
+    })
+    const res = await runInteractivePromptTransaction({
+      call: { id: 'ask-1', name: 'AskUserQuestion', input: {} } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0 },
+      userInput,
+      descriptor,
+      questions: [{ question: 'Wrong', header: 'Wrong', options: [], multiSelect: false }],
+      unavailableContent: 'Error: unavailable',
+      abortedContent: 'Request aborted',
+    })
+
+    expect(res.ok).toBe(true)
+    if (res.ok !== true) throw new Error('Expected success')
+    expect(requestAnswersSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolUseId: 'ask-1',
+        questions: [{ question: 'Pick', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      }),
+    )
+  })
+})
+
+describe('interactive prompt descriptor builders', () => {
+  it('creates ask_user_question descriptor with event payload', () => {
+    const descriptor = createAskUserQuestionPromptDescriptor({
+      call: { id: 'ask-1' },
+      questions: [{ question: 'Pick one?', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      emitToolUpdate: false,
+    })
+    expect(descriptor).toEqual({
+      kind: 'ask_user_question',
+      questions: [{ question: 'Pick one?', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      emitToolUpdate: false,
+      requestEvent: {
+        type: 'ask_user_question',
+        toolUseId: 'ask-1',
+        questions: [{ question: 'Pick one?', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      },
+    })
+  })
+
+  it('creates approval descriptor with optional metadata', () => {
+    const descriptor = createApprovalPromptDescriptor({
+      call: { id: 'approval-1' },
+      toolName: 'Skill',
+      action: { kind: 'skill.use', skill: 'typescript' },
+      effectiveDecision: 'prompt',
+      suggestions: ['allow'],
+      workspaceRequest: { dir: '/tmp/project' },
+      blockedPath: '/tmp/project',
+      decisionReason: 'outside workspace',
+      agentID: 'agent-1',
+    })
+    expect(descriptor).toEqual({
+      kind: 'approval',
+      requestEvent: {
+        type: 'approval_request',
+        toolUseId: 'approval-1',
+        toolName: 'Skill',
+        action: { kind: 'skill.use', skill: 'typescript' },
+        effectiveDecision: 'prompt',
+        suggestions: ['allow'],
+        workspaceRequest: { dir: '/tmp/project' },
+        blockedPath: '/tmp/project',
+        decisionReason: 'outside workspace',
+        agentID: 'agent-1',
+      },
+    })
   })
 })
 

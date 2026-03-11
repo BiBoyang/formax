@@ -2,6 +2,8 @@ import type { ToolCall, ToolResult } from '../types.js'
 import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ExecutionContext } from './index.js'
 import {
+  createApprovalPromptDescriptor as createApprovalPromptDescriptorBase,
+  type InteractivePromptDescriptor,
   normalizeApprovalLikeAnswer,
   runInteractivePromptTransaction,
 } from '../runtime/interactivePromptTransaction.js'
@@ -29,10 +31,29 @@ export type ApprovalLikeResolvedOutcome =
   | { type: 'feedback'; result: ToolResult }
   | { type: 'cancel'; result: ToolResult }
 
+type ApprovalPromptDescriptor = Extract<InteractivePromptDescriptor, { kind: 'approval' }>
+
+export type ApprovalPromptDescriptorArgs = {
+  call: Pick<ToolCall, 'id'>
+  toolName: string
+  action: unknown
+  effectiveDecision: unknown
+  suggestions?: string[]
+  workspaceRequest?: { dir: string } | null
+  blockedPath?: string
+  decisionReason?: string
+  agentID?: string
+  emitToolUpdate?: boolean
+}
+
 export function buildToolUseRejectedContent(args: { message?: string }): string {
   const msg = String(args.message ?? '').trim()
   if (msg) return `Tool use rejected with user message: ${msg}`
   return 'Tool use rejected by user.'
+}
+
+export function createApprovalPromptDescriptor(args: ApprovalPromptDescriptorArgs): ApprovalPromptDescriptor {
+  return createApprovalPromptDescriptorBase(args) as ApprovalPromptDescriptor
 }
 
 export function resolveApprovalLikeOutcome(args: {
@@ -73,6 +94,7 @@ export async function promptForApprovalLikeAnswer<TAnswer extends ApprovalLikeAn
   call: ToolCall
   ctx: ExecutionContext
   userInput: UserInputManager | null
+  descriptor?: ApprovalPromptDescriptor
   unavailableContent: string
   abortedContent: string
   requireInteractive?: boolean
@@ -82,9 +104,10 @@ export async function promptForApprovalLikeAnswer<TAnswer extends ApprovalLikeAn
     call: args.call,
     ctx: args.ctx,
     userInput: args.userInput,
+    descriptor: args.descriptor,
     // Approval-like choices are rendered from tool context, not
     // AskUserQuestion-form question rows.
-    questions: [],
+    questions: args.descriptor?.kind === 'approval' ? (args.descriptor.questions ?? []) : [],
     unavailableContent: args.unavailableContent,
     abortedContent: args.abortedContent,
     requireInteractive: args.requireInteractive,

@@ -7,6 +7,7 @@ import { buildSkillPermissionKey, persistProjectSkillAllow } from '../../adapter
 import { loadMergedPermissions } from '../../adapters/permissions/permissionsStore.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import {
+  createApprovalPromptDescriptor,
   promptForApprovalLikeAnswer,
   resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
@@ -63,18 +64,15 @@ export function createSkillPreflight(args: {
       call,
       ctx,
       userInput: args.userInput,
+      descriptor: createApprovalPromptDescriptor({
+        call,
+        toolName: 'Skill',
+        action: { kind: 'skill.use', skill },
+        effectiveDecision: 'prompt',
+      }),
       unavailableContent: 'Error: Skill requires user approval.',
       abortedContent: 'Request aborted',
       requireInteractive: true,
-      beforeRequest: () => {
-        ctx.onEvent?.({
-          type: 'approval_request',
-          toolUseId: call.id,
-          toolName: 'Skill',
-          action: { kind: 'skill.use', skill },
-          effectiveDecision: 'prompt',
-        })
-      },
     })
     if (promptResult.ok !== true) return promptResult.result
     const outcome = resolveApprovalLikeOutcome({

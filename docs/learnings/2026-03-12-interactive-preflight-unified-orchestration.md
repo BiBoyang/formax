@@ -18,6 +18,12 @@
    - `src/tools/executor/skillPreflight.ts`
    共同复用
 
+后续补强（同日）：
+
+5. approval request payload 统一通过 descriptor 构造（`createApprovalPromptDescriptor`），避免 `approvalService` / `skillPreflight` 手写事件体分叉。  
+6. ask request payload 统一通过 descriptor 构造（`createAskUserQuestionPromptDescriptor`）。  
+7. 新增 app-server 跨流一致性测试：`src/app-server/interactiveLifecycleConsistency.test.ts`，覆盖 `approval / skill / ask / enter-plan / exit-plan` 的 `inputRequested -> submit -> inputResolved -> completed` 顺序与 payload shape。
+
 ## 关键收益
 
 1. 交互失败映射和 rejection 文案收敛到共享 helper，减少重复分叉。  

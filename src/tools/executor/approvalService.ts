@@ -23,6 +23,7 @@ import {
 import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
 import { decideToolPermission } from '../../adapters/permissions/matcher.js'
 import {
+  createApprovalPromptDescriptor,
   promptForApprovalLikeAnswer,
   resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
@@ -221,10 +222,21 @@ export function createApprovalService(args: {
       explained: args2.explained,
     })
     const decisionReason = args2.explained.matchedRule?.reason?.trim()
+    const approvalDescriptor = createApprovalPromptDescriptor({
+      call,
+      toolName: call.name,
+      action: args2.action,
+      effectiveDecision: args2.effectiveDecision,
+      suggestions,
+      ...(decisionReason ? { decisionReason } : {}),
+      ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
+      ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
+    })
     const promptResult = await promptForApprovalLikeAnswer<ApprovalAnswer>({
       call,
       ctx,
       userInput: args.userInput,
+      descriptor: approvalDescriptor,
       unavailableContent: `Error: Approval required for ${args2.action.kind}`,
       abortedContent: 'Error: Request aborted',
       beforeRequest: () => {
@@ -240,18 +252,6 @@ export function createApprovalService(args: {
             effectiveDecision: args2.effectiveDecision,
           })
         }
-
-        ctx.onEvent?.({
-          type: 'approval_request',
-          toolUseId: call.id,
-          toolName: call.name,
-          action: args2.action,
-          effectiveDecision: args2.effectiveDecision,
-          suggestions,
-          ...(decisionReason ? { decisionReason } : {}),
-          ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
-          ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
-        })
       },
     })
     if (promptResult.ok !== true) {

@@ -2,6 +2,7 @@ import type { ToolCall, ToolResult } from '../types.js'
 import type { AskUserQuestion, AskUserAnswers, UserInputManager } from './userInputManager.js'
 import type { ExecutionContext } from '../executor/index.js'
 import {
+  createAskUserQuestionPromptDescriptor,
   runInteractivePromptTransaction,
   throwInteractivePromptFailure,
 } from './interactivePromptTransaction.js'
@@ -20,15 +21,13 @@ export async function requestAskUserQuestionAnswersResult(args: {
     call: args.call,
     ctx: args.ctx,
     userInput: args.userInput,
-    questions: args.questions,
-    requestEvent: {
-      type: 'ask_user_question',
-      toolUseId: args.call.id,
+    descriptor: createAskUserQuestionPromptDescriptor({
+      call: args.call,
       questions: args.questions,
-    },
-    // AskUserQuestion handlers historically do not emit tool_update keepalive
-    // rows while waiting for answers.
-    emitToolUpdate: false,
+      // AskUserQuestion handlers historically do not emit tool_update keepalive
+      // rows while waiting for answers.
+      emitToolUpdate: false,
+    }),
     unavailableContent: 'User input unavailable',
     abortedContent: 'Request aborted',
   })

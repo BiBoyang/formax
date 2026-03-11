@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildToolUseRejectedContent,
+  createApprovalPromptDescriptor,
   resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
 
@@ -78,6 +79,27 @@ describe('resolveApprovalLikeOutcome', () => {
         tool_use_id: 't-5',
         content: 'Tool use rejected by user.',
         is_error: true,
+      },
+    })
+  })
+})
+
+describe('createApprovalPromptDescriptor', () => {
+  it('creates an approval descriptor with canonical request payload', () => {
+    const descriptor = createApprovalPromptDescriptor({
+      call: { id: 'approval-1' },
+      toolName: 'Skill',
+      action: { kind: 'skill.use', skill: 'typescript' },
+      effectiveDecision: 'prompt',
+    })
+    expect(descriptor).toEqual({
+      kind: 'approval',
+      requestEvent: {
+        type: 'approval_request',
+        toolUseId: 'approval-1',
+        toolName: 'Skill',
+        action: { kind: 'skill.use', skill: 'typescript' },
+        effectiveDecision: 'prompt',
       },
     })
   })
