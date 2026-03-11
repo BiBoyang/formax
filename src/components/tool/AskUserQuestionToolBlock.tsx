@@ -501,7 +501,7 @@ function OptionRow({
 }): React.ReactNode {
   const theme = getTheme()
   const prefix = isCursor ? '❯' : ' '
-  const mark = multi ? (selected ? '[✔]' : '[ ]') : ''
+  const mark = multi ? (selected ? '[✓]' : '[ ]') : ''
   const tail = !multi && selected ? ' ✓' : ''
 
   return (
