@@ -246,4 +246,158 @@ describe('interactive lifecycle consistency', () => {
     expect(resolvedIndex).toBeGreaterThan(requestedIndex)
     expect(completedIndex).toBeGreaterThan(resolvedIndex)
   })
+
+  it('continues to a follow-up exit prompt after a Write tool error in the same turn', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const userInput = createUserInputManager()
+
+    const firstAskToolUseId = 'ask-before-write'
+    const exitAskToolUseId = 'exit-plan-after-write-error'
+    const writeToolUseId = 'write-1'
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          const userText = extractUserText(args.user.content)
+          if (userText.includes('Please write a 5-10 word title')) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'Lifecycle Title' }] },
+            ] as ChatHistory
+          }
+
+          const firstQuestions = [ASK_QUESTION]
+          args.onEvent({
+            type: 'ask_user_question',
+            toolUseId: firstAskToolUseId,
+            questions: firstQuestions,
+          })
+          await userInput.requestAnswers({
+            toolUseId: firstAskToolUseId,
+            questions: firstQuestions,
+            signal: args.signal,
+          })
+
+          args.onEvent({ type: 'tool_start', id: writeToolUseId, name: 'Write' })
+          args.onEvent({ type: 'tool_input', id: writeToolUseId, input: { file_path: '/tmp/plan.md', content: '# plan' } })
+          args.onEvent({
+            type: 'tool_end',
+            id: writeToolUseId,
+            result: {
+              tool_use_id: writeToolUseId,
+              content: 'Error: Plan mode is active. Only the plan file may be edited.',
+              is_error: true,
+            },
+          })
+
+          args.onEvent({
+            type: 'ask_user_question',
+            toolUseId: exitAskToolUseId,
+            questions: [EXIT_PLAN_MODE_PROMPT],
+          })
+          await userInput.requestAnswers({
+            toolUseId: exitAskToolUseId,
+            questions: [EXIT_PLAN_MODE_PROMPT],
+            signal: args.signal,
+          })
+
+          args.onEvent({ type: 'assistant_delta', text: 'handled write error and continued to exit prompt' })
+          args.onEvent({ type: 'complete' })
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'handled write error and continued to exit prompt' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      userInputManager: userInput,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'run write error continuation flow' },
+    })
+
+    const firstRequested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && n.params?.input?.toolUseId === firstAskToolUseId,
+    )
+    const submitFirst = await runner.submitInput({
+      threadId: fixture.threadId,
+      turnId: started.turn.id,
+      inputId: firstRequested.params?.input?.inputId,
+      answers: { Choice: 'A' },
+      submissionId: 'submit-first',
+    })
+    expect(submitFirst).toEqual({ accepted: true, status: 'accepted' })
+
+    const firstResolved = await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        n.params?.input?.toolUseId === firstAskToolUseId &&
+        n.params?.input?.status === 'submitted',
+    )
+
+    const writeToolEndEvent = await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/event' &&
+        n.params?.event?.type === 'tool_end' &&
+        n.params?.event?.id === writeToolUseId &&
+        n.params?.event?.result?.is_error === true,
+    )
+
+    const exitRequested = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/inputRequested' && n.params?.input?.toolUseId === exitAskToolUseId,
+    )
+    expect(exitRequested.params?.input?.kind).toBe('ask_user_question')
+    expect(exitRequested.params?.input?.payload?.questions?.[0]?.question).toBe(EXIT_PLAN_MODE_PROMPT.question)
+
+    const submitExit = await runner.submitInput({
+      threadId: fixture.threadId,
+      turnId: started.turn.id,
+      inputId: exitRequested.params?.input?.inputId,
+      answers: { choice: 'manual' },
+      submissionId: 'submit-exit',
+    })
+    expect(submitExit).toEqual({ accepted: true, status: 'accepted' })
+
+    const exitResolved = await waitForNotification(
+      notifications,
+      (n) =>
+        n.method === 'turn/inputResolved' &&
+        n.params?.input?.toolUseId === exitAskToolUseId &&
+        n.params?.input?.status === 'submitted',
+    )
+    const completed = await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && n.params?.turn?.id === started.turn.id,
+    )
+
+    const firstRequestedIndex = notifications.findIndex((n) => n === firstRequested)
+    const firstResolvedIndex = notifications.findIndex((n) => n === firstResolved)
+    const writeToolEndIndex = notifications.findIndex((n) => n === writeToolEndEvent)
+    const exitRequestedIndex = notifications.findIndex((n) => n === exitRequested)
+    const exitResolvedIndex = notifications.findIndex((n) => n === exitResolved)
+    const completedIndex = notifications.findIndex((n) => n === completed)
+
+    expect(firstRequestedIndex).toBeGreaterThanOrEqual(0)
+    expect(firstResolvedIndex).toBeGreaterThan(firstRequestedIndex)
+    expect(writeToolEndIndex).toBeGreaterThan(firstResolvedIndex)
+    expect(exitRequestedIndex).toBeGreaterThan(writeToolEndIndex)
+    expect(exitResolvedIndex).toBeGreaterThan(exitRequestedIndex)
+    expect(completedIndex).toBeGreaterThan(exitResolvedIndex)
+  })
 })

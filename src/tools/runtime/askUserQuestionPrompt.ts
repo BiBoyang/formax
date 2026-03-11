@@ -1,8 +1,8 @@
 import type { ToolCall, ToolResult } from '../types.js'
 import type { AskUserQuestion, AskUserAnswers, UserInputManager } from './userInputManager.js'
 import type { ExecutionContext } from '../executor/index.js'
+import { createAskUserQuestionPromptDescriptor } from './interactivePromptDescriptor.js'
 import {
-  createAskUserQuestionPromptDescriptor,
   runInteractivePromptTransaction,
   throwInteractivePromptFailure,
 } from './interactivePromptTransaction.js'

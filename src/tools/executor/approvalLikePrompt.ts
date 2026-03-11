@@ -3,7 +3,9 @@ import type { UserInputManager } from '../runtime/userInputManager.js'
 import type { ExecutionContext } from './index.js'
 import {
   createApprovalPromptDescriptor as createApprovalPromptDescriptorBase,
-  type InteractivePromptDescriptor,
+  type ApprovalPromptDescriptor,
+} from '../runtime/interactivePromptDescriptor.js'
+import {
   normalizeApprovalLikeAnswer,
   runInteractivePromptTransaction,
 } from '../runtime/interactivePromptTransaction.js'
@@ -31,8 +33,6 @@ export type ApprovalLikeResolvedOutcome =
   | { type: 'feedback'; result: ToolResult }
   | { type: 'cancel'; result: ToolResult }
 
-type ApprovalPromptDescriptor = Extract<InteractivePromptDescriptor, { kind: 'approval' }>
-
 export type ApprovalPromptDescriptorArgs = {
   call: Pick<ToolCall, 'id'>
   toolName: string
@@ -53,7 +53,7 @@ export function buildToolUseRejectedContent(args: { message?: string }): string 
 }
 
 export function createApprovalPromptDescriptor(args: ApprovalPromptDescriptorArgs): ApprovalPromptDescriptor {
-  return createApprovalPromptDescriptorBase(args) as ApprovalPromptDescriptor
+  return createApprovalPromptDescriptorBase(args)
 }
 
 export function resolveApprovalLikeOutcome(args: {
