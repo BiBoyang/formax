@@ -66,8 +66,15 @@ import {
   useTurnFlowRefs,
 } from './controller/state/refGroups'
 import {
-  createInitialTranscriptProjectionState,
-} from '../semantics/projection'
+  clearCanonicalTransientState as clearCanonicalTransientStateInternal,
+  clearToolRuntimeState as clearToolRuntimeStateInternal,
+  nextCanonicalReplaySeq as nextCanonicalReplaySeqInternal,
+  nextCanonicalTurnSeq as nextCanonicalTurnSeqInternal,
+  resetCanonicalProjectionState as resetCanonicalProjectionStateInternal,
+  resetSessionRefs as resetSessionRefsInternal,
+  resetSessionUiState as resetSessionUiStateInternal,
+  resetStreamingBuffers as resetStreamingBuffersInternal,
+} from './controller/state/sessionReset'
 import {
   resolveReplModeTransition,
   shouldInjectExitPlanReminder,
@@ -258,28 +265,34 @@ export function useReplController(deps: {
   )
 
   const resetStreamingBuffers = useCallback(() => {
-    assistantBufferRef.current = ''
-    thinkingRefs.bufferRef.current = ''
-    thinkingRefs.messageIdRef.current = null
-    thinkingRefs.lastFlushAtRef.current = 0
-    thinkingRefs.timingRef.current = { startedAtMs: null }
-    setThinkingText('')
-    setThinkingStartedAtMs(null)
+    resetStreamingBuffersInternal({
+      assistantBufferRef,
+      thinkingBufferRef: thinkingRefs.bufferRef,
+      thinkingMessageIdRef: thinkingRefs.messageIdRef,
+      thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
+      thinkingTimingRef: thinkingRefs.timingRef,
+      setThinkingText,
+      setThinkingStartedAtMs,
+    })
   }, [])
 
   const clearToolRuntimeState = useCallback(() => {
-    toolRuntimeRefs.nameByIdRef.current.clear()
-    toolRuntimeRefs.inputByIdRef.current.clear()
-    toolRuntimeRefs.statsByToolUseIdRef.current.clear()
-    toolRuntimeRefs.kindByToolUseIdRef.current.clear()
-    toolRuntimeRefs.messageIdByToolUseIdRef.current.clear()
-    toolRuntimeRefs.exploreBatchRef.current = null
+    clearToolRuntimeStateInternal({
+      toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
+      toolInputByIdRef: toolRuntimeRefs.inputByIdRef,
+      taskStatsByToolUseIdRef: toolRuntimeRefs.statsByToolUseIdRef,
+      taskKindByToolUseIdRef: toolRuntimeRefs.kindByToolUseIdRef,
+      toolMessageIdByToolUseIdRef: toolRuntimeRefs.messageIdByToolUseIdRef,
+      exploreBatchRef: toolRuntimeRefs.exploreBatchRef,
+    })
   }, [])
 
   const clearCanonicalTransientState = useCallback(() => {
-    canonicalRefs.transientSnapshotRef.current = null
-    setCanonicalTurnMessages([])
-    setCanonicalTransientActive(false)
+    clearCanonicalTransientStateInternal({
+      transientSnapshotRef: canonicalRefs.transientSnapshotRef,
+      setCanonicalTurnMessages,
+      setCanonicalTransientActive,
+    })
   }, [])
 
   const onCompactLifecycle = useCallback(
@@ -330,33 +343,37 @@ export function useReplController(deps: {
   )
 
   const resetSessionRefs = useCallback(() => {
-    const deferredToolStore = getDeferredToolExposureStore()
-    deferredToolStore.resetSession(deferredToolExposureSessionKeyRef.current)
-    deferredToolExposureSessionKeyRef.current = randomUUID()
-
-    historyRef.current = []
-    turnFlowRefs.pendingInjectedBlocksRef.current = []
-    turnFlowRefs.pendingExitPlanReminderRef.current = false
-    currentAssistantIdRef.current = null
-    turnFlowRefs.contextBudgetConfigRef.current = null
-    runtimeStateRefs.sendSeqRef.current = 0
-    runtimeStateRefs.autoCompactSeqRef.current = -1_000_000
-    clearToolRuntimeState()
-    runtimeStateRefs.claudeMdMetaSigRef.current = null
+    resetSessionRefsInternal({
+      deferredToolExposureSessionKeyRef,
+      historyRef,
+      pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
+      pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
+      currentAssistantIdRef,
+      contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
+      sendSeqRef: runtimeStateRefs.sendSeqRef,
+      autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
+      claudeMdMetaSigRef: runtimeStateRefs.claudeMdMetaSigRef,
+      clearToolRuntimeState,
+    })
   }, [clearToolRuntimeState])
 
   const resetCanonicalProjectionState = useCallback(() => {
-    canonicalRefs.projectionRef.current = createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })
-    canonicalRefs.replaySeqRef.current = 0
-    canonicalRefs.turnIdRef.current = null
-    canonicalRefs.turnSeqRef.current = 0
-    clearCanonicalTransientState()
+    resetCanonicalProjectionStateInternal({
+      canonicalThreadId: CANONICAL_THREAD_ID,
+      projectionRef: canonicalRefs.projectionRef,
+      replaySeqRef: canonicalRefs.replaySeqRef,
+      turnIdRef: canonicalRefs.turnIdRef,
+      turnSeqRef: canonicalRefs.turnSeqRef,
+      clearCanonicalTransientState,
+    })
   }, [clearCanonicalTransientState])
 
   const resetSessionUiState = useCallback(() => {
-    resetStreamingBuffers()
-    setError(null)
-    setContext(null)
+    resetSessionUiStateInternal({
+      resetStreamingBuffers,
+      setError,
+      setContext,
+    })
   }, [resetStreamingBuffers])
 
   const resetSessionState = useCallback(() => {
@@ -366,13 +383,11 @@ export function useReplController(deps: {
   }, [resetCanonicalProjectionState, resetSessionRefs, resetSessionUiState])
 
   const nextCanonicalReplaySeq = useCallback(() => {
-    canonicalRefs.replaySeqRef.current += 1
-    return canonicalRefs.replaySeqRef.current
+    return nextCanonicalReplaySeqInternal(canonicalRefs.replaySeqRef)
   }, [])
 
   const nextCanonicalTurnSeq = useCallback(() => {
-    canonicalRefs.turnSeqRef.current += 1
-    return canonicalRefs.turnSeqRef.current
+    return nextCanonicalTurnSeqInternal(canonicalRefs.turnSeqRef)
   }, [])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
