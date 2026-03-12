@@ -36,13 +36,11 @@ import {
   runNewSessionTransition,
   runResumeSessionTransition,
   queueSessionTransition as queueSessionTransitionAction,
-  runNewSessionAction,
-  runResumeSessionAction,
-  renameSessionAction,
   useSessionPersistence,
   useSessionEventRecorders,
   useSessionWriterLifecycle,
   useConfigDialogInjection,
+  useSessionActions,
 } from './controller/session'
 import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
 import {
@@ -447,67 +445,35 @@ export function useReplController(deps: {
     userInput,
   ])
 
-  const runNewSession = useCallback(async (): Promise<void> => {
-    await runNewSessionAction({
-      initialSessionFilePathRef,
-      sessionTransitionQueueRef,
-      sessionTransitionPendingCountRef,
-      runNewSessionTransition,
-      beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
-      sessionSaveEnabled,
-      sessionWriterRef,
-      sessionWriterInitPromiseRef,
-      lastPersistedSigByMsgIdRef,
-      lastPersistedMsgByIdRef,
-      resetSessionState,
-      replaceTranscript,
-    })
-  }, [deps.engine, replaceTranscript, resetSessionState, sessionSaveEnabled])
-
-  const newSession = useCallback(() => {
-    void runNewSession()
-  }, [runNewSession])
-
-  const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
-    await renameSessionAction(filePath, label)
-  }, [])
-
-  const resumeSession = useCallback(
-    async (filePath: string): Promise<void> => {
-      await runResumeSessionAction({
-        filePath,
-        isLoading,
-        closeResumeDialog: () => closeResumeDialog(),
-        initialSessionFilePathRef,
-        sessionTransitionQueueRef,
-        sessionTransitionPendingCountRef,
-        abort,
-        runResumeSessionTransition,
-        readSessionFile,
-        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
-        sessionSaveEnabled,
-        sessionWriterRef,
-        lastPersistedSigByMsgIdRef,
-        lastPersistedMsgByIdRef,
-        resetSessionState,
-        historyRef,
-        replaceTranscript,
-        openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
-        buildPersistedSigMap,
-        buildPersistedMsgRefMap,
-        setError: (message) => setError(message),
-      })
-    },
-    [
-      abort,
-      closeResumeDialog,
-      deps.engine,
-      isLoading,
-      replaceTranscript,
-      resetSessionState,
-      sessionSaveEnabled,
-    ],
-  )
+  const {
+    runNewSession,
+    newSession,
+    resumeSession,
+    renameSession,
+  } = useSessionActions({
+    engine: deps.engine,
+    isLoading,
+    closeResumeDialog: () => closeResumeDialog(),
+    sessionSaveEnabled,
+    initialSessionFilePathRef,
+    sessionTransitionQueueRef,
+    sessionTransitionPendingCountRef,
+    sessionWriterRef,
+    sessionWriterInitPromiseRef,
+    lastPersistedSigByMsgIdRef,
+    lastPersistedMsgByIdRef,
+    resetSessionState,
+    replaceTranscript,
+    historyRef,
+    abort,
+    setError: (message) => setError(message),
+    runNewSessionTransition,
+    runResumeSessionTransition,
+    readSessionFile,
+    openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
+    buildPersistedSigMap,
+    buildPersistedMsgRefMap,
+  })
 
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
