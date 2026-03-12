@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { randomUUID } from 'node:crypto'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
@@ -25,24 +25,21 @@ import {
 } from './controller/ui'
 import { useReplStreaming } from './controller/streaming/streaming'
 import {
-  assertReplCanonicalInvariants,
   appendCanonicalTailFinalRows,
-  projectCanonicalEventToTransientMessages,
+  applyCanonicalProjectionToUi,
+  assertReplCanonicalInvariants,
   mergeProjectedStaticRows,
+  projectCanonicalEvent,
   safeJson,
   areToolInfosEqual,
   shouldKeepExistingStaticRow,
 } from './controller/canonical'
 import {
   applyConfigExitInjection,
-  ensureSessionWriter as ensureSessionWriterInternal,
-  openInitialSessionWriter as openInitialSessionWriterInternal,
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
-  shutdownSessionWriter as shutdownSessionWriterInternal,
-  startNewSessionWriter as startNewSessionWriterInternal,
   registerSessionWriterProcessHandlers,
   runNewSessionTransition,
   runResumeSessionTransition,
@@ -51,6 +48,7 @@ import {
   runResumeSessionAction,
   renameSessionAction,
   useSessionPersistence,
+  useSessionWriterLifecycle,
 } from './controller/session'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
@@ -70,11 +68,11 @@ import {
 import {
   createInitialTranscriptProjectionState,
 } from '../semantics/projection'
-import type { CanonicalEvent } from '../semantics/core'
 import {
   resolveReplModeTransition,
   shouldInjectExitPlanReminder,
 } from '../semantics/core'
+import type { CanonicalEvent } from '../semantics/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
@@ -124,89 +122,6 @@ export type ReplController = {
     renameSession: (filePath: string, label: string) => Promise<void>
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
-  }
-}
-
-function projectCanonicalEvent(args: {
-  assistantTextMode: RuntimeConfig['ui']['assistantTextMode']
-  event: CanonicalEvent
-  projection: ReturnType<typeof createInitialTranscriptProjectionState>
-  activeTurnId: string | null
-  previousTransient: { turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null
-}): {
-  projected: ReturnType<typeof projectCanonicalEventToTransientMessages>
-  projectedStaticRows: Msg[]
-  projectedTransientRows: Msg[]
-  includeAssistantStreaming: boolean
-} {
-  const includeAssistantStreaming = args.assistantTextMode === 'stream'
-  const projected = projectCanonicalEventToTransientMessages({
-    projection: args.projection,
-    event: args.event,
-    activeTurnId: args.activeTurnId,
-    includeAssistantStreaming,
-    previousTransient: args.previousTransient,
-  })
-  const projectedStaticRows: Msg[] = []
-  const projectedTransientRows: Msg[] = []
-  for (const message of projected.messages) {
-    if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
-    else projectedTransientRows.push(message)
-  }
-  return {
-    projected,
-    projectedStaticRows,
-    projectedTransientRows,
-    includeAssistantStreaming,
-  }
-}
-
-function applyCanonicalProjectionToUi(args: {
-  event: CanonicalEvent
-  projected: ReturnType<typeof projectCanonicalEventToTransientMessages>
-  projectedStaticRows: Msg[]
-  projectedTransientRows: Msg[]
-  includeAssistantStreaming: boolean
-  runtimeStateRefs: {
-    pendingStaticSurfaceResetRef: { current: boolean }
-  }
-  canonicalRefs: {
-    transientSnapshotRef: {
-      current: { turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null
-    }
-  }
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  setCanonicalTransientActive: Dispatch<SetStateAction<boolean>>
-  setCanonicalTurnMessages: Dispatch<SetStateAction<Msg[]>>
-}): void {
-  if (args.projectedStaticRows.length > 0 || args.event.kind === 'turn_footer') {
-    args.setMessages((prev) => {
-      const next = mergeProjectedStaticRows({
-        prev,
-        projectedStaticRows: args.projectedStaticRows,
-        onNonAppendUpdate: () => {
-          args.runtimeStateRefs.pendingStaticSurfaceResetRef.current = true
-        },
-      })
-      if (args.event.kind === 'turn_footer') {
-        assertReplCanonicalInvariants({
-          projection: args.projected.projection,
-          messages: next,
-          targetTurnId: args.projected.turnId,
-        })
-      }
-      return next
-    })
-  }
-
-  args.setCanonicalTransientActive(args.projectedTransientRows.length > 0)
-  args.canonicalRefs.transientSnapshotRef.current = {
-    turnId: args.projected.turnId,
-    includeAssistantStreaming: args.includeAssistantStreaming,
-    messages: args.projectedTransientRows,
-  }
-  if (args.projected.changed) {
-    args.setCanonicalTurnMessages(args.projectedTransientRows)
   }
 }
 
@@ -306,34 +221,16 @@ export function useReplController(deps: {
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const userInput = useUserInputManager()
-  const startNewSessionWriter = useCallback(async (): Promise<void> => {
-    await startNewSessionWriterInternal({
-      sessionSaveEnabled,
-      cwd: runtimeCwd,
-      env: runtimeEnv,
-      model: deps.cfg.llm.model,
-      historyRef,
-      refs: sessionWriterRefs,
-    })
-  }, [deps.cfg.llm.model, runtimeCwd, runtimeEnv, sessionSaveEnabled])
-
-  const openInitialSessionWriter = useCallback(async (): Promise<void> => {
-    const initialSessionFilePath = initialSessionFilePathRef.current
-    await openInitialSessionWriterInternal({
-      sessionSaveEnabled,
-      initialSession: {
-        ...(initialSessionFilePath ? { filePath: initialSessionFilePath } : {}),
-        ...(deps.initialSession?.messages ? { messages: deps.initialSession.messages } : {}),
-      },
-      historyRef,
-      refs: sessionWriterRefs,
-      startNewWriter: startNewSessionWriter,
-    })
-  }, [deps.initialSession?.messages, sessionSaveEnabled, startNewSessionWriter])
-
-  const shutdownSessionWriter = useCallback(async (): Promise<void> => {
-    await shutdownSessionWriterInternal(sessionWriterRefs)
-  }, [])
+  const { shutdownSessionWriter, ensureSessionWriter } = useSessionWriterLifecycle({
+    sessionSaveEnabled,
+    cwd: runtimeCwd,
+    env: runtimeEnv,
+    model: deps.cfg.llm.model,
+    historyRef,
+    refs: sessionWriterRefs,
+    initialSessionFilePathRef,
+    initialSessionMessages: deps.initialSession?.messages,
+  })
 
   useEffect(() => {
     return () => {
@@ -346,14 +243,6 @@ export function useReplController(deps: {
   useEffect(() => {
     initialSessionFilePathRef.current = deps.initialSession?.filePath
   }, [deps.initialSession?.filePath])
-
-  const ensureSessionWriter = useCallback(async (): Promise<void> => {
-    await ensureSessionWriterInternal({
-      sessionSaveEnabled,
-      refs: sessionWriterRefs,
-      openInitialWriter: openInitialSessionWriter,
-    })
-  }, [openInitialSessionWriter, sessionSaveEnabled])
 
   const closeConfigDialogWithInjection = useCallback(
     (exit: ConfigDialogExit) => {
@@ -508,8 +397,8 @@ export function useReplController(deps: {
       projectedStaticRows: projectedOutput.projectedStaticRows,
       projectedTransientRows: projectedOutput.projectedTransientRows,
       includeAssistantStreaming: projectedOutput.includeAssistantStreaming,
-      runtimeStateRefs,
-      canonicalRefs,
+      pendingStaticSurfaceResetRef: runtimeStateRefs.pendingStaticSurfaceResetRef,
+      transientSnapshotRef: canonicalRefs.transientSnapshotRef,
       setMessages,
       setCanonicalTransientActive,
       setCanonicalTurnMessages,

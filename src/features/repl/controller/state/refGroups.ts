@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import type { MutableRefObject } from 'react'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TokenUsage } from '../../../../streaming/types'
@@ -114,12 +114,15 @@ function useSessionPersistenceRefs(args: {
   const previousMessagesRef = useRef<Msg[]>(args.messages)
   const messageByIdRef = useRef<Map<string, Msg>>(buildMessageByIdMap(args.messages))
   const dirtyMessageIdsRef = useRef<Set<string>>(new Set(args.messages.map((message) => message.id)))
-  const sessionWriterRefs: SessionWriterRefs = {
-    sessionWriterRef,
-    sessionWriterInitPromiseRef,
-    lastPersistedSigByMsgIdRef,
-    lastPersistedMsgByIdRef,
-  }
+  const sessionWriterRefs = useMemo<SessionWriterRefs>(
+    () => ({
+      sessionWriterRef,
+      sessionWriterInitPromiseRef,
+      lastPersistedSigByMsgIdRef,
+      lastPersistedMsgByIdRef,
+    }),
+    [],
+  )
 
   return {
     sessionTransitionQueueRef,
