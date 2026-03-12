@@ -3,7 +3,15 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it, vi } from 'vitest'
-import { __writerTestOnly, getDefaultMaxLineBytes, SessionWriter } from './writer'
+import {
+  bestEffortGitBranch,
+  getDefaultMaxLineBytes,
+  isPersistableMsg,
+  isoNow,
+  parseRequestedSessionId,
+  resolveSessionStartTime,
+  SessionWriter,
+} from './writer'
 import {
   buildAppToolEventTrimCandidates,
   buildEssentialAppToolEventData,
@@ -21,19 +29,19 @@ import type { ChatHistory, Msg } from './types'
 
 describe('sessionSave/writer helpers', () => {
   it('covers id/time/git and persistable guards', async () => {
-    expect(__writerTestOnly.isoNow(new Date('2026-02-02T00:00:00.000Z'))).toBe('2026-02-02T00:00:00.000Z')
-    expect(__writerTestOnly.parseRequestedSessionId(' ok_1-2 ')).toBe('ok_1-2')
-    expect(() => __writerTestOnly.parseRequestedSessionId('')).toThrow('non-empty')
-    expect(() => __writerTestOnly.parseRequestedSessionId('bad/id')).toThrow('letters, numbers')
+    expect(isoNow(new Date('2026-02-02T00:00:00.000Z'))).toBe('2026-02-02T00:00:00.000Z')
+    expect(parseRequestedSessionId(' ok_1-2 ')).toBe('ok_1-2')
+    expect(() => parseRequestedSessionId('')).toThrow('non-empty')
+    expect(() => parseRequestedSessionId('bad/id')).toThrow('letters, numbers')
 
-    const now = __writerTestOnly.resolveSessionStartTime(undefined)
+    const now = resolveSessionStartTime(undefined)
     expect(now instanceof Date).toBe(true)
-    expect(__writerTestOnly.resolveSessionStartTime('2026-02-02T00:00:00.000Z').toISOString()).toBe('2026-02-02T00:00:00.000Z')
-    expect(() => __writerTestOnly.resolveSessionStartTime('bad-time')).toThrow('ISO datetime')
-    expect(() => __writerTestOnly.resolveSessionStartTime(new Date('bad'))).toThrow('valid Date')
+    expect(resolveSessionStartTime('2026-02-02T00:00:00.000Z').toISOString()).toBe('2026-02-02T00:00:00.000Z')
+    expect(() => resolveSessionStartTime('bad-time')).toThrow('ISO datetime')
+    expect(() => resolveSessionStartTime(new Date('bad'))).toThrow('valid Date')
 
     const nonGitDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-writer-git-'))
-    expect(__writerTestOnly.bestEffortGitBranch(nonGitDir)).toBeNull()
+    expect(bestEffortGitBranch(nonGitDir)).toBeNull()
     const gitDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-writer-git-real-'))
     expect(spawnSync('git', ['init'], { cwd: gitDir }).status).toBe(0)
     await fs.writeFile(path.join(gitDir, 'a.txt'), 'a', 'utf8')
@@ -43,13 +51,13 @@ describe('sessionSave/writer helpers', () => {
         cwd: gitDir,
       }).status,
     ).toBe(0)
-    const branchName = __writerTestOnly.bestEffortGitBranch(gitDir)
+    const branchName = bestEffortGitBranch(gitDir)
     expect(typeof branchName).toBe('string')
     expect(branchName && branchName !== 'HEAD').toBe(true)
     expect(spawnSync('git', ['checkout', '--detach'], { cwd: gitDir }).status).toBe(0)
-    expect(__writerTestOnly.bestEffortGitBranch(gitDir)).toBeNull()
+    expect(bestEffortGitBranch(gitDir)).toBeNull()
 
-    expect(__writerTestOnly.bestEffortGitBranch('\u0000invalid')).toBeNull()
+    expect(bestEffortGitBranch('\u0000invalid')).toBeNull()
 
     const runningTool: Msg = {
       id: 't1',
@@ -58,10 +66,10 @@ describe('sessionSave/writer helpers', () => {
       timestamp: new Date(),
       toolInfo: { name: 'Bash', input: {}, status: 'running' },
     }
-    expect(__writerTestOnly.isPersistableMsg({ ...runningTool, isStreaming: true } as Msg)).toBe(false)
-    expect(__writerTestOnly.isPersistableMsg(runningTool)).toBe(false)
-    expect(__writerTestOnly.isPersistableMsg({ ...runningTool, toolInfo: { name: 'Bash', input: {}, status: 'completed' } } as Msg)).toBe(true)
-    expect(__writerTestOnly.isPersistableMsg({ ...runningTool, role: 'user' } as Msg)).toBe(true)
+    expect(isPersistableMsg({ ...runningTool, isStreaming: true } as Msg)).toBe(false)
+    expect(isPersistableMsg(runningTool)).toBe(false)
+    expect(isPersistableMsg({ ...runningTool, toolInfo: { name: 'Bash', input: {}, status: 'completed' } } as Msg)).toBe(true)
+    expect(isPersistableMsg({ ...runningTool, role: 'user' } as Msg)).toBe(true)
   })
 
   it('covers cloning and truncation helpers', () => {

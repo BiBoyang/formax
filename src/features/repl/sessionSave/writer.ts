@@ -23,11 +23,11 @@ type SessionWriterOptions = {
   maxLineBytes?: number
 }
 
-function isoNow(now: Date = new Date()): string {
+export function isoNow(now: Date = new Date()): string {
   return now.toISOString()
 }
 
-function parseRequestedSessionId(value: string): string {
+export function parseRequestedSessionId(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) throw new Error('Invalid sessionId: expected non-empty string')
   if (!SAFE_SESSION_ID_RE.test(trimmed)) {
@@ -36,7 +36,7 @@ function parseRequestedSessionId(value: string): string {
   return trimmed
 }
 
-function resolveSessionStartTime(value: string | Date | undefined): Date {
+export function resolveSessionStartTime(value: string | Date | undefined): Date {
   if (value === undefined) return new Date()
   if (value instanceof Date) {
     if (!Number.isFinite(value.getTime())) throw new Error('Invalid startedAt: expected valid Date')
@@ -47,7 +47,7 @@ function resolveSessionStartTime(value: string | Date | undefined): Date {
   return new Date(parsed)
 }
 
-function bestEffortGitBranch(cwd: string): string | null {
+export function bestEffortGitBranch(cwd: string): string | null {
   try {
     const res = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd,
@@ -64,7 +64,7 @@ function bestEffortGitBranch(cwd: string): string | null {
   }
 }
 
-function isPersistableMsg(msg: Msg): boolean {
+export function isPersistableMsg(msg: Msg): boolean {
   if (msg.isStreaming) return false
   if (msg.role === 'tool' && msg.toolInfo?.status === 'running') return false
   return true
@@ -228,14 +228,6 @@ export class SessionWriter {
 
 export function getDefaultMaxLineBytes(): number {
   return DEFAULT_MAX_LINE_BYTES
-}
-
-export const __writerTestOnly = {
-  isoNow,
-  parseRequestedSessionId,
-  resolveSessionStartTime,
-  bestEffortGitBranch,
-  isPersistableMsg,
 }
 
 export type { SessionWriterOptions }
