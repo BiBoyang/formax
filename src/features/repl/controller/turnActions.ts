@@ -12,6 +12,7 @@ import type { RuntimeFlags } from '../../../config/runtimeFlags'
 import type { UserInputManager } from '../../../tools/runtime/userInputManager'
 import type { CompactLifecycleEvent } from './send/compactFlow'
 import type { CanonicalEvent } from '../../semantics/core'
+import type { TranscriptProjectionState } from '../../semantics/projection'
 import type { OverlaySpec } from '../../commands/contracts'
 import type { ReminderService } from '../reminders/ReminderService'
 import type { ContextBudgetConfig } from '../../../chat/context/budget'
@@ -20,9 +21,15 @@ import { maybeHandleClearCommand } from './send/send'
 import { runLocalBashTurn } from './send/bashMode'
 import { runReplModelSendFlow } from './send/sendOrchestration'
 import { createSendTurnContext } from './send/sendTypes'
-import { emitCanonicalTurnFooterForTurn, emitCanonicalUiMessageForTurn } from './canonical'
+import {
+  appendCanonicalTailFinalRows,
+  assertReplCanonicalInvariants,
+  emitCanonicalTurnFooterForTurn,
+  emitCanonicalUiMessageForTurn,
+} from './canonical'
 import {
   hasRunningAskTool,
+  mapLocalBashTurnOutcomeForTail,
   shouldBlockSendWhileBusy,
 } from './send/turnGuards'
 import { recordClaudeMdInjectionEvent } from './session'
@@ -128,6 +135,7 @@ export type SendFlowRefs = {
   bashModeInFlightRef: { current: boolean }
   sessionTransitionPendingCountRef: { current: number }
   sessionWriterRef: { current: SessionWriter | null }
+  canonicalProjectionRef: { current: TranscriptProjectionState }
   modeCurrentRef: { current: ReplMode }
   historyRef: { current: ChatHistory }
   pendingInjectedBlocksRef: { current: PromptBlock[] }
@@ -169,11 +177,6 @@ export type SendFlowCallbacks = {
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
   handleEvent: (ev: StreamEvent) => void
-  appendEmptyBashUsageMessage: () => void
-  appendLocalBashCanonicalTail: (args: {
-    localTurnId: string
-    localTurnOutcome: 'completed' | 'failed' | 'aborted'
-  }) => void
 }
 
 type SendFlowRuntime = {
@@ -184,6 +187,40 @@ type SendFlowRuntime = {
   runtimeEnv: NodeJS.ProcessEnv
   allowedSubagents: Array<{ name: string; description: string }>
   sessionSaveEnabled: boolean
+}
+
+function appendEmptyBashUsageMessage(setMessages: Dispatch<SetStateAction<Msg[]>>): void {
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content: 'Usage: ! <command>',
+      timestamp: new Date(),
+    },
+  ])
+}
+
+function appendLocalBashCanonicalTail(args: {
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  projectionRef: { current: TranscriptProjectionState }
+  localTurnId: string
+  localTurnOutcome: 'completed' | 'failed' | 'aborted'
+}): void {
+  args.setMessages((prev) => {
+    const nextMessages = appendCanonicalTailFinalRows({
+      messages: prev,
+      turnId: args.localTurnId,
+      turnOutcome: mapLocalBashTurnOutcomeForTail(args.localTurnOutcome),
+      projectionSegments: args.projectionRef.current.segments,
+    })
+    assertReplCanonicalInvariants({
+      projection: args.projectionRef.current,
+      messages: nextMessages,
+      targetTurnId: args.localTurnId,
+    })
+    return nextMessages
+  })
 }
 
 export async function runSendAction(args: {
@@ -232,7 +269,7 @@ export async function runSendAction(args: {
   if (text.startsWith('!')) {
     const command = text.replace(/^!\s*/, '').trim()
     if (!command) {
-      args.callbacks.appendEmptyBashUsageMessage()
+      appendEmptyBashUsageMessage(args.callbacks.setMessages)
       return
     }
 
@@ -258,7 +295,9 @@ export async function runSendAction(args: {
         abortControllerRef: args.refs.abortControllerRef,
         clearCanonicalTransientState: args.callbacks.clearCanonicalTransientState,
       })
-      args.callbacks.appendLocalBashCanonicalTail({
+      appendLocalBashCanonicalTail({
+        setMessages: args.callbacks.setMessages,
+        projectionRef: args.refs.canonicalProjectionRef,
         localTurnId,
         localTurnOutcome,
       })

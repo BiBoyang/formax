@@ -23,8 +23,6 @@ import {
 } from './controller/ui'
 import { useReplStreaming } from './controller/streaming/streaming'
 import {
-  appendCanonicalTailFinalRows,
-  assertReplCanonicalInvariants,
   mergeProjectedStaticRows,
   safeJson,
   areToolInfosEqual,
@@ -578,6 +576,7 @@ export function useReplController(deps: {
           bashModeInFlightRef,
           sessionTransitionPendingCountRef,
           sessionWriterRef,
+          canonicalProjectionRef: canonicalRefs.projectionRef,
           modeCurrentRef: modeRefs.currentRef,
           historyRef,
           pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
@@ -618,33 +617,6 @@ export function useReplController(deps: {
           openOverlay,
           closeOverlay,
           handleEvent,
-          appendEmptyBashUsageMessage: () => {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `assistant-${Date.now()}`,
-                role: 'assistant',
-                content: 'Usage: ! <command>',
-                timestamp: new Date(),
-              },
-            ])
-          },
-          appendLocalBashCanonicalTail: ({ localTurnId, localTurnOutcome }) => {
-            setMessages((prev) => {
-              const nextMessages = appendCanonicalTailFinalRows({
-                messages: prev,
-                turnId: localTurnId,
-                turnOutcome: mapLocalBashTurnOutcomeForTail(localTurnOutcome),
-                projectionSegments: canonicalRefs.projectionRef.current.segments,
-              })
-              assertReplCanonicalInvariants({
-                projection: canonicalRefs.projectionRef.current,
-                messages: nextMessages,
-                targetTurnId: localTurnId,
-              })
-              return nextMessages
-            })
-          },
         },
         runtime: {
           canonicalThreadId: CANONICAL_THREAD_ID,

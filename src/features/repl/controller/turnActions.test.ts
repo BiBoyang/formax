@@ -29,6 +29,7 @@ function createSendHarness(args?: {
     bashModeInFlightRef: { current: args?.bashInFlight ?? false },
     sessionTransitionPendingCountRef: { current: args?.transitionPending ?? 0 },
     sessionWriterRef: { current: null },
+    canonicalProjectionRef: { current: { threadId: 'tui-live', segments: [] } as any },
     modeCurrentRef: { current: 'default' as ReplMode },
     historyRef: { current: [] },
     pendingInjectedBlocksRef: { current: [] },
@@ -69,8 +70,6 @@ function createSendHarness(args?: {
     openOverlay: vi.fn(),
     closeOverlay: vi.fn(),
     handleEvent: vi.fn(),
-    appendEmptyBashUsageMessage: vi.fn(),
-    appendLocalBashCanonicalTail: vi.fn(),
   }
   return {
     input: { value: args?.value ?? 'hello' },
