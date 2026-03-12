@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RuntimeConfig } from '../../../config/config'
 import type { ChatEngine } from '../../../chat/engine'
+import type { Msg } from '../../../shared/toolMessageTypes'
 import type { ReplMode } from '../mode'
 import {
   type AbortFlowCallbacks,
@@ -158,5 +159,75 @@ describe('turnActions', () => {
     expect(setIsLoading).toHaveBeenCalledWith(false)
     expect(clearToolRuntimeState).toHaveBeenCalledTimes(1)
     expect(clearCanonicalTransientState).toHaveBeenCalledTimes(1)
+  })
+
+  it('runAbortAction falls back to session-transition abort when canonical turn is missing', () => {
+    const abort = vi.fn()
+    const refs: AbortFlowRefs = {
+      canonicalTurnIdRef: { current: null },
+      canonicalTransientSnapshotRef: { current: null },
+      toolNameByIdRef: { current: new Map([['tool-1', 'Task']]) },
+      abortControllerRef: { current: { abort } as unknown as AbortController },
+      bashModeInFlightRef: { current: true },
+      currentAssistantIdRef: { current: 'assistant-1' },
+    }
+    const setIsLoading = vi.fn()
+    let messages: Msg[] = [
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: 'streaming',
+        timestamp: new Date(),
+        isStreaming: true,
+      },
+    ]
+    const setMessagesImpl: AbortFlowCallbacks['setMessages'] = (update) => {
+      messages = typeof update === 'function' ? update(messages) : update
+    }
+    const setMessages = vi.fn(setMessagesImpl)
+    const clearCanonicalTransientState = vi.fn()
+    const clearToolRuntimeState = vi.fn()
+    const resetSessionUiState = vi.fn()
+    const clearBufferedAnswers = vi.fn()
+    const rejectAllPending = vi.fn()
+    const onCanonicalEvent = vi.fn()
+    const nextCanonicalReplaySeq = vi.fn(() => 1)
+    const callbacks: AbortFlowCallbacks = {
+      resetSessionUiState,
+      clearCanonicalTransientState,
+      clearToolRuntimeState,
+      setMessages,
+      setIsLoading,
+      nextCanonicalReplaySeq,
+      onCanonicalEvent,
+    }
+
+    runAbortAction({
+      refs,
+      callbacks,
+      runtime: {
+        canonicalThreadId: 'tui-live',
+        isLoading: true,
+        userInput: {
+          clearBufferedAnswers,
+          rejectAllPending,
+        } as any,
+      },
+    })
+
+    expect(abort).toHaveBeenCalledTimes(1)
+    expect(refs.abortControllerRef.current).toBeNull()
+    expect(refs.bashModeInFlightRef.current).toBe(false)
+    expect(refs.currentAssistantIdRef.current).toBeNull()
+    expect(clearBufferedAnswers).toHaveBeenCalledTimes(1)
+    expect(rejectAllPending).toHaveBeenCalledTimes(1)
+    expect(resetSessionUiState).toHaveBeenCalledTimes(1)
+    expect(setIsLoading).toHaveBeenCalledWith(false)
+    expect(clearToolRuntimeState).toHaveBeenCalledTimes(1)
+    expect(clearCanonicalTransientState).toHaveBeenCalledTimes(1)
+    expect(nextCanonicalReplaySeq).not.toHaveBeenCalled()
+    expect(onCanonicalEvent).not.toHaveBeenCalled()
+    expect(setMessages).toHaveBeenCalled()
+    expect(messages.some((message) => message.id === 'assistant-1' && message.isStreaming)).toBe(false)
   })
 })
