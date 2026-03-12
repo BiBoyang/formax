@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import type { MutableRefObject } from 'react'
+import type { ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { TokenUsage } from '../../../../streaming/types'
 import type { PromptBlock } from '../../../../prompts'
@@ -35,6 +36,32 @@ function useModeRefs(initialMode: ReplMode): {
   return {
     currentRef: useRef<ReplMode>(initialMode),
     previousRef: useRef<ReplMode>(initialMode),
+  }
+}
+
+function useTurnStreamingRefs(initialHistory: ChatHistory): {
+  historyRef: MutableRefObject<ChatHistory>
+  abortControllerRef: MutableRefObject<AbortController | null>
+  currentAssistantIdRef: MutableRefObject<string | null>
+  assistantBufferRef: MutableRefObject<string>
+  thinkingRefs: {
+    bufferRef: MutableRefObject<string>
+    messageIdRef: MutableRefObject<string | null>
+    lastFlushAtRef: MutableRefObject<number>
+    timingRef: MutableRefObject<{ startedAtMs: number | null }>
+  }
+} {
+  return {
+    historyRef: useRef<ChatHistory>(initialHistory),
+    abortControllerRef: useRef<AbortController | null>(null),
+    currentAssistantIdRef: useRef<string | null>(null),
+    assistantBufferRef: useRef<string>(''),
+    thinkingRefs: {
+      bufferRef: useRef<string>(''),
+      messageIdRef: useRef<string | null>(null),
+      lastFlushAtRef: useRef(0),
+      timingRef: useRef<{ startedAtMs: number | null }>({ startedAtMs: null }),
+    },
   }
 }
 
@@ -142,6 +169,7 @@ function useSessionPersistenceRefs(args: {
 export {
   useCanonicalRefs,
   useModeRefs,
+  useTurnStreamingRefs,
   useTurnFlowRefs,
   useRuntimeStateRefs,
   useToolRuntimeRefs,

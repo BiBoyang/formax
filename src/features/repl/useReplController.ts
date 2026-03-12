@@ -44,6 +44,7 @@ import {
   useRuntimeStateRefs,
   useSessionPersistenceRefs,
   useToolRuntimeRefs,
+  useTurnStreamingRefs,
   useTurnFlowRefs,
 } from './controller/state/refGroups'
 import { useSessionResetActions } from './controller/state/useSessionResetActions'
@@ -157,18 +158,13 @@ export function useReplController(deps: {
   })
 
   const assistantTextMode = deps.cfg.ui.assistantTextMode
-  const historyRef = useRef<ChatHistory>(deps.initialSession?.history ?? [])
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const currentAssistantIdRef = useRef<string | null>(null)
-  const assistantBufferRef = useRef<string>('')
-  const thinkingRefs = {
-    bufferRef: useRef<string>(''),
-    messageIdRef: useRef<string | null>(null),
-    lastFlushAtRef: useRef(0),
-    timingRef: useRef<{ startedAtMs: number | null }>({
-      startedAtMs: null,
-    }),
-  }
+  const {
+    historyRef,
+    abortControllerRef,
+    currentAssistantIdRef,
+    assistantBufferRef,
+    thinkingRefs,
+  } = useTurnStreamingRefs(deps.initialSession?.history ?? [])
   const toolRuntimeRefs = useToolRuntimeRefs()
   const canonicalRefs = useCanonicalRefs(CANONICAL_THREAD_ID)
   const modeRefs = useModeRefs(deps.mode)
