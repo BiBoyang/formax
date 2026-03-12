@@ -41,6 +41,7 @@ You are a reviewer.
       name: 'code-reviewer',
       description: 'Reviews code for bugs',
       model: 'sonnet',
+      color: 'blue',
     })
 
     const agent = registry.get('code-reviewer')

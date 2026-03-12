@@ -7,6 +7,13 @@ export type SubAgentConfig = {
   color?: string
 }
 
+export type SubAgentListItem = {
+  name: string
+  description: string
+  model?: string
+  color?: string
+}
+
 export type SubAgentResult = {
   agentId: string
   /** Full text output from the sub-agent (assistant deltas), before truncation. */

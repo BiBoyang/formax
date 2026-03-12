@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatEngine } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import { createAgentFromWizardAnswers, generateAgentDraftWithClaude } from '../../../subagents/agentsWizard'
+import type { SubAgentListItem } from '../../../subagents/types'
 import type {
   AgentsDialogGenerateDraft,
   AgentsDialogSaveArgs,
@@ -18,8 +19,8 @@ export function useReplOverlays(args: {
   engine: ChatEngine
   model?: string
   projectAgentsDir: string
-  reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
-  setAllowedSubagents: (next: Array<{ name: string; description: string }>) => void
+  reloadSubagents?: () => Promise<SubAgentListItem[]>
+  setAllowedSubagents: (next: SubAgentListItem[]) => void
   setMessages: (updater: (prev: Msg[]) => Msg[]) => void
   initialOverlay: OverlaySpec | null
 }): {

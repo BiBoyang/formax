@@ -57,6 +57,7 @@ import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
 import { getDeferredToolExposureStore } from '../../tools/runtime/deferredToolExposure'
+import type { SubAgentListItem } from '../subagents/types.js'
 
 const CANONICAL_THREAD_ID = 'tui-live'
 
@@ -70,7 +71,7 @@ export type ReplControllerState = {
   thinkingText: string
   thinkingStartedAtMs: number | null
   error: string | null
-  allowedSubagents: Array<{ name: string; description: string }>
+  allowedSubagents: SubAgentListItem[]
   agentsDialogOpen: boolean
   permissionsDialogOpen: boolean
   hooksDialogOpen: boolean
@@ -111,8 +112,8 @@ export function useReplController(deps: {
   cfg: RuntimeConfig
   onClearTerminal?: () => void | Promise<void>
   initialSession?: { filePath?: string; messages?: Msg[]; history?: ChatHistory }
-  allowedSubagents?: Array<{ name: string; description: string }>
-  reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
+  allowedSubagents?: SubAgentListItem[]
+  reloadSubagents?: () => Promise<SubAgentListItem[]>
   mode: ReplMode
   onModeChange?: (mode: ReplMode) => void
   commandRegistry?: SlashCommandRegistry

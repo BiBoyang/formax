@@ -13,7 +13,14 @@ import {
 describe('ToolUiPrimitives', () => {
   it('renders header line with suffix/params and pulsing running status', () => {
     const ui = render(
-      <ToolHeaderLine status="running" label="Run" suffix="suf" params="p=1" />,
+      <ToolHeaderLine
+        status="running"
+        label="Run"
+        suffix="suf"
+        params="p=1"
+        labelColor="#000000"
+        labelBackgroundColor="#ff3b30"
+      />,
     )
     expect(ui.lastFrame()).toContain('⏺')
     expect(ui.lastFrame()).toContain('Run')

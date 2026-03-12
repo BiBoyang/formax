@@ -2,6 +2,7 @@ import path from 'node:path'
 import { getConfigPaths } from '../../adapters/fs/configPaths.js'
 import { createSubAgentRegistry } from '../../features/subagents/registry.js'
 import { createSubAgentRunner } from '../../features/subagents/runner.js'
+import type { SubAgentListItem } from '../../features/subagents/types.js'
 import { createTaskSubAgentToolHandler } from '../../tools/executor/handlers/taskSubAgent.js'
 import { createTaskToolModule } from '../../tools/modules/task/index.js'
 import { patchTaskToolForSubagents } from '../../tools/patches/taskSubagent.js'
@@ -14,8 +15,8 @@ import type { ToolPreflight } from '../../tools/executor/index.js'
 import { createToolExecutor } from '../../tools/executor/index.js'
 
 export type SubagentRuntime = {
-  allowedSubagents: { name: string; description: string; model?: string }[]
-  reloadSubagents: () => Promise<{ name: string; description: string; model?: string }[]>
+  allowedSubagents: SubAgentListItem[]
+  reloadSubagents: () => Promise<SubAgentListItem[]>
   tools: Awaited<ReturnType<ToolRegistry['listSpecs']>>
 }
 

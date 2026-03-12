@@ -27,6 +27,7 @@ const MAX_ENTRIES = 200
 const MAX_LISTED_PATHS = 25
 const MAX_RESPONSE_CHARS = 10_000
 const TASK_MODEL_USAGE_ERROR = 'Error: model must be one of: sonnet, opus, haiku.'
+const TASK_BACKGROUND_HINT_LINE = 'ctrl+b to run in background'
 
 export function createTaskSubAgentToolHandler(deps: {
   registry: SubAgentRegistry
@@ -120,14 +121,16 @@ export function createTaskSubAgentToolHandler(deps: {
           scheduleTaskUpdate?.()
           if (!opts?.emitUi) return
           if (!ctx.onEvent || signal?.aborted) return
+          const runningHintLine = TASK_BACKGROUND_HINT_LINE
           ctx.onEvent({
             type: 'tool_update',
             id: call.id,
-            middleLines: renderNestedLines(entries, toolUses),
+            middleLines: renderNestedLines(entries, toolUses, { includeBackgroundHint: true }),
             transcriptLines: renderTaskTranscriptLines({
               taskPrompt: prompt,
               entries,
               responseText: '',
+              runningHintLine,
             }),
             toolUses,
             usage: usageTotal,
@@ -317,7 +320,11 @@ function formatNestedHeader(name: string, input: Record<string, any>): string {
   return truncateLine(normalized, MAX_LINE_CHARS)
 }
 
-function renderNestedLines(entries: NestedToolEntry[], toolUses: number): string[] {
+function renderNestedLines(
+  entries: NestedToolEntry[],
+  toolUses: number,
+  opts?: { includeBackgroundHint?: boolean },
+): string[] {
   const visibleEntries = entries.slice(-MAX_VISIBLE_TOOL_USES)
   const hiddenToolUses = Math.max(0, toolUses - visibleEntries.length)
 
@@ -326,9 +333,11 @@ function renderNestedLines(entries: NestedToolEntry[], toolUses: number): string
     const e = visibleEntries[i]!
     const branch = i === visibleEntries.length - 1 ? '└' : '├'
     const text =
-      e.status !== 'running' && e.summary
-        ? truncateLine(toSingleLine(e.summary).trim(), MAX_LINE_CHARS)
-        : truncateLine(toSingleLine(e.header).trim(), MAX_LINE_CHARS)
+      e.status === 'running'
+        ? formatRunningNestedSummary(e.header)
+        : e.summary
+          ? truncateLine(toSingleLine(e.summary).trim(), MAX_LINE_CHARS)
+          : truncateLine(toSingleLine(e.header).trim(), MAX_LINE_CHARS)
     lines.push(`${branch} ${text}`)
   }
 
@@ -336,7 +345,25 @@ function renderNestedLines(entries: NestedToolEntry[], toolUses: number): string
     lines.push(`+${hiddenToolUses} more tool uses (ctrl+o to expand)`)
   }
 
+  if (opts?.includeBackgroundHint && visibleEntries.some((e) => e.status === 'running')) {
+    lines.push(TASK_BACKGROUND_HINT_LINE)
+  }
+
   return lines
+}
+
+function formatRunningNestedSummary(header: string): string {
+  const normalized = toSingleLine(String(header || '')).trim()
+  if (!normalized) return 'Waiting…'
+
+  const parenMatch = /^[^(]+\((.*)$/.exec(normalized)
+  const inner = (parenMatch?.[1] ?? normalized)
+    .replace(/^(command|cmd|query|pattern|path|file_path):\s*/i, '')
+    .replace(/\)\s*$/, '')
+    .trim()
+
+  if (!inner) return 'Waiting…'
+  return truncateLine(`Waiting… ${inner}`, MAX_LINE_CHARS)
 }
 
 function trimEntries(entries: NestedToolEntry[]): void {
@@ -464,6 +491,7 @@ function renderTaskTranscriptLines(args: {
   entries: NestedToolEntry[]
   responseText: string
   doneLine?: string
+  runningHintLine?: string
 }): string[] {
   const lines: string[] = []
 
@@ -481,7 +509,7 @@ function renderTaskTranscriptLines(args: {
     const header = toSingleLine(entry.header).trim()
     if (!header) continue
 
-    lines.push(header)
+    lines.push(entry.status === 'running' ? formatRunningNestedSummary(header) : header)
 
     if (entry.status === 'running') continue
 
@@ -503,6 +531,9 @@ function renderTaskTranscriptLines(args: {
   }
 
   if (args.doneLine) lines.push(args.doneLine)
+  if (!args.doneLine && args.runningHintLine && args.entries.some((entry) => entry.status === 'running')) {
+    lines.push(args.runningHintLine)
+  }
 
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
   return lines
@@ -589,6 +620,7 @@ function formatDuration(ms: number): string {
 export const taskSubAgentTestExports = {
   parseExplicitModelTier,
   formatNestedHeader,
+  formatRunningNestedSummary,
   renderNestedLines,
   trimEntries,
   addUsage,

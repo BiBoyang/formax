@@ -103,6 +103,10 @@ describe('taskSubAgent helpers', () => {
     const header = taskSubAgentTestExports.formatNestedHeader('Read', { file_path: '/tmp/x/y/z.md' })
     expect(header).toContain('Read')
     expect(header).toContain('z.md')
+    expect(taskSubAgentTestExports.formatRunningNestedSummary('Bash(command: npm run type-check)')).toBe(
+      'Waiting… npm run type-check',
+    )
+    expect(taskSubAgentTestExports.formatRunningNestedSummary('')).toBe('Waiting…')
   })
 
   it('renders nested lines, transcript lines and nested result lines', () => {
@@ -134,15 +138,18 @@ describe('taskSubAgent helpers', () => {
       },
     ]
 
-    const nested = taskSubAgentTestExports.renderNestedLines(entries as any, 5)
+    const nested = taskSubAgentTestExports.renderNestedLines(entries as any, 5, { includeBackgroundHint: true })
     expect(nested.length).toBeGreaterThan(0)
     expect(nested.join('\n')).toContain('more tool uses')
+    expect(nested.join('\n')).toContain('Waiting…')
+    expect(nested.join('\n')).toContain('ctrl+b to run in background')
 
     const transcript = taskSubAgentTestExports.renderTaskTranscriptLines({
       taskPrompt: 'line1\nline2',
       entries: entries as any,
       responseText: 'response',
       doneLine: 'Done (1 tool use · 10 tokens · 1s)',
+      runningHintLine: 'ctrl+b to run in background',
     })
     expect(transcript.join('\n')).toContain('Prompt:')
     expect(transcript.join('\n')).toContain('Response:')
@@ -203,6 +210,15 @@ describe('taskSubAgent helpers', () => {
       responseText: '',
     })
     expect(emptyBlockTranscript.join('\n')).toContain('Unknown()')
+
+    const runningTranscript = taskSubAgentTestExports.renderTaskTranscriptLines({
+      taskPrompt: '',
+      entries: [{ ...entries[2], header: 'Bash(command: npm run type-check)' }] as any,
+      responseText: '',
+      runningHintLine: 'ctrl+b to run in background',
+    })
+    expect(runningTranscript.join('\n')).toContain('Waiting… npm run type-check')
+    expect(runningTranscript.join('\n')).toContain('ctrl+b to run in background')
   })
 
   it('covers utility helpers and throttled updater', () => {

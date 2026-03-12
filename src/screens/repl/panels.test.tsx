@@ -149,7 +149,7 @@ describe('panels', () => {
           input: { subagent_type: 'code-reviewer', description: 'Review this' },
         }),
       ),
-    ).toBe('Reviewer(Review this)')
+    ).toBe('CodeReviewer(Review this)')
 
     expect(
       formatTaskPanelTitle(

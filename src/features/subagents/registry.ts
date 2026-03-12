@@ -1,14 +1,14 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { wsWarn, wsError, wsInfo } from '../../tui/consoleLogger'
-import type { SubAgentConfig } from './types'
+import type { SubAgentConfig, SubAgentListItem } from './types'
 import { getBuiltinSubagents } from './builtins'
 
 export interface SubAgentRegistry {
   loadFromDirectory(dir: string): Promise<void>
   loadFromDirectories(dirs: string[]): Promise<void>
   get(name: string): SubAgentConfig | undefined
-  list(): Array<{ name: string; description: string; model?: string }>
+  list(): SubAgentListItem[]
 }
 
 export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): SubAgentRegistry {
@@ -91,11 +91,12 @@ export function createSubAgentRegistry(args?: { includeBuiltins?: boolean }): Su
       return agents.get(name)
     },
 
-    list(): Array<{ name: string; description: string; model?: string }> {
+    list(): SubAgentListItem[] {
       return Array.from(agents.values()).map((a) => ({
         name: a.name,
         description: a.description,
         ...(a.model ? { model: a.model } : {}),
+        ...(a.color ? { color: a.color } : {}),
       }))
     },
   }

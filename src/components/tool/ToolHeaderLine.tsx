@@ -12,6 +12,7 @@ export function ToolHeaderLine({
   params,
   suffix,
   labelColor,
+  labelBackgroundColor,
   labelBold = true,
   pulse,
   dotColor,
@@ -21,6 +22,7 @@ export function ToolHeaderLine({
   params?: string | null
   suffix?: string | null
   labelColor?: string
+  labelBackgroundColor?: string
   labelBold?: boolean
   pulse?: boolean
   dotColor?: string
@@ -40,7 +42,7 @@ export function ToolHeaderLine({
   return (
     <Text>
       <PulsingDot color={resolvedDotColor} pulse={resolvedPulse} trailingSpace />
-      <Text bold={labelBold} color={labelColor ?? theme.text}>
+      <Text bold={labelBold} color={labelColor ?? theme.text} backgroundColor={labelBackgroundColor}>
         {label}
       </Text>
       {suffix ? <Text color={theme.secondaryText}>{`(${suffix})`}</Text> : null}

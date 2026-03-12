@@ -50,6 +50,9 @@ import { partitionMessages } from '../features/repl/controller/ui'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared'
 import { parseModelTier, resolveModelForTier, type ModelTier } from '../config/modelTier'
 import { isInternalToolName } from '../tools/internalTools'
+import type { SubAgentListItem } from '../features/subagents/types.js'
+import { SubagentPresentationProvider } from '../shared/subagentPresentationContext'
+import { normalizeSubagentLookupKey, resolveSubagentColor } from '../shared/subagentPresentation'
 
 type Props = {
   onExit?: () => void
@@ -58,8 +61,8 @@ type Props = {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   initialSession?: { filePath: string; messages: Msg[]; history: ChatHistory } | null
-  allowedSubagents?: Array<{ name: string; description: string }>
-  reloadSubagents?: () => Promise<Array<{ name: string; description: string }>>
+  allowedSubagents?: SubAgentListItem[]
+  reloadSubagents?: () => Promise<SubAgentListItem[]>
   toolRegistry?: ToolRegistry
   taskManager?: TaskManager
 }
@@ -620,6 +623,18 @@ export function REPL({
     return Math.max(0, allMessages.length - 20)
   }, [allMessages.length, expandedViewActive])
 
+  const subagentPresentationCatalog = useMemo(() => {
+    const colorByName = new Map<string, string>()
+    for (const agent of state.allowedSubagents) {
+      const key = normalizeSubagentLookupKey(agent.name)
+      if (!key) continue
+      const resolvedColor = resolveSubagentColor(agent.color)
+      if (!resolvedColor) continue
+      colorByName.set(key, resolvedColor)
+    }
+    return { colorByName }
+  }, [state.allowedSubagents])
+
   const expandedTranscriptMessages = useMemo(() => {
     if (!expandedViewActive) return allMessages
     if (!expandedTranscriptHideHistory) return allMessages
@@ -643,30 +658,31 @@ export function REPL({
   const showFooterContext = Boolean(contextLine && ctrlCArmedUntilMs === null)
 
   return (
-    <PlanProvider planSession={planSession}>
-      <ReplUiProvider abort={actions.abort}>
-        <Box flexDirection="column" height="100%">
-          <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            {expandedViewActive ? (
-              <ExpandedReplTranscript
-                transcriptSeq={state.transcriptSeq}
-                version={(pkg as any).version || '0.0.0'}
-                modelLabel={modelLabel}
-                cwd={replCwd}
-                messages={expandedTranscriptMessages}
-                renderMessage={renderExpandedMessage}
-              />
-            ) : (
-              <ReplTranscript
-                transcriptSeq={primaryTranscriptSeq}
-                version={(pkg as any).version || '0.0.0'}
-                modelLabel={modelLabel}
-                cwd={replCwd}
-                staticMessages={primaryPartition.staticMessages}
-                transientMessages={primaryPartition.transientMessages}
-                renderMessage={renderMessage}
-              />
-            )}
+    <SubagentPresentationProvider catalog={subagentPresentationCatalog}>
+      <PlanProvider planSession={planSession}>
+        <ReplUiProvider abort={actions.abort}>
+          <Box flexDirection="column" height="100%">
+            <Box flexDirection="column" flexGrow={1} overflow="hidden">
+              {expandedViewActive ? (
+                <ExpandedReplTranscript
+                  transcriptSeq={state.transcriptSeq}
+                  version={(pkg as any).version || '0.0.0'}
+                  modelLabel={modelLabel}
+                  cwd={replCwd}
+                  messages={expandedTranscriptMessages}
+                  renderMessage={renderExpandedMessage}
+                />
+              ) : (
+                <ReplTranscript
+                  transcriptSeq={primaryTranscriptSeq}
+                  version={(pkg as any).version || '0.0.0'}
+                  modelLabel={modelLabel}
+                  cwd={replCwd}
+                  staticMessages={primaryPartition.staticMessages}
+                  transientMessages={primaryPartition.transientMessages}
+                  renderMessage={renderMessage}
+                />
+              )}
 
             {expandedViewActive && lastExploreGroup?.tasks?.length ? (
               <ExploreAgentsPanel tasks={lastExploreGroup.tasks} />
@@ -740,83 +756,84 @@ export function REPL({
                 <Text color="red">Error: {state.error}</Text>
               </Box>
             )}
+            </Box>
+
+            {expandedViewActive && (
+              <Box flexDirection="column" flexShrink={0} marginTop={1}>
+                <Text color={theme.secondaryText}>{'─'.repeat(Math.max((process.stdout.columns || 80), 40))}</Text>
+                <Text color={theme.secondaryText}>{'  Showing detailed transcript · ctrl+o to toggle'}</Text>
+                {expandedTranscriptHiddenCount > 0 && (
+                  <Text color={theme.secondaryText}>
+                    {expandedTranscriptHideHistory
+                      ? `  Ctrl+E to show ${expandedTranscriptHiddenCount} previous messages`
+                      : `  Ctrl+E to hide ${expandedTranscriptHiddenCount} previous messages`}
+                  </Text>
+                )}
+              </Box>
+            )}
+
+            {!isPromptMode && !expandedViewActive && (
+              <Box flexDirection="column" flexShrink={0} marginTop={1}>
+                {queuedDuringLoading.length > 0 && (
+                  <Box flexDirection="column">
+                    {queuedDuringLoading.map((queued, idx) => (
+                      <Box key={`queued-${idx}`}>
+                        <Text
+                          color={theme.replUserPromptFg}
+                          backgroundColor={theme.replUserPromptBg}
+                        >{`> ${queued} `}</Text>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+                <InputBar
+                  value={input}
+                  onChange={handleInputChange}
+                  onSubmit={handleSend}
+                  placeholder={`Try \"fix typecheck errors\"`}
+                  inputSuffixHint={inputSuffixHint}
+                  inputMode={bashModeActive ? 'bash' : 'normal'}
+                  onBackspaceAtStart={
+                    bashModeActive
+                      ? () => {
+                          setInput('')
+                          setBashModeActive(false)
+                        }
+                      : undefined
+                  }
+                  suggestions={slashSuggestions.map((s, i) => ({
+                    id: s.id,
+                    command: s.command,
+                    description: s.description,
+                    selected: i === slashIndex,
+                    dim: s.implemented === false,
+                  }))}
+                />
+                {slashSuggestions.length === 0 && (
+                  <Box flexDirection="column">
+                    {state.isLoading && queuedDuringLoading.length > 0 ? (
+                      <Box>
+                        <Text dimColor>{'> Press up to edit queued messages'}</Text>
+                        {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
+                      </Box>
+                    ) : (
+                      <Box>
+                        <ReplFooterHint
+                          mode={mode}
+                          ctrlCArmed={ctrlCArmedUntilMs !== null}
+                          isBashInput={bashModeActive}
+                        />
+                        {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            )}
           </Box>
-
-          {expandedViewActive && (
-            <Box flexDirection="column" flexShrink={0} marginTop={1}>
-              <Text color={theme.secondaryText}>{'─'.repeat(Math.max((process.stdout.columns || 80), 40))}</Text>
-              <Text color={theme.secondaryText}>{'  Showing detailed transcript · ctrl+o to toggle'}</Text>
-              {expandedTranscriptHiddenCount > 0 && (
-                <Text color={theme.secondaryText}>
-                  {expandedTranscriptHideHistory
-                    ? `  Ctrl+E to show ${expandedTranscriptHiddenCount} previous messages`
-                    : `  Ctrl+E to hide ${expandedTranscriptHiddenCount} previous messages`}
-                </Text>
-              )}
-            </Box>
-          )}
-
-          {!isPromptMode && !expandedViewActive && (
-            <Box flexDirection="column" flexShrink={0} marginTop={1}>
-              {queuedDuringLoading.length > 0 && (
-                <Box flexDirection="column">
-                  {queuedDuringLoading.map((queued, idx) => (
-                    <Box key={`queued-${idx}`}>
-                      <Text
-                        color={theme.replUserPromptFg}
-                        backgroundColor={theme.replUserPromptBg}
-                      >{`> ${queued} `}</Text>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-              <InputBar
-                value={input}
-                onChange={handleInputChange}
-                onSubmit={handleSend}
-                placeholder={`Try \"fix typecheck errors\"`}
-                inputSuffixHint={inputSuffixHint}
-                inputMode={bashModeActive ? 'bash' : 'normal'}
-                onBackspaceAtStart={
-                  bashModeActive
-                    ? () => {
-                        setInput('')
-                        setBashModeActive(false)
-                      }
-                    : undefined
-                }
-                suggestions={slashSuggestions.map((s, i) => ({
-                  id: s.id,
-                  command: s.command,
-                  description: s.description,
-                  selected: i === slashIndex,
-                  dim: s.implemented === false,
-                }))}
-              />
-              {slashSuggestions.length === 0 && (
-                <Box flexDirection="column">
-                  {state.isLoading && queuedDuringLoading.length > 0 ? (
-                    <Box>
-                      <Text dimColor>{'> Press up to edit queued messages'}</Text>
-                      {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
-                    </Box>
-                  ) : (
-                    <Box>
-                      <ReplFooterHint
-                        mode={mode}
-                        ctrlCArmed={ctrlCArmedUntilMs !== null}
-                        isBashInput={bashModeActive}
-                      />
-                      {showFooterContext ? <Text dimColor>{`   [${contextLine}]`}</Text> : null}
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </Box>
-          )}
-        </Box>
-      </ReplUiProvider>
-    </PlanProvider>
+        </ReplUiProvider>
+      </PlanProvider>
+    </SubagentPresentationProvider>
   )
 }
 

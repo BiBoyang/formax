@@ -34,7 +34,7 @@ describe('TaskToolPresenter', () => {
 
     const { lastFrame } = render(<TaskToolPresenter message={message} />)
     const frame = lastFrame()
-    expect(frame).toContain('Reviewer')
+    expect(frame).toContain('CodeReviewer')
     expect(frame).toContain('Review REPL.tsx')
     expect(frame).toContain('Read(src/screens/REPL.tsx)')
     expect(frame).toContain('Done (2 tool uses')
@@ -178,11 +178,11 @@ describe('TaskToolPresenter', () => {
     const message: Msg = {
       id: 'tool-task-nested-skip',
       role: 'tool',
-      content: '',
+      content: 'done',
       timestamp: new Date(),
       toolInfo: {
         name: 'Task',
-        status: 'running',
+        status: 'completed',
         input: {},
         nestedTools: [
           { id: 0 as any, name: 'Read', status: 'running', input: {} },
@@ -200,6 +200,7 @@ describe('TaskToolPresenter', () => {
       </UserInputProvider>,
     )
     const frame = lastFrame()
+    expect(frame).toContain('├ Read()')
     expect(frame).toContain('├ summary line')
     expect(frame).toContain('└ Tool()')
   })
@@ -311,7 +312,7 @@ describe('TaskToolPresenter', () => {
         <TaskToolPresenter message={message} />
       </UserInputProvider>,
     )
-    expect(lastFrame()).toContain('NotebookEdit')
+    expect(lastFrame()).toContain('Do you want to edit n.ipynb?')
   })
 
   it('renders nested prompts for Bash, Edit, and AskUserQuestion', () => {
@@ -394,6 +395,149 @@ describe('TaskToolPresenter', () => {
 
     expect(bashFrame).toContain('Approve running this command?')
     expect(editFrame).toContain('Do you want to make this edit to e.ts?')
-    expect(askFrame).toContain('Pick one')
+    expect(askFrame).toContain('Preparing questions…')
+  })
+
+  it('hides placeholder Task row before subagent_type is available', () => {
+    const message: Msg = {
+      id: 'tool-task-placeholder',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: {},
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    expect(lastFrame()).toBe('')
+  })
+
+  it('uses generic Running subline when no progress middleLines are available', () => {
+    const message: Msg = {
+      id: 'tool-task-running-generic',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'code-reviewer', description: 'Review latest commit' },
+        nestedTools: [{ id: 'n1', name: 'Read', status: 'running', input: {} }],
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    const frame = lastFrame()
+    expect(frame).toContain('⎿  Running')
+    expect(frame).not.toContain('Read()')
+  })
+
+  it('renders running subline from first nested progress line', () => {
+    const message: Msg = {
+      id: 'tool-task-progress',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'code-reviewer', description: 'Review latest commit' },
+        middleLines: [
+          '└ Read 1 line',
+          'commit c207f1ca658f18a3fb45ae2d298c56d3cb840421',
+          '+1 more tool use (ctrl+o to expand)',
+        ],
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    const frame = lastFrame()
+    expect(frame).toContain('CodeReviewer')
+    expect(frame).toContain('⎿  Read 1 line')
+    expect(frame).toContain('commit c207f1ca658f18a3fb45ae2d298c56d3cb840421')
+    expect(frame).toContain('+1 more tool use (ctrl+o to expand)')
+  })
+
+  it('drops duplicate running progress lines after branch-prefix normalization', () => {
+    const commitLine = 'commit c207f1ca658f18a3fb45ae2d298c56d3cb840421'
+    const message: Msg = {
+      id: 'tool-task-progress-duplicate',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'code-reviewer', description: 'Review latest changes' },
+        middleLines: [
+          `└ ${commitLine}`,
+          `├ ${commitLine}`,
+          '+1 more tool use (ctrl+o to expand)',
+          'ctrl+b to run in background',
+        ],
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    const frame = lastFrame() || ''
+    expect(frame).toContain('⎿  commit c207f1ca658f18a3fb45ae2d298c56d3cb840421')
+    expect(frame).not.toContain('├ commit c207f1ca658f18a3fb45ae2d298c56d3cb840421')
+    expect(frame.match(/commit c207f1ca658f18a3fb45ae2d298c56d3cb840421/g)?.length).toBe(1)
+    expect(frame).toContain('+1 more tool use (ctrl+o to expand)')
+    expect(frame).toContain('ctrl+b to run in background')
+  })
+
+  it('strips branch prefixes from secondary running progress lines', () => {
+    const message: Msg = {
+      id: 'tool-task-progress-branches',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'code-reviewer', description: 'Review latest changes' },
+        middleLines: ['└ Read 89 lines', '├ Found 3 files'],
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    const frame = lastFrame() || ''
+    expect(frame).toContain('⎿  Read 89 lines')
+    expect(frame).toContain('Found 3 files')
+    expect(frame).not.toContain('├ Found 3 files')
+  })
+
+  it('keeps claude-code style waiting + command preview running layout', () => {
+    const message: Msg = {
+      id: 'tool-task-progress-waiting-layout',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Task',
+        status: 'running',
+        input: { subagent_type: 'code-reviewer', description: 'Review layer contract commit' },
+        middleLines: [
+          '└ Waiting… run check:layer-contracts',
+          '> @yusifeng/formax@0.0.1-beta.6 check:layer-contracts',
+          '+5 more tool uses (ctrl+o to expand)',
+          'ctrl+b to run in background',
+        ],
+      },
+    }
+
+    const { lastFrame } = render(<TaskToolPresenter message={message} />)
+    const frame = lastFrame() || ''
+
+    expect(frame).toContain('⎿  Waiting… run check:layer-contracts')
+    expect(frame).toContain('> @yusifeng/formax@0.0.1-beta.6 check:layer-contracts')
+    expect(frame).toContain('+5 more tool uses (ctrl+o to expand)')
+    expect(frame).toContain('ctrl+b to run in background')
+    expect(frame).not.toContain('└ Waiting… run check:layer-contracts')
+    expect(frame).not.toContain('⎿  Running')
   })
 })

@@ -12,6 +12,7 @@ import { REPL } from '../screens/REPL.js'
 import { ToolExamplesScreen } from '../screens/ToolExamplesScreen.js'
 import { TranscriptPerfScreen } from '../screens/perf/TranscriptPerfScreen.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
+import type { SubAgentListItem } from '../features/subagents/types.js'
 import type { ToolRegistry } from '../tools/registry.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type { TaskManager } from '../tools/runtime/taskManager.js'
@@ -48,8 +49,8 @@ export type LegacyReplRenderArgs = {
     messages: Msg[]
     history: ChatHistory
   } | null
-  allowedSubagents: Array<{ name: string; description: string }>
-  reloadSubagents: () => Promise<Array<{ name: string; description: string }>>
+  allowedSubagents: SubAgentListItem[]
+  reloadSubagents: () => Promise<SubAgentListItem[]>
   toolRegistry: ToolRegistry
   taskManager: TaskManager
   userInputManager: UserInputManager

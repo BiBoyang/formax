@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import type { Msg } from '../../shared/toolMessageTypes'
 import { getTheme } from '../../tui/theme'
 import { formatTokens, sumTokens, truncate } from './format'
+import { formatSubagentDisplayName } from '../../shared/subagentPresentation'
 
 export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.ReactNode {
   const theme = getTheme()
@@ -70,7 +71,7 @@ export function formatTaskPanelTitle(msg: Msg): string {
   if (msg.role !== 'tool' || msg.toolInfo?.name !== 'Task') return 'Task'
   const input = (msg.toolInfo.input || {}) as any
   const subagentType = typeof input?.subagent_type === 'string' ? input.subagent_type.trim() : ''
-  const toolLabel = subagentType ? (subagentType === 'code-reviewer' ? 'Reviewer' : subagentType) : 'Task'
+  const toolLabel = formatSubagentDisplayName(subagentType)
   const description = typeof input?.description === 'string' ? input.description.trim() : ''
   const prompt = typeof input?.prompt === 'string' ? input.prompt.trim() : ''
   const params = truncate(description || prompt || '', 60)
