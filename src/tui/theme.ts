@@ -20,6 +20,19 @@ export interface Theme {
     addedDimmed: string
     removedDimmed: string
   }
+  markdown: {
+    heading: string
+    listMarker: string
+    quoteBar: string
+    rule: string
+    inlineCode: string
+    link: string
+    codeKeyword: string
+    codeString: string
+    codeComment: string
+    codeDiffAdd: string
+    codeDiffDel: string
+  }
 }
 
 
@@ -42,6 +55,19 @@ const darkTheme: Theme = {
     removed: '#7a2936',
     addedDimmed: '#47584a',
     removedDimmed: '#69484d',
+  },
+  markdown: {
+    heading: '#ffffff',
+    listMarker: '#999',
+    quoteBar: '#999',
+    rule: '#999',
+    inlineCode: '#b1b9f9',
+    link: '#5f97cd',
+    codeKeyword: '#5f97cd',
+    codeString: '#ff6b80',
+    codeComment: '#999',
+    codeDiffAdd: '#4eba65',
+    codeDiffDel: '#ff6b80',
   },
 }
 

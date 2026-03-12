@@ -10,6 +10,7 @@ import type { Msg } from '../shared/toolMessageTypes'
 import pkg from '../../package.json'
 import { InputBar } from '../components/chat/InputBar'
 import { ReplFooterHint } from '../components/chat/ReplFooterHint'
+import { AssistantMarkdownBlock } from '../components/ui/AssistantMarkdownBlock'
 import type { TaskManager } from '../tools/runtime/taskManager'
 import { ReplUiProvider } from '../features/repl/replUiContext'
 import { LoadingStatusLine } from '../components/ui/LoadingStatusLine'
@@ -541,7 +542,7 @@ export function REPL({
         return (
           <Box flexDirection="column" marginTop={1} marginBottom={0}>
             <Box>
-              <Text>{`⏺ ${msg.content}`}</Text>
+              <AssistantMarkdownBlock markdown={String(msg.content || '')} linePrefix="⏺ " />
             </Box>
           </Box>
         )

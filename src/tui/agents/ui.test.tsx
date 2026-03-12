@@ -25,6 +25,19 @@ describe('UI Components', () => {
       addedDimmed: '#47584a',
       removedDimmed: '#69484d',
     },
+    markdown: {
+      heading: '#ffffff',
+      listMarker: '#999',
+      quoteBar: '#999',
+      rule: '#999',
+      inlineCode: '#b1b9f9',
+      link: '#5f97cd',
+      codeKeyword: '#5f97cd',
+      codeString: '#ff6b80',
+      codeComment: '#999',
+      codeDiffAdd: '#4eba65',
+      codeDiffDel: '#ff6b80',
+    },
   }
 
   describe('Spacer', () => {
