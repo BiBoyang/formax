@@ -45,80 +45,92 @@ type ReplContext = {
   source: 'estimate' | 'usage'
 }
 
-export function runAbortAction(args: {
-  canonicalThreadId: string
+export type AbortFlowRefs = {
   canonicalTurnIdRef: { current: string | null }
   canonicalTransientSnapshotRef: { current: CanonicalTransientSnapshot }
   toolNameByIdRef: { current: Map<string, string> }
-  isLoading: boolean
   abortControllerRef: { current: AbortController | null }
   bashModeInFlightRef: { current: boolean }
-  userInput: UserInputManager | null | undefined
+  currentAssistantIdRef: { current: string | null }
+}
+
+export type AbortFlowCallbacks = {
   resetSessionUiState: () => void
   clearCanonicalTransientState: () => void
   clearToolRuntimeState: () => void
-  currentAssistantIdRef: { current: string | null }
   setMessages: Dispatch<SetStateAction<Msg[]>>
   setIsLoading: Dispatch<SetStateAction<boolean>>
   nextCanonicalReplaySeq: () => number
   onCanonicalEvent: (event: CanonicalEvent) => void
+}
+
+type AbortFlowRuntime = {
+  canonicalThreadId: string
+  isLoading: boolean
+  userInput: UserInputManager | null | undefined
+}
+
+export function runAbortAction(args: {
+  refs: AbortFlowRefs
+  callbacks: AbortFlowCallbacks
+  runtime: AbortFlowRuntime
 }): void {
-  const canonicalTurnId = args.canonicalTurnIdRef.current
+  const canonicalTurnId = args.refs.canonicalTurnIdRef.current
   if (canonicalTurnId) {
-    const trackedRunningToolsSnapshot = Array.from(args.toolNameByIdRef.current.entries())
-    const hadInFlightRequest = Boolean(args.abortControllerRef.current) || args.isLoading
+    const trackedRunningToolsSnapshot = Array.from(args.refs.toolNameByIdRef.current.entries())
+    const hadInFlightRequest = Boolean(args.refs.abortControllerRef.current) || args.runtime.isLoading
 
-    args.abortControllerRef.current?.abort()
-    args.abortControllerRef.current = null
-    args.bashModeInFlightRef.current = false
+    args.refs.abortControllerRef.current?.abort()
+    args.refs.abortControllerRef.current = null
+    args.refs.bashModeInFlightRef.current = false
 
-    args.userInput?.clearBufferedAnswers()
-    args.userInput?.rejectAllPending(new Error('Request aborted'))
+    args.runtime.userInput?.clearBufferedAnswers()
+    args.runtime.userInput?.rejectAllPending(new Error('Request aborted'))
 
-    args.resetSessionUiState()
-    args.setIsLoading(false)
-    args.clearToolRuntimeState()
+    args.callbacks.resetSessionUiState()
+    args.callbacks.setIsLoading(false)
+    args.callbacks.clearToolRuntimeState()
 
     emitCanonicalTurnFooterForTurn({
-      threadId: args.canonicalThreadId,
+      threadId: args.runtime.canonicalThreadId,
       turnId: canonicalTurnId,
       status: 'interrupted',
       message: 'Request aborted',
-      nextReplaySeq: args.nextCanonicalReplaySeq,
-      onCanonicalEvent: args.onCanonicalEvent,
+      nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+      onCanonicalEvent: args.callbacks.onCanonicalEvent,
     })
 
     const hadAsk = hasRunningAskTool({
       trackedRunningToolsSnapshot,
-      transientSnapshot: args.canonicalTransientSnapshotRef.current,
+      transientSnapshot: args.refs.canonicalTransientSnapshotRef.current,
     })
 
     if (hadAsk && hadInFlightRequest) {
       emitCanonicalUiMessageForTurn({
-        threadId: args.canonicalThreadId,
+        threadId: args.runtime.canonicalThreadId,
         turnId: canonicalTurnId,
         message: { role: 'assistant', content: 'User declined to answer questions' },
-        nextReplaySeq: args.nextCanonicalReplaySeq,
-        onCanonicalEvent: args.onCanonicalEvent,
+        nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+        onCanonicalEvent: args.callbacks.onCanonicalEvent,
       })
     }
 
-    args.clearCanonicalTransientState()
+    args.callbacks.clearCanonicalTransientState()
     return
   }
 
   runAbortSessionTransition({
-    isLoading: args.isLoading,
-    abortControllerRef: args.abortControllerRef,
-    bashModeInFlightRef: args.bashModeInFlightRef,
-    toolNameByIdRef: args.toolNameByIdRef,
-    userInput: args.userInput,
-    resetSessionUiState: args.resetSessionUiState,
-    clearCanonicalTransientState: args.clearCanonicalTransientState,
-    clearToolRuntimeState: args.clearToolRuntimeState,
-    currentAssistantIdRef: args.currentAssistantIdRef,
-    setMessages: args.setMessages,
-    setIsLoading: args.setIsLoading,
+    isLoading: args.runtime.isLoading,
+    abortControllerRef: args.refs.abortControllerRef,
+    bashModeInFlightRef: args.refs.bashModeInFlightRef,
+    toolNameByIdRef: args.refs.toolNameByIdRef,
+    userInput: args.runtime.userInput,
+    resetSessionUiState: args.callbacks.resetSessionUiState,
+    clearCanonicalTransientState: args.callbacks.clearCanonicalTransientState,
+    clearToolRuntimeState: args.callbacks.clearToolRuntimeState,
+    currentAssistantIdRef: args.refs.currentAssistantIdRef,
+    setMessages: args.callbacks.setMessages,
+    setIsLoading: args.callbacks.setIsLoading,
   })
 }
 

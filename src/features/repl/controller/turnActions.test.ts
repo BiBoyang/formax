@@ -3,6 +3,8 @@ import type { RuntimeConfig } from '../../../config/config'
 import type { ChatEngine } from '../../../chat/engine'
 import type { ReplMode } from '../mode'
 import {
+  type AbortFlowCallbacks,
+  type AbortFlowRefs,
   runAbortAction,
   runSendAction,
   type SendFlowCallbacks,
@@ -109,38 +111,47 @@ describe('turnActions', () => {
 
   it('runAbortAction clears canonical in-flight state and aborts controller', () => {
     const abort = vi.fn()
-    const abortControllerRef = { current: { abort } as unknown as AbortController }
+    const refs: AbortFlowRefs = {
+      canonicalTurnIdRef: { current: 'turn-1' },
+      canonicalTransientSnapshotRef: { current: null },
+      toolNameByIdRef: { current: new Map() },
+      abortControllerRef: { current: { abort } as unknown as AbortController },
+      bashModeInFlightRef: { current: true },
+      currentAssistantIdRef: { current: null },
+    }
     const setIsLoading = vi.fn()
+    const setMessages = vi.fn()
     const clearCanonicalTransientState = vi.fn()
     const clearToolRuntimeState = vi.fn()
     const resetSessionUiState = vi.fn()
     const clearBufferedAnswers = vi.fn()
     const rejectAllPending = vi.fn()
-
-    runAbortAction({
-      canonicalThreadId: 'tui-live',
-      canonicalTurnIdRef: { current: 'turn-1' },
-      canonicalTransientSnapshotRef: { current: null },
-      toolNameByIdRef: { current: new Map() },
-      isLoading: true,
-      abortControllerRef,
-      bashModeInFlightRef: { current: true },
-      userInput: {
-        clearBufferedAnswers,
-        rejectAllPending,
-      } as any,
+    const onCanonicalEvent = vi.fn()
+    const callbacks: AbortFlowCallbacks = {
       resetSessionUiState,
       clearCanonicalTransientState,
       clearToolRuntimeState,
-      currentAssistantIdRef: { current: null },
-      setMessages: vi.fn(),
+      setMessages,
       setIsLoading,
       nextCanonicalReplaySeq: () => 1,
-      onCanonicalEvent: vi.fn(),
+      onCanonicalEvent,
+    }
+
+    runAbortAction({
+      refs,
+      callbacks,
+      runtime: {
+        canonicalThreadId: 'tui-live',
+        isLoading: true,
+        userInput: {
+          clearBufferedAnswers,
+          rejectAllPending,
+        } as any,
+      },
     })
 
     expect(abort).toHaveBeenCalledTimes(1)
-    expect(abortControllerRef.current).toBeNull()
+    expect(refs.abortControllerRef.current).toBeNull()
     expect(clearBufferedAnswers).toHaveBeenCalledTimes(1)
     expect(rejectAllPending).toHaveBeenCalledTimes(1)
     expect(resetSessionUiState).toHaveBeenCalledTimes(1)

@@ -395,22 +395,28 @@ export function useReplController(deps: {
 
   const abort = useCallback(() => {
     runAbortAction({
-      canonicalThreadId: CANONICAL_THREAD_ID,
-      canonicalTurnIdRef: canonicalRefs.turnIdRef,
-      canonicalTransientSnapshotRef: canonicalRefs.transientSnapshotRef,
-      toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
-      isLoading,
-      abortControllerRef,
-      bashModeInFlightRef,
-      userInput,
-      resetSessionUiState,
-      clearCanonicalTransientState,
-      clearToolRuntimeState,
-      currentAssistantIdRef,
-      setMessages,
-      setIsLoading,
-      nextCanonicalReplaySeq,
-      onCanonicalEvent,
+      refs: {
+        canonicalTurnIdRef: canonicalRefs.turnIdRef,
+        canonicalTransientSnapshotRef: canonicalRefs.transientSnapshotRef,
+        toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
+        abortControllerRef,
+        bashModeInFlightRef,
+        currentAssistantIdRef,
+      },
+      callbacks: {
+        resetSessionUiState,
+        clearCanonicalTransientState,
+        clearToolRuntimeState,
+        setMessages,
+        setIsLoading,
+        nextCanonicalReplaySeq,
+        onCanonicalEvent,
+      },
+      runtime: {
+        canonicalThreadId: CANONICAL_THREAD_ID,
+        isLoading,
+        userInput,
+      },
     })
   }, [
     clearCanonicalTransientState,
