@@ -178,9 +178,11 @@ function loadConfig(configPath) {
   const layerOrder = Array.isArray(parsed.layerOrder) ? parsed.layerOrder.map(String) : []
   const scanRoots = Array.isArray(parsed.scanRoots) ? parsed.scanRoots.map((p) => path.resolve(REPO_ROOT, String(p))) : []
   const allowedImports = parseAllowedImports(parsed.allowedImports)
+  const allowZeroHitMappings = parseAllowZeroHitMappings(parsed.allowZeroHitMappings)
   const layers = parsed.layers && typeof parsed.layers === 'object' ? parsed.layers : {}
 
   const mappingEntries = []
+  let mappingId = 1
   for (const layer of layerOrder) {
     const rawEntries = Array.isArray(layers[layer]) ? layers[layer] : []
     for (const rawEntry of rawEntries) {
@@ -188,19 +190,21 @@ function loadConfig(configPath) {
       const exists = fs.existsSync(absEntry)
       const isDirectory = exists ? fs.statSync(absEntry).isDirectory() : !path.extname(String(rawEntry))
       mappingEntries.push({
+        id: mappingId,
         layer,
         rawPath: String(rawEntry),
         absPath: absEntry,
         exists,
         isDirectory,
       })
+      mappingId += 1
     }
   }
 
   mappingEntries.sort((a, b) => b.absPath.length - a.absPath.length)
   const layerIndex = new Map(layerOrder.map((name, idx) => [name, idx]))
 
-  return { layerOrder, layerIndex, scanRoots, mappingEntries, allowedImports }
+  return { layerOrder, layerIndex, scanRoots, mappingEntries, allowedImports, allowZeroHitMappings }
 }
 
 function printMissingMappings(entries) {
@@ -232,15 +236,38 @@ function parseAllowedImports(rawAllowedImports) {
   return out
 }
 
-function resolveLayerForFile(filePath, mappingEntries) {
-  for (const entry of mappingEntries) {
-    if (entry.isDirectory) {
-      if (isUnderDir(filePath, entry.absPath)) return entry.layer
+function parseAllowZeroHitMappings(rawAllowlist) {
+  if (!Array.isArray(rawAllowlist)) return []
+  const out = []
+  for (const rawEntry of rawAllowlist) {
+    if (typeof rawEntry === 'string') {
+      const entryPath = normalizeRepoRelPath(rawEntry)
+      if (!entryPath) continue
+      out.push({ path: entryPath, reason: '' })
       continue
     }
-    if (path.normalize(filePath) === path.normalize(entry.absPath)) return entry.layer
+    if (!rawEntry || typeof rawEntry !== 'object') continue
+    const entryPath = normalizeRepoRelPath(rawEntry.path)
+    if (!entryPath) continue
+    const reason = typeof rawEntry.reason === 'string' ? rawEntry.reason.trim() : ''
+    out.push({ path: entryPath, reason })
+  }
+  return out
+}
+
+function resolveMappingEntryForFile(filePath, mappingEntries) {
+  for (const entry of mappingEntries) {
+    if (entry.isDirectory) {
+      if (isUnderDir(filePath, entry.absPath)) return entry
+      continue
+    }
+    if (path.normalize(filePath) === path.normalize(entry.absPath)) return entry
   }
   return null
+}
+
+function resolveLayerForFile(filePath, mappingEntries) {
+  return resolveMappingEntryForFile(filePath, mappingEntries)?.layer ?? null
 }
 
 function violationKey(v) {
@@ -271,6 +298,7 @@ function saveBaseline(baselinePath, violations) {
 
 function collectViolations(config) {
   const violations = []
+  const mappingHitCounts = new Map()
   const seenFiles = new Set()
 
   for (const root of config.scanRoots) {
@@ -278,8 +306,10 @@ function collectViolations(config) {
       if (seenFiles.has(file)) continue
       seenFiles.add(file)
 
-      const sourceLayer = resolveLayerForFile(file, config.mappingEntries)
-      if (!sourceLayer) continue
+      const sourceMapping = resolveMappingEntryForFile(file, config.mappingEntries)
+      if (!sourceMapping) continue
+      const sourceLayer = sourceMapping.layer
+      mappingHitCounts.set(sourceMapping.id, (mappingHitCounts.get(sourceMapping.id) ?? 0) + 1)
 
       const source = fs.readFileSync(file, 'utf8')
       const specifiers = extractImportSpecifiers(source)
@@ -315,7 +345,7 @@ function collectViolations(config) {
   }
 
   violations.sort((a, b) => violationKey(a).localeCompare(violationKey(b)))
-  return violations
+  return { violations, mappingHitCounts }
 }
 
 function printViolations(title, violations) {
@@ -340,6 +370,33 @@ function printAllowedImports(title, entries) {
     const reasonSuffix = entry.reason ? ` | reason: ${entry.reason}` : ''
     console.error(`- ${entry.source} -> ${entry.target} (${entry.rule})${reasonSuffix}`)
   }
+}
+
+function printZeroHitMappings(title, entries) {
+  if (entries.length === 0) return
+  console.error(`\n${title}`)
+  for (const entry of entries) {
+    const reasonSuffix = entry.reason ? ` | reason: ${entry.reason}` : ''
+    console.error(`- [${entry.layer}] ${entry.rawPath}${reasonSuffix}`)
+  }
+}
+
+function collectZeroHitMappings(config, mappingHitCounts) {
+  const allowMap = new Map(config.allowZeroHitMappings.map((entry) => [entry.path, entry.reason]))
+  const zeroHit = []
+  for (const entry of config.mappingEntries) {
+    const hits = mappingHitCounts.get(entry.id) ?? 0
+    if (hits > 0) continue
+    const normalized = normalizeRepoRelPath(entry.rawPath)
+    if (allowMap.has(normalized)) continue
+    zeroHit.push({
+      layer: entry.layer,
+      rawPath: entry.rawPath,
+      reason: '',
+    })
+  }
+  zeroHit.sort((a, b) => a.rawPath.localeCompare(b.rawPath) || a.layer.localeCompare(b.layer))
+  return zeroHit
 }
 
 function applyAllowedImports(violations, allowedImports) {
@@ -382,12 +439,16 @@ function main() {
     process.exitCode = 1
     return
   }
-  const observed = collectViolations(config)
+  const { violations: observed, mappingHitCounts } = collectViolations(config)
+  const zeroHitMappings = collectZeroHitMappings(config, mappingHitCounts)
   const { filtered: current, staleAllowedImports } = applyAllowedImports(observed, config.allowedImports)
 
   if (args.writeBaseline) {
     saveBaseline(args.baselinePath, current)
     console.log(`Wrote ${current.length} layer-contract baseline violations to ${rel(args.baselinePath)}`)
+    if (zeroHitMappings.length > 0) {
+      printZeroHitMappings('Zero-hit layer mappings (warning-only; review for staleness):', zeroHitMappings)
+    }
     if (staleAllowedImports.length > 0) {
       printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
     }
@@ -410,6 +471,9 @@ function main() {
     if (staleAllowedImports.length > 0) {
       printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
     }
+    if (zeroHitMappings.length > 0) {
+      printZeroHitMappings('Zero-hit layer mappings (warning-only; review for staleness):', zeroHitMappings)
+    }
     process.exitCode = 1
     return
   }
@@ -417,6 +481,9 @@ function main() {
   console.log(
     `Layer contract check passed. baseline=${baseline.violations.length}, current=${current.length}, staleBaseline=${staleBaseline.length}, staleAllowedImports=${staleAllowedImports.length}`,
   )
+  if (zeroHitMappings.length > 0) {
+    printZeroHitMappings('Zero-hit layer mappings (warning-only; review for staleness):', zeroHitMappings)
+  }
   if (staleAllowedImports.length > 0) {
     printAllowedImports('Stale allowedImports entries (can be cleaned up):', staleAllowedImports)
   }
