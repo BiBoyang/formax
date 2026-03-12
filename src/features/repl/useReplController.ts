@@ -18,9 +18,8 @@ import type {
 } from '../../shared/replDialogContracts.js'
 import {
   partitionMessages,
-  queueTranscriptSurfaceReplace,
-  queueTranscriptSurfaceReset,
   useReplOverlays,
+  useTranscriptSurfaceActions,
 } from './controller/ui'
 import { useReplStreaming } from './controller/streaming/streaming'
 import {
@@ -380,15 +379,18 @@ export function useReplController(deps: {
     })
   }, [assistantTextMode, sessionSaveEnabled])
 
+  const { resetTranscriptSurface, replaceTranscript } = useTranscriptSurfaceActions({
+    surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
+    onClearTerminal: deps.onClearTerminal,
+    setTranscriptSeq,
+    setMessages,
+  })
+
   useEffect(() => {
     if (!runtimeStateRefs.pendingStaticSurfaceResetRef.current) return
     runtimeStateRefs.pendingStaticSurfaceResetRef.current = false
-    void queueTranscriptSurfaceReset({
-      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
-      onClearTerminal: deps.onClearTerminal,
-      setTranscriptSeq,
-    })
-  }, [deps.onClearTerminal, messages, runtimeStateRefs.surfaceOpQueueRef, setTranscriptSeq])
+    void resetTranscriptSurface()
+  }, [messages, resetTranscriptSurface])
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
@@ -508,39 +510,6 @@ export function useReplController(deps: {
     resetSessionUiState,
     userInput,
   ])
-
-  const resetTranscriptSurface = useCallback(() => {
-    // Ink <Static> is append-only; clear + remount must be serialized to avoid
-    // rapid keypress races (Ctrl+O/Ctrl+E) that can leave stale frame artifacts.
-    return queueTranscriptSurfaceReset({
-      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
-      onClearTerminal: deps.onClearTerminal,
-      setTranscriptSeq,
-    })
-  }, [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef])
-
-  const replaceTranscript = useCallback(
-    (nextMessages: Msg[]) => {
-      return queueTranscriptSurfaceReplace({
-        surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
-        onClearTerminal: deps.onClearTerminal,
-        setTranscriptSeq,
-        setMessages,
-        nextMessages,
-      })
-    },
-    [deps.onClearTerminal, runtimeStateRefs.surfaceOpQueueRef],
-  )
-
-  const queueSessionTransition = useCallback(
-    (run: () => Promise<void>): Promise<void> =>
-      queueSessionTransitionAction({
-        sessionTransitionQueueRef,
-        sessionTransitionPendingCountRef,
-        run,
-      }),
-    [],
-  )
 
   const runNewSession = useCallback(async (): Promise<void> => {
     await runNewSessionAction({
