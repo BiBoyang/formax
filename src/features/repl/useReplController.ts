@@ -24,13 +24,12 @@ import {
 import { useReplStreaming } from './controller/streaming/streaming'
 import {
   appendCanonicalTailFinalRows,
-  applyCanonicalProjectionToUi,
   assertReplCanonicalInvariants,
   mergeProjectedStaticRows,
-  projectCanonicalEvent,
   safeJson,
   areToolInfosEqual,
   shouldKeepExistingStaticRow,
+  useCanonicalEventHandler,
 } from './controller/canonical'
 import {
   applyConfigExitInjection,
@@ -349,35 +348,25 @@ export function useReplController(deps: {
     return nextCanonicalTurnSeqInternal(canonicalRefs.turnSeqRef)
   }, [])
 
-  const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
+  const persistCanonicalEvent = useCallback((event: CanonicalEvent) => {
     persistCanonicalToolEvent({
       sessionSaveEnabled,
       event,
       writer: sessionWriterRef.current,
     })
+  }, [sessionSaveEnabled])
 
-    const projectedOutput = projectCanonicalEvent({
-      assistantTextMode,
-      event,
-      projection: canonicalRefs.projectionRef.current,
-      activeTurnId: canonicalRefs.turnIdRef.current,
-      previousTransient: canonicalRefs.transientSnapshotRef.current,
-    })
-    canonicalRefs.projectionRef.current = projectedOutput.projected.projection
-
-    applyCanonicalProjectionToUi({
-      event,
-      projected: projectedOutput.projected,
-      projectedStaticRows: projectedOutput.projectedStaticRows,
-      projectedTransientRows: projectedOutput.projectedTransientRows,
-      includeAssistantStreaming: projectedOutput.includeAssistantStreaming,
-      pendingStaticSurfaceResetRef: runtimeStateRefs.pendingStaticSurfaceResetRef,
-      transientSnapshotRef: canonicalRefs.transientSnapshotRef,
-      setMessages,
-      setCanonicalTransientActive,
-      setCanonicalTurnMessages,
-    })
-  }, [assistantTextMode, sessionSaveEnabled])
+  const { onCanonicalEvent } = useCanonicalEventHandler({
+    assistantTextMode,
+    projectionRef: canonicalRefs.projectionRef,
+    turnIdRef: canonicalRefs.turnIdRef,
+    transientSnapshotRef: canonicalRefs.transientSnapshotRef,
+    pendingStaticSurfaceResetRef: runtimeStateRefs.pendingStaticSurfaceResetRef,
+    setMessages,
+    setCanonicalTransientActive,
+    setCanonicalTurnMessages,
+    persistEvent: persistCanonicalEvent,
+  })
 
   const { resetTranscriptSurface, replaceTranscript } = useTranscriptSurfaceActions({
     surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
