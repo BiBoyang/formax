@@ -34,6 +34,33 @@ import {
 
 export type { ExploreTaskBatch }
 
+type TurnStreamingRefs = {
+  currentAssistantIdRef: { current: string | null }
+  assistantBufferRef: { current: string }
+  thinkingRefs: {
+    bufferRef: { current: string }
+    messageIdRef: { current: string | null }
+    lastFlushAtRef: { current: number }
+    timingRef: { current: { startedAtMs: number | null } }
+  }
+}
+
+type ToolRuntimeRefs = {
+  nameByIdRef: { current: Map<string, string> }
+  inputByIdRef: { current: Map<string, unknown> }
+  statsByToolUseIdRef: {
+    current: Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
+  }
+  kindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
+  messageIdByToolUseIdRef?: { current: Map<string, string> }
+  exploreBatchRef: { current: ExploreTaskBatch | null }
+}
+
+type TurnFlowRefs = {
+  reminderServiceRef: { current: ReminderService | null }
+  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
+}
+
 function resolveEditPatchStartLineNumber(args: {
   cwd: string
   toolName: string | undefined
@@ -65,23 +92,10 @@ export function useReplStreaming(args: {
     >
   >
   setError: Dispatch<SetStateAction<string | null>>
-  currentAssistantIdRef: { current: string | null }
-  assistantBufferRef: { current: string }
-  thinkingBufferRef: { current: string }
-  currentThinkingMessageIdRef: { current: string | null }
-  thinkingLastFlushAtRef: { current: number }
-  thinkingTimingRef: { current: { startedAtMs: number | null } }
-  toolNameByIdRef: { current: Map<string, string> }
-  toolInputByIdRef: { current: Map<string, unknown> }
-  taskStatsByToolUseIdRef: {
-    current: Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>
-  }
-  taskKindByToolUseIdRef: { current: Map<string, 'explore' | 'other'> }
-  toolMessageIdByToolUseIdRef?: { current: Map<string, string> }
+  turnStreamingRefs: TurnStreamingRefs
+  toolRuntimeRefs: ToolRuntimeRefs
+  turnFlowRefs: TurnFlowRefs
   cwd?: string
-  exploreBatchRef: { current: ExploreTaskBatch | null }
-  reminderServiceRef: { current: ReminderService | null }
-  contextBudgetConfigRef: { current: ContextBudgetConfig | null }
   canonical?: {
     // Local TUI path is runtime-authoritative for canonical envelope generation.
     // These fields must remain contract-equivalent to app-server notifications.
@@ -91,14 +105,34 @@ export function useReplStreaming(args: {
     onEvent: (event: CanonicalEvent) => void
   }
 }): { handleEvent: (ev: StreamEvent) => void } {
+  const {
+    currentAssistantIdRef,
+    assistantBufferRef,
+    thinkingRefs,
+  } = args.turnStreamingRefs
+  const {
+    bufferRef: thinkingBufferRef,
+    messageIdRef: currentThinkingMessageIdRef,
+    lastFlushAtRef: thinkingLastFlushAtRef,
+    timingRef: thinkingTimingRef,
+  } = thinkingRefs
+  const {
+    nameByIdRef: toolNameByIdRef,
+    inputByIdRef: toolInputByIdRef,
+    statsByToolUseIdRef: taskStatsByToolUseIdRef,
+    kindByToolUseIdRef: taskKindByToolUseIdRef,
+    messageIdByToolUseIdRef,
+    exploreBatchRef,
+  } = args.toolRuntimeRefs
+  const { reminderServiceRef, contextBudgetConfigRef } = args.turnFlowRefs
   const internalToolMessageIdByToolUseIdRef = useRef<Map<string, string>>(new Map())
-  const toolMessageIdByToolUseIdRef = args.toolMessageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
+  const resolvedToolMessageIdByToolUseIdRef = messageIdByToolUseIdRef ?? internalToolMessageIdByToolUseIdRef
   const workingCwd = args.cwd ?? process.cwd()
 
   const flushAssistantBuffer = useCallback(() => {
-    const text = args.assistantBufferRef.current
+    const text = assistantBufferRef.current
     if (!text) return
-    args.assistantBufferRef.current = ''
+    assistantBufferRef.current = ''
     args.setMessages((prev) => [
       ...prev,
       {
@@ -108,18 +142,18 @@ export function useReplStreaming(args: {
         timestamp: new Date(),
       },
     ])
-  }, [args])
+  }, [args, assistantBufferRef])
 
   const startThinkingIfNeeded = useCallback(() => {
-    if (args.thinkingTimingRef.current.startedAtMs !== null) return
+    if (thinkingTimingRef.current.startedAtMs !== null) return
     const now = Date.now()
-    args.thinkingTimingRef.current.startedAtMs = now
+    thinkingTimingRef.current.startedAtMs = now
     args.setThinkingStartedAtMs(now)
-  }, [args])
+  }, [args, thinkingTimingRef])
 
   const finalizeThinkingSegment = useCallback(() => {
-    const text = args.thinkingBufferRef.current
-    const messageId = args.currentThinkingMessageIdRef.current
+    const text = thinkingBufferRef.current
+    const messageId = currentThinkingMessageIdRef.current
     // Ensure the latest buffered thinking is reflected in state even if the last delta
     // was throttled and we never flushed it.
     args.setThinkingText(text)
@@ -133,21 +167,21 @@ export function useReplStreaming(args: {
       )
     }
 
-    args.currentThinkingMessageIdRef.current = null
-    args.thinkingBufferRef.current = ''
-    args.thinkingLastFlushAtRef.current = 0
-  }, [args])
+    currentThinkingMessageIdRef.current = null
+    thinkingBufferRef.current = ''
+    thinkingLastFlushAtRef.current = 0
+  }, [args, currentThinkingMessageIdRef, thinkingBufferRef, thinkingLastFlushAtRef])
 
   const stopThinkingIfActive = useCallback(() => {
-    const startedAt = args.thinkingTimingRef.current.startedAtMs
+    const startedAt = thinkingTimingRef.current.startedAtMs
     if (startedAt === null) return
-    args.thinkingTimingRef.current.startedAtMs = null
+    thinkingTimingRef.current.startedAtMs = null
     args.setThinkingStartedAtMs(null)
     finalizeThinkingSegment()
-  }, [args, finalizeThinkingSegment])
+  }, [args, finalizeThinkingSegment, thinkingTimingRef])
 
   const endActiveAssistantStreamIfAny = useCallback(() => {
-    const activeAssistantId = args.currentAssistantIdRef.current
+    const activeAssistantId = currentAssistantIdRef.current
     if (!activeAssistantId) return
     args.setMessages((prev) =>
       finalizeAssistantStreamInMessages({
@@ -155,8 +189,8 @@ export function useReplStreaming(args: {
         assistantId: activeAssistantId,
       }),
     )
-    args.currentAssistantIdRef.current = null
-  }, [args])
+    currentAssistantIdRef.current = null
+  }, [args, currentAssistantIdRef])
 
   const handleEvent = useCallback(
     (ev: StreamEvent) => {
@@ -178,12 +212,12 @@ export function useReplStreaming(args: {
           mapEvent:
             ev.type === 'tool_end'
               ? (event) => {
-                  const toolName = args.toolNameByIdRef.current.get(ev.id)
+                  const toolName = toolNameByIdRef.current.get(ev.id)
                   const patchStartLineNumber = resolveEditPatchStartLineNumber({
                     cwd: workingCwd,
                     toolName,
                     isError: Boolean(ev.result.is_error),
-                    toolInput: args.toolInputByIdRef.current.get(ev.id),
+                    toolInput: toolInputByIdRef.current.get(ev.id),
                   })
                   if (
                     patchStartLineNumber !== null &&
@@ -204,16 +238,16 @@ export function useReplStreaming(args: {
           stopThinkingIfActive()
           if (canonicalOnly) return
           if (args.assistantTextMode === 'buffered') {
-            args.assistantBufferRef.current += ev.text
+            assistantBufferRef.current += ev.text
             return
           }
 
           // NOTE: Avoid reading or mutating `currentAssistantIdRef` inside a state updater.
           // React may batch updates, and `complete`/`tool_start` can clear the ref before the
           // queued updater runs, causing later deltas to create a new assistant message.
-          args.currentAssistantIdRef.current = writeLegacyAssistantDeltaFallback({
+          currentAssistantIdRef.current = writeLegacyAssistantDeltaFallback({
             legacyTranscript,
-            assistantId: args.currentAssistantIdRef.current,
+            assistantId: currentAssistantIdRef.current,
             text: ev.text,
             createAssistantId: () => makeMessageId('assistant'),
           })
@@ -223,39 +257,39 @@ export function useReplStreaming(args: {
         case 'thinking_delta': {
           startThinkingIfNeeded()
           if (canonicalBridgeActive) {
-            args.thinkingBufferRef.current += ev.thinking
+            thinkingBufferRef.current += ev.thinking
             const now = Date.now()
-            if (args.thinkingLastFlushAtRef.current === 0 || now - args.thinkingLastFlushAtRef.current > 200) {
-              args.thinkingLastFlushAtRef.current = now
-              args.setThinkingText(args.thinkingBufferRef.current)
+            if (thinkingLastFlushAtRef.current === 0 || now - thinkingLastFlushAtRef.current > 200) {
+              thinkingLastFlushAtRef.current = now
+              args.setThinkingText(thinkingBufferRef.current)
             }
             return
           }
-          if (!args.currentThinkingMessageIdRef.current) {
+          if (!currentThinkingMessageIdRef.current) {
             // Start a new thinking segment. This message is persisted in the transcript but
             // only rendered in the Expanded Transcript view (Ctrl+O).
             const thinkingId = `thinking-${Date.now()}`
-            args.currentThinkingMessageIdRef.current = thinkingId
-            args.thinkingBufferRef.current = ''
+            currentThinkingMessageIdRef.current = thinkingId
+            thinkingBufferRef.current = ''
             // Seed the throttle window so an immediate second delta doesn't flush too early.
-            args.thinkingLastFlushAtRef.current = Date.now()
-            args.thinkingBufferRef.current += ev.thinking
-            args.setThinkingText(args.thinkingBufferRef.current)
+            thinkingLastFlushAtRef.current = Date.now()
+            thinkingBufferRef.current += ev.thinking
+            args.setThinkingText(thinkingBufferRef.current)
             writeLegacyThinkingStartFallback({
               legacyTranscript,
               thinkingId,
-              text: args.thinkingBufferRef.current,
+              text: thinkingBufferRef.current,
             })
             return
           }
 
-          args.thinkingBufferRef.current += ev.thinking
+          thinkingBufferRef.current += ev.thinking
           const now = Date.now()
-          if (now - args.thinkingLastFlushAtRef.current > 200) {
-            args.thinkingLastFlushAtRef.current = now
-            args.setThinkingText(args.thinkingBufferRef.current)
-            const text = args.thinkingBufferRef.current
-            const thinkingId = args.currentThinkingMessageIdRef.current as string
+          if (now - thinkingLastFlushAtRef.current > 200) {
+            thinkingLastFlushAtRef.current = now
+            args.setThinkingText(thinkingBufferRef.current)
+            const text = thinkingBufferRef.current
+            const thinkingId = currentThinkingMessageIdRef.current as string
             writeLegacyThinkingUpdateFallback({
               legacyTranscript,
               thinkingId,
@@ -271,7 +305,7 @@ export function useReplStreaming(args: {
         }
 
         case 'usage': {
-          const cfg = args.contextBudgetConfigRef.current
+          const cfg = contextBudgetConfigRef.current
           if (!cfg) return
 
           const usedTokens = sumInputTokens(ev.usage)
@@ -293,11 +327,11 @@ export function useReplStreaming(args: {
             endActiveAssistantStreamIfAny()
           }
 
-          args.toolNameByIdRef.current.set(ev.id, ev.name)
+          toolNameByIdRef.current.set(ev.id, ev.name)
 
           if (ev.name === 'Task') {
-            args.taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: {} })
-            args.taskKindByToolUseIdRef.current.set(ev.id, 'other')
+            taskStatsByToolUseIdRef.current.set(ev.id, { startedAt: Date.now(), toolUses: 0, usage: {} })
+            taskKindByToolUseIdRef.current.set(ev.id, 'other')
           }
 
           args.setLoadingText(resolveLoadingTextForToolStart(ev.name))
@@ -306,17 +340,17 @@ export function useReplStreaming(args: {
             legacyTranscript,
             toolUseId: ev.id,
             toolName: ev.name,
-            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+            toolMessageIdByToolUseId: resolvedToolMessageIdByToolUseIdRef.current,
             createToolMessageId: (toolUseId) => makeMessageId(`tool-${toolUseId}`),
           })
           return
         }
 
         case 'tool_input': {
-          const toolName = args.toolNameByIdRef.current.get(ev.id)
+          const toolName = toolNameByIdRef.current.get(ev.id)
           const nowMs = Date.now()
 
-          args.toolInputByIdRef.current.set(ev.id, ev.input as any)
+          toolInputByIdRef.current.set(ev.id, ev.input as any)
 
           const loadingTextFromInput = resolveLoadingTextForToolInput({
             toolName,
@@ -326,32 +360,32 @@ export function useReplStreaming(args: {
             args.setLoadingText(loadingTextFromInput)
           }
 
-          args.exploreBatchRef.current = updateTaskStateFromToolInput({
+          exploreBatchRef.current = updateTaskStateFromToolInput({
             toolUseId: ev.id,
             toolName,
             input: ev.input,
             nowMs,
-            taskKindByToolUseId: args.taskKindByToolUseIdRef.current,
-            exploreBatch: args.exploreBatchRef.current,
+            taskKindByToolUseId: taskKindByToolUseIdRef.current,
+            exploreBatch: exploreBatchRef.current,
           })
 
           writeLegacyToolInputFallback({
             legacyTranscript,
             toolUseId: ev.id,
             input: ev.input,
-            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+            toolMessageIdByToolUseId: resolvedToolMessageIdByToolUseIdRef.current,
           })
           return
         }
 
         case 'tool_update': {
-          const toolName = args.toolNameByIdRef.current.get(ev.id)
+          const toolName = toolNameByIdRef.current.get(ev.id)
           const nowMs = Date.now()
           applyTaskStatsFromToolUpdate({
             toolUseId: ev.id,
             toolUses: typeof ev.toolUses === 'number' ? ev.toolUses : undefined,
             usage: ev.usage,
-            taskStatsByToolUseId: args.taskStatsByToolUseIdRef.current,
+            taskStatsByToolUseId: taskStatsByToolUseIdRef.current,
             nowMs,
           })
 
@@ -360,7 +394,7 @@ export function useReplStreaming(args: {
             toolUseId: ev.id,
             toolName,
             event: ev,
-            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
+            toolMessageIdByToolUseId: resolvedToolMessageIdByToolUseIdRef.current,
           })
 
           return
@@ -373,11 +407,11 @@ export function useReplStreaming(args: {
 
           const { toolMsgId, toolNameFromStart, toolInputFromStart, taskKind, taskStats } = consumeToolEndState({
             toolUseId: ev.id,
-            toolMessageIdByToolUseId: toolMessageIdByToolUseIdRef.current,
-            toolNameById: args.toolNameByIdRef.current,
-            toolInputById: args.toolInputByIdRef.current,
-            taskKindByToolUseId: args.taskKindByToolUseIdRef.current,
-            taskStatsByToolUseId: args.taskStatsByToolUseIdRef.current,
+            toolMessageIdByToolUseId: resolvedToolMessageIdByToolUseIdRef.current,
+            toolNameById: toolNameByIdRef.current,
+            toolInputById: toolInputByIdRef.current,
+            taskKindByToolUseId: taskKindByToolUseIdRef.current,
+            taskStatsByToolUseId: taskStatsByToolUseIdRef.current,
           })
 
           writeLegacyToolEndFallback({
@@ -395,10 +429,10 @@ export function useReplStreaming(args: {
           const exploreBatchOutcome = finalizeExploreBatchOnTaskEnd({
             toolUseId: ev.id,
             taskKind,
-            exploreBatch: args.exploreBatchRef.current,
+            exploreBatch: exploreBatchRef.current,
             nowMs: Date.now(),
           })
-          args.exploreBatchRef.current = exploreBatchOutcome.nextBatch
+          exploreBatchRef.current = exploreBatchOutcome.nextBatch
           if (exploreBatchOutcome.summaryCount !== null) {
             writeLegacyExploreSummaryFallback({
               legacyTranscript,
@@ -407,7 +441,7 @@ export function useReplStreaming(args: {
             })
           }
 
-          args.reminderServiceRef.current?.recordToolResult({
+          reminderServiceRef.current?.recordToolResult({
             toolName: toolNameFromStart || 'Tool',
             ok: !ev.result.is_error,
           })
@@ -421,20 +455,20 @@ export function useReplStreaming(args: {
 
         case 'error': {
           if (isAbortLikeError(ev.error)) {
-            toolMessageIdByToolUseIdRef.current.clear()
+            resolvedToolMessageIdByToolUseIdRef.current.clear()
             return
           }
-          toolMessageIdByToolUseIdRef.current.clear()
+          resolvedToolMessageIdByToolUseIdRef.current.clear()
           args.setError(ev.error.message)
           return
         }
 
         case 'complete': {
-          toolMessageIdByToolUseIdRef.current.clear()
+          resolvedToolMessageIdByToolUseIdRef.current.clear()
           stopThinkingIfActive()
           if (!legacyTranscript.canWrite) {
-            args.currentAssistantIdRef.current = null
-            args.assistantBufferRef.current = ''
+            currentAssistantIdRef.current = null
+            assistantBufferRef.current = ''
             return
           }
           if (args.assistantTextMode === 'buffered') {
