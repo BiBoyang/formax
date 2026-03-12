@@ -1,4 +1,4 @@
-import type { PromptBlock, PromptMessage } from '../prompts'
+import type { PromptBlock, PromptMessage } from '../prompts/types'
 import type { ToolCall, ToolDefinition, ToolResult } from '../shared/toolContracts'
 
 export type TokenUsage = Partial<{

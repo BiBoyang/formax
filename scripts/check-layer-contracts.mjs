@@ -189,7 +189,9 @@ function loadConfig(configPath) {
       const isDirectory = exists ? fs.statSync(absEntry).isDirectory() : !path.extname(String(rawEntry))
       mappingEntries.push({
         layer,
+        rawPath: String(rawEntry),
         absPath: absEntry,
+        exists,
         isDirectory,
       })
     }
@@ -199,6 +201,14 @@ function loadConfig(configPath) {
   const layerIndex = new Map(layerOrder.map((name, idx) => [name, idx]))
 
   return { layerOrder, layerIndex, scanRoots, mappingEntries, allowedImports }
+}
+
+function printMissingMappings(entries) {
+  if (entries.length === 0) return
+  console.error('\nLayer config contains missing mapping paths:')
+  for (const entry of entries) {
+    console.error(`- [${entry.layer}] ${entry.rawPath}`)
+  }
 }
 
 function normalizeRepoRelPath(rawPath) {
@@ -366,6 +376,12 @@ function main() {
 
   const args = parseArgs()
   const config = loadConfig(args.configPath)
+  const missingMappings = config.mappingEntries.filter((entry) => !entry.exists)
+  if (missingMappings.length > 0) {
+    printMissingMappings(missingMappings)
+    process.exitCode = 1
+    return
+  }
   const observed = collectViolations(config)
   const { filtered: current, staleAllowedImports } = applyAllowedImports(observed, config.allowedImports)
 

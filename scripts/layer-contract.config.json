@@ -150,10 +150,12 @@
   "layers": {
     "Types": [
       "src/shared",
-      "src/prompts",
       "src/prompts/types.ts",
       "src/streaming/types.ts",
-      "src/features/semantics/core",
+      "src/features/semantics/core/canonicalEvents.ts",
+      "src/features/semantics/core/commandRouting.ts",
+      "src/features/semantics/core/modeSemantics.ts",
+      "src/features/semantics/core/replModeTransition.ts",
       "src/features/subagents/types.ts",
       "src/core/errors/codes.ts"
     ],
@@ -190,6 +192,10 @@
       "src/features/semantics/adapters",
       "src/features/semantics/runtime",
       "src/features/semantics/selectors",
+      "src/features/semantics/core/index.ts",
+      "src/features/semantics/core/slashSemantics.ts",
+      "src/prompts",
+      "src/shared/utils/autoMemoryPath.ts",
       "src/tui/consoleLogger.ts"
     ],
     "Runtime": [

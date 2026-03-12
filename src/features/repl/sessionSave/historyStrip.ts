@@ -1,4 +1,4 @@
-import type { PromptBlock } from '../../../prompts'
+import type { PromptBlock } from '../../../prompts/types'
 import type { ChatHistory } from './types'
 
 function stripEphemeralBlocks(blocks: PromptBlock[]): PromptBlock[] {
