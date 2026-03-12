@@ -31,6 +31,12 @@ import { runAbortSessionTransition } from './session'
 import { SessionWriter } from '../sessionSave/writer'
 
 type CanonicalTransientSnapshot = { turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null
+type ReplContext = {
+  usedTokens: number
+  limitTokens: number
+  percentRemaining: number
+  source: 'estimate' | 'usage'
+}
 
 export function runAbortAction(args: {
   canonicalThreadId: string
@@ -109,36 +115,20 @@ export function runAbortAction(args: {
   })
 }
 
-export async function runSendAction(args: {
-  value: string
-  opts?: { preferredSlashSpecId?: string }
-  canonicalThreadId: string
-  isLoading: boolean
-  bashModeInFlightRef: { current: boolean }
-  sessionTransitionPendingCountRef: { current: number }
+export type SendFlowDeps = {
   cfg: RuntimeConfig
   mode: ReplMode
   engine: ChatEngine
   planSession?: PlanSessionManager
   commandRegistry?: SlashCommandRegistry
   tools: ToolDefinition[]
-  runtimeFlags: RuntimeFlags
-  runtimeCwd: string
-  runtimeEnv: NodeJS.ProcessEnv
-  allowedSubagents: Array<{ name: string; description: string }>
-  sessionSaveEnabled: boolean
+}
+
+export type SendFlowRefs = {
+  bashModeInFlightRef: { current: boolean }
+  sessionTransitionPendingCountRef: { current: number }
   sessionWriterRef: { current: SessionWriter | null }
-  ensureSessionWriter: () => Promise<void>
-  runNewSession: () => Promise<void>
-  resetStreamingBuffers: () => void
-  setMessages: Dispatch<SetStateAction<Msg[]>>
-  setIsLoading: Dispatch<SetStateAction<boolean>>
-  setLoadingText: Dispatch<SetStateAction<string>>
-  setThinkingText: Dispatch<SetStateAction<string>>
-  setError: Dispatch<SetStateAction<string | null>>
-  setContext: Dispatch<SetStateAction<{ usedTokens: number; limitTokens: number; percentRemaining: number; source: 'estimate' | 'usage' } | null>>
   modeCurrentRef: { current: ReplMode }
-  setReplMode: (nextMode: ReplMode) => void
   historyRef: { current: ChatHistory }
   pendingInjectedBlocksRef: { current: PromptBlock[] }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
@@ -153,7 +143,21 @@ export async function runSendAction(args: {
   autoCompactSeqRef: { current: number }
   reminderServiceRef: { current: ReminderService | null }
   canonicalTurnIdRef: { current: string | null }
+  claudeMdMetaSigRef: { current: string | null }
+}
+
+export type SendFlowCallbacks = {
+  ensureSessionWriter: () => Promise<void>
+  runNewSession: () => Promise<void>
+  resetStreamingBuffers: () => void
   clearCanonicalTransientState: () => void
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setIsLoading: Dispatch<SetStateAction<boolean>>
+  setLoadingText: Dispatch<SetStateAction<string>>
+  setThinkingText: Dispatch<SetStateAction<string>>
+  setError: Dispatch<SetStateAction<string | null>>
+  setContext: Dispatch<SetStateAction<ReplContext | null>>
+  setReplMode: (nextMode: ReplMode) => void
   setCanonicalTransientActive: Dispatch<SetStateAction<boolean>>
   nextCanonicalTurnSeq: () => number
   nextCanonicalReplaySeq: () => number
@@ -165,20 +169,37 @@ export async function runSendAction(args: {
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
   handleEvent: (ev: StreamEvent) => void
-  claudeMdMetaSigRef: { current: string | null }
   appendEmptyBashUsageMessage: () => void
   appendLocalBashCanonicalTail: (args: {
     localTurnId: string
     localTurnOutcome: 'completed' | 'failed' | 'aborted'
   }) => void
+}
+
+type SendFlowRuntime = {
+  canonicalThreadId: string
+  isLoading: boolean
+  runtimeFlags: RuntimeFlags
+  runtimeCwd: string
+  runtimeEnv: NodeJS.ProcessEnv
+  allowedSubagents: Array<{ name: string; description: string }>
+  sessionSaveEnabled: boolean
+}
+
+export async function runSendAction(args: {
+  input: { value: string; opts?: { preferredSlashSpecId?: string } }
+  deps: SendFlowDeps
+  refs: SendFlowRefs
+  callbacks: SendFlowCallbacks
+  runtime: SendFlowRuntime
 }): Promise<void> {
-  const text = args.value.trim()
+  const text = args.input.value.trim()
   if (
     shouldBlockSendWhileBusy({
       text,
-      isLoading: args.isLoading,
-      bashModeInFlight: args.bashModeInFlightRef.current,
-      sessionTransitionPendingCount: args.sessionTransitionPendingCountRef.current,
+      isLoading: args.runtime.isLoading,
+      bashModeInFlight: args.refs.bashModeInFlightRef.current,
+      sessionTransitionPendingCount: args.refs.sessionTransitionPendingCountRef.current,
     })
   ) {
     return
@@ -187,110 +208,110 @@ export async function runSendAction(args: {
   let provider: 'openai' | 'anthropic' = 'anthropic'
   let providerError: string | null = null
   try {
-    provider = resolveTurnProvider(args.cfg.llm.provider)
+    provider = resolveTurnProvider(args.deps.cfg.llm.provider)
   } catch (error) {
     providerError = error instanceof Error ? error.message : 'Unsupported provider'
   }
 
   // Thinking/streaming state is per-turn; clear buffers so stale thinking
   // from previous turns can't leak into the next status line/panel.
-  args.resetStreamingBuffers()
+  args.callbacks.resetStreamingBuffers()
 
   const didHandleClear = await maybeHandleClearCommand({
     text,
-    isLoading: args.isLoading,
-    setMessages: args.setMessages,
-    newSession: args.runNewSession,
+    isLoading: args.runtime.isLoading,
+    setMessages: args.callbacks.setMessages,
+    newSession: args.callbacks.runNewSession,
   })
   if (didHandleClear) return
 
-  await args.ensureSessionWriter()
+  await args.callbacks.ensureSessionWriter()
 
   // Bash mode (`!` prefix): run a local shell command without involving the LLM.
   // The command + output are injected into the *next* real turn.
   if (text.startsWith('!')) {
     const command = text.replace(/^!\s*/, '').trim()
     if (!command) {
-      args.appendEmptyBashUsageMessage()
+      args.callbacks.appendEmptyBashUsageMessage()
       return
     }
 
     // Treat bash-mode as an in-flight operation: prevent overlapping sends and allow Ctrl+C to abort.
     // We intentionally avoid the LLM "isLoading" spinner here; the tool message itself is the UI.
-    args.bashModeInFlightRef.current = true
+    args.refs.bashModeInFlightRef.current = true
 
-    const localTurnId = `local-bash-${args.nextCanonicalTurnSeq()}`
+    const localTurnId = `local-bash-${args.callbacks.nextCanonicalTurnSeq()}`
 
     try {
       const localTurnOutcome = await runLocalBashTurn({
         command,
-        cwd: args.runtimeCwd,
-        env: args.runtimeEnv,
-        runtimeFlags: args.runtimeFlags,
-        threadId: args.canonicalThreadId,
+        cwd: args.runtime.runtimeCwd,
+        env: args.runtime.runtimeEnv,
+        runtimeFlags: args.runtime.runtimeFlags,
+        threadId: args.runtime.canonicalThreadId,
         turnId: localTurnId,
-        nextReplaySeq: args.nextCanonicalReplaySeq,
-        onCanonicalEvent: args.onCanonicalEvent,
-        setMessages: args.setMessages,
+        nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+        onCanonicalEvent: args.callbacks.onCanonicalEvent,
+        setMessages: args.callbacks.setMessages,
         writeLegacyTranscriptRows: false,
-        pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
-        abortControllerRef: args.abortControllerRef,
-        clearCanonicalTransientState: args.clearCanonicalTransientState,
+        pendingInjectedBlocksRef: args.refs.pendingInjectedBlocksRef,
+        abortControllerRef: args.refs.abortControllerRef,
+        clearCanonicalTransientState: args.callbacks.clearCanonicalTransientState,
       })
-      args.appendLocalBashCanonicalTail({
+      args.callbacks.appendLocalBashCanonicalTail({
         localTurnId,
         localTurnOutcome,
       })
     } finally {
-      args.bashModeInFlightRef.current = false
+      args.refs.bashModeInFlightRef.current = false
     }
 
     return
   }
 
   recordClaudeMdInjectionEvent({
-    sessionSaveEnabled: args.sessionSaveEnabled,
-    cwd: args.runtimeCwd,
-    env: args.runtimeEnv,
-    includeAutoMemory: args.runtimeFlags.deferredToolExposureEnabled === true,
-    lastSigRef: args.claudeMdMetaSigRef,
-    writer: args.sessionWriterRef.current,
+    sessionSaveEnabled: args.runtime.sessionSaveEnabled,
+    cwd: args.runtime.runtimeCwd,
+    env: args.runtime.runtimeEnv,
+    includeAutoMemory: args.runtime.runtimeFlags.deferredToolExposureEnabled === true,
+    lastSigRef: args.refs.claudeMdMetaSigRef,
+    writer: args.refs.sessionWriterRef.current,
   })
 
   const { sendStateSetters, replModeAccess, sendTurnSharedRefs } = createSendTurnContext({
-    setMessages: args.setMessages,
-    setIsLoading: args.setIsLoading,
-    setLoadingText: args.setLoadingText,
-    setThinkingText: args.setThinkingText,
-    setError: args.setError,
-    setContext: args.setContext,
-    getReplMode: () => args.modeCurrentRef.current,
-    setReplMode: args.setReplMode,
-    historyRef: args.historyRef,
-    pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
-    contextBudgetConfigRef: args.contextBudgetConfigRef,
-    abortControllerRef: args.abortControllerRef,
-    assistantBufferRef: args.assistantBufferRef,
-    thinkingBufferRef: args.thinkingBufferRef,
-    thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
-    currentAssistantIdRef: args.currentAssistantIdRef,
+    setMessages: args.callbacks.setMessages,
+    setIsLoading: args.callbacks.setIsLoading,
+    setLoadingText: args.callbacks.setLoadingText,
+    setThinkingText: args.callbacks.setThinkingText,
+    setError: args.callbacks.setError,
+    setContext: args.callbacks.setContext,
+    getReplMode: () => args.refs.modeCurrentRef.current,
+    setReplMode: args.callbacks.setReplMode,
+    historyRef: args.refs.historyRef,
+    pendingInjectedBlocksRef: args.refs.pendingInjectedBlocksRef,
+    contextBudgetConfigRef: args.refs.contextBudgetConfigRef,
+    abortControllerRef: args.refs.abortControllerRef,
+    assistantBufferRef: args.refs.assistantBufferRef,
+    thinkingBufferRef: args.refs.thinkingBufferRef,
+    thinkingLastFlushAtRef: args.refs.thinkingLastFlushAtRef,
+    currentAssistantIdRef: args.refs.currentAssistantIdRef,
   })
   await runReplModelSendFlow({
     input: {
       text,
-      preferredSlashSpecId: args.opts?.preferredSlashSpecId,
+      preferredSlashSpecId: args.input.opts?.preferredSlashSpecId,
       provider,
       providerError,
     },
     deps: {
-      engine: args.engine,
-      cfg: args.cfg,
-      mode: args.mode,
-      planSession: args.planSession,
-      commandRegistry: args.commandRegistry,
-      tools: args.tools,
-      runtimeFlags: args.runtimeFlags,
-      allowedSubagents: args.allowedSubagents,
+      engine: args.deps.engine,
+      cfg: args.deps.cfg,
+      mode: args.deps.mode,
+      planSession: args.deps.planSession,
+      commandRegistry: args.deps.commandRegistry,
+      tools: args.deps.tools,
+      runtimeFlags: args.runtime.runtimeFlags,
+      allowedSubagents: args.runtime.allowedSubagents,
     },
     sendContext: {
       sendStateSetters,
@@ -298,57 +319,57 @@ export async function runSendAction(args: {
       sendTurnSharedRefs,
     },
     turnRefs: {
-      pendingExitPlanReminderRef: args.pendingExitPlanReminderRef,
-      deferredToolExposureSessionKeyRef: args.deferredToolExposureSessionKeyRef,
-      sendSeqRef: args.sendSeqRef,
-      autoCompactSeqRef: args.autoCompactSeqRef,
-      reminderServiceRef: args.reminderServiceRef,
+      pendingExitPlanReminderRef: args.refs.pendingExitPlanReminderRef,
+      deferredToolExposureSessionKeyRef: args.refs.deferredToolExposureSessionKeyRef,
+      sendSeqRef: args.refs.sendSeqRef,
+      autoCompactSeqRef: args.refs.autoCompactSeqRef,
+      reminderServiceRef: args.refs.reminderServiceRef,
     },
     canonical: {
-      turnIdRef: args.canonicalTurnIdRef,
-      setCanonicalTransientActive: args.setCanonicalTransientActive,
-      nextCanonicalTurnSeq: args.nextCanonicalTurnSeq,
-      clearCanonicalTransientState: args.clearCanonicalTransientState,
+      turnIdRef: args.refs.canonicalTurnIdRef,
+      setCanonicalTransientActive: args.callbacks.setCanonicalTransientActive,
+      nextCanonicalTurnSeq: args.callbacks.nextCanonicalTurnSeq,
+      clearCanonicalTransientState: args.callbacks.clearCanonicalTransientState,
     },
     callbacks: {
-      openOverlay: args.openOverlay,
-      closeOverlay: args.closeOverlay,
-      newSession: args.runNewSession,
-      handleEvent: args.handleEvent,
-      onCompactLifecycle: args.onCompactLifecycle,
-      onCompactRequested: args.onCompactRequested,
-      onSlashLocalAsyncRecordForNextTurn: args.onSlashLocalAsyncRecordForNextTurn,
-      onSlashLocalRecordForNextTurn: args.onSlashLocalRecordForNextTurn,
+      openOverlay: args.callbacks.openOverlay,
+      closeOverlay: args.callbacks.closeOverlay,
+      newSession: args.callbacks.runNewSession,
+      handleEvent: args.callbacks.handleEvent,
+      onCompactLifecycle: args.callbacks.onCompactLifecycle,
+      onCompactRequested: args.callbacks.onCompactRequested,
+      onSlashLocalAsyncRecordForNextTurn: args.callbacks.onSlashLocalAsyncRecordForNextTurn,
+      onSlashLocalRecordForNextTurn: args.callbacks.onSlashLocalRecordForNextTurn,
       emitCanonicalUiMessageForTurn: ({ turnId, message }) =>
         emitCanonicalUiMessageForTurn({
-          threadId: args.canonicalThreadId,
+          threadId: args.runtime.canonicalThreadId,
           turnId,
           message,
-          nextReplaySeq: args.nextCanonicalReplaySeq,
-          onCanonicalEvent: args.onCanonicalEvent,
+          nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+          onCanonicalEvent: args.callbacks.onCanonicalEvent,
         }),
       finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
         if (turnOutcome === 'aborted') {
           emitCanonicalTurnFooterForTurn({
-            threadId: args.canonicalThreadId,
+            threadId: args.runtime.canonicalThreadId,
             turnId,
             status: 'interrupted',
             message: 'Request aborted',
-            nextReplaySeq: args.nextCanonicalReplaySeq,
-            onCanonicalEvent: args.onCanonicalEvent,
+            nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+            onCanonicalEvent: args.callbacks.onCanonicalEvent,
           })
         } else if (turnOutcome === 'failed') {
           emitCanonicalTurnFooterForTurn({
-            threadId: args.canonicalThreadId,
+            threadId: args.runtime.canonicalThreadId,
             turnId,
             status: 'failed',
-            nextReplaySeq: args.nextCanonicalReplaySeq,
-            onCanonicalEvent: args.onCanonicalEvent,
+            nextReplaySeq: args.callbacks.nextCanonicalReplaySeq,
+            onCanonicalEvent: args.callbacks.onCanonicalEvent,
           })
         }
 
         void userMessageId
-        args.clearCanonicalTransientState()
+        args.callbacks.clearCanonicalTransientState()
       },
     },
   })
