@@ -30,7 +30,6 @@ import {
   useCanonicalEventHandler,
 } from './controller/canonical'
 import {
-  applyConfigExitInjection,
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
   registerSessionWriterProcessHandlers,
@@ -43,6 +42,7 @@ import {
   useSessionPersistence,
   useSessionEventRecorders,
   useSessionWriterLifecycle,
+  useConfigDialogInjection,
 } from './controller/session'
 import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
 import {
@@ -235,18 +235,12 @@ export function useReplController(deps: {
     initialSessionFilePathRef.current = deps.initialSession?.filePath
   }, [deps.initialSession?.filePath])
 
-  const closeConfigDialogWithInjection = useCallback(
-    (exit: ConfigDialogExit) => {
-      closeConfigDialog(exit)
-      applyConfigExitInjection({
-        exit,
-        sessionSaveEnabled,
-        writer: sessionWriterRef.current,
-        pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
-      })
-    },
-    [closeConfigDialog, sessionSaveEnabled],
-  )
+  const { closeConfigDialogWithInjection } = useConfigDialogInjection({
+    closeConfigDialog,
+    sessionSaveEnabled,
+    writerRef: sessionWriterRef,
+    pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
+  })
 
   const {
     onCompactLifecycle,
