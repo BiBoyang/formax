@@ -1,17 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { randomUUID } from 'node:crypto'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../config/config'
-import type { TokenUsage } from '../../streaming/types'
 import type { Msg } from '../../shared/toolMessageTypes'
-import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { LocalCommandRecord } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
-import { ReminderService } from './reminders/ReminderService'
-import type { ContextBudgetConfig } from '../../chat/context/budget'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import type {
   AgentsDialogGenerateDraft,
@@ -27,41 +23,50 @@ import {
   queueTranscriptSurfaceReset,
   useReplOverlays,
 } from './controller/ui'
-import { useReplStreaming, type ExploreTaskBatch } from './controller/streaming/streaming'
+import { useReplStreaming } from './controller/streaming/streaming'
 import {
   assertReplCanonicalInvariants,
   appendCanonicalTailFinalRows,
-  emitCanonicalUiMessageForTurn,
-  emitCanonicalTurnFooterForTurn,
   projectCanonicalEventToTransientMessages,
+  mergeProjectedStaticRows,
+  safeJson,
+  areToolInfosEqual,
+  shouldKeepExistingStaticRow,
 } from './controller/canonical'
-import { resolveTurnProvider } from './controller/shared'
 import {
   applyConfigExitInjection,
-  buildMessageByIdMap,
+  ensureSessionWriter as ensureSessionWriterInternal,
+  openInitialSessionWriter as openInitialSessionWriterInternal,
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
-  ensureSessionWriter as ensureSessionWriterInternal,
-  markDirtyMessageIdsFromTransition,
-  openInitialSessionWriter as openInitialSessionWriterInternal,
-  persistDirtyStableMessages,
-  recordClaudeMdInjectionEvent,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
   shutdownSessionWriter as shutdownSessionWriterInternal,
   startNewSessionWriter as startNewSessionWriterInternal,
   registerSessionWriterProcessHandlers,
-  runSessionTurnCompletionSideEffects,
-  runAbortSessionTransition,
   runNewSessionTransition,
   runResumeSessionTransition,
-  type SessionWriterRefs,
+  queueSessionTransition as queueSessionTransitionAction,
+  runNewSessionAction,
+  runResumeSessionAction,
+  renameSessionAction,
+  useSessionPersistence,
 } from './controller/session'
-import { createSendTurnContext } from './controller/send/sendTypes'
-import { runLocalBashTurn } from './controller/send/bashMode'
-import { runReplModelSendFlow } from './controller/send/sendOrchestration'
-import { maybeHandleClearCommand } from './controller/send/send'
 import type { CompactLifecycleEvent } from './controller/send/compactFlow'
+import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
+import {
+  hasRunningAskTool,
+  mapLocalBashTurnOutcomeForTail,
+  shouldBlockSendWhileBusy,
+} from './controller/send/turnGuards'
+import {
+  useCanonicalRefs,
+  useModeRefs,
+  useRuntimeStateRefs,
+  useSessionPersistenceRefs,
+  useToolRuntimeRefs,
+  useTurnFlowRefs,
+} from './controller/state/refGroups'
 import {
   createInitialTranscriptProjectionState,
 } from '../semantics/projection'
@@ -72,178 +77,10 @@ import {
 } from '../semantics/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
-import { toPersistedAppToolEventData } from './sessionSave/appToolEventPayload'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
 import { getDeferredToolExposureStore } from '../../tools/runtime/deferredToolExposure'
 
 const CANONICAL_THREAD_ID = 'tui-live'
-
-function safeJson(value: unknown): string {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return '"[unserializable]"'
-  }
-}
-
-function areToolInfosEqual(a: Msg['toolInfo'] | undefined, b: Msg['toolInfo'] | undefined): boolean {
-  if (!a || !b) return false
-  if (a.name !== b.name) return false
-  if (a.toolUseId !== b.toolUseId) return false
-  if (a.status !== b.status) return false
-  if (a.result !== b.result) return false
-
-  if (safeJson(a.input) !== safeJson(b.input)) return false
-  if (safeJson(a.middleLines) !== safeJson(b.middleLines)) return false
-  if (safeJson(a.transcriptLines) !== safeJson(b.transcriptLines)) return false
-  if (safeJson(a.nestedTools) !== safeJson(b.nestedTools)) return false
-  if (a.toolUses !== b.toolUses) return false
-  if (safeJson(a.usage) !== safeJson(b.usage)) return false
-  if (a.durationMs !== b.durationMs) return false
-  if (a.patchStartLineNumber !== b.patchStartLineNumber) return false
-  if (safeJson(a.expandInfo) !== safeJson(b.expandInfo)) return false
-  return true
-}
-
-function shouldKeepExistingStaticRow(existing: Msg | undefined, incoming: Msg): boolean {
-  if (!existing) return false
-  if (existing.surfaceOwner !== 'static' || incoming.surfaceOwner !== 'static') return false
-  if (existing.id !== incoming.id) return false
-
-  if (existing.role === incoming.role) {
-    const existingUiKind = existing.ui?.kind ?? null
-    const incomingUiKind = incoming.ui?.kind ?? null
-    if (existing.role === 'tool') {
-      return (
-        existingUiKind === incomingUiKind &&
-        existing.content === incoming.content &&
-        !existing.isStreaming &&
-        areToolInfosEqual(existing.toolInfo, incoming.toolInfo)
-      )
-    }
-
-    if (existingUiKind === incomingUiKind && existing.content === incoming.content && !existing.isStreaming) {
-      return true
-    }
-  }
-
-  return false
-}
-
-function mergeProjectedStaticRows(args: {
-  prev: Msg[]
-  projectedStaticRows: Msg[]
-  onNonAppendUpdate?: () => void
-}): Msg[] {
-  if (args.projectedStaticRows.length === 0) return args.prev
-  const indexById = new Map<string, number>()
-  for (let index = 0; index < args.prev.length; index += 1) {
-    const message = args.prev[index]
-    if (!message) continue
-    indexById.set(message.id, index)
-  }
-
-  let next: Msg[] | null = null
-  let didChange = false
-  let timestampCursor: number | null = null
-
-  const ensureNext = (): Msg[] => {
-    if (next) return next
-    next = [...args.prev]
-    return next
-  }
-
-  const ensureTimestampCursor = (): number => {
-    if (timestampCursor !== null) return timestampCursor
-    const source = args.prev
-    for (let index = source.length - 1; index >= 0; index -= 1) {
-      const message = source[index]
-      if (!message) continue
-      const ts = message.timestamp
-      if (ts instanceof Date) {
-        timestampCursor = ts.getTime()
-        return timestampCursor
-      }
-    }
-    timestampCursor = Date.now()
-    return timestampCursor
-  }
-
-  for (const projectedRow of args.projectedStaticRows) {
-    const existingIndex = indexById.get(projectedRow.id)
-    if (existingIndex === undefined) {
-      const list = ensureNext()
-      indexById.set(projectedRow.id, list.length)
-      let incoming: Msg = {
-        ...projectedRow,
-        surfaceOwner: 'static',
-        isStreaming: false,
-      }
-      const cursor = ensureTimestampCursor()
-      const raw = incoming.timestamp instanceof Date ? incoming.timestamp.getTime() : Number.NaN
-      if (Number.isFinite(raw) && raw > cursor) {
-        timestampCursor = raw
-      } else {
-        timestampCursor = cursor + 1
-        incoming = { ...incoming, timestamp: new Date(timestampCursor) }
-      }
-      list.push(incoming)
-      didChange = true
-      continue
-    }
-
-    const source = next ?? args.prev
-    const existing = source[existingIndex]
-    if (shouldKeepExistingStaticRow(existing, projectedRow)) continue
-
-    const list = ensureNext()
-    list[existingIndex] = {
-      ...projectedRow,
-      surfaceOwner: 'static',
-      isStreaming: false,
-      timestamp: existing.timestamp,
-    }
-    args.onNonAppendUpdate?.()
-    didChange = true
-  }
-
-  if (!didChange) return args.prev
-  return next as Msg[]
-}
-
-function hasRunningAskTool(args: {
-  trackedRunningToolsSnapshot: Array<[string, string]>
-  transientSnapshot: { messages: Msg[] } | null
-}): boolean {
-  const hasTrackedAsk = args.trackedRunningToolsSnapshot.some(([, name]) => name === 'AskUserQuestion')
-  if (hasTrackedAsk) return true
-  return (
-    args.transientSnapshot?.messages.some(
-      (m) => m.role === 'tool' && m.toolInfo?.name === 'AskUserQuestion' && m.toolInfo?.status === 'running',
-    ) === true
-  )
-}
-
-function mapLocalBashTurnOutcomeForTail(outcome: 'completed' | 'failed' | 'aborted'): 'completed' | 'failed' {
-  return outcome === 'aborted' ? 'failed' : outcome
-}
-
-function enqueueSessionTransition(args: {
-  sessionTransitionQueueRef: { current: Promise<void> }
-  sessionTransitionPendingCountRef: { current: number }
-  run: () => Promise<void>
-}): Promise<void> {
-  args.sessionTransitionPendingCountRef.current += 1
-  const next = args.sessionTransitionQueueRef.current.catch(() => undefined).then(async () => {
-    try {
-      await args.run()
-    } finally {
-      args.sessionTransitionPendingCountRef.current = Math.max(0, args.sessionTransitionPendingCountRef.current - 1)
-    }
-  })
-  args.sessionTransitionQueueRef.current = next.catch(() => undefined)
-  return next
-}
 
 export type ReplControllerState = {
   messages: Msg[]
@@ -287,6 +124,89 @@ export type ReplController = {
     renameSession: (filePath: string, label: string) => Promise<void>
     generateAgentDraft: (description: string, signal?: AbortSignal) => Promise<AgentsDialogGenerateDraft>
     saveAgentFromDialog: (args: AgentsDialogSaveArgs) => Promise<AgentsDialogSaveResult>
+  }
+}
+
+function projectCanonicalEvent(args: {
+  assistantTextMode: RuntimeConfig['ui']['assistantTextMode']
+  event: CanonicalEvent
+  projection: ReturnType<typeof createInitialTranscriptProjectionState>
+  activeTurnId: string | null
+  previousTransient: { turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null
+}): {
+  projected: ReturnType<typeof projectCanonicalEventToTransientMessages>
+  projectedStaticRows: Msg[]
+  projectedTransientRows: Msg[]
+  includeAssistantStreaming: boolean
+} {
+  const includeAssistantStreaming = args.assistantTextMode === 'stream'
+  const projected = projectCanonicalEventToTransientMessages({
+    projection: args.projection,
+    event: args.event,
+    activeTurnId: args.activeTurnId,
+    includeAssistantStreaming,
+    previousTransient: args.previousTransient,
+  })
+  const projectedStaticRows: Msg[] = []
+  const projectedTransientRows: Msg[] = []
+  for (const message of projected.messages) {
+    if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
+    else projectedTransientRows.push(message)
+  }
+  return {
+    projected,
+    projectedStaticRows,
+    projectedTransientRows,
+    includeAssistantStreaming,
+  }
+}
+
+function applyCanonicalProjectionToUi(args: {
+  event: CanonicalEvent
+  projected: ReturnType<typeof projectCanonicalEventToTransientMessages>
+  projectedStaticRows: Msg[]
+  projectedTransientRows: Msg[]
+  includeAssistantStreaming: boolean
+  runtimeStateRefs: {
+    pendingStaticSurfaceResetRef: { current: boolean }
+  }
+  canonicalRefs: {
+    transientSnapshotRef: {
+      current: { turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null
+    }
+  }
+  setMessages: Dispatch<SetStateAction<Msg[]>>
+  setCanonicalTransientActive: Dispatch<SetStateAction<boolean>>
+  setCanonicalTurnMessages: Dispatch<SetStateAction<Msg[]>>
+}): void {
+  if (args.projectedStaticRows.length > 0 || args.event.kind === 'turn_footer') {
+    args.setMessages((prev) => {
+      const next = mergeProjectedStaticRows({
+        prev,
+        projectedStaticRows: args.projectedStaticRows,
+        onNonAppendUpdate: () => {
+          args.runtimeStateRefs.pendingStaticSurfaceResetRef.current = true
+        },
+      })
+      if (args.event.kind === 'turn_footer') {
+        assertReplCanonicalInvariants({
+          projection: args.projected.projection,
+          messages: next,
+          targetTurnId: args.projected.turnId,
+        })
+      }
+      return next
+    })
+  }
+
+  args.setCanonicalTransientActive(args.projectedTransientRows.length > 0)
+  args.canonicalRefs.transientSnapshotRef.current = {
+    turnId: args.projected.turnId,
+    includeAssistantStreaming: args.includeAssistantStreaming,
+    messages: args.projectedTransientRows,
+  }
+  if (args.projected.changed) {
+    args.setCanonicalTurnMessages(args.projectedTransientRows)
   }
 }
 
@@ -355,58 +275,30 @@ export function useReplController(deps: {
       startedAtMs: null,
     }),
   }
-  const toolRuntimeRefs = {
-    nameByIdRef: useRef<Map<string, string>>(new Map()),
-    inputByIdRef: useRef<Map<string, unknown>>(new Map()),
-    statsByToolUseIdRef: useRef<Map<string, { startedAt: number; toolUses: number; usage?: TokenUsage }>>(new Map()),
-    kindByToolUseIdRef: useRef<Map<string, 'explore' | 'other'>>(new Map()),
-    messageIdByToolUseIdRef: useRef<Map<string, string>>(new Map()),
-    exploreBatchRef: useRef<ExploreTaskBatch | null>(null),
-  }
-  const canonicalRefs = {
-    projectionRef: useRef(createInitialTranscriptProjectionState({ threadId: CANONICAL_THREAD_ID })),
-    replaySeqRef: useRef(0),
-    turnIdRef: useRef<string | null>(null),
-    turnSeqRef: useRef(0),
-    transientSnapshotRef: useRef<{ turnId: string; includeAssistantStreaming: boolean; messages: Msg[] } | null>(null),
-  }
-  const modeRefs = {
-    currentRef: useRef<ReplMode>(deps.mode),
-    previousRef: useRef<ReplMode>(deps.mode),
-  }
-  const turnFlowRefs = {
-    pendingExitPlanReminderRef: useRef(false),
-    reminderServiceRef: useRef<ReminderService | null>(null),
-    contextBudgetConfigRef: useRef<ContextBudgetConfig | null>(null),
-    pendingInjectedBlocksRef: useRef<PromptBlock[]>([]),
-  }
-  const runtimeStateRefs = {
-	    sendSeqRef: useRef(0),
-	    autoCompactSeqRef: useRef(-1_000_000),
-	    previousIsLoadingRef: useRef(false),
-	    claudeMdMetaSigRef: useRef<string | null>(null),
-	    surfaceOpQueueRef: useRef<Promise<void>>(Promise.resolve()),
-	    pendingStaticSurfaceResetRef: useRef(false),
-  }
+  const toolRuntimeRefs = useToolRuntimeRefs()
+  const canonicalRefs = useCanonicalRefs(CANONICAL_THREAD_ID)
+  const modeRefs = useModeRefs(deps.mode)
+  const turnFlowRefs = useTurnFlowRefs()
+  const runtimeStateRefs = useRuntimeStateRefs()
   const deferredToolExposureSessionKeyRef = useRef<string>(randomUUID())
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
   const bashModeInFlightRef = useRef(false)
-  const sessionTransitionQueueRef = useRef<Promise<void>>(Promise.resolve())
-  const sessionTransitionPendingCountRef = useRef(0)
-  const sessionWriterRef = useRef<SessionWriter | null>(null)
-  const sessionWriterInitPromiseRef = useRef<Promise<void> | null>(null)
-  const initialSessionFilePathRef = useRef<string | undefined>(deps.initialSession?.filePath)
-  const lastPersistedSigByMsgIdRef = useRef<Map<string, string>>(new Map())
-  const lastPersistedMsgByIdRef = useRef<Map<string, Msg>>(new Map())
-  const previousMessagesRef = useRef<Msg[]>(messages)
-  const messageByIdRef = useRef<Map<string, Msg>>(buildMessageByIdMap(messages))
-  const dirtyMessageIdsRef = useRef<Set<string>>(new Set(messages.map((message) => message.id)))
-  const sessionWriterRefs: SessionWriterRefs = {
+  const {
+    sessionTransitionQueueRef,
+    sessionTransitionPendingCountRef,
     sessionWriterRef,
     sessionWriterInitPromiseRef,
+    initialSessionFilePathRef,
     lastPersistedSigByMsgIdRef,
     lastPersistedMsgByIdRef,
-  }
+    previousMessagesRef,
+    messageByIdRef,
+    dirtyMessageIdsRef,
+    sessionWriterRefs,
+  } = useSessionPersistenceRefs({
+    messages,
+    initialSessionFilePath: deps.initialSession?.filePath,
+  })
   const autoTitleRefs = {
     attemptedSessionIdsRef: useRef<Set<string>>(new Set()),
     checkedTopicPromptKeysRef: useRef<Set<string>>(new Set()),
@@ -595,67 +487,44 @@ export function useReplController(deps: {
   }, [])
 
   const onCanonicalEvent = useCallback((event: CanonicalEvent) => {
-    if (sessionSaveEnabled && event.kind === 'tool_event') {
-      const writer = sessionWriterRef.current
-      void writer?.appendEvent('app_tool_event', toPersistedAppToolEventData(event))
-    }
+    persistCanonicalToolEvent({
+      sessionSaveEnabled,
+      event,
+      writer: sessionWriterRef.current,
+    })
 
-	    const includeAssistantStreaming = assistantTextMode === 'stream'
-	    const projected = projectCanonicalEventToTransientMessages({
-	      projection: canonicalRefs.projectionRef.current,
-	      event,
-	      activeTurnId: canonicalRefs.turnIdRef.current,
-	      includeAssistantStreaming,
-	      previousTransient: canonicalRefs.transientSnapshotRef.current,
-	    })
-	    canonicalRefs.projectionRef.current = projected.projection
-	    const projectedStaticRows: Msg[] = []
-	    const projectedTransientRows: Msg[] = []
-	    for (const message of projected.messages) {
-	      if (message.surfaceOwner === 'static') projectedStaticRows.push(message)
-	      else projectedTransientRows.push(message)
-	    }
+    const projectedOutput = projectCanonicalEvent({
+      assistantTextMode,
+      event,
+      projection: canonicalRefs.projectionRef.current,
+      activeTurnId: canonicalRefs.turnIdRef.current,
+      previousTransient: canonicalRefs.transientSnapshotRef.current,
+    })
+    canonicalRefs.projectionRef.current = projectedOutput.projected.projection
 
-	    if (projectedStaticRows.length > 0 || event.kind === 'turn_footer') {
-	      setMessages((prev) => {
-	        const next = mergeProjectedStaticRows({
-	          prev,
-	          projectedStaticRows,
-	          onNonAppendUpdate: () => {
-	            runtimeStateRefs.pendingStaticSurfaceResetRef.current = true
-	          },
-	        })
-	        if (event.kind === 'turn_footer') {
-	          assertReplCanonicalInvariants({
-	            projection: projected.projection,
-	            messages: next,
-	            targetTurnId: projected.turnId,
-	          })
-	        }
-	        return next
-	      })
-	    }
+    applyCanonicalProjectionToUi({
+      event,
+      projected: projectedOutput.projected,
+      projectedStaticRows: projectedOutput.projectedStaticRows,
+      projectedTransientRows: projectedOutput.projectedTransientRows,
+      includeAssistantStreaming: projectedOutput.includeAssistantStreaming,
+      runtimeStateRefs,
+      canonicalRefs,
+      setMessages,
+      setCanonicalTransientActive,
+      setCanonicalTurnMessages,
+    })
+  }, [assistantTextMode, sessionSaveEnabled])
 
-    setCanonicalTransientActive(projectedTransientRows.length > 0)
-    canonicalRefs.transientSnapshotRef.current = {
-      turnId: projected.turnId,
-      includeAssistantStreaming,
-      messages: projectedTransientRows,
-    }
-    if (projected.changed) {
-      setCanonicalTurnMessages(projectedTransientRows)
-    }
-	  }, [assistantTextMode, sessionSaveEnabled])
-
-		  useEffect(() => {
-		    if (!runtimeStateRefs.pendingStaticSurfaceResetRef.current) return
-		    runtimeStateRefs.pendingStaticSurfaceResetRef.current = false
-		    void queueTranscriptSurfaceReset({
-		      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
-		      onClearTerminal: deps.onClearTerminal,
-		      setTranscriptSeq,
-		    })
-		  }, [deps.onClearTerminal, messages, runtimeStateRefs.surfaceOpQueueRef, setTranscriptSeq])
+  useEffect(() => {
+    if (!runtimeStateRefs.pendingStaticSurfaceResetRef.current) return
+    runtimeStateRefs.pendingStaticSurfaceResetRef.current = false
+    void queueTranscriptSurfaceReset({
+      surfaceOpQueueRef: runtimeStateRefs.surfaceOpQueueRef,
+      onClearTerminal: deps.onClearTerminal,
+      setTranscriptSeq,
+    })
+  }, [deps.onClearTerminal, messages, runtimeStateRefs.surfaceOpQueueRef, setTranscriptSeq])
 
   useEffect(() => {
     setAllowedSubagents(deps.allowedSubagents ?? [])
@@ -695,59 +564,26 @@ export function useReplController(deps: {
     return canonicalTurnMessages.filter((message) => message.surfaceOwner !== 'static')
   }, [canonicalTransientActive, canonicalTurnMessages, partitionedMessages.transientMessages])
 
-  useEffect(() => {
-    if (!sessionSaveEnabled) return
-    if (!deps.initialSession?.filePath) return
-    void ensureSessionWriter()
-  }, [deps.initialSession?.filePath, ensureSessionWriter, sessionSaveEnabled])
-
-  useEffect(() => {
-    if (!sessionSaveEnabled) {
-      previousMessagesRef.current = messages
-      messageByIdRef.current = buildMessageByIdMap(messages)
-      dirtyMessageIdsRef.current.clear()
-      return
-    }
-    markDirtyMessageIdsFromTransition({
-      previous: previousMessagesRef.current,
-      next: messages,
-      messageByIdRef,
-      dirtyMessageIdsRef,
-    })
-    previousMessagesRef.current = messages
-  }, [messages, sessionSaveEnabled])
-
-  useEffect(() => {
-    if (!sessionSaveEnabled) {
-      dirtyMessageIdsRef.current.clear()
-      return
-    }
-    persistDirtyStableMessages({
-      writer: sessionWriterRef.current,
-      dirtyMessageIdsRef,
-      messageByIdRef,
-      lastPersistedSigByMsgIdRef,
-      lastPersistedMsgByIdRef,
-    })
-  }, [messages, sessionSaveEnabled])
-
-  useEffect(() => {
-    const writer = sessionWriterRef.current
-    const wasLoading = runtimeStateRefs.previousIsLoadingRef.current
-    runtimeStateRefs.previousIsLoadingRef.current = isLoading
-    runSessionTurnCompletionSideEffects({
-      writer,
-      wasLoading,
-      isLoading,
-      history: historyRef.current,
-      messages,
-      engine: deps.engine,
-      cwd: runtimeCwd,
-      attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
-      checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
-      model: deps.cfg.llm.model,
-    })
-  }, [deps.cfg.llm.model, deps.engine, isLoading, messages, runtimeCwd])
+  useSessionPersistence({
+    sessionSaveEnabled,
+    initialSessionFilePath: deps.initialSession?.filePath,
+    ensureSessionWriter,
+    messages,
+    previousMessagesRef,
+    messageByIdRef,
+    dirtyMessageIdsRef,
+    sessionWriterRef,
+    lastPersistedSigByMsgIdRef,
+    lastPersistedMsgByIdRef,
+    isLoading,
+    previousIsLoadingRef: runtimeStateRefs.previousIsLoadingRef,
+    historyRef,
+    engine: deps.engine,
+    cwd: runtimeCwd,
+    attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
+    checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
+    model: deps.cfg.llm.model,
+  })
 
   const { handleEvent } = useReplStreaming({
     assistantTextMode,
@@ -781,55 +617,14 @@ export function useReplController(deps: {
   })
 
   const abort = useCallback(() => {
-    const canonicalTurnId = canonicalRefs.turnIdRef.current
-    if (canonicalTurnId) {
-      const trackedRunningToolsSnapshot = Array.from(toolRuntimeRefs.nameByIdRef.current.entries())
-      const hadInFlightRequest = Boolean(abortControllerRef.current) || isLoading
-
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
-      bashModeInFlightRef.current = false
-
-      userInput?.clearBufferedAnswers()
-      userInput?.rejectAllPending(new Error('Request aborted'))
-
-      resetSessionUiState()
-      setIsLoading(false)
-      clearToolRuntimeState()
-
-      emitCanonicalTurnFooterForTurn({
-        threadId: CANONICAL_THREAD_ID,
-        turnId: canonicalTurnId,
-        status: 'interrupted',
-        message: 'Request aborted',
-        nextReplaySeq: nextCanonicalReplaySeq,
-        onCanonicalEvent,
-      })
-
-      const hadAsk = hasRunningAskTool({
-        trackedRunningToolsSnapshot,
-        transientSnapshot: canonicalRefs.transientSnapshotRef.current,
-      })
-
-      if (hadAsk && hadInFlightRequest) {
-        emitCanonicalUiMessageForTurn({
-          threadId: CANONICAL_THREAD_ID,
-          turnId: canonicalTurnId,
-          message: { role: 'assistant', content: 'User declined to answer questions' },
-          nextReplaySeq: nextCanonicalReplaySeq,
-          onCanonicalEvent,
-        })
-      }
-
-      clearCanonicalTransientState()
-      return
-    }
-
-    runAbortSessionTransition({
+    runAbortAction({
+      canonicalThreadId: CANONICAL_THREAD_ID,
+      canonicalTurnIdRef: canonicalRefs.turnIdRef,
+      canonicalTransientSnapshotRef: canonicalRefs.transientSnapshotRef,
+      toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
       isLoading,
       abortControllerRef,
       bashModeInFlightRef,
-      toolNameByIdRef: toolRuntimeRefs.nameByIdRef,
       userInput,
       resetSessionUiState,
       clearCanonicalTransientState,
@@ -837,6 +632,8 @@ export function useReplController(deps: {
       currentAssistantIdRef,
       setMessages,
       setIsLoading,
+      nextCanonicalReplaySeq,
+      onCanonicalEvent,
     })
   }, [
     clearCanonicalTransientState,
@@ -873,7 +670,7 @@ export function useReplController(deps: {
 
   const queueSessionTransition = useCallback(
     (run: () => Promise<void>): Promise<void> =>
-      enqueueSessionTransition({
+      queueSessionTransitionAction({
         sessionTransitionQueueRef,
         sessionTransitionPendingCountRef,
         run,
@@ -882,67 +679,61 @@ export function useReplController(deps: {
   )
 
   const runNewSession = useCallback(async (): Promise<void> => {
-    initialSessionFilePathRef.current = undefined
-    await queueSessionTransition(async () => {
-      await runNewSessionTransition({
-        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
-        sessionSaveEnabled,
-        sessionWriterRef,
-        sessionWriterInitPromiseRef,
-        lastPersistedSigByMsgIdRef,
-        lastPersistedMsgByIdRef,
-        resetSessionState,
-        replaceTranscript,
-      })
+    await runNewSessionAction({
+      initialSessionFilePathRef,
+      sessionTransitionQueueRef,
+      sessionTransitionPendingCountRef,
+      runNewSessionTransition,
+      beginNewSession: () => deps.engine.beginNewSession?.({ source: 'clear' }),
+      sessionSaveEnabled,
+      sessionWriterRef,
+      sessionWriterInitPromiseRef,
+      lastPersistedSigByMsgIdRef,
+      lastPersistedMsgByIdRef,
+      resetSessionState,
+      replaceTranscript,
     })
-  }, [deps.engine, queueSessionTransition, replaceTranscript, resetSessionState, sessionSaveEnabled])
+  }, [deps.engine, replaceTranscript, resetSessionState, sessionSaveEnabled])
 
   const newSession = useCallback(() => {
     void runNewSession()
   }, [runNewSession])
 
   const renameSession = useCallback(async (filePath: string, label: string): Promise<void> => {
-    const writer = await SessionWriter.openExisting({ filePath })
-    await writer.appendEvent('session_rename', { label })
-    await writer.shutdown()
+    await renameSessionAction(filePath, label)
   }, [])
 
   const resumeSession = useCallback(
     async (filePath: string): Promise<void> => {
-      if (isLoading) return
-
-      closeResumeDialog()
-      initialSessionFilePathRef.current = filePath
-      try {
-        await queueSessionTransition(async () => {
-          abort()
-          await runResumeSessionTransition({
-            filePath,
-            readSessionFile,
-            beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
-            sessionSaveEnabled,
-            sessionWriterRef,
-            lastPersistedSigByMsgIdRef,
-            lastPersistedMsgByIdRef,
-            resetSessionState,
-            historyRef,
-            replaceTranscript,
-            openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
-            buildPersistedSigMap,
-            buildPersistedMsgRefMap,
-          })
-        })
-      } catch (resumeError) {
-        const message = resumeError instanceof Error ? resumeError.message : String(resumeError)
-        setError(`Failed to resume session: ${message}`)
-      }
+      await runResumeSessionAction({
+        filePath,
+        isLoading,
+        closeResumeDialog: () => closeResumeDialog(),
+        initialSessionFilePathRef,
+        sessionTransitionQueueRef,
+        sessionTransitionPendingCountRef,
+        abort,
+        runResumeSessionTransition,
+        readSessionFile,
+        beginNewSession: () => deps.engine.beginNewSession?.({ source: 'resume' }),
+        sessionSaveEnabled,
+        sessionWriterRef,
+        lastPersistedSigByMsgIdRef,
+        lastPersistedMsgByIdRef,
+        resetSessionState,
+        historyRef,
+        replaceTranscript,
+        openExistingSessionWriter: (path) => SessionWriter.openExisting({ filePath: path }),
+        buildPersistedSigMap,
+        buildPersistedMsgRefMap,
+        setError: (message) => setError(message),
+      })
     },
     [
       abort,
       closeResumeDialog,
       deps.engine,
       isLoading,
-      queueSessionTransition,
       replaceTranscript,
       resetSessionState,
       sessionSaveEnabled,
@@ -951,65 +742,70 @@ export function useReplController(deps: {
 
   const send = useCallback(
     async (value: string, opts?: { preferredSlashSpecId?: string }) => {
-      const text = value.trim()
-      if (!text || isLoading || bashModeInFlightRef.current || sessionTransitionPendingCountRef.current > 0) return
-
-      let provider: 'openai' | 'anthropic' = 'anthropic'
-      let providerError: string | null = null
-      try {
-        provider = resolveTurnProvider(deps.cfg.llm.provider)
-      } catch (error) {
-        providerError = error instanceof Error ? error.message : 'Unsupported provider'
-      }
-
-      // Thinking/streaming state is per-turn; clear buffers so stale thinking
-      // from previous turns can't leak into the next status line/panel.
-      resetStreamingBuffers()
-
-      const didHandleClear = await maybeHandleClearCommand({
-        text,
+      await runSendAction({
+        value,
+        opts,
+        canonicalThreadId: CANONICAL_THREAD_ID,
         isLoading,
+        bashModeInFlightRef,
+        sessionTransitionPendingCountRef,
+        cfg: deps.cfg,
+        mode: deps.mode,
+        engine: deps.engine,
+        planSession: deps.planSession,
+        commandRegistry: deps.commandRegistry,
+        tools: deps.tools,
+        runtimeFlags,
+        runtimeCwd,
+        runtimeEnv,
+        allowedSubagents,
+        sessionSaveEnabled,
+        sessionWriterRef,
+        ensureSessionWriter,
+        runNewSession,
+        resetStreamingBuffers,
         setMessages,
-        newSession: runNewSession,
-      })
-      if (didHandleClear) return
-
-      await ensureSessionWriter()
-
-      // Bash mode (`!` prefix): run a local shell command without involving the LLM.
-      // The command + output are injected into the *next* real turn.
-      if (text.startsWith('!')) {
-        const command = text.replace(/^!\s*/, '').trim()
-        if (!command) {
+        setIsLoading,
+        setLoadingText,
+        setThinkingText,
+        setError,
+        setContext,
+        modeCurrentRef: modeRefs.currentRef,
+        setReplMode,
+        historyRef,
+        pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
+        contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
+        abortControllerRef,
+        assistantBufferRef,
+        thinkingBufferRef: thinkingRefs.bufferRef,
+        thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
+        currentAssistantIdRef,
+        pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
+        deferredToolExposureSessionKeyRef,
+        sendSeqRef: runtimeStateRefs.sendSeqRef,
+        autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
+        reminderServiceRef: turnFlowRefs.reminderServiceRef,
+        canonicalTurnIdRef: canonicalRefs.turnIdRef,
+        clearCanonicalTransientState,
+        setCanonicalTransientActive,
+        nextCanonicalTurnSeq,
+        nextCanonicalReplaySeq,
+        onCanonicalEvent,
+        onCompactLifecycle,
+        onCompactRequested,
+        onSlashLocalAsyncRecordForNextTurn,
+        onSlashLocalRecordForNextTurn,
+        openOverlay,
+        closeOverlay,
+        handleEvent,
+        claudeMdMetaSigRef: runtimeStateRefs.claudeMdMetaSigRef,
+        appendEmptyBashUsageMessage: () => {
           setMessages((prev) => [
             ...prev,
             { id: `assistant-${Date.now()}`, role: 'assistant', content: 'Usage: ! <command>', timestamp: new Date() },
           ])
-          return
-        }
-
-        // Treat bash-mode as an in-flight operation: prevent overlapping sends and allow Ctrl+C to abort.
-        // We intentionally avoid the LLM "isLoading" spinner here; the tool message itself is the UI.
-        bashModeInFlightRef.current = true
-
-        const localTurnId = `local-bash-${nextCanonicalTurnSeq()}`
-
-        try {
-          const localTurnOutcome = await runLocalBashTurn({
-            command,
-            cwd: runtimeCwd,
-            env: runtimeEnv,
-            runtimeFlags,
-            threadId: CANONICAL_THREAD_ID,
-            turnId: localTurnId,
-            nextReplaySeq: nextCanonicalReplaySeq,
-            onCanonicalEvent,
-            setMessages,
-            writeLegacyTranscriptRows: false,
-            pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
-            abortControllerRef,
-            clearCanonicalTransientState,
-          })
+        },
+        appendLocalBashCanonicalTail: ({ localTurnId, localTurnOutcome }) => {
           setMessages((prev) => {
             const nextMessages = appendCanonicalTailFinalRows({
               messages: prev,
@@ -1024,115 +820,6 @@ export function useReplController(deps: {
             })
             return nextMessages
           })
-        } finally {
-          bashModeInFlightRef.current = false
-        }
-
-        return
-      }
-
-      recordClaudeMdInjectionEvent({
-        sessionSaveEnabled,
-        cwd: runtimeCwd,
-        env: runtimeEnv,
-        includeAutoMemory: runtimeFlags.deferredToolExposureEnabled === true,
-        lastSigRef: runtimeStateRefs.claudeMdMetaSigRef,
-        writer: sessionWriterRef.current,
-      })
-
-      const { sendStateSetters, replModeAccess, sendTurnSharedRefs } = createSendTurnContext({
-        setMessages,
-        setIsLoading,
-        setLoadingText,
-        setThinkingText,
-        setError,
-        setContext,
-        getReplMode: () => modeRefs.currentRef.current,
-        setReplMode,
-        historyRef,
-        pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
-        contextBudgetConfigRef: turnFlowRefs.contextBudgetConfigRef,
-        abortControllerRef,
-        assistantBufferRef,
-        thinkingBufferRef: thinkingRefs.bufferRef,
-        thinkingLastFlushAtRef: thinkingRefs.lastFlushAtRef,
-        currentAssistantIdRef,
-      })
-      await runReplModelSendFlow({
-        input: {
-          text,
-          preferredSlashSpecId: opts?.preferredSlashSpecId,
-          provider,
-          providerError,
-        },
-        deps: {
-          engine: deps.engine,
-          cfg: deps.cfg,
-          mode: deps.mode,
-          planSession: deps.planSession,
-          commandRegistry: deps.commandRegistry,
-          tools: deps.tools,
-          runtimeFlags,
-          allowedSubagents,
-        },
-        sendContext: {
-          sendStateSetters,
-          replModeAccess,
-          sendTurnSharedRefs,
-        },
-        turnRefs: {
-          pendingExitPlanReminderRef: turnFlowRefs.pendingExitPlanReminderRef,
-          deferredToolExposureSessionKeyRef,
-          sendSeqRef: runtimeStateRefs.sendSeqRef,
-          autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
-          reminderServiceRef: turnFlowRefs.reminderServiceRef,
-        },
-        canonical: {
-          turnIdRef: canonicalRefs.turnIdRef,
-          setCanonicalTransientActive,
-          nextCanonicalTurnSeq,
-          clearCanonicalTransientState,
-        },
-        callbacks: {
-          openOverlay,
-          closeOverlay,
-          newSession: runNewSession,
-          handleEvent,
-          onCompactLifecycle,
-          onCompactRequested,
-          onSlashLocalAsyncRecordForNextTurn,
-          onSlashLocalRecordForNextTurn,
-          emitCanonicalUiMessageForTurn: ({ turnId, message }) =>
-            emitCanonicalUiMessageForTurn({
-              threadId: CANONICAL_THREAD_ID,
-              turnId,
-              message,
-              nextReplaySeq: nextCanonicalReplaySeq,
-              onCanonicalEvent,
-            }),
-	          finalizeCanonicalTurn: ({ userMessageId, turnId, turnOutcome }) => {
-            if (turnOutcome === 'aborted') {
-              emitCanonicalTurnFooterForTurn({
-                threadId: CANONICAL_THREAD_ID,
-                turnId,
-                status: 'interrupted',
-                message: 'Request aborted',
-                nextReplaySeq: nextCanonicalReplaySeq,
-                onCanonicalEvent,
-              })
-            } else if (turnOutcome === 'failed') {
-              emitCanonicalTurnFooterForTurn({
-                threadId: CANONICAL_THREAD_ID,
-                turnId,
-                status: 'failed',
-                nextReplaySeq: nextCanonicalReplaySeq,
-                onCanonicalEvent,
-              })
-            }
-
-	            void userMessageId
-	            clearCanonicalTransientState()
-	          },
         },
       })
     },
@@ -1143,7 +830,6 @@ export function useReplController(deps: {
       deps.engine,
       deps.mode,
       deps.planSession,
-      deps.reloadSubagents,
       deps.tools,
       closeOverlay,
       clearCanonicalTransientState,
@@ -1162,8 +848,8 @@ export function useReplController(deps: {
       runtimeFlags,
       isLoading,
       setReplMode,
-      userInput,
       onCompactLifecycle,
+      ensureSessionWriter,
     ],
   )
 
@@ -1213,6 +899,7 @@ export const __useReplControllerTestOnly = {
   mergeProjectedStaticRows,
   hasRunningAskTool,
   mapLocalBashTurnOutcomeForTail,
-  enqueueSessionTransition,
+  enqueueSessionTransition: queueSessionTransitionAction,
+  shouldBlockSendWhileBusy,
 }
  

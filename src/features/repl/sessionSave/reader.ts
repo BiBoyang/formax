@@ -1,15 +1,30 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import readline from 'node:readline'
-import path from 'node:path'
 import { formatToolResult } from '../../../shared/utils/toolFormatting'
 import {
   createPersistedToolEventAggregator,
   type PersistedToolMessage,
 } from './persistedToolEvents'
-import type { HistoryStateRecord, SessionMetaRecord, SessionRecord, UiMsgRecord } from './records'
+import type { HistoryStateRecord, SessionMetaRecord } from './records'
 import { getArchivedSessionsRoot, getSessionsRoot } from './paths'
 import type { ChatHistory, Msg } from './types'
+import {
+  coerceNonEmptyString,
+  coerceNumber,
+  coerceString,
+  isNonEmptyRecord,
+  isObject,
+} from './validation'
+import { mergeLegacyToolFieldsIntoPersisted } from './legacyCompat'
+import { collectSessionCandidates as collectSessionCandidatesInternal } from './discovery'
+import {
+  parseHistoryStateRecord,
+  parseJsonLine,
+  parseSessionEventRecord,
+  parseSessionMetaRecord,
+  parseUiMsgRecord,
+} from './recordParsing'
 
 export type SessionReplay = {
   meta: SessionMetaRecord
@@ -25,20 +40,6 @@ export type SessionSummary = {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
-function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
-  return isObject(value) && !Array.isArray(value) && Object.keys(value).length > 0
-}
-
-function coerceNonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
 }
 
 function detailLinesFromPersistedTool(args: { summary: string; detailLines: string[] }): string[] {
@@ -167,108 +168,11 @@ function reviveHistory(history: ChatHistory): ChatHistory {
   return history
 }
 
-function mergeLegacyToolFieldsIntoPersisted(args: { persisted: Msg; legacy: Msg }): Msg {
-  if (args.persisted.role !== 'tool' || args.legacy.role !== 'tool') return args.persisted
-  const persistedToolInfo = args.persisted.toolInfo
-  const legacyToolInfo = args.legacy.toolInfo
-  if (!persistedToolInfo || !legacyToolInfo) return args.persisted
-
-  const mergedInput =
-    isNonEmptyRecord(persistedToolInfo.input) || !isNonEmptyRecord(legacyToolInfo.input)
-      ? persistedToolInfo.input
-      : legacyToolInfo.input
-  const mergedResult =
-    typeof persistedToolInfo.result === 'string' && persistedToolInfo.result.trim().length > 0
-      ? persistedToolInfo.result
-      : legacyToolInfo.result
-  const mergedMiddleLines =
-    Array.isArray(persistedToolInfo.middleLines) && persistedToolInfo.middleLines.length > 0
-      ? persistedToolInfo.middleLines
-      : legacyToolInfo.middleLines
-  const mergedPatchStartLineNumber =
-    typeof persistedToolInfo.patchStartLineNumber === 'number' &&
-    Number.isFinite(persistedToolInfo.patchStartLineNumber) &&
-    persistedToolInfo.patchStartLineNumber > 0
-      ? Math.floor(persistedToolInfo.patchStartLineNumber)
-      : typeof legacyToolInfo.patchStartLineNumber === 'number' &&
-          Number.isFinite(legacyToolInfo.patchStartLineNumber) &&
-          legacyToolInfo.patchStartLineNumber > 0
-        ? Math.floor(legacyToolInfo.patchStartLineNumber)
-        : undefined
-
-  const mergedToolInfo = {
-    ...persistedToolInfo,
-    ...(mergedInput !== undefined ? { input: mergedInput } : {}),
-    ...(mergedResult !== undefined ? { result: mergedResult } : {}),
-    ...(mergedMiddleLines !== undefined ? { middleLines: mergedMiddleLines } : {}),
-    ...(mergedPatchStartLineNumber !== undefined ? { patchStartLineNumber: mergedPatchStartLineNumber } : {}),
-  }
-
-  const mergedContent =
-    (typeof args.persisted.content === 'string' && args.persisted.content.trim().length > 0
-      ? args.persisted.content
-      : args.legacy.content) ?? args.persisted.content
-
-  return {
-    ...args.persisted,
-    ...(typeof mergedContent === 'string' ? { content: mergedContent } : {}),
-    toolInfo: mergedToolInfo,
-  }
-}
-
 async function collectSessionCandidates(args: { root: string; archived: boolean }): Promise<string[]> {
-  const candidates: string[] = []
-  if (args.archived) {
-    const entries = await fsp.readdir(args.root, { withFileTypes: true }).catch(() => [])
-    for (const entry of entries) {
-      if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-        candidates.push(path.join(args.root, entry.name))
-        continue
-      }
-      if (!entry.isDirectory()) continue
-      const yearDir = path.join(args.root, entry.name)
-      const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
-      for (const m of months) {
-        if (!m.isDirectory()) continue
-        const monthDir = path.join(yearDir, m.name)
-        const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
-        for (const d of days) {
-          if (!d.isDirectory()) continue
-          const dayDir = path.join(monthDir, d.name)
-          const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
-          for (const f of files) {
-            if (!f.isFile()) continue
-            if (!f.name.endsWith('.jsonl')) continue
-            candidates.push(path.join(dayDir, f.name))
-          }
-        }
-      }
-    }
-    return candidates
-  }
-
-  const years = await fsp.readdir(args.root, { withFileTypes: true }).catch(() => [])
-  for (const y of years) {
-    if (!y.isDirectory()) continue
-    const yearDir = path.join(args.root, y.name)
-    const months = await fsp.readdir(yearDir, { withFileTypes: true }).catch(() => [])
-    for (const m of months) {
-      if (!m.isDirectory()) continue
-      const monthDir = path.join(yearDir, m.name)
-      const days = await fsp.readdir(monthDir, { withFileTypes: true }).catch(() => [])
-      for (const d of days) {
-        if (!d.isDirectory()) continue
-        const dayDir = path.join(monthDir, d.name)
-        const files = await fsp.readdir(dayDir, { withFileTypes: true }).catch(() => [])
-        for (const f of files) {
-          if (!f.isFile()) continue
-          if (!f.name.endsWith('.jsonl')) continue
-          candidates.push(path.join(dayDir, f.name))
-        }
-      }
-    }
-  }
-  return candidates
+  return collectSessionCandidatesInternal({
+    root: args.root,
+    includeFlatRootFiles: args.archived,
+  })
 }
 
 export async function readSessionFile(filePath: string): Promise<SessionReplay> {
@@ -287,22 +191,20 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
   for await (const line of rl) {
     const trimmed = String(line).trimEnd()
     if (!trimmed) continue
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(trimmed)
-    } catch {
+    const parsed = parseJsonLine(trimmed)
+    if (!parsed) {
       parseErrors += 1
       continue
     }
 
-    if (!isObject(parsed)) continue
-    const type = parsed.type
-    if (type === 'session_meta') {
-      meta = parsed as SessionMetaRecord
+    const metaRecord = parseSessionMetaRecord(parsed)
+    if (metaRecord) {
+      meta = metaRecord
       continue
     }
-    if (type === 'ui_msg') {
-      const rec = parsed as UiMsgRecord
+    const uiMsgRecord = parseUiMsgRecord(parsed)
+    if (uiMsgRecord) {
+      const rec = uiMsgRecord
       if (!rec.msg?.id) continue
       const revived = reviveMsg(rec.msg, rec.ts)
       if (revived.role === 'tool') {
@@ -312,19 +214,20 @@ export async function readSessionFile(filePath: string): Promise<SessionReplay> 
       msgById.set(revived.id, revived)
       continue
     }
-    if (type === 'history_state') {
-      lastHistory = parsed as HistoryStateRecord
+    const historyStateRecord = parseHistoryStateRecord(parsed)
+    if (historyStateRecord) {
+      lastHistory = historyStateRecord
       continue
     }
 
-    if (type === 'event') {
-      const name = coerceNonEmptyString(parsed.name)
-      if (name !== 'app_tool_event') continue
-      persistedToolAggregator.ingest({
-        ts: parsed.ts,
-        data: parsed.data,
-      })
-    }
+    const eventRecord = parseSessionEventRecord(parsed)
+    if (!eventRecord) continue
+    const name = coerceNonEmptyString(eventRecord.name)
+    if (name !== 'app_tool_event') continue
+    persistedToolAggregator.ingest({
+      ts: eventRecord.ts,
+      data: eventRecord.data,
+    })
   }
 
   if (!meta) {
@@ -444,12 +347,11 @@ async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord>
   let meta: SessionMetaRecord | null = null
   try {
     for await (const line of rl) {
-      const trimmed = String(line).trimEnd()
-      if (!trimmed) continue
-      const parsed = JSON.parse(trimmed) as unknown
-      if (!isObject(parsed)) break
-      if (parsed.type !== 'session_meta') break
-      meta = parsed as SessionMetaRecord
+      const parsed = parseJsonLine(line)
+      if (!parsed) continue
+      const parsedMeta = parseSessionMetaRecord(parsed)
+      if (!parsedMeta) break
+      meta = parsedMeta
       break
     }
   } finally {
@@ -477,15 +379,6 @@ async function readTailText(filePath: string, maxBytes: number): Promise<string>
   }
 }
 
-function coerceString(value: unknown): string | null {
-  const s = typeof value === 'string' ? value.trim() : ''
-  return s ? s : null
-}
-
-function coerceNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
 async function readTailSummaryData(filePath: string): Promise<{
   messageCount: number | null
   lastUserPrompt: string | null
@@ -503,12 +396,8 @@ async function readTailSummaryData(filePath: string): Promise<{
   const lines = tail.split('\n').map((l) => l.trimEnd()).filter(Boolean)
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(line)
-    } catch {
-      continue
-    }
+    const parsed = parseJsonLine(line)
+    if (!parsed) continue
     if (!isObject(parsed)) continue
     if (parsed.type !== 'event') continue
     const name = coerceString(parsed.name)
@@ -634,12 +523,8 @@ export async function readSessionPreview(
 
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(line)
-    } catch {
-      continue
-    }
+    const parsed = parseJsonLine(line)
+    if (!parsed) continue
     if (!isObject(parsed)) continue
     if (parsed.type !== 'ui_msg') continue
     const rec = parsed as any

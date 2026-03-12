@@ -566,6 +566,24 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockRestore()
   })
 
+  it('includes archived flat root .jsonl files together with dated-tree files', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-flat-'))
+    try {
+      const flat = path.join(tmp, 'flat.jsonl')
+      const datedDir = path.join(tmp, '2026', '02', '03')
+      const dated = path.join(datedDir, 'nested.jsonl')
+      await fs.mkdir(datedDir, { recursive: true })
+      await fs.writeFile(flat, 'flat\n', 'utf8')
+      await fs.writeFile(dated, 'nested\n', 'utf8')
+
+      const candidates = await __readerTestOnly.collectSessionCandidates({ root: tmp, archived: true })
+      expect(candidates).toContain(flat)
+      expect(candidates).toContain(dated)
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true })
+    }
+  })
+
   it('covers remaining branch edges in reader helpers', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-edges-'))
 

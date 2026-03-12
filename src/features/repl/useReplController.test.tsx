@@ -82,6 +82,38 @@ describe('useReplController targeted branch coverage', () => {
     }
   })
 
+  it('runs dirty tracking before stable-message persistence on message updates', async () => {
+    const tempConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-targeted-order-'))
+    vi.stubEnv('FORMAX_SESSION_SAVE', '1')
+    vi.stubEnv('FORMAX_CONFIG_DIR', tempConfigDir)
+
+    const markSpy = vi.spyOn(sessionController, 'markDirtyMessageIdsFromTransition')
+    const persistSpy = vi.spyOn(sessionController, 'persistDirtyStableMessages')
+    const engine: ChatEngine = {
+      runTurn: vi.fn(async ({ history, user, onEvent }) => {
+        onEvent({ type: 'complete' } as StreamEvent)
+        return [...history, user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+      }),
+    } as any
+    let controller!: ReturnType<typeof useReplController>
+
+    try {
+      renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+      await waitFor(() => Boolean(controller))
+      await controller.actions.send('hello')
+      await waitFor(() => controller.state.isLoading === false)
+      await waitFor(() => markSpy.mock.calls.length > 0 && persistSpy.mock.calls.length > 0)
+
+      const firstMarkOrder = markSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      const firstPersistOrder = persistSpy.mock.invocationCallOrder[0] ?? Number.NEGATIVE_INFINITY
+      expect(firstMarkOrder).toBeLessThan(firstPersistOrder)
+    } finally {
+      markSpy.mockRestore()
+      persistSpy.mockRestore()
+      await fsp.rm(tempConfigDir, { recursive: true, force: true })
+    }
+  })
+
   it('handles unsupported provider and empty bang command branches', async () => {
     const providerSpy = vi.spyOn(controllerShared, 'resolveTurnProvider').mockImplementation(() => {
       throw 'bad-provider'
@@ -1681,6 +1713,19 @@ describe('__useReplControllerTestOnly', () => {
       onNonAppendUpdate,
     })
     expect(untouched).toBe(replaced)
+
+    const unchangedProjection = __useReplControllerTestOnly.mergeProjectedStaticRows({
+      prev: replaced as any,
+      projectedStaticRows: [
+        {
+          ...(replaced[0] as any),
+          surfaceOwner: 'static',
+          isStreaming: false,
+        } as any,
+      ],
+      onNonAppendUpdate,
+    })
+    expect(unchangedProjection).toBe(replaced)
   })
 
   it('handles unserializable values in safeJson', () => {
@@ -1726,6 +1771,49 @@ describe('__useReplControllerTestOnly', () => {
     expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('completed')).toBe('completed')
     expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('failed')).toBe('failed')
     expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('aborted')).toBe('failed')
+  })
+
+  it('blocks send when turn flow is busy, allows otherwise', () => {
+    expect(
+      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+        text: '',
+        isLoading: false,
+        bashModeInFlight: false,
+        sessionTransitionPendingCount: 0,
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+        text: 'hi',
+        isLoading: true,
+        bashModeInFlight: false,
+        sessionTransitionPendingCount: 0,
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+        text: 'hi',
+        isLoading: false,
+        bashModeInFlight: true,
+        sessionTransitionPendingCount: 0,
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+        text: 'hi',
+        isLoading: false,
+        bashModeInFlight: false,
+        sessionTransitionPendingCount: 1,
+      }),
+    ).toBe(true)
+    expect(
+      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+        text: 'hi',
+        isLoading: false,
+        bashModeInFlight: false,
+        sessionTransitionPendingCount: 0,
+      }),
+    ).toBe(false)
   })
 
   it('enqueues session transitions and decrements pending count', async () => {
