@@ -6,7 +6,6 @@ import type { RuntimeConfig } from '../../config/config'
 import type { Msg } from '../../shared/toolMessageTypes'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
-import type { LocalCommandRecord } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import type {
@@ -38,8 +37,6 @@ import {
   applyConfigExitInjection,
   buildPersistedMsgRefMap,
   buildPersistedSigMap,
-  recordCompactRequestedEvent,
-  recordLocalCommandInjectionEvent,
   registerSessionWriterProcessHandlers,
   runNewSessionTransition,
   runResumeSessionTransition,
@@ -48,9 +45,9 @@ import {
   runResumeSessionAction,
   renameSessionAction,
   useSessionPersistence,
+  useSessionEventRecorders,
   useSessionWriterLifecycle,
 } from './controller/session'
-import type { CompactLifecycleEvent } from './controller/send/compactFlow'
 import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
 import {
   hasRunningAskTool,
@@ -295,52 +292,15 @@ export function useReplController(deps: {
     })
   }, [])
 
-  const onCompactLifecycle = useCallback(
-    (event: CompactLifecycleEvent) => {
-      if (!sessionSaveEnabled) return
-      if (event.type === 'compact_started') {
-        void sessionWriterRef.current?.appendEvent('compact_started', { source: event.source })
-        return
-      }
-      if (event.type === 'compact_succeeded') {
-        void sessionWriterRef.current?.appendEvent('compact_succeeded', { source: event.source })
-        return
-      }
-      void sessionWriterRef.current?.appendEvent('compact_failed', {
-        source: event.source,
-        error: event.error,
-      })
-    },
-    [sessionSaveEnabled],
-  )
-
-  const onCompactRequested = useCallback(() => {
-    recordCompactRequestedEvent({ sessionSaveEnabled, writer: sessionWriterRef.current })
-  }, [sessionSaveEnabled])
-
-  const onSlashLocalAsyncRecordForNextTurn = useCallback(
-    (record: LocalCommandRecord) => {
-      recordLocalCommandInjectionEvent({
-        sessionSaveEnabled,
-        writer: sessionWriterRef.current,
-        source: 'slash_local_async',
-        record,
-      })
-    },
-    [sessionSaveEnabled],
-  )
-
-  const onSlashLocalRecordForNextTurn = useCallback(
-    (record: LocalCommandRecord) => {
-      recordLocalCommandInjectionEvent({
-        sessionSaveEnabled,
-        writer: sessionWriterRef.current,
-        source: 'slash_local',
-        record,
-      })
-    },
-    [sessionSaveEnabled],
-  )
+  const {
+    onCompactLifecycle,
+    onCompactRequested,
+    onSlashLocalAsyncRecordForNextTurn,
+    onSlashLocalRecordForNextTurn,
+  } = useSessionEventRecorders({
+    sessionSaveEnabled,
+    writerRef: sessionWriterRef,
+  })
 
   const resetSessionRefs = useCallback(() => {
     resetSessionRefsInternal({
