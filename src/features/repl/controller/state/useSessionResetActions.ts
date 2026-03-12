@@ -21,39 +21,65 @@ type ResetSessionUiStateArgs = Parameters<typeof resetSessionUiStateInternal>[0]
 type NextCanonicalReplaySeqArgs = Parameters<typeof nextCanonicalReplaySeqInternal>[0]
 type NextCanonicalTurnSeqArgs = Parameters<typeof nextCanonicalTurnSeqInternal>[0]
 
-function useSessionResetActions(args: {
-  canonicalThreadId: string
-  assistantBufferRef: ResetStreamingBuffersArgs['assistantBufferRef']
-  thinkingBufferRef: ResetStreamingBuffersArgs['thinkingBufferRef']
-  thinkingMessageIdRef: ResetStreamingBuffersArgs['thinkingMessageIdRef']
-  thinkingLastFlushAtRef: ResetStreamingBuffersArgs['thinkingLastFlushAtRef']
-  thinkingTimingRef: ResetStreamingBuffersArgs['thinkingTimingRef']
-  setThinkingText: ResetStreamingBuffersArgs['setThinkingText']
-  setThinkingStartedAtMs: ResetStreamingBuffersArgs['setThinkingStartedAtMs']
-  toolNameByIdRef: ClearToolRuntimeStateArgs['toolNameByIdRef']
-  toolInputByIdRef: ClearToolRuntimeStateArgs['toolInputByIdRef']
-  taskStatsByToolUseIdRef: ClearToolRuntimeStateArgs['taskStatsByToolUseIdRef']
-  taskKindByToolUseIdRef: ClearToolRuntimeStateArgs['taskKindByToolUseIdRef']
-  toolMessageIdByToolUseIdRef: ClearToolRuntimeStateArgs['toolMessageIdByToolUseIdRef']
-  exploreBatchRef: ClearToolRuntimeStateArgs['exploreBatchRef']
-  transientSnapshotRef: ClearCanonicalTransientStateArgs['transientSnapshotRef']
-  setCanonicalTurnMessages: Dispatch<SetStateAction<Msg[]>>
-  setCanonicalTransientActive: Dispatch<SetStateAction<boolean>>
+type SessionResetRefs = {
   deferredToolExposureSessionKeyRef: ResetSessionRefsArgs['deferredToolExposureSessionKeyRef']
   historyRef: ResetSessionRefsArgs['historyRef']
-  pendingInjectedBlocksRef: ResetSessionRefsArgs['pendingInjectedBlocksRef']
-  pendingExitPlanReminderRef: ResetSessionRefsArgs['pendingExitPlanReminderRef']
   currentAssistantIdRef: ResetSessionRefsArgs['currentAssistantIdRef']
-  contextBudgetConfigRef: ResetSessionRefsArgs['contextBudgetConfigRef']
-  sendSeqRef: ResetSessionRefsArgs['sendSeqRef']
-  autoCompactSeqRef: ResetSessionRefsArgs['autoCompactSeqRef']
-  claudeMdMetaSigRef: ResetSessionRefsArgs['claudeMdMetaSigRef']
+  assistantBufferRef: ResetStreamingBuffersArgs['assistantBufferRef']
+}
+
+type ThinkingResetRefs = {
+  bufferRef: ResetStreamingBuffersArgs['thinkingBufferRef']
+  messageIdRef: ResetStreamingBuffersArgs['thinkingMessageIdRef']
+  lastFlushAtRef: ResetStreamingBuffersArgs['thinkingLastFlushAtRef']
+  timingRef: ResetStreamingBuffersArgs['thinkingTimingRef']
+}
+
+type ToolRuntimeResetRefs = {
+  nameByIdRef: ClearToolRuntimeStateArgs['toolNameByIdRef']
+  inputByIdRef: ClearToolRuntimeStateArgs['toolInputByIdRef']
+  statsByToolUseIdRef: ClearToolRuntimeStateArgs['taskStatsByToolUseIdRef']
+  kindByToolUseIdRef: ClearToolRuntimeStateArgs['taskKindByToolUseIdRef']
+  messageIdByToolUseIdRef: ClearToolRuntimeStateArgs['toolMessageIdByToolUseIdRef']
+  exploreBatchRef: ClearToolRuntimeStateArgs['exploreBatchRef']
+}
+
+type CanonicalResetRefs = {
   projectionRef: ResetCanonicalProjectionStateArgs['projectionRef']
   replaySeqRef: NextCanonicalReplaySeqArgs
   turnIdRef: ResetCanonicalProjectionStateArgs['turnIdRef']
   turnSeqRef: NextCanonicalTurnSeqArgs
-  setError: ResetSessionUiStateArgs['setError']
-  setContext: ResetSessionUiStateArgs['setContext']
+  transientSnapshotRef: ClearCanonicalTransientStateArgs['transientSnapshotRef']
+}
+
+type TurnFlowResetRefs = {
+  pendingInjectedBlocksRef: ResetSessionRefsArgs['pendingInjectedBlocksRef']
+  pendingExitPlanReminderRef: ResetSessionRefsArgs['pendingExitPlanReminderRef']
+  contextBudgetConfigRef: ResetSessionRefsArgs['contextBudgetConfigRef']
+}
+
+type RuntimeStateResetRefs = {
+  sendSeqRef: ResetSessionRefsArgs['sendSeqRef']
+  autoCompactSeqRef: ResetSessionRefsArgs['autoCompactSeqRef']
+  claudeMdMetaSigRef: ResetSessionRefsArgs['claudeMdMetaSigRef']
+}
+
+function useSessionResetActions(args: {
+  canonicalThreadId: string
+  sessionRefs: SessionResetRefs
+  thinkingRefs: ThinkingResetRefs
+  toolRuntimeRefs: ToolRuntimeResetRefs
+  canonicalRefs: CanonicalResetRefs
+  turnFlowRefs: TurnFlowResetRefs
+  runtimeStateRefs: RuntimeStateResetRefs
+  setters: {
+    setThinkingText: ResetStreamingBuffersArgs['setThinkingText']
+    setThinkingStartedAtMs: ResetStreamingBuffersArgs['setThinkingStartedAtMs']
+    setCanonicalTurnMessages: Dispatch<SetStateAction<Msg[]>>
+    setCanonicalTransientActive: Dispatch<SetStateAction<boolean>>
+    setError: ResetSessionUiStateArgs['setError']
+    setContext: ResetSessionUiStateArgs['setContext']
+  }
 }): {
   resetStreamingBuffers: () => void
   clearToolRuntimeState: () => void
@@ -65,101 +91,68 @@ function useSessionResetActions(args: {
 } {
   const resetStreamingBuffers = useCallback(() => {
     resetStreamingBuffersInternal({
-      assistantBufferRef: args.assistantBufferRef,
-      thinkingBufferRef: args.thinkingBufferRef,
-      thinkingMessageIdRef: args.thinkingMessageIdRef,
-      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
-      thinkingTimingRef: args.thinkingTimingRef,
-      setThinkingText: args.setThinkingText,
-      setThinkingStartedAtMs: args.setThinkingStartedAtMs,
+      assistantBufferRef: args.sessionRefs.assistantBufferRef,
+      thinkingBufferRef: args.thinkingRefs.bufferRef,
+      thinkingMessageIdRef: args.thinkingRefs.messageIdRef,
+      thinkingLastFlushAtRef: args.thinkingRefs.lastFlushAtRef,
+      thinkingTimingRef: args.thinkingRefs.timingRef,
+      setThinkingText: args.setters.setThinkingText,
+      setThinkingStartedAtMs: args.setters.setThinkingStartedAtMs,
     })
-  }, [
-    args.assistantBufferRef,
-    args.setThinkingStartedAtMs,
-    args.setThinkingText,
-    args.thinkingBufferRef,
-    args.thinkingLastFlushAtRef,
-    args.thinkingMessageIdRef,
-    args.thinkingTimingRef,
-  ])
+  }, [args.sessionRefs.assistantBufferRef, args.setters.setThinkingStartedAtMs, args.setters.setThinkingText, args.thinkingRefs.bufferRef, args.thinkingRefs.lastFlushAtRef, args.thinkingRefs.messageIdRef, args.thinkingRefs.timingRef])
 
   const clearToolRuntimeState = useCallback(() => {
     clearToolRuntimeStateInternal({
-      toolNameByIdRef: args.toolNameByIdRef,
-      toolInputByIdRef: args.toolInputByIdRef,
-      taskStatsByToolUseIdRef: args.taskStatsByToolUseIdRef,
-      taskKindByToolUseIdRef: args.taskKindByToolUseIdRef,
-      toolMessageIdByToolUseIdRef: args.toolMessageIdByToolUseIdRef,
-      exploreBatchRef: args.exploreBatchRef,
+      toolNameByIdRef: args.toolRuntimeRefs.nameByIdRef,
+      toolInputByIdRef: args.toolRuntimeRefs.inputByIdRef,
+      taskStatsByToolUseIdRef: args.toolRuntimeRefs.statsByToolUseIdRef,
+      taskKindByToolUseIdRef: args.toolRuntimeRefs.kindByToolUseIdRef,
+      toolMessageIdByToolUseIdRef: args.toolRuntimeRefs.messageIdByToolUseIdRef,
+      exploreBatchRef: args.toolRuntimeRefs.exploreBatchRef,
     })
-  }, [
-    args.exploreBatchRef,
-    args.taskKindByToolUseIdRef,
-    args.taskStatsByToolUseIdRef,
-    args.toolInputByIdRef,
-    args.toolMessageIdByToolUseIdRef,
-    args.toolNameByIdRef,
-  ])
+  }, [args.toolRuntimeRefs.exploreBatchRef, args.toolRuntimeRefs.inputByIdRef, args.toolRuntimeRefs.kindByToolUseIdRef, args.toolRuntimeRefs.messageIdByToolUseIdRef, args.toolRuntimeRefs.nameByIdRef, args.toolRuntimeRefs.statsByToolUseIdRef])
 
   const clearCanonicalTransientState = useCallback(() => {
     clearCanonicalTransientStateInternal({
-      transientSnapshotRef: args.transientSnapshotRef,
-      setCanonicalTurnMessages: args.setCanonicalTurnMessages as ClearCanonicalTransientStateArgs['setCanonicalTurnMessages'],
-      setCanonicalTransientActive: args.setCanonicalTransientActive,
+      transientSnapshotRef: args.canonicalRefs.transientSnapshotRef,
+      setCanonicalTurnMessages: args.setters.setCanonicalTurnMessages as ClearCanonicalTransientStateArgs['setCanonicalTurnMessages'],
+      setCanonicalTransientActive: args.setters.setCanonicalTransientActive,
     })
-  }, [args.setCanonicalTransientActive, args.setCanonicalTurnMessages, args.transientSnapshotRef])
+  }, [args.canonicalRefs.transientSnapshotRef, args.setters.setCanonicalTransientActive, args.setters.setCanonicalTurnMessages])
 
   const resetSessionRefs = useCallback(() => {
     resetSessionRefsInternal({
-      deferredToolExposureSessionKeyRef: args.deferredToolExposureSessionKeyRef,
-      historyRef: args.historyRef,
-      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
-      pendingExitPlanReminderRef: args.pendingExitPlanReminderRef,
-      currentAssistantIdRef: args.currentAssistantIdRef,
-      contextBudgetConfigRef: args.contextBudgetConfigRef,
-      sendSeqRef: args.sendSeqRef,
-      autoCompactSeqRef: args.autoCompactSeqRef,
+      deferredToolExposureSessionKeyRef: args.sessionRefs.deferredToolExposureSessionKeyRef,
+      historyRef: args.sessionRefs.historyRef,
+      pendingInjectedBlocksRef: args.turnFlowRefs.pendingInjectedBlocksRef,
+      pendingExitPlanReminderRef: args.turnFlowRefs.pendingExitPlanReminderRef,
+      currentAssistantIdRef: args.sessionRefs.currentAssistantIdRef,
+      contextBudgetConfigRef: args.turnFlowRefs.contextBudgetConfigRef,
+      sendSeqRef: args.runtimeStateRefs.sendSeqRef,
+      autoCompactSeqRef: args.runtimeStateRefs.autoCompactSeqRef,
       clearToolRuntimeState,
-      claudeMdMetaSigRef: args.claudeMdMetaSigRef,
+      claudeMdMetaSigRef: args.runtimeStateRefs.claudeMdMetaSigRef,
     })
-  }, [
-    args.autoCompactSeqRef,
-    args.claudeMdMetaSigRef,
-    args.contextBudgetConfigRef,
-    args.currentAssistantIdRef,
-    args.deferredToolExposureSessionKeyRef,
-    args.historyRef,
-    args.pendingExitPlanReminderRef,
-    args.pendingInjectedBlocksRef,
-    args.sendSeqRef,
-    clearToolRuntimeState,
-  ])
+  }, [args.runtimeStateRefs.autoCompactSeqRef, args.runtimeStateRefs.claudeMdMetaSigRef, args.runtimeStateRefs.sendSeqRef, args.sessionRefs.currentAssistantIdRef, args.sessionRefs.deferredToolExposureSessionKeyRef, args.sessionRefs.historyRef, args.turnFlowRefs.contextBudgetConfigRef, args.turnFlowRefs.pendingExitPlanReminderRef, args.turnFlowRefs.pendingInjectedBlocksRef, clearToolRuntimeState])
 
   const resetCanonicalProjectionState = useCallback(() => {
     resetCanonicalProjectionStateInternal({
       canonicalThreadId: args.canonicalThreadId,
-      projectionRef: args.projectionRef,
-      replaySeqRef: args.replaySeqRef,
-      turnIdRef: args.turnIdRef,
-      turnSeqRef: args.turnSeqRef,
+      projectionRef: args.canonicalRefs.projectionRef,
+      replaySeqRef: args.canonicalRefs.replaySeqRef,
+      turnIdRef: args.canonicalRefs.turnIdRef,
+      turnSeqRef: args.canonicalRefs.turnSeqRef,
       clearCanonicalTransientState,
     })
-  }, [
-    args.canonicalThreadId,
-    args.projectionRef,
-    args.replaySeqRef,
-    args.turnIdRef,
-    args.turnSeqRef,
-    clearCanonicalTransientState,
-  ])
+  }, [args.canonicalRefs.projectionRef, args.canonicalRefs.replaySeqRef, args.canonicalRefs.turnIdRef, args.canonicalRefs.turnSeqRef, args.canonicalThreadId, clearCanonicalTransientState])
 
   const resetSessionUiState = useCallback(() => {
     resetSessionUiStateInternal({
       resetStreamingBuffers,
-      setError: args.setError,
-      setContext: args.setContext,
+      setError: args.setters.setError,
+      setContext: args.setters.setContext,
     })
-  }, [args.setContext, args.setError, resetStreamingBuffers])
+  }, [args.setters.setContext, args.setters.setError, resetStreamingBuffers])
 
   const resetSessionState = useCallback(() => {
     resetSessionRefs()
@@ -168,12 +161,12 @@ function useSessionResetActions(args: {
   }, [resetCanonicalProjectionState, resetSessionRefs, resetSessionUiState])
 
   const nextCanonicalReplaySeq = useCallback(() => {
-    return nextCanonicalReplaySeqInternal(args.replaySeqRef)
-  }, [args.replaySeqRef])
+    return nextCanonicalReplaySeqInternal(args.canonicalRefs.replaySeqRef)
+  }, [args.canonicalRefs.replaySeqRef])
 
   const nextCanonicalTurnSeq = useCallback(() => {
-    return nextCanonicalTurnSeqInternal(args.turnSeqRef)
-  }, [args.turnSeqRef])
+    return nextCanonicalTurnSeqInternal(args.canonicalRefs.turnSeqRef)
+  }, [args.canonicalRefs.turnSeqRef])
 
   return {
     resetStreamingBuffers,

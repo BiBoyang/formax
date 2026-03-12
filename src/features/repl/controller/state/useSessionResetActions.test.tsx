@@ -47,39 +47,61 @@ function Harness(props: {
 }
 
 function createArgs(): Parameters<typeof useSessionResetActions>[0] {
-  return {
-    canonicalThreadId: 'tui-live',
-    assistantBufferRef: { current: '' },
-    thinkingBufferRef: { current: '' },
-    thinkingMessageIdRef: { current: null },
-    thinkingLastFlushAtRef: { current: 0 },
-    thinkingTimingRef: { current: { startedAtMs: null } },
-    setThinkingText: vi.fn(),
-    setThinkingStartedAtMs: vi.fn(),
-    toolNameByIdRef: { current: new Map() },
-    toolInputByIdRef: { current: new Map() },
-    taskStatsByToolUseIdRef: { current: new Map() },
-    taskKindByToolUseIdRef: { current: new Map() },
-    toolMessageIdByToolUseIdRef: { current: new Map() },
-    exploreBatchRef: { current: null },
-    transientSnapshotRef: { current: null },
-    setCanonicalTurnMessages: vi.fn() as any,
-    setCanonicalTransientActive: vi.fn(),
+  const sessionRefs = {
     deferredToolExposureSessionKeyRef: { current: 'session-key' },
     historyRef: { current: [] },
-    pendingInjectedBlocksRef: { current: [] },
-    pendingExitPlanReminderRef: { current: false },
     currentAssistantIdRef: { current: null },
-    contextBudgetConfigRef: { current: null },
-    sendSeqRef: { current: 0 },
-    autoCompactSeqRef: { current: -1_000_000 },
-    claudeMdMetaSigRef: { current: null },
+    assistantBufferRef: { current: '' },
+  }
+  const thinkingRefs = {
+    bufferRef: { current: '' },
+    messageIdRef: { current: null },
+    lastFlushAtRef: { current: 0 },
+    timingRef: { current: { startedAtMs: null } },
+  }
+  const toolRuntimeRefs = {
+    nameByIdRef: { current: new Map() },
+    inputByIdRef: { current: new Map() },
+    statsByToolUseIdRef: { current: new Map() },
+    kindByToolUseIdRef: { current: new Map() },
+    messageIdByToolUseIdRef: { current: new Map() },
+    exploreBatchRef: { current: null },
+  }
+  const canonicalRefs = {
     projectionRef: { current: { threadId: 'tui-live', segments: [] } as any },
     replaySeqRef: { current: 0 },
     turnIdRef: { current: null },
     turnSeqRef: { current: 0 },
+    transientSnapshotRef: { current: null },
+  }
+  const turnFlowRefs = {
+    pendingInjectedBlocksRef: { current: [] },
+    pendingExitPlanReminderRef: { current: false },
+    contextBudgetConfigRef: { current: null },
+  }
+  const runtimeStateRefs = {
+    sendSeqRef: { current: 0 },
+    autoCompactSeqRef: { current: -1_000_000 },
+    claudeMdMetaSigRef: { current: null },
+  }
+  const setters = {
+    setThinkingText: vi.fn(),
+    setThinkingStartedAtMs: vi.fn(),
+    setCanonicalTurnMessages: vi.fn() as any,
+    setCanonicalTransientActive: vi.fn(),
     setError: vi.fn(),
     setContext: vi.fn(),
+  }
+
+  return {
+    canonicalThreadId: 'tui-live',
+    sessionRefs,
+    thinkingRefs,
+    toolRuntimeRefs,
+    canonicalRefs,
+    turnFlowRefs,
+    runtimeStateRefs,
+    setters,
   }
 }
 
@@ -101,25 +123,25 @@ describe('useSessionResetActions', () => {
 
     expect(resetStreamingBuffersInternalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantBufferRef: args.assistantBufferRef,
-        thinkingBufferRef: args.thinkingBufferRef,
+        assistantBufferRef: args.sessionRefs.assistantBufferRef,
+        thinkingBufferRef: args.thinkingRefs.bufferRef,
       }),
     )
     expect(clearToolRuntimeStateInternalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        toolNameByIdRef: args.toolNameByIdRef,
-        exploreBatchRef: args.exploreBatchRef,
+        toolNameByIdRef: args.toolRuntimeRefs.nameByIdRef,
+        exploreBatchRef: args.toolRuntimeRefs.exploreBatchRef,
       }),
     )
     expect(clearCanonicalTransientStateInternalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        transientSnapshotRef: args.transientSnapshotRef,
+        transientSnapshotRef: args.canonicalRefs.transientSnapshotRef,
       }),
     )
     expect(resetSessionUiStateInternalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        setError: args.setError,
-        setContext: args.setContext,
+        setError: args.setters.setError,
+        setContext: args.setters.setContext,
       }),
     )
 
@@ -148,7 +170,7 @@ describe('useSessionResetActions', () => {
     expect(order).toEqual(['refs', 'canonical', 'ui'])
     expect(resetSessionRefsInternalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        deferredToolExposureSessionKeyRef: args.deferredToolExposureSessionKeyRef,
+        deferredToolExposureSessionKeyRef: args.sessionRefs.deferredToolExposureSessionKeyRef,
         clearToolRuntimeState: expect.any(Function),
       }),
     )
@@ -170,8 +192,8 @@ describe('useSessionResetActions', () => {
 
     expect(apiRef.current?.nextCanonicalReplaySeq()).toBe(11)
     expect(apiRef.current?.nextCanonicalTurnSeq()).toBe(22)
-    expect(nextCanonicalReplaySeqInternalMock).toHaveBeenCalledWith(args.replaySeqRef)
-    expect(nextCanonicalTurnSeqInternalMock).toHaveBeenCalledWith(args.turnSeqRef)
+    expect(nextCanonicalReplaySeqInternalMock).toHaveBeenCalledWith(args.canonicalRefs.replaySeqRef)
+    expect(nextCanonicalTurnSeqInternalMock).toHaveBeenCalledWith(args.canonicalRefs.turnSeqRef)
 
     app.unmount()
   })
