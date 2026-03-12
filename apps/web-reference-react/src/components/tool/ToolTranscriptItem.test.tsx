@@ -343,6 +343,21 @@ describe('ToolTranscriptItem', () => {
     expect(screen.getByText('planner(analyze docs)')).toBeInTheDocument()
   })
 
+  it('keeps task rendering single-line in GUI even when detail lines are present', () => {
+    const item = makeToolItem({
+      toolName: 'Task',
+      paramsText: 'subagent_type="planner", description="analyze docs", priority="high"',
+      summary: 'Task running',
+      detailLines: ['Read 10 lines', 'Found 3 files'],
+    })
+    render(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Task')).toBeInTheDocument()
+    expect(screen.getByText('planner(analyze docs)')).toBeInTheDocument()
+    expect(screen.queryByText('Read 10 lines')).not.toBeInTheDocument()
+    expect(screen.queryByText('Found 3 files')).not.toBeInTheDocument()
+  })
+
   it('keeps webfetch tool label visible with very long url params', () => {
     const tailMarker = 'URLTAILMARKER'
     const veryLongSuffix = `${'x'.repeat(180)}${tailMarker}`

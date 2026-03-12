@@ -580,6 +580,8 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
     cwd: context.cwd,
     ...(subtitle ? { subtitle } : {}),
     ...(paramsText ? { paramsText } : {}),
+    // Keep Task rows compact in GUI: render a single header row only.
+    detailLines: [],
   })
 }
 

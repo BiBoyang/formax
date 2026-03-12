@@ -359,6 +359,26 @@ describe('buildToolUiBlocks', () => {
     expect(taskHeader?.title).toBe('Task')
     expect(taskHeader?.subtitle).toBe('planner(analyze docs)')
     expect(taskHeader?.paramsText).toContain('priority="high"')
+    expect(taskHeader?.expandable).toBe(false)
+    expect(taskBlocks.find((block) => block.kind === 'details')).toBeUndefined()
+  })
+
+  it('keeps Task blocks single-line even when detail lines exist', () => {
+    const taskBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'Task',
+        status: 'running',
+        paramsText: 'subagent_type="planner", description="analyze docs", priority="high"',
+        summary: 'Task running',
+        detailLines: ['Read 10 lines', 'Found 3 files'],
+      }),
+    )
+    const taskHeader = taskBlocks.find((block) => block.kind === 'header')
+    expect(taskHeader?.kind).toBe('header')
+    expect(taskHeader?.title).toBe('Task')
+    expect(taskHeader?.subtitle).toBe('planner(analyze docs)')
+    expect(taskHeader?.expandable).toBe(false)
+    expect(taskBlocks.find((block) => block.kind === 'details')).toBeUndefined()
   })
 
   it('keeps bash OUT content as raw output text instead of collapsing cwd path', () => {
