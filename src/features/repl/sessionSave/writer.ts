@@ -13,18 +13,7 @@ import type {
 import { getSessionFilePath, getSessionsRoot } from './paths'
 import type { ChatHistory, Msg } from './types'
 import {
-  buildAppToolEventTrimCandidates,
-  buildEssentialAppToolEventData,
-  cloneHistoryForPersistence,
-  cloneMsgForPersistence,
-  compactInputObjectForEvent,
   encodeRecord,
-  isPlainObject,
-  safeStringify,
-  sanitizeAppToolEventData,
-  truncateHistoryInPlace,
-  truncateMsgInPlace,
-  truncateTextValue,
 } from './recordEncoding'
 
 const DEFAULT_MAX_LINE_BYTES = 1024 * 1024
@@ -247,17 +236,6 @@ export const __writerTestOnly = {
   resolveSessionStartTime,
   bestEffortGitBranch,
   isPersistableMsg,
-  cloneMsgForPersistence,
-  cloneHistoryForPersistence,
-  truncateMsgInPlace,
-  truncateHistoryInPlace,
-  isPlainObject,
-  truncateTextValue,
-  compactInputObjectForEvent,
-  sanitizeAppToolEventData,
-  buildEssentialAppToolEventData,
-  buildAppToolEventTrimCandidates,
-  encodeRecord,
 }
 
 export type { SessionWriterOptions }

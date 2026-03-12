@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { getArchivedSessionsRoot, getSessionFilePath, getSessionsRoot } from './paths'
+import { collectSessionCandidates as collectSessionCandidatesFromDiscovery } from './discovery'
+import { mergeLegacyToolFieldsIntoPersisted } from './legacyCompat'
 import {
   __readerTestOnly,
   findLatestSessionFile,
@@ -13,16 +15,30 @@ import {
   readSessionPreview,
 } from './reader'
 import type { Msg } from './types'
+import {
+  coerceNonEmptyString,
+  coerceNumber,
+  coerceString,
+  isNonEmptyRecord,
+  isObject,
+} from './validation'
+
+async function collectSessionCandidates(args: { root: string; archived: boolean }): Promise<string[]> {
+  return collectSessionCandidatesFromDiscovery({
+    root: args.root,
+    includeFlatRootFiles: args.archived,
+  })
+}
 
 describe('sessionSave/reader helpers', () => {
   it('covers primitive helper branches', () => {
-    expect(__readerTestOnly.isObject(null)).toBe(false)
-    expect(__readerTestOnly.isObject({ ok: true })).toBe(true)
-    expect(__readerTestOnly.isNonEmptyRecord({})).toBe(false)
-    expect(__readerTestOnly.isNonEmptyRecord({ x: 1 })).toBe(true)
-    expect(__readerTestOnly.coerceNonEmptyString('  hi  ')).toBe('hi')
-    expect(__readerTestOnly.coerceNonEmptyString('   ')).toBeNull()
-    expect(__readerTestOnly.coerceNonEmptyString(1 as any)).toBeNull()
+    expect(isObject(null)).toBe(false)
+    expect(isObject({ ok: true })).toBe(true)
+    expect(isNonEmptyRecord({})).toBe(false)
+    expect(isNonEmptyRecord({ x: 1 })).toBe(true)
+    expect(coerceNonEmptyString('  hi  ')).toBe('hi')
+    expect(coerceNonEmptyString('   ')).toBeNull()
+    expect(coerceNonEmptyString(1 as any)).toBeNull()
   })
 
   it('covers persisted tool display normalization branches', () => {
@@ -141,7 +157,7 @@ describe('sessionSave/reader helpers', () => {
     const revivedFromRow = __readerTestOnly.reviveMsg({ ...(msg as Msg), timestamp: '2026-02-02T02:00:00.000Z' as any })
     expect(revivedFromRow.timestamp.toISOString()).toBe('2026-02-02T02:00:00.000Z')
 
-    const merged = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+    const merged = mergeLegacyToolFieldsIntoPersisted({
       persisted: {
         ...msg,
         content: '',
@@ -165,7 +181,7 @@ describe('sessionSave/reader helpers', () => {
     expect(merged.toolInfo?.result).toBe('legacy result')
     expect(merged.toolInfo?.patchStartLineNumber).toBe(10)
 
-    const mergedPersistedWins = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+    const mergedPersistedWins = mergeLegacyToolFieldsIntoPersisted({
       persisted: {
         ...msg,
         content: 'persisted content',
@@ -195,7 +211,7 @@ describe('sessionSave/reader helpers', () => {
     expect(mergedPersistedWins.toolInfo?.middleLines).toEqual(['persisted line'])
     expect(mergedPersistedWins.toolInfo?.patchStartLineNumber).toBe(7)
 
-    const mergedUndefined = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+    const mergedUndefined = mergeLegacyToolFieldsIntoPersisted({
       persisted: {
         ...msg,
         content: undefined as any,
@@ -277,10 +293,10 @@ describe('sessionSave/reader helpers', () => {
     expect(summary.label).toBe('L')
     expect(summary.latestTurnCwd).toContain('nested')
 
-    expect(__readerTestOnly.coerceString('  x  ')).toBe('x')
-    expect(__readerTestOnly.coerceString('   ')).toBeNull()
-    expect(__readerTestOnly.coerceNumber(3)).toBe(3)
-    expect(__readerTestOnly.coerceNumber(NaN)).toBeNull()
+    expect(coerceString('  x  ')).toBe('x')
+    expect(coerceString('   ')).toBeNull()
+    expect(coerceNumber(3)).toBe(3)
+    expect(coerceNumber(NaN)).toBeNull()
     expect(__readerTestOnly.toSingleLinePreview('  ', 10)).toBe('')
     expect(__readerTestOnly.toSingleLinePreview('abc', 5)).toBe('abc')
     expect(__readerTestOnly.toSingleLinePreview('abc def ghi', 6)).toBe('abc d…')
@@ -345,8 +361,8 @@ describe('sessionSave/reader helpers', () => {
 
     await fs.writeFile(path.join(archivedRoot, 'top-level.jsonl'), 'not-json\n', 'utf8')
 
-    const archivedCandidates = await __readerTestOnly.collectSessionCandidates({ root: archivedRoot, archived: true })
-    const activeCandidates = await __readerTestOnly.collectSessionCandidates({ root: sessionsRoot, archived: false })
+    const archivedCandidates = await collectSessionCandidates({ root: archivedRoot, archived: true })
+    const activeCandidates = await collectSessionCandidates({ root: sessionsRoot, archived: false })
     expect(archivedCandidates.length).toBeGreaterThan(0)
     expect(activeCandidates.length).toBeGreaterThan(0)
 
@@ -454,7 +470,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-y')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
@@ -462,7 +478,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-m')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
@@ -471,7 +487,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-d')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: true })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
@@ -482,7 +498,7 @@ describe('sessionSave/reader helpers', () => {
       direntFile('skip.txt'),
       { name: 'not-file', isFile: () => false, isDirectory: () => false } as any,
     ])
-    const archived = await __readerTestOnly.collectSessionCandidates({ root: '/x', archived: true })
+    const archived = await collectSessionCandidates({ root: '/x', archived: true })
     expect(archived).toEqual(['/x/2026/02/03/ok.jsonl'])
 
     readdirSpy.mockReset()
@@ -490,7 +506,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-y-active')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
@@ -498,7 +514,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-m-active')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [direntDir('2026')])
@@ -507,7 +523,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => {
       throw new Error('fail-d-active')
     })
-    await expect(__readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
+    await expect(collectSessionCandidates({ root: '/x', archived: false })).resolves.toEqual([])
 
     readdirSpy.mockReset()
     readdirSpy.mockImplementationOnce(async () => [
@@ -530,7 +546,7 @@ describe('sessionSave/reader helpers', () => {
       direntFile('skip2.md'),
       { name: 'day-other', isFile: () => false, isDirectory: () => false } as any,
     ])
-    const active = await __readerTestOnly.collectSessionCandidates({ root: '/x', archived: false })
+    const active = await collectSessionCandidates({ root: '/x', archived: false })
     expect(active).toEqual(['/x/2026/02/03/ok2.jsonl'])
 
     readdirSpy.mockRestore()
@@ -561,7 +577,7 @@ describe('sessionSave/reader helpers', () => {
     readdirSpy.mockImplementationOnce(async () => [direntDir('02'), direntFile('month.log'), direntOther('m')])
     readdirSpy.mockImplementationOnce(async () => [direntDir('03'), direntFile('day.log'), direntOther('d')])
     readdirSpy.mockImplementationOnce(async () => [direntFile('ok.jsonl'), direntFile('skip.txt'), direntOther('f')])
-    const out = await __readerTestOnly.collectSessionCandidates({ root: '/mixed', archived: true })
+    const out = await collectSessionCandidates({ root: '/mixed', archived: true })
     expect(out).toEqual(['/mixed/2026/02/03/ok.jsonl'])
     readdirSpy.mockRestore()
   })
@@ -576,7 +592,7 @@ describe('sessionSave/reader helpers', () => {
       await fs.writeFile(flat, 'flat\n', 'utf8')
       await fs.writeFile(dated, 'nested\n', 'utf8')
 
-      const candidates = await __readerTestOnly.collectSessionCandidates({ root: tmp, archived: true })
+      const candidates = await collectSessionCandidates({ root: tmp, archived: true })
       expect(candidates).toContain(flat)
       expect(candidates).toContain(dated)
     } finally {
@@ -596,12 +612,12 @@ describe('sessionSave/reader helpers', () => {
       }).summary,
     ).toBe('Error: (no output)')
 
-    const nonToolMerged = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+    const nonToolMerged = mergeLegacyToolFieldsIntoPersisted({
       persisted: { id: 'p1', role: 'assistant', content: 'x', timestamp: new Date() } as any,
       legacy: { id: 'l1', role: 'tool', content: 'y', timestamp: new Date() } as any,
     })
     expect(nonToolMerged.role).toBe('assistant')
-    const missingInfoMerged = __readerTestOnly.mergeLegacyToolFieldsIntoPersisted({
+    const missingInfoMerged = mergeLegacyToolFieldsIntoPersisted({
       persisted: { id: 'p2', role: 'tool', content: 'x', timestamp: new Date() } as any,
       legacy: { id: 'l2', role: 'tool', content: 'y', timestamp: new Date() } as any,
     })
@@ -869,7 +885,7 @@ describe('sessionSave/reader helpers', () => {
     expect(summaryFromFile.meta.cwd).toBe('/definitely/not/exist')
     expect(summaryFromFile.meta.cwdReal).toBeUndefined()
 
-    expect(__readerTestOnly.coerceString(1)).toBeNull()
+    expect(coerceString(1)).toBeNull()
 
     const listRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-list-'))
     const env = { ...process.env, FORMAX_CONFIG_DIR: listRoot }

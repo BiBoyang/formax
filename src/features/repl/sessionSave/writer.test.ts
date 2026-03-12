@@ -4,6 +4,19 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it, vi } from 'vitest'
 import { __writerTestOnly, getDefaultMaxLineBytes, SessionWriter } from './writer'
+import {
+  buildAppToolEventTrimCandidates,
+  buildEssentialAppToolEventData,
+  cloneHistoryForPersistence,
+  cloneMsgForPersistence,
+  compactInputObjectForEvent,
+  encodeRecord,
+  isPlainObject,
+  sanitizeAppToolEventData,
+  truncateHistoryInPlace,
+  truncateMsgInPlace,
+  truncateTextValue,
+} from './recordEncoding'
 import type { ChatHistory, Msg } from './types'
 
 describe('sessionSave/writer helpers', () => {
@@ -65,7 +78,7 @@ describe('sessionSave/writer helpers', () => {
         nestedTools: [{ id: 'n1', name: 'sub', status: 'completed' }] as any,
       },
     }
-    const cloned = __writerTestOnly.cloneMsgForPersistence(msg)
+    const cloned = cloneMsgForPersistence(msg)
     ;(cloned.toolInfo!.nestedTools![0] as any).name = 'changed'
     expect((msg.toolInfo!.nestedTools![0] as any).name).toBe('sub')
 
@@ -75,7 +88,7 @@ describe('sessionSave/writer helpers', () => {
       'plain-string' as any,
       { role: 'assistant', content: [1 as any, { type: 'text', text: 'ok' }] } as any,
     ]
-    const historyCloned = __writerTestOnly.cloneHistoryForPersistence(history)
+    const historyCloned = cloneHistoryForPersistence(history)
     ;(historyCloned[0] as any).content[0].text = 'changed'
     expect((history[0] as any).content[0].text).not.toBe('changed')
 
@@ -86,7 +99,7 @@ describe('sessionSave/writer helpers', () => {
       timestamp: new Date(),
       toolInfo: { name: 'Edit', input: {}, status: 'completed', result: 'q'.repeat(400) },
     }
-    expect(__writerTestOnly.truncateMsgInPlace({ msg: msgForTruncate, maxContentBytes: 64 })).toBe(true)
+    expect(truncateMsgInPlace({ msg: msgForTruncate, maxContentBytes: 64 })).toBe(true)
     expect(String(msgForTruncate.content).length).toBeLessThan(400)
     expect(String(msgForTruncate.toolInfo?.result).length).toBeLessThan(400)
 
@@ -95,9 +108,9 @@ describe('sessionSave/writer helpers', () => {
       null as any,
       { role: 'assistant', content: [{ type: 'text', text: 1 as any }] } as any,
     ]
-    expect(__writerTestOnly.truncateHistoryInPlace({ history: historyForTruncate, maxTextBytes: 64 })).toBe(true)
+    expect(truncateHistoryInPlace({ history: historyForTruncate, maxTextBytes: 64 })).toBe(true)
     expect(
-      __writerTestOnly.truncateHistoryInPlace({
+      truncateHistoryInPlace({
         history: [
           { role: 'assistant', content: [1 as any, { type: 'text', text: 'short' }] } as any,
           { role: 'assistant', content: 'not-array' as any } as any,
@@ -107,13 +120,13 @@ describe('sessionSave/writer helpers', () => {
     ).toBe(false)
 
     expect(
-      __writerTestOnly.truncateMsgInPlace({
+      truncateMsgInPlace({
         msg: { id: 'a', role: 'assistant', content: ['x'] as any, timestamp: new Date() } as any,
         maxContentBytes: 10,
       }),
     ).toBe(false)
     expect(
-      __writerTestOnly.truncateMsgInPlace({
+      truncateMsgInPlace({
         msg: {
           id: 't2',
           role: 'tool',
@@ -127,12 +140,12 @@ describe('sessionSave/writer helpers', () => {
   })
 
   it('covers object and event sanitization helpers', () => {
-    expect(__writerTestOnly.isPlainObject({})).toBe(true)
-    expect(__writerTestOnly.isPlainObject([])).toBe(false)
-    expect(__writerTestOnly.truncateTextValue(1, 10)).toBeUndefined()
-    expect(__writerTestOnly.truncateTextValue('abc', 2)?.length).toBeLessThanOrEqual(2)
+    expect(isPlainObject({})).toBe(true)
+    expect(isPlainObject([])).toBe(false)
+    expect(truncateTextValue(1, 10)).toBeUndefined()
+    expect(truncateTextValue('abc', 2)?.length).toBeLessThanOrEqual(2)
 
-    const compacted = __writerTestOnly.compactInputObjectForEvent({
+    const compacted = compactInputObjectForEvent({
       input: {
         '': 'empty-key',
         a: 'x'.repeat(200),
@@ -147,7 +160,7 @@ describe('sessionSave/writer helpers', () => {
       maxStringBytes: 16,
     })
     expect(Object.keys(compacted).length).toBe(3)
-    const compactedRich = __writerTestOnly.compactInputObjectForEvent({
+    const compactedRich = compactInputObjectForEvent({
       input: {
         arr: ['x'],
         obj: { a: 1 },
@@ -159,7 +172,7 @@ describe('sessionSave/writer helpers', () => {
     expect(typeof compactedRich.arr).toBe('string')
     expect(typeof compactedRich.obj).toBe('string')
 
-    const sanitizedDrop = __writerTestOnly.sanitizeAppToolEventData({
+    const sanitizedDrop = sanitizeAppToolEventData({
       data: {
         threadId: 't'.repeat(200),
         turnId: 'u'.repeat(200),
@@ -183,7 +196,7 @@ describe('sessionSave/writer helpers', () => {
     expect(sanitizedDrop.lines).toEqual(['a'])
     expect(sanitizedDrop.patchStartLineNumber).toBe(1)
 
-    const sanitizedNoLines = __writerTestOnly.sanitizeAppToolEventData({
+    const sanitizedNoLines = sanitizeAppToolEventData({
       data: { lines: [' ', '\t'] },
       maxStringBytes: 20,
       maxLineBytes: 20,
@@ -192,7 +205,7 @@ describe('sessionSave/writer helpers', () => {
     })
     expect(sanitizedNoLines.lines).toBeUndefined()
 
-    const sanitizedKeep = __writerTestOnly.sanitizeAppToolEventData({
+    const sanitizedKeep = sanitizeAppToolEventData({
       data: {
         input: { keep: 'value' },
         patchStartLineNumber: 9.8,
@@ -205,30 +218,30 @@ describe('sessionSave/writer helpers', () => {
     expect(sanitizedKeep.input).toEqual({ keep: 'value' })
     expect(sanitizedKeep.patchStartLineNumber).toBe(9)
 
-    const essentialDefault = __writerTestOnly.buildEssentialAppToolEventData({}, 30)
+    const essentialDefault = buildEssentialAppToolEventData({}, 30)
     expect(essentialDefault.phase).toBe('update')
     expect(essentialDefault.summary).toBeUndefined()
 
-    const essentialEndError = __writerTestOnly.buildEssentialAppToolEventData(
+    const essentialEndError = buildEssentialAppToolEventData(
       { phase: 'end', status: 'error' },
       30,
     )
     expect(essentialEndError.summary).toBe('Tool failed')
     expect(
-      __writerTestOnly.buildEssentialAppToolEventData({ phase: 'start', summary: 1 as any }, 30).summary,
+      buildEssentialAppToolEventData({ phase: 'start', summary: 1 as any }, 30).summary,
     ).toBe('Tool running')
     expect(
-      __writerTestOnly.buildEssentialAppToolEventData({ phase: 'end', status: 'completed', summary: null as any }, 30).summary,
+      buildEssentialAppToolEventData({ phase: 'end', status: 'completed', summary: null as any }, 30).summary,
     ).toBe('Tool completed')
 
     expect(
-      __writerTestOnly.buildAppToolEventTrimCandidates({
+      buildAppToolEventTrimCandidates({
         record: { type: 'event', v: 1, ts: '2026-02-02T00:00:00.000Z', name: 'app_tool_event', data: null as any },
         maxLineBytes: 200,
       }),
     ).toEqual([])
     expect(
-      __writerTestOnly.buildAppToolEventTrimCandidates({
+      buildAppToolEventTrimCandidates({
         record: {
           type: 'event',
           v: 1,
@@ -244,7 +257,7 @@ describe('sessionSave/writer helpers', () => {
   it('covers encodeRecord branches and defaults', () => {
     expect(getDefaultMaxLineBytes()).toBeGreaterThan(0)
 
-    const small = __writerTestOnly.encodeRecord(
+    const small = encodeRecord(
       {
         type: 'event',
         v: 1,
@@ -256,7 +269,7 @@ describe('sessionSave/writer helpers', () => {
     )
     expect(small.truncated).toBe(false)
 
-    const largeUi = __writerTestOnly.encodeRecord(
+    const largeUi = encodeRecord(
       {
         type: 'ui_msg',
         v: 1,
@@ -266,7 +279,7 @@ describe('sessionSave/writer helpers', () => {
       500,
     )
     expect(largeUi.truncated).toBe(true)
-    const largeUiStillLarge = __writerTestOnly.encodeRecord(
+    const largeUiStillLarge = encodeRecord(
       {
         type: 'ui_msg',
         v: 1,
@@ -288,7 +301,7 @@ describe('sessionSave/writer helpers', () => {
     )
     expect(largeUiStillLarge.truncated).toBe(true)
 
-    const largeHistory = __writerTestOnly.encodeRecord(
+    const largeHistory = encodeRecord(
       {
         type: 'history_state',
         v: 1,
@@ -303,7 +316,7 @@ describe('sessionSave/writer helpers', () => {
     )
     expect(largeHistory.truncated).toBe(true)
 
-    const largeToolEvent = __writerTestOnly.encodeRecord(
+    const largeToolEvent = encodeRecord(
       {
         type: 'event',
         v: 1,
@@ -322,7 +335,7 @@ describe('sessionSave/writer helpers', () => {
     )
     expect(largeToolEvent.truncated).toBe(true)
 
-    const smallHistory = __writerTestOnly.encodeRecord(
+    const smallHistory = encodeRecord(
       {
         type: 'history_state',
         v: 1,
@@ -333,7 +346,7 @@ describe('sessionSave/writer helpers', () => {
       4096,
     )
     expect(smallHistory.truncated).toBe(false)
-    const largeNoTextHistory = __writerTestOnly.encodeRecord(
+    const largeNoTextHistory = encodeRecord(
       {
         type: 'history_state',
         v: 1,
@@ -355,7 +368,7 @@ describe('sessionSave/writer helpers', () => {
     )
     expect(largeNoTextHistory.truncated).toBe(true)
 
-    const fallback = __writerTestOnly.encodeRecord(
+    const fallback = encodeRecord(
       {
         type: 'session_meta',
         v: 1,

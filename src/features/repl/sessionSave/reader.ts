@@ -13,7 +13,6 @@ import {
   coerceNonEmptyString,
   coerceNumber,
   coerceString,
-  isNonEmptyRecord,
   isObject,
 } from './validation'
 import { mergeLegacyToolFieldsIntoPersisted } from './legacyCompat'
@@ -542,9 +541,6 @@ export async function readSessionPreview(
 }
 
 export const __readerTestOnly = {
-  isObject,
-  isNonEmptyRecord,
-  coerceNonEmptyString,
   detailLinesFromPersistedTool,
   isSearchLikeToolName,
   hasCompactReadSummary,
@@ -552,12 +548,8 @@ export const __readerTestOnly = {
   normalizePersistedToolDisplay,
   toToolMsgFromPersisted,
   reviveMsg,
-  mergeLegacyToolFieldsIntoPersisted,
-  collectSessionCandidates,
   readSessionMetaOnly,
   readTailText,
-  coerceString,
-  coerceNumber,
   readTailSummaryData,
   toSingleLinePreview,
 }
