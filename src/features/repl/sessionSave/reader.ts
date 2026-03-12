@@ -41,21 +41,21 @@ export type SessionSummary = {
   label: string | null
 }
 
-function detailLinesFromPersistedTool(args: { summary: string; detailLines: string[] }): string[] {
+export function detailLinesFromPersistedTool(args: { summary: string; detailLines: string[] }): string[] {
   if (args.detailLines.length === 0) return []
   if (args.detailLines[0] === args.summary) return args.detailLines.slice(1)
   return args.detailLines
 }
 
-function isSearchLikeToolName(toolName: string): boolean {
+export function isSearchLikeToolName(toolName: string): boolean {
   return toolName === 'Glob' || toolName === 'Grep' || toolName === 'Search'
 }
 
-function hasCompactReadSummary(summary: string): boolean {
+export function hasCompactReadSummary(summary: string): boolean {
   return /^Read\s+\d+\s+lines$/.test(summary.trim())
 }
 
-function hasCompactSearchSummary(args: { toolName: string; summary: string }): boolean {
+export function hasCompactSearchSummary(args: { toolName: string; summary: string }): boolean {
   const summary = args.summary.trim()
   if (!summary) return false
   if (args.toolName === 'Glob' || args.toolName === 'Search') return /^Found\s+\d+\s+files$/.test(summary)
@@ -63,7 +63,7 @@ function hasCompactSearchSummary(args: { toolName: string; summary: string }): b
   return false
 }
 
-function normalizePersistedToolDisplay(args: {
+export function normalizePersistedToolDisplay(args: {
   toolName: string
   status: 'running' | 'completed' | 'error'
   summary: string
@@ -126,7 +126,7 @@ function normalizePersistedToolDisplay(args: {
   }
 }
 
-function toToolMsgFromPersisted(args: { tool: PersistedToolMessage; fallbackTimestamp: Date }): Msg {
+export function toToolMsgFromPersisted(args: { tool: PersistedToolMessage; fallbackTimestamp: Date }): Msg {
   const timestamp = args.tool.occurredAtMs > 0 ? new Date(args.tool.occurredAtMs) : args.fallbackTimestamp
   const display = normalizePersistedToolDisplay({
     toolName: args.tool.toolName,
@@ -151,7 +151,7 @@ function toToolMsgFromPersisted(args: { tool: PersistedToolMessage; fallbackTime
   }
 }
 
-function reviveMsg(raw: Msg, recordTimestamp?: string): Msg {
+export function reviveMsg(raw: Msg, recordTimestamp?: string): Msg {
   const recordDate = typeof recordTimestamp === 'string' ? new Date(recordTimestamp) : null
   const rowDate = new Date((raw as any).timestamp)
   const timestamp =
@@ -339,7 +339,7 @@ export async function findSessionFileBySessionId(args: {
   return null
 }
 
-async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord> {
+export async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord> {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
 
@@ -362,7 +362,7 @@ async function readSessionMetaOnly(filePath: string): Promise<SessionMetaRecord>
   return meta
 }
 
-async function readTailText(filePath: string, maxBytes: number): Promise<string> {
+export async function readTailText(filePath: string, maxBytes: number): Promise<string> {
   const handle = await fsp.open(filePath, 'r')
   try {
     const stat = await handle.stat()
@@ -378,7 +378,7 @@ async function readTailText(filePath: string, maxBytes: number): Promise<string>
   }
 }
 
-async function readTailSummaryData(filePath: string): Promise<{
+export async function readTailSummaryData(filePath: string): Promise<{
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
@@ -499,7 +499,7 @@ export async function listRecentSessions(args: {
   return out
 }
 
-function toSingleLinePreview(text: string, maxChars: number): string {
+export function toSingleLinePreview(text: string, maxChars: number): string {
   const normalized = text.replace(/\s+/g, ' ').trim()
   if (!normalized) return ''
   if (normalized.length <= maxChars) return normalized
@@ -538,18 +538,4 @@ export async function readSessionPreview(
   }
 
   return out.reverse()
-}
-
-export const __readerTestOnly = {
-  detailLinesFromPersistedTool,
-  isSearchLikeToolName,
-  hasCompactReadSummary,
-  hasCompactSearchSummary,
-  normalizePersistedToolDisplay,
-  toToolMsgFromPersisted,
-  reviveMsg,
-  readSessionMetaOnly,
-  readTailText,
-  readTailSummaryData,
-  toSingleLinePreview,
 }

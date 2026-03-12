@@ -7,11 +7,11 @@ vi.mock('../../../shared/utils/toolFormatting', () => ({
   }),
 }))
 
-import { __readerTestOnly } from './reader'
+import { normalizePersistedToolDisplay } from './reader'
 
 describe('sessionSave/reader formatting fallback branches', () => {
   it('covers normalizePersistedToolDisplay fallback summary and array middleLines path', () => {
-    const out = __readerTestOnly.normalizePersistedToolDisplay({
+    const out = normalizePersistedToolDisplay({
       toolName: 'Search',
       status: 'completed',
       summary: 'fallback-summary',

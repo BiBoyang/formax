@@ -6,13 +6,23 @@ import { getArchivedSessionsRoot, getSessionFilePath, getSessionsRoot } from './
 import { collectSessionCandidates as collectSessionCandidatesFromDiscovery } from './discovery'
 import { mergeLegacyToolFieldsIntoPersisted } from './legacyCompat'
 import {
-  __readerTestOnly,
+  detailLinesFromPersistedTool,
   findLatestSessionFile,
   findSessionFileBySessionId,
+  hasCompactReadSummary,
+  hasCompactSearchSummary,
+  isSearchLikeToolName,
   listRecentSessions,
+  normalizePersistedToolDisplay,
+  readSessionMetaOnly,
+  readTailSummaryData,
+  readTailText,
   readSessionFile,
+  reviveMsg,
   readSessionSummary,
   readSessionPreview,
+  toSingleLinePreview,
+  toToolMsgFromPersisted,
 } from './reader'
 import type { Msg } from './types'
 import {
@@ -43,28 +53,28 @@ describe('sessionSave/reader helpers', () => {
 
   it('covers persisted tool display normalization branches', () => {
     expect(
-      __readerTestOnly.detailLinesFromPersistedTool({
+      detailLinesFromPersistedTool({
         summary: 'done',
         detailLines: ['done', 'line-2'],
       }),
     ).toEqual(['line-2'])
     expect(
-      __readerTestOnly.detailLinesFromPersistedTool({
+      detailLinesFromPersistedTool({
         summary: 'done',
         detailLines: [],
       }),
     ).toEqual([])
 
-    expect(__readerTestOnly.isSearchLikeToolName('Glob')).toBe(true)
-    expect(__readerTestOnly.isSearchLikeToolName('Read')).toBe(false)
-    expect(__readerTestOnly.hasCompactReadSummary('Read 20 lines')).toBe(true)
-    expect(__readerTestOnly.hasCompactReadSummary('Read lines')).toBe(false)
-    expect(__readerTestOnly.hasCompactSearchSummary({ toolName: 'Glob', summary: 'Found 2 files' })).toBe(true)
-    expect(__readerTestOnly.hasCompactSearchSummary({ toolName: 'Grep', summary: 'Found 3 matches' })).toBe(true)
-    expect(__readerTestOnly.hasCompactSearchSummary({ toolName: 'Search', summary: 'Found 5 files' })).toBe(true)
-    expect(__readerTestOnly.hasCompactSearchSummary({ toolName: 'Read', summary: 'Found 5 files' })).toBe(false)
+    expect(isSearchLikeToolName('Glob')).toBe(true)
+    expect(isSearchLikeToolName('Read')).toBe(false)
+    expect(hasCompactReadSummary('Read 20 lines')).toBe(true)
+    expect(hasCompactReadSummary('Read lines')).toBe(false)
+    expect(hasCompactSearchSummary({ toolName: 'Glob', summary: 'Found 2 files' })).toBe(true)
+    expect(hasCompactSearchSummary({ toolName: 'Grep', summary: 'Found 3 matches' })).toBe(true)
+    expect(hasCompactSearchSummary({ toolName: 'Search', summary: 'Found 5 files' })).toBe(true)
+    expect(hasCompactSearchSummary({ toolName: 'Read', summary: 'Found 5 files' })).toBe(false)
 
-    const running = __readerTestOnly.normalizePersistedToolDisplay({
+    const running = normalizePersistedToolDisplay({
       toolName: 'Bash',
       status: 'running',
       summary: 'running',
@@ -72,7 +82,7 @@ describe('sessionSave/reader helpers', () => {
     })
     expect(running.middleLines).toEqual(['line'])
 
-    const compactRead = __readerTestOnly.normalizePersistedToolDisplay({
+    const compactRead = normalizePersistedToolDisplay({
       toolName: 'Read',
       status: 'completed',
       summary: 'Read 10 lines',
@@ -80,7 +90,7 @@ describe('sessionSave/reader helpers', () => {
     })
     expect(compactRead.middleLines).toEqual([])
 
-    const nonSearch = __readerTestOnly.normalizePersistedToolDisplay({
+    const nonSearch = normalizePersistedToolDisplay({
       toolName: 'Edit',
       status: 'completed',
       summary: 'Edited file',
@@ -88,7 +98,7 @@ describe('sessionSave/reader helpers', () => {
     })
     expect(nonSearch.middleLines).toEqual(['patch'])
 
-    const nonCompactSearch = __readerTestOnly.normalizePersistedToolDisplay({
+    const nonCompactSearch = normalizePersistedToolDisplay({
       toolName: 'Grep',
       status: 'completed',
       summary: '/tmp/a.ts:1:hello',
@@ -97,7 +107,7 @@ describe('sessionSave/reader helpers', () => {
     expect(Array.isArray(nonCompactSearch.middleLines)).toBe(true)
     expect(nonCompactSearch.rawResult).toContain('/tmp/a.ts')
 
-    const compactSearch = __readerTestOnly.normalizePersistedToolDisplay({
+    const compactSearch = normalizePersistedToolDisplay({
       toolName: 'Search',
       status: 'completed',
       summary: 'Found 2 files',
@@ -106,7 +116,7 @@ describe('sessionSave/reader helpers', () => {
     expect(compactSearch.summary).toBe('Found 2 files')
     expect(compactSearch.middleLines).toEqual([])
 
-    const fallbackFormatted = __readerTestOnly.normalizePersistedToolDisplay({
+    const fallbackFormatted = normalizePersistedToolDisplay({
       toolName: 'Search',
       status: 'completed',
       summary: 'fallback-summary',
@@ -118,7 +128,7 @@ describe('sessionSave/reader helpers', () => {
 
   it('covers message merge/revive helpers', () => {
     const fallbackTs = new Date('2026-02-02T00:00:00.000Z')
-    const msg = __readerTestOnly.toToolMsgFromPersisted({
+    const msg = toToolMsgFromPersisted({
       tool: {
         id: 'tool-x',
         occurredAtMs: 0,
@@ -135,7 +145,7 @@ describe('sessionSave/reader helpers', () => {
     })
     expect(msg.timestamp.toISOString()).toBe(fallbackTs.toISOString())
     expect(msg.toolInfo?.patchStartLineNumber).toBe(8)
-    const msgNoOptional = __readerTestOnly.toToolMsgFromPersisted({
+    const msgNoOptional = toToolMsgFromPersisted({
       tool: {
         id: 'tool-empty',
         occurredAtMs: fallbackTs.getTime(),
@@ -150,11 +160,11 @@ describe('sessionSave/reader helpers', () => {
     expect(msgNoOptional.toolInfo?.toolUseId).toBeUndefined()
     expect(msgNoOptional.toolInfo?.result).toBeUndefined()
 
-    const revived = __readerTestOnly.reviveMsg({ ...(msg as Msg), timestamp: 'bad' as any }, '2026-02-02T01:00:00.000Z')
+    const revived = reviveMsg({ ...(msg as Msg), timestamp: 'bad' as any }, '2026-02-02T01:00:00.000Z')
     expect(revived.timestamp.toISOString()).toBe('2026-02-02T01:00:00.000Z')
-    const revivedEpoch = __readerTestOnly.reviveMsg({ ...(msg as Msg), timestamp: 'bad' as any }, 'bad')
+    const revivedEpoch = reviveMsg({ ...(msg as Msg), timestamp: 'bad' as any }, 'bad')
     expect(revivedEpoch.timestamp.getTime()).toBe(0)
-    const revivedFromRow = __readerTestOnly.reviveMsg({ ...(msg as Msg), timestamp: '2026-02-02T02:00:00.000Z' as any })
+    const revivedFromRow = reviveMsg({ ...(msg as Msg), timestamp: '2026-02-02T02:00:00.000Z' as any })
     expect(revivedFromRow.timestamp.toISOString()).toBe('2026-02-02T02:00:00.000Z')
 
     const merged = mergeLegacyToolFieldsIntoPersisted({
@@ -231,7 +241,7 @@ describe('sessionSave/reader helpers', () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-helper-'))
     const noMetaFile = path.join(tmp, 'no-meta.jsonl')
     await fs.writeFile(noMetaFile, '{"type":"event","name":"x"}\n', 'utf8')
-    await expect(__readerTestOnly.readSessionMetaOnly(noMetaFile)).rejects.toThrow('missing session_meta')
+    await expect(readSessionMetaOnly(noMetaFile)).rejects.toThrow('missing session_meta')
 
     const sessionFile = path.join(tmp, 'session.jsonl')
     await fs.writeFile(
@@ -285,9 +295,9 @@ describe('sessionSave/reader helpers', () => {
       'utf8',
     )
 
-    const tail = await __readerTestOnly.readTailText(sessionFile, 128)
+    const tail = await readTailText(sessionFile, 128)
     expect(typeof tail).toBe('string')
-    const summary = await __readerTestOnly.readTailSummaryData(sessionFile)
+    const summary = await readTailSummaryData(sessionFile)
     expect(summary.messageCount).toBe(3)
     expect(summary.lastUserPrompt).toBe('first')
     expect(summary.label).toBe('L')
@@ -297,9 +307,9 @@ describe('sessionSave/reader helpers', () => {
     expect(coerceString('   ')).toBeNull()
     expect(coerceNumber(3)).toBe(3)
     expect(coerceNumber(NaN)).toBeNull()
-    expect(__readerTestOnly.toSingleLinePreview('  ', 10)).toBe('')
-    expect(__readerTestOnly.toSingleLinePreview('abc', 5)).toBe('abc')
-    expect(__readerTestOnly.toSingleLinePreview('abc def ghi', 6)).toBe('abc d…')
+    expect(toSingleLinePreview('  ', 10)).toBe('')
+    expect(toSingleLinePreview('abc', 5)).toBe('abc')
+    expect(toSingleLinePreview('abc def ghi', 6)).toBe('abc d…')
 
     const preview = await readSessionPreview(sessionFile, { maxMessages: 2, maxCharsPerMessage: 10 })
     expect(preview).toHaveLength(2)
@@ -393,7 +403,7 @@ describe('sessionSave/reader helpers', () => {
   it('covers catch/fallback branches in reader helpers', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-catch-'))
     const missing = path.join(tmp, 'missing.jsonl')
-    expect(await __readerTestOnly.readTailSummaryData(missing)).toEqual({
+    expect(await readTailSummaryData(missing)).toEqual({
       messageCount: null,
       lastUserPrompt: null,
       label: null,
@@ -604,7 +614,7 @@ describe('sessionSave/reader helpers', () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-edges-'))
 
     expect(
-      __readerTestOnly.normalizePersistedToolDisplay({
+      normalizePersistedToolDisplay({
         toolName: 'Search',
         status: 'error',
         summary: '',
@@ -625,11 +635,11 @@ describe('sessionSave/reader helpers', () => {
 
     const invalidMetaOnly = path.join(tmp, 'invalid-meta-only.jsonl')
     await fs.writeFile(invalidMetaOnly, '\n42\n', 'utf8')
-    await expect(__readerTestOnly.readSessionMetaOnly(invalidMetaOnly)).rejects.toThrow('missing session_meta')
+    await expect(readSessionMetaOnly(invalidMetaOnly)).rejects.toThrow('missing session_meta')
 
     const emptyFile = path.join(tmp, 'empty.jsonl')
     await fs.writeFile(emptyFile, '', 'utf8')
-    expect(await __readerTestOnly.readTailText(emptyFile, 100)).toBe('')
+    expect(await readTailText(emptyFile, 100)).toBe('')
 
     const mixedPreview = path.join(tmp, 'mixed-preview.jsonl')
     await fs.writeFile(
@@ -793,7 +803,7 @@ describe('sessionSave/reader helpers', () => {
       ].join('\n') + '\n',
       'utf8',
     )
-    const summaryData = await __readerTestOnly.readTailSummaryData(summaryBreak)
+    const summaryData = await readTailSummaryData(summaryBreak)
     expect(summaryData.messageCount).toBe(9)
     expect(summaryData.lastUserPrompt).toBe('preferred-title')
     expect(summaryData.label).toBe('L1')
@@ -810,7 +820,7 @@ describe('sessionSave/reader helpers', () => {
       ].join('\n') + '\n',
       'utf8',
     )
-    const uiStatsNoBreak = await __readerTestOnly.readTailSummaryData(uiStatsNoBreakFile)
+    const uiStatsNoBreak = await readTailSummaryData(uiStatsNoBreakFile)
     expect(uiStatsNoBreak.messageCount).toBe(3)
     expect(uiStatsNoBreak.lastUserPrompt).toBe('second')
 
@@ -825,7 +835,7 @@ describe('sessionSave/reader helpers', () => {
       ].join('\n') + '\n',
       'utf8',
     )
-    const uiStatsBreakByAllSet = await __readerTestOnly.readTailSummaryData(uiStatsBreakByAllSetFile)
+    const uiStatsBreakByAllSet = await readTailSummaryData(uiStatsBreakByAllSetFile)
     expect(uiStatsBreakByAllSet.messageCount).toBe(8)
 
     const appTurnBreakFile = path.join(tmp, 'summary-app-break.jsonl')
@@ -838,7 +848,7 @@ describe('sessionSave/reader helpers', () => {
       ].join('\n') + '\n',
       'utf8',
     )
-    const appTurnBreak = await __readerTestOnly.readTailSummaryData(appTurnBreakFile)
+    const appTurnBreak = await readTailSummaryData(appTurnBreakFile)
     expect(appTurnBreak.latestTurnCwd).toBe(tmp)
     expect(appTurnBreak.label).toBe('R')
 
@@ -853,7 +863,7 @@ describe('sessionSave/reader helpers', () => {
       ].join('\n') + '\n',
       'utf8',
     )
-    const uiStatsBreak = await __readerTestOnly.readTailSummaryData(uiStatsBreakFile)
+    const uiStatsBreak = await readTailSummaryData(uiStatsBreakFile)
     expect(uiStatsBreak.messageCount).toBe(4)
     expect(uiStatsBreak.lastUserPrompt).toBe('second')
 
@@ -965,7 +975,7 @@ describe('sessionSave/reader helpers', () => {
       read: vi.fn(),
       close: vi.fn().mockRejectedValue(new Error('close-fail')),
     } as any)
-    await expect(__readerTestOnly.readTailText(path.join(tmp, 'any.jsonl'), 64)).resolves.toBe('')
+    await expect(readTailText(path.join(tmp, 'any.jsonl'), 64)).resolves.toBe('')
     openSpy.mockRestore()
   })
 })
