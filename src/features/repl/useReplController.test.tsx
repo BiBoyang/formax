@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { __useReplControllerTestOnly, useReplController } from './useReplController'
+import { useReplController } from './useReplController'
 import { createUserInputManager } from '../../tools/runtime/userInputManager'
 import { UserInputProvider } from '../../tools/runtime/userInputContext'
 import type { ChatEngine } from '../../chat/engine'
@@ -21,6 +21,18 @@ import * as sendOrchestration from './controller/send/sendOrchestration'
 import * as sendBashMode from './controller/send/bashMode'
 import * as sessionController from './controller/session'
 import * as controllerShared from './controller/shared'
+import {
+  areToolInfosEqual,
+  mergeProjectedStaticRows,
+  safeJson,
+  shouldKeepExistingStaticRow,
+} from './controller/canonical/staticRows'
+import {
+  hasRunningAskTool,
+  mapLocalBashTurnOutcomeForTail,
+  shouldBlockSendWhileBusy,
+} from './controller/send/turnGuards'
+import { enqueueSessionTransition } from './controller/session/transitionQueue'
 
 const { estimatePromptTokensMock } = vi.hoisted(() => ({
   estimatePromptTokensMock: vi.fn(() => 0),
@@ -1585,7 +1597,7 @@ describe('useReplController', () => {
   })
 })
 
-describe('__useReplControllerTestOnly', () => {
+describe('repl controller helper utilities', () => {
   it('compares tool info snapshots strictly', () => {
     const base = {
       name: 'Bash',
@@ -1603,22 +1615,22 @@ describe('__useReplControllerTestOnly', () => {
       expandInfo: { open: true },
     } as any
 
-    expect(__useReplControllerTestOnly.areToolInfosEqual(undefined, base)).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, undefined)).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, base)).toBe(true)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, name: 'Read' })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, toolUseId: 't-2' })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, status: 'running' })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, result: 'changed' })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, input: { cmd: 'ls' } })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, middleLines: ['x'] })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, transcriptLines: ['x'] })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, nestedTools: ['x'] })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, toolUses: 2 })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, usage: { inputTokens: 2, outputTokens: 1 } })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, durationMs: 11 })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, patchStartLineNumber: 2 })).toBe(false)
-    expect(__useReplControllerTestOnly.areToolInfosEqual(base, { ...base, expandInfo: { open: false } })).toBe(false)
+    expect(areToolInfosEqual(undefined, base)).toBe(false)
+    expect(areToolInfosEqual(base, undefined)).toBe(false)
+    expect(areToolInfosEqual(base, base)).toBe(true)
+    expect(areToolInfosEqual(base, { ...base, name: 'Read' })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, toolUseId: 't-2' })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, status: 'running' })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, result: 'changed' })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, input: { cmd: 'ls' } })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, middleLines: ['x'] })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, transcriptLines: ['x'] })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, nestedTools: ['x'] })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, toolUses: 2 })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, usage: { inputTokens: 2, outputTokens: 1 } })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, durationMs: 11 })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, patchStartLineNumber: 2 })).toBe(false)
+    expect(areToolInfosEqual(base, { ...base, expandInfo: { open: false } })).toBe(false)
   })
 
   it('keeps static rows only when rows are immutable-equivalent', () => {
@@ -1633,23 +1645,23 @@ describe('__useReplControllerTestOnly', () => {
     } as any
     const incoming = { ...existing } as any
 
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(undefined, incoming)).toBe(false)
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, surfaceOwner: 'transient' })).toBe(
+    expect(shouldKeepExistingStaticRow(undefined, incoming)).toBe(false)
+    expect(shouldKeepExistingStaticRow(existing, { ...incoming, surfaceOwner: 'transient' })).toBe(
       false,
     )
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, id: 'm-2' })).toBe(false)
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, incoming)).toBe(true)
+    expect(shouldKeepExistingStaticRow(existing, { ...incoming, id: 'm-2' })).toBe(false)
+    expect(shouldKeepExistingStaticRow(existing, incoming)).toBe(true)
 
     const toolRow = {
       ...existing,
       role: 'tool',
       toolInfo: { name: 'Bash', toolUseId: 'x', status: 'completed', result: 'ok' },
     } as any
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(toolRow, { ...toolRow })).toBe(true)
+    expect(shouldKeepExistingStaticRow(toolRow, { ...toolRow })).toBe(true)
     expect(
-      __useReplControllerTestOnly.shouldKeepExistingStaticRow(toolRow, { ...toolRow, toolInfo: { ...toolRow.toolInfo, result: 'changed' } }),
+      shouldKeepExistingStaticRow(toolRow, { ...toolRow, toolInfo: { ...toolRow.toolInfo, result: 'changed' } }),
     ).toBe(false)
-    expect(__useReplControllerTestOnly.shouldKeepExistingStaticRow(existing, { ...incoming, role: 'user' })).toBe(false)
+    expect(shouldKeepExistingStaticRow(existing, { ...incoming, role: 'user' })).toBe(false)
   })
 
   it('merges projected static rows with stable timestamp behavior', () => {
@@ -1666,7 +1678,7 @@ describe('__useReplControllerTestOnly', () => {
     ] as any
     const onNonAppendUpdate = vi.fn()
 
-    const appended = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const appended = mergeProjectedStaticRows({
       prev,
       projectedStaticRows: [
         { id: 'm-2', role: 'assistant', content: 'b', timestamp: new Date(1500), surfaceOwner: 'static', isStreaming: false } as any,
@@ -1676,7 +1688,7 @@ describe('__useReplControllerTestOnly', () => {
     expect(appended).toHaveLength(3)
     expect(appended[2]?.timestamp).toBeInstanceOf(Date)
 
-    const appendedWithOldTimestamp = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const appendedWithOldTimestamp = mergeProjectedStaticRows({
       prev: appended as any,
       projectedStaticRows: [
         { id: 'm-3', role: 'assistant', content: 'c', timestamp: new Date(500), surfaceOwner: 'static', isStreaming: false } as any,
@@ -1685,7 +1697,7 @@ describe('__useReplControllerTestOnly', () => {
     })
     expect((appendedWithOldTimestamp[3] as any).timestamp.getTime()).toBeGreaterThan(1500)
 
-    const appendedWithInvalidTimestamp = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const appendedWithInvalidTimestamp = mergeProjectedStaticRows({
       prev: [
         ...appendedWithOldTimestamp,
         { id: 'm-4', role: 'assistant', content: 'd', timestamp: 'not-a-date', surfaceOwner: 'static', isStreaming: false } as any,
@@ -1697,7 +1709,7 @@ describe('__useReplControllerTestOnly', () => {
     })
     expect((appendedWithInvalidTimestamp[5] as any).timestamp).toBeInstanceOf(Date)
 
-    const replaced = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const replaced = mergeProjectedStaticRows({
       prev: appended as any,
       projectedStaticRows: [
         { id: 'm-1', role: 'assistant', content: 'updated', timestamp: new Date(1), surfaceOwner: 'static', isStreaming: false } as any,
@@ -1707,14 +1719,14 @@ describe('__useReplControllerTestOnly', () => {
     expect(replaced[0]?.content).toBe('updated')
     expect(onNonAppendUpdate).toHaveBeenCalled()
 
-    const untouched = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const untouched = mergeProjectedStaticRows({
       prev: replaced as any,
       projectedStaticRows: [],
       onNonAppendUpdate,
     })
     expect(untouched).toBe(replaced)
 
-    const unchangedProjection = __useReplControllerTestOnly.mergeProjectedStaticRows({
+    const unchangedProjection = mergeProjectedStaticRows({
       prev: replaced as any,
       projectedStaticRows: [
         {
@@ -1731,18 +1743,18 @@ describe('__useReplControllerTestOnly', () => {
   it('handles unserializable values in safeJson', () => {
     const circular: any = {}
     circular.self = circular
-    expect(__useReplControllerTestOnly.safeJson(circular)).toBe('"[unserializable]"')
+    expect(safeJson(circular)).toBe('"[unserializable]"')
   })
 
   it('detects running AskUserQuestion tools from tracked and transient sources', () => {
     expect(
-      __useReplControllerTestOnly.hasRunningAskTool({
+      hasRunningAskTool({
         trackedRunningToolsSnapshot: [['id-1', 'AskUserQuestion']],
         transientSnapshot: null,
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.hasRunningAskTool({
+      hasRunningAskTool({
         trackedRunningToolsSnapshot: [],
         transientSnapshot: {
           messages: [
@@ -1760,7 +1772,7 @@ describe('__useReplControllerTestOnly', () => {
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.hasRunningAskTool({
+      hasRunningAskTool({
         trackedRunningToolsSnapshot: [],
         transientSnapshot: { messages: [] as any },
       }),
@@ -1768,14 +1780,14 @@ describe('__useReplControllerTestOnly', () => {
   })
 
   it('maps local bash outcomes for canonical tail rows', () => {
-    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('completed')).toBe('completed')
-    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('failed')).toBe('failed')
-    expect(__useReplControllerTestOnly.mapLocalBashTurnOutcomeForTail('aborted')).toBe('failed')
+    expect(mapLocalBashTurnOutcomeForTail('completed')).toBe('completed')
+    expect(mapLocalBashTurnOutcomeForTail('failed')).toBe('failed')
+    expect(mapLocalBashTurnOutcomeForTail('aborted')).toBe('failed')
   })
 
   it('blocks send when turn flow is busy, allows otherwise', () => {
     expect(
-      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+      shouldBlockSendWhileBusy({
         text: '',
         isLoading: false,
         bashModeInFlight: false,
@@ -1783,7 +1795,7 @@ describe('__useReplControllerTestOnly', () => {
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+      shouldBlockSendWhileBusy({
         text: 'hi',
         isLoading: true,
         bashModeInFlight: false,
@@ -1791,7 +1803,7 @@ describe('__useReplControllerTestOnly', () => {
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+      shouldBlockSendWhileBusy({
         text: 'hi',
         isLoading: false,
         bashModeInFlight: true,
@@ -1799,7 +1811,7 @@ describe('__useReplControllerTestOnly', () => {
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+      shouldBlockSendWhileBusy({
         text: 'hi',
         isLoading: false,
         bashModeInFlight: false,
@@ -1807,7 +1819,7 @@ describe('__useReplControllerTestOnly', () => {
       }),
     ).toBe(true)
     expect(
-      __useReplControllerTestOnly.shouldBlockSendWhileBusy({
+      shouldBlockSendWhileBusy({
         text: 'hi',
         isLoading: false,
         bashModeInFlight: false,
@@ -1821,7 +1833,7 @@ describe('__useReplControllerTestOnly', () => {
     const sessionTransitionPendingCountRef = { current: 0 }
     const run = vi.fn(async () => {})
 
-    await __useReplControllerTestOnly.enqueueSessionTransition({
+    await enqueueSessionTransition({
       sessionTransitionQueueRef,
       sessionTransitionPendingCountRef,
       run,
@@ -1836,7 +1848,7 @@ describe('__useReplControllerTestOnly', () => {
     const sessionTransitionPendingCountRef = { current: 0 }
     const run = vi.fn(async () => {})
 
-    await __useReplControllerTestOnly.enqueueSessionTransition({
+    await enqueueSessionTransition({
       sessionTransitionQueueRef,
       sessionTransitionPendingCountRef,
       run,

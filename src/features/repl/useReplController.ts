@@ -23,10 +23,6 @@ import {
 } from './controller/ui'
 import { useReplStreaming } from './controller/streaming/streaming'
 import {
-  mergeProjectedStaticRows,
-  safeJson,
-  areToolInfosEqual,
-  shouldKeepExistingStaticRow,
   useCanonicalEventHandler,
 } from './controller/canonical'
 import {
@@ -35,7 +31,6 @@ import {
   registerSessionWriterProcessHandlers,
   runNewSessionTransition,
   runResumeSessionTransition,
-  queueSessionTransition as queueSessionTransitionAction,
   useSessionPersistence,
   useSessionEventRecorders,
   useSessionWriterLifecycle,
@@ -43,11 +38,6 @@ import {
   useSessionActions,
 } from './controller/session'
 import { runAbortAction, runSendAction, persistCanonicalToolEvent } from './controller/turnActions'
-import {
-  hasRunningAskTool,
-  mapLocalBashTurnOutcomeForTail,
-  shouldBlockSendWhileBusy,
-} from './controller/send/turnGuards'
 import {
   useCanonicalRefs,
   useModeRefs,
@@ -599,16 +589,5 @@ export function useReplController(deps: {
       saveAgentFromDialog,
     },
   }
-}
-
-export const __useReplControllerTestOnly = {
-  safeJson,
-  areToolInfosEqual,
-  shouldKeepExistingStaticRow,
-  mergeProjectedStaticRows,
-  hasRunningAskTool,
-  mapLocalBashTurnOutcomeForTail,
-  enqueueSessionTransition: queueSessionTransitionAction,
-  shouldBlockSendWhileBusy,
 }
  
