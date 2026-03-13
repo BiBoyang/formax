@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
@@ -20,12 +20,22 @@ const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
+const SIDEBAR_TRANSPARENCY_STORAGE_KEY = 'formax:web:sidebar-transparency'
 
 type DesktopBridge = NonNullable<Window['formaxDesktop']>
 
 function readDesktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null
   return window.formaxDesktop ?? null
+}
+
+function readSidebarTransparencyPreference(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 export type AppShellProps = {
@@ -90,6 +100,10 @@ export type AppShellProps = {
 export function AppShell(props: AppShellProps) {
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
   const isDesktopClient = desktopBridge != null
+  const [isSidebarTransparent, setIsSidebarTransparent] = useState(() => readSidebarTransparencyPreference())
+  const [sidebarTransparencyMode, setSidebarTransparencyMode] = useState<'off' | 'css' | 'native'>(
+    () => (readSidebarTransparencyPreference() ? 'css' : 'off'),
+  )
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE
@@ -193,6 +207,61 @@ export function AppShell(props: AppShellProps) {
     props.onDevLoadAllEarlier?.()
   }, [props.onDevLoadAllEarlier])
 
+  const applyNativeSidebarTransparency = useCallback(async (enabled: boolean): Promise<boolean> => {
+    if (!desktopBridge?.windowAppearance?.setSidebarTransparency) return false
+    try {
+      const applied = await desktopBridge.windowAppearance.setSidebarTransparency(enabled)
+      return applied === true
+    } catch {
+      // Keep CSS-based fallback behavior if host-side appearance fails.
+      return false
+    }
+  }, [desktopBridge])
+
+  const onToggleSidebarTransparency = useCallback((enabled: boolean) => {
+    setSidebarTransparencyMode(enabled ? 'css' : 'off')
+    setIsSidebarTransparent((previous) => (previous === enabled ? previous : enabled))
+    try {
+      window.localStorage.setItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY, enabled ? '1' : '0')
+    } catch {
+      // Ignore localStorage failures (for example, private mode).
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isDesktopClient) return
+    let isCancelled = false
+
+    const syncSidebarTransparency = async () => {
+      if (!isSidebarTransparent) {
+        setSidebarTransparencyMode('off')
+        await applyNativeSidebarTransparency(false)
+        return
+      }
+
+      const hasNativeTransparency = await applyNativeSidebarTransparency(true)
+      if (isCancelled) return
+      setSidebarTransparencyMode(hasNativeTransparency ? 'native' : 'css')
+    }
+
+    void syncSidebarTransparency()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [applyNativeSidebarTransparency, isDesktopClient, isSidebarTransparent])
+
+  useEffect(() => {
+    if (!isDesktopClient) return
+    const root = document.documentElement
+    root.dataset.sidebarTransparency = isSidebarTransparent ? 'on' : 'off'
+    root.dataset.sidebarTransparencyMode = isSidebarTransparent ? sidebarTransparencyMode : 'off'
+    return () => {
+      delete root.dataset.sidebarTransparency
+      delete root.dataset.sidebarTransparencyMode
+    }
+  }, [isDesktopClient, isSidebarTransparent, sidebarTransparencyMode])
+
   const onCreateProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
     const nextCwd = await desktopBridge.pickProjectFolder()
@@ -216,6 +285,8 @@ export function AppShell(props: AppShellProps) {
       isBusy: props.isThreadActionBusy,
       isDesktopClient,
       onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
+      isSidebarTransparent,
+      onToggleSidebarTransparency: isDesktopClient ? onToggleSidebarTransparency : undefined,
     }),
     [
       props.activeThreadId,
@@ -231,8 +302,10 @@ export function AppShell(props: AppShellProps) {
       props.selectedCwd,
       props.sortedThreads,
       isDesktopClient,
+      isSidebarTransparent,
       desktopBridge,
       onCreateProject,
+      onToggleSidebarTransparency,
     ],
   )
 
@@ -331,8 +404,10 @@ export function AppShell(props: AppShellProps) {
   return (
     <div
       data-testid="app-shell"
+      data-sidebar-transparency={isDesktopClient && isSidebarTransparent ? 'on' : 'off'}
+      data-sidebar-transparency-mode={isDesktopClient ? sidebarTransparencyMode : 'off'}
       className={cn(
-        'h-screen w-screen min-w-0 bg-sidebar overflow-hidden ui-text-base relative',
+        'h-screen w-screen min-w-0 overflow-hidden ui-text-base relative app-shell-root-surface',
         isDesktopClient && 'app-shell-desktop',
       )}
     >
@@ -348,14 +423,14 @@ export function AppShell(props: AppShellProps) {
           maxSize={props.isSidebarOpen ? sidebarMaxPercent : 0}
           onResize={onLeftResize}
           className={cn(
-            'relative z-10 bg-sidebar overflow-hidden app-shell-panel-motion',
+            'relative z-10 overflow-hidden app-shell-panel-motion app-shell-sidebar-panel',
             !props.isSidebarOpen && 'pointer-events-none',
           )}
         >
           <div
             data-testid="left-rail"
             className={cn(
-              'h-full w-full overflow-hidden bg-sidebar app-shell-sidebar-content-motion',
+              'h-full w-full overflow-hidden app-shell-sidebar-host app-shell-sidebar-content-motion',
               props.isSidebarOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4',
             )}
           >
@@ -365,24 +440,24 @@ export function AppShell(props: AppShellProps) {
 
         <ResizableHandle
           className={cn(
-            'relative z-[120]',
+            'app-shell-left-resize-handle relative z-[120] !w-0 bg-transparent after:left-0 after:w-3 after:translate-x-0',
             !props.isSidebarOpen && 'pointer-events-none opacity-0',
           )}
           onDragging={onLeftDragStateChange}
         />
 
         <ResizablePanel defaultSize={centerDefaultSize} minSize={35} className="relative z-20 app-shell-panel-motion">
-          <div
-            className={cn(
-              'h-full min-w-0 flex flex-col',
-              props.isSidebarOpen
-                ? 'rounded-l-[22px] bg-background overflow-hidden border-l border-border/70'
-                : 'bg-background',
-            )}
-          >
+              <div
+                className={cn(
+                  'h-full min-w-0 flex flex-col',
+                  props.isSidebarOpen
+                    ? 'rounded-l-[22px] app-shell-right-surface overflow-hidden'
+                    : 'app-shell-right-surface',
+                )}
+              >
             <header
               className={cn(
-                'h-[var(--desktop-chrome-height)] flex-none border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75',
+                'h-[var(--desktop-chrome-height)] flex-none border-b app-shell-right-header',
                 isDesktopClient && 'app-shell-drag-region',
               )}
             >
@@ -418,6 +493,19 @@ export function AppShell(props: AppShellProps) {
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
+                  {isDesktopClient ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Toggle sidebar transparency"
+                      aria-pressed={isSidebarTransparent}
+                      className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground app-shell-no-drag"
+                      onClick={() => onToggleSidebarTransparency(!isSidebarTransparent)}
+                    >
+                      {isSidebarTransparent ? 'Sidebar solid' : 'Sidebar transparent'}
+                    </Button>
+                  ) : null}
                   {showDevLoadAllButton ? (
                     <Button
                       type="button"
@@ -475,7 +563,7 @@ export function AppShell(props: AppShellProps) {
               >
                 <div
                   data-testid="right-rail"
-                  className="h-full min-w-0 bg-background border-l border-border/70 overflow-hidden overflow-x-hidden"
+                  className="h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden"
                 >
                   <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
                 </div>

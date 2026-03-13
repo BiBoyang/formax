@@ -207,12 +207,14 @@ vi.mock('./rpcClient', () => {
 describe('App thread history integration', () => {
   const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
   const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
+  const SIDEBAR_TRANSPARENCY_STORAGE_KEY = 'formax:web:sidebar-transparency'
 
   beforeEach(() => {
     rpcMock.reset()
     window.history.replaceState(null, '', '/')
     window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
+    window.localStorage.removeItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -362,6 +364,83 @@ describe('App thread history integration', () => {
       expect(afterToggle).toBeGreaterThan(beforeToggle - 0.6)
       expect(afterToggle).toBeLessThan(beforeToggle + 0.6)
     })
+  })
+
+  it('toggles desktop sidebar transparency from header button, persists preference, and falls back to css mode', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const setSidebarTransparency = vi.fn<(enabled: boolean) => Promise<boolean>>(async () => false)
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: {},
+      windowAppearance: {
+        setSidebarTransparency,
+      },
+    }
+
+    try {
+      render(<App />)
+
+      const appShell = await screen.findByTestId('app-shell')
+      expect(appShell.getAttribute('data-sidebar-transparency')).toBe('off')
+      expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('off')
+
+      const transparencyToggle = screen.getByRole('button', { name: 'Toggle sidebar transparency' })
+      expect(transparencyToggle.getAttribute('aria-pressed')).toBe('false')
+
+      fireEvent.click(transparencyToggle)
+
+      await waitFor(() => {
+        expect(appShell.getAttribute('data-sidebar-transparency')).toBe('on')
+      })
+      await waitFor(() => {
+        expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('css')
+      })
+      expect(document.documentElement.dataset.sidebarTransparencyMode).toBe('css')
+      expect(transparencyToggle.getAttribute('aria-pressed')).toBe('true')
+      expect(window.localStorage.getItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY)).toBe('1')
+      expect(setSidebarTransparency).toHaveBeenCalled()
+      expect(setSidebarTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('uses native transparency mode when desktop bridge reports native support', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const setSidebarTransparency = vi.fn<(enabled: boolean) => Promise<boolean>>(async (enabled: boolean) => enabled)
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: {},
+      windowAppearance: {
+        setSidebarTransparency,
+      },
+    }
+
+    try {
+      render(<App />)
+
+      const appShell = await screen.findByTestId('app-shell')
+      const transparencyToggle = screen.getByRole('button', { name: 'Toggle sidebar transparency' })
+      fireEvent.click(transparencyToggle)
+
+      await waitFor(() => {
+        expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('native')
+      })
+      expect(document.documentElement.dataset.sidebarTransparencyMode).toBe('native')
+      expect(setSidebarTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
   })
 
   it('reads bridge url from runtime config when provided', async () => {

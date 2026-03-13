@@ -13,6 +13,12 @@
   --desktop-header-leading-shift: calc(var(--desktop-traffic-light-inset-x) + var(--desktop-traffic-light-safe-width) + 4px);
   --desktop-pane-motion-duration: 220ms;
   --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-backdrop-surface: var(--sidebar);
+  --app-backdrop-blur: 0px;
+  --sidebar-glass-shadow: none;
+  --right-surface: var(--background);
+  --right-header-surface: color-mix(in oklch, var(--right-surface) 92%, transparent);
+  --right-rail-border: color-mix(in oklch, var(--border) 78%, transparent);
 }
 
 /* Modern Scrollbar Styling (macOS inspired) */
@@ -86,6 +92,92 @@ body {
 .app-shell-desktop .app-shell-no-drag {
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+.app-shell-root-surface {
+  transition:
+    background-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease),
+    backdrop-filter var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  background: var(--app-backdrop-surface);
+  -webkit-backdrop-filter: blur(var(--app-backdrop-blur));
+  backdrop-filter: blur(var(--app-backdrop-blur));
+}
+
+.app-shell-sidebar-panel {
+  transition: background-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), border-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), box-shadow var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), backdrop-filter var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  background: transparent;
+  border-right: 0;
+  box-shadow: var(--sidebar-glass-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.app-shell-sidebar-host,
+.app-sidebar-rail,
+.app-sidebar-topbar,
+.app-sidebar-bottombar {
+  background: transparent;
+}
+
+.app-sidebar-topbar,
+.app-sidebar-bottombar {
+  transition: border-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.app-shell-right-surface {
+  background: var(--right-surface);
+}
+
+.app-shell-right-header {
+  background: var(--right-header-surface);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.app-shell-right-rail {
+  background: transparent;
+  border-left: 1px solid var(--right-rail-border);
+}
+
+.app-shell-desktop[data-sidebar-transparency='on'] {
+  --app-backdrop-surface: rgb(245 245 245 / 0.24);
+  --app-backdrop-blur: 22px;
+  --sidebar-glass-shadow: none;
+}
+
+.dark.app-shell-desktop[data-sidebar-transparency='on'] {
+  --app-backdrop-surface: rgb(22 22 22 / 0.22);
+  --app-backdrop-blur: 22px;
+  --sidebar-glass-shadow: none;
+}
+
+@supports (color: color-mix(in srgb, red, transparent)) {
+  .app-shell-desktop[data-sidebar-transparency='on'] {
+    --app-backdrop-surface: color-mix(in srgb, var(--sidebar) 24%, transparent);
+    --sidebar-glass-shadow: none;
+  }
+
+  .dark.app-shell-desktop[data-sidebar-transparency='on'] {
+    --app-backdrop-surface: color-mix(in srgb, var(--sidebar) 22%, transparent);
+    --sidebar-glass-shadow: none;
+  }
+}
+
+:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'],
+:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'] body,
+:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'] #root {
+  background: transparent !important;
+}
+
+.app-shell-left-resize-handle[data-slot='resizable-handle'] {
+  width: 0 !important;
+  background: transparent !important;
+}
+
+.app-shell-left-resize-handle[data-slot='resizable-handle']::after {
+  background: transparent !important;
 }
 
 .left-rail-scroll-body {
@@ -164,6 +256,53 @@ body {
 
   .ui-text-muted {
     color: var(--text-muted-ui);
+  }
+
+  .ui-sidebar-text-primary {
+    color: var(--sidebar-text-primary);
+  }
+
+  .ui-sidebar-text-secondary {
+    color: var(--sidebar-text-secondary);
+  }
+
+  .ui-sidebar-text-muted {
+    color: var(--sidebar-text-muted);
+  }
+
+  .ui-sidebar-list-row {
+    color: var(--sidebar-text-primary);
+    transition:
+      background-color 130ms ease,
+      color 130ms ease;
+  }
+
+  .ui-sidebar-list-row:hover,
+  .ui-sidebar-list-row:focus-within {
+    background: var(--sidebar-list-hover);
+  }
+
+  .ui-sidebar-list-row[data-active='true'],
+  .ui-sidebar-list-row[data-selected='true'],
+  .ui-sidebar-list-row[aria-selected='true'] {
+    background: var(--sidebar-list-active);
+  }
+
+  .ui-sidebar-list-row-time {
+    color: var(--sidebar-text-secondary);
+    transition: color 130ms ease;
+  }
+
+  .ui-sidebar-folder-row {
+    color: var(--sidebar-text-secondary);
+    transition:
+      background-color 130ms ease,
+      color 130ms ease;
+  }
+
+  .ui-sidebar-folder-row:hover,
+  .ui-sidebar-folder-row:focus-within {
+    background: var(--sidebar-list-hover);
   }
 
   .ui-surface-subtle {

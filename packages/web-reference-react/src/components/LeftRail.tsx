@@ -46,6 +46,8 @@ export type LeftRailProps = {
   isBusy?: boolean
   isDesktopClient?: boolean
   onCreateProject?: () => Promise<void> | void
+  isSidebarTransparent?: boolean
+  onToggleSidebarTransparency?: (enabled: boolean) => void
 }
 
 function readOpenByCwdFromStorage(): Record<string, boolean> {
@@ -147,7 +149,6 @@ type SuppressInteractionEvent = {
 type FolderHeaderRowProps = ComponentPropsWithoutRef<'div'> & {
   cwd: string
   folderName: string
-  isSelectedGroup: boolean
   isExpanded: boolean
   canRemoveGroup: boolean
   isBusy: boolean
@@ -161,7 +162,6 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
   const {
     cwd,
     folderName,
-    isSelectedGroup,
     isExpanded,
     canRemoveGroup,
     isBusy,
@@ -178,17 +178,14 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
       ref={ref}
       {...rest}
       className={cn(
-        'group/folder flex h-8 items-center rounded-md transition-colors',
-        isSelectedGroup
-          ? 'ui-surface-subtle ui-text-secondary'
-          : 'ui-text-muted hover:bg-[var(--surface-subtle)] hover:text-[var(--text-secondary)]',
+        'group/folder flex h-8 items-center rounded-md transition-colors ui-sidebar-folder-row',
         className,
       )}
     >
       <Button
         type="button"
         variant="ghost"
-        className="h-9 min-w-0 flex-1 justify-start px-3 ui-text-base font-normal transition-none hover:bg-transparent"
+        className="h-8 min-w-0 flex-1 justify-start px-3 ui-text-base font-normal transition-none hover:bg-transparent text-inherit"
         onClick={() => onSelectCwd(cwd)}
         title={cwd}
       >
@@ -289,23 +286,20 @@ const MemoThreadRow = memo(function ThreadRow(props: ThreadRowProps) {
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
+          data-active={isActive ? 'true' : 'false'}
           className={cn(
-            'relative w-full h-8 flex items-center rounded-md transition-colors group/thread',
-            isActive
-              ? 'ui-surface-selected text-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-              : 'ui-text-secondary hover:bg-[var(--surface-selected)] hover:text-foreground hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]',
+            'relative w-full h-8 flex items-center rounded-md group/thread ui-sidebar-list-row',
           )}
         >
           <Button
             variant="ghost"
             className={cn(
-              'h-8 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent',
-              isActive ? 'ui-text-primary' : 'ui-text-secondary',
+              'h-8 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent text-inherit',
             )}
             onClick={() => onSelectThread(thread.id)}
           >
             <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
-            <span className={cn('shrink-0 text-right ui-text-meta font-mono tabular-nums', isActive ? 'text-foreground/84' : 'text-foreground/74')}>
+            <span className="shrink-0 text-right ui-text-meta font-mono tabular-nums ui-sidebar-list-row-time">
               {relativeTime(thread.updatedAt, nowMsSnapshot)}
             </span>
           </Button>
@@ -357,6 +351,8 @@ export function LeftRail(props: LeftRailProps) {
     isBusy = false,
     isDesktopClient = false,
     onCreateProject,
+    isSidebarTransparent = false,
+    onToggleSidebarTransparency,
   } = props
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
@@ -479,17 +475,17 @@ export function LeftRail(props: LeftRailProps) {
     }
   }, [onRenameThread, renameThreadTarget, renameValue])
 
-  const quickEntryRowClass =
-    'h-8 w-full justify-start gap-3 rounded-md px-3 ui-text-base font-normal ui-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:text-foreground hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-  const quickEntryStaticRowClass =
-    'flex h-8 items-center gap-3 rounded-md px-3 ui-text-base font-normal ui-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:text-foreground hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] cursor-default'
+  const quickEntryBaseRowClass =
+    'h-8 gap-3 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
+  const quickEntryRowClass = `w-full justify-start ${quickEntryBaseRowClass}`
+  const quickEntryStaticRowClass = `flex items-center ${quickEntryBaseRowClass} cursor-default`
   const quickEntryIconClass = 'inline-flex h-4 w-4 shrink-0 items-center justify-center opacity-70'
 
   return (
-    <aside className="flex flex-col h-full flex-none w-full bg-sidebar overflow-hidden">
+    <aside className="app-sidebar-rail flex flex-col h-full flex-none w-full overflow-hidden">
       <div
         className={cn(
-          'h-[var(--desktop-chrome-height)] flex-none bg-sidebar/95 backdrop-blur px-4 flex items-center',
+          'app-sidebar-topbar h-[var(--desktop-chrome-height)] flex-none px-4 flex items-center',
           isDesktopClient && 'app-shell-drag-region',
         )}
       >
@@ -499,14 +495,14 @@ export function LeftRail(props: LeftRailProps) {
             aria-hidden
           />
         ) : (
-          <div className="ui-text-meta ui-text-muted font-medium">Formax Web</div>
+          <div className="ui-text-meta ui-sidebar-text-muted font-medium">Formax Web</div>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
         <div className="flex flex-col min-h-full">
           <div className="px-2 space-y-px flex-none">
-            {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-text-muted">{connectionStatus}</div> : null}
+            {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
             <Button
               variant="ghost"
               className={quickEntryRowClass}
@@ -535,7 +531,7 @@ export function LeftRail(props: LeftRailProps) {
           </div>
 
           <div className="flex-1 flex flex-col mt-2 pb-12">
-            <div className="px-5 ui-text-base font-medium ui-text-muted tracking-wide flex items-center justify-between gap-2 flex-none">
+            <div className="px-5 ui-text-base font-medium ui-sidebar-text-muted tracking-wide flex items-center justify-between gap-2 flex-none">
               <span>Threads</span>
               {canCreateProject ? (
                 <Button
@@ -554,7 +550,7 @@ export function LeftRail(props: LeftRailProps) {
             </div>
 
             <div className="space-y-px px-2">
-              {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-text-muted italic">No recent threads</div> : null}
+              {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">No recent threads</div> : null}
               {visibleGroupedThreads.map((group) => {
                 const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
@@ -570,7 +566,6 @@ export function LeftRail(props: LeftRailProps) {
                       <MemoFolderHeaderRow
                         cwd={group.cwd}
                         folderName={group.folderName}
-                        isSelectedGroup={isSelectedGroup}
                         isExpanded={isExpanded}
                         canRemoveGroup={canRemoveGroup}
                         isBusy={isBusy}
@@ -611,7 +606,7 @@ export function LeftRail(props: LeftRailProps) {
 
       <div
         className={cn(
-          'h-[var(--desktop-chrome-height)] flex-none border-sidebar-border/70 px-2 py-[var(--desktop-chrome-row-padding-y)]',
+          'app-sidebar-bottombar h-[var(--desktop-chrome-height)] flex-none px-2 py-[var(--desktop-chrome-row-padding-y)]',
           isDesktopClient && 'app-shell-drag-region',
         )}
       >
@@ -640,6 +635,11 @@ export function LeftRail(props: LeftRailProps) {
               <Globe className="mr-2 h-4 w-4" />
               语言
             </DropdownMenuItem>
+            {isDesktopClient && onToggleSidebarTransparency ? (
+              <DropdownMenuItem onSelect={() => onToggleSidebarTransparency(!isSidebarTransparent)}>
+                {isSidebarTransparent ? '关闭侧边栏透明' : '开启侧边栏透明'}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
