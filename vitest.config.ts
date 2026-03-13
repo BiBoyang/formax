@@ -4,15 +4,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['packages/core/src/**/*.test.ts', 'packages/core/src/**/*.test.tsx'],
     setupFiles: ['scripts/vitestSessionIsolation.mjs'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: [
-        'src/entrypoints/**',
-        'src/screens/ToolExamplesScreen.tsx',
-        'src/screens/LoadingExampleScreen.tsx',
+        'packages/core/src/entrypoints/**',
+        'packages/core/src/screens/ToolExamplesScreen.tsx',
+        'packages/core/src/screens/LoadingExampleScreen.tsx',
       ],
     },
   },

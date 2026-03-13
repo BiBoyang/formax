@@ -45,7 +45,7 @@ function listSourceFiles(dir) {
 }
 
 export function runNoClaudeCheck({ repoRoot }) {
-  const srcRoot = path.join(repoRoot, 'src')
+  const srcRoot = path.join(repoRoot, 'packages', 'core', 'src')
   if (!fs.existsSync(srcRoot)) return
 
   const offenders = []

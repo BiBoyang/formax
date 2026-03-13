@@ -3,24 +3,24 @@ import fs from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 
 const WRITE_CALL_PATTERN = /\bsetMessages\(/g
-const SEMANTIC_ROOT = 'src/features/repl'
+const SEMANTIC_ROOT = 'packages/core/src/features/repl'
 
 /**
  * Baseline for semantic-critical direct transcript write points.
  * Policy: counts may decrease, but increases require an explicit architecture review first.
  */
 const SEMANTIC_BASELINE_COUNTS = {
-  'src/features/repl/controller/streaming/streaming.ts': 3,
-  'src/features/repl/controller/streaming/streamingLegacyTranscript.ts': 1,
-  'src/features/repl/controller/send/sendMainTurn.ts': 2,
-  'src/features/repl/controller/send/bashMode.ts': 2,
-  'src/features/repl/controller/send/send.ts': 7,
-  'src/features/repl/controller/send/sendAutoCompact.ts': 1,
-  'src/features/repl/controller/session/sessionTransitions.ts': 2,
-  'src/features/repl/controller/ui/overlays.ts': 4,
-  'src/features/repl/controller/ui/surfaceReset.ts': 1,
-  'src/features/repl/controller/shared/providerError.ts': 1,
-  'src/features/repl/useReplController.ts': 3,
+  'packages/core/src/features/repl/controller/streaming/streaming.ts': 3,
+  'packages/core/src/features/repl/controller/streaming/streamingLegacyTranscript.ts': 1,
+  'packages/core/src/features/repl/controller/send/sendMainTurn.ts': 2,
+  'packages/core/src/features/repl/controller/send/bashMode.ts': 2,
+  'packages/core/src/features/repl/controller/send/send.ts': 7,
+  'packages/core/src/features/repl/controller/send/sendAutoCompact.ts': 1,
+  'packages/core/src/features/repl/controller/session/sessionTransitions.ts': 2,
+  'packages/core/src/features/repl/controller/ui/overlays.ts': 4,
+  'packages/core/src/features/repl/controller/ui/surfaceReset.ts': 1,
+  'packages/core/src/features/repl/controller/shared/providerError.ts': 1,
+  'packages/core/src/features/repl/useReplController.ts': 3,
 }
 
 function countWritePoints(filePath) {

@@ -2,12 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { createRuntime } from '../src/runtime/createRuntime.js'
-import { createRuntimeFlags, type RuntimeFlags } from '../src/config/runtimeFlags.js'
-import { runMainSendTurn } from '../src/features/repl/controller/send/sendMainTurn.js'
-import type { PromptBlock, PromptMessage } from '../src/prompts/index.js'
-import type { ToolDefinition } from '../src/tools/types.js'
-import { normalizeAnthropicPromptCachingLayout } from '../src/streaming/anthropic/promptCachingLayout.js'
+import { createRuntime } from '../packages/core/src/runtime/createRuntime.js'
+import { createRuntimeFlags, type RuntimeFlags } from '../packages/core/src/config/runtimeFlags.js'
+import { runMainSendTurn } from '../packages/core/src/features/repl/controller/send/sendMainTurn.js'
+import type { PromptBlock, PromptMessage } from '../packages/core/src/prompts/index.js'
+import type { ToolDefinition } from '../packages/core/src/tools/types.js'
+import { normalizeAnthropicPromptCachingLayout } from '../packages/core/src/streaming/anthropic/promptCachingLayout.js'
 
 type CliOptions = {
   text: string

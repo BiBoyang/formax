@@ -3,8 +3,8 @@ import {
   createInitialTranscriptProjectionState,
   reduceTranscriptProjection,
   type TranscriptProjectionState,
-} from '../src/features/semantics/projection/transcriptProjection'
-import type { CanonicalEvent } from '../src/features/semantics/core/canonicalEvents'
+} from '../packages/core/src/features/semantics/projection/transcriptProjection'
+import type { CanonicalEvent } from '../packages/core/src/features/semantics/core/canonicalEvents'
 
 type BenchSample = {
   durationMs: number

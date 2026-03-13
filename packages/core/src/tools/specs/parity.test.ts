@@ -86,7 +86,16 @@ function buildTestRegistry(): ToolRegistry {
 }
 
 function loadToolsCopyJson(): Map<string, ToolDefinition> {
-  const refPath = join(process.cwd(), 'src', 'tools', 'specs', 'reference', 'tools-copy.json')
+  const refPath = join(
+    process.cwd(),
+    'packages',
+    'core',
+    'src',
+    'tools',
+    'specs',
+    'reference',
+    'tools-copy.json',
+  )
   const raw = readFileSync(refPath, 'utf8')
   const parsed = JSON.parse(raw) as ToolsFile
   const referenceList = Array.isArray(parsed.tools) ? parsed.tools : []

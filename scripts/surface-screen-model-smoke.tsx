@@ -5,10 +5,10 @@ import { PassThrough, Writable } from 'node:stream'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createSafeInkStdout, resetInkStaticOutputForStdout } from '../src/tui/inkStreams.js'
-import type { RuntimeConfig } from '../src/config/config.js'
-import type { ChatEngine } from '../src/chat/engine.js'
-import type { PromptBlock, PromptMessage } from '../src/prompts/index.js'
+import { createSafeInkStdout, resetInkStaticOutputForStdout } from '../packages/core/src/tui/inkStreams.js'
+import type { RuntimeConfig } from '../packages/core/src/config/config.js'
+import type { ChatEngine } from '../packages/core/src/chat/engine.js'
+import type { PromptBlock, PromptMessage } from '../packages/core/src/prompts/index.js'
 
 class AnsiScreenModel {
   private readonly cols: number
@@ -345,8 +345,8 @@ async function main() {
 
   const [{ render }, { REPL }, { InputScopeProvider }] = await Promise.all([
     import('ink'),
-    import('../src/screens/REPL.js'),
-    import('../src/features/repl/inputScopeContext.js'),
+    import('../packages/core/src/screens/REPL.js'),
+    import('../packages/core/src/features/repl/inputScopeContext.js'),
   ])
 
   process.env.FORMAX_FORCE_INK_STATIC = '1'

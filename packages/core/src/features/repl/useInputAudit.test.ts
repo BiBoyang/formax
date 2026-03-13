@@ -27,7 +27,7 @@ function normalizeRel(p: string): string {
 
 describe('useInput audit', () => {
   it('keeps raw useInput() call sites on an allow-list', async () => {
-    const root = path.join(process.cwd(), 'src')
+    const root = path.join(process.cwd(), 'packages', 'core', 'src')
     const files = await listSourceFiles(root)
 
     const re = /\buseInput\s*\(/g
@@ -43,11 +43,11 @@ describe('useInput audit', () => {
     const matches = maybeMatches.filter((m): m is Match => m !== null)
 
     const allowed = new Set([
-      'src/components/ui/TextInput.tsx',
-      'src/features/repl/inputScopeContext.tsx',
-      'src/screens/LoadingExampleScreen.tsx',
-      'src/screens/repl/hotkeys.ts',
-      'src/screens/ToolExamplesScreen.tsx',
+      'packages/core/src/components/ui/TextInput.tsx',
+      'packages/core/src/features/repl/inputScopeContext.tsx',
+      'packages/core/src/screens/LoadingExampleScreen.tsx',
+      'packages/core/src/screens/repl/hotkeys.ts',
+      'packages/core/src/screens/ToolExamplesScreen.tsx',
     ])
 
     const unexpected = matches.filter((m) => !allowed.has(m.file))

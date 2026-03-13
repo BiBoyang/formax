@@ -1,1 +1,1 @@
-export * from '../../../../src/shared/utils/toolResultContent'
+export * from '../../../core/src/shared/utils/toolResultContent'

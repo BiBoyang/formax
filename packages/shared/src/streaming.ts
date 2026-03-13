@@ -1,1 +1,1 @@
-export type { StreamEvent, TokenUsage } from '../../../src/streaming/types'
+export type { StreamEvent, TokenUsage } from '../../core/src/streaming/types'

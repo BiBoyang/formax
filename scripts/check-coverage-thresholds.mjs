@@ -5,10 +5,10 @@ const repoRoot = process.cwd()
 const coveragePath = path.join(repoRoot, 'coverage', 'coverage-final.json')
 
 const thresholds = [
-  { file: 'src/shared/utils/planMode.ts', statements: 90 },
-  { file: 'src/core/policy/engine.ts', statements: 90 },
-  { file: 'src/core/policy/store.ts', statements: 90 },
-  { file: 'src/core/approval/rules.ts', statements: 90 },
+  { file: 'packages/core/src/shared/utils/planMode.ts', statements: 90 },
+  { file: 'packages/core/src/core/policy/engine.ts', statements: 90 },
+  { file: 'packages/core/src/core/policy/store.ts', statements: 90 },
+  { file: 'packages/core/src/core/approval/rules.ts', statements: 90 },
 ]
 
 function toRepoRelative(filePath) {

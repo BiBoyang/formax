@@ -16,14 +16,14 @@ const steps = [
       'run',
       'test',
       '--',
-      'src/features/repl/controller/canonicalTurnMessages.test.ts',
-      'src/features/repl/controller/streaming.test.tsx',
-      'src/features/repl/useReplController.test.tsx',
+      'packages/core/src/features/repl/controller/canonicalTurnMessages.test.ts',
+      'packages/core/src/features/repl/controller/streaming.test.tsx',
+      'packages/core/src/features/repl/useReplController.test.tsx',
     ],
   },
   {
     label: 'canonical adapter contract fixture',
-    cmd: ['bun', 'run', 'test', '--', 'src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts'],
+    cmd: ['bun', 'run', 'test', '--', 'packages/core/src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts'],
   },
   {
     label: 'surface deterministic smoke',

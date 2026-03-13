@@ -11,14 +11,14 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "packages/core/src",
     "sourceMap": true,
     "baseUrl": ".",
     "types": ["node"],
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*"],
+  "include": ["packages/core/src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
 

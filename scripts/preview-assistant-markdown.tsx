@@ -5,7 +5,7 @@ import path from 'node:path'
 import React, { useEffect } from 'react'
 import { Box } from 'ink'
 import { render } from 'ink'
-import { AssistantMarkdownBlock } from '../src/components/ui/AssistantMarkdownBlock.js'
+import { AssistantMarkdownBlock } from '../packages/core/src/components/ui/AssistantMarkdownBlock.js'
 
 type CliOptions = {
   filePath: string

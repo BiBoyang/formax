@@ -31,11 +31,6 @@ jobs:
               - 'packages/core/src/prompts/**'
               - 'packages/core/src/streaming/**'
               - 'packages/core/src/features/tools/presentation/paramsText.ts'
-              - 'src/features/semantics/**'
-              - 'src/shared/**'
-              - 'src/prompts/**'
-              - 'src/streaming/**'
-              - 'src/features/tools/presentation/paramsText.ts'
 
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'

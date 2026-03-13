@@ -15,14 +15,14 @@ import {
   buildAskAnswersFromDraft as buildAskAnswersFromDraftRoot,
   fieldIdForAskQuestion as fieldIdForAskQuestionRoot,
   normalizeAskQuestions as normalizeAskQuestionsRoot,
-} from '../../../../../src/features/tools/presentation/askQuestions'
+} from '../../../../core/src/features/tools/presentation/askQuestions'
 import {
   orderToolParamsByToolName as orderToolParamsByToolNameRoot,
   parseToolParamsText as parseToolParamsTextRoot,
   stringifyToolParams as stringifyToolParamsRoot,
-} from '../../../../../src/features/tools/presentation/paramsText'
-import { resolveInteractivePromptModel as resolveInteractivePromptModelRoot } from '../../../../../src/features/tools/presentation/interactivePrompts'
-import { selectToolViewModelFromSegment as selectToolViewModelFromSegmentRoot } from '../../../../../src/features/tools/presentation/toolViewModel'
+} from '../../../../core/src/features/tools/presentation/paramsText'
+import { resolveInteractivePromptModel as resolveInteractivePromptModelRoot } from '../../../../core/src/features/tools/presentation/interactivePrompts'
+import { selectToolViewModelFromSegment as selectToolViewModelFromSegmentRoot } from '../../../../core/src/features/tools/presentation/toolViewModel'
 
 describe('parity adapters', () => {
   it('keeps ask question normalization semantics aligned', () => {

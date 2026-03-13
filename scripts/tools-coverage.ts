@@ -1,22 +1,22 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
-import { AnthropicStreamClient } from '../src/streaming/anthropic/StreamClient.js'
-import type { ToolHandler } from '../src/tools/executor/index.js'
-import { ToolRegistry } from '../src/tools/registry.js'
-import { registerBuiltinToolModules } from '../src/tools/modules/index.js'
-import { createAskUserQuestionToolModule } from '../src/tools/modules/askUserQuestion/index.js'
-import { createKillShellToolModule } from '../src/tools/modules/killShell/index.js'
-import { createTaskToolModule } from '../src/tools/modules/task/index.js'
-import { createTaskOutputToolModule } from '../src/tools/modules/taskOutput/index.js'
-import { createWebFetchToolModule } from '../src/tools/modules/webFetch/index.js'
-import { TaskManager } from '../src/tools/runtime/taskManager.js'
-import { createUserInputManager } from '../src/tools/runtime/userInputManager.js'
+import { AnthropicStreamClient } from '../packages/core/src/streaming/anthropic/StreamClient.js'
+import type { ToolHandler } from '../packages/core/src/tools/executor/index.js'
+import { ToolRegistry } from '../packages/core/src/tools/registry.js'
+import { registerBuiltinToolModules } from '../packages/core/src/tools/modules/index.js'
+import { createAskUserQuestionToolModule } from '../packages/core/src/tools/modules/askUserQuestion/index.js'
+import { createKillShellToolModule } from '../packages/core/src/tools/modules/killShell/index.js'
+import { createTaskToolModule } from '../packages/core/src/tools/modules/task/index.js'
+import { createTaskOutputToolModule } from '../packages/core/src/tools/modules/taskOutput/index.js'
+import { createWebFetchToolModule } from '../packages/core/src/tools/modules/webFetch/index.js'
+import { TaskManager } from '../packages/core/src/tools/runtime/taskManager.js'
+import { createUserInputManager } from '../packages/core/src/tools/runtime/userInputManager.js'
 
 type ToolsFile = { tools?: Array<{ name?: string }> }
 
 async function main(): Promise<void> {
-  const refPathArg = process.argv[2] || 'src/tools/specs/reference/tools-copy.json'
+  const refPathArg = process.argv[2] || 'packages/core/src/tools/specs/reference/tools-copy.json'
   const refPath = path.resolve(process.cwd(), refPathArg)
 
   const registry = buildRegistryForSpecs()

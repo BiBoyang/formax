@@ -3,7 +3,7 @@ import path from 'node:path'
 import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
-const SRC_ROOT = path.join(REPO_ROOT, 'src')
+const SRC_ROOT = path.join(REPO_ROOT, 'packages', 'core', 'src')
 const TUI_ROOT = path.join(SRC_ROOT, 'tui')
 const SCREENS_ROOT = path.join(SRC_ROOT, 'screens')
 const COMPONENTS_ROOT = path.join(SRC_ROOT, 'components')
@@ -72,18 +72,18 @@ function checkUiImports(file, specifier) {
   if (raw.startsWith('.') || raw.startsWith('..')) {
     const resolved = path.normalize(path.resolve(path.dirname(file), raw))
     if (isUnderDir(resolved, TOOLS_EXECUTOR_ROOT)) {
-      return 'UI may not import from src/tools/executor/**'
+      return 'UI may not import from packages/core/src/tools/executor/**'
     }
     if (isUnderDir(resolved, STREAMING_ANTHROPIC_ROOT)) {
-      return 'UI may not import from src/streaming/anthropic/** (use src/streaming/types instead)'
+      return 'UI may not import from packages/core/src/streaming/anthropic/** (use packages/core/src/streaming/types instead)'
     }
     return null
   }
 
   // Non-relative imports: enforce by path segment heuristic when importing within src
-  if (raw.includes('src/tools/executor/')) return 'UI may not import from src/tools/executor/**'
-  if (raw.includes('src/streaming/anthropic/')) {
-    return 'UI may not import from src/streaming/anthropic/** (use src/streaming/types instead)'
+  if (raw.includes('packages/core/src/tools/executor/')) return 'UI may not import from packages/core/src/tools/executor/**'
+  if (raw.includes('packages/core/src/streaming/anthropic/')) {
+    return 'UI may not import from packages/core/src/streaming/anthropic/** (use packages/core/src/streaming/types instead)'
   }
 
   return null

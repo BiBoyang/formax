@@ -155,8 +155,12 @@ function resolveSpecifierToPath({ sourceFile, specifier, repoRoot }) {
     return resolveFileLikePath(path.normalize(raw))
   }
 
-  if (raw.startsWith('src/')) {
+  if (raw.startsWith('packages/core/src/')) {
     return resolveFileLikePath(path.join(repoRoot, raw))
+  }
+
+  if (raw.startsWith('src/')) {
+    return resolveFileLikePath(path.join(repoRoot, 'packages/core', raw))
   }
 
   if (raw.startsWith('packages/web-reference-react/src/')) {

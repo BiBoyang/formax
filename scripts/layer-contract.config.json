@@ -1,240 +1,240 @@
 {
   "layerOrder": ["Types", "Config", "Repo", "Service", "Runtime", "UI"],
-  "scanRoots": ["src", "packages/web-reference-react/src"],
+  "scanRoots": ["packages/core/src", "packages/web-reference-react/src"],
   "allowZeroHitMappings": [
     {
-      "path": "src/services",
+      "path": "packages/core/src/services",
       "reason": "runtimeUiBridge.tsx is explicitly remapped to Runtime layer"
     }
   ],
   "allowedImports": [
     {
-      "source": "src/runtime/bootstrap/tooling.ts",
-      "target": "src/components/tool/LocalBashPresenter.tsx",
+      "source": "packages/core/src/runtime/bootstrap/tooling.ts",
+      "target": "packages/core/src/components/tool/LocalBashPresenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime composition root registers UI presenter"
     },
     {
-      "source": "src/services/runtimeUiBridge.tsx",
-      "target": "src/screens/LoadingExampleScreen.tsx",
+      "source": "packages/core/src/services/runtimeUiBridge.tsx",
+      "target": "packages/core/src/screens/LoadingExampleScreen.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders loading screen"
     },
     {
-      "source": "src/services/runtimeUiBridge.tsx",
-      "target": "src/screens/perf/TranscriptPerfScreen.tsx",
+      "source": "packages/core/src/services/runtimeUiBridge.tsx",
+      "target": "packages/core/src/screens/perf/TranscriptPerfScreen.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders transcript perf screen"
     },
     {
-      "source": "src/services/runtimeUiBridge.tsx",
-      "target": "src/screens/REPL.tsx",
+      "source": "packages/core/src/services/runtimeUiBridge.tsx",
+      "target": "packages/core/src/screens/REPL.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders REPL screen"
     },
     {
-      "source": "src/services/runtimeUiBridge.tsx",
-      "target": "src/screens/ToolExamplesScreen.tsx",
+      "source": "packages/core/src/services/runtimeUiBridge.tsx",
+      "target": "packages/core/src/screens/ToolExamplesScreen.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders tool examples screen"
     },
     {
-      "source": "src/services/runtimeUiBridge.tsx",
-      "target": "src/tui/SetupWizard.tsx",
+      "source": "packages/core/src/services/runtimeUiBridge.tsx",
+      "target": "packages/core/src/tui/SetupWizard.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders setup wizard"
     },
     {
-      "source": "src/tools/modules/askUserQuestion/index.ts",
-      "target": "src/tools/modules/askUserQuestion/presenter.tsx",
+      "source": "packages/core/src/tools/modules/askUserQuestion/index.ts",
+      "target": "packages/core/src/tools/modules/askUserQuestion/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/bash/index.ts",
-      "target": "src/tools/modules/bash/presenter.tsx",
+      "source": "packages/core/src/tools/modules/bash/index.ts",
+      "target": "packages/core/src/tools/modules/bash/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/edit/index.ts",
-      "target": "src/tools/modules/edit/presenter.tsx",
+      "source": "packages/core/src/tools/modules/edit/index.ts",
+      "target": "packages/core/src/tools/modules/edit/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/enterPlanMode/index.ts",
-      "target": "src/tools/modules/enterPlanMode/presenter.tsx",
+      "source": "packages/core/src/tools/modules/enterPlanMode/index.ts",
+      "target": "packages/core/src/tools/modules/enterPlanMode/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/exitPlanMode/index.ts",
-      "target": "src/tools/modules/exitPlanMode/presenter.tsx",
+      "source": "packages/core/src/tools/modules/exitPlanMode/index.ts",
+      "target": "packages/core/src/tools/modules/exitPlanMode/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/glob/index.ts",
-      "target": "src/tools/modules/glob/presenter.tsx",
+      "source": "packages/core/src/tools/modules/glob/index.ts",
+      "target": "packages/core/src/tools/modules/glob/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/grep/index.ts",
-      "target": "src/tools/modules/grep/presenter.tsx",
+      "source": "packages/core/src/tools/modules/grep/index.ts",
+      "target": "packages/core/src/tools/modules/grep/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/killShell/index.ts",
-      "target": "src/tools/modules/killShell/presenter.tsx",
+      "source": "packages/core/src/tools/modules/killShell/index.ts",
+      "target": "packages/core/src/tools/modules/killShell/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/notebookEdit/index.ts",
-      "target": "src/tools/modules/notebookEdit/presenter.tsx",
+      "source": "packages/core/src/tools/modules/notebookEdit/index.ts",
+      "target": "packages/core/src/tools/modules/notebookEdit/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/read/index.ts",
-      "target": "src/tools/modules/read/presenter.tsx",
+      "source": "packages/core/src/tools/modules/read/index.ts",
+      "target": "packages/core/src/tools/modules/read/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/search/index.ts",
-      "target": "src/tools/modules/search/presenter.tsx",
+      "source": "packages/core/src/tools/modules/search/index.ts",
+      "target": "packages/core/src/tools/modules/search/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/skill/index.ts",
-      "target": "src/tools/modules/skill/presenter.tsx",
+      "source": "packages/core/src/tools/modules/skill/index.ts",
+      "target": "packages/core/src/tools/modules/skill/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/task/index.ts",
-      "target": "src/tools/modules/task/presenter.tsx",
+      "source": "packages/core/src/tools/modules/task/index.ts",
+      "target": "packages/core/src/tools/modules/task/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/taskOutput/index.ts",
-      "target": "src/tools/modules/taskOutput/presenter.tsx",
+      "source": "packages/core/src/tools/modules/taskOutput/index.ts",
+      "target": "packages/core/src/tools/modules/taskOutput/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/todoWrite/index.ts",
-      "target": "src/tools/modules/todoWrite/presenter.tsx",
+      "source": "packages/core/src/tools/modules/todoWrite/index.ts",
+      "target": "packages/core/src/tools/modules/todoWrite/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/webFetch/index.ts",
-      "target": "src/tools/modules/webFetch/presenter.tsx",
+      "source": "packages/core/src/tools/modules/webFetch/index.ts",
+      "target": "packages/core/src/tools/modules/webFetch/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/webSearch/index.ts",
-      "target": "src/tools/modules/webSearch/presenter.tsx",
+      "source": "packages/core/src/tools/modules/webSearch/index.ts",
+      "target": "packages/core/src/tools/modules/webSearch/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     },
     {
-      "source": "src/tools/modules/write/index.ts",
-      "target": "src/tools/modules/write/presenter.tsx",
+      "source": "packages/core/src/tools/modules/write/index.ts",
+      "target": "packages/core/src/tools/modules/write/presenter.tsx",
       "rule": "LAYER_ORDER",
       "reason": "tool module index binds UI presenter"
     }
   ],
   "layers": {
     "Types": [
-      "src/shared",
-      "src/prompts/types.ts",
-      "src/streaming/types.ts",
-      "src/features/semantics/core/canonicalEvents.ts",
-      "src/features/semantics/core/commandRouting.ts",
-      "src/features/semantics/core/modeSemantics.ts",
-      "src/features/semantics/core/replModeTransition.ts",
-      "src/features/subagents/types.ts",
-      "src/core/errors/codes.ts"
+      "packages/core/src/shared",
+      "packages/core/src/prompts/types.ts",
+      "packages/core/src/streaming/types.ts",
+      "packages/core/src/features/semantics/core/canonicalEvents.ts",
+      "packages/core/src/features/semantics/core/commandRouting.ts",
+      "packages/core/src/features/semantics/core/modeSemantics.ts",
+      "packages/core/src/features/semantics/core/replModeTransition.ts",
+      "packages/core/src/features/subagents/types.ts",
+      "packages/core/src/core/errors/codes.ts"
     ],
     "Config": [
-      "src/config",
-      "src/core/setup/types.ts"
+      "packages/core/src/config",
+      "packages/core/src/core/setup/types.ts"
     ],
     "Repo": [
-      "src/adapters",
-      "src/features/repl/sessionSave",
-      "src/features/commands/CommandStore.ts",
-      "src/features/skills",
-      "src/core/models/models.ts",
-      "src/core/models/modelContextCatalog.ts",
-      "src/core/setup/errorMapping.ts",
-      "src/core/auth/index.ts",
-      "src/core/audit/schema.ts",
-      "src/core/diagnostics/redaction.ts",
-      "src/core/policy"
+      "packages/core/src/adapters",
+      "packages/core/src/features/repl/sessionSave",
+      "packages/core/src/features/commands/CommandStore.ts",
+      "packages/core/src/features/skills",
+      "packages/core/src/core/models/models.ts",
+      "packages/core/src/core/models/modelContextCatalog.ts",
+      "packages/core/src/core/setup/errorMapping.ts",
+      "packages/core/src/core/auth/index.ts",
+      "packages/core/src/core/audit/schema.ts",
+      "packages/core/src/core/diagnostics/redaction.ts",
+      "packages/core/src/core/policy"
     ],
     "Service": [
-      "src/core",
-      "src/chat",
-      "src/streaming",
-      "src/services",
-      "src/tools",
-      "src/hooks",
-      "src/features/subagents",
-      "src/features/repl",
-      "src/features/tools",
-      "src/features/commands",
-      "src/features/sessionTitle",
-      "src/features/semantics/projection",
-      "src/features/semantics/adapters",
-      "src/features/semantics/runtime",
-      "src/features/semantics/selectors",
-      "src/features/semantics/core/index.ts",
-      "src/features/semantics/core/slashSemantics.ts",
-      "src/prompts",
-      "src/shared/utils/autoMemoryPath.ts",
-      "src/tui/consoleLogger.ts"
+      "packages/core/src/core",
+      "packages/core/src/chat",
+      "packages/core/src/streaming",
+      "packages/core/src/services",
+      "packages/core/src/tools",
+      "packages/core/src/hooks",
+      "packages/core/src/features/subagents",
+      "packages/core/src/features/repl",
+      "packages/core/src/features/tools",
+      "packages/core/src/features/commands",
+      "packages/core/src/features/sessionTitle",
+      "packages/core/src/features/semantics/projection",
+      "packages/core/src/features/semantics/adapters",
+      "packages/core/src/features/semantics/runtime",
+      "packages/core/src/features/semantics/selectors",
+      "packages/core/src/features/semantics/core/index.ts",
+      "packages/core/src/features/semantics/core/slashSemantics.ts",
+      "packages/core/src/prompts",
+      "packages/core/src/shared/utils/autoMemoryPath.ts",
+      "packages/core/src/tui/consoleLogger.ts"
     ],
     "Runtime": [
-      "src/runtime",
-      "src/sdk",
-      "src/app-server",
-      "src/entrypoints",
-      "src/services/runtimeUiBridge.tsx",
-      "src/tui/inkStreams.ts"
+      "packages/core/src/runtime",
+      "packages/core/src/sdk",
+      "packages/core/src/app-server",
+      "packages/core/src/entrypoints",
+      "packages/core/src/services/runtimeUiBridge.tsx",
+      "packages/core/src/tui/inkStreams.ts"
     ],
     "UI": [
       "packages/web-reference-react/src",
-      "src/tui",
-      "src/screens",
-      "src/components",
-      "src/tools/modules/askUserQuestion/presenter.tsx",
-      "src/tools/modules/bash/presenter.tsx",
-      "src/tools/modules/edit/presenter.tsx",
-      "src/tools/modules/enterPlanMode/presenter.tsx",
-      "src/tools/modules/exitPlanMode/presenter.tsx",
-      "src/tools/modules/glob/presenter.tsx",
-      "src/tools/modules/grep/presenter.tsx",
-      "src/tools/modules/killShell/presenter.tsx",
-      "src/tools/modules/notebookEdit/presenter.tsx",
-      "src/tools/modules/read/presenter.tsx",
-      "src/tools/modules/search/presenter.tsx",
-      "src/tools/modules/skill/presenter.tsx",
-      "src/tools/modules/task/presenter.tsx",
-      "src/tools/modules/taskOutput/presenter.tsx",
-      "src/tools/modules/todoWrite/presenter.tsx",
-      "src/tools/modules/webFetch/presenter.tsx",
-      "src/tools/modules/webSearch/presenter.tsx",
-      "src/tools/modules/write/presenter.tsx"
+      "packages/core/src/tui",
+      "packages/core/src/screens",
+      "packages/core/src/components",
+      "packages/core/src/tools/modules/askUserQuestion/presenter.tsx",
+      "packages/core/src/tools/modules/bash/presenter.tsx",
+      "packages/core/src/tools/modules/edit/presenter.tsx",
+      "packages/core/src/tools/modules/enterPlanMode/presenter.tsx",
+      "packages/core/src/tools/modules/exitPlanMode/presenter.tsx",
+      "packages/core/src/tools/modules/glob/presenter.tsx",
+      "packages/core/src/tools/modules/grep/presenter.tsx",
+      "packages/core/src/tools/modules/killShell/presenter.tsx",
+      "packages/core/src/tools/modules/notebookEdit/presenter.tsx",
+      "packages/core/src/tools/modules/read/presenter.tsx",
+      "packages/core/src/tools/modules/search/presenter.tsx",
+      "packages/core/src/tools/modules/skill/presenter.tsx",
+      "packages/core/src/tools/modules/task/presenter.tsx",
+      "packages/core/src/tools/modules/taskOutput/presenter.tsx",
+      "packages/core/src/tools/modules/todoWrite/presenter.tsx",
+      "packages/core/src/tools/modules/webFetch/presenter.tsx",
+      "packages/core/src/tools/modules/webSearch/presenter.tsx",
+      "packages/core/src/tools/modules/write/presenter.tsx"
     ]
   }
 }

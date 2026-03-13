@@ -11,7 +11,7 @@
         "scripts/**/*.{mjs,ts,tsx}"
       ],
       "project": [
-        "src/**/*.{ts,tsx}",
+        "packages/core/src/**/*.{ts,tsx}",
         "scripts/**/*.{mjs,ts,tsx}"
       ]
     },

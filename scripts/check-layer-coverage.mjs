@@ -108,10 +108,10 @@ function summarizeUnmapped(unmappedRelPaths) {
     const parts = sourceFile.split('/')
     let bucket = path.posix.dirname(sourceFile)
 
-    if (parts[0] === 'src' && parts[1] === 'features' && parts[2]) {
-      bucket = `src/features/${parts[2]}`
-    } else if (parts[0] === 'src' && parts[1]) {
-      bucket = `src/${parts[1]}`
+    if (parts[0] === 'packages' && parts[1] === 'core' && parts[2] === 'src' && parts[3] === 'features' && parts[4]) {
+      bucket = `packages/core/src/features/${parts[4]}`
+    } else if (parts[0] === 'packages' && parts[1] === 'core' && parts[2] === 'src' && parts[3]) {
+      bucket = `packages/core/src/${parts[3]}`
     } else if (parts[0] === 'packages' && parts[1] === 'web-reference-react') {
       bucket = 'packages/web-reference-react/src'
     }

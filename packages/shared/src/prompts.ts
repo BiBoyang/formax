@@ -1,3 +1,3 @@
-export type { PromptBlock, PromptMessage } from '../../../src/prompts/types'
-export { buildInitPrompt } from '../../../src/prompts/init'
-export { buildUserContent } from '../../../src/prompts/user'
+export type { PromptBlock, PromptMessage } from '../../core/src/prompts/types'
+export { buildInitPrompt } from '../../core/src/prompts/init'
+export { buildUserContent } from '../../core/src/prompts/user'

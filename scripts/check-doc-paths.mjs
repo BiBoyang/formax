@@ -7,7 +7,7 @@ const REPO_ROOT = process.cwd()
 const ROOT_MARKDOWN_FILES = ['AGENTS.md', 'README.md', 'CODEMAP.md', 'CLAUDE.md', 'ARCHITECTURE.md', 'pitfalls.md']
 const DOC_DIRS = ['docs', '.codex/skills']
 const PLAN_DIR = 'plans'
-const README_SCAN_DIRS = ['src', 'packages']
+const README_SCAN_DIRS = ['packages']
 const PLAN_EXCLUDE_DIRS = new Set(['node_modules'])
 const README_EXCLUDE_DIRS = new Set(['node_modules', '.git', 'dist'])
 
@@ -137,13 +137,12 @@ function resolvePath(refToken, sourceAbsPath) {
   return path.resolve(REPO_ROOT, refToken)
 }
 
-function pathExistsWithModuleFallback(absTarget) {
-  if (fs.existsSync(absTarget)) return true
-
+function listPathCandidates(absTarget) {
   const ext = path.extname(absTarget)
-  if (ext) return false
+  if (ext) return [absTarget]
 
-  const candidates = [
+  return [
+    absTarget,
     `${absTarget}.ts`,
     `${absTarget}.tsx`,
     `${absTarget}.js`,
@@ -154,8 +153,25 @@ function pathExistsWithModuleFallback(absTarget) {
     path.join(absTarget, 'index.js'),
     path.join(absTarget, 'README.md'),
   ]
+}
 
-  return candidates.some((candidate) => fs.existsSync(candidate))
+function pathExistsWithModuleFallback(absTarget) {
+  for (const candidate of listPathCandidates(absTarget)) {
+    if (fs.existsSync(candidate)) return true
+  }
+
+  // Transitional compatibility: docs may still point to legacy root src/,
+  // but implementation has moved to packages/core/src.
+  const targetRel = rel(absTarget)
+  if (targetRel === 'src' || targetRel.startsWith('src/')) {
+    const mappedRel = targetRel === 'src' ? 'packages/core/src' : `packages/core/${targetRel}`
+    const mapped = path.resolve(REPO_ROOT, mappedRel)
+    for (const candidate of listPathCandidates(mapped)) {
+      if (fs.existsSync(candidate)) return true
+    }
+  }
+
+  return false
 }
 
 function shouldCheckInlineCode(fileRelPath) {

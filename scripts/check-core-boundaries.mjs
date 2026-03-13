@@ -3,7 +3,7 @@ import path from 'node:path'
 import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
-const SRC_ROOT = path.join(REPO_ROOT, 'src')
+const SRC_ROOT = path.join(REPO_ROOT, 'packages', 'core', 'src')
 const CORE_ROOT = path.join(SRC_ROOT, 'core')
 const ADAPTERS_ROOT = path.join(SRC_ROOT, 'adapters')
 const CONFIG_ROOT = path.join(SRC_ROOT, 'config')
@@ -86,7 +86,7 @@ function checkCoreImports(file, specifier) {
     if (isUnderDir(resolved, CORE_ROOT)) return null
     if (isUnderDir(resolved, ADAPTERS_ROOT)) return null
     if (isUnderDir(resolved, CONFIG_ROOT)) return null
-    return 'Core may only import from src/core/**, src/config/** and src/adapters/**'
+    return 'Core may only import from packages/core/src/core/**, packages/core/src/config/** and packages/core/src/adapters/**'
   }
 
   const pkg = packageNameFromSpecifier(raw)
@@ -108,19 +108,19 @@ function checkCommandsOrSkillsImports(file, specifier, opts) {
   if (raw.startsWith('.') || raw.startsWith('..')) {
     const resolved = path.normalize(path.resolve(path.dirname(file), raw))
     if (isUnderDir(resolved, TUI_ROOT)) {
-      return 'May not import from src/tui/**'
+      return 'May not import from packages/core/src/tui/**'
     }
-    if (isUnderDir(resolved, SCREENS_ROOT)) return 'May not import from src/screens/**'
+    if (isUnderDir(resolved, SCREENS_ROOT)) return 'May not import from packages/core/src/screens/**'
     if (opts?.disallowToolsModules && isUnderDir(resolved, TOOLS_MODULES_ROOT)) {
-      return 'May not import from src/tools/modules/**'
+      return 'May not import from packages/core/src/tools/modules/**'
     }
     return null
   }
 
   // Non-relative imports: enforce by path segment heuristic when importing within src.
-  if (raw.includes('src/tui/')) return 'May not import from src/tui/**'
-  if (raw.includes('src/screens/')) return 'May not import from src/screens/**'
-  if (opts?.disallowToolsModules && raw.includes('src/tools/modules/')) return 'May not import from src/tools/modules/**'
+  if (raw.includes('packages/core/src/tui/')) return 'May not import from packages/core/src/tui/**'
+  if (raw.includes('packages/core/src/screens/')) return 'May not import from packages/core/src/screens/**'
+  if (opts?.disallowToolsModules && raw.includes('packages/core/src/tools/modules/')) return 'May not import from packages/core/src/tools/modules/**'
 
   return null
 }

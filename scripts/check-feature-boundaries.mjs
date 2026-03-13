@@ -3,7 +3,7 @@ import path from 'node:path'
 import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
-const SRC_ROOT = path.join(REPO_ROOT, 'src')
+const SRC_ROOT = path.join(REPO_ROOT, 'packages', 'core', 'src')
 
 const CONTROLLER_ROOT = path.join(SRC_ROOT, 'features', 'repl', 'controller')
 const SEMANTICS_ROOT = path.join(SRC_ROOT, 'features', 'semantics')

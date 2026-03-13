@@ -45,7 +45,7 @@ function firstAnsiLine(raw) {
 }
 
 export function findAnsiOffenders({ repoRoot, allow }) {
-  const srcRoot = path.join(repoRoot, 'src')
+  const srcRoot = path.join(repoRoot, 'packages', 'core', 'src')
   if (!fs.existsSync(srcRoot)) return []
 
   const allowSet = new Set((allow || []).map((p) => path.resolve(repoRoot, p)))
@@ -63,7 +63,7 @@ export function findAnsiOffenders({ repoRoot, allow }) {
   return offenders
 }
 
-export function runNoAnsiCheck({ repoRoot, allow = ['src/shared/utils/terminal.ts'] }) {
+export function runNoAnsiCheck({ repoRoot, allow = ['packages/core/src/shared/utils/terminal.ts'] }) {
   const offenders = findAnsiOffenders({ repoRoot, allow })
   if (offenders.length === 0) return
 
@@ -72,7 +72,7 @@ export function runNoAnsiCheck({ repoRoot, allow = ['src/shared/utils/terminal.t
     .map((o) => `- ${rel(o.file)}:${o.line}`)
     .sort((a, b) => a.localeCompare(b))
 
-  console.error('Raw ANSI escape sequences must be centralized behind src/shared/utils/terminal.ts:')
+  console.error('Raw ANSI escape sequences must be centralized behind packages/core/src/shared/utils/terminal.ts:')
   for (const line of lines) console.error(line)
   process.exitCode = 1
 }
