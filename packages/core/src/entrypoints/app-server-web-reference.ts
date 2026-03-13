@@ -2,6 +2,7 @@
 
 import 'dotenv/config'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startAppServerDevBridge } from '../app-server/devBridge.js'
@@ -71,8 +72,13 @@ async function main(): Promise<void> {
   })
 
   const entrypointDir = path.dirname(fileURLToPath(import.meta.url))
-  const repoRoot = path.resolve(entrypointDir, '..', '..')
-  const webCwd = path.join(repoRoot, 'apps', 'web-reference-react')
+  const repoRoot = path.resolve(entrypointDir, '..', '..', '..', '..')
+  const webCwd = path.join(repoRoot, 'packages', 'web-reference-react')
+  if (!existsSync(webCwd)) {
+    throw new Error(
+      `[formax] web reference workspace not found: ${webCwd} (expected packages/web-reference-react under repo root)`,
+    )
+  }
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
   const web: ChildProcess = spawn(npmCmd, ['run', 'dev', '--', '--host', host, '--port', String(uiPort)], {
     cwd: webCwd,
