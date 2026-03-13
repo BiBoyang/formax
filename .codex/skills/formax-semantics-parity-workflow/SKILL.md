@@ -42,10 +42,10 @@ These docs are canonical. If stable cross-surface behavior changes, update them 
 - `src/features/repl/useReplController.ts`
 
 ### 4) Web adapter (renderer can differ, semantics cannot)
-- `apps/web-reference-react/src/eventAdapters.ts`
-- `apps/web-reference-react/src/App.tsx`
-- `apps/web-reference-react/src/store.ts`
-- `apps/web-reference-react/src/turnEventCursor.ts`
+- `packages/web-reference-react/src/eventAdapters.ts`
+- `packages/web-reference-react/src/App.tsx`
+- `packages/web-reference-react/src/store.ts`
+- `packages/web-reference-react/src/turnEventCursor.ts`
 
 ### 5) Canonical docs to keep in sync
 - `docs/contracts/semantics-contract.md`
@@ -86,8 +86,8 @@ These docs are canonical. If stable cross-surface behavior changes, update them 
 - `bun run test -- src/features/semantics`
 - `bun run test -- src/features/semantics/__tests__/projectionParity.test.ts`
 - `bun run test -- src/app-server/turnRunner.test.ts src/app-server/server.test.ts src/app-server/turn/inputStore.test.ts`
-- `npm --prefix apps/web-reference-react run type-check`
-- `npm --prefix apps/web-reference-react run test -- src/App.test.tsx src/store.test.ts src/turnEventCursor.test.ts src/toolEventNormalizer.test.ts`
+- `npm --prefix packages/web-reference-react run type-check`
+- `npm --prefix packages/web-reference-react run test -- src/App.test.tsx src/store.test.ts src/turnEventCursor.test.ts src/toolEventNormalizer.test.ts`
 - `bun run test:repl-semantic-gate` when `src/features/repl/**` semantic-flow files change
 
 For fixture selection and parity assertions, use `references/fixtures-checklist.md`.

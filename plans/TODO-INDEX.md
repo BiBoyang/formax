@@ -4,12 +4,19 @@
 
 ## 当前主线（只盯这一份）
 
-- `plans/app-server/TODO-INDEX.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
-  - 当前状态：滚动执行清单（旧 `TODO.md` 已归档/删除，避免噪音）。
-  - 关联实现：`apps/web-reference-react/`（React reference client）
-  - 验收记录模板：`docs/runbooks/app-server-manual-runbook.md`
+- `plans/monorepo/PLAN.md`：Monorepo 执行计划（v2，按 Phase 推进）
+  - 当前状态：执行中（workspace 化与 `apps -> packages` 已完成，正在推进 shared/semantics 分包与发布链路收敛）
+  - 关联方案：`plans/monorepo/MIGRATION-PLAN.md`
+  - 关键约束：发布身份不变（`@yusifeng/formax` + `formax`）
 
 ## 并行参考（不作为主线推进）
+
+- `plans/app-server/TODO-INDEX.md`：Formax app-server（stdio JSON-RPC）+ GUI 集成 MVP
+  - 当前状态：滚动执行清单（旧 `TODO.md` 已归档/删除，避免噪音）。
+  - 关联实现：`packages/web-reference-react/`（React reference client）
+  - 验收记录模板：`docs/runbooks/app-server-manual-runbook.md`
+
+- `plans/monorepo/MIGRATION-PLAN.md`：Monorepo 改造方案细节（与 `TODO-EXECUTION.md` 同步）
 
 - `plans/harness-refactor-loop/TODO-INDEX.md`：Harness 分层债务滚动清理（固定循环：实现 -> 定向测试 -> review -> 提交）
 - `plans/ui/ui-TODO-INDEX.md`：UI TODO 索引（串联 `plans/ui/` 下各 TODO）

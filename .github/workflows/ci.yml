@@ -23,7 +23,19 @@ jobs:
               - '**/*.js'
               - '**/*.mjs'
             web_reference:
-              - 'apps/web-reference-react/**'
+              - 'packages/web-reference-react/**'
+              - 'packages/semantics/**'
+              - 'packages/shared/**'
+              - 'packages/core/src/features/semantics/**'
+              - 'packages/core/src/shared/**'
+              - 'packages/core/src/prompts/**'
+              - 'packages/core/src/streaming/**'
+              - 'packages/core/src/features/tools/presentation/paramsText.ts'
+              - 'src/features/semantics/**'
+              - 'src/shared/**'
+              - 'src/prompts/**'
+              - 'src/streaming/**'
+              - 'src/features/tools/presentation/paramsText.ts'
 
       - uses: actions/setup-node@v4
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'
@@ -36,7 +48,7 @@ jobs:
           bun-version: latest
 
       - name: Install deps
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.web_reference == 'true'
         run: bun install --frozen-lockfile
 
       - name: Typecheck + boundary checks
@@ -47,41 +59,37 @@ jobs:
         if: steps.changes.outputs.code == 'true'
         run: bun run test:coverage
 
-      - name: Install web-reference-react deps
-        if: steps.changes.outputs.web_reference == 'true'
-        run: bun install --cwd apps/web-reference-react --frozen-lockfile
-
       - name: Web reference typecheck
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react type-check
+        run: bun run --cwd packages/web-reference-react type-check
 
       - name: Web reference tests
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react test
+        run: bun run --cwd packages/web-reference-react test
 
       - name: Install web reference Playwright browser
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react test:e2e:install
+        run: bun run --cwd packages/web-reference-react test:e2e:install
 
       - name: Web reference rpc queue stability guard
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react test:e2e:queue:guard
+        run: bun run --cwd packages/web-reference-react test:e2e:queue:guard
 
       - name: Web reference transcript performance gate
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react test:perf:gate
+        run: bun run --cwd packages/web-reference-react test:perf:gate
 
       - name: Web reference build
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react build
+        run: bun run --cwd packages/web-reference-react build
 
       - name: Web reference bundle baseline sync
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react perf:bundle:baseline:sync
+        run: bun run --cwd packages/web-reference-react perf:bundle:baseline:sync
 
       - name: Web reference bundle baseline guard
         if: steps.changes.outputs.web_reference == 'true'
-        run: bun run --cwd apps/web-reference-react perf:bundle:baseline:check:ci
+        run: bun run --cwd packages/web-reference-react perf:bundle:baseline:check:ci
 
       - name: Upload coverage to Codecov
         if: steps.changes.outputs.code == 'true'

@@ -2,7 +2,7 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/store.ts` to short-circuit no-op actions:
+- Updated `packages/web-reference-react/src/store.ts` to short-circuit no-op actions:
   - `set_active_thread`: skip state write when thread id unchanged and projection already null.
   - `set_active_turn`: skip when turn id unchanged.
   - `replace_logs`: skip when logs reference unchanged and projection already null.
@@ -11,7 +11,7 @@
   - `input_resolved`: skip when target input does not exist and selection does not reference it.
   - `set_selected_input`: skip when selected input id unchanged.
 
-- Extended `apps/web-reference-react/src/store.test.ts` with no-op stability tests for the cases above.
+- Extended `packages/web-reference-react/src/store.test.ts` with no-op stability tests for the cases above.
 
 - Updated rolling plan files:
   - `plans/web-reference-react-refactor/README.md`
@@ -26,8 +26,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/store.test.ts`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/store.test.ts`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

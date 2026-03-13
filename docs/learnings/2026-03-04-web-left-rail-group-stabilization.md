@@ -2,7 +2,7 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/components/LeftRail.tsx`:
+- Updated `packages/web-reference-react/src/components/LeftRail.tsx`:
   - introduced `LeftRailThreadGroup` derivation with precomputed `folderName`, `sortLabel`, and `sortPath`.
   - replaced repeated comparator normalization work with one-time per-group key computation before sorting.
   - unified cwd normalization via `normalizeCwdPath` and reused it in folder label derivation.
@@ -24,8 +24,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/components/LeftRail.test.tsx`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/components/LeftRail.test.tsx`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

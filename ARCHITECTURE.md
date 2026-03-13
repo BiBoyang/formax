@@ -40,7 +40,7 @@ Formax 是一个“同一语义、三种入口”的代理系统：
 ### 2.3 Interface Adapters（接口适配）
 
 1. app-server 协议与传输：`src/app-server/{protocol,server,transport}*`
-2. Web runtime/state：`apps/web-reference-react/src/app/*`
+2. Web runtime/state：`packages/web-reference-react/src/app/*`
 3. TUI 屏幕与输入：`src/screens/*`, `src/components/*`
 
 职责：协议适配、输入输出、渲染容器。这里不拥有语义真值。
@@ -77,7 +77,7 @@ Formax 是一个“同一语义、三种入口”的代理系统：
               v                                      v
 +----------------------------+          +-------------------------+
 | TUI renderer               |          | Web renderer            |
-| src/screens/*              |          | apps/web-reference-react|
+| src/screens/*              |          | packages/web-reference-react|
 | src/components/*           |          | /src/components/*       |
 +----------------------------+          +-------------------------+
 ```

@@ -96,7 +96,7 @@ Use this checklist whenever a change touches mode, input lifecycle, tool sequenc
 - `src/features/semantics/*.test.ts`
 - `src/app-server/turnRunner.test.ts`
 - `src/app-server/server.test.ts`
-- `apps/web-reference-react/src/App.test.tsx`
-- `apps/web-reference-react/src/store.test.ts`
-- `apps/web-reference-react/src/turnEventCursor.test.ts`
+- `packages/web-reference-react/src/App.test.tsx`
+- `packages/web-reference-react/src/store.test.ts`
+- `packages/web-reference-react/src/turnEventCursor.test.ts`
 

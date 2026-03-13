@@ -18,7 +18,7 @@
   - `streaming/` Anthropic streaming client and parsers.
   - `features/subagents/` registry/runner for sub-agent tools.
   - `prompts/`, `config/`, `services/`, `shared/utils/` supporting code.
-- `apps/` contains standalone companion apps used for parity/reference development.
+- `packages/` contains standalone companion apps used for parity/reference development.
   - `web-reference-react/` isolated React + Vite web reference client for app-server protocol/semantics validation (separate package/deps).
 - Tests live next to source as `*.test.ts`/`*.test.tsx`.
 - `docs/` holds architecture notes and guides; `plans/` captures refactor plans.
@@ -29,14 +29,14 @@
 - `bun install` installs dependencies.
 - `bun run dev` runs the CLI via `tsx` (entry: `src/entrypoints/cli.tsx`).
 - `bun run app-server:bridge -- --host 127.0.0.1 --port 3777` runs the app-server WebSocket bridge for web client development.
-- `npm --prefix apps/web-reference-react run dev` runs the isolated web reference React app (Vite).
+- `npm --prefix packages/web-reference-react run dev` runs the isolated web reference React app (Vite).
 - `bun run toole` runs the tool examples entrypoint.
 - `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
 - `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
 - `bun run ui:boundaries` runs UI boundary checks (guards `src/tui/`, `src/screens/`, `src/components/` from importing forbidden layers).
 - `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
-- `npm --prefix apps/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
+- `npm --prefix packages/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
 - Single test: `bun run test -- src/tools/registry.test.ts`.
 
 ## Coding Style & Naming Conventions

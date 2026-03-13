@@ -2,7 +2,7 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/app/ui/AppShell.tsx`:
+- Updated `packages/web-reference-react/src/app/ui/AppShell.tsx`:
   - stabilized resize and drag handlers via `useCallback`.
   - introduced commit helpers for sidebar/right-rail widths with functional no-op guards.
   - switched sidebar toggle to functional state update (`setIsSidebarOpen(prev => !prev)`).
@@ -11,19 +11,19 @@
   - aligned `setIsSidebarOpen` prop type with `Dispatch<SetStateAction<boolean>>`.
 
 - Fixed session-switch bug when toggling/selecting folder groups:
-  - updated `apps/web-reference-react/src/app/runtime/threadActions.ts`:
+  - updated `packages/web-reference-react/src/app/runtime/threadActions.ts`:
     - `selectCwd` no longer auto-selects the first thread under target cwd.
     - selecting cwd now keeps current active thread/session unchanged and only updates cwd intent + diff context.
-  - updated `apps/web-reference-react/src/app/runtime/useThreadSelection.ts`:
+  - updated `packages/web-reference-react/src/app/runtime/useThreadSelection.ts`:
     - preserve explicit `selectedCwd` when it is still valid.
     - only sync from active thread cwd when no valid explicit selection remains.
 
 - Added/updated tests:
-  - `apps/web-reference-react/src/App.test.tsx`:
+  - `packages/web-reference-react/src/App.test.tsx`:
     - added regression: selecting a session folder keeps current session and URL thread id unchanged.
-  - `apps/web-reference-react/src/app/runtime/threadActions.test.ts`:
+  - `packages/web-reference-react/src/app/runtime/threadActions.test.ts`:
     - added assertion that selecting existing cwd group does not switch active thread.
-  - `apps/web-reference-react/src/app/runtime/useThreadSelection.test.tsx`:
+  - `packages/web-reference-react/src/app/runtime/useThreadSelection.test.tsx`:
     - added assertion that explicit valid cwd selection is preserved.
 
 - Updated rolling plan files:
@@ -39,8 +39,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/app/runtime/threadActions.test.ts src/app/runtime/useThreadSelection.test.tsx src/components/LeftRail.test.tsx src/App.test.tsx`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/app/runtime/threadActions.test.ts src/app/runtime/useThreadSelection.test.tsx src/components/LeftRail.test.tsx src/App.test.tsx`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

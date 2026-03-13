@@ -202,9 +202,9 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 ## 7. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
-1. `apps/web-reference-react/src/app/runtime/useDevRuntimeApi.test.tsx`
-2. `apps/web-reference-react/src/components/InputApprovalDock.test.tsx`
-3. `apps/web-reference-react/src/App.test.tsx`
+1. `packages/web-reference-react/src/app/runtime/useDevRuntimeApi.test.tsx`
+2. `packages/web-reference-react/src/components/InputApprovalDock.test.tsx`
+3. `packages/web-reference-react/src/App.test.tsx`
 4. `src/tools/executor/approvalService.test.ts`
 5. `src/tools/executor/policyPreflight.test.ts`
 6. `src/components/tool/*approvalPrompt.test.tsx`

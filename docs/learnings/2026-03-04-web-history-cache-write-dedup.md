@@ -2,13 +2,13 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/app/runtime/threadDataOps.ts` to skip redundant writes for thread history bookkeeping:
+- Updated `packages/web-reference-react/src/app/runtime/threadDataOps.ts` to skip redundant writes for thread history bookkeeping:
   - `setThreadHistoryLoading` now returns early when loading state is already equal.
   - `setThreadHistoryCursor` now returns early when cursor value is unchanged.
   - `setThreadTranscriptSource` now returns early when source is unchanged.
   - `clearThreadHistoryCursor` now returns early when neither loading nor cursor keys exist, and only writes the slices that actually exist.
 
-- Added no-op coverage in `apps/web-reference-react/src/app/runtime/threadDataOps.test.ts`:
+- Added no-op coverage in `packages/web-reference-react/src/app/runtime/threadDataOps.test.ts`:
   - unchanged source/loading updates do not trigger state setter calls.
   - clearing missing thread history state does not trigger setter calls.
 
@@ -24,8 +24,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/app/runtime/threadDataOps.test.ts`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/app/runtime/threadDataOps.test.ts`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

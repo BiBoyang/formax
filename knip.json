@@ -15,7 +15,7 @@
         "scripts/**/*.{mjs,ts,tsx}"
       ]
     },
-    "apps/web-reference-react": {
+    "packages/web-reference-react": {
       "entry": [
         "scripts/**/*.mjs",
         "e2e/**/*.js"
@@ -31,7 +31,7 @@
         "tw-animate-css"
       ]
     },
-    "apps/desktop-electron": {
+    "packages/desktop-electron": {
       "entry": [
         "src/preload.ts",
         "scripts/**/*.mjs"

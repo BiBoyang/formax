@@ -242,7 +242,7 @@ approval-like 决策解释（`approve` / `approve_remember` / `feedback` / `canc
 2. `src/tools/executor/approvalService.test.ts`
 3. `src/adapters/permissions/matcher.test.ts`
 4. `src/adapters/permissions/permissionsStore.test.ts`
-5. `apps/web-reference-react/src/components/InputApprovalDock.test.tsx`
+5. `packages/web-reference-react/src/components/InputApprovalDock.test.tsx`
 
 ## 9. 变更控制
 

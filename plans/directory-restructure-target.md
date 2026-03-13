@@ -1356,7 +1356,7 @@ src/
 ```json
 {
   "layerOrder": ["Types", "Config", "Repo", "Service", "Runtime", "UI"],
-  "scanRoots": ["src", "apps/web-reference-react/src"],
+  "scanRoots": ["src", "packages/web-reference-react/src"],
   "layers": {
     "Types": [
       "src/shared",
@@ -1401,7 +1401,7 @@ src/
       "src/features/repl/replUiContext.tsx",
       "src/features/repl/planContext.tsx",
       "src/features/commands/render.ts",
-      "apps/web-reference-react/src"
+      "packages/web-reference-react/src"
     ]
   }
 }

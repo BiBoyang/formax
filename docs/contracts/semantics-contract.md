@@ -79,8 +79,8 @@ Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection
 1. `src/features/semantics/__tests__/*`
 2. `src/features/semantics/*.test.ts`
 3. `src/app-server/*.test.ts`（涉及 notification/replay/input lifecycle）
-4. `apps/web-reference-react/src/App.test.tsx`
-5. `apps/web-reference-react/src/store.test.ts`
+4. `packages/web-reference-react/src/App.test.tsx`
+5. `packages/web-reference-react/src/store.test.ts`
 
 辅助门禁：
 1. `bun run test:repl-semantic-gate`

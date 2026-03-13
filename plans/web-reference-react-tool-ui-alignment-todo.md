@@ -1,7 +1,7 @@
 # Web Reference React Tool UI Alignment TODO
 
 Last updated: 2026-02-21
-Scope: /Users/david/Documents/github/formax/apps/web-reference-react tool transcript UI parity
+Scope: /Users/david/Documents/github/formax/packages/web-reference-react tool transcript UI parity
 
 ## Alignment Board
 
@@ -44,7 +44,7 @@ Scope: /Users/david/Documents/github/formax/apps/web-reference-react tool transc
 - `Glob` target structure: green status dot + `Glob pattern: "**/*.ts"` header, second line `Found 101 files`.
 - `Grep` target structure: green status dot + `Grep "export const"` header, second line `6 lines of output`.
 - Both use compact, non-card presentation (no Bash-style IN/OUT container).
-- Keep project theme tokens from `/Users/david/Documents/github/formax/apps/web-reference-react/src/css/theme.css`; only align layout/structure to reference screenshots.
+- Keep project theme tokens from `/Users/david/Documents/github/formax/packages/web-reference-react/src/css/theme.css`; only align layout/structure to reference screenshots.
 
 ## Definition of Done
 - Every tool shown in transcript has either:

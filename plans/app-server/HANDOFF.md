@@ -22,7 +22,7 @@
 ```bash
 git show --stat 2acad0a8573c2803547441086c4cbe3f0ebe6497
 bun run test:repl-semantic-gate
-cd apps/web-reference-react && bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts
+cd packages/web-reference-react && bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts
 cd /Users/david/Documents/github/formax && bun run check:repl-single-writer
 bun run check:semantic-streaming-perf
 ```

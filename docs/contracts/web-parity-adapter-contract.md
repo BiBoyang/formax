@@ -24,12 +24,12 @@
 - `docs/references/app-server-api-reference.md`
 
 相关实现（规范锚点）：
-- `apps/web-reference-react/src/eventAdapters.ts`
-- `apps/web-reference-react/src/store.ts`
-- `apps/web-reference-react/src/turnEventCursor.ts`
-- `apps/web-reference-react/src/app/core/projectionEngine.ts`
-- `apps/web-reference-react/src/app/runtime/processNotification.ts`
-- `apps/web-reference-react/src/app/runtime/connectRpcClient.ts`
+- `packages/web-reference-react/src/eventAdapters.ts`
+- `packages/web-reference-react/src/store.ts`
+- `packages/web-reference-react/src/turnEventCursor.ts`
+- `packages/web-reference-react/src/app/core/projectionEngine.ts`
+- `packages/web-reference-react/src/app/runtime/processNotification.ts`
+- `packages/web-reference-react/src/app/runtime/connectRpcClient.ts`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -149,6 +149,6 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 1. 先更新本文件。
 2. 若变更触及共享 canonical 语义，再先更新 `docs/contracts/semantics-contract.md`。
 3. 再更新 `docs/frontend/app-server-ui-spec.md` 的实现摘要。
-4. 最后更新 `apps/web-reference-react/README.md` 等 code-local deep dive。
+4. 最后更新 `packages/web-reference-react/README.md` 等 code-local deep dive。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

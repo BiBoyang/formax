@@ -2,14 +2,14 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/app/useAppRuntime.ts`:
+- Updated `packages/web-reference-react/src/app/useAppRuntime.ts`:
   - replaced direct dev-load-all state writes with idempotent helpers:
     - `resetDevLoadAllState`
     - `startDevLoadAllState`
   - updated thread-switch reset, manual trigger, and error/terminal paths to reuse these helpers.
   - this removes redundant writes when values are already at target state.
 
-- Updated `apps/web-reference-react/src/components/TranscriptPane.tsx`:
+- Updated `packages/web-reference-react/src/components/TranscriptPane.tsx`:
   - removed redundant `autoStick` ref-sync effect because refs are now updated through the single `setAutoStickState` write path.
   - keeps existing behavior while reducing one per-render sync effect.
 
@@ -26,8 +26,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/components/TranscriptPane.test.tsx src/components/LeftRail.test.tsx src/App.test.tsx`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/components/TranscriptPane.test.tsx src/components/LeftRail.test.tsx src/App.test.tsx`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

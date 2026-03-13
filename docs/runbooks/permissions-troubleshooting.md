@@ -22,7 +22,7 @@
 | 明明已有 allow 仍反复弹审批 | `src/tools/executor/policyPreflight.ts`、`src/adapters/permissions/matcher.ts`、`src/adapters/permissions/permissionsStore.ts` |
 | `approve_remember` 后下一次仍不生效 | `src/tools/executor/approvalService.ts`、`src/core/policy/engine.ts`、`src/adapters/permissions/permissionKeys.ts` |
 | `workspace` 目录授权后仍被拦截 | `src/tools/executor/policyPreflight.ts`（workspace boundary）与 `permissions-policy-contract` 的 workspace 条目 |
-| TUI / Web 提交结果不一致 | `docs/contracts/interactive-input-contract.md`、`src/app-server/turn/inputStore.ts`、`apps/web-reference-react/src/store.ts` |
+| TUI / Web 提交结果不一致 | `docs/contracts/interactive-input-contract.md`、`src/app-server/turn/inputStore.ts`、`packages/web-reference-react/src/store.ts` |
 | `/permissions` 对话框修改后行为没变 | `src/tui/permissions/PermissionsDialog.tsx`、`src/features/repl/controller/ui/overlays.ts`、settings/rules 落盘路径 |
 
 ## 3. 最小排查步骤
@@ -41,7 +41,7 @@
 
 若涉及 app-server/Web 再补：
 4. `bun run test -- src/app-server/turn/inputStore.test.ts src/app-server/server.test.ts`
-5. `npm --prefix apps/web-reference-react run test -- src/store.test.ts src/App.test.tsx`
+5. `npm --prefix packages/web-reference-react run test -- src/store.test.ts src/App.test.tsx`
 
 最后：
 6. `bun run type-check`

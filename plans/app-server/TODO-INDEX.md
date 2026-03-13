@@ -19,11 +19,11 @@
 
 ## Replay Fixture Boundary（长期约束）
 
-- 共享 replay 测试夹具统一放在 `apps/web-reference-react/src/app/runtime/testFixtures/replayFixtures.ts`。
+- 共享 replay 测试夹具统一放在 `packages/web-reference-react/src/app/runtime/testFixtures/replayFixtures.ts`。
 - 新增 replay fixture 时优先扩展该文件；避免在 `replayThreadEvents.test.ts` 与 `threadActions.test.ts` 内重复内联定义。
 - 字段新增流程：
   1. 先改 `testFixtures/replayFixtures.ts`（默认值 + 类型）。
   2. 再改至少一个 replay 路径测试（`replayThreadEvents.test.ts`）。
   3. 最后改至少一个 notification 路径测试（`processNotification.test.ts`）。
-- 固定 smoke 命令（在 `apps/web-reference-react` 下执行）：
+- 固定 smoke 命令（在 `packages/web-reference-react` 下执行）：
   - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`

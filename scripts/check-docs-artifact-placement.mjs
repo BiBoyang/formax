@@ -6,7 +6,7 @@ const DOCS_ROOT = path.resolve(REPO_ROOT, 'docs')
 
 // docs/ should primarily store human-authored docs and static illustration assets.
 // Machine-generated artifacts (bundle baselines, logs, snapshots, etc.) should live
-// under owning module directories (e.g. apps/**/perf, scripts/baselines, .tmp).
+// under owning module directories (e.g. packages/**/perf, scripts/baselines, .tmp).
 const ALLOWED_DOC_EXTENSIONS = new Set([
   '.md',
   '.png',
@@ -66,7 +66,7 @@ function printGuidance() {
   console.error('Placement policy:')
   console.error('- Keep docs/ for human-authored docs and static assets only.')
   console.error('- Put generated baselines/artifacts near their owners, e.g.:')
-  console.error('  - apps/<name>/perf/')
+  console.error('  - packages/<name>/perf/')
   console.error('  - scripts/baselines/')
   console.error('  - .tmp/ (for ephemeral artifacts)')
 }

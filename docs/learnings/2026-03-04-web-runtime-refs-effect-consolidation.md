@@ -2,11 +2,11 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/src/app/runtime/useRuntimeRefs.ts`:
+- Updated `packages/web-reference-react/src/app/runtime/useRuntimeRefs.ts`:
   - consolidated `useThreadSnapshotRefs` synchronization from five separate effects into one combined effect.
   - consolidated `useThreadCacheRefs` synchronization from two separate effects into one combined effect.
 
-- Added `apps/web-reference-react/src/app/runtime/useRuntimeRefs.test.tsx`:
+- Added `packages/web-reference-react/src/app/runtime/useRuntimeRefs.test.tsx`:
   - verifies snapshot refs stay synchronized after rerender.
   - verifies cache refs stay synchronized after rerender.
 
@@ -22,8 +22,8 @@
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run test -- src/app/runtime/useRuntimeRefs.test.tsx src/app/runtime/useRuntimeRefSync.test.tsx`
-- `npm --prefix apps/web-reference-react run type-check`
-- `bun run --cwd apps/web-reference-react test:perf:gate`
-- `bun run --cwd apps/web-reference-react test:e2e:queue:guard`
+- `npm --prefix packages/web-reference-react run test -- src/app/runtime/useRuntimeRefs.test.tsx src/app/runtime/useRuntimeRefSync.test.tsx`
+- `npm --prefix packages/web-reference-react run type-check`
+- `bun run --cwd packages/web-reference-react test:perf:gate`
+- `bun run --cwd packages/web-reference-react test:e2e:queue:guard`
 - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`

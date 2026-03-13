@@ -37,6 +37,6 @@
 
 - 每个切片：实现 -> 定向测试 -> `codex review` -> 提交。
 - 切片粒度：尽量 2-6 文件。
-- 阶段门禁（在 `apps/web-reference-react/` 下）：
+- 阶段门禁（在 `packages/web-reference-react/` 下）：
   - `npm run type-check`
   - `npm run test -- <targeted files>`

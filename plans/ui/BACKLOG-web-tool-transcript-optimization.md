@@ -50,11 +50,11 @@ Web 需要增强点：
 ## 目标组件模型（Web）
 
 建议目录（草案）：
-- `apps/web-reference-react/src/components/tool/ToolTranscriptItem.tsx`
-- `apps/web-reference-react/src/components/tool/ToolUiBlocks.tsx`
-- `apps/web-reference-react/src/components/tool/toolUiBlocksTypes.ts`
-- `apps/web-reference-react/src/components/tool/ToolRegistry.ts`
-- `apps/web-reference-react/src/components/tool/shared/*`
+- `packages/web-reference-react/src/components/tool/ToolTranscriptItem.tsx`
+- `packages/web-reference-react/src/components/tool/ToolUiBlocks.tsx`
+- `packages/web-reference-react/src/components/tool/toolUiBlocksTypes.ts`
+- `packages/web-reference-react/src/components/tool/ToolRegistry.ts`
+- `packages/web-reference-react/src/components/tool/shared/*`
 
 公共基元（全局改动入口）：
 - `ToolHeaderRow`：状态点 + ToolName + params + 右侧 meta
@@ -109,8 +109,8 @@ Rule E：禁止 Tool 全量 Card 化
 目标：把“参数展示逻辑”收敛到一个 formatter 层，避免散落在各 tool renderer 里。
 
 建议文件（草案）：
-- `apps/web-reference-react/src/components/tool/formatToolParams.ts`
-- `apps/web-reference-react/src/components/tool/formatToolParams.test.ts`
+- `packages/web-reference-react/src/components/tool/formatToolParams.ts`
+- `packages/web-reference-react/src/components/tool/formatToolParams.test.ts`
 
 统一输出结构（建议）：
 ```ts

@@ -53,7 +53,7 @@ These docs are canonical. If stable behavior changes, update them before or with
 If app-server or Web input behavior moves, also inspect:
 - `src/app-server/turn/inputStore.ts`
 - `src/app-server/server.ts`
-- `apps/web-reference-react/src/store.ts`
+- `packages/web-reference-react/src/store.ts`
 
 ## High-Signal Patterns
 
@@ -88,7 +88,7 @@ If app-server or Web input behavior moves, also inspect:
 - `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
 - If app-server / Web input behavior changed:
   - `bun run test -- src/app-server/turn/inputStore.test.ts src/app-server/server.test.ts`
-  - `npm --prefix apps/web-reference-react run test -- src/store.test.ts`
+  - `npm --prefix packages/web-reference-react run test -- src/store.test.ts`
 
 ## Guardrails
 

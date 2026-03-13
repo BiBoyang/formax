@@ -28,9 +28,9 @@
 
 ## 4. 回归建议（Web Reference）
 
-1. `npm --prefix apps/web-reference-react run test -- src/app/runtime/useDevRuntimeApi.test.tsx`
-2. `npm --prefix apps/web-reference-react run test -- src/components/InputApprovalDock.test.tsx src/App.test.tsx`
-3. `npm --prefix apps/web-reference-react run type-check`
+1. `npm --prefix packages/web-reference-react run test -- src/app/runtime/useDevRuntimeApi.test.tsx`
+2. `npm --prefix packages/web-reference-react run test -- src/components/InputApprovalDock.test.tsx src/App.test.tsx`
+3. `npm --prefix packages/web-reference-react run type-check`
 
 ## 5. 文档更新顺序
 

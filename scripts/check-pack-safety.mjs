@@ -23,13 +23,13 @@ const runtimeBlocklist = [
 
 const allowedPublishPathPatterns = [
   /^LICENSE$/,
-  /^README\.md$/,
+  /^README(?:\.[^.]+(?:-[^.]+)?)?\.md$/i,
   /^package\.json$/,
   /^bin\//,
   /^dist\//,
 ]
 
-const tarballBlocklist = [/(^|\/)electron([/-]|$)/i, /^apps\/desktop-electron\//i]
+const tarballBlocklist = [/(^|\/)electron([/-]|$)/i, /^packages\/desktop-electron\//i]
 
 function readPackageJson() {
   const raw = fs.readFileSync(pkgPath, 'utf8')
@@ -123,7 +123,7 @@ function main() {
     }
 
     if (unexpectedPublishPaths.length > 0) {
-      console.error('[pack-safety] Unexpected tarball paths found (outside {README, LICENSE, package.json, bin/, dist/}):')
+      console.error('[pack-safety] Unexpected tarball paths found (outside {README*.md, LICENSE, package.json, bin/, dist/}):')
       for (const filePath of unexpectedPublishPaths) {
         console.error(`- ${filePath}`)
       }

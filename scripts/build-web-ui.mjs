@@ -17,35 +17,15 @@ function run(command, args, cwd) {
 }
 
 async function main() {
-  const args = new Set(process.argv.slice(2))
-  const skipInstall = args.has('--skip-install') || process.env.FORMAX_WEB_UI_SKIP_INSTALL === '1'
   const scriptDir = path.dirname(fileURLToPath(import.meta.url))
   const repoRoot = path.resolve(scriptDir, '..')
-  const webRoot = path.join(repoRoot, 'apps', 'web-reference-react')
-  const webNpmLockfile = path.join(webRoot, 'package-lock.json')
+  const webRoot = path.join(repoRoot, 'packages', 'web-reference-react')
   const webDist = path.join(webRoot, 'dist')
   const outDir = path.join(repoRoot, 'dist', 'web')
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const bunCmd = process.platform === 'win32' ? 'bun.exe' : 'bun'
 
-  // Ensure lockfile-accurate deps before building the published bundle,
-  // unless caller explicitly requests a faster local rebuild path.
-  if (!skipInstall) {
-    const hasNpmLockfile = await fs
-      .access(webNpmLockfile)
-      .then(() => true)
-      .catch(() => false)
-
-    if (hasNpmLockfile) {
-      run(npmCmd, ['ci'], webRoot)
-    } else {
-      process.stdout.write('[formax] package-lock.json missing under apps/web-reference-react; fallback to npm install (non-lockfile)\n')
-      run(npmCmd, ['install', '--no-audit', '--no-fund', '--package-lock=false'], webRoot)
-    }
-  } else {
-    process.stdout.write('[formax] skip install: reusing existing web dependencies\n')
-  }
-
-  run(npmCmd, ['run', 'build'], webRoot)
+  // Dependencies are managed by root workspace install.
+  run(bunCmd, ['run', 'build'], webRoot)
 
   await fs.rm(outDir, { recursive: true, force: true })
   await fs.mkdir(path.dirname(outDir), { recursive: true })

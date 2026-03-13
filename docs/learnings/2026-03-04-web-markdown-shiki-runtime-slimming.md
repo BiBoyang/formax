@@ -2,13 +2,13 @@
 
 ## Context
 
-`apps/web-reference-react` markdown highlighting used top-level `shiki` runtime loading. Production build emitted broad language/theme fan-out chunks plus WASM/runtime artifacts that were not aligned with reference-client needs.
+`packages/web-reference-react` markdown highlighting used top-level `shiki` runtime loading. Production build emitted broad language/theme fan-out chunks plus WASM/runtime artifacts that were not aligned with reference-client needs.
 
 ## Decision
 
 Introduce a shared markdown highlighter runtime:
 
-- New module: `apps/web-reference-react/src/app/core/markdownShikiRuntime.ts`
+- New module: `packages/web-reference-react/src/app/core/markdownShikiRuntime.ts`
 - Use `shiki/core` + `shiki/engine/javascript` + `github-light` theme
 - Restrict lazy language loading to a curated set used in common code fences
 - Normalize aliases (`js -> javascript`, `ts -> typescript`, `sh -> bash`, etc.)
@@ -23,9 +23,9 @@ Introduce a shared markdown highlighter runtime:
 
 ## Validation
 
-- `npm --prefix apps/web-reference-react run type-check`
-- `npm --prefix apps/web-reference-react run test -- src/app/core/markdownService.test.ts src/app/core/markdownShikiRuntime.test.ts src/components/MarkdownRenderer.test.tsx`
-- `npm --prefix apps/web-reference-react run build`
+- `npm --prefix packages/web-reference-react run type-check`
+- `npm --prefix packages/web-reference-react run test -- src/app/core/markdownService.test.ts src/app/core/markdownShikiRuntime.test.ts src/components/MarkdownRenderer.test.tsx`
+- `npm --prefix packages/web-reference-react run build`
 
 Build comparison (before vs after):
 

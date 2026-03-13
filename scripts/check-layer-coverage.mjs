@@ -112,8 +112,8 @@ function summarizeUnmapped(unmappedRelPaths) {
       bucket = `src/features/${parts[2]}`
     } else if (parts[0] === 'src' && parts[1]) {
       bucket = `src/${parts[1]}`
-    } else if (parts[0] === 'apps' && parts[1] === 'web-reference-react') {
-      bucket = 'apps/web-reference-react/src'
+    } else if (parts[0] === 'packages' && parts[1] === 'web-reference-react') {
+      bucket = 'packages/web-reference-react/src'
     }
 
     const current = grouped.get(bucket) ?? { count: 0, samples: [] }

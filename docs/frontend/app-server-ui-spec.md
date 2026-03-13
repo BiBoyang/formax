@@ -205,6 +205,6 @@ Transcript 类型要求（必须可区分）：
 ## 10. 样式约束（执行规则）
 
 1. 业务组件必须优先组合 `shadcn/ui` 原子组件（`Card`、`Badge`、`Button`、`Input`、`ScrollArea` 等）。
-2. 视觉 token 统一来自 `apps/web-reference-react/src/css/theme.css`，禁止在业务组件中引入第二套颜色/阴影变量。
+2. 视觉 token 统一来自 `packages/web-reference-react/src/css/theme.css`，禁止在业务组件中引入第二套颜色/阴影变量。
 3. 允许在 `styles.css` 定义布局骨架（grid/flex/scroll），但禁止在业务组件里叠加临时“补丁式”内联视觉规则。
 4. 新增组件若不满足以上约束，视为 UI 规范不通过。

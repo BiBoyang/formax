@@ -1,0 +1,19 @@
+{
+  "name": "@formax/core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Formax internal core implementation package",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@formax/semantics": "workspace:*",
+    "@formax/shared": "workspace:*",
+    "dotenv": "^17.2.3",
+    "ink": "^6.6.0",
+    "openai": "^6.15.0",
+    "react": "^19.0.0",
+    "tsx": "^4.20.3",
+    "ws": "^8.18.1",
+    "zod": "^3.25.76"
+  }
+}

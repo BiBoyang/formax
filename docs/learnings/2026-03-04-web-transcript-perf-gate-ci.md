@@ -2,11 +2,11 @@
 
 ## What changed
 
-- Updated `apps/web-reference-react/e2e/transcript-performance-gate.spec.js`:
+- Updated `packages/web-reference-react/e2e/transcript-performance-gate.spec.js`:
   - input latency and tool-toggle latency now use repeated sampling (`3` runs) with median-based budget assertion.
   - keeps the existing long-transcript load-earlier duration gate.
 - Updated CI workflow:
-  - `.github/workflows/ci.yml` now runs `bun run --cwd apps/web-reference-react test:perf:gate` on `web_reference` changes.
+  - `.github/workflows/ci.yml` now runs `bun run --cwd packages/web-reference-react test:perf:gate` on `web_reference` changes.
 - Updated README testing commands and e2e spec list.
 
 ## Why

@@ -4,7 +4,11 @@ import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
 const DEFAULT_CONFIG_PATH = path.join(REPO_ROOT, 'scripts', 'layer-contract.config.json')
-const SHARED_TYPES_ROOT = path.join(REPO_ROOT, 'src', 'platform', 'types', 'shared')
+const SHARED_TYPES_CANDIDATES = [
+  path.join(REPO_ROOT, 'src', 'platform', 'types', 'shared'),
+  path.join(REPO_ROOT, 'packages', 'core', 'src', 'platform', 'types', 'shared'),
+  path.join(REPO_ROOT, 'packages', 'shared', 'src'),
+]
 const SOURCE_EXTS = ['.ts', '.tsx', '.js', '.mjs']
 
 const IMPORT_SPECIFIER_RE = /(?:^|\n)\s*(?:import|export)\s+(?:[^'\"]*?\sfrom\s+)?['\"]([^'\"]+)['\"]/g
@@ -133,6 +137,15 @@ function resolveSpecifierToPath({ sourceFile, specifier }) {
   const raw = specifier.trim()
   if (!raw) return null
 
+  if (raw === '@formax/shared') {
+    return resolveFileLikePath(path.join(REPO_ROOT, 'packages/shared/src/index.ts'))
+  }
+
+  if (raw.startsWith('@formax/shared/')) {
+    const subpath = raw.slice('@formax/shared/'.length)
+    return resolveFileLikePath(path.join(REPO_ROOT, 'packages/shared/src', subpath))
+  }
+
   if (raw.startsWith('.') || raw.startsWith('..')) {
     const resolved = path.normalize(path.resolve(path.dirname(sourceFile), raw))
     return resolveFileLikePath(resolved)
@@ -146,7 +159,15 @@ function resolveSpecifierToPath({ sourceFile, specifier }) {
     return resolveFileLikePath(path.join(REPO_ROOT, raw))
   }
 
-  if (raw.startsWith('apps/web-reference-react/src/')) {
+  if (raw.startsWith('packages/core/src/')) {
+    return resolveFileLikePath(path.join(REPO_ROOT, raw))
+  }
+
+  if (raw.startsWith('packages/shared/src/')) {
+    return resolveFileLikePath(path.join(REPO_ROOT, raw))
+  }
+
+  if (raw.startsWith('packages/web-reference-react/src/')) {
     return resolveFileLikePath(path.join(REPO_ROOT, raw))
   }
 
@@ -161,24 +182,66 @@ function resolveSpecifierToPath({ sourceFile, specifier }) {
 
 function featureNameFromImporter(importerFile) {
   const normalized = rel(importerFile)
-  const match = normalized.match(/^src\/features\/([^/]+)\//)
+  const match =
+    normalized.match(/^src\/features\/([^/]+)\//) ??
+    normalized.match(/^packages\/core\/src\/features\/([^/]+)\//)
   return match?.[1] ?? null
+}
+
+function consumerScopeFromImporter(importerFile) {
+  const normalized = rel(importerFile)
+
+  if (normalized.startsWith('packages/shared/src/')) return null
+
+  const featureName = featureNameFromImporter(importerFile)
+  if (featureName) return `feature:${featureName}`
+
+  if (normalized.startsWith('packages/semantics/src/')) return 'package:semantics'
+  if (normalized.startsWith('packages/web-reference-react/src/')) return 'package:web-reference-react'
+  if (normalized.startsWith('packages/desktop-electron/src/')) return 'package:desktop-electron'
+  if (normalized.startsWith('packages/core/src/')) return 'package:core'
+  if (normalized.startsWith('src/')) return 'package:core'
+
+  return null
+}
+
+function isLegacySharedTypeFile(filePath) {
+  const normalized = rel(filePath)
+  return (
+    normalized.startsWith('src/platform/types/shared/') ||
+    normalized.startsWith('packages/core/src/platform/types/shared/')
+  )
+}
+
+function isSharedPackageFile(filePath) {
+  return rel(filePath).startsWith('packages/shared/src/')
+}
+
+function isSharedPackageUtilityFile(filePath) {
+  return rel(filePath).startsWith('packages/shared/src/utils/')
 }
 
 function main() {
   runNoClaudeCheck({ repoRoot: REPO_ROOT })
 
-  if (!fs.existsSync(SHARED_TYPES_ROOT)) {
-    console.log(`Shared-types check skipped: ${rel(SHARED_TYPES_ROOT)} not found`)
+  const sharedRoots = SHARED_TYPES_CANDIDATES.filter((dir) => fs.existsSync(dir))
+  if (sharedRoots.length === 0) {
+    console.log(
+      `Shared-types check skipped: none of [${SHARED_TYPES_CANDIDATES.map(rel).join(', ')}] found`,
+    )
     return
   }
 
   const args = parseArgs()
   const config = loadConfig(args.configPath)
-  const sharedFiles = listSourceFiles(SHARED_TYPES_ROOT).sort((a, b) => a.localeCompare(b))
+  const sharedFiles = sharedRoots
+    .flatMap((rootDir) => listSourceFiles(rootDir))
+    .sort((a, b) => a.localeCompare(b))
 
   if (sharedFiles.length === 0) {
-    console.log(`Shared-types check skipped: no source files under ${rel(SHARED_TYPES_ROOT)}`)
+    console.log(
+      `Shared-types check skipped: no source files under [${sharedRoots.map(rel).join(', ')}]`,
+    )
     return
   }
 
@@ -189,6 +252,7 @@ function main() {
       {
         importers: new Set(),
         featureConsumers: new Set(),
+        consumerScopes: new Set(),
       },
     ]),
   )
@@ -212,17 +276,38 @@ function main() {
         targetUsage.importers.add(file)
         const featureName = featureNameFromImporter(file)
         if (featureName) targetUsage.featureConsumers.add(featureName)
+        const consumerScope = consumerScopeFromImporter(file)
+        if (consumerScope) targetUsage.consumerScopes.add(consumerScope)
       }
     }
   }
 
   const violations = []
   for (const [file, stats] of usage) {
-    if (stats.featureConsumers.size >= 1 && stats.featureConsumers.size < 2) {
+    if (isLegacySharedTypeFile(file) && stats.featureConsumers.size >= 1 && stats.featureConsumers.size < 2) {
       const [onlyFeature] = Array.from(stats.featureConsumers)
       violations.push({
+        kind: 'single_feature_consumer',
         sharedFile: rel(file),
         onlyFeature,
+        importers: Array.from(stats.importers).map(rel).sort((a, b) => a.localeCompare(b)),
+      })
+    }
+
+    const hasInternalSharedImporter = Array.from(stats.importers).some((importer) =>
+      isSharedPackageFile(importer),
+    )
+
+    if (
+      isSharedPackageFile(file) &&
+      !isSharedPackageUtilityFile(file) &&
+      path.basename(file) !== 'index.ts' &&
+      stats.consumerScopes.size === 0 &&
+      !hasInternalSharedImporter
+    ) {
+      violations.push({
+        kind: 'no_external_consumers',
+        sharedFile: rel(file),
         importers: Array.from(stats.importers).map(rel).sort((a, b) => a.localeCompare(b)),
       })
     }
@@ -240,16 +325,26 @@ function main() {
   )
   for (const violation of violations) {
     console.error(`\n- ${violation.sharedFile}`)
-    console.error(`  single feature consumer: ${violation.onlyFeature}`)
+    if (violation.kind === 'single_feature_consumer') {
+      console.error(`  single feature consumer: ${violation.onlyFeature}`)
+    } else {
+      console.error('  no external consumers (outside packages/shared/src)')
+    }
     for (const importer of violation.importers.slice(0, 8)) {
       console.error(`  importer: ${importer}`)
     }
     if (violation.importers.length > 8) {
       console.error(`  ...and ${violation.importers.length - 8} more importers`)
     }
-    console.error(
-      `  suggestion: move this type to src/features/${violation.onlyFeature}/types and import via that feature boundary`,
-    )
+    if (violation.kind === 'single_feature_consumer') {
+      console.error(
+        `  suggestion: move this type to src/features/${violation.onlyFeature}/types and import via that feature boundary`,
+      )
+    } else {
+      console.error(
+        '  suggestion: remove or relocate this file until at least one non-shared package consumes it',
+      )
+    }
   }
 
   process.exitCode = 1

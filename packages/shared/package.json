@@ -1,0 +1,19 @@
+{
+  "name": "@formax/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./inputContracts": "./src/inputContracts.ts",
+    "./paramsText": "./src/paramsText.ts",
+    "./prompts": "./src/prompts.ts",
+    "./streaming": "./src/streaming.ts",
+    "./utils/planMode": "./src/utils/planMode.ts",
+    "./utils/planModeReminders": "./src/utils/planModeReminders.ts",
+    "./utils/paths": "./src/utils/paths.ts",
+    "./utils/toolFormatting": "./src/utils/toolFormatting.ts",
+    "./utils/toolResultContent": "./src/utils/toolResultContent.ts"
+  },
+  "types": "./src/index.ts"
+}
