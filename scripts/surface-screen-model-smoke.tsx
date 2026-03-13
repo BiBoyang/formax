@@ -235,6 +235,23 @@ function getUserText(msg: PromptMessage): string {
     .join('')
 }
 
+function getLastUserTextBlock(msg: PromptMessage): string {
+  const content = msg.content as unknown
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i]
+    if (!block || typeof block !== 'object') continue
+    const promptBlock = block as PromptBlock
+    if (promptBlock.type !== 'text') continue
+    const text = String((promptBlock as { text?: unknown }).text ?? '').trim()
+    if (text.length > 0) return text
+  }
+
+  return ''
+}
+
 const cfg: RuntimeConfig = {
   llm: {
     provider: 'anthropic',
@@ -354,9 +371,10 @@ async function main() {
 
   const engine: ChatEngine = {
     async runTurn({ history, user, onEvent }) {
-      const userText = getUserText(user)
-      const isCompact = /Summarize the conversation/i.test(userText)
-      const assistantText = isCompact ? 'SUMMARY' : `ECHO:${userText}`
+      const promptText = getUserText(user)
+      const userTextForEcho = getLastUserTextBlock(user) || promptText
+      const isCompact = /Summarize the conversation/i.test(promptText)
+      const assistantText = isCompact ? 'SUMMARY' : `ECHO:${userTextForEcho}`
 
       if (isCompact) {
         onEvent({ type: 'thinking_delta', thinking: 'compact-thought' })

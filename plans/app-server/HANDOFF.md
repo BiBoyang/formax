@@ -39,4 +39,5 @@ bun run check:semantic-streaming-perf
 - 协议约束：`docs/contracts/app-server-interaction-contract.md`
 - API 语义：`docs/references/app-server-api-reference.md`
 - 单写入审计：`docs/audits/repl-single-writer-audit.md`
+- 单写入基线评审（2026-03-14）：`plans/app-server/2026-03-14-single-writer-baseline-update.md`
 - 性能基线：`docs/baselines/semantic-streaming-perf.md`

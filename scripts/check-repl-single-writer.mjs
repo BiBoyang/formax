@@ -12,6 +12,8 @@ const SEMANTIC_ROOT = 'packages/core/src/features/repl'
 const SEMANTIC_BASELINE_COUNTS = {
   'packages/core/src/features/repl/controller/streaming/streaming.ts': 3,
   'packages/core/src/features/repl/controller/streaming/streamingLegacyTranscript.ts': 1,
+  'packages/core/src/features/repl/controller/canonical/canonicalProjectionPipeline.ts': 1,
+  'packages/core/src/features/repl/controller/turnActions.ts': 2,
   'packages/core/src/features/repl/controller/send/sendMainTurn.ts': 2,
   'packages/core/src/features/repl/controller/send/bashMode.ts': 2,
   'packages/core/src/features/repl/controller/send/send.ts': 7,
@@ -20,7 +22,7 @@ const SEMANTIC_BASELINE_COUNTS = {
   'packages/core/src/features/repl/controller/ui/overlays.ts': 4,
   'packages/core/src/features/repl/controller/ui/surfaceReset.ts': 1,
   'packages/core/src/features/repl/controller/shared/providerError.ts': 1,
-  'packages/core/src/features/repl/useReplController.ts': 3,
+  'packages/core/src/features/repl/useReplController.ts': 0,
 }
 
 function countWritePoints(filePath) {
