@@ -35,7 +35,7 @@ These are intended for normal user configuration.
 
 ### Config-by-env patch keys (advanced)
 
-These map to config fields in `src/config/settings/resolve.ts`.
+These map to config fields in `packages/core/src/config/settings/resolve.ts`.
 
 - `FORMAX_ASSISTANT_TEXT_MODE`
 - `FORMAX_SHOW_CONTEXT_METER`

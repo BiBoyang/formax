@@ -1,7 +1,7 @@
 # REPL Single-Writer Audit
 
 更新时间：2026-02-18  
-范围：`src/features/repl/**`
+范围：`packages/core/src/features/repl/**`
 
 ## 1. Semantic-Critical 直写点（受门禁）
 
@@ -11,11 +11,11 @@
 
 | 文件                                                                    | 当前计数 | 说明                                        |
 | --------------------------------------------------------------------- | ---- | ----------------------------------------- |
-| `src/features/repl/controller/streaming/streaming.ts`                 | 3    | canonical bridge 下的 legacy fallback 兼容写入。 |
-| `src/features/repl/controller/streaming/streamingLegacyTranscript.ts` | 1    | legacy transcript mutator 单入口。            |
-| `src/features/repl/controller/send/sendMainTurn.ts`                   | 2    | 含允许例外：user echo 锚点 + 错误 fallback。         |
-| `src/features/repl/controller/send/bashMode.ts`                       | 2    | 仅在 `writeLegacyTranscriptRows=true` 下启用。  |
-| `src/features/repl/useReplController.ts`                              | 3    | canonical tail merge / 本地 bash 完结收口。      |
+| `packages/core/src/features/repl/controller/streaming/streaming.ts`                 | 3    | canonical bridge 下的 legacy fallback 兼容写入。 |
+| `packages/core/src/features/repl/controller/streaming/streamingLegacyTranscript.ts` | 1    | legacy transcript mutator 单入口。            |
+| `packages/core/src/features/repl/controller/send/sendMainTurn.ts`                   | 2    | 含允许例外：user echo 锚点 + 错误 fallback。         |
+| `packages/core/src/features/repl/controller/send/bashMode.ts`                       | 2    | 仅在 `writeLegacyTranscriptRows=true` 下启用。  |
+| `packages/core/src/features/repl/useReplController.ts`                              | 3    | canonical tail merge / 本地 bash 完结收口。      |
 
 
 ## 2. UI-only 直写点（不计入 semantic 门禁）
@@ -25,11 +25,11 @@
 
 | 文件                                                           | 当前计数 | 分类                   |
 | ------------------------------------------------------------ | ---- | -------------------- |
-| `src/features/repl/controller/send/send.ts`                  | 7    | slash/overlay/UI 输出。 |
-| `src/features/repl/controller/ui/overlays.ts`                | 3    | overlay 关闭/提示消息。     |
-| `src/features/repl/controller/send/sendAutoCompact.ts`       | 1    | compact notice UI。   |
-| `src/features/repl/controller/shared/providerError.ts`       | 1    | provider 错误提示。       |
-| `src/features/repl/controller/session/sessionTransitions.ts` | 4    | 生命周期切换/回放恢复。         |
+| `packages/core/src/features/repl/controller/send/send.ts`                  | 7    | slash/overlay/UI 输出。 |
+| `packages/core/src/features/repl/controller/ui/overlays.ts`                | 3    | overlay 关闭/提示消息。     |
+| `packages/core/src/features/repl/controller/send/sendAutoCompact.ts`       | 1    | compact notice UI。   |
+| `packages/core/src/features/repl/controller/shared/providerError.ts`       | 1    | provider 错误提示。       |
+| `packages/core/src/features/repl/controller/session/sessionTransitions.ts` | 4    | 生命周期切换/回放恢复。         |
 
 
 ## 3. 审计规则

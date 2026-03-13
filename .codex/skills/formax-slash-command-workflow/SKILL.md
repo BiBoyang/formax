@@ -20,22 +20,22 @@ These docs are canonical. If stable behavior changes, update them before or with
 ## Code Map
 
 ### 1) Command discovery + dispatch
-- `src/features/commands/registry.ts`: command list/suggest/dispatch wiring
-- `src/features/commands/CommandStore.ts`: disk scanning + precedence (project overrides user)
-- `src/features/semantics/core/commandRouting.ts`: exact `/clear` / `/compact` and command-dispatch routing boundary
+- `packages/core/src/features/commands/registry.ts`: command list/suggest/dispatch wiring
+- `packages/core/src/features/commands/CommandStore.ts`: disk scanning + precedence (project overrides user)
+- `packages/core/src/features/semantics/core/commandRouting.ts`: exact `/clear` / `/compact` and command-dispatch routing boundary
 
 ### 2) Command result contract (UI vs model)
-- `src/features/commands/contracts.ts`: `UiEffect` / `UiMessage` / `ModelEffect` shapes
-- `src/features/commands/adapter.ts`: maps command execution output → `CommandResult`
-- `src/features/repl/controller/send/send.ts`: consumed slash handling, `local_async`, and injected-block plumbing
+- `packages/core/src/features/commands/contracts.ts`: `UiEffect` / `UiMessage` / `ModelEffect` shapes
+- `packages/core/src/features/commands/adapter.ts`: maps command execution output → `CommandResult`
+- `packages/core/src/features/repl/controller/send/send.ts`: consumed slash handling, `local_async`, and injected-block plumbing
 
 ### 3) Overlay dismissal “subline output”
-- `src/features/repl/controller/ui/overlays.ts`: overlay open/close + append “dismissed” sublines
+- `packages/core/src/features/repl/controller/ui/overlays.ts`: overlay open/close + append “dismissed” sublines
 
 ### 4) REPL message plumbing + rendering
-- `src/features/repl/controller/send/send.ts`: applies `UiEffect.appendMessages` to `Msg`
-- `src/screens/REPL.tsx`: render `msg.ui.kind === 'command_subline'` as `⎿  ...` (no `⏺`)
-- `src/screens/REPL.slashSuggestions.test.tsx`: duplicate command selection / `preferredSlashSpecId`
+- `packages/core/src/features/repl/controller/send/send.ts`: applies `UiEffect.appendMessages` to `Msg`
+- `packages/core/src/screens/REPL.tsx`: render `msg.ui.kind === 'command_subline'` as `⎿  ...` (no `⏺`)
+- `packages/core/src/screens/REPL.slashSuggestions.test.tsx`: duplicate command selection / `preferredSlashSpecId`
 
 ## High-Signal Patterns
 
@@ -58,10 +58,10 @@ These docs are canonical. If stable behavior changes, update them before or with
 
 ## Minimum Regression
 
-- `bun run test -- src/features/commands/registry.test.ts src/features/commands/CommandStore.test.ts src/features/commands/adapter.test.ts src/features/commands/contracts.test.ts`
-- `bun run test -- src/features/repl/controller/ui/overlays.test.tsx`
-- `bun run test -- src/features/repl/controller/send/send.test.ts src/features/repl/useReplController.test.tsx`
-- `bun run test -- src/screens/REPL.slashSuggestions.test.tsx src/screens/repl/inputHint.test.ts`
+- `bun run test -- packages/core/src/features/commands/registry.test.ts packages/core/src/features/commands/CommandStore.test.ts packages/core/src/features/commands/adapter.test.ts packages/core/src/features/commands/contracts.test.ts`
+- `bun run test -- packages/core/src/features/repl/controller/ui/overlays.test.tsx`
+- `bun run test -- packages/core/src/features/repl/controller/send/send.test.ts packages/core/src/features/repl/useReplController.test.tsx`
+- `bun run test -- packages/core/src/screens/REPL.slashSuggestions.test.tsx packages/core/src/screens/repl/inputHint.test.ts`
 - `bun run type-check` when command shapes or routing plumbing changes
 
 ## Guardrails

@@ -1,4 +1,4 @@
-# src/core
+# packages/core/src/core
 
 Status: Informative deep dive.
 
@@ -37,7 +37,7 @@ Last verified: 2026-01-13
 | `auth/index.ts`     | authList/authSet/authDelete 管理凭证 |
 | `setup/session.ts`  | createSetupSession 首次向导状态机    |
 
-上层 `src/runtime/bootstrap/` 和 CLI entrypoint 调用这些函数完成启动前准备。
+上层 `packages/core/src/runtime/bootstrap/` 和 CLI entrypoint 调用这些函数完成启动前准备。
 
 ## 3) 流程（Flow）
 
@@ -94,21 +94,21 @@ flowchart TD
 1. 在 `config/schema.ts` 更新 `FormaxConfigV1Schema`（zod 校验）
 2. 在 `config/resolve.ts` 的 `envToPatch` 添加环境变量映射
 3. 在 `KNOWN_SOURCE_KEYS` 添加新 key 以便追踪来源
-4. 运行 `bun run test -- src/core/config`
+4. 运行 `bun run test -- packages/core/src/core/config`
 
 ### 添加新 provider
 
 1. 在 `config/schema.ts` ProviderId 添加新值
 2. 在 `setup/session.ts` DEFAULT_BASE_URL 添加默认 URL
 3. 在 `diagnostics/doctor.ts` 添加连接测试逻辑
-4. 运行 `bun run test -- src/core`
+4. 运行 `bun run test -- packages/core/src/core`
 
 ### 添加 policy action 类型
 
 1. 在 `policy/schema.ts` 添加新 match kind（如 `mcp.call`）
 2. 在 `policy/engine.ts` DEFAULT_DECISIONS 添加默认决策
 3. 在 `matchSpecificity` 添加匹配逻辑
-4. 运行 `bun run test -- src/core/policy`
+4. 运行 `bun run test -- packages/core/src/core/policy`
 
 ## 6) 常见坑 & 排查（Pitfalls / Debug）
 
@@ -116,8 +116,8 @@ flowchart TD
 | ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 配置加载后 apiKey 为空 | `auth.json` 是否存在 + authRef 拼写                              | `bun run dev -- doctor`                          |
 | env 变量不生效         | `resolve.ts` envToPatch 映射 + 变量名（如 `FORMAX_API_KEY`）      | `bun run type-check`                             |
-| policy 规则匹配失败    | `engine.ts` matchPathPrefix/matchWordPrefix 逻辑                 | `bun run test -- src/core/policy/engine.test.ts` |
-| setup 向导跳步骤       | `session.ts` step 状态机 back/next                               | `bun run test -- src/core/setup/session.test.ts` |
+| policy 规则匹配失败    | `engine.ts` matchPathPrefix/matchWordPrefix 逻辑                 | `bun run test -- packages/core/src/core/policy/engine.test.ts` |
+| setup 向导跳步骤       | `session.ts` step 状态机 back/next                               | `bun run test -- packages/core/src/core/setup/session.test.ts` |
 | doctor 报连接失败      | `diagnostics/doctor.ts` testConnection 参数                      | `bun run dev -- doctor`                          |
 
 ## 7) 相关链接（Repo links）

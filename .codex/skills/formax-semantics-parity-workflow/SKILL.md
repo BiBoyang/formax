@@ -21,7 +21,7 @@ These docs are canonical. If stable cross-surface behavior changes, update them 
 ## Code Map
 
 ### 1) Semantic single source of truth
-- `src/features/semantics/*`
+- `packages/core/src/features/semantics/*`
   - `canonicalEvents.ts`
   - `transcriptProjection.ts`
   - `modeSemantics.ts`
@@ -30,16 +30,16 @@ These docs are canonical. If stable cross-surface behavior changes, update them 
   - `inputStateMachine.ts`
 
 ### 2) App-server contract emit / restore
-- `src/app-server/turnRunner.ts`
-- `src/app-server/server.ts`
-- `src/app-server/threadStore.ts`
-- `src/app-server/store/sessionEventReader.ts`
-- `src/app-server/turn/inputStore.ts`
+- `packages/core/src/app-server/turnRunner.ts`
+- `packages/core/src/app-server/server.ts`
+- `packages/core/src/app-server/threadStore.ts`
+- `packages/core/src/app-server/store/sessionEventReader.ts`
+- `packages/core/src/app-server/turn/inputStore.ts`
 
 ### 3) TUI adapter (renderer can differ, semantics cannot)
-- `src/features/repl/controller/send/send.ts`
-- `src/features/repl/controller/streaming/streaming.ts`
-- `src/features/repl/useReplController.ts`
+- `packages/core/src/features/repl/controller/send/send.ts`
+- `packages/core/src/features/repl/controller/streaming/streaming.ts`
+- `packages/core/src/features/repl/useReplController.ts`
 
 ### 4) Web adapter (renderer can differ, semantics cannot)
 - `packages/web-reference-react/src/eventAdapters.ts`
@@ -77,18 +77,18 @@ These docs are canonical. If stable cross-surface behavior changes, update them 
 1. Define the event / state transition in canonical docs and the shared semantics layer first.
 2. Update app-server emit / replay state so the semantics remain recoverable.
 3. Update TUI and Web adapters to consume the shared semantics; update renderer-only UI last.
-4. If `src/features/repl/**` semantic-flow files move, run the REPL semantic gate before review.
+4. If `packages/core/src/features/repl/**` semantic-flow files move, run the REPL semantic gate before review.
 5. Run the minimum regression set below, then review via `AGENTS.md`.
 
 ## Minimum Regression
 
 - `bun run type-check`
-- `bun run test -- src/features/semantics`
-- `bun run test -- src/features/semantics/__tests__/projectionParity.test.ts`
-- `bun run test -- src/app-server/turnRunner.test.ts src/app-server/server.test.ts src/app-server/turn/inputStore.test.ts`
+- `bun run test -- packages/core/src/features/semantics`
+- `bun run test -- packages/core/src/features/semantics/__tests__/projectionParity.test.ts`
+- `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts packages/core/src/app-server/turn/inputStore.test.ts`
 - `npm --prefix packages/web-reference-react run type-check`
 - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx src/store.test.ts src/turnEventCursor.test.ts src/toolEventNormalizer.test.ts`
-- `bun run test:repl-semantic-gate` when `src/features/repl/**` semantic-flow files change
+- `bun run test:repl-semantic-gate` when `packages/core/src/features/repl/**` semantic-flow files change
 
 For fixture selection and parity assertions, use `references/fixtures-checklist.md`.
 

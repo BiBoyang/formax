@@ -1,12 +1,12 @@
 # Formax SDK Exports Alignment (Phase 1)
 
 当前对齐锚点：
-- `src/sdk/api.ts`
-- `src/sdk/index.ts`
-- `src/sdk/query.ts`
-- `src/sdk/query.test.ts`
-- `src/sdk/query.options-alignment.test.ts`
-- `src/sdk/v2.test.ts`
+- `packages/core/src/sdk/api.ts`
+- `packages/core/src/sdk/index.ts`
+- `packages/core/src/sdk/query.ts`
+- `packages/core/src/sdk/query.test.ts`
+- `packages/core/src/sdk/query.options-alignment.test.ts`
+- `packages/core/src/sdk/v2.test.ts`
 
 相关合同：
 - `docs/contracts/semantics-contract.md`
@@ -84,6 +84,6 @@
 ## Note
 
 - 更完整的 query / options 对齐请交叉阅读：
-  - `src/sdk/query.ts`
-  - `src/sdk/query.test.ts`
-  - `src/sdk/query.options-alignment.test.ts`
+  - `packages/core/src/sdk/query.ts`
+  - `packages/core/src/sdk/query.test.ts`
+  - `packages/core/src/sdk/query.options-alignment.test.ts`

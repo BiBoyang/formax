@@ -24,17 +24,17 @@
 - `docs/references/app-server-api-reference.md`
 
 相关实现（规范锚点）：
-- `src/features/repl/sessionSave/paths.ts`
-- `src/features/repl/sessionSave/writer.ts`
-- `src/features/repl/sessionSave/reader.ts`
-- `src/sdk/query/resume.ts`
-- `src/sdk/query/persistence.ts`
-- `src/sdk/query/runner.ts`
-- `src/sdk/session/core.ts`
-- `src/sdk/sessions.ts`
-- `src/app-server/threadStore.ts`
-- `src/app-server/store/sessionEventReader.ts`
-- `src/app-server/server.ts`
+- `packages/core/src/features/repl/sessionSave/paths.ts`
+- `packages/core/src/features/repl/sessionSave/writer.ts`
+- `packages/core/src/features/repl/sessionSave/reader.ts`
+- `packages/core/src/sdk/query/resume.ts`
+- `packages/core/src/sdk/query/persistence.ts`
+- `packages/core/src/sdk/query/runner.ts`
+- `packages/core/src/sdk/session/core.ts`
+- `packages/core/src/sdk/sessions.ts`
+- `packages/core/src/app-server/threadStore.ts`
+- `packages/core/src/app-server/store/sessionEventReader.ts`
+- `packages/core/src/app-server/server.ts`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -42,7 +42,7 @@
 ## 1. 权威模型
 
 `SES-001`  
-跨进程可恢复的 session 状态 MUST 以本地 JSONL session 文件为准；其根目录与命名规则 MUST 由 `src/features/repl/sessionSave/paths.ts` 定义。
+跨进程可恢复的 session 状态 MUST 以本地 JSONL session 文件为准；其根目录与命名规则 MUST 由 `packages/core/src/features/repl/sessionSave/paths.ts` 定义。
 
 `SES-002`  
 active session root MUST 位于 `<config-root>/sessions`；archived session root MUST 位于 `<config-root>/archived_sessions`。
@@ -58,7 +58,7 @@ active session 文件路径 MUST 保持当前按日期分层的格式：
 `sessions/YYYY/MM/DD/session-<iso-timestamp>-<sessionId>.jsonl`
 
 `SES-005`  
-session 文件的可读 replay、summary 与 history 解释 MUST 以 `src/features/repl/sessionSave/reader.ts` 为准；写入格式与 session id 合法性 MUST 以 `src/features/repl/sessionSave/writer.ts` 为准。
+session 文件的可读 replay、summary 与 history 解释 MUST 以 `packages/core/src/features/repl/sessionSave/reader.ts` 为准；写入格式与 session id 合法性 MUST 以 `packages/core/src/features/repl/sessionSave/writer.ts` 为准。
 
 ## 2. 存储生命周期
 
@@ -170,7 +170,7 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 当修改 session 文件根目录、resume 选择逻辑、provisional thread 物化、stale input 恢复或 SDK session discovery 行为时：
 1. 先更新本文件。
 2. 再更新 `docs/contracts/app-server-interaction-contract.md` 与 `docs/references/app-server-api-reference.md` 中受影响的摘要。
-3. 再更新 `src/sdk/README.md` 等 code-local deep dive。
+3. 再更新 `packages/core/src/sdk/README.md` 等 code-local deep dive。
 4. 若影响 transcript reset 或 input lifecycle，再同步相关合同。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

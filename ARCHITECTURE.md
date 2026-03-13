@@ -19,7 +19,7 @@ Formax 是一个“同一语义、三种入口”的代理系统：
 
 ### 2.1 Shared Semantics（语义真值）
 
-`src/features/semantics/*`
+`packages/core/src/features/semantics/*`
 
 职责：
 1. 定义 canonical event
@@ -30,18 +30,18 @@ Formax 是一个“同一语义、三种入口”的代理系统：
 
 ### 2.2 Runtime Orchestration（运行编排）
 
-1. REPL 编排：`src/features/repl/controller/*`
-2. app-server turn 执行：`src/app-server/turnRunner.ts`
-3. tool 执行与 preflight：`src/tools/executor/*`
-4. 会话保存与恢复：`src/features/repl/sessionSave/*`
+1. REPL 编排：`packages/core/src/features/repl/controller/*`
+2. app-server turn 执行：`packages/core/src/app-server/turnRunner.ts`
+3. tool 执行与 preflight：`packages/core/src/tools/executor/*`
+4. 会话保存与恢复：`packages/core/src/features/repl/sessionSave/*`
 
 职责：把语义层接到实际运行流程（streaming、tool loop、session、interrupt）。
 
 ### 2.3 Interface Adapters（接口适配）
 
-1. app-server 协议与传输：`src/app-server/{protocol,server,transport}*`
+1. app-server 协议与传输：`packages/core/src/app-server/{protocol,server,transport}*`
 2. Web runtime/state：`packages/web-reference-react/src/app/*`
-3. TUI 屏幕与输入：`src/screens/*`, `src/components/*`
+3. TUI 屏幕与输入：`packages/core/src/screens/*`, `packages/core/src/components/*`
 
 职责：协议适配、输入输出、渲染容器。这里不拥有语义真值。
 
@@ -63,22 +63,22 @@ Formax 是一个“同一语义、三种入口”的代理系统：
                                          |
                                          v
 +----------------------------+   +-------------------------------+
-| src/features/semantics/*   |-->| src/features/repl/controller/*|
-| (canonical + projection)   |   | src/app-server/turnRunner.ts  |
-+-------------+--------------+   | src/tools/executor/*          |
+| packages/core/src/features/semantics/*   |-->| packages/core/src/features/repl/controller/*|
+| (canonical + projection)   |   | packages/core/src/app-server/turnRunner.ts  |
++-------------+--------------+   | packages/core/src/tools/executor/*          |
               |                  +---------------+---------------+
               |                                  |
               v                                  v
 +----------------------------+       +----------------------------+
 | app-server protocol/transport|     | session/runtime adapters   |
-| src/app-server/{protocol,...}|     | thread/input stores        |
+| packages/core/src/app-server/{protocol,...}|     | thread/input stores        |
 +-------------+--------------+       +---------------+------------+
               |                                      |
               v                                      v
 +----------------------------+          +-------------------------+
 | TUI renderer               |          | Web renderer            |
-| src/screens/*              |          | packages/web-reference-react|
-| src/components/*           |          | /src/components/*       |
+| packages/core/src/screens/*              |          | packages/web-reference-react|
+| packages/core/src/components/*           |          | packages/web-reference-react/src/components/*       |
 +----------------------------+          +-------------------------+
 ```
 
@@ -91,7 +91,7 @@ Formax 是一个“同一语义、三种入口”的代理系统：
 
 ### 3.1 语义边界
 
-TUI / app-server / Web 必须共享 `src/features/semantics/*` 语义模型。  
+TUI / app-server / Web 必须共享 `packages/core/src/features/semantics/*` 语义模型。  
 端内只允许做交互与渲染适配，不允许发明新的语义状态机分支。
 
 ### 3.2 输入与权限边界
@@ -116,7 +116,7 @@ policy/preflight 的解释与 remember 生效由执行层拥有，renderer 不�
 
 ## 5. Cross-cutting Concerns
 
-1. 配置分层：环境变量 + 全局配置 + 项目覆盖（见 `src/config/config.ts` 与 `docs/environment-variables.md`）
+1. 配置分层：环境变量 + 全局配置 + 项目覆盖（见 `packages/core/src/config/config.ts` 与 `docs/environment-variables.md`）
 2. 可观测性/审计：tool 执行、hook 运行、turn 事件需可追踪
 3. 回归门禁：`type-check`、`test:repl-semantic-gate`、layer/golden principle 检查
 4. 漂移治理：pitfalls 与 contracts 同步维护，禁止“代码改了文档没改”

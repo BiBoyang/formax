@@ -20,7 +20,7 @@
 相关文档（信息性镜像）：
 - `docs/references/hooks-payload-reference.md`
 - `docs/environment-variables.md`
-- `src/hooks/README.md`
+- `packages/core/src/hooks/README.md`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -38,12 +38,12 @@
 
 `HOOK-002`  
 本合同的规范性实现权威 MUST 位于以下代码路径：
-1. `src/hooks/types.ts`
-2. `src/hooks/store.ts`
-3. `src/hooks/settingsStore.ts`
-4. `src/hooks/runtime.ts`
-5. `src/hooks/runner.ts`
-6. `src/chat/engine.ts`
+1. `packages/core/src/hooks/types.ts`
+2. `packages/core/src/hooks/store.ts`
+3. `packages/core/src/hooks/settingsStore.ts`
+4. `packages/core/src/hooks/runtime.ts`
+5. `packages/core/src/hooks/runner.ts`
+6. `packages/core/src/chat/engine.ts`
 
 ## 2. Matcher 与事件筛选合同
 
@@ -155,13 +155,13 @@ stdout / stderr 捕获 MUST 截断到固定上限，并在截断时追加统一�
 ## 7. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
-1. `src/hooks/store.test.ts`
-2. `src/hooks/settingsStore.test.ts`
-3. `src/hooks/runtime.test.ts`
-4. `src/hooks/runner.test.ts`
-5. `src/chat/engine.test.ts`
-6. `src/tools/executor/index.test.ts`
-7. `src/tools/executor/policyPreflight.test.ts`
+1. `packages/core/src/hooks/store.test.ts`
+2. `packages/core/src/hooks/settingsStore.test.ts`
+3. `packages/core/src/hooks/runtime.test.ts`
+4. `packages/core/src/hooks/runner.test.ts`
+5. `packages/core/src/chat/engine.test.ts`
+6. `packages/core/src/tools/executor/index.test.ts`
+7. `packages/core/src/tools/executor/policyPreflight.test.ts`
 
 ## 8. 变更控制
 
@@ -175,6 +175,6 @@ stdout / stderr 捕获 MUST 截断到固定上限，并在截断时追加统一�
 1. 先更新本文件。
 2. 再更新 `store/settingsStore/runtime/runner` 与入口 wiring。
 3. 同步更新 `docs/references/hooks-payload-reference.md`。
-4. 在后续 README 治理中，让 `src/hooks/README.md` 降级为 informative deep dive，而不是继续承载 canonical truth。
+4. 在后续 README 治理中，让 `packages/core/src/hooks/README.md` 降级为 informative deep dive，而不是继续承载 canonical truth。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

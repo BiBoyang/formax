@@ -23,13 +23,13 @@
 - `docs/contracts/semantics-contract.md`
 
 相关实现（规范锚点）：
-- `src/config/settings/schema.ts`
-- `src/config/settings/resolve.ts`
-- `src/config/settings/persist.ts`
-- `src/config/config.ts`
-- `src/features/commands/configDialogService.ts`
-- `src/tui/config/ConfigDialog.tsx`
-- `src/features/repl/controller/session/localCommandInjection.ts`
+- `packages/core/src/config/settings/schema.ts`
+- `packages/core/src/config/settings/resolve.ts`
+- `packages/core/src/config/settings/persist.ts`
+- `packages/core/src/config/config.ts`
+- `packages/core/src/features/commands/configDialogService.ts`
+- `packages/core/src/tui/config/ConfigDialog.tsx`
+- `packages/core/src/features/repl/controller/session/localCommandInjection.ts`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -37,19 +37,19 @@
 ## 1. 权威模型
 
 `CFG-001`  
-config 字段、默认值与 patch 合法性 MUST 以 `src/config/settings/schema.ts` 为准。
+config 字段、默认值与 patch 合法性 MUST 以 `packages/core/src/config/settings/schema.ts` 为准。
 
 `CFG-002`  
-runtime config 合并、来源归属与 env 解析 MUST 以 `src/config/settings/resolve.ts` 为准。
+runtime config 合并、来源归属与 env 解析 MUST 以 `packages/core/src/config/settings/resolve.ts` 为准。
 
 `CFG-003`  
-disk patch merge 与默认值剥离 MUST 以 `src/config/settings/persist.ts` 为准。
+disk patch merge 与默认值剥离 MUST 以 `packages/core/src/config/settings/persist.ts` 为准。
 
 `CFG-004`  
-最终运行时消费形状（路径归一化、active model 解析后注入 REPL/runtime）MUST 以 `src/config/config.ts` 为准。
+最终运行时消费形状（路径归一化、active model 解析后注入 REPL/runtime）MUST 以 `packages/core/src/config/config.ts` 为准。
 
 `CFG-005`  
-`/config` dialog 当前暴露的 setting 子集、source label 与持久化目标 MUST 以 `src/features/commands/configDialogService.ts` 和 `src/tui/config/ConfigDialog.tsx` 为准。
+`/config` dialog 当前暴露的 setting 子集、source label 与持久化目标 MUST 以 `packages/core/src/features/commands/configDialogService.ts` 和 `packages/core/src/tui/config/ConfigDialog.tsx` 为准。
 
 ## 2. 解析与优先级
 
@@ -88,7 +88,7 @@ env override 只对 `resolve.ts` 显式解析的变量生效。未解析或历�
 `FORMAX_BASE_URL` 在进入 resolved config 前 MUST 做 Anthropic-compatible 归一化；进入 `RuntimeConfig` 后，trailing slash MUST 被移除。
 
 `CFG-203`  
-`logsDir`、`subagentsDir`、`planDir` 在 `RuntimeConfig` 中 MUST 转换为绝对路径；缺省值 MUST 由 `src/config/config.ts` 的当前逻辑决定。
+`logsDir`、`subagentsDir`、`planDir` 在 `RuntimeConfig` 中 MUST 转换为绝对路径；缺省值 MUST 由 `packages/core/src/config/config.ts` 的当前逻辑决定。
 
 ## 4. `/config` 当前支持范围
 

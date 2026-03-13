@@ -1,31 +1,31 @@
 # Tools 系统：已完成内容 & 后续计划
 
-> 目标：逐步对齐 Claude Code 的 tool 生态（`src/tools/specs/reference/tools-copy.json`），同时保持 formax 的实现是「可插拔工具模块化」。
+> 目标：逐步对齐 Claude Code 的 tool 生态（`packages/core/src/tools/specs/reference/tools-copy.json`），同时保持 formax 的实现是「可插拔工具模块化」。
 
 ## 当前架构（本项目真实实现）
 
 - **工具规范来源（Spec）**
-  - **唯一事实来源**：`src/tools/modules/**` 每个 Tool Module 自带 `spec`（`ToolDefinition`）
-  - **运行时聚合**：`src/entrypoints/cli.tsx` 注册 modules → `toolRegistry.listSpecs()` 生成“暴露给模型”的 tools 列表
-  - **Patch**：`src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
-  - **对照参考**：`src/tools/specs/reference/tools-copy.json`（抓包得到的“参考全集”）；`src/tools/specs/reference/tools.json` 不再参与运行时（仅保留为历史/参考）
+  - **唯一事实来源**：`packages/core/src/tools/modules/**` 每个 Tool Module 自带 `spec`（`ToolDefinition`）
+  - **运行时聚合**：`packages/core/src/entrypoints/cli.tsx` 注册 modules → `toolRegistry.listSpecs()` 生成“暴露给模型”的 tools 列表
+  - **Patch**：`packages/core/src/tools/patches/*`（例如 Task 的 schema/description 动态补齐）
+  - **对照参考**：`packages/core/src/tools/specs/reference/tools-copy.json`（抓包得到的“参考全集”）；`packages/core/src/tools/specs/reference/tools.json` 不再参与运行时（仅保留为历史/参考）
   - **差异追踪（避免忘记）**：`npm run tools:coverage`（工具名覆盖率）与 `npm run tools:parity`（schema 字段差异）
 
 - **工具执行（Handler）**
-  - `src/chat/engine.ts` 流式 loop 解析到 `tool_use` → `executeTool`
-  - `src/tools/executor/index.ts` 选择匹配的 `ToolHandler` 并执行
+  - `packages/core/src/chat/engine.ts` 流式 loop 解析到 `tool_use` → `executeTool`
+  - `packages/core/src/tools/executor/index.ts` 选择匹配的 `ToolHandler` 并执行
   - 工具执行与 UI 解耦：UI 只消费流式事件与工具结果
 
 - **工具渲染（Presenter）**
-  - `src/components/tool/ToolRouter.tsx` 按工具名查 `ToolRegistry.getPresenter`
-  - 有 presenter 用 presenter；否则 fallback 到 `src/components/tool/ToolMessage.tsx`
-  - 各工具自己的 UI/高亮逻辑尽量放在 `src/tools/modules/<tool>/presenter.tsx`
+  - `packages/core/src/components/tool/ToolRouter.tsx` 按工具名查 `ToolRegistry.getPresenter`
+  - 有 presenter 用 presenter；否则 fallback 到 `packages/core/src/components/tool/ToolMessage.tsx`
+  - 各工具自己的 UI/高亮逻辑尽量放在 `packages/core/src/tools/modules/<tool>/presenter.tsx`
 
 - **运行时管理器（Runtime Managers）**
-  - `src/tools/runtime/taskManager.ts`
+  - `packages/core/src/tools/runtime/taskManager.ts`
     - 管理后台任务：`create/list/wait/cancel`
     - 支持“进行中输出更新”（`updateResult`）与取消（`setCancel` + `AbortSignal`）
-- `src/tools/runtime/userInputManager.ts`
+- `packages/core/src/tools/runtime/userInputManager.ts`
     - 支持 “暂停 → 等待用户输入 → 继续执行”（`AskUserQuestion` / PlanMode 确认 / Edit approvals）
     - `isPending(toolUseId)` 允许 UI 判断是否正在等待输入（从而隐藏输入框/避免抢键盘）
 
@@ -41,10 +41,10 @@
 - 内置命令 `/tasks`（不走模型）→ 列出所有后台任务（id/kind/status/label）
 
 入口注册与依赖注入：
-- `src/entrypoints/cli.tsx`：创建 `TaskManager/UserInputManager`，注册相关工具；用 `UserInputProvider` 注入 `userInputManager`；并把 `taskManager` 注入 REPL
-- `src/features/repl/useReplController.ts`：实现 `/tasks` 命令（不走模型）
-- `src/tools/modules/askUserQuestion/presenter.tsx`：交互式问答 UI（选择/多选/Review），提交时调用 `userInputManager.submitAnswers`
-- `src/screens/REPL.tsx`：当 `AskUserQuestion` 运行中时隐藏输入框，避免抢键盘；取消时 `abort()` 并显示 “User declined …”
+- `packages/core/src/entrypoints/cli.tsx`：创建 `TaskManager/UserInputManager`，注册相关工具；用 `UserInputProvider` 注入 `userInputManager`；并把 `taskManager` 注入 REPL
+- `packages/core/src/features/repl/useReplController.ts`：实现 `/tasks` 命令（不走模型）
+- `packages/core/src/tools/modules/askUserQuestion/presenter.tsx`：交互式问答 UI（选择/多选/Review），提交时调用 `userInputManager.submitAnswers`
+- `packages/core/src/screens/REPL.tsx`：当 `AskUserQuestion` 运行中时隐藏输入框，避免抢键盘；取消时 `abort()` 并显示 “User declined …”
 
 ### 2) 已实现的工具（handler + presenter 视情况）
 
@@ -68,9 +68,9 @@
 - 输入框以 `/` 开头时显示命令列表（支持上下键选择、Tab 补全、Enter 先补全后发送）
 - 未实现的命令会在列表中置灰
 - 位置：
-  - 命令注册表（单一事实来源）：`src/features/commands/registry.ts`
-  - 渲染：`src/components/chat/InputBar.tsx`
-  - 交互：`src/screens/REPL.tsx`
+  - 命令注册表（单一事实来源）：`packages/core/src/features/commands/registry.ts`
+  - 渲染：`packages/core/src/components/chat/InputBar.tsx`
+  - 交互：`packages/core/src/screens/REPL.tsx`
 - 说明：
   - `/tasks`、`/plan`：本地命令（不走模型，不污染下一次请求）
   - `/init`：注册为 “LLM 命令”（会把命令 prompt blocks 注入本次请求）
@@ -99,7 +99,7 @@
 
 ## tools-copy.json 对齐缺口（待完善）
 
-来自 `src/tools/specs/reference/tools-copy.json`（对齐目标），当前 `Skill` 模块已接入；待完善点主要在执行语义边界（skill 来源、能力范围、权限约束）。
+来自 `packages/core/src/tools/specs/reference/tools-copy.json`（对齐目标），当前 `Skill` 模块已接入；待完善点主要在执行语义边界（skill 来源、能力范围、权限约束）。
 
 ## 后续建议路线（按价值/依赖排序）
 
@@ -121,5 +121,5 @@
    - 任务持久化（可选）：重启后还能看到历史任务/输出（写入 logs）
 
 5. **工具规范生成（长期）**
-   - ✅ 已摆脱运行时对 `src/tools/specs/reference/tools.json` 的依赖：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
+   - ✅ 已摆脱运行时对 `packages/core/src/tools/specs/reference/tools.json` 的依赖：由 Tool Modules 生成/拼装 spec（保持唯一事实来源）
    - `tools-copy.json` 继续作为“对齐参考全集”（长期目标），并用 `npm run tools:coverage` 跟踪覆盖率

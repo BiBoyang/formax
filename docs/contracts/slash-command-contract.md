@@ -25,14 +25,14 @@
 - `docs/contracts/interactive-input-contract.md`
 
 相关实现（规范锚点）：
-- `src/features/commands/registry.ts`
-- `src/features/commands/CommandStore.ts`
-- `src/features/commands/contracts.ts`
-- `src/features/commands/adapter.ts`
-- `src/features/repl/controller/send/send.ts`
-- `src/features/repl/controller/send/sendPreMainRouting.ts`
-- `src/features/repl/controller/ui/overlays.ts`
-- `src/features/semantics/core/commandRouting.ts`
+- `packages/core/src/features/commands/registry.ts`
+- `packages/core/src/features/commands/CommandStore.ts`
+- `packages/core/src/features/commands/contracts.ts`
+- `packages/core/src/features/commands/adapter.ts`
+- `packages/core/src/features/repl/controller/send/send.ts`
+- `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
+- `packages/core/src/features/repl/controller/ui/overlays.ts`
+- `packages/core/src/features/semantics/core/commandRouting.ts`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -40,16 +40,16 @@
 ## 1. 权威模型
 
 `CMD-001`  
-slash command builtin 列表、默认 dispatch 优先级与 effect 类型 MUST 以 `src/features/commands/registry.ts` 为准。
+slash command builtin 列表、默认 dispatch 优先级与 effect 类型 MUST 以 `packages/core/src/features/commands/registry.ts` 为准。
 
 `CMD-002`  
-user / project command 的目录扫描、frontmatter 解析与覆盖规则 MUST 以 `src/features/commands/CommandStore.ts` 为准。
+user / project command 的目录扫描、frontmatter 解析与覆盖规则 MUST 以 `packages/core/src/features/commands/CommandStore.ts` 为准。
 
 `CMD-003`  
-`SlashCommandEffect` 到 `CommandResult` 的 UI / model 分流 MUST 以 `src/features/commands/adapter.ts` 与 `src/features/commands/contracts.ts` 为准。
+`SlashCommandEffect` 到 `CommandResult` 的 UI / model 分流 MUST 以 `packages/core/src/features/commands/adapter.ts` 与 `packages/core/src/features/commands/contracts.ts` 为准。
 
 `CMD-004`  
-REPL pre-main slash routing（`/clear`、`/compact`、generic dispatch、fall-through）MUST 以 `src/features/repl/controller/send/sendPreMainRouting.ts` 与 `src/features/semantics/core/commandRouting.ts` 为准。
+REPL pre-main slash routing（`/clear`、`/compact`、generic dispatch、fall-through）MUST 以 `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts` 与 `packages/core/src/features/semantics/core/commandRouting.ts` 为准。
 
 ## 2. 发现与覆盖优先级
 
@@ -166,7 +166,7 @@ project / user custom command 的 LLM 路径 MUST 通过 `buildFileCommandConten
 
 当改动 slash command 的发现、覆盖优先级、dismiss 输出、`command_subline`、或 next-turn injection 边界时：
 1. 先更新本文件。
-2. 再更新 `src/features/commands/*` 与 REPL send / overlay 实现。
+2. 再更新 `packages/core/src/features/commands/*` 与 REPL send / overlay 实现。
 3. 若变更影响跨端语义或 canonical UI message 类型，再同步 `docs/contracts/semantics-contract.md` 的摘要边界。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。

@@ -20,39 +20,39 @@ These docs are canonical. If stable behavior changes, update them before or with
 ## Code Map
 
 ### 1) Policy preflight (ToolCall -> allow/ask/deny decision)
-- `src/tools/executor/policyPreflight.ts`: turns `ToolCall` into a `PolicyAction` and decides deny / prompt / allow
-- `src/tools/executor/policyAction.ts`: `ToolCall` -> `PolicyAction` mapping
-- `src/tools/executor/policyExplain.ts`: explain / debug text for decisions
-- `src/tools/modules/bash/policy.ts`: Bash risk classification
+- `packages/core/src/tools/executor/policyPreflight.ts`: turns `ToolCall` into a `PolicyAction` and decides deny / prompt / allow
+- `packages/core/src/tools/executor/policyAction.ts`: `ToolCall` -> `PolicyAction` mapping
+- `packages/core/src/tools/executor/policyExplain.ts`: explain / debug text for decisions
+- `packages/core/src/tools/modules/bash/policy.ts`: Bash risk classification
 
 ### 2) Permissions storage + matching (rules & precedence)
-- `src/adapters/permissions/permissionsStore.ts`: read / write settings and merge precedence
-- `src/adapters/permissions/permissionKeys.ts`: stable keys / paths for settings
-- `src/adapters/permissions/matcher.ts`: matcher semantics
+- `packages/core/src/adapters/permissions/permissionsStore.ts`: read / write settings and merge precedence
+- `packages/core/src/adapters/permissions/permissionKeys.ts`: stable keys / paths for settings
+- `packages/core/src/adapters/permissions/matcher.ts`: matcher semantics
 
 ### 3) Approvals (prompt UI + persistence side-effects)
-- `src/tools/executor/approvalService.ts`: `ensureApproved` flow and remember writes
+- `packages/core/src/tools/executor/approvalService.ts`: `ensureApproved` flow and remember writes
 - UI prompts:
-  - `src/components/tool/bashApprovalPrompt.tsx`
-  - `src/components/tool/fsReadApprovalPrompt.tsx`
-  - `src/components/tool/fsWriteApprovalPrompt.tsx`
-  - `src/components/tool/skillApprovalPrompt.tsx`
-  - `src/components/tool/editApprovalPrompt.tsx`
+  - `packages/core/src/components/tool/bashApprovalPrompt.tsx`
+  - `packages/core/src/components/tool/fsReadApprovalPrompt.tsx`
+  - `packages/core/src/components/tool/fsWriteApprovalPrompt.tsx`
+  - `packages/core/src/components/tool/skillApprovalPrompt.tsx`
+  - `packages/core/src/components/tool/editApprovalPrompt.tsx`
 - Shared pieces:
-  - `src/components/ui/ApprovalHeader.tsx`
-  - `src/components/ui/ConfirmMenu.tsx`
+  - `packages/core/src/components/ui/ApprovalHeader.tsx`
+  - `packages/core/src/components/ui/ConfirmMenu.tsx`
 
 ### 4) /permissions overlay (manage rules + workspace)
-- `src/tui/permissions/PermissionsDialog.tsx`: state machine + key handling
-- `src/tui/permissions/ui.tsx`: rendering primitives
-- `src/features/repl/controller/ui/overlays.ts`: overlay open / close and dismissal messages
+- `packages/core/src/tui/permissions/PermissionsDialog.tsx`: state machine + key handling
+- `packages/core/src/tui/permissions/ui.tsx`: rendering primitives
+- `packages/core/src/features/repl/controller/ui/overlays.ts`: overlay open / close and dismissal messages
 - Slash command wiring:
-  - `src/features/commands/registry.ts`
-  - `src/screens/repl/createReplCommandRegistry.ts`
+  - `packages/core/src/features/commands/registry.ts`
+  - `packages/core/src/screens/repl/createReplCommandRegistry.ts`
 
 If app-server or Web input behavior moves, also inspect:
-- `src/app-server/turn/inputStore.ts`
-- `src/app-server/server.ts`
+- `packages/core/src/app-server/turn/inputStore.ts`
+- `packages/core/src/app-server/server.ts`
 - `packages/web-reference-react/src/store.ts`
 
 ## High-Signal Patterns
@@ -79,15 +79,15 @@ If app-server or Web input behavior moves, also inspect:
 
 ## Minimum Regression
 
-- `bun run test -- src/tools/executor/policyPreflight.test.ts`
-- `bun run test -- src/tools/executor/approvalService.test.ts`
-- `bun run test -- src/components/tool/bashApprovalPrompt.test.tsx`
-- `bun run test -- src/components/tool/fsReadApprovalPrompt.test.tsx`
-- `bun run test -- src/components/tool/fsWriteApprovalPrompt.test.tsx`
-- `bun run test -- src/components/tool/skillApprovalPrompt.test.tsx`
-- `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
+- `bun run test -- packages/core/src/tools/executor/policyPreflight.test.ts`
+- `bun run test -- packages/core/src/tools/executor/approvalService.test.ts`
+- `bun run test -- packages/core/src/components/tool/bashApprovalPrompt.test.tsx`
+- `bun run test -- packages/core/src/components/tool/fsReadApprovalPrompt.test.tsx`
+- `bun run test -- packages/core/src/components/tool/fsWriteApprovalPrompt.test.tsx`
+- `bun run test -- packages/core/src/components/tool/skillApprovalPrompt.test.tsx`
+- `bun run test -- packages/core/src/tui/permissions/PermissionsDialog.test.tsx`
 - If app-server / Web input behavior changed:
-  - `bun run test -- src/app-server/turn/inputStore.test.ts src/app-server/server.test.ts`
+  - `bun run test -- packages/core/src/app-server/turn/inputStore.test.ts packages/core/src/app-server/server.test.ts`
   - `npm --prefix packages/web-reference-react run test -- src/store.test.ts`
 
 ## Guardrails

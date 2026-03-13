@@ -6,7 +6,7 @@
 - Keep code navigation in `CODEMAP.md` ("where to change what"), with AGENTS linking to it instead of duplicating path-level maps.
 
 ## Project Structure & Module Organization
-- `src/` contains TypeScript source.
+- `packages/core/src/` contains TypeScript source.
   - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
   - `runtime/cli/` argument parsing + command dispatch for the CLI wrapper.
   - `runtime/bootstrap/` REPL bootstrap + runtime assembly wiring.
@@ -27,23 +27,23 @@
 
 ## Build, Test, and Development Commands
 - `bun install` installs dependencies.
-- `bun run dev` runs the CLI via `tsx` (entry: `src/entrypoints/cli.tsx`).
+- `bun run dev` runs the CLI via `tsx` (entry: `packages/core/src/entrypoints/cli.tsx`).
 - `bun run app-server:bridge -- --host 127.0.0.1 --port 3777` runs the app-server WebSocket bridge for web client development.
 - `npm --prefix packages/web-reference-react run dev` runs the isolated web reference React app (Vite).
 - `bun run toole` runs the tool examples entrypoint.
 - `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
 - `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
-- `bun run ui:boundaries` runs UI boundary checks (guards `src/tui/`, `src/screens/`, `src/components/` from importing forbidden layers).
+- `bun run ui:boundaries` runs UI boundary checks (guards `packages/core/src/tui/`, `packages/core/src/screens/`, `packages/core/src/components/` from importing forbidden layers).
 - `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
 - `npm --prefix packages/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
-- Single test: `bun run test -- src/tools/registry.test.ts`.
+- Single test: `bun run test -- packages/core/src/tools/registry.test.ts`.
 
 ## Coding Style & Naming Conventions
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
 - Match existing formatting: 2-space indentation, single quotes, no semicolons.
 - `PascalCase` for components/classes (`REPL`, `StreamClient`), `camelCase` for functions/hooks (`useReplController`).
-- Tool modules follow `src/tools/modules/<name>/{index,handler,presenter}.ts(x)` and `createXToolModule` factory naming.
+- Tool modules follow `packages/core/src/tools/modules/<name>/{index,handler,presenter}.ts(x)` and `createXToolModule` factory naming.
 - **GLOBAL CLARIFICATION RULE (MANDATORY)**: In ANY task, if user intent is ambiguous (UI, behavior, scope, risk, tradeoff, or acceptance criteria), you MUST ask the user BEFORE making directional choices. DO NOT infer beyond explicit requirements.
 - **QUESTION TOOL RULE (MANDATORY)**: When clarification is needed, you MUST use the user-input question tool first (e.g. `request_user_input`) when available. If that tool is unavailable in the current mode, you MUST ask the user directly in chat instead of guessing.
 
@@ -54,7 +54,7 @@
 - **Coverage mindset**: Prioritize adding/strengthening tests when behavior is user-visible or stability-critical (tools, permissions, hooks, REPL input, UI flows). Avoid “happy-path only” tests—cover edge cases and regressions you’ve already seen.
 - **Refactor safety**: Before refactoring, add/extend tests to lock current behavior. Do not rely on “tests pass” if manual behavior regresses.
 - **Code review (mandatory in loops)**: After tests pass, run review using the **Review Profile (Single Source of Truth)** below before committing; fix all high/medium findings (and any low-risk issues that are clearly correct and low-churn).
-- **REPL semantics pre-review gate**: For `src/features/repl/**` semantic-flow changes, run `bun run test:repl-semantic-gate` before `codex review`.
+- **REPL semantics pre-review gate**: For `packages/core/src/features/repl/**` semantic-flow changes, run `bun run test:repl-semantic-gate` before `codex review`.
 
 ### Review Profile (Single Source of Truth)
 - Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
@@ -119,15 +119,15 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - When only env-variable names or user-facing classification changes, update `docs/environment-variables.md`.
 - When you ship a behavior-alignment change, add/update a short learning note under `docs/learnings/` so mapping decisions remain traceable.
 - For complex subsystems with repo-local deep dives, keep the local README aligned when you move boundaries, control flow, invariants, or extension points:
-  - `src/tools/README.md`
-  - `src/core/README.md`
-  - `src/streaming/README.md`
-  - `src/features/subagents/README.md`
+  - `packages/core/src/tools/README.md`
+  - `packages/core/src/core/README.md`
+  - `packages/core/src/streaming/README.md`
+  - `packages/core/src/features/subagents/README.md`
 - Keep repo-local deep-dive READMEs aligned with their canonical docs; do not let them become a second source of truth.
 - Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
 
 ## Configuration & Runtime Notes
-- Runtime config entrypoint: `src/config/config.ts`
+- Runtime config entrypoint: `packages/core/src/config/config.ts`
 - Runtime config still merges env vars, global config under `FORMAX_CONFIG_DIR` (default `~/.formax/`), and per-project overrides under `<repo>/.formax/`.
 - Key env families to remember:
   - LLM/auth: `FORMAX_API_KEY`, `FORMAX_BASE_URL`, `FORMAX_TIMEOUT_MS`

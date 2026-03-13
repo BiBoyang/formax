@@ -20,23 +20,23 @@ These docs are canonical. If stable behavior changes, update them before or with
 ## Code Map
 
 - **Config schema + merge semantics**
-  - `src/config/settings/schema.ts` (add fields + defaults; validate values)
-  - `src/config/settings/resolve.ts` (merge precedence + `sources` mapping)
-  - `src/config/settings/persist.ts` (patch read/write + `stripDefaultsFromPatch`)
+  - `packages/core/src/config/settings/schema.ts` (add fields + defaults; validate values)
+  - `packages/core/src/config/settings/resolve.ts` (merge precedence + `sources` mapping)
+  - `packages/core/src/config/settings/persist.ts` (patch read/write + `stripDefaultsFromPatch`)
 - **Disk locations**
-  - `src/adapters/fs/configPaths.ts` (project/global config dirs)
-  - `src/adapters/fs/configFiles.ts` (load `config.json` patches)
-  - `src/config/config.ts` (final `RuntimeConfig` shape used by UI/runtime)
+  - `packages/core/src/adapters/fs/configPaths.ts` (project/global config dirs)
+  - `packages/core/src/adapters/fs/configFiles.ts` (load `config.json` patches)
+  - `packages/core/src/config/config.ts` (final `RuntimeConfig` shape used by UI/runtime)
 - **/config UI overlay**
-  - `src/tui/config/ConfigDialog.tsx` (reads effective config + writes patches)
-  - `src/tui/config/constants.ts` / `src/tui/config/reducer.ts` / `src/tui/config/ui.tsx`
-  - `src/screens/REPL.tsx` (mount overlay + reload runtime config on exit)
+  - `packages/core/src/tui/config/ConfigDialog.tsx` (reads effective config + writes patches)
+  - `packages/core/src/tui/config/constants.ts` / `packages/core/src/tui/config/reducer.ts` / `packages/core/src/tui/config/ui.tsx`
+  - `packages/core/src/screens/REPL.tsx` (mount overlay + reload runtime config on exit)
 - **Runtime wiring (effects)**
-  - Prompt injection: `src/features/repl/controller/send/sendMainTurn.ts` + `src/features/repl/controller/session/localCommandInjection.ts` + `src/prompts/reminders/*`
-  - Request parameters: `src/chat/engine.ts` → `src/streaming/**`
-  - UI-only flags: `src/screens/REPL.tsx` and small helpers under `src/screens/repl/*`
+  - Prompt injection: `packages/core/src/features/repl/controller/send/sendMainTurn.ts` + `packages/core/src/features/repl/controller/session/localCommandInjection.ts` + `packages/core/src/prompts/reminders/*`
+  - Request parameters: `packages/core/src/chat/engine.ts` → `packages/core/src/streaming/**`
+  - UI-only flags: `packages/core/src/screens/REPL.tsx` and small helpers under `packages/core/src/screens/repl/*`
 - **Current `/config` subset**
-  - `src/features/commands/configDialogService.ts` currently owns `outputStyle`, `thinkingMode`, `verboseOutput`
+  - `packages/core/src/features/commands/configDialogService.ts` currently owns `outputStyle`, `thinkingMode`, `verboseOutput`
 
 ## Current Behavior Checkpoints
 
@@ -66,11 +66,11 @@ These docs are canonical. If stable behavior changes, update them before or with
 
 ## Minimum Regression
 
-- `bun run test -- src/config/settings/schema.test.ts src/config/settings/resolve.test.ts src/config/settings/persist.test.ts`
-- `bun run test -- src/features/commands/configDialogService.test.ts`
-- `bun run test -- src/tui/config/ConfigDialog.test.tsx` when dialog UI changes
-- `bun run test -- src/features/repl/controller/session/localCommandInjection.test.ts src/features/repl/controller/send/sendMainTurn.test.ts` when prompt-affecting config changes
-- `bun run test -- src/screens/repl/thinkingBlock.test.tsx` when UI-only thinking visibility changes
+- `bun run test -- packages/core/src/config/settings/schema.test.ts packages/core/src/config/settings/resolve.test.ts packages/core/src/config/settings/persist.test.ts`
+- `bun run test -- packages/core/src/features/commands/configDialogService.test.ts`
+- `bun run test -- packages/core/src/tui/config/ConfigDialog.test.tsx` when dialog UI changes
+- `bun run test -- packages/core/src/features/repl/controller/session/localCommandInjection.test.ts packages/core/src/features/repl/controller/send/sendMainTurn.test.ts` when prompt-affecting config changes
+- `bun run test -- packages/core/src/screens/repl/thinkingBlock.test.tsx` when UI-only thinking visibility changes
 - `bun run type-check` when config shape or runtime wiring changes
 
 ## Guardrails

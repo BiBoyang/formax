@@ -1,4 +1,4 @@
-# src/hooks
+# packages/core/src/hooks
 
 Status: Informative deep dive.
 
@@ -38,25 +38,25 @@ Formax 也按这个语义实现：
 
 ### 1) 类型定义
 
-- `src/hooks/types.ts`
+- `packages/core/src/hooks/types.ts`
   - 扩展 `HookEventName`
   - 扩展 `MergedHooks`（每个 event 一条数组）
 
 ### 2) 配置加载 + 合并 + matcher 语义
 
-- `src/hooks/store.ts`
+- `packages/core/src/hooks/store.ts`
   - 解析 settings / 合并三层（`user`/`project`/`projectLocal`）
   - 决定该事件是否需要 matcher（例如 tool 类事件需要，session 类事件一般不需要）
-- `src/hooks/store.test.ts`
+- `packages/core/src/hooks/store.test.ts`
   - 增补解析/合并/排序/“缺省 matcher”语义的测试
 
 ### 3) runtime：payload + 执行 + stdout 解析
 
-- `src/hooks/runtime.ts`
+- `packages/core/src/hooks/runtime.ts`
   - 构造 payload（**给脚本的参数**；snake_case 兼容 Claude Code）
   - 加 `runXxx(...)` 入口（返回 `runs[]` + `additionalContext[]` + `blocked` 等）
   - 明确 exit code 语义（是否允许 block）
-- `src/hooks/runtime.test.ts`
+- `packages/core/src/hooks/runtime.test.ts`
   - 覆盖：
     - `exitCode=2` 语义（是否阻断）
     - `stdout` JSON（camelCase / snake_case）解析 `additionalContext`
@@ -66,24 +66,24 @@ Formax 也按这个语义实现：
 
 两条典型入口：
 
-- **工具执行链**：`src/tools/executor/index.ts`
+- **工具执行链**：`packages/core/src/tools/executor/index.ts`
   - 对 `PreToolUse / PermissionRequest / PostToolUse`
-- **对话/模型调用链**：`src/chat/engine.ts`
+- **对话/模型调用链**：`packages/core/src/chat/engine.ts`
   - 对 `UserPromptSubmit` 以及“只影响模型上下文、不属于 tool”的事件
 
 并在相应测试里补齐 HooksRuntime mock：
 
-- `src/chat/engine.test.ts`
-- `src/tools/executor/index.test.ts`
-- `src/tools/executor/policyPreflight.test.ts`
+- `packages/core/src/chat/engine.test.ts`
+- `packages/core/src/tools/executor/index.test.ts`
+- `packages/core/src/tools/executor/policyPreflight.test.ts`
 
 ### 5) UI（如需要）
 
 仅在 UI 需要展示/选择事件时修改：
 
-- `src/tui/hooks/constants.ts`：事件列表/启用开关
-- `src/tui/hooks/HooksDialog.tsx`：不支持事件的提示文案（保持准确，不要改风格）
-- `src/tui/hooks/HooksDialog.test.tsx`：锁定 UI 文案/事件列表（避免回归）
+- `packages/core/src/tui/hooks/constants.ts`：事件列表/启用开关
+- `packages/core/src/tui/hooks/HooksDialog.tsx`：不支持事件的提示文案（保持准确，不要改风格）
+- `packages/core/src/tui/hooks/HooksDialog.test.tsx`：锁定 UI 文案/事件列表（避免回归）
 
 ### 6) 验证与交付
 
@@ -96,8 +96,8 @@ Formax 也按这个语义实现：
 
 ## 关键文件速查
 
-- 类型：`src/hooks/types.ts`
-- 配置：`src/hooks/store.ts`
-- 执行：`src/hooks/runner.ts`、`src/hooks/runtime.ts`
-- 匹配：`src/hooks/matcher.ts`
-- 审计：`src/hooks/audit.ts`
+- 类型：`packages/core/src/hooks/types.ts`
+- 配置：`packages/core/src/hooks/store.ts`
+- 执行：`packages/core/src/hooks/runner.ts`、`packages/core/src/hooks/runtime.ts`
+- 匹配：`packages/core/src/hooks/matcher.ts`
+- 审计：`packages/core/src/hooks/audit.ts`

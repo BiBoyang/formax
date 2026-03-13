@@ -20,15 +20,15 @@ Stabilize and evolve the tool transcript UI with **minimal churn**:
 
 ## Current building blocks
 
-- Renderer: `src/components/tool/ToolUiBlocks.tsx`
-- Block types: `src/components/tool/toolUiBlocksTypes.ts`
-- Dispatch: `src/components/tool/ToolRouter.tsx`
-- Presenter typing helpers: `src/shared/toolPresenterContracts.ts`
+- Renderer: `packages/core/src/components/tool/ToolUiBlocks.tsx`
+- Block types: `packages/core/src/components/tool/toolUiBlocksTypes.ts`
+- Dispatch: `packages/core/src/components/tool/ToolRouter.tsx`
+- Presenter typing helpers: `packages/core/src/shared/toolPresenterContracts.ts`
 - Shared primitives:
-  - `src/components/ui/PulsingDot.tsx`
-  - `src/components/tool/ToolHeaderLine.tsx`
-  - `src/components/tool/ToolSubline.tsx`
-  - `src/components/tool/toolUi.ts`
+  - `packages/core/src/components/ui/PulsingDot.tsx`
+  - `packages/core/src/components/tool/ToolHeaderLine.tsx`
+  - `packages/core/src/components/tool/ToolSubline.tsx`
+  - `packages/core/src/components/tool/toolUi.ts`
 
 ## Workflow (repeatable loop)
 
@@ -47,9 +47,9 @@ When deciding which tools to migrate next, use this ordering to minimize risk an
 
 Add or update targeted tests before refactoring:
 
-- For spacing/indent rules: `src/components/tool/ToolUiBlocks.test.tsx`
-- For dispatch rules (legacy vs blocks): `src/components/tool/ToolRouter.test.tsx`
-- For a migrated tool: its `src/tools/modules/<name>/presenter.test.tsx`
+- For spacing/indent rules: `packages/core/src/components/tool/ToolUiBlocks.test.tsx`
+- For dispatch rules (legacy vs blocks): `packages/core/src/components/tool/ToolRouter.test.tsx`
+- For a migrated tool: its `packages/core/src/tools/modules/<name>/presenter.test.tsx`
 
 Prefer assertions on **plain-text frames** (via `ink-testing-library`) that verify:
 
@@ -63,7 +63,7 @@ If the change is “global formatting”, change it in one of:
 
 - `PulsingDot.tsx` for bullet spacing
 - `ToolHeaderLine.tsx` for header composition (dot + label + params)
-- `ToolSubline.tsx` / `src/components/tool/toolUi.ts` for subline prefix + indentation
+- `ToolSubline.tsx` / `packages/core/src/components/tool/toolUi.ts` for subline prefix + indentation
 - `ToolUiBlocks.tsx` for block-to-UI mapping and composition
 
 Do not change dozens of tool presenters for global spacing changes.
@@ -74,7 +74,7 @@ Only migrate tools that are “simple UI” (no hooks, no interactive UI) first.
 
 Steps:
 
-1. In `src/tools/modules/<name>/presenter.tsx`, switch to blocks presenter:
+1. In `packages/core/src/tools/modules/<name>/presenter.tsx`, switch to blocks presenter:
    - Return `{ blocks: ToolUiBlock[] }`
    - Wrap with `createToolBlocksPresenter(...)`
 2. Keep legacy presenters untouched for other tools.
@@ -85,9 +85,9 @@ Steps:
 Run Vitest for the touched files only. Example:
 
 ```bash
-bun run test -- src/components/tool/ToolUiBlocks.test.tsx
-bun run test -- src/components/tool/ToolRouter.test.tsx
-bun run test -- src/tools/modules/<name>/presenter.test.tsx
+bun run test -- packages/core/src/components/tool/ToolUiBlocks.test.tsx
+bun run test -- packages/core/src/components/tool/ToolRouter.test.tsx
+bun run test -- packages/core/src/tools/modules/<name>/presenter.test.tsx
 ```
 
 ### 5) Run Codex review before committing

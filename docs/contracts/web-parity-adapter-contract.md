@@ -40,7 +40,7 @@
 Web 的语义真值 MUST 继续来自共享 canonical semantics 层；Web adapter / reducer / cursor 只能消费该真值，不得重新定义语义规则。
 
 `WEB-002`  
-`eventAdapters.ts`、`store.ts`、`projectionEngine.ts` 与 `turnEventCursor.ts` 只拥有 Web adapter ownership；它们 MUST NOT 取代 `src/features/semantics/*` 成为新的 source of truth。
+`eventAdapters.ts`、`store.ts`、`projectionEngine.ts` 与 `turnEventCursor.ts` 只拥有 Web adapter ownership；它们 MUST NOT 取代 `packages/core/src/features/semantics/*` 成为新的 source of truth。
 
 `WEB-003`  
 通知进入 canonical projection 前的 envelope 校验与排序 gate，MUST 由 Web runtime adapter 负责；一旦进入 projection，状态变迁 MUST 由 canonical reducer 决定。

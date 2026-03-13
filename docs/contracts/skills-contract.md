@@ -17,10 +17,10 @@
 - 非 Skill tool 的通用工具执行语义
 
 相关实现（规范锚点）：
-- `src/features/skills/SkillStore.ts`
-- `src/tools/modules/skill/index.ts`
-- `src/tools/modules/skill/handler.ts`
-- `src/tools/executor/skillPreflight.ts`
+- `packages/core/src/features/skills/SkillStore.ts`
+- `packages/core/src/tools/modules/skill/index.ts`
+- `packages/core/src/tools/modules/skill/handler.ts`
+- `packages/core/src/tools/executor/skillPreflight.ts`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -28,13 +28,13 @@
 ## 1. 权威模型
 
 `SKILL-001`  
-Skill 发现与解析的权威实现 MUST 位于 `src/features/skills/SkillStore.ts`。
+Skill 发现与解析的权威实现 MUST 位于 `packages/core/src/features/skills/SkillStore.ts`。
 
 `SKILL-002`  
-Skill 调用行为（unknown/missing/disabled、正文截断、返回结构）MUST 以 `src/tools/modules/skill/handler.ts` 为准。
+Skill 调用行为（unknown/missing/disabled、正文截断、返回结构）MUST 以 `packages/core/src/tools/modules/skill/handler.ts` 为准。
 
 `SKILL-003`  
-给模型注入 `<available_skills>` 的语义与预算行为 MUST 以 `src/tools/modules/skill/index.ts` 为准。
+给模型注入 `<available_skills>` 的语义与预算行为 MUST 以 `packages/core/src/tools/modules/skill/index.ts` 为准。
 
 ## 2. 目录发现与优先级
 
@@ -121,10 +121,10 @@ frontmatter 可选字段：
 ## 7. 一致性测试映射
 
 主测试集：
-1. `src/features/skills/SkillStore.test.ts`
-2. `src/tools/modules/skill/handler.test.ts`
-3. `src/tools/modules/skill/index.test.ts`
-4. `src/tools/executor/skillPreflight.test.ts`
+1. `packages/core/src/features/skills/SkillStore.test.ts`
+2. `packages/core/src/tools/modules/skill/handler.test.ts`
+3. `packages/core/src/tools/modules/skill/index.test.ts`
+4. `packages/core/src/tools/executor/skillPreflight.test.ts`
 
 ## 8. 变更流程
 

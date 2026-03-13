@@ -16,9 +16,9 @@
   - SSE 解析阶段未完整累积 `signature_delta`；
   - 回写 assistant 历史时未透传 `thinking.signature`。
 - 修复落点：
-  - `src/prompts/types.ts`
-  - `src/streaming/anthropic/sseParser.ts`
-  - `src/streaming/anthropic/StreamClient.ts`
+  - `packages/core/src/prompts/types.ts`
+  - `packages/core/src/streaming/anthropic/sseParser.ts`
+  - `packages/core/src/streaming/anthropic/StreamClient.ts`
 - 参考提交：
   - `7e0fc12 fix(streaming): preserve thinking signature in history`
 

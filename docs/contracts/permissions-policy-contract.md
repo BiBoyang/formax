@@ -51,12 +51,12 @@ permissions settings 的 overlay 词汇 MUST 使用：
 
 `PERM-004`  
 本合同的规范性实现权威 MUST 位于以下代码路径：
-1. `src/tools/executor/policyAction.ts`
-2. `src/core/policy/engine.ts`
-3. `src/tools/executor/policyPreflight.ts`
-4. `src/tools/executor/approvalService.ts`
-5. `src/adapters/permissions/permissionsStore.ts`
-6. `src/adapters/permissions/matcher.ts`
+1. `packages/core/src/tools/executor/policyAction.ts`
+2. `packages/core/src/core/policy/engine.ts`
+3. `packages/core/src/tools/executor/policyPreflight.ts`
+4. `packages/core/src/tools/executor/approvalService.ts`
+5. `packages/core/src/adapters/permissions/permissionsStore.ts`
+6. `packages/core/src/adapters/permissions/matcher.ts`
 
 ## 2. Policy Action 与默认决策
 
@@ -231,17 +231,17 @@ approval 返回未知 scope 时，canonical fallback MUST 为 `session`。
 
 `PERM-610`  
 approval-like 决策解释（`approve` / `approve_remember` / `feedback` / `cancel`）MUST 由共享 resolver 统一收口，不得在 `approvalService` 与 `skillPreflight` 中维护分叉实现。规范锚点：
-1. `src/tools/executor/approvalLikePrompt.ts`（`resolveApprovalLikeOutcome`）
-2. `src/tools/executor/approvalService.ts`
-3. `src/tools/executor/skillPreflight.ts`
+1. `packages/core/src/tools/executor/approvalLikePrompt.ts`（`resolveApprovalLikeOutcome`）
+2. `packages/core/src/tools/executor/approvalService.ts`
+3. `packages/core/src/tools/executor/skillPreflight.ts`
 
 ## 8. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
-1. `src/tools/executor/policyPreflight.test.ts`
-2. `src/tools/executor/approvalService.test.ts`
-3. `src/adapters/permissions/matcher.test.ts`
-4. `src/adapters/permissions/permissionsStore.test.ts`
+1. `packages/core/src/tools/executor/policyPreflight.test.ts`
+2. `packages/core/src/tools/executor/approvalService.test.ts`
+3. `packages/core/src/adapters/permissions/matcher.test.ts`
+4. `packages/core/src/adapters/permissions/permissionsStore.test.ts`
 5. `packages/web-reference-react/src/components/InputApprovalDock.test.tsx`
 
 ## 9. 变更控制

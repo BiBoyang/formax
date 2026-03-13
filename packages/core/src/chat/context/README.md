@@ -1,4 +1,4 @@
-# src/chat/context
+# packages/core/src/chat/context
 
 Last verified: 2026-01-15
 
@@ -60,19 +60,19 @@ Formax 的“上下文管理”分两条线：
 
 ### UI transcript（messages）
 
-- **位置**：`src/features/repl/useReplController.ts`
+- **位置**：`packages/core/src/features/repl/useReplController.ts`
 - **用途**：纯展示（用户看到的历史），可以非常长。
 - **组成**：`user / assistant / tool` 三类消息（tool 有 running/completed/error 等状态）。
 
 ### Prompt transcript（historyRef）
 
-- **位置**：`src/features/repl/useReplController.ts`
+- **位置**：`packages/core/src/features/repl/useReplController.ts`
 - **用途**：发送给模型的对话历史（`historyRef.current`）。
 - **核心约束**：必须在预算内，并且在任何截断/压缩后保持 tool_use/tool_result 成对不变量。
 
 ### injected blocks（ephemeral）
 
-- **位置**：`src/features/repl/useReplController.ts`
+- **位置**：`packages/core/src/features/repl/useReplController.ts`
 - **用途**：只影响“这一轮发给模型”的 user content（例如 plan mode reminder、todos reminder、本地命令输出等）。
 - **关键点**：
   - injected blocks 会带 `cache_control: { type: 'ephemeral' }`
@@ -90,22 +90,22 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“预算 / meter / 阈值”
 
-- `src/chat/context/modelWindow.ts`：按 `{provider, model}` 推断 context window（未知时返回 null）
-- `src/chat/context/budget.ts`：预算换算（effectiveLimit/autoCompactLimit）与 stats
-- `src/chat/context/estimate.ts`：token 粗估策略（目前 bytes/4）
-- `src/features/repl/useReplController.ts`：每轮发送前/后计算 meter，触发裁剪
+- `packages/core/src/chat/context/modelWindow.ts`：按 `{provider, model}` 推断 context window（未知时返回 null）
+- `packages/core/src/chat/context/budget.ts`：预算换算（effectiveLimit/autoCompactLimit）与 stats
+- `packages/core/src/chat/context/estimate.ts`：token 粗估策略（目前 bytes/4）
+- `packages/core/src/features/repl/useReplController.ts`：每轮发送前/后计算 meter，触发裁剪
 
 ### 想改“硬截断兜底（P3）”
 
-- `src/chat/context/prune.ts`：`pruneForPromptBudget()`（安全兜底，保持 tool 对）
-- `src/chat/context/prune.test.ts`：单测覆盖（预算 fit + tool 对不变量）
+- `packages/core/src/chat/context/prune.ts`：`pruneForPromptBudget()`（安全兜底，保持 tool 对）
+- `packages/core/src/chat/context/prune.test.ts`：单测覆盖（预算 fit + tool 对不变量）
 
 ### 想改“/compact（P4）”
 
 `/compact` 已实现。主要入口：
-- pre-main 路由：`src/features/repl/controller/send/sendPreMainRouting.ts`
-- compact flow：`src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle）
-- history 重建：`src/chat/context/compact.ts`
+- pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
+- compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle）
+- history 重建：`packages/core/src/chat/context/compact.ts`
 
 ---
 

@@ -34,14 +34,14 @@ These docs are canonical. If stable behavior changes, update them before or with
 
 ## Code Map
 
-- `src/prompts/system.ts`: system prompt text, variant selection, capability gates
-- `src/features/repl/controller/send/sendMainTurn.ts`: per-turn injected block order and REPL assembly
-- `src/tools/runtime/deferredToolExposureResolver.ts`: deferred tools exposure and helper-block content
-- `src/tools/modules/skill/index.ts`: skill tool description shaping and skills reminder text
-- `src/chat/engine.ts`: request assembly and injected-block persistence boundaries
+- `packages/core/src/prompts/system.ts`: system prompt text, variant selection, capability gates
+- `packages/core/src/features/repl/controller/send/sendMainTurn.ts`: per-turn injected block order and REPL assembly
+- `packages/core/src/tools/runtime/deferredToolExposureResolver.ts`: deferred tools exposure and helper-block content
+- `packages/core/src/tools/modules/skill/index.ts`: skill tool description shaping and skills reminder text
+- `packages/core/src/chat/engine.ts`: request assembly and injected-block persistence boundaries
 - Cross-entrypoint mirrors when semantics move:
-  - `src/app-server/turnRunner.ts`
-  - `src/sdk/query/runner.ts`
+  - `packages/core/src/app-server/turnRunner.ts`
+  - `packages/core/src/sdk/query/runner.ts`
 - `scripts/repl-request-preview.ts`: quick dry-run payload preview without live network calls
 
 ## Deferred Exposure Checklist (`FORMAX_DEFERRED_TOOL_EXPOSURE=1`)
@@ -62,9 +62,9 @@ These docs are canonical. If stable behavior changes, update them before or with
 
 ## Minimum Regression
 
-- `bun run test -- src/prompts/system.test.ts src/tools/runtime/deferredToolExposureResolver.test.ts src/features/repl/controller/send/sendMainTurn.test.ts`
-- `bun run test -- src/chat/engine.test.ts src/config/settings/resolve.test.ts src/sdk/query.test.ts src/sdk/query.options-alignment.test.ts`
-- `bun run test -- src/app-server/turnRunner.test.ts` when app-server request assembly changes
+- `bun run test -- packages/core/src/prompts/system.test.ts packages/core/src/tools/runtime/deferredToolExposureResolver.test.ts packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- `bun run test -- packages/core/src/chat/engine.test.ts packages/core/src/config/settings/resolve.test.ts packages/core/src/sdk/query.test.ts packages/core/src/sdk/query.options-alignment.test.ts`
+- `bun run test -- packages/core/src/app-server/turnRunner.test.ts` when app-server request assembly changes
 - `bun run type-check`
 - `bun run request:preview -- --text "执行下 pwd" --deferred` for quick payload inspection when deferred exposure is involved
 

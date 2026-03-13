@@ -121,12 +121,12 @@ expanded transcript 的 Static key MUST 至少由 `transcriptSeq` 控制；凡�
 ## 6. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
-1. `src/features/repl/controller/ui/surfaceReset.test.ts`
-2. `src/features/repl/controller/session/sessionTransitions.test.ts`
-3. `src/screens/repl/useSurfaceTransitionManager.test.tsx`
-4. `src/screens/repl/surfaceSmoke.test.tsx`
-5. `src/runtime/bootstrap/runLegacyCli.test.tsx`
-6. `src/features/repl/useReplController.test.tsx`
+1. `packages/core/src/features/repl/controller/ui/surfaceReset.test.ts`
+2. `packages/core/src/features/repl/controller/session/sessionTransitions.test.ts`
+3. `packages/core/src/screens/repl/useSurfaceTransitionManager.test.tsx`
+4. `packages/core/src/screens/repl/surfaceSmoke.test.tsx`
+5. `packages/core/src/runtime/bootstrap/runLegacyCli.test.tsx`
+6. `packages/core/src/features/repl/useReplController.test.tsx`
 
 ## 7. 变更控制
 

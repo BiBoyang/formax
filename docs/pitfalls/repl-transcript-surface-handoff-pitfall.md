@@ -49,13 +49,13 @@ Rewriting previously rendered static rows without controlled remount/reset can c
 - forced Static smoke path for duplicate-row artifacts.
 
 ## Related Files
-- `src/features/repl/useReplController.ts`
-- `src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
-- `src/features/semantics/projection/transcriptProjectionTurnReducer.ts`
-- `src/screens/repl/transcript.tsx`
-- `src/features/repl/useReplController.test.tsx`
-- `src/features/semantics/projection/transcriptProjection.test.ts`
-- `src/screens/repl/surfaceSmoke.test.tsx`
+- `packages/core/src/features/repl/useReplController.ts`
+- `packages/core/src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
+- `packages/core/src/features/semantics/projection/transcriptProjectionTurnReducer.ts`
+- `packages/core/src/screens/repl/transcript.tsx`
+- `packages/core/src/features/repl/useReplController.test.tsx`
+- `packages/core/src/features/semantics/projection/transcriptProjection.test.ts`
+- `packages/core/src/screens/repl/surfaceSmoke.test.tsx`
 
 ## Related Notes
 - `docs/pitfalls/repl-transcript-static-rootcause.md`

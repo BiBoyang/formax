@@ -22,8 +22,8 @@
 
 ## Shared Types 共享门槛（强约束）
 
-- 约束目录：`src/platform/types/shared/**`。
-- 若 shared type 被 `src/features/<name>/` 消费，则必须被至少 2 个不同 feature 消费。
+- 约束目录：`packages/core/src/platform/types/shared/**`。
+- 若 shared type 被 `packages/core/src/features/<name>/` 消费，则必须被至少 2 个不同 feature 消费。
 - 若仅被 1 个 feature 消费，应回迁到该 feature 的 `types/` 目录。
 - 该规则由 `scripts/check-shared-types.mjs` 直接阻断，无 baseline。
 

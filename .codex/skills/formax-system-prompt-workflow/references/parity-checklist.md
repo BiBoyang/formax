@@ -71,13 +71,13 @@ All checks below must pass before concluding parity work:
 1. Targeted tests pass:
 ```bash
 bun run test -- \
-  src/prompts/system.test.ts \
-  src/tools/runtime/deferredToolExposureResolver.test.ts \
-  src/features/repl/controller/send/sendMainTurn.test.ts
+  packages/core/src/prompts/system.test.ts \
+  packages/core/src/tools/runtime/deferredToolExposureResolver.test.ts \
+  packages/core/src/features/repl/controller/send/sendMainTurn.test.ts
 ```
 2. Core semantic safety tests pass when touched:
 ```bash
-bun run test -- src/chat/engine.test.ts src/config/settings/resolve.test.ts
+bun run test -- packages/core/src/chat/engine.test.ts packages/core/src/config/settings/resolve.test.ts
 ```
 3. `bun run type-check` passes.
 4. Request preview and real proxy capture both match expected mode semantics.

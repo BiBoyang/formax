@@ -3,107 +3,107 @@
 This file is a “where to change what” index for quickly navigating the codebase.
 
 ## Entry Points
-- CLI entrypoint (main): `src/entrypoints/cli.tsx`
-- CLI arg parsing + dispatch: `src/runtime/cli/args.ts`, `src/runtime/cli/main.ts`
-- Legacy REPL bootstrap orchestration: `src/runtime/bootstrap/runLegacyCli.tsx`
-  - Runtime assembly slices: `src/runtime/bootstrap/*`
-- App-server entrypoint (JSON-RPC over stdio): `src/app-server/index.ts`
-- In-process SDK unified API entry (`query()` + `unstable_v2_*`): `src/sdk/api.ts` (public re-export: `src/sdk/index.ts`)
-- SDK query facade (`query()`): `src/sdk/query.ts` (runtime implementation: `src/sdk/query/runner.ts`)
-- SDK session-query facade (`listSessions()` + `getSessionMessages()`): `src/sdk/sessions.ts` (backed by `src/features/repl/sessionSave/reader.ts`)
-- SDK v2 session facade (`unstable_v2_*`): `src/sdk/v2.ts` (runtime implementation: `src/sdk/session/core.ts`)
-- SDK local usage guide: `src/sdk/README.md`
-- Serve runtime launcher (`formax serve`, WebSocket bridge): `src/runtime/serve/localServer.ts`
-- Web UI runtime launcher (`formax web`, bridge + static host): `src/runtime/web/localUi.ts`
-- App-server dev bridge entrypoint (WebSocket -> stdio loop): `src/entrypoints/app-server-bridge.ts`
-- App-server web reference entrypoint (bridge + React UI dev server): `src/entrypoints/app-server-web-reference.ts`
+- CLI entrypoint (main): `packages/core/src/entrypoints/cli.tsx`
+- CLI arg parsing + dispatch: `packages/core/src/runtime/cli/args.ts`, `packages/core/src/runtime/cli/main.ts`
+- Legacy REPL bootstrap orchestration: `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
+  - Runtime assembly slices: `packages/core/src/runtime/bootstrap/*`
+- App-server entrypoint (JSON-RPC over stdio): `packages/core/src/app-server/index.ts`
+- In-process SDK unified API entry (`query()` + `unstable_v2_*`): `packages/core/src/sdk/api.ts` (public re-export: `packages/core/src/sdk/index.ts`)
+- SDK query facade (`query()`): `packages/core/src/sdk/query.ts` (runtime implementation: `packages/core/src/sdk/query/runner.ts`)
+- SDK session-query facade (`listSessions()` + `getSessionMessages()`): `packages/core/src/sdk/sessions.ts` (backed by `packages/core/src/features/repl/sessionSave/reader.ts`)
+- SDK v2 session facade (`unstable_v2_*`): `packages/core/src/sdk/v2.ts` (runtime implementation: `packages/core/src/sdk/session/core.ts`)
+- SDK local usage guide: `packages/core/src/sdk/README.md`
+- Serve runtime launcher (`formax serve`, WebSocket bridge): `packages/core/src/runtime/serve/localServer.ts`
+- Web UI runtime launcher (`formax web`, bridge + static host): `packages/core/src/runtime/web/localUi.ts`
+- App-server dev bridge entrypoint (WebSocket -> stdio loop): `packages/core/src/entrypoints/app-server-bridge.ts`
+- App-server web reference entrypoint (bridge + React UI dev server): `packages/core/src/entrypoints/app-server-web-reference.ts`
 - Desktop Electron shell (orchestrator + main/preload): `packages/desktop-electron/{scripts/run.mjs,src/main.ts,src/preload.ts}`
-- Tool examples playground: `src/entrypoints/tool-examples.tsx`
-- Loading examples: `src/entrypoints/loading-examples.tsx`
-- Transcript perf playground: `src/entrypoints/perf-transcript.tsx`
+- Tool examples playground: `packages/core/src/entrypoints/tool-examples.tsx`
+- Loading examples: `packages/core/src/entrypoints/loading-examples.tsx`
+- Transcript perf playground: `packages/core/src/entrypoints/perf-transcript.tsx`
 
 ## App Server (GUI Bridge)
-- JSON-RPC server/router: `src/app-server/server.ts`
-- Protocol parsing + param validation: `src/app-server/protocol.ts`, `src/app-server/protocol/input.ts`
-- JSON-RPC message classification/encoding: `src/app-server/jsonrpc.ts`
-- Thread/session mapping (sessionSave-backed): `src/app-server/threadStore.ts`
-- Turn execution + streaming forwarding: `src/app-server/turnRunner.ts`
-- Input lifecycle helpers: `src/app-server/turn/inputId.ts`, `src/app-server/turn/inputStore.ts`
-- Stdio JSONL transport: `src/app-server/transport/stdio.ts`
-- Dev bridge (WebSocket fan-in/fan-out to app-server loop): `src/app-server/devBridge.ts`
-- Serve command parsing/help text: `src/runtime/cli/serveCommand.ts`
-- Web command parsing/help text: `src/runtime/cli/webCommand.ts`
-- Shared web/bridge network + security helpers (host/port/url/origin/token): `src/runtime/network/runtime.ts`
+- JSON-RPC server/router: `packages/core/src/app-server/server.ts`
+- Protocol parsing + param validation: `packages/core/src/app-server/protocol.ts`, `packages/core/src/app-server/protocol/input.ts`
+- JSON-RPC message classification/encoding: `packages/core/src/app-server/jsonrpc.ts`
+- Thread/session mapping (sessionSave-backed): `packages/core/src/app-server/threadStore.ts`
+- Turn execution + streaming forwarding: `packages/core/src/app-server/turnRunner.ts`
+- Input lifecycle helpers: `packages/core/src/app-server/turn/inputId.ts`, `packages/core/src/app-server/turn/inputStore.ts`
+- Stdio JSONL transport: `packages/core/src/app-server/transport/stdio.ts`
+- Dev bridge (WebSocket fan-in/fan-out to app-server loop): `packages/core/src/app-server/devBridge.ts`
+- Serve command parsing/help text: `packages/core/src/runtime/cli/serveCommand.ts`
+- Web command parsing/help text: `packages/core/src/runtime/cli/webCommand.ts`
+- Shared web/bridge network + security helpers (host/port/url/origin/token): `packages/core/src/runtime/network/runtime.ts`
 - Web reference React client (isolated app): `packages/web-reference-react/*` (see "Web Reference React Client")
-- Session event recovery for stale inputs: `src/app-server/store/sessionEventReader.ts`
-- Shared persisted tool-event reconstruction (used by app-server + REPL resume): `src/features/repl/sessionSave/persistedToolEvents.ts`
-- Primary tests: `src/app-server/*.test.ts`, `src/app-server/store/*.test.ts`, `src/app-server/turn/*.test.ts`
+- Session event recovery for stale inputs: `packages/core/src/app-server/store/sessionEventReader.ts`
+- Shared persisted tool-event reconstruction (used by app-server + REPL resume): `packages/core/src/features/repl/sessionSave/persistedToolEvents.ts`
+- Primary tests: `packages/core/src/app-server/*.test.ts`, `packages/core/src/app-server/store/*.test.ts`, `packages/core/src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)
-- Main screen: `src/screens/REPL.tsx`
-- Controller/state (send/streaming/overlays): `src/features/repl/useReplController.ts`, `src/features/repl/controller/{send,streaming,canonical,session,ui,shared}/*`
-- Canonical event projection helper (hook-level orchestration): `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
-- Session transition helpers (abort/new session): `src/features/repl/controller/session/sessionTransitions.ts`
-- Session save/replay core (writer/reader + app tool-event payload mapping): `src/features/repl/sessionSave/{writer,reader,appToolEventPayload}.ts`
-- REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `src/screens/repl/hotkeys.ts`
-- Prompt mode gating (overlays/prompt blocks disable hotkeys): `src/screens/repl/promptMode.ts`
-- Transcript renderers (Primary vs Expanded): `src/screens/repl/transcript.tsx`
-- Expanded Transcript tests: `src/screens/repl/expandedTranscript.test.tsx`
-- Input UI: `src/components/chat/InputBar.tsx`
-- Header: `src/components/chat/HeaderBanner.tsx`
-- Mode indicator: `src/components/chat/ModeIndicator.tsx`
-- Pulsing dot: `src/components/ui/PulsingDot.tsx`
+- Main screen: `packages/core/src/screens/REPL.tsx`
+- Controller/state (send/streaming/overlays): `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/features/repl/controller/{send,streaming,canonical,session,ui,shared}/*`
+- Canonical event projection helper (hook-level orchestration): `packages/core/src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
+- Session transition helpers (abort/new session): `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
+- Session save/replay core (writer/reader + app tool-event payload mapping): `packages/core/src/features/repl/sessionSave/{writer,reader,appToolEventPayload}.ts`
+- REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `packages/core/src/screens/repl/hotkeys.ts`
+- Prompt mode gating (overlays/prompt blocks disable hotkeys): `packages/core/src/screens/repl/promptMode.ts`
+- Transcript renderers (Primary vs Expanded): `packages/core/src/screens/repl/transcript.tsx`
+- Expanded Transcript tests: `packages/core/src/screens/repl/expandedTranscript.test.tsx`
+- Input UI: `packages/core/src/components/chat/InputBar.tsx`
+- Header: `packages/core/src/components/chat/HeaderBanner.tsx`
+- Mode indicator: `packages/core/src/components/chat/ModeIndicator.tsx`
+- Pulsing dot: `packages/core/src/components/ui/PulsingDot.tsx`
 
 ## Setup / Dialogs (Overlays)
-- First-run setup wizard (UI): `src/tui/SetupWizard.tsx`
-- Setup session + state machine: `src/core/setup/session.ts`
-- Setup persistence + connection checks: `src/adapters/setup/writeSetupFiles.ts`, `src/adapters/setup/connectionTest.ts`
-- Overlay manager (open/close dialogs): `src/features/repl/overlays/OverlayManager.ts`
-- Agents dialog (overlay UI): `src/tui/agents/AgentsDialog.tsx`
-- Permissions dialog (overlay UI): `src/tui/permissions/PermissionsDialog.tsx`
-- Config dialog (overlay UI, WIP): `src/tui/config/ConfigDialog.tsx`
+- First-run setup wizard (UI): `packages/core/src/tui/SetupWizard.tsx`
+- Setup session + state machine: `packages/core/src/core/setup/session.ts`
+- Setup persistence + connection checks: `packages/core/src/adapters/setup/writeSetupFiles.ts`, `packages/core/src/adapters/setup/connectionTest.ts`
+- Overlay manager (open/close dialogs): `packages/core/src/features/repl/overlays/OverlayManager.ts`
+- Agents dialog (overlay UI): `packages/core/src/tui/agents/AgentsDialog.tsx`
+- Permissions dialog (overlay UI): `packages/core/src/tui/permissions/PermissionsDialog.tsx`
+- Config dialog (overlay UI, WIP): `packages/core/src/tui/config/ConfigDialog.tsx`
 
 ## Chat Loop / Streaming
-- Chat loop + tool loop: `src/chat/engine.ts`
-  - TodoWrite reminders (prompt injection): `src/prompts/reminders/todos.ts` + wiring in `src/chat/engine.ts`
-  - Runtime flags used by loop debug/limits: `src/config/runtimeFlags.ts`
-- Streaming provider factory (provider -> client): `src/streaming/index.ts`
-- Anthropic streaming client: `src/streaming/anthropic/StreamClient.ts`
-- OpenAI-compatible streaming client: `src/streaming/openai/StreamClient.ts`
-- SSE parser: `src/streaming/anthropic/sseParser.ts`
-- Stream events/types: `src/streaming/types.ts`
+- Chat loop + tool loop: `packages/core/src/chat/engine.ts`
+  - TodoWrite reminders (prompt injection): `packages/core/src/prompts/reminders/todos.ts` + wiring in `packages/core/src/chat/engine.ts`
+  - Runtime flags used by loop debug/limits: `packages/core/src/config/runtimeFlags.ts`
+- Streaming provider factory (provider -> client): `packages/core/src/streaming/index.ts`
+- Anthropic streaming client: `packages/core/src/streaming/anthropic/StreamClient.ts`
+- OpenAI-compatible streaming client: `packages/core/src/streaming/openai/StreamClient.ts`
+- SSE parser: `packages/core/src/streaming/anthropic/sseParser.ts`
+- Stream events/types: `packages/core/src/streaming/types.ts`
 
 ## Context Management (UI transcript vs prompt history)
 - Prompt-history owner (historyRef), pre/post pruning, `/compact`, auto-compact:
-  - Pre-main routing coordinator (clear/compact/slash): `src/features/repl/controller/send/sendPreMainRouting.ts`
-  - Pre-main command handlers (`/compact`, consumed slash, local async): `src/features/repl/controller/send/send.ts`
-  - Main turn execution + prompt/history pipeline: `src/features/repl/controller/send/sendMainTurn.ts`
-  - Main turn deps/refs context builder: `src/features/repl/controller/send/sendMainTurnContext.ts`
-  - Auto-compact preflight/apply helper: `src/features/repl/controller/send/sendAutoCompact.ts`
-  - Shared send context types/builders: `src/features/repl/controller/send/sendTypes.ts`
-  - Wiring entry: `src/features/repl/useReplController.ts`
-- Budget + stats: `src/chat/context/budget.ts`
-- Token estimate fallback: `src/chat/context/estimate.ts`
-- Model context window table (current provider-agnostic hints): `src/chat/context/modelWindow.ts`
-- Hard pruning rules (tool pair invariants + truncation): `src/chat/context/prune.ts`
-- Compaction tail selection (keep last N turns): `src/chat/context/compact.ts`
-- Tool-loop pruning (pre-`streamOnce`): `src/chat/engine.ts` (`promptBudget`)
-- Config knobs (defaults + env): `src/config/settings/schema.ts`, `src/config/settings/resolve.ts`, `src/config/config.ts`
+  - Pre-main routing coordinator (clear/compact/slash): `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
+  - Pre-main command handlers (`/compact`, consumed slash, local async): `packages/core/src/features/repl/controller/send/send.ts`
+  - Main turn execution + prompt/history pipeline: `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+  - Main turn deps/refs context builder: `packages/core/src/features/repl/controller/send/sendMainTurnContext.ts`
+  - Auto-compact preflight/apply helper: `packages/core/src/features/repl/controller/send/sendAutoCompact.ts`
+  - Shared send context types/builders: `packages/core/src/features/repl/controller/send/sendTypes.ts`
+  - Wiring entry: `packages/core/src/features/repl/useReplController.ts`
+- Budget + stats: `packages/core/src/chat/context/budget.ts`
+- Token estimate fallback: `packages/core/src/chat/context/estimate.ts`
+- Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
+- Hard pruning rules (tool pair invariants + truncation): `packages/core/src/chat/context/prune.ts`
+- Compaction tail selection (keep last N turns): `packages/core/src/chat/context/compact.ts`
+- Tool-loop pruning (pre-`streamOnce`): `packages/core/src/chat/engine.ts` (`promptBudget`)
+- Config knobs (defaults + env): `packages/core/src/config/settings/schema.ts`, `packages/core/src/config/settings/resolve.ts`, `packages/core/src/config/config.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Semantics governance contract (SoT): `docs/contracts/semantics-contract.md`
 - Shared semantics source of truth:
-  - Canonical event envelope/types: `src/features/semantics/core/canonicalEvents.ts`
-  - Transcript projection reducer (segment model): `src/features/semantics/projection/transcriptProjection.ts`
-  - Mode semantics: `src/features/semantics/core/modeSemantics.ts`
-  - Mode transition semantics (normalize/transition helpers): `src/features/semantics/core/replModeTransition.ts`
-  - Slash semantics: `src/features/semantics/core/slashSemantics.ts`
-  - Turn input builder: `src/features/semantics/adapters/turnInputBuilder.ts`
-  - Input state machine: `src/features/semantics/runtime/inputStateMachine.ts`
-  - Thread runtime state reducer (shared by app-server/web): `src/features/semantics/runtime/threadRuntimeState.ts`
+  - Canonical event envelope/types: `packages/core/src/features/semantics/core/canonicalEvents.ts`
+  - Transcript projection reducer (segment model): `packages/core/src/features/semantics/projection/transcriptProjection.ts`
+  - Mode semantics: `packages/core/src/features/semantics/core/modeSemantics.ts`
+  - Mode transition semantics (normalize/transition helpers): `packages/core/src/features/semantics/core/replModeTransition.ts`
+  - Slash semantics: `packages/core/src/features/semantics/core/slashSemantics.ts`
+  - Turn input builder: `packages/core/src/features/semantics/adapters/turnInputBuilder.ts`
+  - Input state machine: `packages/core/src/features/semantics/runtime/inputStateMachine.ts`
+  - Thread runtime state reducer (shared by app-server/web): `packages/core/src/features/semantics/runtime/threadRuntimeState.ts`
 - Contract tests:
-  - `src/features/semantics/__tests__/*`
-  - `src/features/semantics/*.test.ts`
+  - `packages/core/src/features/semantics/__tests__/*`
+  - `packages/core/src/features/semantics/*.test.ts`
 - Web-side parity adapters:
   - Tool event normalizer: `packages/web-reference-react/src/toolEventNormalizer.ts`
   - Event cursor (eventId dedupe + replaySeq-first ordering): `packages/web-reference-react/src/turnEventCursor.ts`
@@ -134,137 +134,137 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Local usage guide: `packages/desktop-electron/README.md`
 
 ## Permissions / Approvals (Claude Code-style)
-- Permissions store (read/merge/write settings): `src/adapters/permissions/permissionsStore.ts`
-- Rule matcher (deny/ask/allow priority + ToolName(spec) matching): `src/adapters/permissions/matcher.ts`
-- Permission key helpers: `src/adapters/permissions/permissionKeys.ts`
-- Skill allowlist (legacy, being migrated): `src/adapters/permissions/skillAllowList.ts`
-- Policy rules store + schema: `src/core/policy/store.ts`, `src/core/policy/schema.ts`
-- Policy evaluation + explain output: `src/core/policy/engine.ts`
-- Tool preflight hook (central enforcement before tool execution): `src/tools/executor/policyPreflight.ts`
-- ToolCall → PolicyAction mapping: `src/tools/executor/policyAction.ts`
-- Policy explain formatter (CLI/debug): `src/tools/executor/policyExplain.ts`
-- Approval service (user prompts, remember, auditable decision): `src/tools/executor/approvalService.ts`
-- Shared approval-like prompt transaction helper (approval + skill preflight): `src/tools/executor/approvalLikePrompt.ts`
-- Bash policy engine (risk classification, confirmation triggers): `src/tools/modules/bash/policy.ts`
-- `/permissions` wiring (slash command → open overlay): `src/features/commands/registry.ts`, `src/features/commands/adapter.ts`, `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
-- `/permissions` UI: `src/tui/permissions/PermissionsDialog.tsx`
+- Permissions store (read/merge/write settings): `packages/core/src/adapters/permissions/permissionsStore.ts`
+- Rule matcher (deny/ask/allow priority + ToolName(spec) matching): `packages/core/src/adapters/permissions/matcher.ts`
+- Permission key helpers: `packages/core/src/adapters/permissions/permissionKeys.ts`
+- Skill allowlist (legacy, being migrated): `packages/core/src/adapters/permissions/skillAllowList.ts`
+- Policy rules store + schema: `packages/core/src/core/policy/store.ts`, `packages/core/src/core/policy/schema.ts`
+- Policy evaluation + explain output: `packages/core/src/core/policy/engine.ts`
+- Tool preflight hook (central enforcement before tool execution): `packages/core/src/tools/executor/policyPreflight.ts`
+- ToolCall → PolicyAction mapping: `packages/core/src/tools/executor/policyAction.ts`
+- Policy explain formatter (CLI/debug): `packages/core/src/tools/executor/policyExplain.ts`
+- Approval service (user prompts, remember, auditable decision): `packages/core/src/tools/executor/approvalService.ts`
+- Shared approval-like prompt transaction helper (approval + skill preflight): `packages/core/src/tools/executor/approvalLikePrompt.ts`
+- Bash policy engine (risk classification, confirmation triggers): `packages/core/src/tools/modules/bash/policy.ts`
+- `/permissions` wiring (slash command → open overlay): `packages/core/src/features/commands/registry.ts`, `packages/core/src/features/commands/adapter.ts`, `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/screens/REPL.tsx`
+- `/permissions` UI: `packages/core/src/tui/permissions/PermissionsDialog.tsx`
 
 ## Hooks (Phase 1: PreToolUse / PermissionRequest / PostToolUse)
 - Hook config (repo-level): `.formax/settings.local.json` (see `hooks` field)
 - Hook scripts (repo-level): `.formax/hooks/*`
-- Store (load/parse + list active hooks): `src/hooks/store.ts`
-- Matcher (which hooks apply to which event/tool/action): `src/hooks/matcher.ts`
-- Runner (spawn scripts, timeout, stdout/stderr, exit code semantics): `src/hooks/runner.ts`
-- Runtime (event payload builder + per-event orchestration): `src/hooks/runtime.ts`
+- Store (load/parse + list active hooks): `packages/core/src/hooks/store.ts`
+- Matcher (which hooks apply to which event/tool/action): `packages/core/src/hooks/matcher.ts`
+- Runner (spawn scripts, timeout, stdout/stderr, exit code semantics): `packages/core/src/hooks/runner.ts`
+- Runtime (event payload builder + per-event orchestration): `packages/core/src/hooks/runtime.ts`
 - Wiring points (where hooks are called):
-  - PreToolUse: `src/tools/executor/index.ts`
-  - PermissionRequest: `src/tools/executor/policyPreflight.ts`
-  - PostToolUse (+ `additionalContext` injection before next LLM turn): `src/chat/engine.ts`
+  - PreToolUse: `packages/core/src/tools/executor/index.ts`
+  - PermissionRequest: `packages/core/src/tools/executor/policyPreflight.ts`
+  - PostToolUse (+ `additionalContext` injection before next LLM turn): `packages/core/src/chat/engine.ts`
 - Audit/debug (observability, not UI):
-  - Centralized `hook.run` audit fields: `src/hooks/audit.ts`
-  - `hook.run` schema: `src/core/audit/schema.ts`
+  - Centralized `hook.run` audit fields: `packages/core/src/hooks/audit.ts`
+  - `hook.run` schema: `packages/core/src/core/audit/schema.ts`
   - Debug previews (stdout tail, etc): `FORMAX_HOOKS_DEBUG=1`
 - Tests:
-  - Audit fields: `src/hooks/audit.test.ts`
-  - Runner/runtime: `src/hooks/runner.test.ts`, `src/hooks/runtime.test.ts`
-  - PermissionRequest wiring: `src/tools/executor/policyPreflight.test.ts`
-  - PostToolUse wiring: `src/chat/engine.test.ts`
+  - Audit fields: `packages/core/src/hooks/audit.test.ts`
+  - Runner/runtime: `packages/core/src/hooks/runner.test.ts`, `packages/core/src/hooks/runtime.test.ts`
+  - PermissionRequest wiring: `packages/core/src/tools/executor/policyPreflight.test.ts`
+  - PostToolUse wiring: `packages/core/src/chat/engine.test.ts`
 
 ## Prompts
-- System prompt builder (profiles, env snapshot, constraints): `src/prompts/system.ts`
-- Prompt composition helpers: `src/prompts/index.ts`, `src/prompts/user.ts`, `src/prompts/types.ts`
-- Prompt authoring primitives (sections, reminder wrappers, text rendering): `src/prompts/authoring.ts`
-- TodoWrite reminder text + formatting helpers: `src/prompts/reminders/todos.ts`
-- Prompt porting status/TODOs: `src/prompts/STATUS.md`, `system-prompts/PORTING-STATUS.md`
+- System prompt builder (profiles, env snapshot, constraints): `packages/core/src/prompts/system.ts`
+- Prompt composition helpers: `packages/core/src/prompts/index.ts`, `packages/core/src/prompts/user.ts`, `packages/core/src/prompts/types.ts`
+- Prompt authoring primitives (sections, reminder wrappers, text rendering): `packages/core/src/prompts/authoring.ts`
+- TodoWrite reminder text + formatting helpers: `packages/core/src/prompts/reminders/todos.ts`
+- Prompt porting status/TODOs: `packages/core/src/prompts/STATUS.md`, `system-prompts/PORTING-STATUS.md`
 
 ## Tools (Registry → Execution → Presentation)
 
 ### Tool registry + loader
-- Tool definitions (ToolDefinition): `src/tools/types.ts`
-- Tool module registry: `src/tools/registry.ts`
-- Built-in tool modules registration: `src/tools/modules/index.ts`
+- Tool definitions (ToolDefinition): `packages/core/src/tools/types.ts`
+- Tool module registry: `packages/core/src/tools/registry.ts`
+- Built-in tool modules registration: `packages/core/src/tools/modules/index.ts`
 
 ### Tool execution pipeline
-- Executor entry (enforces allow/deny lists, routes to handlers): `src/tools/executor/index.ts`
-- Executor handlers (e.g. Task): `src/tools/executor/handlers/*`
-- Runtime task manager (background tasks, cancel): `src/tools/runtime/taskManager.ts`
-- Runtime user input manager (approval prompts / AskUserQuestion answers): `src/tools/runtime/userInputManager.ts`
-- Runtime ask-user-question transaction helper: `src/tools/runtime/askUserQuestionPrompt.ts`
-- Runtime interactive prompt descriptor builders (approval / ask payload wiring): `src/tools/runtime/interactivePromptDescriptor.ts`
-- Runtime unified interactive prompt transaction core: `src/tools/runtime/interactivePromptTransaction.ts`
-- Deferred tool exposure store + ToolSearch session state: `src/tools/runtime/deferredToolExposure.ts`
-- Cross-entry deferred exposure resolver (REPL/app-server/SDK shared wiring): `src/tools/runtime/deferredToolExposureResolver.ts`
-- ToolSearch engine core (mode parsing + regex/BM25/hybrid ranking): `src/tools/runtime/toolSearchEngine.ts`
+- Executor entry (enforces allow/deny lists, routes to handlers): `packages/core/src/tools/executor/index.ts`
+- Executor handlers (e.g. Task): `packages/core/src/tools/executor/handlers/*`
+- Runtime task manager (background tasks, cancel): `packages/core/src/tools/runtime/taskManager.ts`
+- Runtime user input manager (approval prompts / AskUserQuestion answers): `packages/core/src/tools/runtime/userInputManager.ts`
+- Runtime ask-user-question transaction helper: `packages/core/src/tools/runtime/askUserQuestionPrompt.ts`
+- Runtime interactive prompt descriptor builders (approval / ask payload wiring): `packages/core/src/tools/runtime/interactivePromptDescriptor.ts`
+- Runtime unified interactive prompt transaction core: `packages/core/src/tools/runtime/interactivePromptTransaction.ts`
+- Deferred tool exposure store + ToolSearch session state: `packages/core/src/tools/runtime/deferredToolExposure.ts`
+- Cross-entry deferred exposure resolver (REPL/app-server/SDK shared wiring): `packages/core/src/tools/runtime/deferredToolExposureResolver.ts`
+- ToolSearch engine core (mode parsing + regex/BM25/hybrid ranking): `packages/core/src/tools/runtime/toolSearchEngine.ts`
 
 ### Tool UI / presenters
-- Default tool renderer: `src/components/tool/ToolMessage.tsx`
-- Tool UI Blocks renderer (C-lite): `src/components/tool/ToolUiBlocks.tsx`
-- Presenter interface: `src/shared/toolPresenterContracts.ts`
-- Blocks presenter helper: `createToolBlocksPresenter` in `src/shared/toolPresenterContracts.ts`
-- FS read approval bridge (blocks presenter → runtime user input): `src/components/tool/FsReadApprovalToolBlock.tsx`
-- Shared approval prompt (Edit/Write/NotebookEdit): `src/components/tool/editApprovalPrompt.tsx`
-- Fallback presenter: `src/components/tool/FallbackToolPresenter.tsx`
+- Default tool renderer: `packages/core/src/components/tool/ToolMessage.tsx`
+- Tool UI Blocks renderer (C-lite): `packages/core/src/components/tool/ToolUiBlocks.tsx`
+- Presenter interface: `packages/core/src/shared/toolPresenterContracts.ts`
+- Blocks presenter helper: `createToolBlocksPresenter` in `packages/core/src/shared/toolPresenterContracts.ts`
+- FS read approval bridge (blocks presenter → runtime user input): `packages/core/src/components/tool/FsReadApprovalToolBlock.tsx`
+- Shared approval prompt (Edit/Write/NotebookEdit): `packages/core/src/components/tool/editApprovalPrompt.tsx`
+- Fallback presenter: `packages/core/src/components/tool/FallbackToolPresenter.tsx`
 
 ### Tool specs (“model-facing contract”)
-- Each tool module owns its spec under `src/tools/modules/<tool>/spec.ts`.
-- Reference snapshot for parity checks: `src/tools/specs/reference/tools-copy.json`
-- Spec/handler drift tracking: `src/tools/SPEC_HANDLER_MISMATCHES.md`
+- Each tool module owns its spec under `packages/core/src/tools/modules/<tool>/spec.ts`.
+- Reference snapshot for parity checks: `packages/core/src/tools/specs/reference/tools-copy.json`
+- Spec/handler drift tracking: `packages/core/src/tools/SPEC_HANDLER_MISMATCHES.md`
 
 ## Key Tool Modules (where to implement behavior)
-- Read: `src/tools/modules/read/*`
-- Write (approval + preview UI): `src/tools/modules/write/*`
-- Edit (diff UI + approval): `src/tools/modules/edit/*`
-- Glob: `src/tools/modules/glob/*`
-- Grep: `src/tools/modules/grep/*`
-- Bash (policy, filepath extraction, approval workflow): `src/tools/modules/bash/*`
-- AskUserQuestion (interactive prompts): `src/tools/modules/askUserQuestion/*`
-- KillShell (terminate running shell): `src/tools/modules/killShell/*`
-- NotebookEdit: `src/tools/modules/notebookEdit/*`
-- TodoWrite: `src/tools/modules/todoWrite/*`
-- WebFetch: `src/tools/modules/webFetch/*`
-- WebSearch: `src/tools/modules/webSearch/*`
-- Skill: `src/tools/modules/skill/*`
-- SlashCommand: `src/tools/modules/slashCommand/*`
-- Task (sub-agents + nested prompts UI): `src/tools/modules/task/*`
-- TaskOutput (background task UI): `src/tools/modules/taskOutput/*`
-- Search (high-level search): `src/tools/modules/search/*`
+- Read: `packages/core/src/tools/modules/read/*`
+- Write (approval + preview UI): `packages/core/src/tools/modules/write/*`
+- Edit (diff UI + approval): `packages/core/src/tools/modules/edit/*`
+- Glob: `packages/core/src/tools/modules/glob/*`
+- Grep: `packages/core/src/tools/modules/grep/*`
+- Bash (policy, filepath extraction, approval workflow): `packages/core/src/tools/modules/bash/*`
+- AskUserQuestion (interactive prompts): `packages/core/src/tools/modules/askUserQuestion/*`
+- KillShell (terminate running shell): `packages/core/src/tools/modules/killShell/*`
+- NotebookEdit: `packages/core/src/tools/modules/notebookEdit/*`
+- TodoWrite: `packages/core/src/tools/modules/todoWrite/*`
+- WebFetch: `packages/core/src/tools/modules/webFetch/*`
+- WebSearch: `packages/core/src/tools/modules/webSearch/*`
+- Skill: `packages/core/src/tools/modules/skill/*`
+- SlashCommand: `packages/core/src/tools/modules/slashCommand/*`
+- Task (sub-agents + nested prompts UI): `packages/core/src/tools/modules/task/*`
+- TaskOutput (background task UI): `packages/core/src/tools/modules/taskOutput/*`
+- Search (high-level search): `packages/core/src/tools/modules/search/*`
 
 ## Plan Mode
-- REPL mode type: `src/features/repl/mode.ts`
-- REPL mode transition application: `src/features/repl/useReplController.ts`
-- Plan session manager (plan file path, lifecycle): `src/features/repl/planSession.ts`
-- Plan path helpers: `src/shared/utils/planMode.ts`
-- Plan mode injected blocks: `src/features/repl/controller/send/sendMainTurn.ts` (wired by `src/features/repl/useReplController.ts`)
-- App-server runtime mode change notifications: `src/app-server/turnRunner.ts` (`turn/modeChanged`)
+- REPL mode type: `packages/core/src/features/repl/mode.ts`
+- REPL mode transition application: `packages/core/src/features/repl/useReplController.ts`
+- Plan session manager (plan file path, lifecycle): `packages/core/src/features/repl/planSession.ts`
+- Plan path helpers: `packages/core/src/shared/utils/planMode.ts`
+- Plan mode injected blocks: `packages/core/src/features/repl/controller/send/sendMainTurn.ts` (wired by `packages/core/src/features/repl/useReplController.ts`)
+- App-server runtime mode change notifications: `packages/core/src/app-server/turnRunner.ts` (`turn/modeChanged`)
 - Plan tools:
-  - EnterPlanMode: `src/tools/modules/enterPlanMode/*`
-  - ExitPlanMode: `src/tools/modules/exitPlanMode/*`
+  - EnterPlanMode: `packages/core/src/tools/modules/enterPlanMode/*`
+  - ExitPlanMode: `packages/core/src/tools/modules/exitPlanMode/*`
 
 ## Sub-agents (Task tool)
-- Built-in subagents registry (names, prompts, tool allowlist): `src/features/subagents/builtins.ts`
-- Subagent registry: `src/features/subagents/registry.ts`
-- Runner (spawning + tool allowlist enforcement): `src/features/subagents/runner.ts`
-- Agents creation wizard (generate with model / manual): `src/features/subagents/agentsWizard.ts`
+- Built-in subagents registry (names, prompts, tool allowlist): `packages/core/src/features/subagents/builtins.ts`
+- Subagent registry: `packages/core/src/features/subagents/registry.ts`
+- Runner (spawning + tool allowlist enforcement): `packages/core/src/features/subagents/runner.ts`
+- Agents creation wizard (generate with model / manual): `packages/core/src/features/subagents/agentsWizard.ts`
 - Sub-agent approval / non-interactive policy contract: `docs/contracts/permissions-policy-contract.md`
 
 ## Slash Commands
-- Slash command registry + suggest + dispatch: `src/features/commands/registry.ts`
-- Built-in command effects → command contract adapter: `src/features/commands/adapter.ts`, `src/features/commands/contracts.ts`
-- Custom commands store (scan `.formax/commands/**` and global overrides): `src/features/commands/CommandStore.ts`
-- Custom command rendering (markdown → injected prompt blocks): `src/features/commands/render.ts`
-- CLI wires suggestions/registry into REPL: `src/features/repl/useReplController.ts`, `src/screens/REPL.tsx`
+- Slash command registry + suggest + dispatch: `packages/core/src/features/commands/registry.ts`
+- Built-in command effects → command contract adapter: `packages/core/src/features/commands/adapter.ts`, `packages/core/src/features/commands/contracts.ts`
+- Custom commands store (scan `.formax/commands/**` and global overrides): `packages/core/src/features/commands/CommandStore.ts`
+- Custom command rendering (markdown → injected prompt blocks): `packages/core/src/features/commands/render.ts`
+- CLI wires suggestions/registry into REPL: `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/screens/REPL.tsx`
 
 ## Config / Auth / Paths
-- Runtime config loader: `src/config/config.ts`
-- Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `src/config/runtimeFlags.ts`
-- Config paths + migration/legacy behavior: `src/adapters/fs/configPaths.ts`
-- Reading config files (auth.json, etc): `src/adapters/fs/configFiles.ts`
+- Runtime config loader: `packages/core/src/config/config.ts`
+- Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `packages/core/src/config/runtimeFlags.ts`
+- Config paths + migration/legacy behavior: `packages/core/src/adapters/fs/configPaths.ts`
+- Reading config files (auth.json, etc): `packages/core/src/adapters/fs/configFiles.ts`
 
 ## Subsystem READMEs (Deep Dives)
-- Core (config/auth/setup/policy): `src/core/README.md`
-- Tools (registry/executor/presenters/runtime): `src/tools/README.md`
-- Streaming (SSE parsing + tool execution): `src/streaming/README.md`
-- Sub-agents (registry/runner/allowlist): `src/features/subagents/README.md`
+- Core (config/auth/setup/policy): `packages/core/src/core/README.md`
+- Tools (registry/executor/presenters/runtime): `packages/core/src/tools/README.md`
+- Streaming (SSE parsing + tool execution): `packages/core/src/streaming/README.md`
+- Sub-agents (registry/runner/allowlist): `packages/core/src/features/subagents/README.md`
 
 ## Docs Governance (Quick Links)
 - Docs source-of-truth map: `docs/index.md`
@@ -289,8 +289,8 @@ This file is a “where to change what” index for quickly navigating the codeb
   - `docs/pitfalls/index.md`
 
 ## If You're Adding a Feature, Start Here
-- UI / REPL behavior: `src/screens/REPL.tsx` + `src/features/repl/useReplController.ts`
-- New tool: `src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}` + register in `src/tools/registry.ts`
-- New slash command: `src/features/commands/registry.ts` + `src/features/commands/adapter.ts`
-- Cross-surface semantic change: `src/features/semantics/*` first, then app-server / TUI / Web adapters
-- Sub-agent capability / prompt: `src/features/subagents/builtins.ts` + `src/features/subagents/prompts/*`
+- UI / REPL behavior: `packages/core/src/screens/REPL.tsx` + `packages/core/src/features/repl/useReplController.ts`
+- New tool: `packages/core/src/tools/modules/<name>/{spec.ts,handler.ts,presenter.tsx,index.ts}` + register in `packages/core/src/tools/registry.ts`
+- New slash command: `packages/core/src/features/commands/registry.ts` + `packages/core/src/features/commands/adapter.ts`
+- Cross-surface semantic change: `packages/core/src/features/semantics/*` first, then app-server / TUI / Web adapters
+- Sub-agent capability / prompt: `packages/core/src/features/subagents/builtins.ts` + `packages/core/src/features/subagents/prompts/*`

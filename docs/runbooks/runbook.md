@@ -81,10 +81,10 @@
 
 触发信号：
 - 输出包含 `Shared-types check failed`。
-- 某个 `src/platform/types/shared/**` 文件提示 `single feature consumer`。
+- 某个 `packages/core/src/platform/types/shared/**` 文件提示 `single feature consumer`。
 
 修复路径：
-1. 若该类型仅服务单一 feature，优先下沉到 `src/features/<feature>/types`。
+1. 若该类型仅服务单一 feature，优先下沉到 `packages/core/src/features/<feature>/types`。
 2. 若确实是跨 feature 共享，补齐第二个 feature 的真实消费点，并保持语义一致。
 3. 重新执行 `bun run check:shared-types` 直到无违规。
 4. 再执行相关 feature 的定向测试，避免仅靠门禁通过而行为漂移。
@@ -103,7 +103,7 @@
 ### 2.4 `check:layer-coverage` 或 `check:layer-contracts` 命中 presenter 归属问题
 
 触发信号：
-- 新增 `src/tools/modules/*/presenter.tsx` 后出现 `LAYER_ORDER` 违规。
+- 新增 `packages/core/src/tools/modules/*/presenter.tsx` 后出现 `LAYER_ORDER` 违规。
 - 或 `layer-coverage` 显示该 presenter 文件未映射。
 
 修复路径：
@@ -120,7 +120,7 @@
 修复路径：
 1. 按报错定位到具体文档行，确认引用路径是否已迁移。
 2. 将旧路径改为当前 canonical 路径（重点范围：`AGENTS.md`、`.codex/skills/**`、`docs/**`、`plans/**`、目录内 `README.md`）。
-3. 若文档中的路径是模板占位符（如 `src/features/<name>/...`），保持占位符写法并避免被误写成不存在的具体路径。
+3. 若文档中的路径是模板占位符（如 `packages/core/src/features/<name>/...`），保持占位符写法并避免被误写成不存在的具体路径。
 4. 重新执行 `bun run check:doc-paths` 直到无缺失。
 
 ### 3. `check:golden-principles` 失败

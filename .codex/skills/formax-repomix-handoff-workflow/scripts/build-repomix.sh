@@ -8,7 +8,7 @@ output_dir="${3:-repomix-output}"
 if [[ -z "$output" || -z "$include_csv" ]]; then
   echo "Usage: bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh <bundle-file-name.txt> \"<include-csv>\" [output-dir]"
   echo "Example:"
-  echo "  bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh \\\"repomix-topic-core.txt\\\" \\\"src/screens/REPL.tsx,src/screens/repl/transcript.tsx\\\""
+  echo "  bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh \\\"repomix-topic-core.txt\\\" \\\"packages/core/src/screens/REPL.tsx,packages/core/src/screens/repl/transcript.tsx\\\""
   exit 2
 fi
 

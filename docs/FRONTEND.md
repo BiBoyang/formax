@@ -22,7 +22,7 @@
 
 ## 3. 前端改动最低约束
 
-1. UI 改动不得改变 `src/features/semantics/*` 语义真值。
+1. UI 改动不得改变 `packages/core/src/features/semantics/*` 语义真值。
 2. `approval` / `ask_user_question` 的提交 payload 形状不得私自变更。
 3. `permissions.allow` 与 preflight/policy 生效逻辑由服务端拥有，前端不得补丁式篡改。
 

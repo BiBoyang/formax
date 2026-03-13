@@ -21,14 +21,14 @@ If the change touches clear / remount ownership directly, also use `formax-surfa
 
 ## Code Map
 
-- Key handling: `src/screens/repl/hotkeys.ts`
-- View wiring + footer: `src/screens/REPL.tsx`
-- Compact projection: `src/screens/repl/compactProjection.ts`
-- Transcript rendering: `src/screens/repl/transcript.tsx`
-- Thinking persistence: `src/features/repl/controller/streaming/streaming.ts`
-- Expanded Transcript panels: `src/screens/repl/panels.tsx`
-- Compact command lifecycle: `src/features/repl/controller/send/send.ts`
-- Surface reset owner: `src/screens/repl/useSurfaceTransitionManager.ts`
+- Key handling: `packages/core/src/screens/repl/hotkeys.ts`
+- View wiring + footer: `packages/core/src/screens/REPL.tsx`
+- Compact projection: `packages/core/src/screens/repl/compactProjection.ts`
+- Transcript rendering: `packages/core/src/screens/repl/transcript.tsx`
+- Thinking persistence: `packages/core/src/features/repl/controller/streaming/streaming.ts`
+- Expanded Transcript panels: `packages/core/src/screens/repl/panels.tsx`
+- Compact command lifecycle: `packages/core/src/features/repl/controller/send/send.ts`
+- Surface reset owner: `packages/core/src/screens/repl/useSurfaceTransitionManager.ts`
 
 ## High-Signal Patterns
 
@@ -54,8 +54,8 @@ If the change touches clear / remount ownership directly, also use `formax-surfa
 
 ## Minimum Regression
 
-- `bun run test -- src/screens/repl/compactProjection.test.ts src/screens/repl/expandedTranscript.test.tsx src/screens/repl/hotkeys.test.tsx`
-- `bun run test -- src/screens/repl/surfaceSmoke.test.tsx`
+- `bun run test -- packages/core/src/screens/repl/compactProjection.test.ts packages/core/src/screens/repl/expandedTranscript.test.tsx packages/core/src/screens/repl/hotkeys.test.tsx`
+- `bun run test -- packages/core/src/screens/repl/surfaceSmoke.test.tsx`
 - `bun run test:surface-screen-model`
 - `bun run type-check`
 

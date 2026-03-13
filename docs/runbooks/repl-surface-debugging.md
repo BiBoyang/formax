@@ -36,8 +36,8 @@
 3. 必须 `await replaceTranscript(...)`，不要 fire-and-forget。
 
 对应文件：
-- `src/features/repl/controller/session/sessionTransitions.ts`
-- `src/features/repl/useReplController.ts`
+- `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
+- `packages/core/src/features/repl/useReplController.ts`
 
 ### 3.2 Ctrl+O / Ctrl+E / compact
 
@@ -46,9 +46,9 @@
 2. expanded view active 切换、expanded hide-history 切换、compact boundary 插入，都走 `useSurfaceTransitionManager`。
 
 对应文件：
-- `src/screens/repl/useSurfaceTransitionManager.ts`
-- `src/screens/REPL.tsx`
-- `src/screens/repl/transcriptKey.ts`
+- `packages/core/src/screens/repl/useSurfaceTransitionManager.ts`
+- `packages/core/src/screens/REPL.tsx`
+- `packages/core/src/screens/repl/transcriptKey.ts`
 
 ### 3.3 Legacy terminal clear path
 
@@ -57,7 +57,7 @@
 2. 不要再加 `replInstance.clear()` 或第二套 ANSI clear path。
 
 对应文件：
-- `src/runtime/bootstrap/runLegacyCli.tsx`
+- `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
 
 ### 3.4 非 append 修正
 
@@ -69,13 +69,13 @@
 ## 4. 最小验证清单
 
 先跑：
-1. `bun run test -- src/features/repl/controller/ui/surfaceReset.test.ts`
-2. `bun run test -- src/features/repl/controller/session/sessionTransitions.test.ts`
-3. `bun run test -- src/screens/repl/useSurfaceTransitionManager.test.tsx`
-4. `bun run test -- src/screens/repl/surfaceSmoke.test.tsx`
+1. `bun run test -- packages/core/src/features/repl/controller/ui/surfaceReset.test.ts`
+2. `bun run test -- packages/core/src/features/repl/controller/session/sessionTransitions.test.ts`
+3. `bun run test -- packages/core/src/screens/repl/useSurfaceTransitionManager.test.tsx`
+4. `bun run test -- packages/core/src/screens/repl/surfaceSmoke.test.tsx`
 
 触及 `/clear`、`/resume`、compact 主流程时，再补：
-5. `bun run test -- src/features/repl/useReplController.test.tsx -t "resume|clear|compact"`
+5. `bun run test -- packages/core/src/features/repl/useReplController.test.tsx -t "resume|clear|compact"`
 6. `bun run type-check`
 
 若改动包含 Ctrl+O / Ctrl+E / compact 的真实 surface 返回路径，再跑：

@@ -19,11 +19,11 @@
 
 | 现象 | 首查路径 |
 |---|---|
-| 明明已有 allow 仍反复弹审批 | `src/tools/executor/policyPreflight.ts`、`src/adapters/permissions/matcher.ts`、`src/adapters/permissions/permissionsStore.ts` |
-| `approve_remember` 后下一次仍不生效 | `src/tools/executor/approvalService.ts`、`src/core/policy/engine.ts`、`src/adapters/permissions/permissionKeys.ts` |
-| `workspace` 目录授权后仍被拦截 | `src/tools/executor/policyPreflight.ts`（workspace boundary）与 `permissions-policy-contract` 的 workspace 条目 |
-| TUI / Web 提交结果不一致 | `docs/contracts/interactive-input-contract.md`、`src/app-server/turn/inputStore.ts`、`packages/web-reference-react/src/store.ts` |
-| `/permissions` 对话框修改后行为没变 | `src/tui/permissions/PermissionsDialog.tsx`、`src/features/repl/controller/ui/overlays.ts`、settings/rules 落盘路径 |
+| 明明已有 allow 仍反复弹审批 | `packages/core/src/tools/executor/policyPreflight.ts`、`packages/core/src/adapters/permissions/matcher.ts`、`packages/core/src/adapters/permissions/permissionsStore.ts` |
+| `approve_remember` 后下一次仍不生效 | `packages/core/src/tools/executor/approvalService.ts`、`packages/core/src/core/policy/engine.ts`、`packages/core/src/adapters/permissions/permissionKeys.ts` |
+| `workspace` 目录授权后仍被拦截 | `packages/core/src/tools/executor/policyPreflight.ts`（workspace boundary）与 `permissions-policy-contract` 的 workspace 条目 |
+| TUI / Web 提交结果不一致 | `docs/contracts/interactive-input-contract.md`、`packages/core/src/app-server/turn/inputStore.ts`、`packages/web-reference-react/src/store.ts` |
+| `/permissions` 对话框修改后行为没变 | `packages/core/src/tui/permissions/PermissionsDialog.tsx`、`packages/core/src/features/repl/controller/ui/overlays.ts`、settings/rules 落盘路径 |
 
 ## 3. 最小排查步骤
 
@@ -35,12 +35,12 @@
 ## 4. 最小验证清单
 
 先跑：
-1. `bun run test -- src/tools/executor/policyPreflight.test.ts`
-2. `bun run test -- src/tools/executor/approvalService.test.ts`
-3. `bun run test -- src/tui/permissions/PermissionsDialog.test.tsx`
+1. `bun run test -- packages/core/src/tools/executor/policyPreflight.test.ts`
+2. `bun run test -- packages/core/src/tools/executor/approvalService.test.ts`
+3. `bun run test -- packages/core/src/tui/permissions/PermissionsDialog.test.tsx`
 
 若涉及 app-server/Web 再补：
-4. `bun run test -- src/app-server/turn/inputStore.test.ts src/app-server/server.test.ts`
+4. `bun run test -- packages/core/src/app-server/turn/inputStore.test.ts packages/core/src/app-server/server.test.ts`
 5. `npm --prefix packages/web-reference-react run test -- src/store.test.ts src/App.test.tsx`
 
 最后：

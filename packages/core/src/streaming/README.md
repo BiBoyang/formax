@@ -1,4 +1,4 @@
-# src/streaming
+# packages/core/src/streaming
 
 Last verified: 2026-01-13
 
@@ -26,7 +26,7 @@ Anthropic API 流式通信层：处理 SSE 解析、tool 并行执行与事件�
 | `anthropic/sseParser.ts`    | parseAnthropicSSEStream 解析 SSE 流    |
 | `types.ts`                  | StreamEvent / StreamSink / TokenUsage / LlmStreamClient |
 
-上层 chat engine (`src/chat/engine.ts`) 依赖 `LlmStreamClient` 接口；legacy wiring 通过 `src/streaming/index.ts` 按 provider 注入具体实现。
+上层 chat engine (`packages/core/src/chat/engine.ts`) 依赖 `LlmStreamClient` 接口；legacy wiring 通过 `packages/core/src/streaming/index.ts` 按 provider 注入具体实现。
 
 ## 3) 流程（Flow）
 
@@ -86,7 +86,7 @@ sequenceDiagram
 1. 在 `sseParser.ts` 的 `handleSSEEvent` 添加 case
 2. 在 `types.ts` 的 `StreamEvent` union 添加新变体
 3. 在 `StreamClient.ts` 的 sseCallbacks 添加对应回调
-4. 运行 `bun run test -- src/streaming/anthropic/sseParser.test.ts`
+4. 运行 `bun run test -- packages/core/src/streaming/anthropic/sseParser.test.ts`
 
 ### 支持新 API provider
 
@@ -104,8 +104,8 @@ sequenceDiagram
 | 现象                            | 优先检查                                        | 命令                                                                           |
 | ------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ |
 | 流卡住无响应                    | `StreamClient.ts` timeout 设置 + fetch 是否抛错 | 检查 `.env` 中 `FORMAX_TIMEOUT_MS`                                            |
-| 丢事件（tool_end 未触发）       | `sseParser.ts` handleSSEEvent case 匹配         | `bun run test -- src/streaming/anthropic/sseParser.test.ts`                    |
-| Tool 结果顺序错乱               | `sortToolResultsByCallOrder` 逻辑               | `bun run test -- src/streaming/anthropic/StreamClient.sortToolResults.test.ts` |
+| 丢事件（tool_end 未触发）       | `sseParser.ts` handleSSEEvent case 匹配         | `bun run test -- packages/core/src/streaming/anthropic/sseParser.test.ts`                    |
+| Tool 结果顺序错乱               | `sortToolResultsByCallOrder` 逻辑               | `bun run test -- packages/core/src/streaming/anthropic/StreamClient.sortToolResults.test.ts` |
 | JSON 解析失败（thinking block） | `sseParser.ts` inputJSONBuffers 拼接逻辑        | 添加 console.log 在 `content_block_stop` 分支                                  |
 | AbortError 频繁出现             | 检查 signal 来源 + 是否 timeout                 | -                                                                              |
 

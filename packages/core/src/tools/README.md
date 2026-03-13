@@ -1,4 +1,4 @@
-# src/tools
+# packages/core/src/tools
 
 Status: Informative deep dive.
 
@@ -35,7 +35,7 @@ Last verified: 2026-03-12
 | `registry.ts`       | ToolRegistry 类，注册并查询工具       |
 | `executor/index.ts` | createToolExecutor 工厂，返回执行函数 |
 
-上层 chat engine (`src/chat/engine.ts`) 在初始化时：
+上层 chat engine (`packages/core/src/chat/engine.ts`) 在初始化时：
 
 1. 从 registry 获取 handlers → 传给 executor
 2. 从 registry 获取 specs → 传给 streaming client
@@ -104,9 +104,9 @@ flowchart LR
 | LLM 调用工具但返回 "Tool X not implemented" | `executor/index.ts` NESTED_DENY_TOOLS + handler canHandle  | `bun run type-check`                                    |
 | Spec/Handler 名称不一致导致漏执行           | `SPEC_HANDLER_MISMATCHES.md` 文档 + `bun run tools:parity` | `bun run tools:parity`                                  |
 | 用户输入卡住（Promise 未 resolve）          | `runtime/userInputManager.ts` pending map                  | -                                                       |
-| 后台任务执行后结果丢失                      | `runtime/taskManager.ts` 任务是否 resolveDone              | `bun run test -- src/tools/runtime/taskManager.test.ts` |
+| 后台任务执行后结果丢失                      | `runtime/taskManager.ts` 任务是否 resolveDone              | `bun run test -- packages/core/src/tools/runtime/taskManager.test.ts` |
 | Presenter 报错导致 UI 崩溃                  | `../components/tool/FallbackToolPresenter.tsx` 兜底渲染    | -                                                       |
-| allow/deny list 不生效                      | `executor/index.ts` normalizeCtx 检查                      | `bun run test -- src/tools/executor`                    |
+| allow/deny list 不生效                      | `executor/index.ts` normalizeCtx 检查                      | `bun run test -- packages/core/src/tools/executor`                    |
 
 ## 7) 相关链接（Repo links）
 

@@ -10,15 +10,15 @@ Canonical docs for overlapping behavior:
 
 Use this README for implementation layout and contributor notes. When stable behavior changes, update the linked contracts first. A dedicated SDK API reference has not yet been promoted into `docs/`.
 
-`src/sdk` provides a unified in-process SDK surface for TypeScript callers.
+`packages/core/src/sdk` provides a unified in-process SDK surface for TypeScript callers.
 
 ## Unified Entry
 
 Primary unified entry module:
-- `src/sdk/api.ts`
+- `packages/core/src/sdk/api.ts`
 
 Package-level re-export entry:
-- `src/sdk/index.ts`
+- `packages/core/src/sdk/index.ts`
 
 Exported function set:
 - `query(args): Query` (`AsyncGenerator<QueryMessage, void, unknown>` + `interrupt()` + `close()` + `initializationResult()` + `supportedCommands()` + `supportedAgents()` + `supportedModels()` + `accountInfo()` + `mcpServerStatus()` + MCP control methods + task control methods + control methods)
@@ -134,7 +134,7 @@ Historical alignment references only. They are not the canonical source of truth
 - Query contract alignment matrix:
   - `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`
 - SDK exports alignment index:
-  - `src/sdk/EXPORTS-ALIGNMENT.md`
+  - `packages/core/src/sdk/EXPORTS-ALIGNMENT.md`
 - Exports source reference:
   - `plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`
 - `supportedCommands()` now returns both official-compatible fields (`name` / `argumentHint`) and Formax compatibility fields (`command` / `argHint`).
@@ -200,11 +200,11 @@ Result subtypes:
 
 ## Internal Layout (for contributors)
 
-- Unified API: `src/sdk/api.ts`
-- Query facade: `src/sdk/query.ts`
-- Query runtime implementation: `src/sdk/query/runner.ts`
-- Session query facade: `src/sdk/sessions.ts`
-- Session facade: `src/sdk/v2.ts`
-- Session runtime implementation: `src/sdk/session/core.ts`
-- Validation: `src/sdk/validation.ts`
-- Structured output helpers: `src/sdk/structuredOutput.ts`
+- Unified API: `packages/core/src/sdk/api.ts`
+- Query facade: `packages/core/src/sdk/query.ts`
+- Query runtime implementation: `packages/core/src/sdk/query/runner.ts`
+- Session query facade: `packages/core/src/sdk/sessions.ts`
+- Session facade: `packages/core/src/sdk/v2.ts`
+- Session runtime implementation: `packages/core/src/sdk/session/core.ts`
+- Validation: `packages/core/src/sdk/validation.ts`
+- Structured output helpers: `packages/core/src/sdk/structuredOutput.ts`

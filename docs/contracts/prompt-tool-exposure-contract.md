@@ -33,10 +33,10 @@
 
 `PTE-001`  
 prompt/tool exposure 的规范性实现权威 MUST 位于以下代码路径：
-1. `src/prompts/system.ts`
-2. `src/tools/runtime/deferredToolExposureResolver.ts`
-3. `src/tools/runtime/deferredToolExposure.ts`
-4. `src/chat/engine.ts`
+1. `packages/core/src/prompts/system.ts`
+2. `packages/core/src/tools/runtime/deferredToolExposureResolver.ts`
+3. `packages/core/src/tools/runtime/deferredToolExposure.ts`
+4. `packages/core/src/chat/engine.ts`
 
 `PTE-002`  
 REPL、app-server、SDK MUST 共享同一 prompt variant 与 deferred tool exposure 语义；各入口只允许做参数注入与适配，不得发明独立分支。
@@ -142,14 +142,14 @@ dry-run preview 是诊断能力，不是第二套请求构造逻辑。任何 def
 ## 7. 一致性测试映射
 
 本合同的主测试集：
-1. `src/prompts/system.test.ts`
-2. `src/tools/runtime/deferredToolExposureResolver.test.ts`
-3. `src/features/repl/controller/send/sendMainTurn.test.ts`
-4. `src/app-server/turnRunner.test.ts`
-5. `src/sdk/query.test.ts`
-6. `src/chat/engine.test.ts`
-7. `src/config/runtimeFlags.test.ts`
-8. `src/tools/modules/skill/index.test.ts`
+1. `packages/core/src/prompts/system.test.ts`
+2. `packages/core/src/tools/runtime/deferredToolExposureResolver.test.ts`
+3. `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+4. `packages/core/src/app-server/turnRunner.test.ts`
+5. `packages/core/src/sdk/query.test.ts`
+6. `packages/core/src/chat/engine.test.ts`
+7. `packages/core/src/config/runtimeFlags.test.ts`
+8. `packages/core/src/tools/modules/skill/index.test.ts`
 
 ## 8. 变更控制
 
@@ -161,7 +161,7 @@ dry-run preview 是诊断能力，不是第二套请求构造逻辑。任何 def
 
 必须按以下顺序执行：
 1. 先更新本文件。
-2. 再更新 `src/prompts/system.ts`、`src/tools/runtime/deferredToolExposureResolver.ts`、`src/tools/runtime/deferredToolExposure.ts`、相关入口 wiring。
+2. 再更新 `packages/core/src/prompts/system.ts`、`packages/core/src/tools/runtime/deferredToolExposureResolver.ts`、`packages/core/src/tools/runtime/deferredToolExposure.ts`、相关入口 wiring。
 3. 同步更新 `docs/environment-variables.md`（若 env 语义变化）与相关 learnings。
 4. 保持 `formax-system-prompt-workflow` 指向本合同，而不是继续在 skill 中承载长期真相。
 

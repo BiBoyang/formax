@@ -28,11 +28,11 @@
 ## 1. 语义权威源
 
 `SEM-001`  
-项目语义权威定义 MUST 位于 `src/features/semantics/*`，尤其是：
-1. `src/features/semantics/core/canonicalEvents.ts`
-2. `src/features/semantics/projection/transcriptProjection.ts`
-3. `src/features/semantics/runtime/inputStateMachine.ts`
-4. `src/features/semantics/runtime/threadRuntimeState.ts`
+项目语义权威定义 MUST 位于 `packages/core/src/features/semantics/*`，尤其是：
+1. `packages/core/src/features/semantics/core/canonicalEvents.ts`
+2. `packages/core/src/features/semantics/projection/transcriptProjection.ts`
+3. `packages/core/src/features/semantics/runtime/inputStateMachine.ts`
+4. `packages/core/src/features/semantics/runtime/threadRuntimeState.ts`
 
 `SEM-002`  
 TUI / app-server / Web MUST 共享同一语义模型；端内仅允许做 renderer 或交互适配，不得发明新的语义状态机分支。
@@ -69,16 +69,16 @@ Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection
 
 当变更语义行为（event mapping / projection / runtime state）时：
 1. 先更新本文件。
-2. 再更新 `src/features/semantics/*` 与对应 adapter。
+2. 再更新 `packages/core/src/features/semantics/*` 与对应 adapter。
 3. 同步更新 `docs/contracts/app-server-interaction-contract.md`、`docs/frontend/app-server-ui-spec.md`、`docs/references/app-server-api-reference.md` 的摘要描述（只做链接与摘要，不复制完整语义）。
 4. 在 `docs/learnings/` 记录学习条目或变更决策。
 
 ## 5. 一致性测试映射
 
 主测试集：
-1. `src/features/semantics/__tests__/*`
-2. `src/features/semantics/*.test.ts`
-3. `src/app-server/*.test.ts`（涉及 notification/replay/input lifecycle）
+1. `packages/core/src/features/semantics/__tests__/*`
+2. `packages/core/src/features/semantics/*.test.ts`
+3. `packages/core/src/app-server/*.test.ts`（涉及 notification/replay/input lifecycle）
 4. `packages/web-reference-react/src/App.test.tsx`
 5. `packages/web-reference-react/src/store.test.ts`
 

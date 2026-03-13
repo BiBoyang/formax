@@ -92,10 +92,10 @@ Use this checklist whenever a change touches mode, input lifecycle, tool sequenc
 
 ## Recommended test files
 
-- `src/features/semantics/__tests__/projectionParity.test.ts`
-- `src/features/semantics/*.test.ts`
-- `src/app-server/turnRunner.test.ts`
-- `src/app-server/server.test.ts`
+- `packages/core/src/features/semantics/__tests__/projectionParity.test.ts`
+- `packages/core/src/features/semantics/*.test.ts`
+- `packages/core/src/app-server/turnRunner.test.ts`
+- `packages/core/src/app-server/server.test.ts`
 - `packages/web-reference-react/src/App.test.tsx`
 - `packages/web-reference-react/src/store.test.ts`
 - `packages/web-reference-react/src/turnEventCursor.test.ts`

@@ -4,8 +4,8 @@
 
 ## 检查方法
 
-- **Spec 来源**: `src/tools/modules/<tool>/spec.ts` 中的 `input_schema.properties`
-- **Handler 来源**: `src/tools/modules/<tool>/handler.ts` 中的 `assertNoExtraKeys` 允许的字段列表
+- **Spec 来源**: `packages/core/src/tools/modules/<tool>/spec.ts` 中的 `input_schema.properties`
+- **Handler 来源**: `packages/core/src/tools/modules/<tool>/handler.ts` 中的 `assertNoExtraKeys` 允许的字段列表
 - **对比项**: 
   - Spec 中定义的属性 vs Handler 中允许的属性
   - Spec 中的 `required` 字段 vs Handler 中的必需性检查
@@ -14,11 +14,11 @@
 
 ### 1. ExitPlanMode
 
-**Spec 定义** (`src/tools/modules/exitPlanMode/spec.ts`):
+**Spec 定义** (`packages/core/src/tools/modules/exitPlanMode/spec.ts`):
 - `properties`: `launchSwarm` (boolean), `teammateCount` (number)
 - `additionalProperties`: `true` (允许额外属性)
 
-**Handler 实现** (`src/tools/modules/exitPlanMode/handler.ts`):
+**Handler 实现** (`packages/core/src/tools/modules/exitPlanMode/handler.ts`):
 - **没有** `assertNoExtraKeys` 调用
 - **没有** 读取 `launchSwarm` 或 `teammateCount` 参数
 - Handler 完全不处理任何输入参数

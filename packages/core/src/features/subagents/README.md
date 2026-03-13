@@ -1,4 +1,4 @@
-# src/features/subagents
+# packages/core/src/features/subagents
 
 Last verified: 2026-01-13
 
@@ -61,8 +61,8 @@ flowchart TD
 
 ### ❌ 禁止
 
-- Sub-agent 硬拒绝会话/交互型工具：`Task` / `TaskOutput` / `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` / `KillShell`（见 `src/tools/executor/subagentDenyTools.ts`）
-- Explore/Plan 额外硬拒绝写工具：`Edit` / `Write` / `NotebookEdit`（见 `src/features/subagents/runner.ts`）
+- Sub-agent 硬拒绝会话/交互型工具：`Task` / `TaskOutput` / `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` / `KillShell`（见 `packages/core/src/tools/executor/subagentDenyTools.ts`）
+- Explore/Plan 额外硬拒绝写工具：`Edit` / `Write` / `NotebookEdit`（见 `packages/core/src/features/subagents/runner.ts`）
 - Agent system prompt 不得包含敏感信息（会传给 LLM）
 - Registry 不做工具校验（只存名称列表）
 - Runner 不管理持久化 session（内存 Map，进程退出即失效）
@@ -87,7 +87,7 @@ flowchart TD
      systemPrompt: loadPrompt('agent-prompt-<name>.md', vars, fallback),
    }
    ```
-3. 运行 `bun run test -- src/features/subagents`
+3. 运行 `bun run test -- packages/core/src/features/subagents`
 
 ### 用户自定义 sub-agent
 
@@ -115,8 +115,8 @@ flowchart TD
 | 现象                            | 优先检查                                                           | 命令                                             |
 | ------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------ |
 | Agent 找不到（Unknown agent）   | `registry.get()` 返回 undefined + 检查名称拼写                     | 添加 `console.log(registry.list())`              |
-| 工具被拒绝（not in allow-list） | 检查 agent.tools 配置 + NESTED_DENY_TOOLS                          | `bun run test -- src/features/subagents/runner.test.ts`   |
-| Frontmatter 解析失败            | `registry.ts` parseFrontmatter 逻辑 + 检查 `---` 格式              | `bun run test -- src/features/subagents/registry.test.ts` |
+| 工具被拒绝（not in allow-list） | 检查 agent.tools 配置 + NESTED_DENY_TOOLS                          | `bun run test -- packages/core/src/features/subagents/runner.test.ts`   |
+| Frontmatter 解析失败            | `registry.ts` parseFrontmatter 逻辑 + 检查 `---` 格式              | `bun run test -- packages/core/src/features/subagents/registry.test.ts` |
 | resume 失败                     | 检查 agentId 是否匹配 + agent name 是否一致                        | -                                                |
 | Prompt 变量未替换               | `builtins.ts` interpolatePrompt + 变量名（如 `${GLOB_TOOL_NAME}`） | -                                                |
 

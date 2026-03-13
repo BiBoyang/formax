@@ -56,7 +56,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Fix**:
   - Keep UI transcript and prompt history separate (`historyRef` vs `messages`).
   - Apply `pruneForPromptBudget()` before sending each model call (pre-turn) and also inside the tool loop (pre-`streamOnce`).
-- **Links**: `src/chat/context/prune.ts`, `src/chat/engine.ts`, `src/features/repl/useReplController.ts`
+- **Links**: `packages/core/src/chat/context/prune.ts`, `packages/core/src/chat/engine.ts`, `packages/core/src/features/repl/useReplController.ts`
 - **Keywords**: context window, prompt budget, prune, tool_result, tool_use, tool loop
 
 ## Ink InputScope flicker (controlled input + effect deps)
@@ -66,7 +66,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   2) type quickly; observe flicker or dropped characters
 - **Root cause**: an effect that manages input scope (`pushScope/popScope`) depends on the whole `view` object. Controlled inputs update `view` on every keystroke → effect cleanup runs per keystroke → scope is popped/pushed repeatedly → transient “no active handler” windows.
 - **Fix**: scope activation effects must depend only on stable state (usually `view.kind`), not the full `view` object.
-- **Links**: `src/features/repl/inputScopeContext.tsx`, `src/tui/hooks/HooksDialog.tsx`
+- **Links**: `packages/core/src/features/repl/inputScopeContext.tsx`, `packages/core/src/tui/hooks/HooksDialog.tsx`
 - **Keywords**: ink, input scope, useLayoutEffect, controlled input, flicker, pushScope, popScope
 
 ## Ink overlay “full page flash” on every keystroke (layout height / margins)
@@ -82,7 +82,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - keep “typing views” compact: avoid tall blocks above the input; prefer `marginTop` over `marginY`; reduce blank lines;
   - make bordered input containers stable: `width="100%"` so they don’t shrink/expand with text;
   - if the view must be long, introduce an explicit scroll region or collapse long help/examples (UI behavior change — requires user approval).
-- **Links**: `src/tui/hooks/ui.tsx`
+- **Links**: `packages/core/src/tui/hooks/ui.tsx`
 - **Keywords**: ink, overlay, flicker, flash, layout, terminal height, marginY, marginBottom, width=100%, TextInput
 
 ## Ink `useInput` “bubbling” (multiple handlers receive the same key)
@@ -96,7 +96,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - Centralize routing via the InputScope router and introduce a “consumed” semantic: `handler(...) === true` means the key is consumed and prevents lower-priority handlers (within the same scope) from handling it.
   - In scope mode, `TextInput` must consume `←/→/Backspace/Delete/Enter` **even at boundaries** (so it never leaks to outer handlers).
   - Split REPL hotkeys vs slash selector into groups with priorities so selector navigation keys are consumed first.
-- **Links**: `src/features/repl/inputScopeContext.tsx`, `src/components/ui/TextInput.tsx`, `src/screens/repl/hotkeys.ts`, `src/features/repl/inputScopeContext.test.tsx`, `src/components/ui/TextInput.test.tsx`, `src/screens/repl/hotkeys.test.tsx`
+- **Links**: `packages/core/src/features/repl/inputScopeContext.tsx`, `packages/core/src/components/ui/TextInput.tsx`, `packages/core/src/screens/repl/hotkeys.ts`, `packages/core/src/features/repl/inputScopeContext.test.tsx`, `packages/core/src/components/ui/TextInput.test.tsx`, `packages/core/src/screens/repl/hotkeys.test.tsx`
 - **Keywords**: ink, useInput, bubbling, consumed, priority, input scope, TextInput, hotkeys
 
 ## `/clear` needs two runs / flashes once (Ink log-update cache vs manual ANSI clear)
@@ -112,7 +112,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
 - **Fix**:
   - Clear transcript state first (`setMessages([])` + `setTranscriptSeq(+1)`), then clear the terminal.
   - Keep a single clear path for legacy REPL (`resetInkStaticOutputForStdout` + `clearTerminal()`), avoid extra `replInstance.clear()` calls that can race with the next paint.
-- **Links**: `src/features/repl/useReplController.ts`, `src/runtime/bootstrap/runLegacyCli.tsx`, `src/shared/utils/terminal.ts`
+- **Links**: `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`, `packages/core/src/shared/utils/terminal.ts`
 - **Keywords**: /clear, ink, log-update, instance.clear, ansi, clearTerminal, Static, transcriptSeq, flicker
 
 ## `/resume` select-session black screen (bypassed reset transaction)
@@ -128,7 +128,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - Route resume surface updates through shared `resetTranscriptSurface()` transaction (same owner/queue as Ctrl+O paths).
   - Keep only one terminal clear path in legacy runner.
   - Add regression test asserting resume uses shared surface reset transaction ordering.
-- **Links**: `src/features/repl/controller/session/sessionTransitions.ts`, `src/features/repl/useReplController.ts`, `src/features/repl/controller/ui/surfaceReset.ts`, `src/runtime/bootstrap/runLegacyCli.tsx`
+- **Links**: `packages/core/src/features/repl/controller/session/sessionTransitions.ts`, `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/features/repl/controller/ui/surfaceReset.ts`, `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
 - **Keywords**: resume, black screen, Static, reset transaction, surface queue, clear race
 
 ## Bash-mode Backspace fails after toggling mode (stale callback closure)
@@ -146,7 +146,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - include dynamic callback/guard props in the dependency list:
     `useCallback(..., [focus, multiline, onBackspaceAtStart, reservedChars])`.
   - add regression tests that switch `InputBar` mode normal→bash and assert Backspace invokes `onBackspaceAtStart`.
-- **Links**: `src/components/ui/TextInput.tsx`, `src/components/chat/InputBar.test.tsx`, `src/components/ui/TextInput.test.tsx`
+- **Links**: `packages/core/src/components/ui/TextInput.tsx`, `packages/core/src/components/chat/InputBar.test.tsx`, `packages/core/src/components/ui/TextInput.test.tsx`
 - **Keywords**: bash mode, backspace, useCallback, stale closure, dependency array, onBackspaceAtStart
 
 ## Compact + Ctrl+O duplicates header/banner in real terminal (symptom + handling)
@@ -160,7 +160,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - route view-transition resets through `useSurfaceTransitionManager` (single owner)
   - keep compact projection deterministic (`compact_boundary` slicing + compact command fallback)
   - always validate with forced-Static tests (`surfaceSmoke`) plus terminal-model smoke (`test:surface-screen-model`)
-- **Links**: `src/screens/repl/useSurfaceTransitionManager.ts`, `src/screens/repl/transcript.tsx`, `src/screens/repl/compactProjection.ts`, `src/screens/repl/surfaceSmoke.test.tsx`, `scripts/surface-screen-model-smoke.tsx`
+- **Links**: `packages/core/src/screens/repl/useSurfaceTransitionManager.ts`, `packages/core/src/screens/repl/transcript.tsx`, `packages/core/src/screens/repl/compactProjection.ts`, `packages/core/src/screens/repl/surfaceSmoke.test.tsx`, `scripts/surface-screen-model-smoke.tsx`
 - **Keywords**: compact, ctrl+o, header duplicate, run dev, smoke tests
 
 ## Compact surface drift root cause (Static append-only + reset race + test gap)
@@ -179,7 +179,7 @@ This is a living knowledge base. Whenever you hit a non-obvious pitfall and you 
   - prefer reset transaction for view return paths that touch Static surface (not clear-only)
   - treat clear/remount as a transaction, not independent effects
   - maintain both fast logic tests (`compactProjection.test.ts`) and real-surface smoke (`surfaceSmoke`, `test:surface-screen-model`)
-- **Links**: `src/screens/repl/transcript.tsx`, `src/screens/repl/useSurfaceTransitionManager.ts`, `src/features/repl/useReplController.ts`, `src/screens/repl/compactProjection.test.ts`, `src/screens/repl/surfaceSmoke.test.tsx`
+- **Links**: `packages/core/src/screens/repl/transcript.tsx`, `packages/core/src/screens/repl/useSurfaceTransitionManager.ts`, `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/screens/repl/compactProjection.test.ts`, `packages/core/src/screens/repl/surfaceSmoke.test.tsx`
 - **Keywords**: Ink Static, append-only, reset race, remount transaction, test parity
 
 ## REPL semantic handoff drift (duplicate tool rows / flicker / order flip)

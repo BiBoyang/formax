@@ -11,25 +11,25 @@
 - 协议：`JSON-RPC 2.0`
 - 协议版本：`0.2`
 - 代码来源：
-  - `src/app-server/protocol.ts`
-  - `src/app-server/protocol/input.ts`
-  - `src/app-server/server.ts`
-  - `src/app-server/turnRunner.ts`
-  - `src/app-server/jsonrpc.ts`
-  - `src/app-server/transport/stdio.ts`
+  - `packages/core/src/app-server/protocol.ts`
+  - `packages/core/src/app-server/protocol/input.ts`
+  - `packages/core/src/app-server/server.ts`
+  - `packages/core/src/app-server/turnRunner.ts`
+  - `packages/core/src/app-server/jsonrpc.ts`
+  - `packages/core/src/app-server/transport/stdio.ts`
 
 ## 0. UI 对接阅读顺序（推荐）
 
 前端开发时建议按以下顺序阅读，先定协议边界，再看实现细节：
 
 1. `docs/references/app-server-api-reference.md`
-2. `src/app-server/protocol.ts`
-3. `src/app-server/protocol/input.ts`
-4. `src/app-server/server.ts`
-5. `src/app-server/turnRunner.ts`
-6. `src/app-server/threadStore.ts`
-7. `src/app-server/jsonrpc.ts`
-8. `src/app-server/transport/stdio.ts`
+2. `packages/core/src/app-server/protocol.ts`
+3. `packages/core/src/app-server/protocol/input.ts`
+4. `packages/core/src/app-server/server.ts`
+5. `packages/core/src/app-server/turnRunner.ts`
+6. `packages/core/src/app-server/threadStore.ts`
+7. `packages/core/src/app-server/jsonrpc.ts`
+8. `packages/core/src/app-server/transport/stdio.ts`
 
 说明：
 
@@ -683,7 +683,7 @@ AskUserQuestion payload：
 }
 ```
 
-`event` 类型来自 `src/streaming/types.ts`，典型值：
+`event` 类型来自 `packages/core/src/streaming/types.ts`，典型值：
 
 - `assistant_delta`
 - `thinking_delta` / `thinking_stop`

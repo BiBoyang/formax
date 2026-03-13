@@ -29,27 +29,27 @@
 
 ## 关键调用链（重复/反序/trans 堆积触发链）
 ### A. 事件进入 canonical 投影
-`src/features/repl/controller/streaming/streaming.ts`  
+`packages/core/src/features/repl/controller/streaming/streaming.ts`  
 `handleEvent(ev)`  
-→ `src/features/repl/controller/streaming/streamBridge.ts`  
-→ `src/features/semantics/adapters/streamCanonicalAdapter.ts`  
-→ `src/features/semantics/adapters/streamEventCanonicalMapper.ts`
+→ `packages/core/src/features/repl/controller/streaming/streamBridge.ts`  
+→ `packages/core/src/features/semantics/adapters/streamCanonicalAdapter.ts`  
+→ `packages/core/src/features/semantics/adapters/streamEventCanonicalMapper.ts`
 
 ### B. canonical event 到 transient/static 行投影
-`src/features/repl/useReplController.ts`  
+`packages/core/src/features/repl/useReplController.ts`  
 `onCanonicalEvent(event)`  
-→ `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`  
-→ `src/features/semantics/projection/transcriptProjection.ts`  
-→ `src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
+→ `packages/core/src/features/repl/controller/canonical/canonicalEventOrchestration.ts`  
+→ `packages/core/src/features/semantics/projection/transcriptProjection.ts`  
+→ `packages/core/src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
 
 ### C. 渲染面（Static）与分区
-`src/features/repl/controller/ui/messages.ts`  
+`packages/core/src/features/repl/controller/ui/messages.ts`  
 `isTransientMessage / partitionMessages`  
-→ `src/screens/repl/transcript.tsx` (`<Static items=[header, ...staticMessages]>`)  
+→ `packages/core/src/screens/repl/transcript.tsx` (`<Static items=[header, ...staticMessages]>`)  
 → `node_modules/ink/build/components/Static.js`
 
 ### D. 历史止血尝试（已回滚，不作为长期方案）
-`src/screens/repl/mergeMessages.ts`  
+`packages/core/src/screens/repl/mergeMessages.ts`  
 `mergeStaticAndTransientMessages({ staticMessages, transientMessages })`
 
 ## 结论（基于代码）
@@ -59,9 +59,9 @@
 
 ## 历史触发点（旧实现）
 - finalize 时插入/重排 turn 尾部：  
-  `src/features/repl/useReplController.ts`  
+  `packages/core/src/features/repl/useReplController.ts`  
   `finalizeCanonicalTurn(...)`  
-  → `src/features/repl/controller/canonical/canonicalTurnMerge.ts`  
+  → `packages/core/src/features/repl/controller/canonical/canonicalTurnMerge.ts`  
   `appendCanonicalTurnFinalRows(...)` / `mergeCanonicalTurnIntoMessages(...)`
 - 该路径会把 `thinking/system/assistant` 稳定行插到 tool 之前（非 append-only），触发重复/乱序。
 
@@ -75,17 +75,17 @@
 3. finalize 只做清 transient 与不变式校验，不再做 static 插入/重排。
 
 ## 本轮实现落点（对应原则）
-- `src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
+- `packages/core/src/features/repl/controller/canonical/canonicalTurnMessageMapping.ts`
   - transientOnly 也会输出稳定 assistant/finalized thinking/system（`surfaceOwner=static`）
   - tool：`running=transient`，`completed/error=static`
-- `src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
+- `packages/core/src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
   - transientOnly 投影 `includeUserSystem=true`
-- `src/features/repl/useReplController.ts`
+- `packages/core/src/features/repl/useReplController.ts`
   - `onCanonicalEvent` 将 `surfaceOwner=static` 增量合并到 `messages`
   - abort/finalize 通过 canonical `turn_footer` 收口终态
-- `src/features/repl/controller/ui/messages.ts`
+- `packages/core/src/features/repl/controller/ui/messages.ts`
   - `partitionMessages` 优先尊重 `surfaceOwner`
-- 回归：`src/screens/repl/surfaceSmoke.test.tsx`
+- 回归：`packages/core/src/screens/repl/surfaceSmoke.test.tsx`
   - forced Static + buffered 下，`Bash(pwd)` 仅出现一次，且顺序稳定
 
 ## 备注

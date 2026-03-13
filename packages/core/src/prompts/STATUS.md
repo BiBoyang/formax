@@ -17,4 +17,4 @@ These items are intentionally omitted or simplified until implemented:
 
 ## Reference prompt inventory
 
-- `system-prompts/PORTING-STATUS.md` tracks which files under `system-prompts/` are actually integrated into runtime (`src/`) vs kept as reference only.
+- `system-prompts/PORTING-STATUS.md` tracks which files under `system-prompts/` are actually integrated into runtime (`packages/core/src/`) vs kept as reference only.

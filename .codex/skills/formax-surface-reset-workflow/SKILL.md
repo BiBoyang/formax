@@ -26,11 +26,11 @@ These docs are canonical. If stable surface behavior changes, update them before
   - `queueTranscriptSurfaceReset`
   - `surfaceOpQueueRef`
 - High-risk flows:
-  - `src/features/repl/controller/ui/`
-  - `src/features/repl/controller/session/`
-  - `src/features/repl/useReplController.ts`
-  - `src/screens/repl/`
-  - `src/runtime/bootstrap/runLegacyCli.tsx`
+  - `packages/core/src/features/repl/controller/ui/`
+  - `packages/core/src/features/repl/controller/session/`
+  - `packages/core/src/features/repl/useReplController.ts`
+  - `packages/core/src/screens/repl/`
+  - `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
 - Call sites to watch:
   - `onClearTerminal`
   - `clearTerminal`
@@ -44,7 +44,7 @@ Use this skill whenever the change touches any of:
 - Ctrl+O / Ctrl+E transcript view switches
 - `onClearTerminal`, `clearTerminal`, or `resetInkStaticOutputForStdout`
 - `replaceTranscript`, `queueTranscriptSurfaceReplace`, `resetTranscriptSurface`, `queueTranscriptSurfaceReset`, or `surfaceOpQueueRef`
-- files under `src/features/repl/controller/ui/`, `src/features/repl/controller/session/`, `src/features/repl/useReplController.ts`, `src/screens/repl/`, or `src/runtime/bootstrap/runLegacyCli.tsx`
+- files under `packages/core/src/features/repl/controller/ui/`, `packages/core/src/features/repl/controller/session/`, `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/screens/repl/`, or `packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
 
 ## Minimal Workflow
 
@@ -56,9 +56,9 @@ Use this skill whenever the change touches any of:
 
 ## Minimum Regression
 
-- `bun run test -- src/features/repl/controller/ui/surfaceReset.test.ts`
-- `bun run test -- src/features/repl/useReplController.test.tsx -t "resume|clear|compact"`
-- `bun run test -- src/screens/repl/surfaceSmoke.test.tsx`
+- `bun run test -- packages/core/src/features/repl/controller/ui/surfaceReset.test.ts`
+- `bun run test -- packages/core/src/features/repl/useReplController.test.tsx -t "resume|clear|compact"`
+- `bun run test -- packages/core/src/screens/repl/surfaceSmoke.test.tsx`
 - `bun run type-check`
 - If change touches compact / expanded toggles broadly: `bun run test:surface-screen-model`
 

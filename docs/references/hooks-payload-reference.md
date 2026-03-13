@@ -150,6 +150,6 @@
 
 ## 6. 相关代码
 
-1. `src/hooks/runtime.ts`
-2. `src/hooks/runner.ts`
-3. `src/chat/engine.ts`
+1. `packages/core/src/hooks/runtime.ts`
+2. `packages/core/src/hooks/runner.ts`
+3. `packages/core/src/chat/engine.ts`
