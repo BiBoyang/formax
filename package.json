@@ -1,6 +1,6 @@
 {
   "name": "@yusifeng/formax",
-  "version": "0.0.1-beta.6",
+  "version": "0.0.1-beta.7",
   "type": "module",
   "description": "Terminal-first AI assistant for software engineering tasks (Ink + React)",
   "license": "MIT",
