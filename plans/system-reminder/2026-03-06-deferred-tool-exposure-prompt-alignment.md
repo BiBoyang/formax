@@ -184,7 +184,7 @@ B 的历史抓包说明：
 
 ### 1. core system prompt 已支持按 deferred exposure 联动切换
 
-文件：`src/prompts/system.ts`
+文件：`packages/core/src/prompts/system.ts`
 
 当前实现：
 
@@ -204,7 +204,7 @@ B 的历史抓包说明：
 
 ### 2. system prompt 的扩展能力已改成“代码级 capability 开关”，不依赖 env
 
-文件：`src/prompts/system.ts`
+文件：`packages/core/src/prompts/system.ts`
 
 当前实现：
 
@@ -221,12 +221,12 @@ B 的历史抓包说明：
 
 文件：
 
-- `src/features/repl/controller/send/sendMainTurn.ts`
-- `src/features/repl/controller/send/send.ts`
-- `src/features/repl/controller/send/sendPreMainRouting.ts`
-- `src/features/repl/controller/send/sendOrchestration.ts`
-- `src/app-server/turnRunner.ts`
-- `src/sdk/query/runner.ts`
+- `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+- `packages/core/src/features/repl/controller/send/send.ts`
+- `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
+- `packages/core/src/features/repl/controller/send/sendOrchestration.ts`
+- `packages/core/src/app-server/turnRunner.ts`
+- `packages/core/src/sdk/query/runner.ts`
 
 当前实现：
 
@@ -235,7 +235,7 @@ B 的历史抓包说明：
 
 ### 4. deferred mode 的 skills reminder 已改成 CC 风格 bullets
 
-文件：`src/tools/modules/skill/index.ts`
+文件：`packages/core/src/tools/modules/skill/index.ts`
 
 当前实现：
 
@@ -248,7 +248,7 @@ B 的历史抓包说明：
 
 ### 5. deferred exposure 核心语义保持不变
 
-文件：`src/tools/runtime/deferredToolExposureResolver.ts`
+文件：`packages/core/src/tools/runtime/deferredToolExposureResolver.ts`
 
 当前实现：
 
@@ -262,10 +262,10 @@ B 的历史抓包说明：
 
 文件：
 
-- `src/prompts/system.test.ts`
-- `src/features/repl/controller/send/sendMainTurn.test.ts`
-- `src/tools/runtime/deferredToolExposureResolver.test.ts`
-- `src/tools/modules/skill/index.test.ts`
+- `packages/core/src/prompts/system.test.ts`
+- `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- `packages/core/src/tools/runtime/deferredToolExposureResolver.test.ts`
+- `packages/core/src/tools/modules/skill/index.test.ts`
 
 当前断言覆盖：
 

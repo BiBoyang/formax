@@ -26,4 +26,4 @@
   2. 再改至少一个 replay 路径测试（`replayThreadEvents.test.ts`）。
   3. 最后改至少一个 notification 路径测试（`processNotification.test.ts`）。
 - 固定 smoke 命令（在 `packages/web-reference-react` 下执行）：
-  - `bunx vitest run --config vitest.config.ts src/app/runtime/processNotification.test.ts src/app/runtime/replayThreadEvents.test.ts src/app/runtime/threadActions.test.ts`
+  - `bunx vitest run --config vitest.config.ts packages/core/src/app/runtime/processNotification.test.ts packages/core/src/app/runtime/replayThreadEvents.test.ts packages/core/src/app/runtime/threadActions.test.ts`

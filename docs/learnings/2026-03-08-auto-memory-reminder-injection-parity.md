@@ -13,8 +13,8 @@
 
 Formax 采用同样双轨：
 
-1. 继续保留 `src/prompts/system.ts` 的 `# auto memory` 规则段
-2. 在 `src/features/repl/injectedBlocks.ts` 统一注入 `CLAUDE.md` 与 `MEMORY.md`
+1. 继续保留 `packages/core/src/prompts/system.ts` 的 `# auto memory` 规则段
+2. 在 `packages/core/src/features/repl/injectedBlocks.ts` 统一注入 `CLAUDE.md` 与 `MEMORY.md`
 3. `MEMORY.md` 读取路径与 system prompt 声明路径强绑定（同一 `buildAutoMemoryDirectoryPath`）
 4. `MEMORY.md` 注入上限为前 200 行，超出部分截断
 5. `MEMORY.md` 注入与 `FORMAX_DEFERRED_TOOL_EXPOSURE` 绑定：仅 `=1` 注入，`=0` 不注入

@@ -33,7 +33,7 @@ Goal: changing a value in `/config` updates the right file immediately and persi
 
 ### Tests (lock behavior before refactor)
 
-- [x] Add/extend `src/tui/config/ConfigDialog.test.tsx`:
+- [x] Add/extend `packages/core/src/tui/config/ConfigDialog.test.tsx`:
   - [x] Default values render (effective value + source shown).
   - [x] Saving to Project updates `<repo>/.formax/config.json`.
   - [x] Saving to User updates `~/.formax/config.json` (use temp FS path via env override in tests).

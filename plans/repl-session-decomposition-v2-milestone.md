@@ -9,10 +9,10 @@ Baseline values are from the v2 kickoff plan.
 
 | Metric | Baseline | Current | Delta |
 | --- | ---: | ---: | ---: |
-| `src/features/repl/useReplController.ts` lines | 1219 | 598 | -621 (-50.9%) |
-| `src/features/repl/sessionSave/writer.ts` lines | 503 | 233 | -270 (-53.7%) |
-| `src/features/repl/sessionSave/reader.ts` lines | 679 | 541 | -138 (-20.3%) |
-| `__*TestOnly` exports in `src/features/repl/**` | 37 | 0 | -37 |
+| `packages/core/src/features/repl/useReplController.ts` lines | 1219 | 598 | -621 (-50.9%) |
+| `packages/core/src/features/repl/sessionSave/writer.ts` lines | 503 | 233 | -270 (-53.7%) |
+| `packages/core/src/features/repl/sessionSave/reader.ts` lines | 679 | 541 | -138 (-20.3%) |
+| `__*TestOnly` exports in `packages/core/src/features/repl/**` | 37 | 0 | -37 |
 
 ## What Landed
 
@@ -67,9 +67,9 @@ Chronological range used for this milestone:
 ## Verification Gate (Passed)
 Executed as milestone close gate:
 
-- `bun run test -- src/features/repl/useReplController.test.tsx`
-- `bun run test -- src/features/repl/sessionSave/`
-- `bun run test -- src/features/repl/controller/`
+- `bun run test -- packages/core/src/features/repl/useReplController.test.tsx`
+- `bun run test -- packages/core/src/features/repl/sessionSave/`
+- `bun run test -- packages/core/src/features/repl/controller/`
 - `bun run type-check`
 - `bun run ui:boundaries`
 - `bun run check:partial-stage`

@@ -5,13 +5,13 @@
 - `write`（create/patch preview / approval UX）
 
 背景（你可以直接用现有实现作为模板，不要重新发明架构）：
-- Blocks presenter helper：`createToolBlocksPresenter` in `src/shared/toolPresenterContracts.ts`
-- Blocks renderer：`src/components/tool/ToolUiBlocks.tsx`
-- 现成 blocks presenter 样例（已迁移完成，可参考结构/测试写法）：`src/tools/modules/read/presenter.tsx` / `src/tools/modules/grep/presenter.tsx` / `src/tools/modules/glob/presenter.tsx` / `src/tools/modules/todoWrite/presenter.tsx`
-- 现成 bridge 样例（blocks presenter 里返回 custom node，node 内可以用 hook）：`src/components/tool/FsReadApprovalToolBlock.tsx`
+- Blocks presenter helper：`createToolBlocksPresenter` in `packages/core/src/shared/toolPresenterContracts.ts`
+- Blocks renderer：`packages/core/src/components/tool/ToolUiBlocks.tsx`
+- 现成 blocks presenter 样例（已迁移完成，可参考结构/测试写法）：`packages/core/src/tools/modules/read/presenter.tsx` / `packages/core/src/tools/modules/grep/presenter.tsx` / `packages/core/src/tools/modules/glob/presenter.tsx` / `packages/core/src/tools/modules/todoWrite/presenter.tsx`
+- 现成 bridge 样例（blocks presenter 里返回 custom node，node 内可以用 hook）：`packages/core/src/components/tool/FsReadApprovalToolBlock.tsx`
 - 现有 edit/write presenter（当前可能仍是 React presenter 或部分 blocks 化；以当前代码为准）：
-  - `src/tools/modules/edit/presenter.tsx`
-  - `src/tools/modules/write/presenter.tsx`
+  - `packages/core/src/tools/modules/edit/presenter.tsx`
+  - `packages/core/src/tools/modules/write/presenter.tsx`
 
 硬约束（必须遵守）：
 - 禁止跑 `bun run test:coverage`（不要 coverage）。
@@ -51,8 +51,8 @@
 
 3) 测试（先改/补测试钉住行为，再实现迁移）
    - 目标测试文件（优先复用现有；缺什么就补什么，但只补 edit/write 相关）：
-     - `src/tools/modules/edit/presenter.test.tsx`
-     - `src/tools/modules/write/presenter.test.tsx`
+     - `packages/core/src/tools/modules/edit/presenter.test.tsx`
+     - `packages/core/src/tools/modules/write/presenter.test.tsx`
    - 测试重点（只锁行为，不写冗长断言）：
      - edit:
        - plan file / normal file 的关键分支都还在（迁移前怎么展示，迁移后就怎么展示）
@@ -68,8 +68,8 @@
    - Step B：只做 write（含必要测试调整）→ 跑 targeted tests → 按 `AGENTS.md` 的 `Review Profile (Single Source of Truth)` 跑 review → commit
 
 只跑 targeted tests（示例，按你实际改动调整）：
-- `bun run test -- src/tools/modules/edit/presenter.test.tsx`
-- `bun run test -- src/tools/modules/write/presenter.test.tsx`
+- `bun run test -- packages/core/src/tools/modules/edit/presenter.test.tsx`
+- `bun run test -- packages/core/src/tools/modules/write/presenter.test.tsx`
 
 Commit message 建议（按实际情况微调）：
 - `refactor(tools): migrate edit to tool ui blocks`

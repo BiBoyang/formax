@@ -30,9 +30,9 @@ Default dump path (when dir env is unset):
 
 ## Test coverage
 
-- `src/chat/engine.test.ts`
+- `packages/core/src/chat/engine.test.ts`
   - verifies dry-run skips `streamOnce`
   - verifies JSON payload is written with expected `system/messages/tools` fields
 
-- `src/config/runtimeFlags.test.ts`
+- `packages/core/src/config/runtimeFlags.test.ts`
   - verifies env parsing for `FORMAX_REQUEST_DRY_RUN` and `FORMAX_REQUEST_DRY_RUN_DIR`

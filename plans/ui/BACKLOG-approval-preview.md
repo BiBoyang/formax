@@ -7,7 +7,7 @@
 ## Potential follow-ups
 
 - 抽取更中立的 `ApprovalFrame` 组件（如果未来 overlays 也要复用 approval 的结构）
-  - 现状：已有 `src/components/ui/ApprovalHeader.tsx` / `src/components/tool/ApprovalPreview.tsx` / `src/components/ui/MarkdownBlock.tsx`
+  - 现状：已有 `packages/core/src/components/ui/ApprovalHeader.tsx` / `packages/core/src/components/tool/ApprovalPreview.tsx` / `packages/core/src/components/ui/MarkdownBlock.tsx`
   - 目标：把“顶线 + Title + children”这层提升为更通用、可复用的框架组件
 
 - 扩展到更多工具的 preview（按需）

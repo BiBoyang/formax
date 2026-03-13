@@ -2,7 +2,7 @@
 
 ## Context
 
-`src/app-server/index.ts` previously processed JSONL ingress in a single serial loop (`listen -> parse -> handleMessage -> send`).
+`packages/core/src/app-server/index.ts` previously processed JSONL ingress in a single serial loop (`listen -> parse -> handleMessage -> send`).
 Under bursty request traffic, this made throughput depend on request handler latency and offered no explicit queue saturation behavior.
 
 ## Decision
@@ -34,5 +34,5 @@ Adopt Codex-style app-server backpressure semantics on the server side:
 
 ## Regression coverage
 
-- `src/app-server/index.test.ts`
-- `src/app-server/index.coverage.test.ts`
+- `packages/core/src/app-server/index.test.ts`
+- `packages/core/src/app-server/index.coverage.test.ts`

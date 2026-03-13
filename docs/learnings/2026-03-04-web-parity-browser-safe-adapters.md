@@ -2,8 +2,8 @@
 
 ## Context
 
-`packages/web-reference-react` previously imported multiple tool-presentation modules directly from root `src/features/*`.
-Some of those chains eventually pulled `src/shared/utils/paths.ts` into browser builds, which depends on `node:os` and `node:path`.
+`packages/web-reference-react` previously imported multiple tool-presentation modules directly from `packages/core/src/features/*`.
+Some of those chains eventually pulled `packages/core/src/shared/utils/paths.ts` into browser builds, which depends on `node:os` and `node:path`.
 
 ## Decision
 

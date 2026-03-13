@@ -15,8 +15,8 @@
 
 建议落点：
 
-- `src/features/repl/controller/overlays.test.tsx`
-- `src/screens/REPL.*.test.tsx`
+- `packages/core/src/features/repl/controller/overlays.test.tsx`
+- `packages/core/src/screens/REPL.*.test.tsx`
 
 ---
 

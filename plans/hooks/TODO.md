@@ -4,7 +4,7 @@
 
 信息来源：
 - `plans/hooks/hooks.md`（Claude Code 文档）
-- Formax 现状：`src/hooks/types.ts`、`src/hooks/store.ts`、`src/hooks/runtime.ts`、`src/chat/engine.ts`、`src/tui/hooks/*`
+- Formax 现状：`packages/core/src/hooks/types.ts`、`packages/core/src/hooks/store.ts`、`packages/core/src/hooks/runtime.ts`、`packages/core/src/chat/engine.ts`、`packages/core/src/tui/hooks/*`
 
 ## 0) 约定（matcher 怎么算）
 
@@ -31,7 +31,7 @@
 - [x] `SessionStart`（Formax 目前按“无 matcher”处理；Claude 文档有 matcher）
   - UI：当前会跳过 matcher 页面
   - 存盘：当前 rule **不写** `matcher`
-  - 触发点（Formax 现状）：`src/chat/engine.ts` 在“**每个 session 的首次** `runTurn()`”时调用一次 `runSessionStart()`；当 `/clear` 或 `/resume` 切换 session 时，会重置并允许再次触发
+  - 触发点（Formax 现状）：`packages/core/src/chat/engine.ts` 在“**每个 session 的首次** `runTurn()`”时调用一次 `runSessionStart()`；当 `/clear` 或 `/resume` 切换 session 时，会重置并允许再次触发
   - 现状差异：Claude 文档的 `startup/resume/clear/compact` matcher **尚未实现**
   - 备注：Formax 已实现 `/clear`（会开启新 session 并清空 transcript）与 `/resume`（切换到已保存 session），两者都会让后续 turn 再次触发 `SessionStart`；但 matcher 语义（`startup/resume/clear/compact`）仍未对齐
 - [x] `Stop`（无 matcher / 不适用）
@@ -49,7 +49,7 @@
 
 - [ ] **SessionStart matcher 对齐**（Claude 文档：`startup` / `resume` / `clear` / `compact`）
   - 现状：Formax 目前仅有“startup（进程内首次 turn）”的语义，但**没有 matcher 字段/区分**
-  - `/compact`：Formax **已实现**（见 `src/features/repl/useReplController.ts` + `src/features/commands/registry.ts`），且有 auto-compact；但它不会创建新 session，因此不会再次触发 `SessionStart`
+  - `/compact`：Formax **已实现**（见 `packages/core/src/features/repl/useReplController.ts` + `packages/core/src/features/commands/registry.ts`），且有 auto-compact；但它不会创建新 session，因此不会再次触发 `SessionStart`
   - `/clear`：Formax **已实现**（controller 处理并开启新 session）；且会重置并允许后续 turn 触发 `SessionStart`，但仍没有 `clear` matcher 的落点
   - `/resume`：Formax 已有“恢复 session 文件”的能力（见 `useReplController.resumeSession()`）；且会重置并允许后续 turn 触发 `SessionStart`，但仍没有 `resume` matcher 的落点
   - 需要先决定是否要对齐这组 matcher：如果要，需要明确“哪些动作触发 SessionStart/PreCompact/SessionEnd”等事件，以及 matcher 从哪里来

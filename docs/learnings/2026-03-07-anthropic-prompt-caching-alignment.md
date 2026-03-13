@@ -24,9 +24,9 @@ Anthropic 请求发送前统一归一化为：
 ## Code Landing
 
 - 归一化核心：
-  - `src/streaming/anthropic/promptCachingLayout.ts`
+  - `packages/core/src/streaming/anthropic/promptCachingLayout.ts`
 - 请求发送前统一应用：
-  - `src/streaming/anthropic/StreamClient.ts`
+  - `packages/core/src/streaming/anthropic/StreamClient.ts`
 - 预览脚本同样应用（便于“只构造请求不真实发送”时看到最终形态）：
   - `scripts/repl-request-preview.ts`
   - `scripts/request-toolsearch-alignment.ts`

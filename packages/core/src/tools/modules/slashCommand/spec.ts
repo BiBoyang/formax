@@ -5,7 +5,7 @@ import type { ToolDefinition } from '../../types'
  *
  * This is the base spec for SlashCommand. The actual spec used at runtime
  * is dynamically extended with available commands in index.ts.
- * This base spec should match the corresponding entry in src/tools/specs/reference/tools-copy.json
+ * This base spec should match the corresponding entry in packages/core/src/tools/specs/reference/tools-copy.json
  * (verified by parity tests).
  */
 export const baseSpec: ToolDefinition = {

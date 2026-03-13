@@ -1,6 +1,6 @@
 # Backlog: Tool UI Blocks (C-lite) migration
 
-Context: We migrated the initial **P0** set to the blocks presenter path so global tool UI changes do not require editing every `src/tools/modules/*/presenter.tsx`.
+Context: We migrated the initial **P0** set to the blocks presenter path so global tool UI changes do not require editing every `packages/core/src/tools/modules/*/presenter.tsx`.
 
 Status:
 
@@ -9,11 +9,11 @@ Status:
 
 ## P1 — migrate after P0 is stable
 
-- `webSearch` → blocks presenter + update `src/tools/modules/webSearch/presenter.test.tsx`
-- `webFetch` → blocks presenter + update `src/tools/modules/webFetch/presenter.test.tsx`
-- `bash` → blocks presenter (multi-line output) + update `src/tools/modules/bash/presenter.test.tsx`
-- `skill` → blocks presenter + update `src/tools/modules/skill/presenter.test.tsx`
-- `askUserQuestion` → blocks presenter + update `src/tools/modules/askUserQuestion/presenter.test.tsx`
+- `webSearch` → blocks presenter + update `packages/core/src/tools/modules/webSearch/presenter.test.tsx`
+- `webFetch` → blocks presenter + update `packages/core/src/tools/modules/webFetch/presenter.test.tsx`
+- `bash` → blocks presenter (multi-line output) + update `packages/core/src/tools/modules/bash/presenter.test.tsx`
+- `skill` → blocks presenter + update `packages/core/src/tools/modules/skill/presenter.test.tsx`
+- `askUserQuestion` → blocks presenter + update `packages/core/src/tools/modules/askUserQuestion/presenter.test.tsx`
 
 ## P2 — postpone / keep React presenter for now
 

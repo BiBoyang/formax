@@ -6,7 +6,7 @@
 
 > [!CAUTION]
 > **`--packages=external` 与 `workspace:*` 冲突**
-> 当前 CLI 构建命令是 `bun build src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external`。
+> 当前 CLI 构建命令是 `bun build packages/core/src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --packages=external`。
 > 这意味着所有 bare import（如 `@formax/semantics`）会被保留为外部依赖，但 `@formax/semantics` 不会发布到 npm，用户环境装不到。
 > **对策**：内部 workspace 包必须被 bundle 进产物，不能 external。有两种做法：
 >
@@ -54,17 +54,17 @@ formax/
 │   │   ├── tsconfig.json
 │   │   ├── vitest.config.ts
 │   │   ├── bin/
-│   │   └── src/                 ← 当前 root src/ 整体（去掉 features/semantics）
+│   │   └── packages/core/src/                 ← 当前 root packages/core/src/ 整体（去掉 features/semantics）
 │   │
 │   ├── semantics/               ← @formax/semantics
 │   │   ├── package.json         ← 依赖 @formax/shared（清理后）
 │   │   ├── tsconfig.json
-│   │   └── src/                 ← 当前 src/features/semantics/*（清理后）
+│   │   └── packages/core/src/                 ← 当前 packages/core/src/features/semantics/*（清理后）
 │   │
 │   ├── shared/                  ← @formax/shared
 │   │   ├── package.json
 │   │   ├── tsconfig.json
-│   │   └── src/                 ← 跨端共享类型 + presenter 接口
+│   │   └── packages/core/src/                 ← 跨端共享类型 + presenter 接口
 │   │
 │   ├── web-reference-react/     ← formax-web-reference-react
 │   │   └── ...                  ← 现有内容，import 改为 @formax/semantics
@@ -83,7 +83,7 @@ formax/
 
 ### 目标
 
-让现有多个 `package.json` 由统一 workspace manager 管理。不拆 `src/`。
+让现有多个 `package.json` 由统一 workspace manager 管理。不拆 `packages/core/src/`。
 
 ### 步骤
 
@@ -111,7 +111,7 @@ formax/
 
 ### 前置：依赖方向清理
 
-当前 `src/features/semantics/` 有 17 处向外部模块的 import，必须先清理才能干净提取：
+当前 `packages/core/src/features/semantics/` 有 17 处向外部模块的 import，必须先清理才能干净提取：
 
 | 文件                                           | 外部依赖                                                                         | 处理方式                                                             |
 | ---------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -139,12 +139,12 @@ formax/
 
 1. 创建 `packages/semantics/`，含 `package.json`（`"name": "@formax/semantics"`）
 2. 创建 `packages/semantics/tsconfig.json`（extends `../../tsconfig.base.json`）
-3. 将 `src/features/semantics/` 整体移入 `packages/semantics/src/`
+3. 将 `packages/core/src/features/semantics/` 整体移入 `packages/semantics/src/`
 4. `packages/semantics/src/index.ts` 做 barrel export
 5. root `package.json`：
    - `workspaces` 保持 `["packages/*"]`
    - 需要时为消费方增加 `"@formax/semantics": "workspace:*"`
-6. root `src/` 中所有 `from '../features/semantics/...'` 改为 `from '@formax/semantics'`
+6. root `packages/core/src/` 中所有 `from '../features/semantics/...'` 改为 `from '@formax/semantics'`
 7. `packages/web-reference-react/package.json` 加 `"@formax/semantics": "workspace:*"`
 8. `packages/web-reference-react/src/parity/semantics/index.ts` 的 17 处深层 import 全部改为 `from '@formax/semantics'`
 9. 验证：同 Phase 1 验证清单 + web-reference-react e2e
@@ -152,7 +152,7 @@ formax/
 ### 关键影响文件
 
 ```
-src/features/semantics/         → packages/semantics/src/
+packages/core/src/features/semantics/         → packages/semantics/src/
   core/canonicalEvents.ts
   core/modeSemantics.ts
   core/replModeTransition.ts
@@ -172,7 +172,7 @@ src/features/semantics/         → packages/semantics/src/
 
 ### 风险
 
-- ~~semantics 内部可能反向 import `src/` 其他模块~~ **已确认存在 17 处**，见上文清理表
+- ~~semantics 内部可能反向 import `packages/core/src/` 其他模块~~ **已确认存在 17 处**，见上文清理表
 - 测试 fixtures（如 `crossPathContractFixture.ts`）引用 `StreamEvent` 类型，需 shared 先就位
 - 清理过程中可能发现更多隐式耦合（通过 re-export 间接引入的）
 
@@ -188,10 +188,10 @@ src/features/semantics/         → packages/semantics/src/
 
 | 来源                                      | 用途                              |
 | ----------------------------------------- | --------------------------------- |
-| `src/shared/toolPresenterContracts.ts`    | TUI + Web 共用 presenter 接口     |
-| `src/features/tools/presentation/*`       | web parity 测试直接引用的展示逻辑 |
-| `src/app-server/protocol.ts` 中的类型子集 | JSON-RPC 消息类型（web 端需要）   |
-| `src/streaming/types.ts` 中的共享类型     | stream event 类型定义             |
+| `packages/core/src/shared/toolPresenterContracts.ts`    | TUI + Web 共用 presenter 接口     |
+| `packages/core/src/features/tools/presentation/*`       | web parity 测试直接引用的展示逻辑 |
+| `packages/core/src/app-server/protocol.ts` 中的类型子集 | JSON-RPC 消息类型（web 端需要）   |
+| `packages/core/src/streaming/types.ts` 中的共享类型     | stream event 类型定义             |
 
 ### 步骤
 
@@ -210,7 +210,7 @@ src/features/semantics/         → packages/semantics/src/
 
 ### 目标
 
-保持子项目位于 `packages/`，并将 root `src/` 移入 `packages/core/`，root 变为纯 workspace 协调器。
+保持子项目位于 `packages/`，并将 root `packages/core/src/` 移入 `packages/core/`，root 变为纯 workspace 协调器。
 
 ### 发布身份约束
 
@@ -224,7 +224,7 @@ npm 包名 `@yusifeng/formax` 和 `bin.formax` 入口必须保持不变。两种
 1. `mkdir packages/core && mv src packages/core/src`
 2. 将 root `package.json` 的 `scripts`/`dependencies`/`devDependencies`/`bin` 移入 `packages/core/package.json`
 3. root `package.json` 简化为只含 `workspaces` + 共享 devDeps
-4. 批量更新 `scripts/check-*.mjs` 中的路径假设（`src/` → `packages/core/src/`）
+4. 批量更新 `scripts/check-*.mjs` 中的路径假设（`packages/core/src/` → `packages/core/src/`）
 5. 更新 `tsconfig.json` → `tsconfig.base.json`，`packages/core/tsconfig.json` extends it
 6. 更新 CI、`CODEMAP.md`、`ARCHITECTURE.md`
 7. 更新 `bun build` 命令中的入口路径和 `--external` 列表
@@ -232,7 +232,7 @@ npm 包名 `@yusifeng/formax` 和 `bin.formax` 入口必须保持不变。两种
 
 ### 风险
 
-- 工作量最大的阶段：`scripts/` 下 ~20 个治理脚本硬编码了 `src/` 路径
+- 工作量最大的阶段：`scripts/` 下 ~20 个治理脚本硬编码了 `packages/core/src/` 路径
 - `bun build` 入口路径、`bin/formax.js` 的相对路径都需要调整
 - `layer-contract.config.json` 等配置文件的路径假设需要全部更新
 - `desktop-electron/scripts/build-runtime.mjs` 中 `repoRoot/dist/cli.js` 路径需更新

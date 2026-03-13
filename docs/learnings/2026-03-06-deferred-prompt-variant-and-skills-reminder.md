@@ -13,7 +13,7 @@ The goal was to keep `FORMAX_DEFERRED_TOOL_EXPOSURE=0` behavior stable, and alig
 
 ### 1. Prompt variant model with code-level capabilities
 
-In `src/prompts/system.ts`:
+In `packages/core/src/prompts/system.ts`:
 
 - added `SystemPromptVariant`:
   - `legacy`
@@ -32,16 +32,16 @@ This makes deferred prompt evolution explicit and extensible without introducing
 
 Variant selection is now wired across all main turn entry points:
 
-- REPL main turn: `src/features/repl/controller/send/sendMainTurn.ts`
-- REPL `/compact` path: `src/features/repl/controller/send/send.ts` + pre-main/orchestration forwarding
-- app-server: `src/app-server/turnRunner.ts`
-- SDK query runner: `src/sdk/query/runner.ts`
+- REPL main turn: `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+- REPL `/compact` path: `packages/core/src/features/repl/controller/send/send.ts` + pre-main/orchestration forwarding
+- app-server: `packages/core/src/app-server/turnRunner.ts`
+- SDK query runner: `packages/core/src/sdk/query/runner.ts`
 
 Result: deferred exposure no longer means "ToolSearch-only + legacy prompt" in one path but not another.
 
 ### 3. Skills reminder style alignment
 
-In `src/tools/modules/skill/index.ts`:
+In `packages/core/src/tools/modules/skill/index.ts`:
 
 - `buildAvailableSkillsSystemReminderText` switched from XML payload style to CC-like reminder bullets:
   - header: `The following skills are available for use with the Skill tool:`
@@ -53,10 +53,10 @@ In `src/tools/modules/skill/index.ts`:
 
 Updated tests:
 
-- `src/prompts/system.test.ts`
-- `src/features/repl/controller/send/sendMainTurn.test.ts`
-- `src/tools/runtime/deferredToolExposureResolver.test.ts`
-- `src/tools/modules/skill/index.test.ts`
+- `packages/core/src/prompts/system.test.ts`
+- `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- `packages/core/src/tools/runtime/deferredToolExposureResolver.test.ts`
+- `packages/core/src/tools/modules/skill/index.test.ts`
 
 Confirmed with:
 

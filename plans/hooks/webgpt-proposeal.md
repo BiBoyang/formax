@@ -510,13 +510,13 @@
 
 * [ ] **新增 hooks 类型定义（不接线）**
 
-  * Files: `src/adapters/hooks/types.ts`（new）
+  * Files: `packages/core/src/adapters/hooks/types.ts`（new）
   * Work: 定义 `HookEventName` union、`HookRule`、`CommandHookDef`、`HooksSettings`、`HookSource`、`HookConfigSnapshot` 等；只定义类型与最小运行时常量（默认 timeout、截断上限）。
   * Verify: `pnpm vitest`（新增纯类型文件不会影响现有测试）
 
 * [ ] **实现 hooks settings 读取（只读，不改写 settings）**
 
-  * Files: `src/adapters/hooks/hooksStore.ts`（new）
+  * Files: `packages/core/src/adapters/hooks/hooksStore.ts`（new）
   * Work:
 
     * 复用 permissions 的路径函数：`getProjectSettingsLocalPath/getProjectSettingsPath/getUserSettingsPath` 来定位 3 个 settings 文件
@@ -526,27 +526,27 @@
 
 * [ ] **实现 matcher 编译与命中判断**
 
-  * Files: `src/adapters/hooks/matcher.ts`（new）
+  * Files: `packages/core/src/adapters/hooks/matcher.ts`（new）
   * Work:
 
     * `compileMatcher(matcher?: string): RegExp | null`（空=match all；非法=warning+null）
     * `matchHookRule(rule, selector: string | null): boolean`
     * 按事件定义 selector（tool_name / trigger / notification_type / source）
-  * Verify: `src/adapters/hooks/matcher.test.ts`（new）
+  * Verify: `packages/core/src/adapters/hooks/matcher.test.ts`（new）
 
 * [ ] **实现 hooks 合并与去重（仅生成“可执行列表”，不接线）**
 
-  * Files: `src/adapters/hooks/merge.ts`（new）
+  * Files: `packages/core/src/adapters/hooks/merge.ts`（new）
   * Work:
 
     * 输入：三个来源的 `HookRule[]`（已带 source 元信息）
     * 输出：`HookConfigSnapshot`：`byEvent: Map<EventName, ResolvedHook[]>`
     * 去重规则：id 优先，否则 type+command；保留第一个；enabled=false 作为禁用占位
-  * Verify: `src/adapters/hooks/merge.test.ts`（new）
+  * Verify: `packages/core/src/adapters/hooks/merge.test.ts`（new）
 
 * [ ] **为 hooksStore 增加“会话快照加载”API**
 
-  * Files: `src/adapters/hooks/hooksStore.ts`
+  * Files: `packages/core/src/adapters/hooks/hooksStore.ts`
   * Work: 导出 `loadHooksSnapshot({ fileStore, cwd, env? })`：返回 `HookConfigSnapshot`（包含 warnings、sources、resolved hooks）。
   * Verify: 单测覆盖：local/project/user 三文件同名 hook 的覆盖/禁用逻辑
 
@@ -554,32 +554,32 @@
 
   * Files:
 
-    * `src/tools/hooks/commandRunner.ts`（new）
-    * （可选复用）`src/tools/modules/bash/runner.ts` 中的 `appendLimited/withTimeout/killProcessTree` 逻辑做最小复制或抽到 `src/tools/utils/process.ts`（见下一条）
+    * `packages/core/src/tools/hooks/commandRunner.ts`（new）
+    * （可选复用）`packages/core/src/tools/modules/bash/runner.ts` 中的 `appendLimited/withTimeout/killProcessTree` 逻辑做最小复制或抽到 `packages/core/src/tools/utils/process.ts`（见下一条）
   * Work:
 
     * `runHookCommand({ command, cwd, env, stdinJson, timeoutMs, stdoutLimit, stderrLimit, signal })`
     * 返回 `{ exitCode, stdout, stderr, timedOut, durationMs }`（stdout/stderr 已截断）
-  * Verify: `src/tools/hooks/commandRunner.test.ts`：用 `node -e` 写小脚本模拟 stdout/stderr、sleep 超时、exit 2
+  * Verify: `packages/core/src/tools/hooks/commandRunner.test.ts`：用 `node -e` 写小脚本模拟 stdout/stderr、sleep 超时、exit 2
 
 * [ ] **抽取/复用 Bash runner 的“超时+截断+kill tree”工具（最小改动）**
 
   * Files:
 
-    * 新增 `src/tools/utils/processUtils.ts`（new）
-    * 修改 `src/tools/modules/bash/runner.ts`：把 `appendLimited/withTimeout/killProcessTree` 改为从 util 引入（保持行为完全一致）
+    * 新增 `packages/core/src/tools/utils/processUtils.ts`（new）
+    * 修改 `packages/core/src/tools/modules/bash/runner.ts`：把 `appendLimited/withTimeout/killProcessTree` 改为从 util 引入（保持行为完全一致）
   * Work: 纯搬运函数，不改逻辑、不改文案、不改常量值（保证 Bash 行为完全一致）。
   * Verify: 运行现有 tests；手动跑一次 Bash tool（对比输出无变化）
 
 * [ ] **实现 hooks 输出 JSON 的“提取首个 JSON object”工具**
 
-  * Files: `src/tools/hooks/jsonOutput.ts`（new）
+  * Files: `packages/core/src/tools/hooks/jsonOutput.ts`（new）
   * Work: 复用仓库已有 `extractFirstJsonObject` 的实现方式（它已用于 agent architect 解析）
   * Verify: 单测：混合文本+JSON、无 JSON、非法 JSON
 
 * [ ] **新增 HookRunner（按事件匹配 → 并发执行 → 产出结构化结果）**
 
-  * Files: `src/tools/hooks/hookRunner.ts`（new）
+  * Files: `packages/core/src/tools/hooks/hookRunner.ts`（new）
   * Work:
 
     * 输入：`HookConfigSnapshot` + `eventName` + `payload`
@@ -588,7 +588,7 @@
 
 * [ ] **加入全局禁用开关（回滚保险）**
 
-  * Files: `src/tools/hooks/featureFlag.ts`（new）
+  * Files: `packages/core/src/tools/hooks/featureFlag.ts`（new）
   * Work: `isHooksDisabled(env)`（例如 `FORMAX_DISABLE_HOOKS=1`）
   * Verify: 单测：env 生效；禁用后 runner 不执行任何命令
 
@@ -600,7 +600,7 @@
 
 * [ ] **新增 HooksService（负责：加载快照、提供 runXxx 方法）**
 
-  * Files: `src/tools/hooks/service.ts`（new）
+  * Files: `packages/core/src/tools/hooks/service.ts`（new）
   * Work:
 
     * `createHooksService({ fileStore, cwd, env, sessionId })`
@@ -612,7 +612,7 @@
 
 * [ ] **在 `policyPreflight`（Bash）里触发 PermissionRequest hooks（仅 baseline=ask）**
 
-  * Files: `src/tools/executor/policyPreflight.ts`
+  * Files: `packages/core/src/tools/executor/policyPreflight.ts`
   * Work:
 
     * 在 `perm.decision === 'ask'` 且准备 `ensureApproved` 之前：调用 `hooks.runPermissionRequest(...)`
@@ -628,7 +628,7 @@
 
 * [ ] **在 `skillPreflight` 里触发 PermissionRequest hooks（仅 baseline=ask）**
 
-  * Files: `src/tools/executor/skillPreflight.ts`
+  * Files: `packages/core/src/tools/executor/skillPreflight.ts`
   * Work:
 
     * perm.decision === 'ask' 且准备 requestAnswers 之前：调用 hook
@@ -640,7 +640,7 @@
 
 * [ ] **扩展 `createToolExecutor` 支持可选 hooks 依赖**
 
-  * Files: `src/tools/executor/index.ts`
+  * Files: `packages/core/src/tools/executor/index.ts`
   * Work:
 
     * `opts` 增加可选 `hooks?: HooksService`（或更窄接口）
@@ -652,9 +652,9 @@
 
 #### 4) PostToolUse：接入 engine 的 tool loop（toolResults 生成后）
 
-* [ ] **在 `src/chat/engine.ts` 中对每个 toolResult 触发 PostToolUse hooks**
+* [ ] **在 `packages/core/src/chat/engine.ts` 中对每个 toolResult 触发 PostToolUse hooks**
 
-  * Files: `src/chat/engine.ts`
+  * Files: `packages/core/src/chat/engine.ts`
   * Work:
 
     * `createChatEngine` deps 增加可选 `hooks?: HooksService`（不提供则不执行）
@@ -669,9 +669,9 @@
 
 #### 5) UserPromptSubmit：接入 useChat（用户输入提交点）
 
-* [ ] **在 `src/features/repl/useChat.ts` 提交 prompt 前触发 UserPromptSubmit hooks**
+* [ ] **在 `packages/core/src/features/repl/useChat.ts` 提交 prompt 前触发 UserPromptSubmit hooks**
 
-  * Files: `src/features/repl/useChat.ts`（在你 snippet 中已看到构造 injectedBlocks/user message 的位置）
+  * Files: `packages/core/src/features/repl/useChat.ts`（在你 snippet 中已看到构造 injectedBlocks/user message 的位置）
   * Work:
 
     * 在创建 `userMsg`/`user` 之前调用 `hooks.runUserPromptSubmit({ prompt, is_slash_command })`
@@ -686,7 +686,7 @@
 
 * [ ] **在 REPL 启动时触发 SessionStart hooks，并把输出注入后续 prompt**
 
-  * Files: `src/screens/REPL.tsx` 或 `src/features/repl/useReplController.ts`（取决于你实际构造 deps 的位置）
+  * Files: `packages/core/src/screens/REPL.tsx` 或 `packages/core/src/features/repl/useReplController.ts`（取决于你实际构造 deps 的位置）
   * Work:
 
     * 创建 sessionId（uuid）
@@ -704,7 +704,7 @@
 
 * [ ] **在 useChat 的 auto-compact 触发前调用 PreCompact hooks**
 
-  * Files: `src/features/repl/useChat.ts`（auto-compact 分支在 snippet 里）
+  * Files: `packages/core/src/features/repl/useChat.ts`（auto-compact 分支在 snippet 里）
   * Work: 在 `if (stats.shouldAutoCompact)` 内、compactUser 构造前触发 `runPreCompact({ trigger:"auto" })`；若 hook exit2 则跳过本次 compact（但不报错）
   * Verify: 单测：模拟 shouldAutoCompact=true 时，hook exit2 会阻止执行 `deps.engine.runTurn`（可用 spy）
 
@@ -714,7 +714,7 @@
 
 * [ ] **Stop hooks：在 engine break 前触发，可阻止 stop 并继续一轮**
 
-  * Files: `src/chat/engine.ts`
+  * Files: `packages/core/src/chat/engine.ts`
   * Work:
 
     * 在 `if (toolUseBlocks.length === 0 || stopReason !== 'tool_use') break` 之前：调用 `hooks.runStop({ stop_reason: stopReason })`
@@ -723,7 +723,7 @@
 
 * [ ] **SubagentStop hooks：在 Task subagent handler 结束时触发**
 
-  * Files: `src/tools/executor/handlers/taskSubAgent.ts`
+  * Files: `packages/core/src/tools/executor/handlers/taskSubAgent.ts`
   * Work: 在 subagent 执行完成（成功/失败）处调用 `hooks.runSubagentStop(...)`（best-effort，不影响任务返回）
   * Verify: 手动：hook 写文件记录 subagent stop；跑一次 Task 工具触发
 
@@ -731,8 +731,8 @@
 
   * Files:
 
-    * `src/tools/hooks/notifications.ts`（new）
-    * `src/features/repl/useChat.ts` 或现有 toast helper 所在文件
+    * `packages/core/src/tools/hooks/notifications.ts`（new）
+    * `packages/core/src/features/repl/useChat.ts` 或现有 toast helper 所在文件
   * Work:
 
     * 在要显示 toast 前触发 `runNotification({ type, message })`
@@ -741,13 +741,13 @@
 
 * [ ] **完善 JSON 输出解析（按 Claude 文档字段名兼容）**
 
-  * Files: `src/tools/hooks/outputParser.ts`（new）
+  * Files: `packages/core/src/tools/hooks/outputParser.ts`（new）
   * Work: 支持解析 Claude 文档提到的 `hookSpecificOutput`、`additionalContext`、`permissionDecision` 等字段名（允许大小写/别名），减少脚本迁移成本。
   * Verify: 单测：同一个 hook 脚本用不同字段名都能生效
 
 * [ ] **实现并发短路（exit2 后取消未开始的 hooks）**
 
-  * Files: `src/tools/hooks/hookRunner.ts`
+  * Files: `packages/core/src/tools/hooks/hookRunner.ts`
   * Work: runner 内用 AbortController 管理；一旦发现 exit2，取消队列中未启动 hook；已启动的可选择 kill（谨慎）
   * Verify: 单测：大量 hooks 时，exit2 触发后总耗时明显下降（用假脚本 sleep 验证）
 
@@ -759,20 +759,20 @@
 
   * Files:
 
-    * `src/adapters/hooks/frontmatterSource.ts`（new）
+    * `packages/core/src/adapters/hooks/frontmatterSource.ts`（new）
     * 可能需要读 `.formax/commands/*.md` 等（已有命令系统）
   * Work: 只做读取 + 合并到 HookConfigSnapshot；保持 settings 仍是最高优先级（或定义更细粒度规则）
   * Verify: 手动：在某个 command frontmatter 写 hooks，触发后生效
 
 * [ ] **/hooks 配置 UI（Ink 界面）**
 
-  * Files: `src/features/repl/commands/hooks.tsx`（new）等
+  * Files: `packages/core/src/features/repl/commands/hooks.tsx`（new）等
   * Work: 只做浏览/展示当前合并后的 hooks（包含来源与 matcher），不做写入；写入作为后续 PR
   * Verify: 手动：运行 /hooks 输出列表与来源路径
 
 * [ ] **写入 hooks（遵循现有 settings 写入模式）**
 
-  * Files: `src/adapters/hooks/hooksWriter.ts`（new）
+  * Files: `packages/core/src/adapters/hooks/hooksWriter.ts`（new）
   * Work: 支持把 hooks 写入 projectLocal 或 user settings（不触碰 permissions 现有字段）
   * Verify: 单测：写入后 JSON 仍合法、旧字段不丢失
 
@@ -784,11 +784,11 @@
 
 > 仓库已使用 vitest（见 CLAUDE.md）。
 
-* `src/adapters/hooks/matcher.test.ts`
-* `src/adapters/hooks/merge.test.ts`
-* `src/tools/hooks/commandRunner.test.ts`
-* `src/tools/hooks/hookRunner.test.ts`
-* `src/chat/engine.hooks.test.ts`（mock client.streamOnce 验证 system 注入与 stop hook）
+* `packages/core/src/adapters/hooks/matcher.test.ts`
+* `packages/core/src/adapters/hooks/merge.test.ts`
+* `packages/core/src/tools/hooks/commandRunner.test.ts`
+* `packages/core/src/tools/hooks/hookRunner.test.ts`
+* `packages/core/src/chat/engine.hooks.test.ts`（mock client.streamOnce 验证 system 注入与 stop hook）
 
 #### 手动验收脚本（不依赖 LLM 是否“刚好调用工具”）
 

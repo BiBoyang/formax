@@ -1,6 +1,6 @@
 # SDK Contract Alignment Loop Blueprint (Active)
 
-目标：在不实现未支持能力的前提下，持续对齐 `@anthropic-ai/claude-agent-sdk` 的已支持外部契约，并保持 `src/sdk` 内部实现解耦、可测试、可提交。
+目标：在不实现未支持能力的前提下，持续对齐 `@anthropic-ai/claude-agent-sdk` 的已支持外部契约，并保持 `packages/core/src/sdk` 内部实现解耦、可测试、可提交。
 
 最后更新时间：2026-03-03
 
@@ -48,7 +48,7 @@
 
 ## Commit Message 约束（新增）
 
-- 当一个切片修改范围包含 `src/sdk` 之外的目录时，commit message 必须明确体现“影响了 SDK 外模块”。
+- 当一个切片修改范围包含 `packages/core/src/sdk` 之外的目录时，commit message 必须明确体现“影响了 SDK 外模块”。
 - 建议通过 scope 或摘要直接表达（例如 `feat(sdk,tools): ...`、`refactor(sdk,streaming): ...`）。
 
 ## 执行循环（固定）

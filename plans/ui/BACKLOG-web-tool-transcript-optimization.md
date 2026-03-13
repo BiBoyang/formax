@@ -353,7 +353,7 @@ Tool 级映射表（v1）：
 
 5. 回归保障
 - `ToolTranscriptItem.test.tsx`、`formatToolParams.test.ts`、`App.test.tsx`、`store.test.ts` 持续补齐。
-- CI 已补充 web-reference-react 专属 `type-check + test`，避免仅跑根目录 `src/**` 漏检。
+- CI 已补充 web-reference-react 专属 `type-check + test`，避免仅跑根目录 `packages/core/src/**` 漏检。
 
 6. Mode 语义统一（TUI / app-server / web）
 - 新增共享 `replModeTransition` 语义层（规范化 + transition 判定）。

@@ -13,7 +13,7 @@ We needed closer parity with current Claude Code deferred tool semantics:
 
 Added shared orchestration in:
 
-- `src/tools/runtime/deferredToolExposureResolver.ts`
+- `packages/core/src/tools/runtime/deferredToolExposureResolver.ts`
 
 The resolver now owns:
 
@@ -25,9 +25,9 @@ The resolver now owns:
 
 All three entry paths now consume the same resolver:
 
-- REPL: `src/features/repl/controller/send/sendMainTurn.ts`
-- app-server: `src/app-server/turnRunner.ts`
-- SDK: `src/sdk/query/runner.ts`
+- REPL: `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+- app-server: `packages/core/src/app-server/turnRunner.ts`
+- SDK: `packages/core/src/sdk/query/runner.ts`
 
 SDK/app-server strip injected blocks before persisting history snapshots, keeping user-visible history clean.
 

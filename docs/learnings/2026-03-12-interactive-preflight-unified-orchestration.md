@@ -10,19 +10,19 @@
 
 ## 本次收口
 
-1. 新增并统一交互事务核心：`src/tools/runtime/interactivePromptTransaction.ts`  
+1. 新增并统一交互事务核心：`packages/core/src/tools/runtime/interactivePromptTransaction.ts`  
 2. ask 路径增加非抛错 API：`requestAskUserQuestionAnswersResult`（`ok/result`）  
 3. `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` 三个 handler 统一改为显式 `ok/result` 分支  
 4. approval-like 决策解释统一到 `resolveApprovalLikeOutcome`，并由：
-   - `src/tools/executor/approvalService.ts`
-   - `src/tools/executor/skillPreflight.ts`
+   - `packages/core/src/tools/executor/approvalService.ts`
+   - `packages/core/src/tools/executor/skillPreflight.ts`
    共同复用
 
 后续补强（同日）：
 
 5. approval request payload 统一通过 descriptor 构造（`createApprovalPromptDescriptor`），避免 `approvalService` / `skillPreflight` 手写事件体分叉。  
 6. ask request payload 统一通过 descriptor 构造（`createAskUserQuestionPromptDescriptor`）。  
-7. 新增 app-server 跨流一致性测试：`src/app-server/interactiveLifecycleConsistency.test.ts`，覆盖 `approval / skill / ask / enter-plan / exit-plan` 的 `inputRequested -> submit -> inputResolved -> completed` 顺序与 payload shape。
+7. 新增 app-server 跨流一致性测试：`packages/core/src/app-server/interactiveLifecycleConsistency.test.ts`，覆盖 `approval / skill / ask / enter-plan / exit-plan` 的 `inputRequested -> submit -> inputResolved -> completed` 顺序与 payload shape。
 
 ## 关键收益
 
@@ -34,13 +34,13 @@
 
 回归覆盖（节选）：
 
-1. `src/tools/runtime/interactivePromptTransaction.test.ts`
-2. `src/tools/runtime/askUserQuestionPrompt.test.ts`
-3. `src/tools/modules/askUserQuestion/handler.test.ts`
-4. `src/tools/modules/enterPlanMode/handler.test.ts`
-5. `src/tools/modules/exitPlanMode/handler.test.ts`
-6. `src/tools/executor/approvalLikePrompt.test.ts`
-7. `src/tools/executor/approvalService.test.ts`
-8. `src/tools/executor/skillPreflight.test.ts`
+1. `packages/core/src/tools/runtime/interactivePromptTransaction.test.ts`
+2. `packages/core/src/tools/runtime/askUserQuestionPrompt.test.ts`
+3. `packages/core/src/tools/modules/askUserQuestion/handler.test.ts`
+4. `packages/core/src/tools/modules/enterPlanMode/handler.test.ts`
+5. `packages/core/src/tools/modules/exitPlanMode/handler.test.ts`
+6. `packages/core/src/tools/executor/approvalLikePrompt.test.ts`
+7. `packages/core/src/tools/executor/approvalService.test.ts`
+8. `packages/core/src/tools/executor/skillPreflight.test.ts`
 
 并通过 `bun run type-check` 与提交前 `codex review --uncommitted`。

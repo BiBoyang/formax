@@ -338,7 +338,7 @@ function main() {
     }
     if (violation.kind === 'single_feature_consumer') {
       console.error(
-        `  suggestion: move this type to src/features/${violation.onlyFeature}/types and import via that feature boundary`,
+        `  suggestion: move this type to packages/core/src/features/${violation.onlyFeature}/types and import via that feature boundary`,
       )
     } else {
       console.error(

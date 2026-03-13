@@ -82,10 +82,10 @@ Current Formax generation path injects `<available_skills>` into the `Skill` too
 
 Code evidence:
 
-- `src/tools/modules/skill/spec.ts:12`
-- `src/tools/modules/skill/index.ts:51`
-- `src/tools/modules/skill/index.ts:66`
-- `src/tools/modules/skill/index.ts:69`
+- `packages/core/src/tools/modules/skill/spec.ts:12`
+- `packages/core/src/tools/modules/skill/index.ts:51`
+- `packages/core/src/tools/modules/skill/index.ts:66`
+- `packages/core/src/tools/modules/skill/index.ts:69`
 
 ## Delta vs Current Claude Code (Tool Exposure)
 
@@ -122,23 +122,23 @@ Evidence:
 The current Formax architecture assumes tools are precomputed and handed to every turn as a static array (plus minor per-turn patch for `Skill`):
 
 - tool list assembly:
-  - `src/runtime/bootstrap/subagents.ts:73`
+  - `packages/core/src/runtime/bootstrap/subagents.ts:73`
 - REPL wiring passes fixed `runtime.tools`:
-  - `src/runtime/bootstrap/runLegacyCli.tsx:43`
+  - `packages/core/src/runtime/bootstrap/runLegacyCli.tsx:43`
 - turn execution passes tools directly:
-  - `src/features/repl/controller/send/sendMainTurn.ts:208`
-  - `src/features/repl/controller/send/sendMainTurn.ts:213`
+  - `packages/core/src/features/repl/controller/send/sendMainTurn.ts:208`
+  - `packages/core/src/features/repl/controller/send/sendMainTurn.ts:213`
 - app-server has same pattern:
-  - `src/app-server/turnRunner.ts:212`
-  - `src/app-server/turnRunner.ts:419`
+  - `packages/core/src/app-server/turnRunner.ts:212`
+  - `packages/core/src/app-server/turnRunner.ts:419`
 
 Streaming clients serialize whatever `args.tools` they receive directly into request payload:
 
 - OpenAI path:
-  - `src/streaming/openai/StreamClient.ts:469`
-  - `src/streaming/openai/StreamClient.ts:470`
+  - `packages/core/src/streaming/openai/StreamClient.ts:469`
+  - `packages/core/src/streaming/openai/StreamClient.ts:470`
 - Anthropic path:
-  - `src/streaming/anthropic/StreamClient.ts:125`
+  - `packages/core/src/streaming/anthropic/StreamClient.ts:125`
 
 So deferred exposure is not a small presenter-level tweak; it needs a turn-level tool-state model.
 

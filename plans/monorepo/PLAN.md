@@ -49,15 +49,15 @@
 3. **Phase 2: shared 基础子集先行 + 发布安全改造**
 
 - 新建 `packages/shared`（内部 workspace 包），首批仅迁移“零语义耦合”的共享类型与纯工具函数。
-- 暂不整体迁移 `src/features/tools/presentation/*`，先拆出纯函数子集，保留依赖 semantics 的文件在 core 侧。
+- 暂不整体迁移 `packages/core/src/features/tools/presentation/*`，先拆出纯函数子集，保留依赖 semantics 的文件在 core 侧。
 - 改造 CLI 构建策略：不再使用全量 `--packages=external`；改为仅 external 第三方包，确保 `@formax/*` 被打入产物。
 - 同步更新 `prepack`/`check-pack-safety` 所在执行上下文，确保检查的是“真实发布包”而非 workspace 协调器。
 
 4. **Phase 3: 提取 `@formax/semantics` 并切换消费方**
 
-- 新建 `packages/semantics`，迁移 `src/features/semantics`（基于 Phase 2 完成后的依赖净化版本）。
+- 新建 `packages/semantics`，迁移 `packages/core/src/features/semantics`（基于 Phase 2 完成后的依赖净化版本）。
 - `core` 与 `web-reference-react` 从深相对路径改为 `@formax/semantics` 包导入。
-- 对 web parity 入口做一次性替换，消除 `../../../../../src/features/semantics/*`。
+- 对 web parity 入口做一次性替换，消除指向 `packages/core/src/features/semantics/*` 的深相对导入。
 - 保留兼容桥接导出（短期）以降低一次性改动面，后续再清理旧路径。
 
 5. **Phase 4: 目录归一 + 发布壳落位**
@@ -65,7 +65,7 @@
 - 保持所有子项目均位于 `packages/*`，并迁移 root `src` 到 `packages/core/src`。
 - 创建或保留 `@yusifeng/formax` 发布壳包，职责仅为 `bin + dist + prepack + publish`。
 - `@formax/core` 作为内部实现包，由发布壳在打包阶段消费。
-- 全量更新治理脚本和配置中对 `src/`、`packages/web-reference-react` 的硬编码路径（layer checks、knip、vitest、CI、CODEMAP）。
+- 全量更新治理脚本和配置中对 `packages/core/src/`、`packages/web-reference-react` 的硬编码路径（layer checks、knip、vitest、CI、CODEMAP）。
 
 ### Public APIs / Interfaces
 
@@ -85,7 +85,7 @@
   - `prepack` 通过；`npm pack --dry-run` 产物可执行；`check-pack-safety` 通过。
   - 无 `@formax/*` 运行时缺包问题。
 - Phase 3 验收：
-  - `packages/web-reference-react` 不再出现深相对导入 `src/features/semantics`。
+- `packages/web-reference-react` 不再出现深相对导入 `packages/core/src/features/semantics`。
   - semantics 相关单测与 web parity 测试通过。
 - Phase 4 验收：
   - 所有治理脚本通过（layer coverage/shared types/boundaries）。

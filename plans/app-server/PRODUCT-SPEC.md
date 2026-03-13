@@ -123,7 +123,7 @@
 2. 风险：input 相关竞态导致 UI 悬挂
    - 对策：强制 `turn/inputResolved` 终局通知 + stale input 策略。
 3. 风险：Web reference client 演示代码反向污染核心
-   - 对策：保持独立目录，核心逻辑只在 `src/app-server/*`。
+   - 对策：保持独立目录，核心逻辑只在 `packages/core/src/app-server/*`。
 4. 风险：后续 UI 重构打断协议迭代
    - 对策：UI 仅消费 contract，不定义协议。
 
