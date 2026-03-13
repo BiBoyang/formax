@@ -41,23 +41,68 @@ export function isErrorLikeSubline(text: string): boolean {
   return t.startsWith('Error:') || t.startsWith('API Error:') || /^[45]\d{2}\b/.test(t)
 }
 
-function lastAssistantMessage(messages: Msg[]): Msg | null {
+function lastAssistantMessageWithIndex(messages: Msg[]): { message: Msg; index: number } | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
-    if (msg?.role === 'assistant') return msg
+    if (msg?.role === 'assistant') return { message: msg, index: i }
   }
   return null
+}
+
+function lastUserMessageIndex(messages: Msg[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg?.role === 'user') return i
+  }
+  return -1
+}
+
+function normalizedSubline(text: string): string {
+  return String(text || '').trim()
+}
+
+function findMatchingErrorSublineIndex(args: {
+  messages: Msg[]
+  expectedErrorSubline: string
+  maxIndex: number
+}): number {
+  for (let i = args.maxIndex; i >= 0; i--) {
+    const msg = args.messages[i]
+    if (msg?.role !== 'assistant') continue
+    if (msg.ui?.kind !== 'command_subline') continue
+    if (!isErrorLikeSubline(msg.content)) continue
+    if (normalizedSubline(msg.content) === normalizedSubline(args.expectedErrorSubline)) return i
+  }
+
+  return -1
 }
 
 export function shouldSuppressGlobalError(args: { messages: Msg[]; currentError: string | null }): boolean {
   const { messages, currentError } = args
   if (!currentError) return false
 
-  const latestAssistant = lastAssistantMessage(messages)
+  const latestAssistant = lastAssistantMessageWithIndex(messages)
   if (!latestAssistant) return false
-  if (latestAssistant.ui?.kind !== 'command_subline') return false
-  if (!isErrorLikeSubline(latestAssistant.content)) return false
+  if (latestAssistant.message.ui?.kind !== 'command_subline') return false
 
-  const expected = formatErrorSubline(currentError)
-  return latestAssistant.content.trim() === expected.trim()
+  // A newer user input means currentError may belong to a fresh turn.
+  const latestUserIdx = lastUserMessageIndex(messages)
+  if (latestUserIdx > latestAssistant.index) return false
+
+  const expectedErrorSubline = formatErrorSubline(currentError)
+
+  if (
+    isErrorLikeSubline(latestAssistant.message.content) &&
+    normalizedSubline(latestAssistant.message.content) === normalizedSubline(expectedErrorSubline)
+  ) {
+    return true
+  }
+
+  return (
+    findMatchingErrorSublineIndex({
+      messages,
+      expectedErrorSubline,
+      maxIndex: latestAssistant.index - 1,
+    }) >= 0
+  )
 }

@@ -104,7 +104,7 @@ describe('shouldSuppressGlobalError', () => {
     ).toBe(false)
   })
 
-  it('returns false when latest command_subline is not error-like', () => {
+  it('returns false when latest command_subline is status text without matching stale error', () => {
     expect(
       shouldSuppressGlobalError({
         messages: [makeMsg({ role: 'assistant', content: 'Done', uiKind: 'command_subline' })],
@@ -126,11 +126,35 @@ describe('shouldSuppressGlobalError', () => {
     ).toBe(true)
   })
 
-  it('returns false when latest assistant subline does not match formatted error', () => {
+  it('returns false when latest assistant subline does not match current error', () => {
     expect(
       shouldSuppressGlobalError({
         messages: [makeMsg({ role: 'assistant', content: '500 boom', uiKind: 'command_subline' })],
         currentError: 'HTTP 500: another',
+      }),
+    ).toBe(false)
+  })
+
+  it('returns true when a newer status subline follows a matching older error subline', () => {
+    expect(
+      shouldSuppressGlobalError({
+        messages: [
+          makeMsg({ role: 'assistant', content: '500 boom', uiKind: 'command_subline' }),
+          makeMsg({ role: 'assistant', content: 'Set model to opus', uiKind: 'command_subline' }),
+        ],
+        currentError: 'HTTP 500: boom',
+      }),
+    ).toBe(true)
+  })
+
+  it('returns false when a newer user message exists after command_subline', () => {
+    expect(
+      shouldSuppressGlobalError({
+        messages: [
+          makeMsg({ role: 'assistant', content: 'Done', uiKind: 'command_subline' }),
+          makeMsg({ role: 'user', content: 'new turn input' }),
+        ],
+        currentError: 'HTTP 500: fresh',
       }),
     ).toBe(false)
   })
