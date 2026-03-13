@@ -9,6 +9,9 @@ type FormaxDesktopBridge = {
     minimize?: () => Promise<boolean>
     toggleMaximize?: () => Promise<boolean>
   }
+  windowAppearance?: {
+    setSidebarTransparency?: (enabled: boolean) => Promise<boolean>
+  }
 }
 
 interface Window {

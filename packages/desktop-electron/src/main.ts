@@ -27,8 +27,10 @@ const MAC_TRAFFIC_LIGHT_POSITION = {
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
 const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
+const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
+type DesktopWindowAppearanceAction = 'set-sidebar-transparency'
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -439,10 +441,14 @@ async function loadWindowWithRetry(window: BrowserWindow, startUrl: string): Pro
 function registerDesktopIpcHandlers(): void {
   ipcMain.removeHandler(PICK_PROJECT_FOLDER_CHANNEL)
   ipcMain.removeHandler(WINDOW_CONTROL_CHANNEL)
+  ipcMain.removeHandler(WINDOW_APPEARANCE_CHANNEL)
 
-  ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async () => {
-    const focused = BrowserWindow.getFocusedWindow()
-    const ownerWindow = focused ?? BrowserWindow.getAllWindows()[0] ?? undefined
+  ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async (event) => {
+    const ownerWindow =
+      BrowserWindow.fromWebContents(event.sender) ??
+      BrowserWindow.getFocusedWindow() ??
+      BrowserWindow.getAllWindows()[0] ??
+      undefined
     const result = await dialog.showOpenDialog(ownerWindow, {
       title: 'Select project folder',
       properties: ['openDirectory', 'createDirectory'],
@@ -451,31 +457,97 @@ function registerDesktopIpcHandlers(): void {
     return result.filePaths[0] ?? null
   })
 
-  ipcMain.handle(WINDOW_CONTROL_CHANNEL, (_event, action: DesktopWindowControl) => {
-    const focused = BrowserWindow.getFocusedWindow()
-    if (!focused) return false
+  ipcMain.handle(WINDOW_CONTROL_CHANNEL, (event, action: DesktopWindowControl) => {
+    const ownerWindow =
+      BrowserWindow.fromWebContents(event.sender) ??
+      BrowserWindow.getFocusedWindow() ??
+      BrowserWindow.getAllWindows()[0]
+    if (!ownerWindow) return false
 
     if (action === 'close') {
-      focused.close()
+      ownerWindow.close()
       return true
     }
 
     if (action === 'minimize') {
-      focused.minimize()
+      ownerWindow.minimize()
       return true
     }
 
     if (action === 'toggle-maximize') {
-      if (focused.isMaximized()) {
-        focused.unmaximize()
+      if (ownerWindow.isMaximized()) {
+        ownerWindow.unmaximize()
       } else {
-        focused.maximize()
+        ownerWindow.maximize()
       }
       return true
     }
 
     return false
   })
+
+  ipcMain.handle(
+    WINDOW_APPEARANCE_CHANNEL,
+    (event, action: DesktopWindowAppearanceAction, enabled: boolean) => {
+      const ownerWindow =
+        BrowserWindow.fromWebContents(event.sender) ??
+        BrowserWindow.getFocusedWindow() ??
+        BrowserWindow.getAllWindows()[0]
+      if (!ownerWindow) return false
+      if (action !== 'set-sidebar-transparency') return false
+
+      const shouldEnable = enabled === true
+      let hasNativeEffect = false
+      if (process.platform === 'darwin') {
+        let vibrancyApplied = false
+        try {
+          ownerWindow.setVibrancy(shouldEnable ? 'sidebar' : null)
+          vibrancyApplied = true
+        } catch {
+          // Fall back to renderer CSS mode if native vibrancy is unavailable.
+        }
+
+        let visualEffectApplied = false
+        const windowWithVisualEffect = ownerWindow as BrowserWindow & {
+          setVisualEffectState?: (state: 'active' | 'inactive' | 'followWindow') => void
+        }
+        if (typeof windowWithVisualEffect.setVisualEffectState === 'function') {
+          try {
+            windowWithVisualEffect.setVisualEffectState(shouldEnable ? 'active' : 'inactive')
+            visualEffectApplied = true
+          } catch {
+            // Keep renderer fallback behavior if this API is unsupported.
+          }
+        }
+
+        try {
+          ownerWindow.setBackgroundColor(shouldEnable ? '#00000000' : '#f5f5f5')
+        } catch {
+          // Keep renderer fallback behavior if background-color switching is unavailable.
+        }
+
+        // Only report native support when a native visual effect API succeeded.
+        // This prevents "toggle is on but effect is gone" when native APIs fail.
+        hasNativeEffect = shouldEnable ? (vibrancyApplied || visualEffectApplied) : false
+      }
+
+      if (process.platform === 'win32') {
+        const windowWithMaterial = ownerWindow as BrowserWindow & {
+          setBackgroundMaterial?: (material: 'none' | 'mica' | 'acrylic' | 'tabbed') => void
+        }
+        if (typeof windowWithMaterial.setBackgroundMaterial === 'function') {
+          try {
+            windowWithMaterial.setBackgroundMaterial(shouldEnable ? 'mica' : 'none')
+            hasNativeEffect = true
+          } catch {
+            // Keep CSS fallback behavior on older Windows builds.
+          }
+        }
+      }
+
+      return hasNativeEffect
+    },
+  )
 }
 
 function wireNavigationGuards(window: BrowserWindow): void {
@@ -502,6 +574,9 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
       ? {
           frame: false,
           titleBarStyle: 'hidden',
+          transparent: true,
+          visualEffectState: 'active',
+          backgroundColor: '#00000000',
         }
       : {}),
     webPreferences: {
