@@ -64,6 +64,22 @@ function runCommand(command, args, label) {
   }
 }
 
+function readPackageVersionFromManifest() {
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync('package.json', 'utf8'))
+  } catch {
+    throw new Error('读取 package.json 失败，无法获取版本号')
+  }
+
+  const version = typeof parsed.version === 'string' ? parsed.version.trim() : ''
+  if (!version) {
+    throw new Error('package.json 缺少有效的 version 字段，无法同步 latest 标签')
+  }
+
+  return version
+}
+
 function runCommandCapture(command, args, label) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
@@ -86,6 +102,7 @@ function printHelp() {
   1) npm 账号与发布权限预检查（whoami / token / collaborator 权限）
   2) npm version prerelease --preid=beta
   3) npm publish --tag beta --access public
+  4) npm dist-tag add <name>@<version> latest（同步 latest 到新发布版本）
 
 常见示例:
   bun run release:beta
@@ -245,6 +262,21 @@ function main() {
   const publishArgs = ['publish', '--tag', 'beta', '--access', 'public']
   if (dryRun) publishArgs.push('--dry-run')
   runCommand('npm', publishArgs, 'npm 发布')
+
+  const packageName = readPackageNameFromManifest()
+  const packageVersion = readPackageVersionFromManifest()
+  if (dryRun) {
+    process.stdout.write(
+      `[release-beta] dry-run 模式：跳过 latest 标签同步（计划执行: npm dist-tag add ${packageName}@${packageVersion} latest）\n`,
+    )
+  } else {
+    runCommand(
+      'npm',
+      ['dist-tag', 'add', `${packageName}@${packageVersion}`, 'latest'],
+      'latest 标签同步',
+    )
+    process.stdout.write(`[release-beta] latest 标签已同步到 ${packageName}@${packageVersion}\n`)
+  }
 
   process.stdout.write('\n[release-beta] 完成\n')
   if (!dryRun) {
