@@ -1,6 +1,6 @@
 # Config Settings 合同（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-03-14  
 状态：规范性（Normative）
 
 本文档定义 Formax runtime config 合并、`/config` 持久化与当前 settings 分类的唯一事实来源。
@@ -19,6 +19,7 @@
 
 相关文档（信息性镜像）：
 - `docs/environment-variables.md`
+- `docs/contracts/model-settings-contract.md`
 - `docs/contracts/prompt-tool-exposure-contract.md`
 - `docs/contracts/semantics-contract.md`
 
@@ -47,6 +48,9 @@ disk patch merge 与默认值剥离 MUST 以 `packages/core/src/config/settings/
 
 `CFG-004`  
 最终运行时消费形状（路径归一化、active model 解析后注入 REPL/runtime）MUST 以 `packages/core/src/config/config.ts` 为准。
+
+`CFG-006`  
+当存在有效 `FORMAX_CONTEXT_WINDOW_TOKENS` 时，运行时 `llm.contextWindowTokens` MUST 采用该 env 值。否则当存在 `llm.tierContextWindowTokens` 时，MUST 以 active tier 对应值为准；若该值缺失，MUST 回退到 `llm.contextWindowTokens`（legacy 单值）。
 
 `CFG-005`  
 `/config` dialog 当前暴露的 setting 子集、source label 与持久化目标 MUST 以 `packages/core/src/features/commands/configDialogService.ts` 和 `packages/core/src/tui/config/ConfigDialog.tsx` 为准。

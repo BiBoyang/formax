@@ -1,8 +1,17 @@
 import type { FileStore } from './fileStore.js'
-import type { FormaxConfigV1, FormaxConfigV1Patch } from './schema.js'
+import type { FormaxConfigV1, FormaxConfigV1Patch, TierContextWindowMapping } from './schema.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema.js'
 
 const DEFAULT_CONFIG: FormaxConfigV1 = FormaxConfigV1Schema.parse({})
+
+function sameTierContextWindowTokens(
+  a: TierContextWindowMapping | undefined,
+  b: TierContextWindowMapping | undefined,
+): boolean {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return a.haiku === b.haiku && a.sonnet === b.sonnet && a.opus === b.opus
+}
 
 export type ReadConfigPatchResult = {
   patch: FormaxConfigV1Patch
@@ -73,6 +82,9 @@ export function stripDefaultsFromPatch(patch: FormaxConfigV1Patch): FormaxConfig
     if (llm.baseUrl === DEFAULT_CONFIG.llm.baseUrl) delete llm.baseUrl
     if (llm.model === DEFAULT_CONFIG.llm.model) delete llm.model
     if (llm.defaultTier === DEFAULT_CONFIG.llm.defaultTier) delete llm.defaultTier
+    if (sameTierContextWindowTokens(llm.tierContextWindowTokens, DEFAULT_CONFIG.llm.tierContextWindowTokens)) {
+      delete llm.tierContextWindowTokens
+    }
     if (llm.timeoutMs === DEFAULT_CONFIG.llm.timeoutMs) delete llm.timeoutMs
     if (llm.authRef === DEFAULT_CONFIG.llm.authRef) delete llm.authRef
     if (llm.contextWindowTokens === DEFAULT_CONFIG.llm.contextWindowTokens) delete llm.contextWindowTokens

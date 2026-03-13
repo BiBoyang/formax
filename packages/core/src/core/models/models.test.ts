@@ -147,6 +147,39 @@ describe('fetchAnthropicModels', () => {
     expect(anthropicMessagesCreate).toHaveBeenCalledTimes(0)
   })
 
+  it('parses token_limits.context_window from /v1/models responses', async () => {
+    globalThis.fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 'glm-4-7-251222',
+              token_limits: {
+                context_window: 204800,
+                max_output_token_length: 131072,
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      )
+    }) as any
+
+    const models = await fetchAnthropicModels('k', 'https://example.com')
+    expect(models).toEqual([
+      {
+        model: 'glm-4-7-251222',
+        provider: 'anthropic',
+        max_tokens: 8192,
+        contextWindowTokens: 204800,
+        supports_reasoning_effort: false,
+        supports_vision: true,
+        supports_function_calling: true,
+      },
+    ])
+    expect(anthropicMessagesCreate).toHaveBeenCalledTimes(0)
+  })
+
   it('parses alternative response shapes (array and {models:[...]})', async () => {
     globalThis.fetch = vi
       .fn()

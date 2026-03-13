@@ -197,4 +197,23 @@ describe('merge/update config patch', () => {
     const noSections = stripDefaultsFromPatch({ version: 1 })
     expect(noSections).toEqual({ version: 1 })
   })
+
+  it('keeps llm.tierContextWindowTokens when explicitly configured', () => {
+    const out = stripDefaultsFromPatch({
+      version: 1,
+      llm: {
+        tierContextWindowTokens: {
+          haiku: 32000,
+          sonnet: 128000,
+          opus: 256000,
+        },
+      },
+    })
+
+    expect(out.llm?.tierContextWindowTokens).toEqual({
+      haiku: 32000,
+      sonnet: 128000,
+      opus: 256000,
+    })
+  })
 })

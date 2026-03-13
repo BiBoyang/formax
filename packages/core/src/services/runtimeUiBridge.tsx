@@ -102,6 +102,7 @@ export async function runLegacySetupWizard(args: { cwd: string; env: NodeJS.Proc
               apiKey: draft.apiKey,
               model: draft.model,
               tierModels: draft.tierModels,
+              tierContextWindowTokens: draft.tierContextWindowTokens,
               contextWindowTokens: draft.contextWindowTokens,
             })
           }}

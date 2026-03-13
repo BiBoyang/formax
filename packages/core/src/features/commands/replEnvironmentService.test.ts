@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   createNodeFileStore: vi.fn(),
   detectWorkspaceRoots: vi.fn(),
   updateConfigPatchFile: vi.fn(),
+  getKnownContextWindowTokens: vi.fn(),
+  loadRuntimeConfig: vi.fn(),
 }))
 
 vi.mock('../../adapters/fs/configPaths', () => ({
@@ -16,6 +18,12 @@ vi.mock('../../adapters/fs/nodeFileStore', () => ({
 vi.mock('../../adapters/fs/workspaceRoots', () => ({
   detectWorkspaceRoots: mocks.detectWorkspaceRoots,
 }))
+vi.mock('../../chat/context/modelWindow', () => ({
+  getKnownContextWindowTokens: mocks.getKnownContextWindowTokens,
+}))
+vi.mock('../../config/config', () => ({
+  loadRuntimeConfig: mocks.loadRuntimeConfig,
+}))
 vi.mock('../../config/settings/persist', () => ({
   updateConfigPatchFile: mocks.updateConfigPatchFile,
 }))
@@ -24,12 +32,24 @@ import { loadWorkspaceRoots, persistDefaultModelTier, resolveUserAgentsDir } fro
 
 describe('replEnvironmentService', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     mocks.createNodeFileStore.mockReturnValue({ kind: 'store' })
     mocks.getConfigPaths.mockReturnValue({
       globalConfigDir: '.formax',
       globalConfigPath: '/repo/.formax/config.json',
     })
+    mocks.loadRuntimeConfig.mockResolvedValue({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-sonnet',
+        defaultTier: 'sonnet',
+        contextWindowTokens: undefined,
+        tierContextWindowTokens: undefined,
+      },
+    })
+    mocks.getKnownContextWindowTokens.mockReturnValue(180000)
   })
 
   it('resolveUserAgentsDir builds agents directory from resolved global config dir', () => {
@@ -54,18 +74,29 @@ describe('replEnvironmentService', () => {
     expect(out).toBe(`${process.cwd()}/.formax/agents`)
   })
 
-  it('persistDefaultModelTier writes llm.defaultTier patch to global config file', async () => {
+  it('persistDefaultModelTier writes llm.defaultTier and syncs llm.contextWindowTokens', async () => {
     await persistDefaultModelTier({
       nextTier: 'sonnet',
       cwd: '/repo',
       env: { FORMAX_CONFIG_DIR: '/cfg' },
     })
 
-    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith({
+    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(1, {
       fileStore: { kind: 'store' },
       filePath: '/repo/.formax/config.json',
       nextPatch: { llm: { defaultTier: 'sonnet' } },
       label: 'llm.defaultTier',
+    })
+    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(2, {
+      fileStore: { kind: 'store' },
+      filePath: '/repo/.formax/config.json',
+      nextPatch: {
+        llm: {
+          contextWindowTokens: 180000,
+          tierContextWindowTokens: { haiku: 32768, sonnet: 180000, opus: 32768 },
+        },
+      },
+      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
     })
   })
 
@@ -76,6 +107,144 @@ describe('replEnvironmentService', () => {
       cwd: process.cwd(),
       env: process.env,
     })
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextPatch: { llm: { defaultTier: 'haiku' } },
+      }),
+    )
+  })
+
+  it('falls back to known model window when tier context window is missing', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-opus',
+        defaultTier: 'opus',
+        contextWindowTokens: undefined,
+        tierContextWindowTokens: undefined,
+      },
+    })
+    mocks.getKnownContextWindowTokens.mockReturnValueOnce(200000)
+
+    await persistDefaultModelTier({ nextTier: 'opus', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenLastCalledWith({
+      fileStore: { kind: 'store' },
+      filePath: '/repo/.formax/config.json',
+      nextPatch: {
+        llm: {
+          contextWindowTokens: 200000,
+          tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 200000 },
+        },
+      },
+      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
+    })
+  })
+
+  it('prefers stored tier context window over known model map', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-sonnet',
+        defaultTier: 'sonnet',
+        contextWindowTokens: 64000,
+        tierContextWindowTokens: { haiku: 70000, sonnet: 180000, opus: 64000 },
+      },
+    })
+    mocks.getKnownContextWindowTokens.mockReturnValueOnce(200000)
+
+    await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(2, {
+      fileStore: { kind: 'store' },
+      filePath: '/repo/.formax/config.json',
+      nextPatch: {
+        llm: {
+          contextWindowTokens: 180000,
+          tierContextWindowTokens: { haiku: 70000, sonnet: 180000, opus: 64000 },
+        },
+      },
+      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
+    })
+  })
+
+  it('does not rewrite context window when detection matches current value', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-sonnet',
+        defaultTier: 'haiku',
+        contextWindowTokens: 180000,
+        tierContextWindowTokens: { haiku: 180000, sonnet: 32768, opus: 32768 },
+      },
+    })
+
+    await persistDefaultModelTier({ nextTier: 'haiku', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextPatch: { llm: { defaultTier: 'haiku' } },
+      }),
+    )
+  })
+
+  it('syncs context windows against effective tier when project override wins', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-opus',
+        defaultTier: 'opus',
+        contextWindowTokens: undefined,
+        tierContextWindowTokens: undefined,
+      },
+    })
+    mocks.getKnownContextWindowTokens.mockReturnValueOnce(220000)
+
+    await persistDefaultModelTier({ nextTier: 'haiku', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(2, {
+      fileStore: { kind: 'store' },
+      filePath: '/repo/.formax/config.json',
+      nextPatch: {
+        llm: {
+          contextWindowTokens: 220000,
+          tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 220000 },
+        },
+      },
+      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
+    })
+  })
+
+  it('does not persist env-only context window fallback when metadata is missing', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'unknown-model',
+        defaultTier: 'haiku',
+        contextWindowTokens: 50000,
+        tierContextWindowTokens: undefined,
+      },
+    })
+    mocks.getKnownContextWindowTokens.mockReturnValueOnce(undefined)
+
+    await persistDefaultModelTier({
+      nextTier: 'haiku',
+      cwd: '/repo',
+      env: { FORMAX_CONFIG_DIR: '/cfg', FORMAX_CONTEXT_WINDOW_TOKENS: '50000' },
+    })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
     expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
       expect.objectContaining({
         nextPatch: { llm: { defaultTier: 'haiku' } },

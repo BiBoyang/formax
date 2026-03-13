@@ -5,7 +5,7 @@ import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/settings/schema.js'
-import type { ProviderId, TierModelMapping } from '../../config/settings/schema.js'
+import type { ProviderId, TierContextWindowMapping, TierModelMapping } from '../../config/settings/schema.js'
 
 export type WriteSetupFilesResult = {
   configPath: string
@@ -72,6 +72,7 @@ export async function writeSetupFiles(args: {
   apiKey: string
   model: string
   tierModels?: TierModelMapping
+  tierContextWindowTokens?: TierContextWindowMapping
   contextWindowTokens?: number
   authRef?: string
 }): Promise<WriteSetupFilesResult> {
@@ -90,6 +91,7 @@ export async function writeSetupFiles(args: {
 
   const existing = await readJsonIfExists(args.fileStore, configPath, 'config', warnings)
   const tierModels = args.tierModels
+  const tierContextWindowTokens = args.tierContextWindowTokens
   const modelFromTier = tierModels?.sonnet?.trim() || ''
   const resolvedModel = args.model.trim() || modelFromTier
   const nextPatch = {
@@ -99,6 +101,7 @@ export async function writeSetupFiles(args: {
       baseUrl: args.baseUrl,
       model: resolvedModel,
       ...(tierModels ? { tierModels } : {}),
+      ...(tierContextWindowTokens ? { tierContextWindowTokens } : {}),
       ...(Number.isFinite(args.contextWindowTokens) && (args.contextWindowTokens || 0) > 0
         ? { contextWindowTokens: Math.round(args.contextWindowTokens as number) }
         : {}),

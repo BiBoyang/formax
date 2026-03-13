@@ -21,6 +21,15 @@ export const TierModelMappingSchema = z
   .strict()
 export type TierModelMapping = z.infer<typeof TierModelMappingSchema>
 
+export const TierContextWindowMappingSchema = z
+  .object({
+    haiku: z.number().int().positive(),
+    sonnet: z.number().int().positive(),
+    opus: z.number().int().positive(),
+  })
+  .strict()
+export type TierContextWindowMapping = z.infer<typeof TierContextWindowMappingSchema>
+
 const TimeoutMsSchema = z.number().int().positive()
 const ContextWindowTokensSchema = z.number().int().positive()
 const Percent01Schema = z.number().min(0).max(1)
@@ -33,6 +42,7 @@ export const LlmConfigSchema = z
     model: z.string().default(''),
     defaultTier: ModelTierSchema.default('sonnet'),
     tierModels: TierModelMappingSchema.optional(),
+    tierContextWindowTokens: TierContextWindowMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
@@ -50,6 +60,7 @@ export const LlmConfigPatchSchema = z
     model: z.string().optional(),
     defaultTier: ModelTierSchema.optional(),
     tierModels: TierModelMappingSchema.optional(),
+    tierContextWindowTokens: TierContextWindowMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),

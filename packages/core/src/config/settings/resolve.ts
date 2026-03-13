@@ -41,6 +41,7 @@ const KNOWN_SOURCE_KEYS = [
   'llm.model',
   'llm.defaultTier',
   'llm.tierModels',
+  'llm.tierContextWindowTokens',
   'llm.timeoutMs',
   'llm.authRef',
   'llm.contextWindowTokens',

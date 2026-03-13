@@ -35,6 +35,7 @@
 - Web parity adapter / reducer / cursor 唯一事实源：`docs/contracts/web-parity-adapter-contract.md`
 - Skills 目录与调用行为唯一事实源：`docs/contracts/skills-contract.md`
 - Slash command 发现 / dispatch / subline / injection 唯一事实源：`docs/contracts/slash-command-contract.md`
+- 模型设置唯一事实源（tier / active model / context window / `/model`）：`docs/contracts/model-settings-contract.md`
 - app-server 行为合同（protocol behavior）：`docs/contracts/app-server-interaction-contract.md`
 
 ## 配置（Configuration）

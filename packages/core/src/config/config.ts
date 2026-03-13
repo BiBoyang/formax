@@ -15,6 +15,7 @@ export type RuntimeConfig = {
     model: string
     configuredModel?: string
     tierModels?: Partial<Record<ModelTier, string>>
+    tierContextWindowTokens?: Partial<Record<ModelTier, number>>
     defaultTier?: ModelTier
     timeoutMs: number
     contextWindowTokens?: number
@@ -46,6 +47,14 @@ function normalizeBaseUrl(baseUrl: string): string {
   const raw = (baseUrl || '').trim()
   if (!raw) return ''
   return raw.replace(/\/+$/, '')
+}
+
+function parsePositiveEnvInt(value: string | undefined): number | undefined {
+  const raw = String(value || '').trim()
+  if (!raw) return undefined
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return undefined
+  return parsed
 }
 
 export async function loadRuntimeConfig(
@@ -103,8 +112,11 @@ export async function loadRuntimeConfig(
   })
   const configuredModel = String(resolved.config.llm.model || '').trim()
   const tierModels = resolved.config.llm.tierModels
+  const tierContextWindowTokens = resolved.config.llm.tierContextWindowTokens
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
-  const contextWindowTokens = resolved.config.llm.contextWindowTokens
+  const envContextWindowTokens = parsePositiveEnvInt(env.FORMAX_CONTEXT_WINDOW_TOKENS)
+  const tierContextWindow = defaultTier ? tierContextWindowTokens?.[defaultTier] : undefined
+  const contextWindowTokens = envContextWindowTokens ?? tierContextWindow ?? resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const showContextMeter = resolved.config.ui.showContextMeter
@@ -121,6 +133,7 @@ export async function loadRuntimeConfig(
       model,
       configuredModel,
       ...(tierModels ? { tierModels } : {}),
+      ...(tierContextWindowTokens ? { tierContextWindowTokens } : {}),
       defaultTier,
       timeoutMs,
       ...(contextWindowTokens ? { contextWindowTokens } : {}),

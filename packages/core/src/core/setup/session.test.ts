@@ -222,7 +222,13 @@ describe('createSetupSession', () => {
   })
 
   it('supports advanced mode with per-tier model selection', async () => {
-    const testConnection = vi.fn(async () => ok(['m-a', 'm-b', 'm-c']))
+    const testConnection = vi.fn(async () =>
+      okWithContext(['m-a', 'm-b', 'm-c'], {
+        'm-a': 32000,
+        'm-b': 128000,
+        'm-c': 256000,
+      }),
+    )
     const s = createSetupSession({ providers: PROVIDERS, testConnection })
 
     await s.next()
@@ -253,11 +259,13 @@ describe('createSetupSession', () => {
     const state = s.getState()
     expect(state.step).toBe('confirm')
     expect(state.draft.tierModels).toEqual({ haiku: 'm-a', sonnet: 'm-b', opus: 'm-c' })
+    expect(state.draft.tierContextWindowTokens).toEqual({ haiku: 32000, sonnet: 128000, opus: 256000 })
     expect(state.draft.model).toBe('m-b')
+    expect(state.draft.contextWindowTokens).toBe(128000)
   })
 
   it('quick mode maps one model to all tiers', async () => {
-    const testConnection = vi.fn(async () => ok(['m1']))
+    const testConnection = vi.fn(async () => okWithContext(['m1'], { m1: 64000 }))
     const s = createSetupSession({ providers: PROVIDERS, testConnection })
 
     await s.next()
@@ -276,8 +284,44 @@ describe('createSetupSession', () => {
 
     const draft = s.getState().draft
     expect(draft.tierModels).toEqual({ haiku: 'm1', sonnet: 'm1', opus: 'm1' })
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 64000, sonnet: 64000, opus: 64000 })
     expect(draft.model).toBe('m1')
-    expect(draft.contextWindowTokens).toBe(32768)
+    expect(draft.contextWindowTokens).toBe(64000)
+  })
+
+  it('recomputes tier context windows when switching advanced -> quick without reselecting model', async () => {
+    const testConnection = vi.fn(async () =>
+      okWithContext(['m-a', 'm-b', 'm-c'], {
+        'm-a': 32000,
+        'm-b': 128000,
+        'm-c': 256000,
+      }),
+    )
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    expect(s.getState().step).toBe('modelMode')
+
+    s.setModelMode('advanced')
+    await s.next()
+    s.setModel('m-a')
+    await s.next()
+    s.setModel('m-b')
+    await s.next()
+    s.setModel('m-c')
+
+    s.setModelMode('quick')
+    const draft = s.getState().draft
+    expect(draft.model).toBe('m-b')
+    expect(draft.tierModels).toEqual({ haiku: 'm-b', sonnet: 'm-b', opus: 'm-b' })
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 128000, sonnet: 128000, opus: 128000 })
+    expect(draft.contextWindowTokens).toBe(128000)
   })
 
   it('maps anthropic vendor presets to baseUrl and supports custom empty URL', async () => {

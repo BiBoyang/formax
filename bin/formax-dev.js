@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename)
 
 const repoRoot = path.resolve(__dirname, '..')
 const distCli = path.join(repoRoot, 'dist', 'cli.js')
-const tsEntry = path.join(repoRoot, 'src', 'entrypoints', 'cli.tsx')
+const tsEntry = path.join(repoRoot, 'packages', 'core', 'src', 'entrypoints', 'cli.tsx')
 const defaultDotenvPath = path.join(repoRoot, '.env')
 
 const rawArgs = process.argv.slice(2)

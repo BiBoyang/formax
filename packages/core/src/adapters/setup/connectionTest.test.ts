@@ -99,6 +99,30 @@ describe('testSetupConnection', () => {
     })
   })
 
+  it('uses token_limits.context_window from /v1/models rows before catalog/default fallback', async () => {
+    mockedFetchAnthropicModels.mockResolvedValueOnce([
+      {
+        model: 'glm-4-7-251222',
+        token_limits: {
+          context_window: 204800,
+          max_input_token_length: 204800,
+        },
+      },
+    ] as any)
+
+    const res = await testSetupConnection({
+      provider: 'anthropic',
+      baseUrl: 'https://open.bigmodel.cn/api/anthropic',
+      apiKey: 'sk',
+    })
+    expect(res).toEqual({
+      ok: true,
+      models: ['glm-4-7-251222'],
+      modelContextWindows: { 'glm-4-7-251222': 204800 },
+    })
+    expect(mockedGetModelContextWindowsFromCatalog).not.toHaveBeenCalled()
+  })
+
   it('normalizes anthropic rows and infers context windows across model families', async () => {
     mockedFetchAnthropicModels.mockResolvedValueOnce([
       { model: ' claude-3-5-sonnet ' },

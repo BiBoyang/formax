@@ -42,6 +42,7 @@ function createResolvedConfig(overrides: Partial<any> = {}): any {
         model: 'configured-sonnet',
         defaultTier: 'sonnet',
         tierModels: undefined,
+        tierContextWindowTokens: undefined,
         timeoutMs: 5000,
         contextWindowTokens: undefined,
         thinkingMode: true,
@@ -98,6 +99,10 @@ describe('loadRuntimeConfig branch coverage', () => {
   })
 
   it('uses explicit path overrides and includes optional llm fields when present', async () => {
+    mocks.resolveActiveModel.mockReturnValueOnce({
+      defaultTier: 'opus',
+      model: 'resolved-model',
+    })
     mocks.resolveRuntimeConfig.mockReturnValue(
       createResolvedConfig({
         config: {
@@ -110,6 +115,11 @@ describe('loadRuntimeConfig branch coverage', () => {
               haiku: 'h',
               sonnet: 's',
               opus: 'o',
+            },
+            tierContextWindowTokens: {
+              haiku: 64000,
+              sonnet: 128000,
+              opus: 256000,
             },
             timeoutMs: 7000,
             contextWindowTokens: 32000,
@@ -131,8 +141,33 @@ describe('loadRuntimeConfig branch coverage', () => {
     expect(cfg.paths.subagentsDir).toBe('/repo/custom-agents')
     expect(cfg.paths.planDir).toBe('/repo/custom-plans')
     expect(cfg.llm.tierModels).toEqual({ haiku: 'h', sonnet: 's', opus: 'o' })
-    expect(cfg.llm.contextWindowTokens).toBe(32000)
+    expect(cfg.llm.tierContextWindowTokens).toEqual({ haiku: 64000, sonnet: 128000, opus: 256000 })
+    expect(cfg.llm.contextWindowTokens).toBe(256000)
     expect(cfg.llm.baseUrl).toBe('https://api.anthropic.com/v1')
+  })
+
+  it('prefers FORMAX_CONTEXT_WINDOW_TOKENS over tier context mapping', async () => {
+    mocks.resolveActiveModel.mockReturnValueOnce({
+      defaultTier: 'opus',
+      model: 'resolved-model',
+    })
+    mocks.resolveRuntimeConfig.mockReturnValue(
+      createResolvedConfig({
+        config: {
+          llm: {
+            tierContextWindowTokens: {
+              haiku: 64000,
+              sonnet: 128000,
+              opus: 256000,
+            },
+            contextWindowTokens: 32000,
+          },
+        },
+      }),
+    )
+
+    const cfg = await loadRuntimeConfig({ FORMAX_CONTEXT_WINDOW_TOKENS: '64000' } as any, '/repo')
+    expect(cfg.llm.contextWindowTokens).toBe(64000)
   })
 
   it('falls back timeout to 600000 when resolved timeout is falsy', async () => {

@@ -33,6 +33,11 @@ describe('writeSetupFiles', () => {
           sonnet: 'claude-3-5-sonnet-latest',
           opus: 'claude-3-opus-latest',
         },
+        tierContextWindowTokens: {
+          haiku: 200000,
+          sonnet: 200000,
+          opus: 200000,
+        },
       })
 
       const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
@@ -45,6 +50,11 @@ describe('writeSetupFiles', () => {
         haiku: 'claude-3-5-haiku-latest',
         sonnet: 'claude-3-5-sonnet-latest',
         opus: 'claude-3-opus-latest',
+      })
+      expect(config.llm.tierContextWindowTokens).toEqual({
+        haiku: 200000,
+        sonnet: 200000,
+        opus: 200000,
       })
       expect(config.llm.authRef).toBe('default')
       expect(config.llm.timeoutMs).toBe(600000)

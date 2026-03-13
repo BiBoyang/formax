@@ -53,6 +53,10 @@ function createEmptyTierModels(): SetupTierModels {
   return { haiku: '', sonnet: '', opus: '' }
 }
 
+function createDefaultTierContextWindows(): Record<ModelTier, number> {
+  return { haiku: 32768, sonnet: 32768, opus: 32768 }
+}
+
 function pickTierModel(current: string, seed: string): string {
   const trimmed = String(current || '').trim()
   return trimmed.length > 0 ? trimmed : seed
@@ -92,6 +96,7 @@ export function createSetupSession(args: {
       modelMode: 'quick',
       model: '',
       tierModels: createEmptyTierModels(),
+      tierContextWindowTokens: createDefaultTierContextWindows(),
       contextWindowTokens: undefined,
     },
     providers: args.providers,
@@ -124,6 +129,7 @@ export function createSetupSession(args: {
     state.draft.modelMode = 'quick'
     state.draft.model = ''
     state.draft.tierModels = createEmptyTierModels()
+    state.draft.tierContextWindowTokens = createDefaultTierContextWindows()
     state.draft.contextWindowTokens = undefined
     modelTierIndex = 0
     syncModelTierState()
@@ -139,6 +145,14 @@ export function createSetupSession(args: {
     state.draft.contextWindowTokens = Number.isFinite(fromDetection) && fromDetection > 0
       ? Math.round(fromDetection)
       : inferContextWindowTokens(key)
+  }
+
+  const inferWindowForModel = (model: string): number => {
+    const key = String(model || '').trim()
+    if (!key) return 32768
+    const detected = state.modelContextWindows[key]
+    if (Number.isFinite(detected) && detected > 0) return Math.round(detected)
+    return inferContextWindowTokens(key)
   }
 
   const setError = (message: string | null) => {
@@ -222,9 +236,12 @@ export function createSetupSession(args: {
       if (quickModel) {
         state.draft.model = quickModel
         state.draft.tierModels = { haiku: quickModel, sonnet: quickModel, opus: quickModel }
+        const windowTokens = inferWindowForModel(quickModel)
+        state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
       } else {
         state.draft.model = ''
         state.draft.tierModels = createEmptyTierModels()
+        state.draft.tierContextWindowTokens = createDefaultTierContextWindows()
       }
     } else {
       const seed = state.draft.model.trim()
@@ -249,10 +266,16 @@ export function createSetupSession(args: {
     if (state.draft.modelMode === 'quick') {
       state.draft.model = value
       state.draft.tierModels = { haiku: value, sonnet: value, opus: value }
+      const windowTokens = inferWindowForModel(value)
+      state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
       updateDraftContextWindow(state.draft.model)
     } else {
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
       state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
+      state.draft.tierContextWindowTokens = {
+        ...state.draft.tierContextWindowTokens,
+        [tier]: inferWindowForModel(value),
+      }
       if (tier === 'sonnet') {
         state.draft.model = value
         updateDraftContextWindow(state.draft.model)
@@ -462,6 +485,7 @@ export function createSetupSession(args: {
 
 export const __setupSessionTestOnly = {
   createEmptyTierModels,
+  createDefaultTierContextWindows,
   pickTierModel,
   normalizeBaseUrl,
   inferContextWindowTokens,

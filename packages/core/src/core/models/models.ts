@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
+import { extractContextWindowTokens } from './contextWindow.js'
 
 export type ModelInfo = {
   model: string
@@ -169,7 +170,7 @@ export async function fetchAnthropicModels(
           model: model.modelName || model.id || model.name || model.model || 'unknown',
           provider: 'anthropic',
           max_tokens: model.max_tokens || model.context_length || 8192,
-          contextWindowTokens: model.context_length || model.context_window || model.max_tokens,
+          contextWindowTokens: extractContextWindowTokens(model) ?? model.max_tokens,
           supports_reasoning_effort: false,
           supports_vision: Boolean(model.supports_vision ?? true),
           supports_function_calling: model.supports_function_calling ?? true,
