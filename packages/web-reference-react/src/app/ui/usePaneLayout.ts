@@ -53,6 +53,8 @@ export function usePaneLayout(port?: PaneSizingPort) {
     layoutPort.writeStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY, rightRailWidth)
   }, [layoutPort, rightRailWidth])
 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
   return {
     isSidebarOpen,
     setIsSidebarOpen,
@@ -60,5 +62,7 @@ export function usePaneLayout(port?: PaneSizingPort) {
     setSidebarWidth,
     rightRailWidth,
     setRightRailWidth,
+    isSettingsOpen,
+    setIsSettingsOpen,
   }
 }

@@ -25,6 +25,8 @@ describe('buildAppShellProps', () => {
         rightRailWidth: 40,
         setSidebarWidth: vi.fn(),
         setRightRailWidth: vi.fn(),
+        isSettingsOpen: false,
+        setIsSettingsOpen: vi.fn(),
       },
       transcript: {
         activeThreadTitle: 'T',

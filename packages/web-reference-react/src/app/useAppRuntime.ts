@@ -72,7 +72,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
-  const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth } =
+  const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
     usePaneLayout()
   const {
     inputText,
@@ -529,8 +529,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       rightRailWidth,
       setSidebarWidth,
       setRightRailWidth,
+      isSettingsOpen,
+      setIsSettingsOpen,
     }),
-    [isSidebarOpen, rightRailWidth, setIsSidebarOpen, setRightRailWidth, setSidebarWidth, sidebarWidth],
+    [isSidebarOpen, rightRailWidth, setIsSidebarOpen, setRightRailWidth, setSidebarWidth, sidebarWidth, isSettingsOpen, setIsSettingsOpen],
   )
 
   const transcriptSection = useMemo<BuildAppShellPropsArgs['transcript']>(

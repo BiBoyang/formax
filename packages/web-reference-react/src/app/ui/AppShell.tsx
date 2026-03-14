@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
+import { SettingsPane } from '../../components/SettingsPane'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import type { ReplMode } from '../../semantics'
@@ -57,6 +58,8 @@ export type AppShellProps = {
   rightRailWidth: number
   setSidebarWidth: Dispatch<SetStateAction<number>>
   setRightRailWidth: Dispatch<SetStateAction<number>>
+  isSettingsOpen: boolean
+  setIsSettingsOpen: Dispatch<SetStateAction<boolean>>
   activeThreadTitle: string
   activeTurnId: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
@@ -287,6 +290,9 @@ export function AppShell(props: AppShellProps) {
       onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
       isSidebarTransparent,
       onToggleSidebarTransparency: isDesktopClient ? onToggleSidebarTransparency : undefined,
+      isSettingsOpen: props.isSettingsOpen,
+      onOpenSettings: () => props.setIsSettingsOpen(true),
+      onCloseSettings: () => props.setIsSettingsOpen(false),
     }),
     [
       props.activeThreadId,
@@ -306,6 +312,8 @@ export function AppShell(props: AppShellProps) {
       desktopBridge,
       onCreateProject,
       onToggleSidebarTransparency,
+      props.isSettingsOpen,
+      props.setIsSettingsOpen,
     ],
   )
 
@@ -455,12 +463,13 @@ export function AppShell(props: AppShellProps) {
                     : 'app-shell-right-surface',
                 )}
               >
-            <header
-              className={cn(
-                'h-[var(--desktop-chrome-height)] flex-none border-b app-shell-right-header',
-                isDesktopClient && 'app-shell-drag-region',
-              )}
-            >
+            {!props.isSettingsOpen && (
+              <header
+                className={cn(
+                  'h-[var(--desktop-chrome-height)] flex-none border-b app-shell-right-header',
+                  isDesktopClient && 'app-shell-drag-region',
+                )}
+              >
               <div
                 className={cn(
                   'h-full min-w-0 flex items-center px-4 app-shell-header-row-motion',
@@ -532,10 +541,16 @@ export function AppShell(props: AppShellProps) {
                   </div>
                 </div>
               </div>
-            </header>
+              </header>
+            )}
 
-            <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 min-w-0">
-              <ResizablePanel defaultSize={centerPercent} minSize={35}>
+            {props.isSettingsOpen ? (
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col pt-10">
+                <SettingsPane />
+              </div>
+            ) : (
+              <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 min-w-0">
+                <ResizablePanel defaultSize={centerPercent} minSize={35}>
                 <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
                   {props.noticeMessage ? (
                     <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
@@ -569,6 +584,7 @@ export function AppShell(props: AppShellProps) {
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>
+            )}
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

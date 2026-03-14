@@ -24,6 +24,8 @@ type LayoutSection = Pick<
   | 'rightRailWidth'
   | 'setSidebarWidth'
   | 'setRightRailWidth'
+  | 'isSettingsOpen'
+  | 'setIsSettingsOpen'
 >
 
 type TranscriptSection = Pick<

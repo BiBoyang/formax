@@ -1,5 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react'
-import { ChevronDown, Clock3, Folder, FolderOpen, FolderPlus, Globe, MoreHorizontal, Settings, Sparkles, SquarePen } from 'lucide-react'
+import { ChevronDown, Clock3, Folder, FolderOpen, FolderPlus, Globe, MoreHorizontal, Settings, Sparkles, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
 import { Button } from './ui/button'
@@ -48,6 +48,9 @@ export type LeftRailProps = {
   onCreateProject?: () => Promise<void> | void
   isSidebarTransparent?: boolean
   onToggleSidebarTransparency?: (enabled: boolean) => void
+  isSettingsOpen?: boolean
+  onOpenSettings?: () => void
+  onCloseSettings?: () => void
 }
 
 function readOpenByCwdFromStorage(): Record<string, boolean> {
@@ -353,6 +356,9 @@ export function LeftRail(props: LeftRailProps) {
     onCreateProject,
     isSidebarTransparent = false,
     onToggleSidebarTransparency,
+    isSettingsOpen = false,
+    onOpenSettings,
+    onCloseSettings,
   } = props
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
@@ -480,6 +486,77 @@ export function LeftRail(props: LeftRailProps) {
   const quickEntryRowClass = `w-full justify-start ${quickEntryBaseRowClass}`
   const quickEntryStaticRowClass = `flex items-center ${quickEntryBaseRowClass} cursor-default`
   const quickEntryIconClass = 'inline-flex h-4 w-4 shrink-0 items-center justify-center opacity-70'
+
+  if (isSettingsOpen && onCloseSettings) {
+    return (
+      <aside className="app-sidebar-rail flex flex-col h-full flex-none w-full overflow-hidden">
+        <div
+          className={cn(
+            'app-sidebar-topbar h-[var(--desktop-chrome-height)] flex-none px-4 flex items-center',
+            isDesktopClient && 'app-shell-drag-region',
+          )}
+        >
+          {isDesktopClient && (
+            <div
+              className="h-[var(--desktop-traffic-light-safe-height)] w-[var(--desktop-traffic-light-safe-width)] app-shell-no-drag"
+              aria-hidden
+            />
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
+          <div className="flex flex-col min-h-full">
+            <div className="px-2 space-y-px flex-none">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] text-muted-foreground mb-4"
+                onClick={onCloseSettings}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                返回应用
+              </Button>
+
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-medium bg-[var(--surface-selected)] shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] text-foreground">
+                <Settings className="h-4 w-4 opacity-70" />
+                常规
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <Monitor className="h-4 w-4 opacity-70" />
+                Appearance
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <Settings2 className="h-4 w-4 opacity-70" />
+                配置
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <Palette className="h-4 w-4 opacity-70" />
+                个性化
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <Server className="h-4 w-4 opacity-70" />
+                MCP 服务器
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <GitBranch className="h-4 w-4 opacity-70" />
+                Git
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <TerminalSquare className="h-4 w-4 opacity-70" />
+                环境
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <FolderTree className="h-4 w-4 opacity-70" />
+                工作树
+              </Button>
+              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
+                <ArchiveRestore className="h-4 w-4 opacity-70" />
+                已归档线程
+              </Button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    )
+  }
 
   return (
     <aside className="app-sidebar-rail flex flex-col h-full flex-none w-full overflow-hidden">
@@ -627,7 +704,7 @@ export function LeftRail(props: LeftRailProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-48 app-shell-no-drag" side="top" align="start" sideOffset={8}>
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={onOpenSettings}>
               <Settings className="mr-2 h-4 w-4" />
               设置
             </DropdownMenuItem>
