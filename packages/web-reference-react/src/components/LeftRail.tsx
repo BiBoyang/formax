@@ -704,10 +704,12 @@ export function LeftRail(props: LeftRailProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-48 app-shell-no-drag" side="top" align="start" sideOffset={8}>
-            <DropdownMenuItem onSelect={onOpenSettings}>
-              <Settings className="mr-2 h-4 w-4" />
-              设置
-            </DropdownMenuItem>
+            {onOpenSettings ? (
+              <DropdownMenuItem onSelect={onOpenSettings}>
+                <Settings className="mr-2 h-4 w-4" />
+                设置
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem>
               <Globe className="mr-2 h-4 w-4" />
               语言

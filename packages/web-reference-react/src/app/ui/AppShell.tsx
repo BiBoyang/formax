@@ -290,9 +290,6 @@ export function AppShell(props: AppShellProps) {
       onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
       isSidebarTransparent,
       onToggleSidebarTransparency: isDesktopClient ? onToggleSidebarTransparency : undefined,
-      isSettingsOpen: props.isSettingsOpen,
-      onOpenSettings: () => props.setIsSettingsOpen(true),
-      onCloseSettings: () => props.setIsSettingsOpen(false),
     }),
     [
       props.activeThreadId,
@@ -312,8 +309,6 @@ export function AppShell(props: AppShellProps) {
       desktopBridge,
       onCreateProject,
       onToggleSidebarTransparency,
-      props.isSettingsOpen,
-      props.setIsSettingsOpen,
     ],
   )
 
