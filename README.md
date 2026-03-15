@@ -15,8 +15,31 @@ The project is currently in Beta and is better suited for learning, experimentat
 [![license](https://img.shields.io/github/license/yusifeng/formax)](LICENSE)
 
 <p align="left">
-  <img src="./demo.gif" width="600" />
+  <img src="./example-gifs/demo.gif" width="600" />
 </p>
+
+<details>
+<summary><b>More demos</b> (click to expand)</summary>
+
+### Plan mode
+
+<p align="left">
+  <img src="./example-gifs/plan-mode.gif" width="600" />
+</p>
+
+### /init（create CLAUDE.md）
+
+<p align="left">
+  <img src="./example-gifs/slash-init.gif" width="600" />
+</p>
+
+### Sub-agent and code review
+
+<p align="left">
+  <img src="./example-gifs/sub-agent-and-code-review.gif" width="600" />
+</p>
+
+</details>
 
 ## Install
 

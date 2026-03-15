@@ -15,8 +15,31 @@ Formax 是一个 Claude Code 风格 AI 助手的开源实现，面向软件工�
 [![license](https://img.shields.io/github/license/yusifeng/formax)](LICENSE)
 
 <p align="left">
-  <img src="./demo.gif" width="600" />
+  <img src="./example-gifs/demo.gif" width="600" />
 </p>
+
+<details>
+<summary><b>更多演示</b>（点击展开）</summary>
+
+### 计划模式
+
+<p align="left">
+  <img src="./example-gifs/plan-mode.gif" width="600" />
+</p>
+
+### /init（创建CLAUDE.md）
+
+<p align="left">
+  <img src="./example-gifs/slash-init.gif" width="600" />
+</p>
+
+### 子代理与代码审查
+
+<p align="left">
+  <img src="./example-gifs/sub-agent-and-code-review.gif" width="600" />
+</p>
+
+</details>
 
 ## 安装
 
