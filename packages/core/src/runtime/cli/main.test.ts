@@ -106,7 +106,9 @@ describe('dispatchCli', () => {
   })
 
   it('dispatches web subcommand with defaults', async () => {
-    const res = await dispatchCli(['web'])
+    const res = await dispatchCli(['web'], {
+      env: { FORMAX_API_KEY: 'sk-web-defaults' } as any,
+    })
     expect(res.kind).toBe('web')
     if (res.kind !== 'web') return
     expect(res.options).toEqual({
@@ -117,7 +119,9 @@ describe('dispatchCli', () => {
   })
 
   it('dispatches web subcommand with custom ports', async () => {
-    const res = await dispatchCli(['web', '--host', '0.0.0.0', '--ui-port', '4080', '--bridge-port', '4077'])
+    const res = await dispatchCli(['web', '--host', '0.0.0.0', '--ui-port', '4080', '--bridge-port', '4077'], {
+      env: { FORMAX_API_KEY: 'sk-web-custom' } as any,
+    })
     expect(res.kind).toBe('web')
     if (res.kind !== 'web') return
     expect(res.options).toEqual({
@@ -125,6 +129,32 @@ describe('dispatchCli', () => {
       uiPort: 4080,
       bridgePort: 4077,
     })
+  })
+
+  it('returns setup-required error for web when auth is missing', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-web-setup-required-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      const globalConfigDir = path.join(dir, 'global')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const res = await dispatchCli(['web'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('handled')
+      if (res.kind !== 'handled') return
+      expect(res.exitCode).toBe(1)
+      expect(res.stderr).toContain('requires setup first')
+      expect(res.stderr).toContain('formax setup')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
   })
 
   it('returns web command help', async () => {

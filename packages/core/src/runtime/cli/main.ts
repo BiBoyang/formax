@@ -397,6 +397,16 @@ export async function dispatchCli(
       }
     }
 
+    const runtime = await loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir })
+    if (!runtime.llm.apiKey.trim()) {
+      return {
+        kind: 'handled',
+        exitCode: ExitCode.Error,
+        stdout: '',
+        stderr: 'Formax Web UI requires setup first.\nRun `formax setup` in your terminal, then retry `formax web`.\n',
+      }
+    }
+
     return { kind: 'web', options: parsedWeb.options }
   }
   if (args[0] === 'app-server') return { kind: 'app-server' }

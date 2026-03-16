@@ -10,6 +10,7 @@ import {
 } from '../network/runtime.js'
 import { startServeBridge } from '../serve/localServer.js'
 import type { WebCommandOptions } from '../cli/webCommand.js'
+import { renderWebLogo } from './logo.js'
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -207,6 +208,7 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
   }
 
   const connectHost = displayHostForLogs(options.host)
+  process.stderr.write(renderWebLogo())
   process.stderr.write(
     `[formax] app-server bridge: ws://${connectHost}:${options.bridgePort} (token-protected; browser token is injected automatically)\n`,
   )

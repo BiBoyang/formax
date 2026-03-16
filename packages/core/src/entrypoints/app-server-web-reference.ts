@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startAppServerDevBridge } from '../app-server/devBridge.js'
+import { renderWebLogo } from '../runtime/web/logo.js'
 
 type CliOptions = {
   host?: string
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
     stdio: 'inherit',
   })
 
+  process.stderr.write(renderWebLogo())
   process.stderr.write(`[formax] app-server bridge: ${bridge.url}\n`)
   process.stderr.write(`[formax] web reference ui: http://${host}:${uiPort}\n`)
 
