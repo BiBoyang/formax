@@ -71,6 +71,12 @@ Default config directory: `~/.formax/`
 formax web
 ```
 
+Notes for `formax web`:
+
+- The `Threads` header always shows an `Add project` button.
+- In desktop clients (Electron), it opens a native folder picker and starts a thread in the selected project.
+- In browser-only mode, folder picking is not available; hovering the button shows `Desktop only`.
+
 ### Advanced Modes (Optional)
 
 ```bash

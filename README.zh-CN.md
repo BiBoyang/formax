@@ -71,6 +71,12 @@ formax setup
 formax web
 ```
 
+`formax web` 说明：
+
+- `Threads` 标题栏会始终显示 `Add project` 按钮。
+- 在桌面客户端（Electron）中，点击会打开系统文件夹选择器，并在所选目录创建新线程。
+- 在纯浏览器模式下不支持系统目录选择；悬停按钮会提示 `仅桌面客户端可用`。
+
 ### 高级模式（可选）
 
 ```bash

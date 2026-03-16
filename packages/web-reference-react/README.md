@@ -32,6 +32,12 @@ npm run dev
 
 3. Open the URL printed by Vite (default `http://127.0.0.1:3781`).
 
+UI behavior note:
+
+- The `Threads` header always renders the `Add project` action.
+- In browser-only mode (this package default), project folder picking is not available; the button shows a `仅桌面客户端可用` tooltip.
+- In desktop bridge mode (`window.formaxDesktop.pickProjectFolder` provided), the same button invokes native folder selection and starts a thread in that `cwd`.
+
 ## Test
 
 ```bash
@@ -58,6 +64,7 @@ Notes:
 - E2E config: `packages/web-reference-react/playwright.config.mjs`
 - E2E specs:
   - `e2e/layout-overflow.spec.js` (horizontal overflow + composer visibility)
+  - `e2e/add-project-tooltip.spec.js` (browser mode desktop-only tooltip for Add project)
   - `e2e/thread-history.spec.js` (thread select + load earlier messages)
   - `e2e/approval-submit.spec.js` (pending approval submit payload/status)
   - `e2e/diff-collapsible.spec.js` (diff file collapse/expand)

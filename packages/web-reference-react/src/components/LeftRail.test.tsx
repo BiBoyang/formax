@@ -182,6 +182,55 @@ describe('LeftRail', () => {
     expect(onStartThreadInCwd).not.toHaveBeenCalled()
   })
 
+  it('shows desktop-only tooltip for add project action when folder picker is unavailable', async () => {
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const addProjectButton = screen.getByRole('button', { name: 'Add project' })
+    expect(addProjectButton).toBeInTheDocument()
+
+    fireEvent.pointerMove(addProjectButton)
+    fireEvent.mouseEnter(addProjectButton)
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('仅桌面客户端可用')
+  })
+
+  it('runs add project action when folder picker is available', async () => {
+    const onCreateProject = vi.fn(async () => undefined)
+
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+        onCreateProject={onCreateProject}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
+    await waitFor(() => {
+      expect(onCreateProject).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByText('仅桌面客户端可用')).not.toBeInTheDocument()
+  })
+
   it('marks a folder as removed from folder actions menu', async () => {
     const onSelectCwd = vi.fn()
     const onHideThreadGroup = vi.fn()

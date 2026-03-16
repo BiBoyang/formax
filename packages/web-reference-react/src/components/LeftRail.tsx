@@ -21,6 +21,7 @@ import {
 } from './ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { Input } from './ui/input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 
 const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
 
@@ -486,6 +487,20 @@ export function LeftRail(props: LeftRailProps) {
   const quickEntryRowClass = `w-full justify-start ${quickEntryBaseRowClass}`
   const quickEntryStaticRowClass = `flex items-center ${quickEntryBaseRowClass} cursor-default`
   const quickEntryIconClass = 'inline-flex h-4 w-4 shrink-0 items-center justify-center opacity-70'
+  const createProjectButton = (
+    <Button
+      type="button"
+      size="icon"
+      variant="ghost"
+      className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40"
+      aria-label="Add project"
+      title={canCreateProject ? 'Add project' : 'Desktop only'}
+      disabled={isBusy}
+      onClick={handleCreateProject}
+    >
+      <FolderPlus className="h-3.5 w-3.5" />
+    </Button>
+  )
 
   if (isSettingsOpen && onCloseSettings) {
     return (
@@ -611,19 +626,17 @@ export function LeftRail(props: LeftRailProps) {
             <div className="px-5 ui-text-base font-medium ui-sidebar-text-muted tracking-wide flex items-center justify-between gap-2 flex-none">
               <span>Threads</span>
               {canCreateProject ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  aria-label="Add project"
-                  title="Add project"
-                  disabled={isBusy}
-                  onClick={handleCreateProject}
-                >
-                  <FolderPlus className="h-3.5 w-3.5" />
-                </Button>
-              ) : null}
+                createProjectButton
+              ) : (
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>{createProjectButton}</TooltipTrigger>
+                    <TooltipContent side="bottom" align="end">
+                      仅桌面客户端可用
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
 
             <div className="space-y-px px-2">
