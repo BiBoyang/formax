@@ -99,7 +99,15 @@ Code navigation: [CODEMAP.md](CODEMAP.md)
 
 ## Current Gaps
 
-Tool execution behavior is not guaranteed to be fully identical to Claude Code. `WebFetch` and `WebSearch` currently have known stability and behavior gaps, and MCP is not supported in this version.
+- Claude Code hooks support is still incomplete and under active development.
+- Tool execution behavior is not guaranteed to be fully identical to Claude Code. `WebFetch` and `WebSearch` currently have known stability and behavior gaps, and MCP is not supported in this version.
+- Formax Web is still relatively minimal today. The current UI direction is intentionally modeled after Codex.
+
+## Maintainer Notes
+
+- You will see `.codex/skills`, `docs/`, and `plans/` in this repo. They can feel noisy, but they are intentionally kept as traces of AI-assisted development.
+- This project is built 100% with Codex. If you want to implement your own features, opening the repo in Codex gives useful context from those artifacts.
+- If there are features you want, please mention them in a PR. Ongoing Claude Code compatibility research may be prioritized first in upcoming iterations.
 
 ## Safety & Limitations
 

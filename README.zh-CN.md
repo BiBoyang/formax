@@ -98,7 +98,15 @@ formax serve
 
 ## 当前已知缺口
 
-工具执行行为暂不保证与 Claude Code 完全一致。`WebFetch` 与 `WebSearch` 目前存在已知稳定性与行为差异，当前版本不支持 MCP。
+- CC hooks 相关能力尚未完整实现，仍在持续开发中。
+- 工具执行行为暂不保证与 Claude Code 完全一致。`WebFetch` 与 `WebSearch` 目前存在已知稳定性与行为差异，当前版本不支持 MCP。
+- formax web 端目前仍比较简陋，当前 UI 方向主要参考了 Codex。
+
+## 维护者说明
+
+- 你会在仓库里看到 `.codex/skills`、`docs/`、`plans/` 等目录。它们看起来可能有点乱，但这是刻意保留的 AI 编程过程痕迹。
+- 本项目 100% 使用 Codex 编写。如果你想自己实现某些功能，直接在 Codex 里打开仓库通常能获得更充足的上下文。
+- 如果你有希望实现的功能，欢迎在 PR 里提及；后续迭代中我可能会优先继续研究 Claude Code 兼容相关能力。
 
 ## 安全与限制
 
