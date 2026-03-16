@@ -331,19 +331,20 @@ type WelcomePromptIdea = {
   text: string
 }
 
+// Temporarily disabled in web: welcome prompt ideas are not ready yet.
 const WELCOME_PROMPT_IDEAS: WelcomePromptIdea[] = [
-  {
-    icon: '🎮',
-    text: 'Build a classic Snake game in this repo.',
-  },
-  {
-    icon: '📄',
-    text: 'Create a one-page $pdf that summarizes this app.',
-  },
-  {
-    icon: '✏️',
-    text: 'Create a plan to...',
-  },
+  // {
+  //   icon: '🎮',
+  //   text: 'Build a classic Snake game in this repo.',
+  // },
+  // {
+  //   icon: '📄',
+  //   text: 'Create a one-page $pdf that summarizes this app.',
+  // },
+  // {
+  //   icon: '✏️',
+  //   text: 'Create a plan to...',
+  // },
 ]
 
 function WelcomePromptCard(props: WelcomePromptIdea) {

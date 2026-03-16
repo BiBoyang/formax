@@ -260,7 +260,7 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
   })
 
-  it('renders compact welcome canvas without legacy prompt labels', () => {
+  it('renders compact welcome canvas without prompt ideas', () => {
     const { container } = render(
       <TranscriptPane
         {...baseProps({
@@ -272,9 +272,9 @@ describe('TranscriptPane', () => {
 
     expect(screen.getByText('Welcome to Formax')).toBeInTheDocument()
     expect(screen.queryByText(/^formax$/i)).not.toBeInTheDocument()
-    expect(screen.getByText('Build a classic Snake game in this repo.')).toBeInTheDocument()
-    expect(screen.getByText('Create a one-page $pdf that summarizes this app.')).toBeInTheDocument()
-    expect(screen.getByText('Create a plan to...')).toBeInTheDocument()
+    expect(screen.queryByText('Build a classic Snake game in this repo.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create a one-page $pdf that summarizes this app.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create a plan to...')).not.toBeInTheDocument()
     expect(screen.queryByText('Prompt idea')).not.toBeInTheDocument()
     expect(container.querySelector('[data-radix-scroll-area-viewport]')).toBeNull()
   })
