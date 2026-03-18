@@ -94,4 +94,4 @@
 - `docs/contracts/transcript-surface-contract.md`
 - `docs/pitfalls/repl-transcript-static-rootcause.md`
 - `docs/pitfalls/repl-transcript-surface-handoff-pitfall.md`
-- `pitfalls.md`
+- `docs/pitfalls/summary.md`

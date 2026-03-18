@@ -70,6 +70,6 @@ Use this skill whenever the change touches any of:
 
 ## References
 
-- `pitfalls.md` sections covering `/clear`, compact + Ctrl+O, and resume black-screen regressions
+- `docs/pitfalls/summary.md` sections covering `/clear`, compact + Ctrl+O, and resume black-screen regressions
 - `docs/pitfalls/repl-transcript-surface-handoff-pitfall.md`
 - `docs/pitfalls/repl-transcript-static-rootcause.md`

@@ -308,7 +308,7 @@ Types ─→ Config ─→ Repo ─→ Service ─→ Runtime ─→ UI
   - `scripts/check-no-ansi.mjs` 的白名单与失败提示从 `packages/core/src/utils/terminal.ts` 切换为 `packages/core/src/shared/utils/terminal.ts`。
   - `scripts/surface-screen-model-smoke.tsx` 对 `inkStreams` 的导入切换为 `packages/core/src/shared/utils/inkStreams.ts`。
   - `scripts/check-coverage-thresholds.mjs` 对 `planMode` 的覆盖率目标切换为 `packages/core/src/shared/utils/planMode.ts`。
-  - `CODEMAP.md` 与 `pitfalls.md` 中对应索引路径收敛到 canonical 位置（`shared/utils`、`features/commands`）。
+  - `CODEMAP.md` 与 `docs/pitfalls/summary.md` 中对应索引路径收敛到 canonical 位置（`shared/utils`、`features/commands`）。
 - 明确不做：
   - 不改任何运行时行为、工具逻辑或 UI 交互。
   - 不删除旧 shim 文件，仅做索引与脚本路径收敛。
@@ -1447,7 +1447,7 @@ packages/core/src/
   - 活跃文档中的历史路径同步到现状目录：
     - `README.md`: `packages/core/src/subagents/README.md -> packages/core/src/features/subagents/README.md`
     - `ARCHITECTURE.md`: `packages/core/src/env/config.ts -> packages/core/src/config/config.ts`
-    - `pitfalls.md`: `packages/core/src/ui/* -> packages/core/src/tui/*`，`packages/core/src/legacy/runLegacyCli.tsx -> packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
+    - `docs/pitfalls/summary.md`: `packages/core/src/ui/* -> packages/core/src/tui/*`，`packages/core/src/legacy/runLegacyCli.tsx -> packages/core/src/runtime/bootstrap/runLegacyCli.tsx`
   - 保持实现不变，仅修正文档导航与排障链接，减少后续排障误导。
 - 明确不做：
   - 不改任何运行时代码与分层规则，仅做文档事实收敛。

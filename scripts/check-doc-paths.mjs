@@ -4,7 +4,7 @@ import { runNoClaudeCheck } from './check-no-claude.mjs'
 
 const REPO_ROOT = process.cwd()
 
-const ROOT_MARKDOWN_FILES = ['AGENTS.md', 'README.md', 'CODEMAP.md', 'CLAUDE.md', 'ARCHITECTURE.md', 'pitfalls.md']
+const ROOT_MARKDOWN_FILES = ['AGENTS.md', 'README.md', 'CODEMAP.md', 'CLAUDE.md', 'ARCHITECTURE.md']
 const DOC_DIRS = ['docs', '.codex/skills']
 const PLAN_DIR = 'plans'
 const README_SCAN_DIRS = ['packages']

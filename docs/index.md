@@ -86,7 +86,7 @@
 ## 陷阱库（Pitfalls）
 
 - 深度排障记录索引：`docs/pitfalls/index.md`
-- 长期 pitfall 摘要日志：`pitfalls.md`
+- 长期 pitfall 摘要日志：`docs/pitfalls/summary.md`
 
 ## 验证与恢复入口
 
