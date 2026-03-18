@@ -59,6 +59,31 @@ npm run test:e2e:queue:guard
 npm run test:perf:gate
 ```
 
+Evidence screenshot (opt-in acceptance capture):
+
+```bash
+npm run evidence:after -- --task=TASK-0123-web-ui
+npm run evidence:after -- --task=TASK-0123-web-ui --phase=before --label=01-repro
+npm run evidence:after -- --task=TASK-0123-web-ui --external
+```
+
+Evidence policy (see `docs/runbooks/web-evidence-workflow.md` for the canonical rule set in this repo):
+
+- A 类：可稳定复现 bug 修复 -> 建议 `before + after`
+- B 类：新功能/常规验收 -> 默认 `after` 即可
+- C 类：难以稳定复现问题 -> `after + 文字说明`（`before` 可省略）
+
+Examples:
+
+```bash
+# A 类 bug：before + after
+npm run evidence:after -- --task=TASK-0456-transcript-bug --phase=before
+npm run evidence:after -- --task=TASK-0456-transcript-bug
+
+# B 类 feature：after only
+npm run evidence:after -- --task=TASK-0789-thread-panel
+```
+
 Notes:
 
 - E2E config: `packages/web-reference-react/playwright.config.mjs`
@@ -73,8 +98,13 @@ Notes:
   - `e2e/nested-scroll-boundary.spec.js` (center/right pane wheel scrolling isolation)
   - `e2e/rpc-queue-dev-tools.spec.js` (queue metrics helper + overload/drop stability guard)
   - `e2e/transcript-performance-gate.spec.js` (long transcript interaction budget gate)
+  - `e2e/evidence.spec.js` (opt-in acceptance screenshot capture for task evidence)
 - These tests auto-start Vite via Playwright `webServer` on `http://127.0.0.1:3781`.
 - E2E uses an in-page WebSocket mock (`e2e/helpers/mockRpc.js`) so tests do not depend on a real app-server process.
+- `evidence:after` stores screenshots under `packages/web-reference-react/evidence/tasks/<task>/<phase>/`.
+- `evidence:before` (optional shortcut) equals `evidence:after -- --phase=before`.
+- default labels: `phase=before -> 01-repro`, `phase=after -> 01-acceptance`.
+- `evidence:after` supports `--task=...`, `--phase=...`, `--label=...`, `--scenario=default`, and `--external`.
 - If you already started dev server manually, use:
 
 ```bash
