@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
@@ -10,7 +11,7 @@ const { queueTranscriptSurfaceResetMock, queueTranscriptSurfaceReplaceMock } = v
   queueTranscriptSurfaceReplaceMock: vi.fn(async () => undefined),
 }))
 
-vi.mock('./index', () => ({
+vi.mock('./surfaceReset', () => ({
   queueTranscriptSurfaceReset: queueTranscriptSurfaceResetMock,
   queueTranscriptSurfaceReplace: queueTranscriptSurfaceReplaceMock,
 }))
@@ -103,5 +104,11 @@ describe('useTranscriptSurfaceActions', () => {
     })
 
     app.unmount()
+  })
+
+  it('imports queue helpers from surfaceReset (prevents ui barrel cycle)', () => {
+    const source = fs.readFileSync(new URL('./useTranscriptSurfaceActions.ts', import.meta.url), 'utf8')
+    expect(source).toContain("from './surfaceReset'")
+    expect(source).not.toContain("from './index'")
   })
 })

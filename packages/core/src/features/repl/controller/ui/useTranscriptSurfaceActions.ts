@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { Msg } from '../../../../shared/toolMessageTypes'
-import { queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './index'
+import { queueTranscriptSurfaceReplace, queueTranscriptSurfaceReset } from './surfaceReset'
 
 function useTranscriptSurfaceActions(args: {
   surfaceOpQueueRef: { current: Promise<void> }
