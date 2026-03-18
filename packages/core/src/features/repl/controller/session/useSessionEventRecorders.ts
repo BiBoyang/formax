@@ -4,7 +4,7 @@ import type { SessionWriter } from '../../sessionSave/writer'
 import {
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
-} from './index'
+} from './sessionEvents'
 
 type CompactLifecycleEvent =
   | { type: 'compact_started'; source: string }

@@ -5,9 +5,13 @@ import type { CanonicalEvent } from '../../../semantics/core'
 import type { TranscriptProjectionState } from '../../../semantics/projection'
 import {
   assertReplCanonicalInvariants,
-  mergeProjectedStaticRows,
+} from './canonicalInvariants'
+import {
   projectCanonicalEventToTransientMessages,
-} from './index'
+} from './canonicalEventOrchestration'
+import {
+  mergeProjectedStaticRows,
+} from './staticRows'
 
 function projectCanonicalEvent(args: {
   assistantTextMode: RuntimeConfig['ui']['assistantTextMode']

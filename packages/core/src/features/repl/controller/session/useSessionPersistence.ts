@@ -6,9 +6,13 @@ import type { SessionWriter } from '../../sessionSave/writer'
 import {
   buildMessageByIdMap,
   markDirtyMessageIdsFromTransition,
+} from './sessionDirtyTracking'
+import {
   persistDirtyStableMessages,
+} from './sessionLifecycle'
+import {
   runSessionTurnCompletionSideEffects,
-} from './index'
+} from './sessionTurnCompletion'
 
 function useSessionPersistence(args: {
   sessionSaveEnabled: boolean
@@ -107,4 +111,3 @@ function useSessionPersistence(args: {
 export {
   useSessionPersistence,
 }
-

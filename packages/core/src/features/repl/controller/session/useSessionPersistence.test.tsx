@@ -18,10 +18,16 @@ const {
   runSessionTurnCompletionSideEffectsMock: vi.fn(),
 }))
 
-vi.mock('./index', () => ({
+vi.mock('./sessionDirtyTracking', () => ({
   buildMessageByIdMap: buildMessageByIdMapMock,
   markDirtyMessageIdsFromTransition: markDirtyMessageIdsFromTransitionMock,
+}))
+
+vi.mock('./sessionLifecycle', () => ({
   persistDirtyStableMessages: persistDirtyStableMessagesMock,
+}))
+
+vi.mock('./sessionTurnCompletion', () => ({
   runSessionTurnCompletionSideEffects: runSessionTurnCompletionSideEffectsMock,
 }))
 

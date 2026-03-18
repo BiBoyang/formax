@@ -10,7 +10,7 @@ const { recordCompactRequestedEventMock, recordLocalCommandInjectionEventMock } 
   recordLocalCommandInjectionEventMock: vi.fn(),
 }))
 
-vi.mock('./index', () => ({
+vi.mock('./sessionEvents', () => ({
   recordCompactRequestedEvent: recordCompactRequestedEventMock,
   recordLocalCommandInjectionEvent: recordLocalCommandInjectionEventMock,
 }))
