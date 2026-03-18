@@ -11,8 +11,6 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: [
         'packages/core/src/entrypoints/**',
-        'packages/core/src/screens/ToolExamplesScreen.tsx',
-        'packages/core/src/screens/LoadingExampleScreen.tsx',
       ],
     },
   },

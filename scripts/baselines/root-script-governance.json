@@ -3,10 +3,8 @@
   "allowedExactNames": [
     "build",
     "dev",
-    "loade",
     "prepack",
     "test",
-    "toole",
     "type-check"
   ],
   "allowedPrefixes": [
@@ -59,7 +57,6 @@
     "features:boundaries",
     "lint:duplicates",
     "lint:unused",
-    "loade",
     "md:preview",
     "perf:transcript",
     "prepack",
@@ -92,7 +89,6 @@
     "test:surface-screen-model",
     "test:surface-smoke",
     "test:watch",
-    "toole",
     "tools:coverage",
     "tools:parity",
     "type-check",

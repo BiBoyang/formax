@@ -16,12 +16,6 @@
     },
     {
       "source": "packages/core/src/services/runtimeUiBridge.tsx",
-      "target": "packages/core/src/screens/LoadingExampleScreen.tsx",
-      "rule": "LAYER_ORDER",
-      "reason": "runtime UI bridge renders loading screen"
-    },
-    {
-      "source": "packages/core/src/services/runtimeUiBridge.tsx",
       "target": "packages/core/src/screens/perf/TranscriptPerfScreen.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders transcript perf screen"
@@ -31,12 +25,6 @@
       "target": "packages/core/src/screens/REPL.tsx",
       "rule": "LAYER_ORDER",
       "reason": "runtime UI bridge renders REPL screen"
-    },
-    {
-      "source": "packages/core/src/services/runtimeUiBridge.tsx",
-      "target": "packages/core/src/screens/ToolExamplesScreen.tsx",
-      "rule": "LAYER_ORDER",
-      "reason": "runtime UI bridge renders tool examples screen"
     },
     {
       "source": "packages/core/src/services/runtimeUiBridge.tsx",

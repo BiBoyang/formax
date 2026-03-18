@@ -23,8 +23,6 @@
     "desktop:electron:build:runtime": "npm --prefix packages/desktop-electron run build:runtime",
     "desktop:electron:build:mac": "npm --prefix packages/desktop-electron run build:mac",
     "desktop:electron:build": "npm --prefix packages/desktop-electron run build",
-    "toole": "tsx ./packages/core/src/entrypoints/tool-examples.tsx",
-    "loade": "tsx ./packages/core/src/entrypoints/loading-examples.tsx",
     "md:preview": "tsx ./scripts/preview-assistant-markdown.tsx",
     "request:preview": "tsx ./scripts/repl-request-preview.ts",
     "request:align:toolsearch": "tsx ./scripts/request-toolsearch-alignment.ts",

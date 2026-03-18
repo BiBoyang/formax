@@ -34,8 +34,6 @@ const mocks = vi.hoisted(() => {
   const UserInputProvider = ({ children }: { children: React.ReactNode }) => children
   const REPL = (_props: any) => null
   const SetupWizard = (_props: any) => null
-  const ToolExamplesScreen = (_props: any) => null
-  const LoadingExampleScreen = (_props: any) => null
   const TranscriptPerfScreen = (_props: any) => null
 
   return {
@@ -48,8 +46,6 @@ const mocks = vi.hoisted(() => {
     UserInputProvider,
     REPL,
     SetupWizard,
-    ToolExamplesScreen,
-    LoadingExampleScreen,
     TranscriptPerfScreen,
     setupMode: 'done' as 'done' | 'cancel' | 'missing-provider',
     lastSetupProps: null as any,
@@ -79,12 +75,6 @@ vi.mock('../tools/runtime/userInputContext.js', () => ({
 vi.mock('../screens/REPL.js', () => ({
   REPL: mocks.REPL,
 }))
-vi.mock('../screens/ToolExamplesScreen.js', () => ({
-  ToolExamplesScreen: mocks.ToolExamplesScreen,
-}))
-vi.mock('../screens/LoadingExampleScreen.js', () => ({
-  LoadingExampleScreen: mocks.LoadingExampleScreen,
-}))
 vi.mock('../screens/perf/TranscriptPerfScreen.js', () => ({
   TranscriptPerfScreen: mocks.TranscriptPerfScreen,
 }))
@@ -97,8 +87,6 @@ vi.mock('../tui/inkStreams.js', () => ({
 
 import {
   renderLegacyReplApp,
-  renderLoadingExamplesEntry,
-  renderToolExamplesEntry,
   renderTranscriptPerfEntry,
   runLegacySetupWizard,
 } from './runtimeUiBridge.js'
@@ -216,21 +204,10 @@ describe('runtimeUiBridge', () => {
     expect(mocks.writeSetupFiles).not.toHaveBeenCalled()
   })
 
-  it('renders examples/perf entrypoints with exitOnCtrlC disabled', () => {
-    renderToolExamplesEntry({ toolRegistry: { getHandlers: vi.fn() } as any, onExit: vi.fn() })
-    let root = mocks.render.mock.calls[0][0]
-    expect(findElementByType(root, mocks.ToolExamplesScreen)).not.toBe(null)
-    expect(mocks.render.mock.calls[0][1]).toEqual({ exitOnCtrlC: false })
-
-    mocks.render.mockClear()
-    renderLoadingExamplesEntry({ onExit: vi.fn() })
-    root = mocks.render.mock.calls[0][0]
-    expect(findElementByType(root, mocks.LoadingExampleScreen)).not.toBe(null)
-    expect(mocks.render.mock.calls[0][1]).toEqual({ exitOnCtrlC: false })
-
+  it('renders transcript perf entrypoint with exitOnCtrlC disabled', () => {
     mocks.render.mockClear()
     renderTranscriptPerfEntry({ count: 123, onExit: vi.fn() })
-    root = mocks.render.mock.calls[0][0]
+    const root = mocks.render.mock.calls[0][0]
     const perfEl = findElementByType(root, mocks.TranscriptPerfScreen)
     expect(perfEl).not.toBe(null)
     expect(perfEl?.props?.count).toBe(123)

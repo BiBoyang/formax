@@ -1,11 +1,13 @@
 # Repository Guidelines
 
 ## AGENTS Scope
+
 - Keep high-frequency operational guidance here (review workflow/profile, commonly used commands/scripts, commit workflow, and day-to-day guardrails).
 - Keep canonical product/runtime semantics in `docs/contracts/*` and related canonical docs.
 - Keep code navigation in `CODEMAP.md` ("where to change what"), with AGENTS linking to it instead of duplicating path-level maps.
 
 ## Package AGENTS Index
+
 - Root `AGENTS.md` is the repo-wide policy layer (review profile, commit workflow, cross-workspace guardrails, and canonical contract pointers).
 - Package-local workflow/details live in package-level `AGENTS.md` files:
   - `packages/core/AGENTS.md`
@@ -16,8 +18,9 @@
 - For package-scoped tasks, follow the nearest package `AGENTS.md` first, then inherit root rules.
 
 ## Project Structure & Module Organization
+
 - `packages/core/src/` contains TypeScript source.
-  - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
+  - `entrypoints/` CLI/runtime entrypoints (for example `cli.tsx`).
   - `runtime/cli/` argument parsing + command dispatch for the CLI wrapper.
   - `runtime/bootstrap/` REPL bootstrap + runtime assembly wiring.
   - `core/` productized app core (config resolution, setup flows, boundaries checks).
@@ -35,11 +38,10 @@
 - `CODEMAP.md` is the “where to change what” index (entrypoints, main loop, tools, plan mode, sub-tasks).
 
 ## Build, Test, and Development Commands
+
 - `bun install` installs dependencies.
 - `bun run dev` runs the CLI via `tsx` (entry: `packages/core/src/entrypoints/cli.tsx`).
 - `bun run app-server:bridge -- --host 127.0.0.1 --port 3777` runs the app-server WebSocket bridge for web client development.
-- `bun run toole` runs the tool examples entrypoint.
-- `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
 - `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
 - `bun run check:root-script-governance` enforces root `package.json` script governance (orchestration-only, no feature alias uplift).
@@ -49,6 +51,7 @@
 - Package-specific commands (web/desktop/shared/semantics) live in each package `AGENTS.md`.
 
 ## Coding Style & Naming Conventions
+
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
 - Match existing formatting: 2-space indentation, single quotes, no semicolons.
 - `PascalCase` for components/classes (`REPL`, `StreamClient`), `camelCase` for functions/hooks (`useReplController`).
@@ -58,6 +61,7 @@
 - **QUESTION TOOL RULE (MANDATORY)**: When clarification is needed, you MUST use the user-input question tool first (e.g. `request_user_input`) when available. If that tool is unavailable in the current mode, you MUST ask the user directly in chat instead of guessing.
 
 ## Testing Guidelines
+
 - Framework: Vitest; Ink UI tests use `ink-testing-library`.
 - Property-based tests use `fast-check` where appropriate.
 - Keep tests colocated with source and use `*.test.ts`/`*.test.tsx`.
@@ -67,11 +71,13 @@
 - **REPL semantics pre-review gate**: For `packages/core/src/features/repl/**` semantic-flow changes, run `bun run test:repl-semantic-gate` before `codex review`.
 
 ### Review Profile (Single Source of Truth)
+
 - Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 - Tool-call timeout for review: `timeout_ms >= 1200000`
 - Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 
 ## Refactor Guardrails (Important)
+
 - **Refactor != rewrite**: refactors must preserve existing functionality and user-visible behavior; do not add/remove features as a side-effect.
 - **Tests are not the spec**: before refactoring, first check whether missing/weak tests can be added to lock current behavior; use those tests to validate the refactor.
 - **UI parity**: UI refactors must keep layout/spacing/keys/interaction the same unless the user explicitly requests a UI change; do not “improve” UI by default.
@@ -86,11 +92,14 @@
 - **No “test-only” refactors**: a passing test suite is not sufficient if manual UI behavior regresses; prioritize user-visible parity over internal cleanup.
 
 ## Tool Contract Checks
+
 If you modify tool specs/contracts or tool module coverage, consider running:
+
 - `bun run tools:parity`
 - `bun run tools:coverage`
 
 ## Commit & Pull Request Guidelines
+
 - Commits follow Conventional Commit style in history: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:` with optional scope (`refactor(chat): ...`).
 - Avoid placeholder messages like `tmp`; keep summaries imperative and specific.
 - PRs should include a concise description, link relevant issues/plans, list tests run, and add terminal screenshots for Ink UI changes.
@@ -100,6 +109,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - Run `git commit -m "<message>"`
 
 ## Documentation Hygiene
+
 - Treat `CODEMAP.md` as the "where to change what" index; update it when key entrypoints or ownership move.
 - Canonical docs map: `docs/index.md`
 - Semantics source of truth: `docs/contracts/semantics-contract.md`
@@ -139,6 +149,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Prefer linking to source files over duplicating code; keep diagrams high-level to reduce churn.
 
 ## Configuration & Runtime Notes
+
 - Runtime config entrypoint: `packages/core/src/config/config.ts`
 - Runtime config still merges env vars, global config under `FORMAX_CONFIG_DIR` (default `~/.formax/`), and per-project overrides under `<repo>/.formax/`.
 - Key env families to remember:
@@ -148,10 +159,12 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Full environment-variable and config classification reference: `docs/environment-variables.md`
 
 ## Security & Config Tips
+
 - Do not commit secrets. Local config uses `.env` (e.g., `FORMAX_API_KEY`); keep `.env` and traffic logs out of git.
 - When sharing context with other AIs/tools, double-check exports for accidental secrets (API keys, tokens, cookies) before pasting.
 
 ## Pitfalls & Gotchas (Keep Updated)
+
 - Record reproducible pitfalls in `pitfalls.md` and keep `docs/pitfalls/index.md` in sync when a deep-dive doc exists.
 - If a pitfall changes day-to-day agent behavior, mirror a brief pointer in `CLAUDE.md`.
 - Prefer linking to the existing pitfall doc or skill instead of duplicating the full troubleshooting narrative here.
@@ -163,4 +176,5 @@ If you modify tool specs/contracts or tool module coverage, consider running:
   - For Anthropic fake-overload triage, separate main turns from auto-title traffic before debugging prompt headers or thinking signatures.
 
 ## Local Paths
+
 - Avoid hardcoding machine-specific absolute paths in repo docs.

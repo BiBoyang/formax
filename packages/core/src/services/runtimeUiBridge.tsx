@@ -7,9 +7,7 @@ import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { SetupProviderOption } from '../core/setup/types.js'
 import type { RuntimeConfig } from '../config/config.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
-import { LoadingExampleScreen } from '../screens/LoadingExampleScreen.js'
 import { REPL } from '../screens/REPL.js'
-import { ToolExamplesScreen } from '../screens/ToolExamplesScreen.js'
 import { TranscriptPerfScreen } from '../screens/perf/TranscriptPerfScreen.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
 import type { SubAgentListItem } from '../features/subagents/types.js'
@@ -118,26 +116,6 @@ export async function runLegacySetupWizard(args: { cwd: string; env: NodeJS.Proc
       </InputScopeProvider>,
       { exitOnCtrlC: false },
     )
-  })
-}
-
-export function renderToolExamplesEntry(args: {
-  toolRegistry: ToolRegistry
-  onExit: () => void
-}): ReturnType<typeof render> {
-  return render(
-    <InputScopeProvider>
-      <ToolExamplesScreen toolRegistry={args.toolRegistry} onExit={args.onExit} />
-    </InputScopeProvider>,
-    {
-      exitOnCtrlC: false,
-    },
-  )
-}
-
-export function renderLoadingExamplesEntry(args: { onExit: () => void }): ReturnType<typeof render> {
-  return render(<LoadingExampleScreen onExit={args.onExit} />, {
-    exitOnCtrlC: false,
   })
 }
 

@@ -45,9 +45,7 @@ describe('useInput audit', () => {
     const allowed = new Set([
       'packages/core/src/components/ui/TextInput.tsx',
       'packages/core/src/features/repl/inputScopeContext.tsx',
-      'packages/core/src/screens/LoadingExampleScreen.tsx',
       'packages/core/src/screens/repl/hotkeys.ts',
-      'packages/core/src/screens/ToolExamplesScreen.tsx',
     ])
 
     const unexpected = matches.filter((m) => !allowed.has(m.file))
