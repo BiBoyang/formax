@@ -165,11 +165,10 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 
 ## Pitfalls & Gotchas (Keep Updated)
 
-- Record reproducible pitfalls in `pitfalls.md` and keep `docs/pitfalls/index.md` in sync when a deep-dive doc exists.
-- If a pitfall changes day-to-day agent behavior, mirror a brief pointer in `CLAUDE.md`.
+- Record reproducible pitfalls under `docs/pitfalls/` and keep `docs/pitfalls/index.md` in sync when a deep-dive doc exists.
+- If a pitfall changes day-to-day agent behavior, update `docs/pitfalls/` (and linked docs/skills) as the canonical location.
 - Prefer linking to the existing pitfall doc or skill instead of duplicating the full troubleshooting narrative here.
 - High-signal recurring pitfalls worth keeping in view:
-  - Repomix respects `.gitignore`; if reference specs disappear from exports, use `--no-gitignore` deliberately.
   - Static-heavy surface fixes need real smoke validation; Vitest alone can miss duplicate-row / stale-surface regressions.
   - `/clear`, `/resume`, compact, and Ctrl+O/Ctrl+E paths must stay on the shared surface-reset transaction.
   - Keep Vitest session writes under `FORMAX_VITEST_SESSION_CONFIG_DIR`, not `~/.formax`.
