@@ -5,6 +5,16 @@
 - Keep canonical product/runtime semantics in `docs/contracts/*` and related canonical docs.
 - Keep code navigation in `CODEMAP.md` ("where to change what"), with AGENTS linking to it instead of duplicating path-level maps.
 
+## Package AGENTS Index
+- Root `AGENTS.md` is the repo-wide policy layer (review profile, commit workflow, cross-workspace guardrails, and canonical contract pointers).
+- Package-local workflow/details live in package-level `AGENTS.md` files:
+  - `packages/core/AGENTS.md`
+  - `packages/web-reference-react/AGENTS.md`
+  - `packages/desktop-electron/AGENTS.md`
+  - `packages/shared/AGENTS.md`
+  - `packages/semantics/AGENTS.md`
+- For package-scoped tasks, follow the nearest package `AGENTS.md` first, then inherit root rules.
+
 ## Project Structure & Module Organization
 - `packages/core/src/` contains TypeScript source.
   - `entrypoints/` CLI entrypoints (`cli.tsx`, `tool-examples.tsx`, `loading-examples.tsx`).
@@ -18,8 +28,7 @@
   - `streaming/` Anthropic streaming client and parsers.
   - `features/subagents/` registry/runner for sub-agent tools.
   - `prompts/`, `config/`, `services/`, `shared/utils/` supporting code.
-- `packages/` contains standalone companion apps used for parity/reference development.
-  - `web-reference-react/` isolated React + Vite web reference client for app-server protocol/semantics validation (separate package/deps).
+- `packages/` contains companion workspaces. Package-local implementation details belong to each package `AGENTS.md`.
 - Tests live next to source as `*.test.ts`/`*.test.tsx`.
 - `docs/` holds architecture notes and guides; `plans/` captures refactor plans.
 - `proxy/` contains proxy/logger scripts plus traffic/log artifacts used for parity/reference during development.
@@ -29,7 +38,6 @@
 - `bun install` installs dependencies.
 - `bun run dev` runs the CLI via `tsx` (entry: `packages/core/src/entrypoints/cli.tsx`).
 - `bun run app-server:bridge -- --host 127.0.0.1 --port 3777` runs the app-server WebSocket bridge for web client development.
-- `npm --prefix packages/web-reference-react run dev` runs the isolated web reference React app (Vite).
 - `bun run toole` runs the tool examples entrypoint.
 - `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
@@ -37,8 +45,8 @@
 - `bun run check:root-script-governance` enforces root `package.json` script governance (orchestration-only, no feature alias uplift).
 - `bun run ui:boundaries` runs UI boundary checks (guards `packages/core/src/tui/`, `packages/core/src/screens/`, `packages/core/src/components/` from importing forbidden layers).
 - `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
-- `npm --prefix packages/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
 - Single test: `bun run test -- packages/core/src/tools/registry.test.ts`.
+- Package-specific commands (web/desktop/shared/semantics) live in each package `AGENTS.md`.
 
 ## Coding Style & Naming Conventions
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
