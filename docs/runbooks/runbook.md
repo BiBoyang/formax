@@ -4,14 +4,15 @@
 
 1. `bun run check:partial-stage`
 2. `bun run check:plan-traceability`
-3. `bun run check:layer-contracts`
-4. `bun run check:layer-coverage`
-5. `bun run check:shared-types`
-6. `bun run check:doc-paths`
-7. `bun run check:docs-artifact-placement`
-8. `bun run check:golden-principles`
-9. `bun run test:repl-semantic-gate`
-10. `bun run type-check`
+3. `bun run check:root-script-governance`
+4. `bun run check:layer-contracts`
+5. `bun run check:layer-coverage`
+6. `bun run check:shared-types`
+7. `bun run check:doc-paths`
+8. `bun run check:docs-artifact-placement`
+9. `bun run check:golden-principles`
+10. `bun run test:repl-semantic-gate`
+11. `bun run type-check`
 
 与暂存文件相关的定向测试可用：`bun run test:changed`。
 非阻断漂移观察：`bun run check:presenter-parity`（默认告警，`--strict` 才阻断）。
@@ -29,6 +30,7 @@
 - `bun run check:layer-contracts`
 - `bun run check:layer-coverage`
 - `bun run check:shared-types`
+- `bun run check:root-script-governance`
 - `bun run check:doc-paths`
 - `bun run check:docs-artifact-placement`（当 `code` 或 `docs_policy` 变更时）
 - `bun run check:golden-principles`
@@ -62,6 +64,18 @@
 2. 若违规属于有意设计，先补充架构说明（`plans/app-server/`）与规则文档（`docs/contracts/layer-contract.md`）。
 3. 仅在说明完成后更新 baseline：`node ./scripts/check-layer-contracts.mjs --write-baseline`。
 4. 再次执行 `bun run check:layer-contracts`。
+
+### 2.0 `check:root-script-governance` 失败
+
+触发信号：
+- 输出包含 `[root-script-governance] check failed`。
+- 违规码常见为：`disallowed_script_name`、`disallowed_package_delegation`、`unfrozen_new_script`。
+
+修复路径：
+1. 对 feature/package 专属命令，迁回 owning package 的 `package.json`。
+2. 若确需临时例外，在 `scripts/baselines/root-script-governance.json` 注册完整 `owner/reason/replacement/expiresOn`。
+3. 同步更新契约文档：`docs/contracts/root-script-governance-contract.md`。
+4. 重跑 `bun run check:root-script-governance` 直到通过。
 
 备注：`staleBaseline>0` 不会阻断，但应在同一 PR 清理，避免基线漂移。
 

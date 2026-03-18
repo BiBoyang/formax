@@ -41,6 +41,7 @@
     "check:docs-artifact-placement": "node ./scripts/check-docs-artifact-placement.mjs",
     "check:golden-principles": "node ./scripts/check-golden-principles.mjs",
     "check:presenter-parity": "node ./scripts/check-duplicate-presenters-parity.mjs",
+    "check:root-script-governance": "node ./scripts/check-root-script-governance.mjs",
     "build": "bun build packages/core/src/entrypoints/cli.tsx --outfile dist/cli.js --target=node --external=@anthropic-ai/sdk --external=dotenv --external=ink --external=openai --external=react --external=tsx --external=ws --external=zod --minify",
     "build:web-ui": "node ./scripts/build-web-ui.mjs",
     "build:web-ui:fast": "node ./scripts/build-web-ui.mjs",

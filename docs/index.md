@@ -22,6 +22,7 @@
 ## 合同（Contracts）
 
 - 分层依赖与允许边：`docs/contracts/layer-contract.md`
+- Root package scripts 治理合同：`docs/contracts/root-script-governance-contract.md`
 - 不变量与所有权规则：`docs/contracts/invariants.md`
 - Golden Principles 护栏：`docs/contracts/golden-principles.md`
 - 项目语义唯一事实源（跨端 semantics）：`docs/contracts/semantics-contract.md`
@@ -50,6 +51,7 @@
 - REPL transcript surface 排障：`docs/runbooks/repl-surface-debugging.md`
 - npm beta 发布手册：`docs/runbooks/npm-beta-release.md`
 - app-server 人工验收 runbook：`docs/runbooks/app-server-manual-runbook.md`
+- Web 截图证据工作流（A/B/C 分级）：`docs/runbooks/web-evidence-workflow.md`
 
 ## 前端（Frontend）
 

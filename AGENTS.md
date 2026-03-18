@@ -34,6 +34,7 @@
 - `bun run loade` runs loading examples.
 - `bun run build` bundles the CLI to `dist/cli.js` (requires Bun).
 - `bun run type-check` runs TypeScript checks + boundary checks (`core` + `ui`).
+- `bun run check:root-script-governance` enforces root `package.json` script governance (orchestration-only, no feature alias uplift).
 - `bun run ui:boundaries` runs UI boundary checks (guards `packages/core/src/tui/`, `packages/core/src/screens/`, `packages/core/src/components/` from importing forbidden layers).
 - `bun run test` runs `vitest run`; `bun run test:watch` runs Vitest watch.
 - `npm --prefix packages/web-reference-react run test` runs web reference unit tests (`run test:e2e` for Playwright).
@@ -44,6 +45,7 @@
 - Match existing formatting: 2-space indentation, single quotes, no semicolons.
 - `PascalCase` for components/classes (`REPL`, `StreamClient`), `camelCase` for functions/hooks (`useReplController`).
 - Tool modules follow `packages/core/src/tools/modules/<name>/{index,handler,presenter}.ts(x)` and `createXToolModule` factory naming.
+- Root script governance: keep feature/package workflows in owning package scripts; root scripts are orchestration-level only (see `docs/contracts/root-script-governance-contract.md`).
 - **GLOBAL CLARIFICATION RULE (MANDATORY)**: In ANY task, if user intent is ambiguous (UI, behavior, scope, risk, tradeoff, or acceptance criteria), you MUST ask the user BEFORE making directional choices. DO NOT infer beyond explicit requirements.
 - **QUESTION TOOL RULE (MANDATORY)**: When clarification is needed, you MUST use the user-input question tool first (e.g. `request_user_input`) when available. If that tool is unavailable in the current mode, you MUST ask the user directly in chat instead of guessing.
 
@@ -103,6 +105,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Web parity adapter / reducer source of truth: `docs/contracts/web-parity-adapter-contract.md`
 - Slash command source of truth: `docs/contracts/slash-command-contract.md`
 - Config settings source of truth: `docs/contracts/config-settings-contract.md`
+- Root script governance source of truth: `docs/contracts/root-script-governance-contract.md`
 - Runtime env-variable reference: `docs/environment-variables.md`
 - Verification and failure-recovery path: `docs/runbooks/runbook.md`
 - **CODEMAP update triggers**: If you (a) add a new entrypoint/wiring point, (b) extract a cross-cutting helper used by multiple subsystems (e.g. audit/logging), or (c) move/rename user-facing UI/tool files, update `CODEMAP.md` in the same commit.
@@ -116,6 +119,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - When Web history adapters, reducer/projection baselines, active-thread canonical gating, or `turnEventCursor` ordering behavior changes, update the web parity adapter contract first.
 - When slash command discovery, overlay-dismiss sublines, command dispatch precedence, or next-turn injection behavior changes, update the slash command contract first.
 - When config merge precedence, `/config` persistence targets, or output-style / thinking-mode / verbose-output behavior changes, update the config settings contract first.
+- When root `package.json` script admission policy, exception registration, or script-governance gate behavior changes, update the root script governance contract first.
 - When only env-variable names or user-facing classification changes, update `docs/environment-variables.md`.
 - When you ship a behavior-alignment change, add/update a short learning note under `docs/learnings/` so mapping decisions remain traceable.
 - For complex subsystems with repo-local deep dives, keep the local README aligned when you move boundaries, control flow, invariants, or extension points:

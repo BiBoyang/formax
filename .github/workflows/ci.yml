@@ -120,14 +120,20 @@ jobs:
               - 'docs/harness/**'
             docs_policy:
               - 'docs/**'
+            root_scripts:
+              - 'package.json'
+              - 'scripts/check-root-script-governance.mjs'
+              - 'scripts/root-script-governance-lib.mjs'
+              - 'scripts/baselines/root-script-governance.json'
+              - 'docs/contracts/root-script-governance-contract.md'
 
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true' || steps.changes.outputs.docs_policy == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true' || steps.changes.outputs.docs_policy == 'true' || steps.changes.outputs.root_scripts == 'true'
         with:
           node-version: '20'
 
       - uses: oven-sh/setup-bun@v2
-        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true' || steps.changes.outputs.docs_policy == 'true'
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.harness_governance == 'true' || steps.changes.outputs.docs_policy == 'true' || steps.changes.outputs.root_scripts == 'true'
         with:
           bun-version: latest
 
@@ -164,6 +170,10 @@ jobs:
         if: steps.changes.outputs.code == 'true' || steps.changes.outputs.docs_policy == 'true'
         run: bun run check:docs-artifact-placement
 
+      - name: Root script governance
+        if: steps.changes.outputs.code == 'true' || steps.changes.outputs.root_scripts == 'true'
+        run: bun run check:root-script-governance
+
       - name: Skip (no code changes)
-        if: steps.changes.outputs.code != 'true' && steps.changes.outputs.harness_governance != 'true' && steps.changes.outputs.docs_policy != 'true'
-        run: echo "No code, harness-governance, or docs-policy changes; skipping harness checks."
+        if: steps.changes.outputs.code != 'true' && steps.changes.outputs.harness_governance != 'true' && steps.changes.outputs.docs_policy != 'true' && steps.changes.outputs.root_scripts != 'true'
+        run: echo "No code, harness-governance, docs-policy, or root-script changes; skipping harness checks."
