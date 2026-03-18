@@ -8,7 +8,9 @@ import {
   Square,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
+import { getWebSupportedSlashCommandSpecs, type WebSupportedSlashCommandSpec } from '../app/core/commandSupport'
 import { cn } from '../lib/utils'
+import { resolveCommandRouting } from '../semantics'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
@@ -145,6 +147,54 @@ function modeMeta(mode: ComposerMode): { label: string; icon: typeof Pencil; ton
     icon: Pencil,
     toneClass: 'text-foreground/70 hover:text-foreground',
   }
+}
+
+const WEB_SUPPORTED_SLASH_COMMANDS = getWebSupportedSlashCommandSpecs()
+
+function filterSlashCommandSpecs(
+  specs: readonly WebSupportedSlashCommandSpec[],
+  query: string,
+): WebSupportedSlashCommandSpec[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return Array.from(specs)
+
+  return specs
+    .map((spec) => {
+      const normalizedCommand = spec.command.slice(1).toLowerCase()
+      if (normalizedCommand.startsWith(normalizedQuery)) {
+        return { spec, rank: 0 as const }
+      }
+      if (normalizedCommand.includes(normalizedQuery)) {
+        return { spec, rank: 1 as const }
+      }
+      return null
+    })
+    .filter((entry): entry is { spec: WebSupportedSlashCommandSpec; rank: 0 | 1 } => entry != null)
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank
+      return a.spec.command.localeCompare(b.spec.command)
+    })
+    .map((entry) => entry.spec)
+}
+
+function buildSlashCommandInput(currentInput: string, command: string): string {
+  const leadingWhitespaceMatch = currentInput.match(/^\s*/)
+  const leadingWhitespace = leadingWhitespaceMatch?.[0] ?? ''
+  const trimmedStart = currentInput.slice(leadingWhitespace.length)
+  if (!trimmedStart.startsWith('/')) {
+    return `${command} `
+  }
+
+  const firstWhitespaceIndex = trimmedStart.search(/\s/)
+  if (firstWhitespaceIndex === -1) {
+    return `${leadingWhitespace}${command} `
+  }
+
+  const args = trimmedStart.slice(firstWhitespaceIndex).trimStart()
+  if (!args) {
+    return `${leadingWhitespace}${command} `
+  }
+  return `${leadingWhitespace}${command} ${args}`
 }
 
 export type TranscriptPaneProps = {
@@ -526,11 +576,89 @@ type ComposerDockProps = {
 
 const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
   const [isImeComposing, setIsImeComposing] = useState(false)
+  const [isSlashMenuPinnedOpen, setIsSlashMenuPinnedOpen] = useState(false)
+  const [isSlashAutoOpenSuppressed, setIsSlashAutoOpenSuppressed] = useState(false)
+  const [slashSelectionIndex, setSlashSelectionIndex] = useState(0)
+  const composerRootRef = useRef<HTMLDivElement | null>(null)
   const modeInfo = modeMeta(props.mode)
+  const commandRouting = useMemo(
+    () => resolveCommandRouting(props.inputText),
+    [props.inputText],
+  )
+  const slashQuery = useMemo(() => {
+    if (!commandRouting.isSlashCommandAfterTrim) return null
+    if ((commandRouting.commandArgs ?? '').length > 0) return null
+    return (commandRouting.commandName ?? '').slice(1)
+  }, [commandRouting.commandArgs, commandRouting.commandName, commandRouting.isSlashCommandAfterTrim])
+
+  const slashCommandSpecs = useMemo(() => {
+    if (isSlashMenuPinnedOpen && slashQuery == null) {
+      return WEB_SUPPORTED_SLASH_COMMANDS
+    }
+    return filterSlashCommandSpecs(WEB_SUPPORTED_SLASH_COMMANDS, slashQuery ?? '')
+  }, [isSlashMenuPinnedOpen, slashQuery])
+
+  const isSlashMenuVisible = isSlashMenuPinnedOpen || (slashQuery != null && !isSlashAutoOpenSuppressed)
+
+  useEffect(() => {
+    if (!isSlashAutoOpenSuppressed) return
+    if (slashQuery == null) {
+      setIsSlashAutoOpenSuppressed(false)
+      return
+    }
+    if (props.inputText.trim() === (commandRouting.commandName ?? '')) {
+      return
+    }
+    setIsSlashAutoOpenSuppressed(false)
+  }, [commandRouting.commandName, isSlashAutoOpenSuppressed, props.inputText, slashQuery])
+
+  useEffect(() => {
+    if (slashCommandSpecs.length === 0) {
+      setSlashSelectionIndex(0)
+      return
+    }
+    setSlashSelectionIndex((previous) => Math.min(previous, slashCommandSpecs.length - 1))
+  }, [slashCommandSpecs.length])
+
+  useEffect(() => {
+    if (!isSlashMenuPinnedOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (composerRootRef.current?.contains(target)) return
+      setIsSlashMenuPinnedOpen(false)
+    }
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [isSlashMenuPinnedOpen])
+
+  const focusComposerInput = useCallback(() => {
+    const input = composerRootRef.current?.querySelector('textarea')
+    input?.focus()
+  }, [])
+
+  const applySlashCommandSelection = useCallback((command: string) => {
+    props.onInputTextChange(buildSlashCommandInput(props.inputText, command))
+    setIsSlashMenuPinnedOpen(false)
+    setIsSlashAutoOpenSuppressed(true)
+    window.requestAnimationFrame(() => {
+      focusComposerInput()
+    })
+  }, [focusComposerInput, props.inputText, props.onInputTextChange])
+
+  const toggleSlashMenu = useCallback(() => {
+    setSlashSelectionIndex(0)
+    setIsSlashMenuPinnedOpen((previous) => !previous)
+    window.requestAnimationFrame(() => {
+      focusComposerInput()
+    })
+  }, [focusComposerInput])
 
   return (
     <div data-testid="composer" className="composer p-4 pb-8">
-      <div className="max-w-3xl mx-auto relative">
+      <div ref={composerRootRef} className="max-w-3xl mx-auto relative">
         {props.showJumpToBottom ? (
           <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
             <Button
@@ -543,6 +671,47 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
+          </div>
+        ) : null}
+        {isSlashMenuVisible ? (
+          <div
+            data-testid="composer-slash-menu"
+            className="absolute inset-x-2 bottom-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-border/80 bg-background/96 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88"
+          >
+            <div className="px-3 py-2 border-b border-border/70 ui-text-meta text-muted-foreground">
+              {slashQuery == null ? 'Web slash commands' : `Filter: /${slashQuery}`}
+            </div>
+            <div className="max-h-64 overflow-y-auto px-1 py-1.5">
+              {slashCommandSpecs.length === 0 ? (
+                <div className="rounded-lg px-2 py-2 ui-text-meta text-muted-foreground">
+                  No matching web slash command.
+                </div>
+              ) : (
+                slashCommandSpecs.map((spec, index) => (
+                  <button
+                    key={spec.command}
+                    type="button"
+                    aria-label={`Insert ${spec.command}`}
+                    className={cn(
+                      'flex w-full items-start justify-between gap-3 rounded-xl px-2.5 py-2 text-left transition-colors',
+                      index === slashSelectionIndex ? 'bg-muted/70 text-foreground' : 'text-foreground/92 hover:bg-muted/55',
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                    }}
+                    onMouseEnter={() => {
+                      setSlashSelectionIndex(index)
+                    }}
+                    onClick={() => {
+                      applySlashCommandSelection(spec.command)
+                    }}
+                  >
+                    <span className="font-mono text-[13px] leading-5">{spec.command}</span>
+                    <span className="ui-text-meta text-muted-foreground text-right">{spec.description}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         ) : null}
         <form
@@ -562,6 +731,32 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
                 props.onModeChange(nextComposerMode(props.mode))
                 return
               }
+              if (isSlashMenuVisible && slashCommandSpecs.length > 0) {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setSlashSelectionIndex((previous) => (previous + 1) % slashCommandSpecs.length)
+                  return
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setSlashSelectionIndex((previous) => (previous + slashCommandSpecs.length - 1) % slashCommandSpecs.length)
+                  return
+                }
+                if (event.key === 'Tab') {
+                  event.preventDefault()
+                  const selected = slashCommandSpecs[slashSelectionIndex] ?? slashCommandSpecs[0]
+                  if (selected) {
+                    applySlashCommandSelection(selected.command)
+                  }
+                  return
+                }
+              }
+              if (event.key === 'Escape' && isSlashMenuVisible) {
+                event.preventDefault()
+                setIsSlashMenuPinnedOpen(false)
+                setIsSlashAutoOpenSuppressed(true)
+                return
+              }
               if (event.key !== 'Enter' || event.shiftKey) return
               const nativeEvent = event.nativeEvent as KeyboardEvent
               if (isImeComposing || nativeEvent.isComposing || nativeEvent.keyCode === 229) return
@@ -578,6 +773,21 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
               <Button
                 type="button"
                 variant="ghost"
+                aria-label="Open slash commands"
+                aria-expanded={isSlashMenuVisible}
+                data-testid="composer-slash-trigger"
+                onClick={toggleSlashMenu}
+                className={cn(
+                  'h-7 rounded-md px-2 font-mono text-[13px] leading-none tracking-tight text-muted-foreground transition-colors hover:text-foreground',
+                  isSlashMenuVisible && 'bg-muted text-foreground',
+                )}
+                title="Slash commands"
+              >
+                /
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
                 aria-label="Execution mode"
                 onClick={() => props.onModeChange(nextComposerMode(props.mode))}
                 className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
@@ -587,7 +797,7 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
                 <span>{modeInfo.label}</span>
               </Button>
               <div className="hidden lg:block ui-text-base text-muted-foreground/85">
-                Shift+Tab switch mode, Enter send, Shift+Enter newline
+                Type / for commands, Tab complete, Shift+Tab switch mode
               </div>
             </div>
             <div className="flex items-center gap-1 pr-1 text-muted-foreground">

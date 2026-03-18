@@ -227,6 +227,123 @@ describe('TranscriptPane', () => {
     expect(onModeChange).toHaveBeenCalledWith('acceptEdits')
   })
 
+  it('shows slash command menu when composer input starts with slash', () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '/',
+        })}
+      />,
+    )
+
+    expect(screen.queryByTestId('composer-slash-menu')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /init' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /clear' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /compact' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /todos' })).not.toBeNull()
+  })
+
+  it('filters slash command menu by typed command token', () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '/co',
+        })}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Insert /compact' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /clear' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /init' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Insert /todos' })).toBeNull()
+  })
+
+  it('opens slash command menu from quick button and inserts selected command', () => {
+    const onInputTextChange = vi.fn()
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '',
+          onInputTextChange,
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open slash commands' }))
+    expect(screen.queryByTestId('composer-slash-menu')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert /todos' }))
+    expect(onInputTextChange).toHaveBeenCalledWith('/todos ')
+  })
+
+  it('closes auto-open slash menu after selecting a slash command', () => {
+    const onInputTextChange = vi.fn()
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '/to',
+          onInputTextChange,
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert /todos' }))
+    expect(onInputTextChange).toHaveBeenCalledWith('/todos ')
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '/todos ',
+          onInputTextChange,
+        })}
+      />,
+    )
+
+    expect(screen.queryByTestId('composer-slash-menu')).toBeNull()
+  })
+
+  it('keeps slash menu suppressed after selection when input has leading spaces', () => {
+    const onInputTextChange = vi.fn()
+    const { rerender } = render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '   /to',
+          onInputTextChange,
+        })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert /todos' }))
+    expect(onInputTextChange).toHaveBeenCalledWith('   /todos ')
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '   /todos ',
+          onInputTextChange,
+        })}
+      />,
+    )
+
+    expect(screen.queryByTestId('composer-slash-menu')).toBeNull()
+  })
+
+  it('allows Escape to close slash menu opened by typing slash', () => {
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: '/to',
+        })}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    expect(screen.queryByTestId('composer-slash-menu')).not.toBeNull()
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByTestId('composer-slash-menu')).toBeNull()
+  })
+
   it('does not send on Enter while IME composition is active', () => {
     const onSend = vi.fn((event) => event.preventDefault())
     render(
