@@ -53,8 +53,6 @@
 ## Coding Style & Naming Conventions
 
 - TypeScript ESM (`"type": "module"`, bundler module resolution).
-- Match existing formatting: 2-space indentation, single quotes, no semicolons.
-- `PascalCase` for components/classes (`REPL`, `StreamClient`), `camelCase` for functions/hooks (`useReplController`).
 - Tool modules follow `packages/core/src/tools/modules/<name>/{index,handler,presenter}.ts(x)` and `createXToolModule` factory naming.
 - Root script governance: keep feature/package workflows in owning package scripts; root scripts are orchestration-level only (see `docs/contracts/root-script-governance-contract.md`).
 - **GLOBAL CLARIFICATION RULE (MANDATORY)**: In ANY task, if user intent is ambiguous (UI, behavior, scope, risk, tradeoff, or acceptance criteria), you MUST ask the user BEFORE making directional choices. DO NOT infer beyond explicit requirements.
