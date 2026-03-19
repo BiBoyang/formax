@@ -38,7 +38,7 @@
 - Slash command 发现 / dispatch / subline / injection 唯一事实源：`docs/contracts/slash-command-contract.md`
 - 模型设置唯一事实源（tier / active model / context window / `/model`）：`docs/contracts/model-settings-contract.md`
 - app-server 行为合同（protocol behavior）：`docs/contracts/app-server-interaction-contract.md`
-- Desktop 窗口透明构造合同（全局透明 / 右侧白底 / 左上左下圆角透明）：`docs/contracts/desktop-window-transparency-construct.md`
+- Web 窗口透明构造合同（整窗透明 / 右侧白底 / 左上左下圆角）：`docs/contracts/web/window-transparency-construct.md`
 
 ## 配置（Configuration）
 
