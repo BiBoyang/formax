@@ -30,9 +30,10 @@ const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
 const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
 const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
+const WINDOW_APPEARANCE_STATE_FILE = 'window-appearance.json'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
-type DesktopWindowAppearanceAction = 'get-state' | 'set-sidebar-transparency'
+type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -47,6 +48,7 @@ let managedRuntimeStopTimer: NodeJS.Timeout | null = null
 let managedRuntimeStopping = false
 const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceState>()
 const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
+let initialWindowAppearanceState: WindowAppearanceState = createDefaultWindowAppearanceState()
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -451,10 +453,54 @@ function resolveOwnerWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow |
   )
 }
 
+function windowAppearanceStateFilePath(): string {
+  return path.join(app.getPath('userData'), WINDOW_APPEARANCE_STATE_FILE)
+}
+
+function readPersistedWindowTransparencyEnabled(): boolean | null {
+  try {
+    const statePath = windowAppearanceStateFilePath()
+    const raw = fs.readFileSync(statePath, 'utf8')
+    const payload = JSON.parse(raw)
+    if (!payload || typeof payload !== 'object') return null
+    const candidate = payload as { windowTransparencyEnabled?: unknown }
+    return candidate.windowTransparencyEnabled === true
+  } catch {
+    return null
+  }
+}
+
+function writePersistedWindowTransparencyEnabled(enabled: boolean): void {
+  try {
+    const statePath = windowAppearanceStateFilePath()
+    fs.mkdirSync(path.dirname(statePath), { recursive: true })
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({ windowTransparencyEnabled: enabled === true }, null, 2),
+      'utf8',
+    )
+  } catch {
+    // Do not block UI interactions if persistence fails.
+  }
+}
+
+function initializeWindowAppearanceState(): void {
+  const fallbackState = createDefaultWindowAppearanceState()
+  const persistedEnabled = readPersistedWindowTransparencyEnabled()
+  if (persistedEnabled == null) {
+    initialWindowAppearanceState = fallbackState
+    return
+  }
+  initialWindowAppearanceState = {
+    revision: 0,
+    windowTransparencyEnabled: persistedEnabled,
+  }
+}
+
 function readWindowAppearanceState(webContentsId: number): WindowAppearanceState {
   const existing = windowAppearanceStateByWebContentsId.get(webContentsId)
   if (existing) return existing
-  const initial = createDefaultWindowAppearanceState()
+  const initial = { ...initialWindowAppearanceState }
   windowAppearanceStateByWebContentsId.set(webContentsId, initial)
   return initial
 }
@@ -482,61 +528,6 @@ function queueWindowAppearanceMutation(
     nextStatePromise.then(() => undefined, () => undefined),
   )
   return nextStatePromise
-}
-
-function applySidebarTransparencyToWindow(window: BrowserWindow, enabled: boolean): 'css' | 'native' {
-  const shouldEnable = enabled === true
-  let hasNativeEffect = false
-
-  if (process.platform === 'darwin') {
-    let vibrancyApplied = false
-    try {
-      window.setVibrancy(shouldEnable ? 'sidebar' : null)
-      vibrancyApplied = true
-    } catch {
-      // Fall back to renderer CSS mode if native vibrancy is unavailable.
-    }
-
-    let visualEffectApplied = false
-    const windowWithVisualEffect = window as BrowserWindow & {
-      setVisualEffectState?: (state: 'active' | 'inactive' | 'followWindow') => void
-    }
-    if (typeof windowWithVisualEffect.setVisualEffectState === 'function') {
-      try {
-        windowWithVisualEffect.setVisualEffectState(shouldEnable ? 'active' : 'inactive')
-        visualEffectApplied = true
-      } catch {
-        // Keep renderer fallback behavior if this API is unsupported.
-      }
-    }
-
-    try {
-      window.setBackgroundColor(shouldEnable ? '#00000000' : '#f5f5f5')
-    } catch {
-      // Keep renderer fallback behavior if background-color switching is unavailable.
-    }
-
-    // Only report native support when a native visual effect API succeeded.
-    // This prevents "toggle is on but effect is gone" when native APIs fail.
-    hasNativeEffect = shouldEnable ? (vibrancyApplied || visualEffectApplied) : false
-  }
-
-  if (process.platform === 'win32') {
-    const windowWithMaterial = window as BrowserWindow & {
-      setBackgroundMaterial?: (material: 'none' | 'mica' | 'acrylic' | 'tabbed') => void
-    }
-    if (typeof windowWithMaterial.setBackgroundMaterial === 'function') {
-      try {
-        windowWithMaterial.setBackgroundMaterial(shouldEnable ? 'mica' : 'none')
-        hasNativeEffect = shouldEnable
-      } catch {
-        // Keep CSS fallback behavior on older Windows builds.
-      }
-    }
-  }
-
-  if (!shouldEnable) return 'css'
-  return hasNativeEffect ? 'native' : 'css'
 }
 
 function registerDesktopIpcHandlers(): void {
@@ -594,18 +585,22 @@ function registerDesktopIpcHandlers(): void {
         return readWindowAppearanceState(webContentsId)
       }
 
-      if (action !== 'set-sidebar-transparency') {
+      if (action !== 'set-window-transparency') {
         return readWindowAppearanceState(webContentsId)
       }
 
       const shouldEnable = enabled === true
       return queueWindowAppearanceMutation(ownerWindow, (currentState) => {
-        const nextMode = applySidebarTransparencyToWindow(ownerWindow, shouldEnable)
-        return {
+        writePersistedWindowTransparencyEnabled(shouldEnable)
+        const nextState: WindowAppearanceState = {
           revision: currentState.revision + 1,
-          sidebarTransparencyEnabled: shouldEnable,
-          sidebarTransparencyMode: shouldEnable ? nextMode : currentState.sidebarTransparencyMode,
+          windowTransparencyEnabled: shouldEnable,
         }
+        initialWindowAppearanceState = {
+          revision: 0,
+          windowTransparencyEnabled: shouldEnable,
+        }
+        return nextState
       })
     },
   )
@@ -627,17 +622,17 @@ function wireNavigationGuards(window: BrowserWindow): void {
 
 async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
   const preloadPath = path.join(__dirname, 'preload.js')
+  const supportsWindowTransparency = process.platform === 'darwin' || process.platform === 'win32'
 
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
+    ...(supportsWindowTransparency ? { transparent: true, backgroundColor: '#00000000' } : {}),
     ...(process.platform === 'darwin'
       ? {
           frame: false,
           titleBarStyle: 'hidden',
-          transparent: true,
           visualEffectState: 'active',
-          backgroundColor: '#00000000',
         }
       : {}),
     webPreferences: {
@@ -648,11 +643,9 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
     },
   })
   const webContentsId = window.webContents.id
-  const defaultWindowAppearanceState = createDefaultWindowAppearanceState()
-  const initialMode = applySidebarTransparencyToWindow(window, defaultWindowAppearanceState.sidebarTransparencyEnabled)
+  const defaultWindowAppearanceState = { ...initialWindowAppearanceState }
   windowAppearanceStateByWebContentsId.set(webContentsId, {
     ...defaultWindowAppearanceState,
-    sidebarTransparencyMode: initialMode,
   })
   window.on('closed', () => {
     windowAppearanceStateByWebContentsId.delete(webContentsId)
@@ -684,6 +677,7 @@ async function bootstrap(): Promise<void> {
   process.stderr.write(`[formax-desktop] mode=${mode}\n`)
 
   await app.whenReady()
+  initializeWindowAppearanceState()
   registerDesktopIpcHandlers()
 
   try {

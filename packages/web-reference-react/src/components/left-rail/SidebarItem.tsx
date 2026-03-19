@@ -89,7 +89,9 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
   }
 
   const rowClassName = cn(
-    'h-8 min-w-0 w-full rounded-md px-3 ui-text-base font-normal',
+    'h-8 min-w-0 w-full rounded-md px-3 ui-text-base font-normal ui-sidebar-item',
+    'focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent focus-visible:outline-none focus-visible:shadow-none',
+    'focus-visible:bg-[var(--sidebar-list-hover)]',
     kind === 'button' ? 'justify-start gap-3' : 'flex items-center gap-3',
     kind === 'row' && 'cursor-pointer',
     disabled && kind === 'row' && 'cursor-not-allowed',

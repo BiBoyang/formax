@@ -6,12 +6,10 @@ const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
-type DesktopWindowAppearanceAction = 'get-state' | 'set-sidebar-transparency'
-type SidebarTransparencyMode = 'css' | 'native'
+type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type WindowAppearanceState = {
   revision: number
-  sidebarTransparencyEnabled: boolean
-  sidebarTransparencyMode: SidebarTransparencyMode
+  windowTransparencyEnabled: boolean
 }
 
 type FormaxDesktopRuntimeInfo = {
@@ -25,21 +23,15 @@ type FormaxDesktopRuntimeInfo = {
   }
   windowAppearance: {
     getState: () => Promise<WindowAppearanceState>
-    setSidebarTransparency: (enabled: boolean) => Promise<WindowAppearanceState>
+    setWindowTransparency: (enabled: boolean) => Promise<WindowAppearanceState>
     subscribe: (listener: (state: WindowAppearanceState) => void) => () => void
   }
-}
-
-function normalizeSidebarTransparencyMode(raw: unknown): SidebarTransparencyMode {
-  if (raw === 'native' || raw === 'css') return raw
-  return 'css'
 }
 
 function createDefaultWindowAppearanceState(): WindowAppearanceState {
   return {
     revision: 0,
-    sidebarTransparencyEnabled: false,
-    sidebarTransparencyMode: 'css',
+    windowTransparencyEnabled: true,
   }
 }
 
@@ -50,19 +42,39 @@ function normalizeWindowAppearanceState(payload: unknown): WindowAppearanceState
   const revisionRaw = candidate.revision
   const revision =
     typeof revisionRaw === 'number' && Number.isFinite(revisionRaw) && revisionRaw >= 0 ? Math.floor(revisionRaw) : 0
-  const sidebarTransparencyEnabled = candidate.sidebarTransparencyEnabled === true
-  const mode = normalizeSidebarTransparencyMode(candidate.sidebarTransparencyMode)
+  const windowTransparencyEnabled = candidate.windowTransparencyEnabled === true
   return {
     revision,
-    sidebarTransparencyEnabled,
-    sidebarTransparencyMode: mode,
+    windowTransparencyEnabled,
+  }
+}
+
+function isWindowAppearanceStatePayload(payload: unknown): payload is WindowAppearanceState {
+  if (!payload || typeof payload !== 'object') return false
+  return 'revision' in payload && 'windowTransparencyEnabled' in payload
+}
+
+function normalizeSetResult(
+  payload: unknown,
+  requestedEnabled: boolean,
+  previousState: WindowAppearanceState,
+): WindowAppearanceState {
+  if (isWindowAppearanceStatePayload(payload)) {
+    return normalizeWindowAppearanceState(payload)
+  }
+  return {
+    revision: previousState.revision + 1,
+    windowTransparencyEnabled: requestedEnabled,
   }
 }
 
 function createWindowAppearanceBridge(): FormaxDesktopRuntimeInfo['windowAppearance'] {
+  let lastKnownState = createDefaultWindowAppearanceState()
   const listeners = new Set<(state: WindowAppearanceState) => void>()
   const handleStateChanged = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+    if (!isWindowAppearanceStatePayload(payload)) return
     const nextState = normalizeWindowAppearanceState(payload)
+    lastKnownState = nextState
     for (const listener of listeners) {
       listener(nextState)
     }
@@ -88,15 +100,20 @@ function createWindowAppearanceBridge(): FormaxDesktopRuntimeInfo['windowAppeara
         WINDOW_APPEARANCE_CHANNEL,
         'get-state' satisfies DesktopWindowAppearanceAction,
       )
-      return normalizeWindowAppearanceState(state)
+      if (!isWindowAppearanceStatePayload(state)) return lastKnownState
+      const normalizedState = normalizeWindowAppearanceState(state)
+      lastKnownState = normalizedState
+      return normalizedState
     },
-    setSidebarTransparency: async (enabled: boolean) => {
+    setWindowTransparency: async (enabled: boolean) => {
       const state = await ipcRenderer.invoke(
         WINDOW_APPEARANCE_CHANNEL,
-        'set-sidebar-transparency' satisfies DesktopWindowAppearanceAction,
+        'set-window-transparency' satisfies DesktopWindowAppearanceAction,
         enabled === true,
       )
-      return normalizeWindowAppearanceState(state)
+      const normalizedState = normalizeSetResult(state, enabled === true, lastKnownState)
+      lastKnownState = normalizedState
+      return normalizedState
     },
     subscribe: (listener: (state: WindowAppearanceState) => void) => {
       listeners.add(listener)

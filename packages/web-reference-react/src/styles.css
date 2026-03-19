@@ -15,7 +15,8 @@
   --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --app-backdrop-surface: var(--sidebar);
   --app-backdrop-blur: 0px;
-  --sidebar-glass-shadow: none;
+  --app-backdrop-surface-transparent-light: rgb(245 245 245 / 0.94);
+  --app-backdrop-surface-transparent-dark: rgb(22 22 22 / 0.92);
   --right-surface: var(--background);
   --right-header-surface: color-mix(in oklch, var(--right-surface) 92%, transparent);
   --right-rail-border: color-mix(in oklch, var(--border) 78%, transparent);
@@ -95,19 +96,17 @@ body {
 }
 
 .app-shell-root-surface {
-  transition:
-    background-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease),
-    backdrop-filter var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  transition: none;
   background: var(--app-backdrop-surface);
   -webkit-backdrop-filter: blur(var(--app-backdrop-blur));
   backdrop-filter: blur(var(--app-backdrop-blur));
 }
 
 .app-shell-sidebar-panel {
-  transition: background-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), border-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), box-shadow var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease), backdrop-filter var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  transition: none;
   background: transparent;
   border-right: 0;
-  box-shadow: var(--sidebar-glass-shadow);
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -141,37 +140,25 @@ body {
   border-left: 1px solid var(--right-rail-border);
 }
 
-.app-shell-desktop[data-sidebar-transparency='on'] {
-  --app-backdrop-surface: rgb(245 245 245 / 0.24);
+.app-shell-desktop[data-window-transparency='on'] {
+  --app-backdrop-surface: var(--app-backdrop-surface-transparent-light);
   --app-backdrop-blur: 22px;
-  --sidebar-glass-shadow: none;
-  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
-  --sidebar-list-active: var(--sidebar-list-active-translucent);
 }
 
-.dark.app-shell-desktop[data-sidebar-transparency='on'] {
-  --app-backdrop-surface: rgb(22 22 22 / 0.22);
+.dark.app-shell-desktop[data-window-transparency='on'] {
+  --app-backdrop-surface: var(--app-backdrop-surface-transparent-dark);
   --app-backdrop-blur: 22px;
-  --sidebar-glass-shadow: none;
-  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
-  --sidebar-list-active: var(--sidebar-list-active-translucent);
 }
 
-@supports (color: color-mix(in srgb, red, transparent)) {
-  .app-shell-desktop[data-sidebar-transparency='on'] {
-    --app-backdrop-surface: color-mix(in srgb, var(--sidebar) 24%, transparent);
-    --sidebar-glass-shadow: none;
-  }
-
-  .dark.app-shell-desktop[data-sidebar-transparency='on'] {
-    --app-backdrop-surface: color-mix(in srgb, var(--sidebar) 22%, transparent);
-    --sidebar-glass-shadow: none;
-  }
+:root[data-window-transparency='on'],
+:root[data-window-transparency='on'] body,
+:root[data-window-transparency='on'] #root {
+  background: transparent !important;
 }
 
-:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'],
-:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'] body,
-:root[data-sidebar-transparency='on'][data-sidebar-transparency-mode='native'] #root {
+.dark:root[data-window-transparency='on'],
+.dark:root[data-window-transparency='on'] body,
+.dark:root[data-window-transparency='on'] #root {
   background: transparent !important;
 }
 

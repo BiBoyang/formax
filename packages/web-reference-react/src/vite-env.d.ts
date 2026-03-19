@@ -1,11 +1,8 @@
 /// <reference types="vite/client" />
 
-type SidebarTransparencyMode = 'css' | 'native'
-
 type WindowAppearanceState = {
   revision: number
-  sidebarTransparencyEnabled: boolean
-  sidebarTransparencyMode: SidebarTransparencyMode
+  windowTransparencyEnabled: boolean
 }
 
 type FormaxDesktopBridge = {
@@ -19,7 +16,7 @@ type FormaxDesktopBridge = {
   }
   windowAppearance?: {
     getState?: () => Promise<WindowAppearanceState>
-    setSidebarTransparency?: (enabled: boolean) => Promise<WindowAppearanceState>
+    setWindowTransparency?: (enabled: boolean) => Promise<WindowAppearanceState>
     subscribe?: (listener: (state: WindowAppearanceState) => void) => () => void
   }
 }

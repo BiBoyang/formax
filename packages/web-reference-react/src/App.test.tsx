@@ -303,11 +303,9 @@ describe('App thread history integration', () => {
   const createDesktopWindowAppearanceState = (
     enabled: boolean,
     revision: number,
-    mode: 'css' | 'native' = 'css',
   ) => ({
     revision,
-    sidebarTransparencyEnabled: enabled,
-    sidebarTransparencyMode: mode,
+    windowTransparencyEnabled: enabled,
   })
 
   async function setComposerMode(target: (typeof MODE_ORDER)[number]) {
@@ -373,17 +371,17 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('toggles desktop sidebar transparency from header button and falls back to css mode', async () => {
+  it('toggles desktop window transparency from header button', async () => {
     const originalDesktopBridge = window.formaxDesktop
     const getState = vi.fn(async () => createDesktopWindowAppearanceState(false, 1))
-    const setSidebarTransparency = vi.fn(async (enabled: boolean) => createDesktopWindowAppearanceState(enabled, 2, 'css'))
+    const setWindowTransparency = vi.fn(async (enabled: boolean) => createDesktopWindowAppearanceState(enabled, 2))
     window.formaxDesktop = {
       mode: 'dev',
       startUrl: 'http://127.0.0.1:3781',
       windowControls: {},
       windowAppearance: {
         getState,
-        setSidebarTransparency,
+        setWindowTransparency,
       },
     }
 
@@ -391,24 +389,21 @@ describe('App thread history integration', () => {
       render(<App />)
 
       const appShell = await screen.findByTestId('app-shell')
-      expect(appShell.getAttribute('data-sidebar-transparency')).toBe('off')
-      expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('off')
+      await waitFor(() => {
+        expect(appShell.getAttribute('data-window-transparency')).toBe('off')
+      })
 
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle sidebar transparency' })
+      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
       expect(transparencyToggle.getAttribute('aria-pressed')).toBe('false')
 
       fireEvent.click(transparencyToggle)
 
       await waitFor(() => {
-        expect(appShell.getAttribute('data-sidebar-transparency')).toBe('on')
+        expect(appShell.getAttribute('data-window-transparency')).toBe('on')
       })
-      await waitFor(() => {
-        expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('css')
-      })
-      expect(document.documentElement.dataset.sidebarTransparencyMode).toBe('css')
       expect(transparencyToggle.getAttribute('aria-pressed')).toBe('true')
-      expect(setSidebarTransparency).toHaveBeenCalled()
-      expect(setSidebarTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
+      expect(setWindowTransparency).toHaveBeenCalled()
+      expect(setWindowTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
       expect(getState).toHaveBeenCalledTimes(1)
     } finally {
       if (originalDesktopBridge) {
@@ -419,19 +414,17 @@ describe('App thread history integration', () => {
     }
   })
 
-  it('uses native transparency mode when desktop bridge reports native support', async () => {
+  it('keeps window transparency enabled when desktop bridge confirms state', async () => {
     const originalDesktopBridge = window.formaxDesktop
     const getState = vi.fn(async () => createDesktopWindowAppearanceState(false, 1))
-    const setSidebarTransparency = vi.fn(async (enabled: boolean) =>
-      createDesktopWindowAppearanceState(enabled, 2, enabled ? 'native' : 'css'),
-    )
+    const setWindowTransparency = vi.fn(async (enabled: boolean) => createDesktopWindowAppearanceState(enabled, 2))
     window.formaxDesktop = {
       mode: 'dev',
       startUrl: 'http://127.0.0.1:3781',
       windowControls: {},
       windowAppearance: {
         getState,
-        setSidebarTransparency,
+        setWindowTransparency,
       },
     }
 
@@ -439,14 +432,13 @@ describe('App thread history integration', () => {
       render(<App />)
 
       const appShell = await screen.findByTestId('app-shell')
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle sidebar transparency' })
+      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
       fireEvent.click(transparencyToggle)
 
       await waitFor(() => {
-        expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('native')
+        expect(appShell.getAttribute('data-window-transparency')).toBe('on')
       })
-      expect(document.documentElement.dataset.sidebarTransparencyMode).toBe('native')
-      expect(setSidebarTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
+      expect(setWindowTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
     } finally {
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge
@@ -460,10 +452,10 @@ describe('App thread history integration', () => {
     const originalDesktopBridge = window.formaxDesktop
     const pending: Array<() => void> = []
     const getState = vi.fn(async () => createDesktopWindowAppearanceState(false, 1))
-    const setSidebarTransparency = vi.fn(
+    const setWindowTransparency = vi.fn(
       (enabled: boolean) =>
         new Promise<ReturnType<typeof createDesktopWindowAppearanceState>>((resolve) => {
-          pending.push(() => resolve(createDesktopWindowAppearanceState(enabled, enabled ? 2 : 3, 'css')))
+          pending.push(() => resolve(createDesktopWindowAppearanceState(enabled, enabled ? 2 : 3)))
         }),
     )
     window.formaxDesktop = {
@@ -472,7 +464,7 @@ describe('App thread history integration', () => {
       windowControls: {},
       windowAppearance: {
         getState,
-        setSidebarTransparency,
+        setWindowTransparency,
       },
     }
 
@@ -480,21 +472,21 @@ describe('App thread history integration', () => {
       render(<App />)
 
       const appShell = await screen.findByTestId('app-shell')
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle sidebar transparency' })
+      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
 
       expect(getState).toHaveBeenCalledTimes(1)
-      expect(setSidebarTransparency).not.toHaveBeenCalled()
+      expect(setWindowTransparency).not.toHaveBeenCalled()
 
       fireEvent.click(transparencyToggle)
       await waitFor(() => {
-        expect(setSidebarTransparency).toHaveBeenCalledTimes(1)
+        expect(setWindowTransparency).toHaveBeenCalledTimes(1)
       })
-      expect(setSidebarTransparency.mock.calls[0]?.[0]).toBe(true)
+      expect(setWindowTransparency.mock.calls[0]?.[0]).toBe(true)
 
       fireEvent.click(transparencyToggle)
 
       // Disable call should wait until the in-flight enable call settles.
-      expect(setSidebarTransparency).toHaveBeenCalledTimes(1)
+      expect(setWindowTransparency).toHaveBeenCalledTimes(1)
       expect(pending).toHaveLength(1)
 
       await act(async () => {
@@ -502,9 +494,9 @@ describe('App thread history integration', () => {
       })
 
       await waitFor(() => {
-        expect(setSidebarTransparency).toHaveBeenCalledTimes(2)
+        expect(setWindowTransparency).toHaveBeenCalledTimes(2)
       })
-      expect(setSidebarTransparency.mock.calls[1]?.[0]).toBe(false)
+      expect(setWindowTransparency.mock.calls[1]?.[0]).toBe(false)
       expect(pending).toHaveLength(1)
 
       await act(async () => {
@@ -516,9 +508,8 @@ describe('App thread history integration', () => {
       })
 
       await waitFor(() => {
-        expect(appShell.getAttribute('data-sidebar-transparency-mode')).toBe('off')
+        expect(appShell.getAttribute('data-window-transparency')).toBe('off')
       })
-      expect(document.documentElement.dataset.sidebarTransparencyMode).toBe('off')
     } finally {
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge

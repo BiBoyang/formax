@@ -49,8 +49,8 @@ export type LeftRailProps = {
   isBusy?: boolean
   isDesktopClient?: boolean
   onCreateProject?: () => Promise<void> | void
-  isSidebarTransparent?: boolean
-  onToggleSidebarTransparency?: () => void
+  isWindowTransparent?: boolean
+  onToggleWindowTransparency?: () => void
   isSettingsOpen?: boolean
   onOpenSettings?: () => void
   onCloseSettings?: () => void
@@ -73,8 +73,8 @@ export function LeftRail(props: LeftRailProps) {
     isBusy = false,
     isDesktopClient = false,
     onCreateProject,
-    isSidebarTransparent = false,
-    onToggleSidebarTransparency,
+    isWindowTransparent = false,
+    onToggleWindowTransparency,
     isSettingsOpen = false,
     onOpenSettings,
     onCloseSettings,
@@ -275,9 +275,7 @@ export function LeftRail(props: LeftRailProps) {
             className="h-[var(--desktop-traffic-light-safe-height)] w-[var(--desktop-traffic-light-safe-width)] app-shell-no-drag"
             aria-hidden
           />
-        ) : (
-          <div className="ui-text-meta ui-sidebar-text-muted font-medium">Formax Web</div>
-        )}
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
@@ -383,11 +381,11 @@ export function LeftRail(props: LeftRailProps) {
               <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label="设置" onActivate={onOpenSettings} />
             ) : null}
             <SidebarItem kind="menu" icon={<Globe className="h-4 w-4" />} label="语言" />
-            {isDesktopClient && onToggleSidebarTransparency ? (
+            {isDesktopClient && onToggleWindowTransparency ? (
               <SidebarItem
                 kind="menu"
-                label={isSidebarTransparent ? '关闭侧边栏透明' : '开启侧边栏透明'}
-                onActivate={onToggleSidebarTransparency}
+                label={isWindowTransparent ? '关闭窗口透明' : '开启窗口透明'}
+                onActivate={onToggleWindowTransparency}
               />
             ) : null}
           </DropdownMenuContent>
