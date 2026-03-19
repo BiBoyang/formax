@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { createDefaultWindowAppearanceState, type SidebarTransparencyMode, type WindowAppearanceState } from './windowAppearanceState'
 
 const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
 const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
@@ -8,6 +7,12 @@ const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-sidebar-transparency'
+type SidebarTransparencyMode = 'css' | 'native'
+type WindowAppearanceState = {
+  revision: number
+  sidebarTransparencyEnabled: boolean
+  sidebarTransparencyMode: SidebarTransparencyMode
+}
 
 type FormaxDesktopRuntimeInfo = {
   mode: string
@@ -28,6 +33,14 @@ type FormaxDesktopRuntimeInfo = {
 function normalizeSidebarTransparencyMode(raw: unknown): SidebarTransparencyMode {
   if (raw === 'native' || raw === 'css') return raw
   return 'css'
+}
+
+function createDefaultWindowAppearanceState(): WindowAppearanceState {
+  return {
+    revision: 0,
+    sidebarTransparencyEnabled: false,
+    sidebarTransparencyMode: 'css',
+  }
 }
 
 function normalizeWindowAppearanceState(payload: unknown): WindowAppearanceState {
