@@ -6,17 +6,6 @@
 - Keep canonical product/runtime semantics in `docs/contracts/*` and related canonical docs.
 - Keep code navigation in `CODEMAP.md` ("where to change what"), with AGENTS linking to it instead of duplicating path-level maps.
 
-## Package AGENTS Index
-
-- Root `AGENTS.md` is the repo-wide policy layer (review profile, commit workflow, cross-workspace guardrails, and canonical contract pointers).
-- Package-local workflow/details live in package-level `AGENTS.md` files:
-  - `packages/core/AGENTS.md`
-  - `packages/web-reference-react/AGENTS.md`
-  - `packages/desktop-electron/AGENTS.md`
-  - `packages/shared/AGENTS.md`
-  - `packages/semantics/AGENTS.md`
-- For package-scoped tasks, follow the nearest package `AGENTS.md` first, then inherit root rules.
-
 ## Project Structure & Module Organization
 
 - `packages/core/src/` contains TypeScript source.
