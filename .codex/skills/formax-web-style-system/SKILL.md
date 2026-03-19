@@ -35,6 +35,18 @@ If the repository or task provides an existing design system, brand guide, or co
 
 For small styling requests, keep output concise but still include token strategy and state clarity.
 
+## Formax Overrides (Mandatory for CSS Rework)
+
+When the task touches CSS in `packages/web-reference-react/**`, do this before editing:
+1. Read `.codex/skills/formax-web-css-convergence-workflow/SKILL.md`.
+2. Lock a pre-edit intake contract (target model, non-goals, ownership boundary, acceptance checks).
+3. Use single-axis passes (geometry -> color -> interaction), avoid mixed multi-axis edits.
+4. Validate with:
+   - `bun run test -- src/App.test.tsx` (in `packages/web-reference-react`)
+5. If and only if the task includes transparency/window layering:
+   - Read `docs/contracts/web/window-transparency-construct.md`
+   - Run `bun run test:e2e -- e2e/window-transparency.evidence.spec.js --project=chromium` (in `packages/web-reference-react`)
+
 ## Output Contract
 
 For each frontend/web UI response, always include these sections (explicit headings):
