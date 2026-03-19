@@ -1607,7 +1607,10 @@ describe('App thread history integration', () => {
     await screen.findByRole('button', { name: /Alpha Session/i })
     expect(screen.getByTitle('/repo-beta')).toBeInTheDocument()
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo-beta' }))
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo-beta' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
 
     await waitFor(() => {

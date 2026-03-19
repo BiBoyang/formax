@@ -249,11 +249,69 @@ describe('LeftRail', () => {
       />,
     )
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
 
     expect(onHideThreadGroup).toHaveBeenCalledWith('/repo')
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
+  })
+
+  it('opens folder actions menu on left click and ignores right click', async () => {
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.contextMenu(folderActionsButton)
+    expect(screen.queryByRole('menuitem', { name: 'Remove session folder' })).not.toBeInTheDocument()
+
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
+    expect(await screen.findByRole('menuitem', { name: 'Remove session folder' })).toBeInTheDocument()
+  })
+
+  it('closes folder actions menu after clicking outside', async () => {
+    render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
+    expect(await screen.findByRole('menuitem', { name: 'Remove session folder' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body, { button: 0 })
+    fireEvent.mouseDown(document.body, { button: 0 })
+    fireEvent.click(document.body)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: 'Remove session folder' })).not.toBeInTheDocument()
+    })
   })
 
   it('does not remove the selected folder when it is the only visible group', async () => {
@@ -274,7 +332,10 @@ describe('LeftRail', () => {
       />,
     )
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Folder actions for repo' }))
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
     const removeItem = await screen.findByRole('menuitem', { name: 'Remove session folder' })
     expect(removeItem).toHaveAttribute('data-disabled')
     fireEvent.click(removeItem, { detail: 1, button: 0 })

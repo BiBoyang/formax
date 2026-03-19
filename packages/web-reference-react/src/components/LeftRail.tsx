@@ -1,16 +1,9 @@
-import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef } from 'react'
-import { ChevronDown, Clock3, Folder, FolderOpen, FolderPlus, Globe, MoreHorizontal, Settings, Sparkles, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FolderPlus, Globe, Settings, Sparkles, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore, Clock3 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
 import { Button } from './ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from './ui/context-menu'
 import {
   Dialog,
   DialogContent,
@@ -19,11 +12,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { Input } from './ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
-
-const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
+import {
+  copyToClipboard,
+  groupThreadsByCwd,
+  MemoFolderHeaderRow,
+  MemoThreadRow,
+  RailActionIconButton,
+  readOpenByCwdFromStorage,
+  SidebarItem,
+  type SuppressInteractionEvent,
+  writeOpenByCwdToStorage,
+} from './left-rail'
 
 export type LeftRailProps = {
   connectionStatus?: 'disconnected' | 'connecting' | 'connected'
@@ -53,290 +55,6 @@ export type LeftRailProps = {
   onOpenSettings?: () => void
   onCloseSettings?: () => void
 }
-
-function readOpenByCwdFromStorage(): Record<string, boolean> {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = window.localStorage.getItem(OPEN_BY_CWD_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    const out: Record<string, boolean> = {}
-    for (const [cwd, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!cwd.trim()) continue
-      if (typeof value !== 'boolean') continue
-      out[cwd] = value
-    }
-    return out
-  } catch {
-    return {}
-  }
-}
-
-function writeOpenByCwdToStorage(openByCwd: Record<string, boolean>): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(OPEN_BY_CWD_STORAGE_KEY, JSON.stringify(openByCwd))
-  } catch {
-    // Ignore storage quota/privacy errors and keep runtime state in-memory.
-  }
-}
-
-function relativeTime(updatedAt: string, nowMs: number): string {
-  const ts = Date.parse(updatedAt)
-  if (!Number.isFinite(ts)) return '--'
-  const minutes = Math.max(1, Math.floor((nowMs - ts) / 60_000))
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
-  const days = Math.floor(hours / 24)
-  return `${days}d`
-}
-
-type LeftRailThreadGroup = {
-  cwd: string
-  folderName: string
-  threads: ThreadViewModel[]
-  sortLabel: string
-  sortPath: string
-}
-
-function normalizeCwdPath(cwd: string): string {
-  return cwd.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function groupThreadsByCwd(threads: ThreadViewModel[]): LeftRailThreadGroup[] {
-  const groupMap = new Map<string, ThreadViewModel[]>()
-  for (const thread of threads) {
-    const cwd = thread.cwd
-    if (!groupMap.has(cwd)) {
-      groupMap.set(cwd, [thread])
-      continue
-    }
-    groupMap.get(cwd)?.push(thread)
-  }
-  const groups: LeftRailThreadGroup[] = Array.from(groupMap.entries()).map(([cwd, grouped]) => {
-    const folderName = cwdLabel(cwd)
-    return {
-      cwd,
-      folderName,
-      threads: grouped,
-      sortLabel: folderName.toLowerCase(),
-      sortPath: normalizeCwdPath(cwd).toLowerCase(),
-    }
-  })
-  groups.sort((a, b) => {
-    if (a.sortLabel !== b.sortLabel) return a.sortLabel < b.sortLabel ? -1 : 1
-    if (a.sortPath === b.sortPath) return 0
-    return a.sortPath < b.sortPath ? -1 : 1
-  })
-  return groups
-}
-
-function cwdLabel(cwd: string): string {
-  const normalized = normalizeCwdPath(cwd)
-  if (!normalized) return cwd
-  const parts = normalized.split('/').filter(Boolean)
-  return parts.length > 0 ? parts[parts.length - 1] : normalized
-}
-
-async function copyToClipboard(text: string): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return
-  await navigator.clipboard.writeText(text)
-}
-
-type SuppressInteractionEvent = {
-  preventDefault: () => void
-  stopPropagation: () => void
-}
-
-type FolderHeaderRowProps = ComponentPropsWithoutRef<'div'> & {
-  cwd: string
-  folderName: string
-  isExpanded: boolean
-  canRemoveGroup: boolean
-  isBusy: boolean
-  onSelectCwd: (cwd: string) => void
-  onMarkFolderRemoved: (cwd: string) => void
-  onStartThreadInFolder: (cwd: string) => void
-  suppressFolderAction: (event: SuppressInteractionEvent) => void
-}
-
-const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(function FolderHeaderRow(props, ref) {
-  const {
-    cwd,
-    folderName,
-    isExpanded,
-    canRemoveGroup,
-    isBusy,
-    onSelectCwd,
-    onMarkFolderRemoved,
-    onStartThreadInFolder,
-    suppressFolderAction,
-    className,
-    ...rest
-  } = props
-
-  return (
-    <div
-      ref={ref}
-      {...rest}
-      className={cn(
-        'group/folder flex h-8 items-center rounded-md transition-colors ui-sidebar-folder-row',
-        className,
-      )}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-8 min-w-0 flex-1 justify-start px-3 ui-text-base font-normal transition-none hover:bg-transparent text-inherit"
-        onClick={() => onSelectCwd(cwd)}
-        title={cwd}
-      >
-        <span className="relative mr-2 h-3.5 w-3.5">
-          <ChevronDown className="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover/folder:opacity-70" />
-          {isExpanded ? (
-            <FolderOpen className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
-          ) : (
-            <Folder className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
-          )}
-        </span>
-        <span className="truncate flex-1 text-left">{folderName}</span>
-      </Button>
-      <div className="pointer-events-none mr-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/folder:opacity-100 group-focus-within/folder:opacity-100">
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label={`Folder actions for ${folderName}`}
-              className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
-              onClick={suppressFolderAction}
-              onContextMenu={(event) => {
-                event.stopPropagation()
-              }}
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem disabled>Create permanent worktree</ContextMenuItem>
-            <ContextMenuItem disabled>Edit name</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              disabled={!canRemoveGroup}
-              onSelect={(event) => {
-                event.preventDefault()
-                onMarkFolderRemoved(cwd)
-              }}
-            >
-              Remove session folder
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label={`Start new thread in ${folderName}`}
-          title={`Start new thread in ${folderName}`}
-          disabled={isBusy}
-          className="pointer-events-auto h-7 w-7 rounded-md text-muted-foreground/90 hover:bg-muted/50 hover:text-foreground"
-          onClick={(event) => {
-            suppressFolderAction(event)
-            onStartThreadInFolder(cwd)
-          }}
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </div>
-  )
-})
-
-const MemoFolderHeaderRow = memo(FolderHeaderRow)
-
-type ThreadRowProps = {
-  thread: ThreadViewModel
-  isActive: boolean
-  isBusy: boolean
-  nowMsSnapshot: number
-  canRenameThread: boolean
-  canArchiveThread: boolean
-  onSelectThread: (threadId: string) => void
-  onRenameFromContextMenu: (thread: ThreadViewModel) => void
-  onArchiveFromContextMenu: (thread: ThreadViewModel) => void
-  onCopyContextCwd: (thread: ThreadViewModel) => void
-  onCopyContextThreadId: (thread: ThreadViewModel) => void
-}
-
-const MemoThreadRow = memo(function ThreadRow(props: ThreadRowProps) {
-  const {
-    thread,
-    isActive,
-    isBusy,
-    nowMsSnapshot,
-    canRenameThread,
-    canArchiveThread,
-    onSelectThread,
-    onRenameFromContextMenu,
-    onArchiveFromContextMenu,
-    onCopyContextCwd,
-    onCopyContextThreadId,
-  } = props
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          data-active={isActive ? 'true' : 'false'}
-          className={cn(
-            'relative w-full h-8 flex items-center rounded-md group/thread ui-sidebar-list-row',
-          )}
-        >
-          <Button
-            variant="ghost"
-            className={cn(
-              'h-8 min-w-0 w-full justify-start gap-2 pl-6 pr-2 font-normal ui-text-base transition-none hover:bg-transparent text-inherit',
-            )}
-            onClick={() => onSelectThread(thread.id)}
-          >
-            <span className="min-w-0 flex-1 truncate text-left">{thread.title}</span>
-            <span className="shrink-0 text-right ui-text-meta font-mono tabular-nums ui-sidebar-list-row-time">
-              {relativeTime(thread.updatedAt, nowMsSnapshot)}
-            </span>
-          </Button>
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          disabled={!canRenameThread}
-          onSelect={() => onRenameFromContextMenu(thread)}
-        >
-          Rename thread
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={!canArchiveThread || isBusy}
-          onSelect={() => onArchiveFromContextMenu(thread)}
-        >
-          Archive thread
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => onCopyContextCwd(thread)}
-        >
-          Copy working directory
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => onCopyContextThreadId(thread)}
-        >
-          Copy session ID
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
-})
 
 export function LeftRail(props: LeftRailProps) {
   const {
@@ -482,24 +200,16 @@ export function LeftRail(props: LeftRailProps) {
     }
   }, [onRenameThread, renameThreadTarget, renameValue])
 
-  const quickEntryBaseRowClass =
-    'h-8 gap-3 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-  const quickEntryRowClass = `w-full justify-start ${quickEntryBaseRowClass}`
-  const quickEntryStaticRowClass = `flex items-center ${quickEntryBaseRowClass} cursor-default`
-  const quickEntryIconClass = 'inline-flex h-4 w-4 shrink-0 items-center justify-center opacity-70'
   const createProjectButton = (
-    <Button
-      type="button"
-      size="icon"
-      variant="ghost"
-      className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40"
+    <RailActionIconButton
       aria-label="Add project"
       title={canCreateProject ? 'Add project' : 'Desktop only'}
       disabled={isBusy}
+      className="text-muted-foreground hover:text-foreground hover:bg-muted/40"
       onClick={handleCreateProject}
     >
       <FolderPlus className="h-3.5 w-3.5" />
-    </Button>
+    </RailActionIconButton>
   )
 
   if (isSettingsOpen && onCloseSettings) {
@@ -521,51 +231,30 @@ export function LeftRail(props: LeftRailProps) {
         <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
           <div className="flex flex-col min-h-full">
             <div className="px-2 space-y-px flex-none">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary transition-colors hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] text-muted-foreground mb-4"
-                onClick={onCloseSettings}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                返回应用
-              </Button>
+              <SidebarItem
+                tone="muted"
+                className="mb-4"
+                icon={<ArrowLeft className="h-4 w-4" />}
+                label="返回应用"
+                onActivate={onCloseSettings}
+              />
 
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-medium bg-[var(--surface-selected)] shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] text-foreground">
-                <Settings className="h-4 w-4 opacity-70" />
-                常规
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <Monitor className="h-4 w-4 opacity-70" />
-                Appearance
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <Settings2 className="h-4 w-4 opacity-70" />
-                配置
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <Palette className="h-4 w-4 opacity-70" />
-                个性化
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <Server className="h-4 w-4 opacity-70" />
-                MCP 服务器
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <GitBranch className="h-4 w-4 opacity-70" />
-                Git
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <TerminalSquare className="h-4 w-4 opacity-70" />
-                环境
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <FolderTree className="h-4 w-4 opacity-70" />
-                工作树
-              </Button>
-              <Button variant="ghost" className="w-full justify-start h-8 gap-2 rounded-md px-3 ui-text-base font-normal ui-sidebar-text-secondary hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]">
-                <ArchiveRestore className="h-4 w-4 opacity-70" />
-                已归档线程
-              </Button>
+              <SidebarItem
+                tone="primary"
+                selected
+                selectable
+                className="font-medium"
+                icon={<Settings className="h-4 w-4" />}
+                label="常规"
+              />
+              <SidebarItem icon={<Monitor className="h-4 w-4" />} label="Appearance" />
+              <SidebarItem icon={<Settings2 className="h-4 w-4" />} label="配置" />
+              <SidebarItem icon={<Palette className="h-4 w-4" />} label="个性化" />
+              <SidebarItem icon={<Server className="h-4 w-4" />} label="MCP 服务器" />
+              <SidebarItem icon={<GitBranch className="h-4 w-4" />} label="Git" />
+              <SidebarItem icon={<TerminalSquare className="h-4 w-4" />} label="环境" />
+              <SidebarItem icon={<FolderTree className="h-4 w-4" />} label="工作树" />
+              <SidebarItem icon={<ArchiveRestore className="h-4 w-4" />} label="已归档线程" />
             </div>
           </div>
         </div>
@@ -595,30 +284,15 @@ export function LeftRail(props: LeftRailProps) {
         <div className="flex flex-col min-h-full">
           <div className="px-2 space-y-px flex-none">
             {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
-            <Button
-              variant="ghost"
-              className={quickEntryRowClass}
-              onClick={onStartThread}
+            <SidebarItem
+              icon={<SquarePen className="h-4 w-4" />}
+              label="New thread"
+              onActivate={onStartThread}
               disabled={isBusy}
-            >
-              <span className={quickEntryIconClass} aria-hidden>
-                <SquarePen className="h-4 w-4" />
-              </span>
-              New thread
-            </Button>
+            />
             <div className="space-y-px">
-              <div className={quickEntryStaticRowClass}>
-                <span className={quickEntryIconClass} aria-hidden>
-                  <Clock3 className="h-4 w-4" />
-                </span>
-                Automation
-              </div>
-              <div className={quickEntryStaticRowClass}>
-                <span className={quickEntryIconClass} aria-hidden>
-                  <Sparkles className="h-4 w-4" />
-                </span>
-                Skills
-              </div>
+              <SidebarItem kind="static" icon={<Clock3 className="h-4 w-4" />} label="Automation" />
+              <SidebarItem kind="static" icon={<Sparkles className="h-4 w-4" />} label="Skills" />
             </div>
           </div>
 
@@ -702,35 +376,19 @@ export function LeftRail(props: LeftRailProps) {
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              className={cn(
-                quickEntryRowClass,
-                'app-shell-no-drag',
-              )}
-            >
-              <span className={quickEntryIconClass} aria-hidden>
-                <Settings className="h-4 w-4" />
-              </span>
-              设置
-            </Button>
+            <SidebarItem className="app-shell-no-drag" icon={<Settings className="h-4 w-4" />} label="设置" />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-48 app-shell-no-drag" side="top" align="start" sideOffset={8}>
             {onOpenSettings ? (
-              <DropdownMenuItem onSelect={onOpenSettings}>
-                <Settings className="mr-2 h-4 w-4" />
-                设置
-              </DropdownMenuItem>
+              <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label="设置" onActivate={onOpenSettings} />
             ) : null}
-            <DropdownMenuItem>
-              <Globe className="mr-2 h-4 w-4" />
-              语言
-            </DropdownMenuItem>
+            <SidebarItem kind="menu" icon={<Globe className="h-4 w-4" />} label="语言" />
             {isDesktopClient && onToggleSidebarTransparency ? (
-              <DropdownMenuItem onSelect={() => onToggleSidebarTransparency(!isSidebarTransparent)}>
-                {isSidebarTransparent ? '关闭侧边栏透明' : '开启侧边栏透明'}
-              </DropdownMenuItem>
+              <SidebarItem
+                kind="menu"
+                label={isSidebarTransparent ? '关闭侧边栏透明' : '开启侧边栏透明'}
+                onActivate={() => onToggleSidebarTransparency(!isSidebarTransparent)}
+              />
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
