@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { createDefaultWindowAppearanceState, type WindowAppearanceState } from './windowAppearanceState'
 
 const DEFAULT_START_URL = 'http://127.0.0.1:3781'
 const DEFAULT_BRIDGE_PORT = 3777
@@ -28,9 +29,10 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
 const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
 const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
+const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
-type DesktopWindowAppearanceAction = 'set-sidebar-transparency'
+type DesktopWindowAppearanceAction = 'get-state' | 'set-sidebar-transparency'
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -43,6 +45,8 @@ type ManagedRuntimeConfig = {
 let managedRuntimeChild: ChildProcess | null = null
 let managedRuntimeStopTimer: NodeJS.Timeout | null = null
 let managedRuntimeStopping = false
+const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceState>()
+const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -438,30 +442,123 @@ async function loadWindowWithRetry(window: BrowserWindow, startUrl: string): Pro
   throw lastError instanceof Error ? lastError : new Error('Failed to load window URL')
 }
 
+function resolveOwnerWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
+  return (
+    BrowserWindow.fromWebContents(event.sender) ??
+    BrowserWindow.getFocusedWindow() ??
+    BrowserWindow.getAllWindows()[0] ??
+    null
+  )
+}
+
+function readWindowAppearanceState(webContentsId: number): WindowAppearanceState {
+  const existing = windowAppearanceStateByWebContentsId.get(webContentsId)
+  if (existing) return existing
+  const initial = createDefaultWindowAppearanceState()
+  windowAppearanceStateByWebContentsId.set(webContentsId, initial)
+  return initial
+}
+
+function publishWindowAppearanceState(window: BrowserWindow, state: WindowAppearanceState): void {
+  const webContentsId = window.webContents.id
+  windowAppearanceStateByWebContentsId.set(webContentsId, state)
+  window.webContents.send(WINDOW_APPEARANCE_STATE_CHANNEL, state)
+}
+
+function queueWindowAppearanceMutation(
+  window: BrowserWindow,
+  runMutation: (currentState: WindowAppearanceState) => WindowAppearanceState,
+): Promise<WindowAppearanceState> {
+  const webContentsId = window.webContents.id
+  const previousQueue = windowAppearanceQueueByWebContentsId.get(webContentsId) ?? Promise.resolve()
+  const nextStatePromise = previousQueue.then(() => {
+    const currentState = readWindowAppearanceState(webContentsId)
+    const nextState = runMutation(currentState)
+    publishWindowAppearanceState(window, nextState)
+    return nextState
+  })
+  windowAppearanceQueueByWebContentsId.set(
+    webContentsId,
+    nextStatePromise.then(() => undefined, () => undefined),
+  )
+  return nextStatePromise
+}
+
+function applySidebarTransparencyToWindow(window: BrowserWindow, enabled: boolean): 'css' | 'native' {
+  const shouldEnable = enabled === true
+  let hasNativeEffect = false
+
+  if (process.platform === 'darwin') {
+    let vibrancyApplied = false
+    try {
+      window.setVibrancy(shouldEnable ? 'sidebar' : null)
+      vibrancyApplied = true
+    } catch {
+      // Fall back to renderer CSS mode if native vibrancy is unavailable.
+    }
+
+    let visualEffectApplied = false
+    const windowWithVisualEffect = window as BrowserWindow & {
+      setVisualEffectState?: (state: 'active' | 'inactive' | 'followWindow') => void
+    }
+    if (typeof windowWithVisualEffect.setVisualEffectState === 'function') {
+      try {
+        windowWithVisualEffect.setVisualEffectState(shouldEnable ? 'active' : 'inactive')
+        visualEffectApplied = true
+      } catch {
+        // Keep renderer fallback behavior if this API is unsupported.
+      }
+    }
+
+    try {
+      window.setBackgroundColor(shouldEnable ? '#00000000' : '#f5f5f5')
+    } catch {
+      // Keep renderer fallback behavior if background-color switching is unavailable.
+    }
+
+    // Only report native support when a native visual effect API succeeded.
+    // This prevents "toggle is on but effect is gone" when native APIs fail.
+    hasNativeEffect = shouldEnable ? (vibrancyApplied || visualEffectApplied) : false
+  }
+
+  if (process.platform === 'win32') {
+    const windowWithMaterial = window as BrowserWindow & {
+      setBackgroundMaterial?: (material: 'none' | 'mica' | 'acrylic' | 'tabbed') => void
+    }
+    if (typeof windowWithMaterial.setBackgroundMaterial === 'function') {
+      try {
+        windowWithMaterial.setBackgroundMaterial(shouldEnable ? 'mica' : 'none')
+        hasNativeEffect = shouldEnable
+      } catch {
+        // Keep CSS fallback behavior on older Windows builds.
+      }
+    }
+  }
+
+  if (!shouldEnable) return 'css'
+  return hasNativeEffect ? 'native' : 'css'
+}
+
 function registerDesktopIpcHandlers(): void {
   ipcMain.removeHandler(PICK_PROJECT_FOLDER_CHANNEL)
   ipcMain.removeHandler(WINDOW_CONTROL_CHANNEL)
   ipcMain.removeHandler(WINDOW_APPEARANCE_CHANNEL)
 
   ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async (event) => {
-    const ownerWindow =
-      BrowserWindow.fromWebContents(event.sender) ??
-      BrowserWindow.getFocusedWindow() ??
-      BrowserWindow.getAllWindows()[0] ??
-      undefined
-    const result = await dialog.showOpenDialog(ownerWindow, {
+    const ownerWindow = resolveOwnerWindow(event)
+    const dialogOptions: Electron.OpenDialogOptions = {
       title: 'Select project folder',
       properties: ['openDirectory', 'createDirectory'],
-    })
+    }
+    const result = ownerWindow
+      ? await dialog.showOpenDialog(ownerWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions)
     if (result.canceled) return null
     return result.filePaths[0] ?? null
   })
 
   ipcMain.handle(WINDOW_CONTROL_CHANNEL, (event, action: DesktopWindowControl) => {
-    const ownerWindow =
-      BrowserWindow.fromWebContents(event.sender) ??
-      BrowserWindow.getFocusedWindow() ??
-      BrowserWindow.getAllWindows()[0]
+    const ownerWindow = resolveOwnerWindow(event)
     if (!ownerWindow) return false
 
     if (action === 'close') {
@@ -488,64 +585,28 @@ function registerDesktopIpcHandlers(): void {
 
   ipcMain.handle(
     WINDOW_APPEARANCE_CHANNEL,
-    (event, action: DesktopWindowAppearanceAction, enabled: boolean) => {
-      const ownerWindow =
-        BrowserWindow.fromWebContents(event.sender) ??
-        BrowserWindow.getFocusedWindow() ??
-        BrowserWindow.getAllWindows()[0]
-      if (!ownerWindow) return false
-      if (action !== 'set-sidebar-transparency') return false
+    (event, action: DesktopWindowAppearanceAction, enabled?: boolean) => {
+      const ownerWindow = resolveOwnerWindow(event)
+      if (!ownerWindow) return createDefaultWindowAppearanceState()
+
+      const webContentsId = ownerWindow.webContents.id
+      if (action === 'get-state') {
+        return readWindowAppearanceState(webContentsId)
+      }
+
+      if (action !== 'set-sidebar-transparency') {
+        return readWindowAppearanceState(webContentsId)
+      }
 
       const shouldEnable = enabled === true
-      let hasNativeEffect = false
-      if (process.platform === 'darwin') {
-        let vibrancyApplied = false
-        try {
-          ownerWindow.setVibrancy(shouldEnable ? 'sidebar' : null)
-          vibrancyApplied = true
-        } catch {
-          // Fall back to renderer CSS mode if native vibrancy is unavailable.
+      return queueWindowAppearanceMutation(ownerWindow, (currentState) => {
+        const nextMode = applySidebarTransparencyToWindow(ownerWindow, shouldEnable)
+        return {
+          revision: currentState.revision + 1,
+          sidebarTransparencyEnabled: shouldEnable,
+          sidebarTransparencyMode: shouldEnable ? nextMode : currentState.sidebarTransparencyMode,
         }
-
-        let visualEffectApplied = false
-        const windowWithVisualEffect = ownerWindow as BrowserWindow & {
-          setVisualEffectState?: (state: 'active' | 'inactive' | 'followWindow') => void
-        }
-        if (typeof windowWithVisualEffect.setVisualEffectState === 'function') {
-          try {
-            windowWithVisualEffect.setVisualEffectState(shouldEnable ? 'active' : 'inactive')
-            visualEffectApplied = true
-          } catch {
-            // Keep renderer fallback behavior if this API is unsupported.
-          }
-        }
-
-        try {
-          ownerWindow.setBackgroundColor(shouldEnable ? '#00000000' : '#f5f5f5')
-        } catch {
-          // Keep renderer fallback behavior if background-color switching is unavailable.
-        }
-
-        // Only report native support when a native visual effect API succeeded.
-        // This prevents "toggle is on but effect is gone" when native APIs fail.
-        hasNativeEffect = shouldEnable ? (vibrancyApplied || visualEffectApplied) : false
-      }
-
-      if (process.platform === 'win32') {
-        const windowWithMaterial = ownerWindow as BrowserWindow & {
-          setBackgroundMaterial?: (material: 'none' | 'mica' | 'acrylic' | 'tabbed') => void
-        }
-        if (typeof windowWithMaterial.setBackgroundMaterial === 'function') {
-          try {
-            windowWithMaterial.setBackgroundMaterial(shouldEnable ? 'mica' : 'none')
-            hasNativeEffect = true
-          } catch {
-            // Keep CSS fallback behavior on older Windows builds.
-          }
-        }
-      }
-
-      return hasNativeEffect
+      })
     },
   )
 }
@@ -585,6 +646,17 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
       sandbox: true,
       preload: preloadPath,
     },
+  })
+  const webContentsId = window.webContents.id
+  const defaultWindowAppearanceState = createDefaultWindowAppearanceState()
+  const initialMode = applySidebarTransparencyToWindow(window, defaultWindowAppearanceState.sidebarTransparencyEnabled)
+  windowAppearanceStateByWebContentsId.set(webContentsId, {
+    ...defaultWindowAppearanceState,
+    sidebarTransparencyMode: initialMode,
+  })
+  window.on('closed', () => {
+    windowAppearanceStateByWebContentsId.delete(webContentsId)
+    windowAppearanceQueueByWebContentsId.delete(webContentsId)
   })
 
   if (process.platform === 'darwin' && typeof window.setWindowButtonPosition === 'function') {

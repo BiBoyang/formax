@@ -58,12 +58,9 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
     ...rest
   } = props
 
-  const selectedSurfaceClass =
-    selected && selectable
-      ? 'bg-[var(--surface-selected)] shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]'
-      : null
+  const selectedSurfaceClass = selected && selectable ? 'bg-[var(--sidebar-list-active)]' : null
   const hoverSurfaceClass =
-    hoverable ? 'hover:bg-[var(--surface-selected)] hover:shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))]' : null
+    hoverable ? 'hover:bg-[var(--sidebar-list-hover)] focus-within:bg-[var(--sidebar-list-hover)]' : null
 
   const content = (
     <>

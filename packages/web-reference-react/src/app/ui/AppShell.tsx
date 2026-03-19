@@ -21,21 +21,39 @@ const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
-const SIDEBAR_TRANSPARENCY_STORAGE_KEY = 'formax:web:sidebar-transparency'
 
 type DesktopBridge = NonNullable<Window['formaxDesktop']>
+type DesktopWindowAppearanceState = {
+  revision: number
+  sidebarTransparencyEnabled: boolean
+  sidebarTransparencyMode: 'css' | 'native'
+}
+
+const DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE: DesktopWindowAppearanceState = {
+  revision: 0,
+  sidebarTransparencyEnabled: false,
+  sidebarTransparencyMode: 'css',
+}
 
 function readDesktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null
   return window.formaxDesktop ?? null
 }
 
-function readSidebarTransparencyPreference(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    return window.localStorage.getItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY) === '1'
-  } catch {
-    return false
+function normalizeDesktopWindowAppearanceState(payload: unknown): DesktopWindowAppearanceState {
+  if (!payload || typeof payload !== 'object') return DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE
+  const candidate = payload as Partial<DesktopWindowAppearanceState>
+  const revisionRaw = candidate.revision
+  const revision =
+    typeof revisionRaw === 'number' && Number.isFinite(revisionRaw) && revisionRaw >= 0 ? Math.floor(revisionRaw) : 0
+  const sidebarTransparencyEnabled = candidate.sidebarTransparencyEnabled === true
+  const modeRaw = candidate.sidebarTransparencyMode
+  const mode: DesktopWindowAppearanceState['sidebarTransparencyMode'] =
+    modeRaw === 'native' || modeRaw === 'css' ? modeRaw : 'css'
+  return {
+    revision,
+    sidebarTransparencyEnabled,
+    sidebarTransparencyMode: mode,
   }
 }
 
@@ -103,10 +121,12 @@ export type AppShellProps = {
 export function AppShell(props: AppShellProps) {
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
   const isDesktopClient = desktopBridge != null
-  const [isSidebarTransparent, setIsSidebarTransparent] = useState(() => readSidebarTransparencyPreference())
-  const [sidebarTransparencyMode, setSidebarTransparencyMode] = useState<'off' | 'css' | 'native'>(
-    () => (readSidebarTransparencyPreference() ? 'css' : 'off'),
+  const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
+    DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
+  const [isSidebarTransparencyPending, setIsSidebarTransparencyPending] = useState(false)
+  const isSidebarTransparent = desktopWindowAppearanceState.sidebarTransparencyEnabled
+  const sidebarTransparencyMode = desktopWindowAppearanceState.sidebarTransparencyMode
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE
@@ -118,6 +138,10 @@ export function AppShell(props: AppShellProps) {
   const pendingRightRailPercentRef = useRef(rightRailPercent)
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
+  const sidebarTransparencyCommandQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const pendingSidebarTransparencyCommandsRef = useRef(0)
+  const sidebarTransparencyIntentRef = useRef(isSidebarTransparent)
+  const latestSidebarTransparencyEnabledRef = useRef(isSidebarTransparent)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
   const previousSidebarOpenRef = useRef(props.isSidebarOpen)
@@ -130,6 +154,13 @@ export function AppShell(props: AppShellProps) {
     if (!props.isSidebarOpen) return
     lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
   }, [props.isSidebarOpen, props.sidebarWidth])
+
+  useEffect(() => {
+    latestSidebarTransparencyEnabledRef.current = isSidebarTransparent
+    if (pendingSidebarTransparencyCommandsRef.current === 0) {
+      sidebarTransparencyIntentRef.current = isSidebarTransparent
+    }
+  }, [isSidebarTransparent])
 
   useEffect(() => {
     const panelGroup = panelGroupRef.current
@@ -210,60 +241,90 @@ export function AppShell(props: AppShellProps) {
     props.onDevLoadAllEarlier?.()
   }, [props.onDevLoadAllEarlier])
 
-  const applyNativeSidebarTransparency = useCallback(async (enabled: boolean): Promise<boolean> => {
-    if (!desktopBridge?.windowAppearance?.setSidebarTransparency) return false
-    try {
-      const applied = await desktopBridge.windowAppearance.setSidebarTransparency(enabled)
-      return applied === true
-    } catch {
-      // Keep CSS-based fallback behavior if host-side appearance fails.
-      return false
-    }
-  }, [desktopBridge])
-
-  const onToggleSidebarTransparency = useCallback((enabled: boolean) => {
-    setSidebarTransparencyMode(enabled ? 'css' : 'off')
-    setIsSidebarTransparent((previous) => (previous === enabled ? previous : enabled))
-    try {
-      window.localStorage.setItem(SIDEBAR_TRANSPARENCY_STORAGE_KEY, enabled ? '1' : '0')
-    } catch {
-      // Ignore localStorage failures (for example, private mode).
+  const commitHostWindowAppearanceState = useCallback((payload: unknown) => {
+    const normalizedState = normalizeDesktopWindowAppearanceState(payload)
+    setDesktopWindowAppearanceState((previous) =>
+      normalizedState.revision >= previous.revision ? normalizedState : previous,
+    )
+    if (pendingSidebarTransparencyCommandsRef.current === 0) {
+      sidebarTransparencyIntentRef.current = normalizedState.sidebarTransparencyEnabled
     }
   }, [])
 
+  const onToggleSidebarTransparency = useCallback(() => {
+    if (!isDesktopClient) return
+    const setSidebarTransparency = desktopBridge?.windowAppearance?.setSidebarTransparency
+    if (!setSidebarTransparency) return
+    const nextEnabled = !sidebarTransparencyIntentRef.current
+    sidebarTransparencyIntentRef.current = nextEnabled
+
+    pendingSidebarTransparencyCommandsRef.current += 1
+    setIsSidebarTransparencyPending(true)
+
+    const nextCommand = sidebarTransparencyCommandQueueRef.current
+      .then(async () => {
+        const nextState = await setSidebarTransparency(nextEnabled)
+        commitHostWindowAppearanceState(nextState)
+      })
+      .catch(() => {
+        // Ignore transient desktop-bridge failures and keep latest known host state.
+      })
+      .finally(() => {
+        pendingSidebarTransparencyCommandsRef.current = Math.max(0, pendingSidebarTransparencyCommandsRef.current - 1)
+        if (pendingSidebarTransparencyCommandsRef.current === 0) {
+          setIsSidebarTransparencyPending(false)
+          sidebarTransparencyIntentRef.current = latestSidebarTransparencyEnabledRef.current
+        }
+      })
+
+    sidebarTransparencyCommandQueueRef.current = nextCommand.then(() => undefined, () => undefined)
+  }, [commitHostWindowAppearanceState, desktopBridge, isDesktopClient])
+
   useEffect(() => {
     if (!isDesktopClient) return
-    let isCancelled = false
+    const windowAppearance = desktopBridge?.windowAppearance
+    if (!windowAppearance) return
+    let isDisposed = false
 
-    const syncSidebarTransparency = async () => {
-      if (!isSidebarTransparent) {
-        setSidebarTransparencyMode('off')
-        await applyNativeSidebarTransparency(false)
-        return
+    const syncInitialState = async () => {
+      if (!windowAppearance.getState) return
+      try {
+        const state = await windowAppearance.getState()
+        if (isDisposed) return
+        commitHostWindowAppearanceState(state)
+      } catch {
+        // Keep renderer fallback state when desktop bridge get-state is unavailable.
       }
-
-      const hasNativeTransparency = await applyNativeSidebarTransparency(true)
-      if (isCancelled) return
-      setSidebarTransparencyMode(hasNativeTransparency ? 'native' : 'css')
     }
 
-    void syncSidebarTransparency()
+    void syncInitialState()
+
+    const unsubscribe = windowAppearance.subscribe?.((state) => {
+      if (isDisposed) return
+      commitHostWindowAppearanceState(state)
+    })
 
     return () => {
-      isCancelled = true
+      isDisposed = true
+      unsubscribe?.()
     }
-  }, [applyNativeSidebarTransparency, isDesktopClient, isSidebarTransparent])
+  }, [commitHostWindowAppearanceState, desktopBridge, isDesktopClient])
 
   useEffect(() => {
     if (!isDesktopClient) return
     const root = document.documentElement
     root.dataset.sidebarTransparency = isSidebarTransparent ? 'on' : 'off'
     root.dataset.sidebarTransparencyMode = isSidebarTransparent ? sidebarTransparencyMode : 'off'
+  }, [isDesktopClient, isSidebarTransparent, sidebarTransparencyMode])
+
+  useEffect(() => {
+    if (!isDesktopClient) return
+    const root = document.documentElement
     return () => {
       delete root.dataset.sidebarTransparency
       delete root.dataset.sidebarTransparencyMode
     }
-  }, [isDesktopClient, isSidebarTransparent, sidebarTransparencyMode])
+  }, [isDesktopClient])
 
   const onCreateProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
@@ -408,7 +469,7 @@ export function AppShell(props: AppShellProps) {
     <div
       data-testid="app-shell"
       data-sidebar-transparency={isDesktopClient && isSidebarTransparent ? 'on' : 'off'}
-      data-sidebar-transparency-mode={isDesktopClient ? sidebarTransparencyMode : 'off'}
+      data-sidebar-transparency-mode={isDesktopClient && isSidebarTransparent ? sidebarTransparencyMode : 'off'}
       className={cn(
         'h-screen w-screen min-w-0 overflow-hidden ui-text-base relative app-shell-root-surface',
         isDesktopClient && 'app-shell-desktop',
@@ -504,10 +565,13 @@ export function AppShell(props: AppShellProps) {
                       size="sm"
                       aria-label="Toggle sidebar transparency"
                       aria-pressed={isSidebarTransparent}
+                      aria-busy={isSidebarTransparencyPending ? 'true' : undefined}
                       className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground app-shell-no-drag"
-                      onClick={() => onToggleSidebarTransparency(!isSidebarTransparent)}
+                      onClick={onToggleSidebarTransparency}
                     >
-                      {isSidebarTransparent ? 'Sidebar solid' : 'Sidebar transparent'}
+                      {isSidebarTransparencyPending
+                        ? 'Updating sidebar...'
+                        : (isSidebarTransparent ? 'Sidebar solid' : 'Sidebar transparent')}
                     </Button>
                   ) : null}
                   {showDevLoadAllButton ? (

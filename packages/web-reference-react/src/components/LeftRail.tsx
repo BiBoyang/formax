@@ -50,7 +50,7 @@ export type LeftRailProps = {
   isDesktopClient?: boolean
   onCreateProject?: () => Promise<void> | void
   isSidebarTransparent?: boolean
-  onToggleSidebarTransparency?: (enabled: boolean) => void
+  onToggleSidebarTransparency?: () => void
   isSettingsOpen?: boolean
   onOpenSettings?: () => void
   onCloseSettings?: () => void
@@ -387,7 +387,7 @@ export function LeftRail(props: LeftRailProps) {
               <SidebarItem
                 kind="menu"
                 label={isSidebarTransparent ? '关闭侧边栏透明' : '开启侧边栏透明'}
-                onActivate={() => onToggleSidebarTransparency(!isSidebarTransparent)}
+                onActivate={onToggleSidebarTransparency}
               />
             ) : null}
           </DropdownMenuContent>

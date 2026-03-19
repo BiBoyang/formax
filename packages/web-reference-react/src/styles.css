@@ -145,12 +145,16 @@ body {
   --app-backdrop-surface: rgb(245 245 245 / 0.24);
   --app-backdrop-blur: 22px;
   --sidebar-glass-shadow: none;
+  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
+  --sidebar-list-active: var(--sidebar-list-active-translucent);
 }
 
 .dark.app-shell-desktop[data-sidebar-transparency='on'] {
   --app-backdrop-surface: rgb(22 22 22 / 0.22);
   --app-backdrop-blur: 22px;
   --sidebar-glass-shadow: none;
+  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
+  --sidebar-list-active: var(--sidebar-list-active-translucent);
 }
 
 @supports (color: color-mix(in srgb, red, transparent)) {
@@ -286,6 +290,12 @@ body {
   .ui-sidebar-list-row[data-selected='true'],
   .ui-sidebar-list-row[aria-selected='true'] {
     background: var(--sidebar-list-active);
+  }
+
+  .ui-sidebar-list-row[data-active='true'] .ui-sidebar-list-row-time,
+  .ui-sidebar-list-row[data-selected='true'] .ui-sidebar-list-row-time,
+  .ui-sidebar-list-row[aria-selected='true'] .ui-sidebar-list-row-time {
+    color: var(--sidebar-text-primary);
   }
 
   .ui-sidebar-list-row-time {
