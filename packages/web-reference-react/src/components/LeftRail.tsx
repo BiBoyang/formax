@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FolderPlus, Globe, Settings, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
+import { useI18n } from '../app/i18n/I18nProvider'
 import { Button } from './ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 import {
@@ -81,8 +82,10 @@ export function LeftRail(props: LeftRailProps) {
     onOpenSettings,
     onCloseSettings,
     onOpenFolderInTarget,
-    openFolderActionLabel = 'Open in Finder',
+    openFolderActionLabel,
   } = props
+  const { t } = useI18n()
+  const resolvedOpenFolderActionLabel = openFolderActionLabel ?? t('leftRail.openInTarget', { target: 'Finder' })
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
   const activeThread = useMemo(
@@ -206,8 +209,8 @@ export function LeftRail(props: LeftRailProps) {
 
   const createProjectButton = (
     <RailActionIconButton
-      aria-label="Add project"
-      title={canCreateProject ? 'Add project' : 'Desktop only'}
+      aria-label={t('leftRail.addProject')}
+      title={canCreateProject ? t('leftRail.addProject') : t('leftRail.desktopOnlyTooltip')}
       disabled={isBusy}
       className="text-muted-foreground hover:text-foreground hover:bg-muted/40"
       onClick={handleCreateProject}
@@ -239,7 +242,7 @@ export function LeftRail(props: LeftRailProps) {
                 tone="muted"
                 className="mb-4"
                 icon={<ArrowLeft className="h-4 w-4" />}
-                label="返回应用"
+                label={t('leftRail.returnToApp')}
                 onActivate={onCloseSettings}
               />
 
@@ -249,16 +252,16 @@ export function LeftRail(props: LeftRailProps) {
                 selectable
                 className="font-medium"
                 icon={<Settings className="h-4 w-4" />}
-                label="常规"
+                label={t('leftRail.general')}
               />
-              <SidebarItem icon={<Monitor className="h-4 w-4" />} label="Appearance" />
-              <SidebarItem icon={<Settings2 className="h-4 w-4" />} label="配置" />
-              <SidebarItem icon={<Palette className="h-4 w-4" />} label="个性化" />
-              <SidebarItem icon={<Server className="h-4 w-4" />} label="MCP 服务器" />
-              <SidebarItem icon={<GitBranch className="h-4 w-4" />} label="Git" />
-              <SidebarItem icon={<TerminalSquare className="h-4 w-4" />} label="环境" />
-              <SidebarItem icon={<FolderTree className="h-4 w-4" />} label="工作树" />
-              <SidebarItem icon={<ArchiveRestore className="h-4 w-4" />} label="已归档线程" />
+              <SidebarItem icon={<Monitor className="h-4 w-4" />} label={t('leftRail.appearance')} />
+              <SidebarItem icon={<Settings2 className="h-4 w-4" />} label={t('leftRail.config')} />
+              <SidebarItem icon={<Palette className="h-4 w-4" />} label={t('leftRail.personalization')} />
+              <SidebarItem icon={<Server className="h-4 w-4" />} label={t('leftRail.mcpServers')} />
+              <SidebarItem icon={<GitBranch className="h-4 w-4" />} label={t('leftRail.git')} />
+              <SidebarItem icon={<TerminalSquare className="h-4 w-4" />} label={t('leftRail.environment')} />
+              <SidebarItem icon={<FolderTree className="h-4 w-4" />} label={t('leftRail.worktrees')} />
+              <SidebarItem icon={<ArchiveRestore className="h-4 w-4" />} label={t('leftRail.archivedThreads')} />
             </div>
           </div>
         </div>
@@ -288,7 +291,7 @@ export function LeftRail(props: LeftRailProps) {
             {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
             <SidebarItem
               icon={<SquarePen className="h-4 w-4" />}
-              label="New thread"
+              label={t('leftRail.newThread')}
               onActivate={onStartThread}
               disabled={isBusy}
             />
@@ -300,7 +303,7 @@ export function LeftRail(props: LeftRailProps) {
 
           <div className="flex-1 flex flex-col mt-2 pb-12">
             <div className="px-5 ui-text-base font-medium ui-sidebar-text-muted tracking-wide flex items-center justify-between gap-2 flex-none">
-              <span>Threads</span>
+              <span>{t('leftRail.threads')}</span>
               {canCreateProject ? (
                 createProjectButton
               ) : (
@@ -308,7 +311,7 @@ export function LeftRail(props: LeftRailProps) {
                   <Tooltip>
                     <TooltipTrigger asChild>{createProjectButton}</TooltipTrigger>
                     <TooltipContent side="bottom" align="end">
-                      仅桌面客户端可用
+                      {t('leftRail.desktopOnlyTooltip')}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -316,7 +319,7 @@ export function LeftRail(props: LeftRailProps) {
             </div>
 
             <div className="space-y-px px-2">
-              {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">No recent threads</div> : null}
+              {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">{t('leftRail.noRecentThreads')}</div> : null}
               {visibleGroupedThreads.map((group) => {
                 const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
@@ -339,7 +342,7 @@ export function LeftRail(props: LeftRailProps) {
                         onMarkFolderRemoved={markFolderRemoved}
                         onStartThreadInFolder={handleStartThreadInFolder}
                         onOpenFolderInTarget={onOpenFolderInTarget}
-                        openFolderActionLabel={openFolderActionLabel}
+                        openFolderActionLabel={resolvedOpenFolderActionLabel}
                         suppressFolderAction={suppressFolderAction}
                       />
                     </CollapsibleTrigger>
@@ -380,17 +383,17 @@ export function LeftRail(props: LeftRailProps) {
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarItem className="app-shell-no-drag" icon={<Settings className="h-4 w-4" />} label="设置" />
+            <SidebarItem className="app-shell-no-drag" icon={<Settings className="h-4 w-4" />} label={t('leftRail.settings')} />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[280px] app-shell-no-drag" side="top" align="start" sideOffset={8}>
             {onOpenSettings ? (
-              <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label="设置" onActivate={onOpenSettings} />
+              <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label={t('leftRail.settings')} onActivate={onOpenSettings} />
             ) : null}
-            <SidebarItem kind="menu" icon={<Globe className="h-4 w-4" />} label="语言" />
+            <SidebarItem kind="menu" icon={<Globe className="h-4 w-4" />} label={t('leftRail.language')} />
             {isDesktopClient && onToggleWindowTransparency ? (
               <SidebarItem
                 kind="menu"
-                label={isWindowTransparent ? '关闭窗口透明' : '开启窗口透明'}
+                label={isWindowTransparent ? t('leftRail.windowTransparencyOff') : t('leftRail.windowTransparencyOn')}
                 onActivate={onToggleWindowTransparency}
               />
             ) : null}
@@ -408,21 +411,21 @@ export function LeftRail(props: LeftRailProps) {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Rename thread</DialogTitle>
-              <DialogDescription>Keep it short and recognizable.</DialogDescription>
+              <DialogTitle>{t('leftRail.renameThreadTitle')}</DialogTitle>
+              <DialogDescription>{t('leftRail.renameThreadDescription')}</DialogDescription>
             </DialogHeader>
             <Input
               value={renameValue}
               onChange={(event) => setRenameValue(event.target.value)}
-              placeholder="Thread title"
+              placeholder={t('leftRail.threadTitlePlaceholder')}
               autoFocus
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeRenameDialog} disabled={isRenaming}>
-                Cancel
+                {t('leftRail.cancel')}
               </Button>
               <Button type="submit" disabled={!renameValue.trim() || isRenaming}>
-                {isRenaming ? 'Saving...' : 'Save'}
+                {isRenaming ? t('leftRail.saving') : t('leftRail.save')}
               </Button>
             </DialogFooter>
           </form>

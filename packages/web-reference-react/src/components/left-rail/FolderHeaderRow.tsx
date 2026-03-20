@@ -1,6 +1,7 @@
 import { forwardRef, memo, useState, type ComponentPropsWithoutRef } from 'react'
 import { ChevronDown, Folder, FolderOpen, MoreHorizontal, SquarePen } from 'lucide-react'
 
+import { useI18n } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
 import {
   DropdownMenu,
@@ -42,11 +43,13 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
     onMarkFolderRemoved,
     onStartThreadInFolder,
     onOpenFolderInTarget,
-    openFolderActionLabel = 'Open in Finder',
+    openFolderActionLabel,
     suppressFolderAction,
     className,
     ...rest
   } = props
+  const { t } = useI18n()
+  const resolvedOpenFolderActionLabel = openFolderActionLabel ?? t('leftRail.openInTarget', { target: 'Finder' })
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
 
   return (
@@ -79,7 +82,7 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
               <DropdownMenuTrigger asChild>
                 <RailActionIconButton
                   type="button"
-                  aria-label={`Folder actions for ${folderName}`}
+                  aria-label={t('leftRail.folderActions', { folder: folderName })}
                   className="pointer-events-auto text-muted-foreground/90 hover:bg-transparent hover:text-muted-foreground/90 dark:hover:bg-transparent"
                   onClick={(event) => {
                     event.preventDefault()
@@ -107,11 +110,11 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                     setIsActionsMenuOpen(false)
                   }}
                 >
-                  {openFolderActionLabel}
+                  {resolvedOpenFolderActionLabel}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>Create permanent worktree</DropdownMenuItem>
-                <DropdownMenuItem disabled>Edit name</DropdownMenuItem>
+                <DropdownMenuItem disabled>{t('leftRail.createPermanentWorktree')}</DropdownMenuItem>
+                <DropdownMenuItem disabled>{t('leftRail.editName')}</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   disabled={!canRemoveGroup}
@@ -121,14 +124,14 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                     setIsActionsMenuOpen(false)
                   }}
                 >
-                  Remove session folder
+                  {t('leftRail.removeSessionFolder')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <RailActionIconButton
               type="button"
-              aria-label={`Start new thread in ${folderName}`}
-              title={`Start new thread in ${folderName}`}
+              aria-label={t('leftRail.startNewThreadInFolder', { folder: folderName })}
+              title={t('leftRail.startNewThreadInFolder', { folder: folderName })}
               disabled={isBusy}
               className="pointer-events-auto text-muted-foreground/90 hover:bg-transparent hover:text-muted-foreground/90 dark:hover:bg-transparent"
               onClick={(event) => {

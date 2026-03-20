@@ -1,5 +1,6 @@
 import { memo } from 'react'
 
+import { useI18n } from '../../app/i18n/I18nProvider'
 import type { ThreadViewModel } from '../../app/core/threadViewModel'
 import {
   ContextMenu,
@@ -26,6 +27,7 @@ export type ThreadRowProps = {
 }
 
 export const MemoThreadRow = memo(function ThreadRow(props: ThreadRowProps) {
+  const { t } = useI18n()
   const {
     thread,
     isActive,
@@ -59,24 +61,24 @@ export const MemoThreadRow = memo(function ThreadRow(props: ThreadRowProps) {
           disabled={!canRenameThread}
           onSelect={() => onRenameFromContextMenu(thread)}
         >
-          Rename thread
+          {t('leftRail.renameThread')}
         </ContextMenuItem>
         <ContextMenuItem
           disabled={!canArchiveThread || isBusy}
           onSelect={() => onArchiveFromContextMenu(thread)}
         >
-          Archive thread
+          {t('leftRail.archiveThread')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => onCopyContextCwd(thread)}
         >
-          Copy working directory
+          {t('leftRail.copyWorkingDirectory')}
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => onCopyContextThreadId(thread)}
         >
-          Copy session ID
+          {t('leftRail.copySessionId')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

@@ -52,3 +52,19 @@
 - [x] [6] 语言（占位）：
 步骤：切换语言设置项并刷新页面。
 通过标准：设置值可持久化，不触发功能回归；按约定不要求完整 i18n 文案切换。
+
+## 新增：语言完整管线（GUI 中英）
+
+- [x] 收敛语言类型：仅保留 `zh-CN` / `en-US`。
+- [x] 建立 i18n 基础设施：`messages + provider + hook + 参数插值`。
+- [x] 接入根组件：按 `settings.language` 驱动 Provider。
+- [x] 改造主 GUI 文案：`LeftRail / SettingsPane / TranscriptPane / left-rail 子组件`。
+- [x] 增加回归测试：覆盖语言切换与关键文案渲染。
+- [x] 执行验证：目标测试 + type-check + review + 小步提交。
+
+## i18n 验证记录（GUI 中英）
+
+- [x] 目标测试通过：
+`bun run test -- src/app/i18n/I18nProvider.test.tsx src/components/SettingsPane.test.tsx src/components/LeftRail.test.tsx src/components/TranscriptPane.test.tsx src/app/core/userSettings.test.ts`（workdir: `packages/web-reference-react`）。
+- [x] 类型检查通过：
+`bun run type-check`（workdir: `packages/web-reference-react`）。

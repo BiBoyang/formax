@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
 import { getWebSupportedSlashCommandSpecs, type WebSupportedSlashCommandSpec } from '../app/core/commandSupport'
+import { useI18n, type I18nTranslator } from '../app/i18n/I18nProvider'
 import { shouldTreatAsLongPrompt } from '../app/core/userSettings'
 import { cn } from '../lib/utils'
 import { resolveCommandRouting } from '../semantics'
@@ -128,23 +129,23 @@ function nextComposerMode(mode: ComposerMode): ComposerMode {
   return MODE_CYCLE[(idx + 1) % MODE_CYCLE.length] ?? 'normal'
 }
 
-function modeMeta(mode: ComposerMode): { label: string; icon: typeof Pencil; toneClass: string } {
+function modeMeta(mode: ComposerMode, t: I18nTranslator): { label: string; icon: typeof Pencil; toneClass: string } {
   if (mode === 'plan') {
     return {
-      label: 'Plan mode',
+      label: t('transcript.mode.plan'),
       icon: Pause,
       toneClass: 'text-foreground/70 hover:text-foreground',
     }
   }
   if (mode === 'acceptEdits') {
     return {
-      label: 'Edit automatically',
+      label: t('transcript.mode.acceptEdits'),
       icon: ChevronsRight,
       toneClass: 'text-foreground/70 hover:text-foreground',
     }
   }
   return {
-    label: 'Ask before edits',
+    label: t('transcript.mode.normal'),
     icon: Pencil,
     toneClass: 'text-foreground/70 hover:text-foreground',
   }
@@ -232,25 +233,27 @@ function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline
 function ThinkingItem(props: {
   item: Extract<TranscriptItem, { kind: 'thinking' }>
 }) {
+  const { t } = useI18n()
   const { item } = props
   if (item.status !== 'running') return null
   return (
     <div className="flex items-center gap-2 py-1">
-      <div className="ui-text-meta ui-text-muted tracking-tight animate-pulse">{'\u2234 Thinking\u2026'}</div>
+      <div className="ui-text-meta ui-text-muted tracking-tight animate-pulse">{t('transcript.runningThinking')}</div>
     </div>
   )
 }
 
 function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_footer' }> }) {
+  const { t } = useI18n()
   const styleByStatus = {
     completed: 'text-muted-foreground',
     failed: 'text-red-600',
     interrupted: 'text-amber-700',
   } as const
   const labelByStatus = {
-    completed: 'Turn completed',
-    failed: 'Turn failed',
-    interrupted: 'Turn interrupted',
+    completed: t('transcript.turn.completed'),
+    failed: t('transcript.turn.failed'),
+    interrupted: t('transcript.turn.interrupted'),
   } as const
   return (
     <div className="flex items-center gap-2 py-1 pl-1">
@@ -271,6 +274,7 @@ type TranscriptItemRowProps = {
 }
 
 const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemRowProps) {
+  const { t } = useI18n()
   const {
     item,
     turnGroupStart,
@@ -299,7 +303,7 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
         <div className={cn('rounded-lg border px-3 py-2 ui-text-meta bg-muted/15')}>
           <div className="mb-1 flex items-center gap-2">
             <Badge variant={logLevelBadge(item.level)} className="h-4 px-1 ui-text-micro uppercase font-bold tracking-wider">{item.level}</Badge>
-            <span className="ui-text-micro uppercase tracking-wider text-muted-foreground/80">notice</span>
+            <span className="ui-text-micro uppercase tracking-wider text-muted-foreground/80">{t('transcript.notice')}</span>
           </div>
           <div className="text-muted-foreground ui-text-meta whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.text}</div>
         </div>
@@ -414,11 +418,12 @@ function WelcomePromptCard(props: WelcomePromptIdea) {
 }
 
 function WelcomeCanvas() {
+  const { t } = useI18n()
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-1 items-center justify-center pb-8">
         <div className="text-center">
-          <div className="text-2xl leading-tight font-semibold tracking-tight text-foreground/72">Welcome to Formax</div>
+          <div className="text-2xl leading-tight font-semibold tracking-tight text-foreground/72">{t('transcript.welcomeTitle')}</div>
         </div>
       </div>
 
@@ -454,6 +459,7 @@ const TranscriptRowsList = memo(function TranscriptRowsList(props: TranscriptRow
 })
 
 const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) {
+  const { t } = useI18n()
   const lastRpcErrorDetails = useMemo(
     () => (props.lastRpcError ? formatRpcErrorDetails(props.lastRpcError) : ''),
     [
@@ -496,7 +502,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
           {props.historyMore ? (
             <div className="flex justify-center">
               <Button type="button" variant="ghost" size="sm" disabled={props.historyLoading} onClick={props.onLoadEarlier}>
-                {props.historyLoading ? 'Loading earlier messages...' : 'Load earlier messages'}
+                {props.historyLoading ? t('transcript.loadingEarlierMessages') : t('transcript.loadEarlierMessages')}
               </Button>
             </div>
           ) : null}
@@ -504,7 +510,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
           {props.hiddenInMemoryCount > 0 ? (
             <div className="flex justify-center">
               <Button type="button" variant="ghost" size="sm" onClick={props.onRenderEarlierMessages}>
-                {`Render earlier messages (${props.hiddenInMemoryCount} hidden)`}
+                {t('transcript.renderEarlierMessages', { count: props.hiddenInMemoryCount })}
               </Button>
             </div>
           ) : null}
@@ -515,7 +521,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
                 <FolderSearch className="h-8 w-8 text-muted-foreground/25" />
-                <span className="ui-text-base ui-text-muted">This thread is empty. Start with a first message.</span>
+                <span className="ui-text-base ui-text-muted">{t('transcript.emptyThread')}</span>
               </div>
             )
           ) : null}
@@ -529,7 +535,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
 
           {props.showTurnLoading ? (
             <div data-testid="turn-loading" className="py-1">
-              <LoadingStatusLine text="Thinking" cycleWords />
+              <LoadingStatusLine text={t('transcript.thinking')} cycleWords />
             </div>
           ) : null}
 
@@ -538,11 +544,11 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
               <Card className="gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none mx-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="ui-text-meta text-destructive font-medium">
-                    Rpc Error: {props.lastRpcError.message}
+                    {t('transcript.rpcErrorPrefix')}: {props.lastRpcError.message}
                   </div>
                   <CollapsibleTrigger asChild>
                     <Button type="button" variant="ghost" size="xs" className="h-6 px-2 ui-text-meta hover:bg-destructive/10">
-                      {props.showErrorDetails ? 'Hide' : 'Details'}
+                      {props.showErrorDetails ? t('transcript.hide') : t('transcript.details')}
                     </Button>
                   </CollapsibleTrigger>
                 </div>
@@ -578,12 +584,13 @@ type ComposerDockProps = {
 }
 
 const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
+  const { t } = useI18n()
   const [isImeComposing, setIsImeComposing] = useState(false)
   const [isSlashMenuPinnedOpen, setIsSlashMenuPinnedOpen] = useState(false)
   const [isSlashAutoOpenSuppressed, setIsSlashAutoOpenSuppressed] = useState(false)
   const [slashSelectionIndex, setSlashSelectionIndex] = useState(0)
   const composerRootRef = useRef<HTMLDivElement | null>(null)
-  const modeInfo = modeMeta(props.mode)
+  const modeInfo = modeMeta(props.mode, t)
   const commandRouting = useMemo(
     () => resolveCommandRouting(props.inputText),
     [props.inputText],
@@ -666,7 +673,7 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
           <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
             <Button
               type="button"
-              aria-label="Jump to bottom"
+              aria-label={t('transcript.jumpToBottom')}
               size="icon"
               variant="outline"
               className="pointer-events-auto h-9 w-9 rounded-full border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
@@ -682,19 +689,19 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
             className="absolute inset-x-2 bottom-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-border/80 bg-background/96 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88"
           >
             <div className="px-3 py-2 border-b border-border/70 ui-text-meta text-muted-foreground">
-              {slashQuery == null ? 'Web slash commands' : `Filter: /${slashQuery}`}
+              {slashQuery == null ? t('transcript.webSlashCommands') : t('transcript.slashFilter', { query: slashQuery })}
             </div>
             <div className="max-h-64 overflow-y-auto px-1 py-1.5">
               {slashCommandSpecs.length === 0 ? (
                 <div className="rounded-lg px-2 py-2 ui-text-meta text-muted-foreground">
-                  No matching web slash command.
+                  {t('transcript.noMatchingSlashCommand')}
                 </div>
               ) : (
                 slashCommandSpecs.map((spec, index) => (
                   <button
                     key={spec.command}
                     type="button"
-                    aria-label={`Insert ${spec.command}`}
+                    aria-label={t('transcript.insertSlashCommand', { command: spec.command })}
                     className={cn(
                       'flex w-full items-start justify-between gap-3 rounded-xl px-2.5 py-2 text-left transition-colors',
                       index === slashSelectionIndex ? 'bg-muted/70 text-foreground' : 'text-foreground/92 hover:bg-muted/55',
@@ -724,7 +731,7 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
           <Textarea
             value={props.inputText}
             onChange={(event) => props.onInputTextChange(event.target.value)}
-            placeholder="Ask for follow-up changes"
+            placeholder={t('transcript.followUpPlaceholder')}
             className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 ui-text-base leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
             onCompositionStart={() => setIsImeComposing(true)}
             onCompositionEnd={() => setIsImeComposing(false)}
@@ -784,7 +791,7 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
               <Button
                 type="button"
                 variant="ghost"
-                aria-label="Open slash commands"
+                aria-label={t('transcript.openSlashCommands')}
                 aria-expanded={isSlashMenuVisible}
                 data-testid="composer-slash-trigger"
                 onClick={toggleSlashMenu}
@@ -792,30 +799,30 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
                   'h-7 rounded-md px-2 font-mono text-[13px] leading-none tracking-tight text-muted-foreground transition-colors hover:text-foreground',
                   isSlashMenuVisible && 'bg-muted text-foreground',
                 )}
-                title="Slash commands"
+                title={t('transcript.slashCommandsTitle')}
               >
                 /
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                aria-label="Execution mode"
+                aria-label={t('transcript.executionMode')}
                 onClick={() => props.onModeChange(nextComposerMode(props.mode))}
                 className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
-                title="Click to cycle mode (Shift+Tab)"
+                title={t('transcript.modeCycleTitle')}
               >
                 <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
                 <span>{modeInfo.label}</span>
               </Button>
               <div className="hidden lg:block ui-text-base text-muted-foreground/85">
-                Type / for commands, Tab complete, Shift+Tab switch mode
+                {t('transcript.modeCycleHint')}
               </div>
             </div>
             <div className="flex items-center gap-1 pr-1 text-muted-foreground">
               {props.isSending || props.isInterrupting ? (
                 <Button
                   type="button"
-                  aria-label="Interrupt turn"
+                  aria-label={t('transcript.interruptTurn')}
                   size="icon"
                   disabled={props.isInterrupting}
                   className="h-7 w-7 rounded-full shrink-0 border-0 bg-black text-white shadow-none hover:bg-black/90"
@@ -826,7 +833,7 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
               ) : (
                 <Button
                   type="submit"
-                  aria-label="Send message"
+                  aria-label={t('transcript.sendMessage')}
                   disabled={!props.activeThreadId || props.connectionStatus !== 'connected' || !props.inputText.trim()}
                   size="icon"
                   className={cn(

@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { Card, CardContent } from './ui/card'
 import { cn } from '../lib/utils'
 import { ScrollArea } from './ui/scroll-area'
+import { useI18n } from '../app/i18n/I18nProvider'
 import type { OpenTargetOption, UpdateUserSetting, UserSettings } from '../app/core/userSettings'
 
 export type SettingsPaneProps = {
@@ -89,19 +90,27 @@ function BasicSelect({
   )
 }
 
-function SegmentedControl({ value, options, onChange }: { value: string; options: string[], onChange: (v: string) => void }) {
+function SegmentedControl({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (v: string) => void
+}) {
   return (
     <div className="inline-flex h-[32px] items-center justify-center rounded-md bg-muted/60 p-1 text-muted-foreground">
       {options.map((opt) => (
         <button
-          key={opt}
-          onClick={() => onChange(opt)}
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
           className={cn(
             'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
-            value === opt ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'
+            value === opt.value ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'
           )}
         >
-          {opt}
+          {opt.label}
         </button>
       ))}
     </div>
@@ -113,22 +122,23 @@ export const SettingsPane = memo(function SettingsPane({
   onSettingChange,
   availableOpenTargets,
 }: SettingsPaneProps) {
-  const [followBehavior, setFollowBehavior] = useState('引导')
-  const [threadDetailLevel, setThreadDetailLevel] = useState('带代码命令的步骤')
-  const [speedPreset, setSpeedPreset] = useState('Standard')
-  const [turnNotificationPolicy, setTurnNotificationPolicy] = useState('仅当应用失焦时')
+  const { t } = useI18n()
+  const [followBehavior, setFollowBehavior] = useState<'queue' | 'lead'>('lead')
+  const [threadDetailLevel, setThreadDetailLevel] = useState<'resultOnly' | 'stepsWithCode' | 'fullContext'>('stepsWithCode')
+  const [speedPreset, setSpeedPreset] = useState<'standard' | 'fast' | 'eco'>('standard')
+  const [turnNotificationPolicy, setTurnNotificationPolicy] = useState<'whenUnfocused' | 'always' | 'never'>('whenUnfocused')
 
   return (
     <div className="h-full w-full flex flex-col bg-background relative overflow-hidden app-shell-settings-pane">
       <div className="flex-1 min-h-0 flex justify-center">
         <ScrollArea className="w-full h-full max-w-3xl px-8 pb-10">
           <div className="mb-6">
-            <h2 className="text-[20px] font-bold tracking-tight">常规</h2>
+            <h2 className="text-[20px] font-bold tracking-tight">{t('settings.generalTitle')}</h2>
           </div>
           <SettingsSection>
             <SettingsRow
-              label="默认打开目标"
-              description="默认打开文件和文件夹的位置"
+              label={t('settings.defaultOpenTarget.label')}
+              description={t('settings.defaultOpenTarget.description')}
               control={
                 <BasicSelect
                   value={settings.defaultOpenTarget}
@@ -141,15 +151,14 @@ export const SettingsPane = memo(function SettingsPane({
               }
             />
             <SettingsRow
-              label="语言"
-              description="应用 UI 语言"
+              label={t('settings.language.label')}
+              description={t('settings.language.description')}
               control={
                 <BasicSelect
                   value={settings.language}
                   options={[
-                    { value: 'zh-CN', label: '中文 (中国)' },
-                    { value: 'en-US', label: 'English (US)' },
-                    { value: 'ja-JP', label: '日本語' },
+                    { value: 'zh-CN', label: t('settings.language.zhCN') },
+                    { value: 'en-US', label: t('settings.language.enUS') },
                   ]}
                   onChange={(nextValue) =>
                     onSettingChange('language', nextValue as UserSettings['language'])
@@ -158,23 +167,23 @@ export const SettingsPane = memo(function SettingsPane({
               }
             />
             <SettingsRow
-              label="线程详细信息"
-              description="选择线程中命令输出的显示量"
+              label={t('settings.threadDetail.label')}
+              description={t('settings.threadDetail.description')}
               control={
                 <BasicSelect
                   value={threadDetailLevel}
                   options={[
-                    { value: '只看结果', label: '只看结果' },
-                    { value: '带代码命令的步骤', label: '带代码命令的步骤' },
-                    { value: '完整上下文', label: '完整上下文' },
+                    { value: 'resultOnly', label: t('settings.threadDetail.resultOnly') },
+                    { value: 'stepsWithCode', label: t('settings.threadDetail.stepsWithCode') },
+                    { value: 'fullContext', label: t('settings.threadDetail.fullContext') },
                   ]}
-                  onChange={setThreadDetailLevel}
+                  onChange={(nextValue) => setThreadDetailLevel(nextValue as 'resultOnly' | 'stepsWithCode' | 'fullContext')}
                 />
               }
             />
             <SettingsRow
-              label="运行防止系统休眠"
-              description="在 Codex 运行任务线程时，让你的电脑保持唤醒状态。"
+              label={t('settings.preventSleep.label')}
+              description={t('settings.preventSleep.description')}
               control={
                 <BasicSwitch
                   checked={settings.preventSleep}
@@ -183,8 +192,8 @@ export const SettingsPane = memo(function SettingsPane({
               }
             />
             <SettingsRow
-              label="需按 ⌘ + 回车键发送长文本提示"
-              description="启用后，长文本提示需按 ⌘ + 回车键发送。"
+              label={t('settings.longTextSend.label')}
+              description={t('settings.longTextSend.description')}
               control={
                 <BasicSwitch
                   checked={settings.longTextRequireCmdEnter}
@@ -193,49 +202,58 @@ export const SettingsPane = memo(function SettingsPane({
               }
             />
             <SettingsRow
-              label="Speed"
-              description="Choose how quickly inference runs across threads, subagents, and compaction. Fast uses 2x plan usage."
+              label={t('settings.speed.label')}
+              description={t('settings.speed.description')}
               control={
                 <BasicSelect
                   value={speedPreset}
                   options={[
-                    { value: 'Standard', label: 'Standard' },
-                    { value: 'Fast', label: 'Fast' },
-                    { value: 'Eco', label: 'Eco' },
+                    { value: 'standard', label: t('settings.speed.standard') },
+                    { value: 'fast', label: t('settings.speed.fast') },
+                    { value: 'eco', label: t('settings.speed.eco') },
                   ]}
-                  onChange={setSpeedPreset}
+                  onChange={(nextValue) => setSpeedPreset(nextValue as 'standard' | 'fast' | 'eco')}
                 />
               }
             />
             <SettingsRow
-              label="跟进行为"
-              description="在 Codex 运行排队跟进任务，或引导当前运行。 按 ⇧ ⌘ Enter 可对单条消息执行相反操作。"
-              control={<SegmentedControl value={followBehavior} onChange={setFollowBehavior} options={['排队', '引导']} />}
+              label={t('settings.followBehavior.label')}
+              description={t('settings.followBehavior.description')}
+              control={
+                <SegmentedControl
+                  value={followBehavior}
+                  onChange={(nextValue) => setFollowBehavior(nextValue as 'queue' | 'lead')}
+                  options={[
+                    { value: 'queue', label: t('settings.followBehavior.queue') },
+                    { value: 'lead', label: t('settings.followBehavior.lead') },
+                  ]}
+                />
+              }
             />
           </SettingsSection>
 
           <div className="mb-4 mt-8">
-            <h2 className="text-[20px] font-bold tracking-tight">通知</h2>
+            <h2 className="text-[20px] font-bold tracking-tight">{t('settings.notificationsTitle')}</h2>
           </div>
           <SettingsSection>
             <SettingsRow
-              label="轮次完成通知"
-              description="设置 Codex 完成任务时的提醒"
+              label={t('settings.turnNotification.label')}
+              description={t('settings.turnNotification.description')}
               control={
                 <BasicSelect
                   value={turnNotificationPolicy}
                   options={[
-                    { value: '仅当应用失焦时', label: '仅当应用失焦时' },
-                    { value: '总是提醒', label: '总是提醒' },
-                    { value: '从不', label: '从不' },
+                    { value: 'whenUnfocused', label: t('settings.turnNotification.whenUnfocused') },
+                    { value: 'always', label: t('settings.turnNotification.always') },
+                    { value: 'never', label: t('settings.turnNotification.never') },
                   ]}
-                  onChange={setTurnNotificationPolicy}
+                  onChange={(nextValue) => setTurnNotificationPolicy(nextValue as 'whenUnfocused' | 'always' | 'never')}
                 />
               }
             />
             <SettingsRow
-              label="启用权限通知"
-              description="在需要通知权限时显示提醒"
+              label={t('settings.permissionNotification.label')}
+              description={t('settings.permissionNotification.description')}
               control={<BasicSwitch checked={true} onChange={() => {}} />}
             />
           </SettingsSection>

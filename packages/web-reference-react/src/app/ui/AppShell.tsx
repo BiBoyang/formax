@@ -14,6 +14,7 @@ import { SettingsPane } from '../../components/SettingsPane'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import { DEFAULT_OPEN_TARGET_OPTIONS, type OpenTargetOption, type UpdateUserSetting, type UserSettings } from '../core/userSettings'
+import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
@@ -116,6 +117,7 @@ export type AppShellProps = {
 }
 
 export function AppShell(props: AppShellProps) {
+  const { t } = useI18n()
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
   const isDesktopClient = desktopBridge != null
   const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
@@ -396,8 +398,8 @@ export function AppShell(props: AppShellProps) {
   const openFolderActionLabel = useMemo(() => {
     const selectedTarget = availableOpenTargets.find((target) => target.id === props.userSettings.defaultOpenTarget)
     const label = selectedTarget?.label ?? 'Finder'
-    return `Open in ${label}`
-  }, [availableOpenTargets, props.userSettings.defaultOpenTarget])
+    return t('leftRail.openInTarget', { target: label })
+  }, [availableOpenTargets, props.userSettings.defaultOpenTarget, t])
 
   const leftRailProps = useMemo(
     () => ({
@@ -618,7 +620,7 @@ export function AppShell(props: AppShellProps) {
                       isDesktopClient && 'app-shell-no-drag',
                     )}
                     onClick={onToggleSidebar}
-                    aria-label="Toggle sidebar"
+                    aria-label={t('appShell.toggleSidebar')}
                   >
                     <PanelLeft
                       className={cn(
@@ -630,7 +632,7 @@ export function AppShell(props: AppShellProps) {
                   <div className="min-w-0 flex flex-col leading-tight">
                     <div className="truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
                     <div className="ui-text-meta text-muted-foreground/80 truncate">
-                      {isDesktopClient ? 'Desktop workspace' : 'Web reference workspace'}
+                      {isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')}
                     </div>
                   </div>
                 </div>
@@ -640,15 +642,15 @@ export function AppShell(props: AppShellProps) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      aria-label="Toggle window transparency"
+                      aria-label={t('appShell.toggleWindowTransparency')}
                       aria-pressed={isWindowTransparent}
                       aria-busy={isWindowTransparencyPending ? 'true' : undefined}
                       className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground app-shell-no-drag"
                       onClick={onToggleWindowTransparency}
                     >
                       {isWindowTransparencyPending
-                        ? 'Updating window...'
-                        : (isWindowTransparent ? 'Window solid' : 'Window transparent')}
+                        ? t('appShell.updatingWindow')
+                        : (isWindowTransparent ? t('appShell.windowSolid') : t('appShell.windowTransparent'))}
                     </Button>
                   ) : null}
                   {showDevLoadAllButton ? (
@@ -664,12 +666,12 @@ export function AppShell(props: AppShellProps) {
                       onClick={onDevLoadAllEarlier}
                       disabled={devLoadAllDisabled}
                     >
-                      {props.devLoadAllRunning ? 'Loading all earlier...' : 'Load all earlier (Dev)'}
+                      {props.devLoadAllRunning ? t('appShell.loadingAllEarlierDev') : t('appShell.loadAllEarlierDev')}
                     </Button>
                   ) : null}
                   {props.activeTurnId ? (
                     <div className="rounded-full border border-border bg-background px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
-                      turn {props.activeTurnId.slice(0, 8)}
+                      {t('appShell.turnBadge', { id: props.activeTurnId.slice(0, 8) })}
                     </div>
                   ) : null}
                   <div className="rounded-full bg-muted px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
@@ -695,7 +697,7 @@ export function AppShell(props: AppShellProps) {
                   {props.noticeMessage ? (
                     <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
                       <Alert className="pointer-events-auto border-border/70 bg-background/95 shadow-sm backdrop-blur">
-                        <AlertTitle>Session archived</AlertTitle>
+                        <AlertTitle>{t('appShell.sessionArchived')}</AlertTitle>
                         <AlertDescription>{props.noticeMessage}</AlertDescription>
                       </Alert>
                     </div>

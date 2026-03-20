@@ -1,5 +1,5 @@
 export type OpenTarget = 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
-export type UiLanguage = 'zh-CN' | 'en-US' | 'ja-JP'
+export type UiLanguage = 'zh-CN' | 'en-US'
 
 export type OpenTargetOption = {
   id: OpenTarget
