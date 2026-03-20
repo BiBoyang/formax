@@ -37,7 +37,7 @@ const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
-type DesktopOpenTargetsAction = 'list-available'
+type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -128,7 +128,6 @@ function isCommandAvailable(command: string): boolean {
   if (process.platform === 'win32') {
     const result = spawnSync('where', [command], {
       stdio: 'ignore',
-      shell: true,
     })
     return result.status === 0
   }
@@ -155,6 +154,96 @@ function listAvailableOpenTargets(): OpenTargetDescriptor[] {
 
   if (targets.length > 0) return targets
   return [{ id: 'finder', label: process.platform === 'win32' ? 'Explorer' : 'Files' }]
+}
+
+function runOpenCommand(command: string, args: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(command, args, {
+        stdio: 'ignore',
+        shell: false,
+        detached: true,
+        windowsHide: true,
+      })
+
+      let settled = false
+      const finish = (ok: boolean) => {
+        if (settled) return
+        settled = true
+        resolve(ok)
+      }
+
+      child.once('error', () => finish(false))
+      child.once('spawn', () => {
+        child.unref()
+        finish(true)
+      })
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+function openPathWithTarget(target: OpenTargetDescriptor['id'], rawPath: string): Promise<boolean> {
+  const targetPath = rawPath.trim()
+  if (!targetPath) return Promise.resolve(false)
+
+  if (process.platform === 'darwin') {
+    switch (target) {
+      case 'vscode':
+        return runOpenCommand('open', ['-a', 'Visual Studio Code', targetPath])
+      case 'cursor':
+        return runOpenCommand('open', ['-a', 'Cursor', targetPath])
+      case 'antigravity':
+        return runOpenCommand('open', ['-a', 'Antigravity', targetPath])
+      case 'finder':
+        return runOpenCommand('open', [targetPath])
+      case 'terminal':
+        return runOpenCommand('open', ['-a', 'Terminal', targetPath])
+      case 'iterm2':
+        return runOpenCommand('open', ['-a', 'iTerm', targetPath])
+      case 'xcode':
+        return runOpenCommand('open', ['-a', 'Xcode', targetPath])
+      default:
+        return Promise.resolve(false)
+    }
+  }
+
+  if (process.platform === 'win32') {
+    switch (target) {
+      case 'vscode':
+        return runOpenCommand('code', [targetPath])
+      case 'cursor':
+        return runOpenCommand('cursor', [targetPath])
+      case 'antigravity':
+        return runOpenCommand('antigravity', [targetPath])
+      case 'terminal':
+        return runOpenCommand('wt', ['-d', targetPath])
+      case 'finder':
+      case 'iterm2':
+      case 'xcode':
+        return runOpenCommand('explorer', [targetPath])
+      default:
+        return Promise.resolve(false)
+    }
+  }
+
+  switch (target) {
+    case 'vscode':
+      return runOpenCommand('code', [targetPath])
+    case 'cursor':
+      return runOpenCommand('cursor', [targetPath])
+    case 'antigravity':
+      return runOpenCommand('antigravity', [targetPath])
+    case 'terminal':
+      return runOpenCommand('x-terminal-emulator', ['--working-directory', targetPath])
+    case 'finder':
+    case 'iterm2':
+    case 'xcode':
+      return runOpenCommand('xdg-open', [targetPath])
+    default:
+      return Promise.resolve(false)
+  }
 }
 
 function normalizeHostname(hostname: string): string {
@@ -727,9 +816,13 @@ function registerDesktopIpcHandlers(): void {
 
   ipcMain.handle(
     OPEN_TARGETS_CHANNEL,
-    (_event, action: DesktopOpenTargetsAction) => {
+    (_event, action: DesktopOpenTargetsAction, target?: OpenTargetDescriptor['id'], pathToOpen?: string) => {
       if (action === 'list-available') {
         return listAvailableOpenTargets()
+      }
+      if (action === 'open-path') {
+        if (typeof target !== 'string' || typeof pathToOpen !== 'string') return false
+        return openPathWithTarget(target, pathToOpen)
       }
       return listAvailableOpenTargets()
     },

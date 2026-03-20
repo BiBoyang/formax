@@ -28,6 +28,10 @@ type FormaxDesktopBridge = {
       id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
       label: string
     }>>
+    openPath?: (
+      target: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode',
+      path: string,
+    ) => Promise<boolean>
   }
 }
 

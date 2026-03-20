@@ -10,7 +10,7 @@ const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
-type DesktopOpenTargetsAction = 'list-available'
+type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -41,6 +41,7 @@ type FormaxDesktopRuntimeInfo = {
   }
   openTargets: {
     listAvailable: () => Promise<OpenTargetDescriptor[]>
+    openPath: (target: OpenTargetDescriptor['id'], path: string) => Promise<boolean>
   }
 }
 
@@ -188,6 +189,15 @@ const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
           return typeof candidate.id === 'string' && typeof candidate.label === 'string'
         })
         .map((entry) => ({ id: entry.id, label: entry.label }))
+    },
+    openPath: async (target: OpenTargetDescriptor['id'], path: string) => {
+      const result = await ipcRenderer.invoke(
+        OPEN_TARGETS_CHANNEL,
+        'open-path' satisfies DesktopOpenTargetsAction,
+        target,
+        path,
+      )
+      return result === true
     },
   }),
 })

@@ -26,6 +26,8 @@ export type FolderHeaderRowProps = ComponentPropsWithoutRef<'div'> & {
   onSelectCwd: (cwd: string) => void
   onMarkFolderRemoved: (cwd: string) => void
   onStartThreadInFolder: (cwd: string) => void
+  onOpenFolderInTarget?: (cwd: string) => void
+  openFolderActionLabel?: string
   suppressFolderAction: (event: SuppressInteractionEvent) => void
 }
 
@@ -39,6 +41,8 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
     onSelectCwd,
     onMarkFolderRemoved,
     onStartThreadInFolder,
+    onOpenFolderInTarget,
+    openFolderActionLabel = 'Open in Finder',
     suppressFolderAction,
     className,
     ...rest
@@ -95,6 +99,17 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                 </RailActionIconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" side="right" align="start" sideOffset={6}>
+                <DropdownMenuItem
+                  disabled={!onOpenFolderInTarget}
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    onOpenFolderInTarget?.(cwd)
+                    setIsActionsMenuOpen(false)
+                  }}
+                >
+                  {openFolderActionLabel}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem disabled>Create permanent worktree</DropdownMenuItem>
                 <DropdownMenuItem disabled>Edit name</DropdownMenuItem>
                 <DropdownMenuSeparator />

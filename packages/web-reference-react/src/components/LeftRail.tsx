@@ -54,6 +54,8 @@ export type LeftRailProps = {
   isSettingsOpen?: boolean
   onOpenSettings?: () => void
   onCloseSettings?: () => void
+  onOpenFolderInTarget?: (cwd: string) => void
+  openFolderActionLabel?: string
 }
 
 export function LeftRail(props: LeftRailProps) {
@@ -78,6 +80,8 @@ export function LeftRail(props: LeftRailProps) {
     isSettingsOpen = false,
     onOpenSettings,
     onCloseSettings,
+    onOpenFolderInTarget,
+    openFolderActionLabel = 'Open in Finder',
   } = props
   const groupedThreads = useMemo(() => groupThreadsByCwd(threads), [threads])
   const hiddenGroupCwdSet = useMemo(() => new Set(hiddenGroupCwds), [hiddenGroupCwds])
@@ -334,6 +338,8 @@ export function LeftRail(props: LeftRailProps) {
                         onSelectCwd={onSelectCwd}
                         onMarkFolderRemoved={markFolderRemoved}
                         onStartThreadInFolder={handleStartThreadInFolder}
+                        onOpenFolderInTarget={onOpenFolderInTarget}
+                        openFolderActionLabel={openFolderActionLabel}
                         suppressFolderAction={suppressFolderAction}
                       />
                     </CollapsibleTrigger>

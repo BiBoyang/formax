@@ -378,8 +378,26 @@ export function AppShell(props: AppShellProps) {
     if (!desktopBridge?.pickProjectFolder) return
     const nextCwd = await desktopBridge.pickProjectFolder()
     if (!nextCwd) return
+    const openWithTarget = desktopBridge?.openTargets?.openPath
+    if (openWithTarget) {
+      void openWithTarget(props.userSettings.defaultOpenTarget, nextCwd).catch(() => undefined)
+    }
     props.onStartThreadInCwd(nextCwd)
-  }, [desktopBridge, props.onStartThreadInCwd])
+  }, [desktopBridge, props.onStartThreadInCwd, props.userSettings.defaultOpenTarget])
+
+  const onOpenFolderInTarget = useCallback((cwd: string) => {
+    if (!isDesktopClient) return
+    const openWithTarget = desktopBridge?.openTargets?.openPath
+    if (!openWithTarget) return
+    if (!cwd.trim()) return
+    void openWithTarget(props.userSettings.defaultOpenTarget, cwd).catch(() => undefined)
+  }, [desktopBridge, isDesktopClient, props.userSettings.defaultOpenTarget])
+
+  const openFolderActionLabel = useMemo(() => {
+    const selectedTarget = availableOpenTargets.find((target) => target.id === props.userSettings.defaultOpenTarget)
+    const label = selectedTarget?.label ?? 'Finder'
+    return `Open in ${label}`
+  }, [availableOpenTargets, props.userSettings.defaultOpenTarget])
 
   const leftRailProps = useMemo(
     () => ({
@@ -402,6 +420,8 @@ export function AppShell(props: AppShellProps) {
       isSettingsOpen: props.isSettingsOpen,
       onOpenSettings,
       onCloseSettings,
+      onOpenFolderInTarget: isDesktopClient ? onOpenFolderInTarget : undefined,
+      openFolderActionLabel,
     }),
     [
       props.activeThreadId,
@@ -421,6 +441,8 @@ export function AppShell(props: AppShellProps) {
       isWindowTransparent,
       desktopBridge,
       onCreateProject,
+      onOpenFolderInTarget,
+      openFolderActionLabel,
       onOpenSettings,
       onCloseSettings,
       onToggleWindowTransparency,
