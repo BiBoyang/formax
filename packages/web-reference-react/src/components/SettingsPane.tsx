@@ -35,8 +35,8 @@ function SettingsRow({
   return (
     <div className="flex items-center justify-between px-5 py-4">
       <div className="flex flex-col gap-0.5 mr-4">
-        <span className="text-[12px] font-medium leading-none text-[#1f2328] dark:text-[#c9d1d9]">{label}</span>
-        {description && <span className="text-[12px] text-muted-foreground">{description}</span>}
+        <span className="ui-text-base font-medium leading-none ui-sidebar-text-primary">{label}</span>
+        {description && <span className="ui-text-meta ui-sidebar-text-muted">{description}</span>}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
@@ -77,7 +77,7 @@ function BasicSelect({
 }) {
   return (
     <select
-      className="h-[32px] items-center justify-between rounded-md border border-input bg-background/50 px-3 py-1 text-[12px] ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-1 w-[220px] shadow-sm"
+      className="h-8 items-center justify-between rounded-md border border-input bg-background/50 px-3 py-1 ui-text-base ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-1 w-[220px]"
       value={value}
       onChange={(event) => onChange(event.target.value)}
     >
@@ -100,13 +100,13 @@ function SegmentedControl({
   onChange: (v: string) => void
 }) {
   return (
-    <div className="inline-flex h-[32px] items-center justify-center rounded-md bg-muted/60 p-1 text-muted-foreground">
+    <div className="inline-flex h-8 items-center justify-center rounded-md bg-muted/60 p-1 ui-text-base text-muted-foreground">
       {options.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
+            'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1 font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
             value === opt.value ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'
           )}
         >
