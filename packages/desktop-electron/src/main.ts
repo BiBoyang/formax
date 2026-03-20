@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'el
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawn as spawnPty, type IPty } from 'node-pty'
 import { createDefaultWindowAppearanceState, type WindowAppearanceState } from './windowAppearanceState'
 
 const DEFAULT_START_URL = 'http://127.0.0.1:3781'
@@ -33,15 +34,50 @@ const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 const WINDOW_APPEARANCE_STATE_FILE = 'window-appearance.json'
 const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
 const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
+const TERMINAL_CHANNEL = 'formax:desktop:terminal'
+const TERMINAL_EVENT_CHANNEL = 'formax:desktop:terminal:event'
+const TERMINAL_OUTPUT_MAX_BYTES = 512 * 1024
+const DEFAULT_TERMINAL_COLS = 120
+const DEFAULT_TERMINAL_ROWS = 36
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type DesktopOpenTargetsAction = 'list-available' | 'open-path'
+type DesktopTerminalAction = 'ensure-session' | 'get-snapshot' | 'write' | 'resize' | 'destroy-session'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
   label: string
+}
+
+type TerminalEnsureSessionResult = {
+  created: boolean
+  exists: boolean
+}
+
+type TerminalSnapshotResult = {
+  exists: boolean
+  output: string
+  exitCode?: number | null
+  dataSeq?: number
+}
+
+type TerminalEventPayload =
+  | { type: 'data'; threadId: string; chunk: string; dataSeq: number }
+  | { type: 'exit'; threadId: string; exitCode: number | null }
+
+type TerminalSession = {
+  threadId: string
+  cwd: string
+  pty: IPty
+  output: string
+  outputBytes: number
+  exited: boolean
+  exitCode: number | null
+  dataSeq: number
+  disposeData: () => void
+  disposeExit: () => void
 }
 
 type ManagedRuntimeConfig = {
@@ -57,6 +93,8 @@ let managedRuntimeStopTimer: NodeJS.Timeout | null = null
 let managedRuntimeStopping = false
 const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceState>()
 const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
+const terminalSessionsByWebContentsId = new Map<number, Map<string, TerminalSession>>()
+let terminalSpawnHelperChecked = false
 let initialWindowAppearanceState: WindowAppearanceState = createDefaultWindowAppearanceState()
 let preventSleepBlockerId: number | null = null
 
@@ -243,6 +281,292 @@ function openPathWithTarget(target: OpenTargetDescriptor['id'], rawPath: string)
       return runOpenCommand('xdg-open', [targetPath])
     default:
       return Promise.resolve(false)
+  }
+}
+
+function findWindowByWebContentsId(webContentsId: number): BrowserWindow | null {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.webContents.id === webContentsId) return window
+  }
+  return null
+}
+
+function readTerminalSessionsMap(webContentsId: number, create = false): Map<string, TerminalSession> | null {
+  const existing = terminalSessionsByWebContentsId.get(webContentsId)
+  if (existing) return existing
+  if (!create) return null
+  const next = new Map<string, TerminalSession>()
+  terminalSessionsByWebContentsId.set(webContentsId, next)
+  return next
+}
+
+function resolveTerminalThreadId(rawThreadId: unknown): string | null {
+  if (typeof rawThreadId !== 'string') return null
+  const trimmed = rawThreadId.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function resolveTerminalCwd(rawCwd: unknown): string {
+  if (typeof rawCwd === 'string' && rawCwd.trim()) {
+    const resolved = path.resolve(rawCwd)
+    if (fs.existsSync(resolved)) return resolved
+  }
+  const processCwd = process.cwd()
+  if (processCwd && fs.existsSync(processCwd)) return processCwd
+  return app.getPath('home')
+}
+
+function resolveTerminalShellCommand(): string {
+  if (process.platform === 'win32') {
+    const comSpec = process.env.ComSpec?.trim()
+    return comSpec && comSpec.length > 0 ? comSpec : 'powershell.exe'
+  }
+  const shellName = process.env.SHELL?.trim()
+  return shellName && shellName.length > 0 ? shellName : '/bin/bash'
+}
+
+function resolveTerminalShellArgs(shellCommand: string): string[] {
+  if (process.platform !== 'win32') return []
+  const normalized = path.basename(shellCommand).toLowerCase()
+  if (normalized.includes('powershell')) return ['-NoLogo']
+  return []
+}
+
+function ensureTerminalSpawnHelperExecutable(): void {
+  if (terminalSpawnHelperChecked) return
+  terminalSpawnHelperChecked = true
+  if (process.platform !== 'darwin') return
+
+  let nodePtyRoot: string
+  try {
+    nodePtyRoot = path.dirname(require.resolve('node-pty/package.json'))
+  } catch {
+    return
+  }
+
+  const helperCandidates = [
+    path.join(nodePtyRoot, 'prebuilds', 'darwin-arm64', 'spawn-helper'),
+    path.join(nodePtyRoot, 'prebuilds', 'darwin-x64', 'spawn-helper'),
+  ]
+
+  for (const helperPath of helperCandidates) {
+    try {
+      const stats = fs.statSync(helperPath)
+      if (!stats.isFile()) continue
+      if ((stats.mode & 0o111) !== 0) continue
+      fs.chmodSync(helperPath, stats.mode | 0o755)
+    } catch {
+      // Ignore permission auto-fix failures and let session spawn attempt report details.
+    }
+  }
+}
+
+function appendTerminalOutput(session: TerminalSession, chunk: string): void {
+  if (!chunk) return
+  session.output += chunk
+  session.outputBytes += Buffer.byteLength(chunk, 'utf8')
+  if (session.outputBytes <= TERMINAL_OUTPUT_MAX_BYTES) return
+
+  let bytesToTrim = session.outputBytes - TERMINAL_OUTPUT_MAX_BYTES
+  let trimIndex = 0
+  while (bytesToTrim > 0 && trimIndex < session.output.length) {
+    const codePoint = session.output.codePointAt(trimIndex)
+    if (codePoint == null) break
+    const char = String.fromCodePoint(codePoint)
+    bytesToTrim -= Buffer.byteLength(char, 'utf8')
+    trimIndex += char.length
+  }
+
+  if (trimIndex > 0) {
+    session.output = session.output.slice(trimIndex)
+    session.outputBytes = Buffer.byteLength(session.output, 'utf8')
+  }
+}
+
+function publishTerminalEvent(webContentsId: number, payload: TerminalEventPayload): void {
+  const window = findWindowByWebContentsId(webContentsId)
+  if (!window || window.isDestroyed()) return
+  window.webContents.send(TERMINAL_EVENT_CHANNEL, payload)
+}
+
+function disposeTerminalSession(session: TerminalSession): void {
+  try {
+    session.disposeData()
+  } catch {
+    // Ignore listener cleanup failures during shutdown.
+  }
+  try {
+    session.disposeExit()
+  } catch {
+    // Ignore listener cleanup failures during shutdown.
+  }
+  if (!session.exited) {
+    try {
+      session.pty.kill()
+    } catch {
+      // Ignore process-kill errors when shell already terminated.
+    }
+  }
+  session.exited = true
+}
+
+function readTerminalSnapshot(webContentsId: number, rawThreadId: unknown): TerminalSnapshotResult {
+  const threadId = resolveTerminalThreadId(rawThreadId)
+  if (!threadId) return { exists: false, output: '' }
+  const sessions = readTerminalSessionsMap(webContentsId)
+  const session = sessions?.get(threadId)
+  if (!session) return { exists: false, output: '' }
+  return {
+    exists: !session.exited,
+    output: session.output,
+    dataSeq: session.dataSeq,
+    ...(session.exited ? { exitCode: session.exitCode } : {}),
+  }
+}
+
+function ensureTerminalSession(
+  webContentsId: number,
+  rawThreadId: unknown,
+  rawCwd: unknown,
+): TerminalEnsureSessionResult {
+  const threadId = resolveTerminalThreadId(rawThreadId)
+  if (!threadId) return { created: false, exists: false }
+
+  const sessions = readTerminalSessionsMap(webContentsId, true)
+  if (!sessions) return { created: false, exists: false }
+
+  const existing = sessions.get(threadId)
+  if (existing && !existing.exited) {
+    return { created: false, exists: true }
+  }
+  if (existing) {
+    sessions.delete(threadId)
+    disposeTerminalSession(existing)
+  }
+
+  const cwd = resolveTerminalCwd(rawCwd)
+  const shellCommand = resolveTerminalShellCommand()
+  const shellArgs = resolveTerminalShellArgs(shellCommand)
+  ensureTerminalSpawnHelperExecutable()
+
+  try {
+    const pty = spawnPty(shellCommand, shellArgs, {
+      name: 'xterm-256color',
+      cols: DEFAULT_TERMINAL_COLS,
+      rows: DEFAULT_TERMINAL_ROWS,
+      cwd,
+      env: {
+        ...process.env,
+        TERM: 'xterm-256color',
+      },
+    })
+
+    const session: TerminalSession = {
+      threadId,
+      cwd,
+      pty,
+      output: '',
+      outputBytes: 0,
+      exited: false,
+      exitCode: null,
+      dataSeq: 0,
+      disposeData: () => undefined,
+      disposeExit: () => undefined,
+    }
+
+    const dataDisposable = pty.onData((chunk: string) => {
+      if (session.exited) return
+      appendTerminalOutput(session, chunk)
+      session.dataSeq += 1
+      publishTerminalEvent(webContentsId, { type: 'data', threadId, chunk, dataSeq: session.dataSeq })
+    })
+    session.disposeData = () => {
+      dataDisposable.dispose()
+    }
+    const exitDisposable = pty.onExit((event: { exitCode?: number }) => {
+      session.exited = true
+      session.exitCode = typeof event.exitCode === 'number' && Number.isFinite(event.exitCode) ? event.exitCode : null
+      publishTerminalEvent(webContentsId, { type: 'exit', threadId, exitCode: session.exitCode })
+    })
+    session.disposeExit = () => {
+      exitDisposable.dispose()
+    }
+
+    sessions.set(threadId, session)
+    return { created: true, exists: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`[formax-desktop] failed to start terminal session for ${threadId}: ${message}\n`)
+    return { created: false, exists: false }
+  }
+}
+
+function writeTerminalSessionInput(webContentsId: number, rawThreadId: unknown, rawData: unknown): boolean {
+  const threadId = resolveTerminalThreadId(rawThreadId)
+  if (!threadId) return false
+  if (typeof rawData !== 'string') return false
+  const sessions = readTerminalSessionsMap(webContentsId)
+  const session = sessions?.get(threadId)
+  if (!session || session.exited) return false
+  try {
+    session.pty.write(rawData)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function normalizeTerminalDimension(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const rounded = Math.max(1, Math.floor(value))
+  return Math.min(rounded, 2000)
+}
+
+function resizeTerminalSession(webContentsId: number, rawThreadId: unknown, rawCols: unknown, rawRows: unknown): boolean {
+  const threadId = resolveTerminalThreadId(rawThreadId)
+  if (!threadId) return false
+  const sessions = readTerminalSessionsMap(webContentsId)
+  const session = sessions?.get(threadId)
+  if (!session || session.exited) return false
+  const cols = normalizeTerminalDimension(rawCols, DEFAULT_TERMINAL_COLS)
+  const rows = normalizeTerminalDimension(rawRows, DEFAULT_TERMINAL_ROWS)
+  try {
+    session.pty.resize(cols, rows)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function destroyTerminalSession(webContentsId: number, rawThreadId: unknown): boolean {
+  const threadId = resolveTerminalThreadId(rawThreadId)
+  if (!threadId) return false
+  const sessions = readTerminalSessionsMap(webContentsId)
+  if (!sessions) return false
+  const session = sessions.get(threadId)
+  if (!session) return false
+  sessions.delete(threadId)
+  disposeTerminalSession(session)
+  if (sessions.size === 0) {
+    terminalSessionsByWebContentsId.delete(webContentsId)
+  }
+  return true
+}
+
+function destroyTerminalSessionsForWindow(webContentsId: number): void {
+  const sessions = readTerminalSessionsMap(webContentsId)
+  if (!sessions) return
+  for (const session of sessions.values()) {
+    disposeTerminalSession(session)
+  }
+  sessions.clear()
+  terminalSessionsByWebContentsId.delete(webContentsId)
+}
+
+function destroyAllTerminalSessions(): void {
+  const webContentsIds = Array.from(terminalSessionsByWebContentsId.keys())
+  for (const webContentsId of webContentsIds) {
+    destroyTerminalSessionsForWindow(webContentsId)
   }
 }
 
@@ -730,6 +1054,9 @@ function registerDesktopIpcHandlers(): void {
   ipcMain.removeHandler(PICK_PROJECT_FOLDER_CHANNEL)
   ipcMain.removeHandler(WINDOW_CONTROL_CHANNEL)
   ipcMain.removeHandler(WINDOW_APPEARANCE_CHANNEL)
+  ipcMain.removeHandler(POWER_MANAGEMENT_CHANNEL)
+  ipcMain.removeHandler(OPEN_TARGETS_CHANNEL)
+  ipcMain.removeHandler(TERMINAL_CHANNEL)
 
   ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async (event) => {
     const ownerWindow = resolveOwnerWindow(event)
@@ -827,6 +1154,35 @@ function registerDesktopIpcHandlers(): void {
       return listAvailableOpenTargets()
     },
   )
+
+  ipcMain.handle(
+    TERMINAL_CHANNEL,
+    (event, action: DesktopTerminalAction, threadId?: string, payloadA?: unknown, payloadB?: unknown) => {
+      const ownerWindow = resolveOwnerWindow(event)
+      if (!ownerWindow) {
+        if (action === 'get-snapshot') return { exists: false, output: '' }
+        if (action === 'ensure-session') return { created: false, exists: false }
+        return false
+      }
+      const webContentsId = ownerWindow.webContents.id
+      if (action === 'ensure-session') {
+        return ensureTerminalSession(webContentsId, threadId, payloadA)
+      }
+      if (action === 'get-snapshot') {
+        return readTerminalSnapshot(webContentsId, threadId)
+      }
+      if (action === 'write') {
+        return writeTerminalSessionInput(webContentsId, threadId, payloadA)
+      }
+      if (action === 'resize') {
+        return resizeTerminalSession(webContentsId, threadId, payloadA, payloadB)
+      }
+      if (action === 'destroy-session') {
+        return destroyTerminalSession(webContentsId, threadId)
+      }
+      return false
+    },
+  )
 }
 
 function wireNavigationGuards(window: BrowserWindow): void {
@@ -871,6 +1227,7 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
     ...defaultWindowAppearanceState,
   })
   window.on('closed', () => {
+    destroyTerminalSessionsForWindow(webContentsId)
     windowAppearanceStateByWebContentsId.delete(webContentsId)
     windowAppearanceQueueByWebContentsId.delete(webContentsId)
   })
@@ -918,6 +1275,7 @@ async function bootstrap(): Promise<void> {
   })
 
   app.on('before-quit', () => {
+    destroyAllTerminalSessions()
     setPreventSleepEnabled(false)
     requestManagedRuntimeShutdown()
   })

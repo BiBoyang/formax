@@ -5,6 +5,22 @@ type WindowAppearanceState = {
   windowTransparencyEnabled: boolean
 }
 
+type DesktopTerminalEnsureSessionResult = {
+  created: boolean
+  exists: boolean
+}
+
+type DesktopTerminalSnapshotResult = {
+  exists: boolean
+  output: string
+  exitCode?: number | null
+  dataSeq?: number
+}
+
+type DesktopTerminalEvent =
+  | { type: 'data'; threadId: string; chunk: string; dataSeq: number }
+  | { type: 'exit'; threadId: string; exitCode: number | null }
+
 type FormaxDesktopBridge = {
   mode: string
   startUrl: string
@@ -32,6 +48,14 @@ type FormaxDesktopBridge = {
       target: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode',
       path: string,
     ) => Promise<boolean>
+  }
+  terminal?: {
+    ensureSession: (threadId: string, cwd?: string) => Promise<DesktopTerminalEnsureSessionResult>
+    getSnapshot: (threadId: string) => Promise<DesktopTerminalSnapshotResult>
+    write: (threadId: string, data: string) => Promise<boolean>
+    resize: (threadId: string, cols: number, rows: number) => Promise<boolean>
+    destroySession: (threadId: string) => Promise<boolean>
+    subscribe: (listener: (event: DesktopTerminalEvent) => void) => () => void
   }
 }
 

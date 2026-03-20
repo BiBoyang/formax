@@ -14,6 +14,7 @@ import {
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
+import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
 import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
@@ -42,6 +43,7 @@ const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
 
 type DesktopBridge = NonNullable<Window['formaxDesktop']>
+type DesktopTerminalBridge = NonNullable<NonNullable<Window['formaxDesktop']>['terminal']>
 type DesktopWindowAppearanceState = {
   revision: number
   windowTransparencyEnabled: boolean
@@ -55,6 +57,21 @@ const DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE: DesktopWindowAppearanceState = {
 function readDesktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null
   return window.formaxDesktop ?? null
+}
+
+function readDesktopTerminalBridge(bridge: DesktopBridge | null): DesktopTerminalBridge | null {
+  const candidate = bridge?.terminal
+  if (
+    !candidate?.ensureSession ||
+    !candidate.getSnapshot ||
+    !candidate.write ||
+    !candidate.resize ||
+    !candidate.destroySession ||
+    !candidate.subscribe
+  ) {
+    return null
+  }
+  return candidate as DesktopTerminalBridge
 }
 
 function normalizeDesktopWindowAppearanceState(payload: unknown): DesktopWindowAppearanceState {
@@ -142,11 +159,14 @@ const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:b
 export function AppShell(props: AppShellProps) {
   const { t } = useI18n()
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
+  const terminalBridge = useMemo(() => readDesktopTerminalBridge(desktopBridge), [desktopBridge])
   const isDesktopClient = desktopBridge != null
   const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
     DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
   const [availableOpenTargets, setAvailableOpenTargets] = useState<OpenTargetOption[]>(DEFAULT_OPEN_TARGET_OPTIONS)
+  const [terminalVisibleByThreadId, setTerminalVisibleByThreadId] = useState<Record<string, boolean>>({})
+  const [terminalHeightPercent, setTerminalHeightPercent] = useState(32)
   const isWindowTransparent = desktopWindowAppearanceState.windowTransparencyEnabled
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
@@ -165,6 +185,9 @@ export function AppShell(props: AppShellProps) {
   const latestWindowTransparencyEnabledRef = useRef(isWindowTransparent)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
+  const terminalVisibleByThreadIdRef = useRef<Record<string, boolean>>({})
+  const terminalHeightRef = useRef(32)
+  const knownThreadIdsRef = useRef<Set<string>>(new Set(props.sortedThreads.map((thread) => thread.id)))
   const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
   const lastOpenRightRailWidthRef = useRef(clampRightRailWidth(rightRailPercent))
   const previousSidebarOpenRef = useRef(props.isSidebarOpen)
@@ -175,6 +198,16 @@ export function AppShell(props: AppShellProps) {
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning
   const shouldKeepSystemAwake =
     props.userSettings.preventSleep && (props.isSending || props.isInterrupting || props.activeTurnId != null)
+  const activeThreadId = props.activeThreadId
+  const activeThreadTerminalVisible = activeThreadId ? terminalVisibleByThreadId[activeThreadId] === true : false
+  const showTerminalPane = Boolean(
+    isDesktopClient &&
+      terminalBridge &&
+      activeThreadId &&
+      activeThreadTerminalVisible &&
+      !props.isSettingsOpen,
+  )
+  const canToggleTerminal = Boolean(isDesktopClient && terminalBridge && activeThreadId)
 
   useEffect(() => {
     if (!props.isSidebarOpen) return
@@ -292,6 +325,96 @@ export function AppShell(props: AppShellProps) {
     props.setRightRailWidth(restoredRightRailWidth)
     props.setIsRightRailOpen(true)
   }, [props.isRightRailOpen, props.setIsRightRailOpen, props.setRightRailWidth, props.rightRailWidth])
+
+  useEffect(() => {
+    terminalVisibleByThreadIdRef.current = terminalVisibleByThreadId
+  }, [terminalVisibleByThreadId])
+
+  useEffect(() => {
+    terminalHeightRef.current = terminalHeightPercent
+  }, [terminalHeightPercent])
+
+  const onCloseTerminalPane = useCallback(() => {
+    const threadId = props.activeThreadId
+    if (!threadId) return
+    setTerminalVisibleByThreadId((previous) => {
+      if (previous[threadId] !== true) return previous
+      return { ...previous, [threadId]: false }
+    })
+  }, [props.activeThreadId])
+
+  const onToggleTerminal = useCallback(async () => {
+    if (!terminalBridge) return
+    const threadId = props.activeThreadId
+    if (!threadId) return
+
+    const currentlyVisible = terminalVisibleByThreadIdRef.current[threadId] === true
+    if (currentlyVisible) {
+      setTerminalVisibleByThreadId((previous) => ({ ...previous, [threadId]: false }))
+      return
+    }
+    const nextCwd = props.activeThread?.cwd ?? props.selectedCwd ?? undefined
+    const result = await terminalBridge.ensureSession(threadId, nextCwd)
+    if (!result.exists) return
+
+    setTerminalHeightPercent(Math.max(18, Math.min(60, terminalHeightRef.current)))
+    setTerminalVisibleByThreadId((previous) => ({ ...previous, [threadId]: true }))
+  }, [props.activeThread?.cwd, props.activeThreadId, props.selectedCwd, terminalBridge])
+
+  const onTerminalResize = useCallback((sizePercent: number) => {
+    const clamped = Math.max(18, Math.min(60, sizePercent))
+    setTerminalHeightPercent(clamped)
+  }, [])
+
+  useEffect(() => {
+    const currentIds = new Set(props.sortedThreads.map((thread) => thread.id))
+    const removedThreadIds = Array.from(knownThreadIdsRef.current).filter((threadId) => !currentIds.has(threadId))
+    knownThreadIdsRef.current = currentIds
+    if (removedThreadIds.length === 0) return
+
+    setTerminalVisibleByThreadId((previous) => {
+      let changed = false
+      const next: Record<string, boolean> = { ...previous }
+      for (const threadId of removedThreadIds) {
+        if (threadId in next) {
+          delete next[threadId]
+          changed = true
+        }
+      }
+      return changed ? next : previous
+    })
+
+    if (!terminalBridge) return
+    for (const threadId of removedThreadIds) {
+      void terminalBridge.destroySession(threadId).catch(() => undefined)
+    }
+  }, [props.sortedThreads, terminalBridge])
+
+  useEffect(() => {
+    if (!terminalBridge) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.shiftKey || event.altKey) return
+      const isTrigger = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j'
+      if (!isTrigger) return
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        const tagName = target.tagName.toLowerCase()
+        const isEditableTarget =
+          target.isContentEditable ||
+          tagName === 'input' ||
+          tagName === 'textarea' ||
+          target.getAttribute('role') === 'textbox'
+        if (isEditableTarget) return
+      }
+      event.preventDefault()
+      void onToggleTerminal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onToggleTerminal, terminalBridge])
 
   const onDevLoadAllEarlier = useCallback(() => {
     props.onDevLoadAllEarlier?.()
@@ -598,6 +721,55 @@ export function AppShell(props: AppShellProps) {
     ],
   )
 
+  const transcriptAndDiffPanels = (
+    <ResizablePanelGroup ref={rightRailPanelGroupRef} direction="horizontal" className="flex-1 min-h-0 min-w-0">
+      <ResizablePanel defaultSize={props.isRightRailOpen ? centerPercent : 100} minSize={35}>
+        <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
+          {props.noticeMessage ? (
+            <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
+              <Alert className="pointer-events-auto border-border/70 bg-background/95 shadow-sm backdrop-blur">
+                <AlertTitle>{t('appShell.sessionArchived')}</AlertTitle>
+                <AlertDescription>{props.noticeMessage}</AlertDescription>
+              </Alert>
+            </div>
+          ) : null}
+          <MemoTranscriptPane {...transcriptPaneProps} />
+          <MemoInputApprovalDock {...inputApprovalDockProps} />
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle
+        className={cn(
+          'relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0',
+          !props.isRightRailOpen && 'pointer-events-none opacity-0',
+        )}
+        onDragging={onRightDragStateChange}
+      />
+
+      <ResizablePanel
+        defaultSize={rightRailPercent}
+        size={props.isRightRailOpen ? rightRailPercent : 0}
+        minSize={props.isRightRailOpen ? rightRailMinPercent : 0}
+        maxSize={props.isRightRailOpen ? rightRailMaxPercent : 0}
+        onResize={onRightResize}
+        className={cn(
+          'app-shell-panel-motion',
+          !props.isRightRailOpen && 'pointer-events-none',
+        )}
+      >
+        <div
+          data-testid="right-rail"
+          className={cn(
+            'h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
+            props.isRightRailOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
+          )}
+        >
+          <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
+
   return (
     <div
       data-testid="app-shell"
@@ -805,23 +977,32 @@ export function AppShell(props: AppShellProps) {
 
                   <div className="w-px h-4 bg-border/60 mx-1" />
 
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className={cn(SHARED_HEADER_BTN_ICON, isDesktopClient && "app-shell-no-drag")}
-                        >
-                          <SquareTerminal className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-[13px]">
-                        切换终端 ⌘J
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  {isDesktopClient ? (
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={cn('inline-flex', isDesktopClient && 'app-shell-no-drag')}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className={cn(SHARED_HEADER_BTN_ICON)}
+                              onClick={() => {
+                                void onToggleTerminal()
+                              }}
+                              disabled={!canToggleTerminal}
+                              aria-label={t('appShell.toggleTerminal')}
+                            >
+                              <SquareTerminal className="h-4 w-4" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-[13px]">
+                          {canToggleTerminal ? `${t('appShell.toggleTerminal')} ⌘J` : t('appShell.terminalUnavailable')}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : null}
 
                   <button
                     type="button"
@@ -908,53 +1089,31 @@ export function AppShell(props: AppShellProps) {
                   availableOpenTargets={availableOpenTargets}
                 />
               </div>
-            ) : (
-              <ResizablePanelGroup ref={rightRailPanelGroupRef} direction="horizontal" className="flex-1 min-h-0 min-w-0">
-                <ResizablePanel defaultSize={props.isRightRailOpen ? centerPercent : 100} minSize={35}>
-                <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
-                  {props.noticeMessage ? (
-                    <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
-                      <Alert className="pointer-events-auto border-border/70 bg-background/95 shadow-sm backdrop-blur">
-                        <AlertTitle>{t('appShell.sessionArchived')}</AlertTitle>
-                        <AlertDescription>{props.noticeMessage}</AlertDescription>
-                      </Alert>
-                    </div>
-                  ) : null}
-                  <MemoTranscriptPane {...transcriptPaneProps} />
-                  <MemoInputApprovalDock {...inputApprovalDockProps} />
-                </div>
-              </ResizablePanel>
-
-              <ResizableHandle
-                className={cn(
-                  'relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0',
-                  !props.isRightRailOpen && 'pointer-events-none opacity-0',
-                )}
-                onDragging={onRightDragStateChange}
-              />
-
-              <ResizablePanel
-                defaultSize={rightRailPercent}
-                size={props.isRightRailOpen ? rightRailPercent : 0}
-                minSize={props.isRightRailOpen ? rightRailMinPercent : 0}
-                maxSize={props.isRightRailOpen ? rightRailMaxPercent : 0}
-                onResize={onRightResize}
-                className={cn(
-                  'app-shell-panel-motion',
-                  !props.isRightRailOpen && 'pointer-events-none',
-                )}
-              >
-                <div
-                  data-testid="right-rail"
-                  className={cn(
-                    'h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
-                    props.isRightRailOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
-                  )}
+            ) : showTerminalPane ? (
+              <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0 min-w-0">
+                <ResizablePanel defaultSize={Math.max(35, 100 - terminalHeightPercent)} minSize={35}>
+                  {transcriptAndDiffPanels}
+                </ResizablePanel>
+                <ResizableHandle className="h-0 after:top-0 after:h-3 after:translate-y-0" />
+                <ResizablePanel
+                  defaultSize={terminalHeightPercent}
+                  size={terminalHeightPercent}
+                  minSize={18}
+                  maxSize={60}
+                  onResize={onTerminalResize}
                 >
-                  <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+                  {terminalBridge && activeThreadId ? (
+                    <TerminalPane
+                      key={activeThreadId}
+                      threadId={activeThreadId}
+                      bridge={terminalBridge}
+                      onClose={onCloseTerminalPane}
+                    />
+                  ) : null}
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              transcriptAndDiffPanels
             )}
           </div>
         </ResizablePanel>

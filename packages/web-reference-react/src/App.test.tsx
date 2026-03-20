@@ -163,6 +163,73 @@ const rpcMock = vi.hoisted(() => {
   }
 })
 
+const xtermMock = vi.hoisted(() => {
+  class MockTerminal {
+    cols = 120
+    rows = 36
+    private host: HTMLElement | null = null
+    private output = ''
+    private dataListeners = new Set<(data: string) => void>()
+
+    loadAddon() {}
+
+    open(host: HTMLElement) {
+      this.host = host
+      this.render()
+    }
+
+    onData(listener: (data: string) => void) {
+      this.dataListeners.add(listener)
+      return {
+        dispose: () => {
+          this.dataListeners.delete(listener)
+        },
+      }
+    }
+
+    write(data: string) {
+      this.output += data
+      this.render()
+    }
+
+    reset() {
+      this.output = ''
+      this.render()
+    }
+
+    focus() {}
+
+    dispose() {
+      this.dataListeners.clear()
+      this.host = null
+      this.output = ''
+    }
+
+    private render() {
+      if (!this.host) return
+      this.host.textContent = this.output
+    }
+  }
+
+  class MockFitAddon {
+    fit() {}
+  }
+
+  return { MockTerminal, MockFitAddon }
+})
+
+vi.mock('@xterm/xterm', () => {
+  return {
+    Terminal: xtermMock.MockTerminal,
+  }
+})
+
+vi.mock('@xterm/addon-fit', () => {
+  return {
+    FitAddon: xtermMock.MockFitAddon,
+  }
+})
+
 vi.mock('./rpcClient', () => {
   class MockRpcRequestError extends Error {
     readonly code: number
@@ -334,6 +401,96 @@ describe('App thread history integration', () => {
       throw new Error('Expected transparency menu item to exist')
     }
     fireEvent.click(transparencyItem)
+  }
+
+  function createDesktopTerminalHarness(
+    initialSessions?: Record<string, { exists: boolean; output: string; exitCode?: number | null; dataSeq?: number }>,
+  ) {
+    const listeners = new Set<(event: DesktopTerminalEvent) => void>()
+    const sessions = new Map<string, { exists: boolean; output: string; exitCode?: number | null; dataSeq: number }>()
+    if (initialSessions) {
+      for (const [threadId, snapshot] of Object.entries(initialSessions)) {
+        sessions.set(threadId, {
+          exists: snapshot.exists,
+          output: snapshot.output,
+          ...(snapshot.exitCode !== undefined ? { exitCode: snapshot.exitCode } : {}),
+          dataSeq: snapshot.dataSeq ?? 0,
+        })
+      }
+    }
+
+    const ensureSession = vi.fn(async (threadId: string, _cwd?: string) => {
+      const existing = sessions.get(threadId)
+      if (existing?.exists) {
+        return { created: false, exists: true }
+      }
+      sessions.set(threadId, {
+        exists: true,
+        output: existing?.output ?? '',
+        exitCode: null,
+        dataSeq: existing?.dataSeq ?? 0,
+      })
+      return { created: true, exists: true }
+    })
+    const getSnapshot = vi.fn(async (threadId: string) => {
+      const snapshot = sessions.get(threadId)
+      if (!snapshot) return { exists: false, output: '' }
+      return {
+        exists: snapshot.exists,
+        output: snapshot.output,
+        ...(snapshot.exitCode !== undefined ? { exitCode: snapshot.exitCode } : {}),
+        dataSeq: snapshot.dataSeq,
+      }
+    })
+    const write = vi.fn(async (threadId: string, data: string) => {
+      const snapshot = sessions.get(threadId)
+      if (!snapshot || !snapshot.exists) return false
+      snapshot.output += data
+      snapshot.dataSeq += 1
+      for (const listener of listeners) {
+        listener({ type: 'data', threadId, chunk: data, dataSeq: snapshot.dataSeq })
+      }
+      return true
+    })
+    const resize = vi.fn(async (_threadId: string, _cols: number, _rows: number) => true)
+    const destroySession = vi.fn(async (threadId: string) => sessions.delete(threadId))
+    const subscribe = vi.fn((listener: (event: DesktopTerminalEvent) => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    })
+
+    const desktopBridge: NonNullable<Window['formaxDesktop']> = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: {},
+      terminal: {
+        ensureSession,
+        getSnapshot,
+        write,
+        resize,
+        destroySession,
+        subscribe,
+      },
+    }
+
+    const emit = (event: DesktopTerminalEvent) => {
+      for (const listener of listeners) {
+        listener(event)
+      }
+    }
+
+    return {
+      desktopBridge,
+      ensureSession,
+      getSnapshot,
+      write,
+      resize,
+      destroySession,
+      subscribe,
+      emit,
+    }
   }
 
   it('restores persisted sidebar and right rail widths', async () => {
@@ -515,6 +672,258 @@ describe('App thread history integration', () => {
       await waitFor(() => {
         expect(appShell.getAttribute('data-window-transparency')).toBe('off')
       })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('disables terminal toggle when no active thread is selected', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      const toggleButton = await screen.findByRole('button', { name: 'Toggle terminal' })
+      expect(toggleButton).toBeDisabled()
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('creates terminal session on first toggle and shows pane', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+
+      const toggleButton = await screen.findByRole('button', { name: 'Toggle terminal' })
+      expect(toggleButton).toBeEnabled()
+      fireEvent.click(toggleButton)
+
+      await waitFor(() => {
+        expect(terminalHarness.ensureSession).toHaveBeenCalled()
+      })
+      expect(terminalHarness.ensureSession.mock.calls[0]?.[0]).toBe('thread-alpha')
+      expect(await screen.findByTestId('terminal-pane')).toBeInTheDocument()
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('restores terminal output when switching back to thread with existing shell', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness({
+      'thread-alpha': {
+        exists: true,
+        output: '$ ls\nREADME.md\n',
+      },
+    })
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      const terminalPane = await screen.findByTestId('terminal-pane')
+      await waitFor(() => {
+        expect(within(terminalPane).getByText(/README\.md/)).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+      await waitFor(() => {
+        expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+      const restoredTerminalPane = await screen.findByTestId('terminal-pane')
+      await waitFor(() => {
+        expect(within(restoredTerminalPane).getByText(/README\.md/)).toBeInTheDocument()
+      })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('keeps terminal hidden after manual close when switching away and back', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
+      await waitFor(() => {
+        expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+      await waitFor(() => {
+        expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+      })
+      expect(terminalHarness.destroySession).not.toHaveBeenCalled()
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('destroys terminal session when thread is archived', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+
+      await act(async () => {
+        rpcMock.emitNotification({
+          method: 'thread/archived',
+          params: { threadId: 'thread-alpha', opId: 'archive-terminal-test' },
+        })
+      })
+
+      await waitFor(() => {
+        expect(terminalHarness.destroySession).toHaveBeenCalledWith('thread-alpha')
+      })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('keeps terminal pane visible after shell exit event', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+
+      await act(async () => {
+        terminalHarness.emit({
+          type: 'exit',
+          threadId: 'thread-alpha',
+          exitCode: 0,
+        })
+      })
+
+      const pane = await screen.findByTestId('terminal-pane')
+      expect(pane).toBeInTheDocument()
+      expect(within(pane).getByText(/Shell exited \(code 0\)/)).toBeInTheDocument()
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('keeps live output when snapshot resolves after data event', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    const pendingSnapshotResolves: Array<
+      (snapshot: { exists: boolean; output: string; exitCode?: number | null; dataSeq?: number }) => void
+    > = []
+    terminalHarness.getSnapshot.mockImplementation(
+      async (_threadId: string) =>
+        new Promise((resolve) => {
+          pendingSnapshotResolves.push(resolve)
+        }),
+    )
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      const pane = await screen.findByTestId('terminal-pane')
+
+      await act(async () => {
+        terminalHarness.emit({
+          type: 'data',
+          threadId: 'thread-alpha',
+          chunk: 'live-output\n',
+          dataSeq: 1,
+        })
+      })
+
+      await act(async () => {
+        for (const resolve of pendingSnapshotResolves.splice(0, pendingSnapshotResolves.length)) {
+          resolve({ exists: true, output: 'history\nlive-output\n', dataSeq: 1 })
+        }
+      })
+
+      await waitFor(() => {
+        expect(within(pane).getByText(/live-output/)).toBeInTheDocument()
+        expect(within(pane).getByText(/history/)).toBeInTheDocument()
+      })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('toggles terminal with Ctrl+J and ignores shortcut in composer input', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+
+      const composer = screen.getByPlaceholderText('Ask for follow-up changes')
+      composer.focus()
+      fireEvent.keyDown(composer, { key: 'j', ctrlKey: true })
+      expect(terminalHarness.ensureSession).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+
+      fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+      await waitFor(() => {
+        expect(terminalHarness.ensureSession).toHaveBeenCalledWith('thread-alpha', expect.any(String))
+      })
+      expect(await screen.findByTestId('terminal-pane')).toBeInTheDocument()
     } finally {
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge
