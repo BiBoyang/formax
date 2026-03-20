@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createDefaultWindowAppearanceState, type WindowAppearanceState } from './windowAppearanceState'
@@ -32,10 +32,17 @@ const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 const WINDOW_APPEARANCE_STATE_FILE = 'window-appearance.json'
 const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
+const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
+type DesktopOpenTargetsAction = 'list-available'
+
+type OpenTargetDescriptor = {
+  id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
+  label: string
+}
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -52,6 +59,42 @@ const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceSta
 const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
 let initialWindowAppearanceState: WindowAppearanceState = createDefaultWindowAppearanceState()
 let preventSleepBlockerId: number | null = null
+
+const MAC_OPEN_TARGET_CANDIDATES: Array<{ id: OpenTargetDescriptor['id']; label: string; appName: string }> = [
+  { id: 'vscode', label: 'VS Code', appName: 'Visual Studio Code' },
+  { id: 'cursor', label: 'Cursor', appName: 'Cursor' },
+  { id: 'antigravity', label: 'Antigravity', appName: 'Antigravity' },
+  { id: 'finder', label: 'Finder', appName: 'Finder' },
+  { id: 'terminal', label: 'Terminal', appName: 'Terminal' },
+  { id: 'iterm2', label: 'iTerm2', appName: 'iTerm' },
+  { id: 'xcode', label: 'Xcode', appName: 'Xcode' },
+]
+
+const WINDOWS_OPEN_TARGET_CANDIDATES: Array<{
+  id: OpenTargetDescriptor['id']
+  label: string
+  command?: string
+  alwaysAvailable?: boolean
+}> = [
+  { id: 'vscode', label: 'VS Code', command: 'code' },
+  { id: 'cursor', label: 'Cursor', command: 'cursor' },
+  { id: 'antigravity', label: 'Antigravity', command: 'antigravity' },
+  { id: 'finder', label: 'Explorer', alwaysAvailable: true },
+  { id: 'terminal', label: 'Terminal', command: 'wt' },
+]
+
+const LINUX_OPEN_TARGET_CANDIDATES: Array<{
+  id: OpenTargetDescriptor['id']
+  label: string
+  command?: string
+  alwaysAvailable?: boolean
+}> = [
+  { id: 'vscode', label: 'VS Code', command: 'code' },
+  { id: 'cursor', label: 'Cursor', command: 'cursor' },
+  { id: 'antigravity', label: 'Antigravity', command: 'antigravity' },
+  { id: 'finder', label: 'Files', alwaysAvailable: true },
+  { id: 'terminal', label: 'Terminal', command: 'x-terminal-emulator' },
+]
 
 function isPreventSleepEnabled(): boolean {
   if (preventSleepBlockerId == null) return false
@@ -71,6 +114,47 @@ function setPreventSleepEnabled(enabled: boolean): boolean {
   }
   preventSleepBlockerId = null
   return false
+}
+
+function isMacApplicationAvailable(appName: string): boolean {
+  const result = spawnSync('open', ['-Ra', appName], {
+    stdio: 'ignore',
+  })
+  return result.status === 0
+}
+
+function isCommandAvailable(command: string): boolean {
+  if (!command.trim()) return false
+  if (process.platform === 'win32') {
+    const result = spawnSync('where', [command], {
+      stdio: 'ignore',
+      shell: true,
+    })
+    return result.status === 0
+  }
+  const result = spawnSync('which', [command], {
+    stdio: 'ignore',
+  })
+  return result.status === 0
+}
+
+function listAvailableOpenTargets(): OpenTargetDescriptor[] {
+  if (process.platform === 'darwin') {
+    const targets = MAC_OPEN_TARGET_CANDIDATES
+      .filter((candidate) => isMacApplicationAvailable(candidate.appName))
+      .map((candidate) => ({ id: candidate.id, label: candidate.label }))
+
+    if (targets.length > 0) return targets
+    return [{ id: 'finder', label: 'Finder' }]
+  }
+
+  const candidates = process.platform === 'win32' ? WINDOWS_OPEN_TARGET_CANDIDATES : LINUX_OPEN_TARGET_CANDIDATES
+  const targets = candidates
+    .filter((candidate) => candidate.alwaysAvailable === true || (candidate.command != null && isCommandAvailable(candidate.command)))
+    .map((candidate) => ({ id: candidate.id, label: candidate.label }))
+
+  if (targets.length > 0) return targets
+  return [{ id: 'finder', label: process.platform === 'win32' ? 'Explorer' : 'Files' }]
 }
 
 function normalizeHostname(hostname: string): string {
@@ -638,6 +722,16 @@ function registerDesktopIpcHandlers(): void {
         return setPreventSleepEnabled(enabled === true)
       }
       return isPreventSleepEnabled()
+    },
+  )
+
+  ipcMain.handle(
+    OPEN_TARGETS_CHANNEL,
+    (_event, action: DesktopOpenTargetsAction) => {
+      if (action === 'list-available') {
+        return listAvailableOpenTargets()
+      }
+      return listAvailableOpenTargets()
     },
   )
 }

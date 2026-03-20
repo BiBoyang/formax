@@ -5,10 +5,17 @@ const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
 const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
+const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
+type DesktopOpenTargetsAction = 'list-available'
+
+type OpenTargetDescriptor = {
+  id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
+  label: string
+}
 type WindowAppearanceState = {
   revision: number
   windowTransparencyEnabled: boolean
@@ -31,6 +38,9 @@ type FormaxDesktopRuntimeInfo = {
   powerManagement: {
     getPreventSleep: () => Promise<boolean>
     setPreventSleep: (enabled: boolean) => Promise<boolean>
+  }
+  openTargets: {
+    listAvailable: () => Promise<OpenTargetDescriptor[]>
   }
 }
 
@@ -162,6 +172,22 @@ const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
         enabled === true,
       )
       return state === true
+    },
+  }),
+  openTargets: Object.freeze({
+    listAvailable: async () => {
+      const payload = await ipcRenderer.invoke(
+        OPEN_TARGETS_CHANNEL,
+        'list-available' satisfies DesktopOpenTargetsAction,
+      )
+      if (!Array.isArray(payload)) return []
+      return payload
+        .filter((entry): entry is OpenTargetDescriptor => {
+          if (!entry || typeof entry !== 'object') return false
+          const candidate = entry as Partial<OpenTargetDescriptor>
+          return typeof candidate.id === 'string' && typeof candidate.label === 'string'
+        })
+        .map((entry) => ({ id: entry.id, label: entry.label }))
     },
   }),
 })

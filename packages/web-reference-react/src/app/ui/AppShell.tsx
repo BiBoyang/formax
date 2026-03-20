@@ -13,7 +13,7 @@ import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
-import type { UpdateUserSetting, UserSettings } from '../core/userSettings'
+import { DEFAULT_OPEN_TARGET_OPTIONS, type OpenTargetOption, type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
@@ -121,6 +121,7 @@ export function AppShell(props: AppShellProps) {
   const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
     DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
+  const [availableOpenTargets, setAvailableOpenTargets] = useState<OpenTargetOption[]>(DEFAULT_OPEN_TARGET_OPTIONS)
   const [isWindowTransparencyPending, setIsWindowTransparencyPending] = useState(false)
   const isWindowTransparent = desktopWindowAppearanceState.windowTransparencyEnabled
   const sidebarPercent = props.sidebarWidth
@@ -338,6 +339,40 @@ export function AppShell(props: AppShellProps) {
       // Keep UI responsive if desktop power-management bridge is unavailable.
     })
   }, [desktopBridge, isDesktopClient, shouldKeepSystemAwake])
+
+  useEffect(() => {
+    if (!isDesktopClient) return
+    const listAvailableOpenTargets = desktopBridge?.openTargets?.listAvailable
+    if (!listAvailableOpenTargets) return
+    let cancelled = false
+    void listAvailableOpenTargets()
+      .then((targets) => {
+        if (cancelled) return
+        if (!Array.isArray(targets) || targets.length === 0) {
+          setAvailableOpenTargets(DEFAULT_OPEN_TARGET_OPTIONS)
+          return
+        }
+        setAvailableOpenTargets(
+          targets
+            .filter((target): target is OpenTargetOption => Boolean(target?.id) && Boolean(target?.label))
+            .map((target) => ({ id: target.id, label: target.label })),
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setAvailableOpenTargets(DEFAULT_OPEN_TARGET_OPTIONS)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [desktopBridge, isDesktopClient])
+
+  useEffect(() => {
+    if (availableOpenTargets.length === 0) return
+    const hasConfiguredTarget = availableOpenTargets.some((target) => target.id === props.userSettings.defaultOpenTarget)
+    if (hasConfiguredTarget) return
+    props.onUserSettingChange('defaultOpenTarget', availableOpenTargets[0]!.id)
+  }, [availableOpenTargets, props.onUserSettingChange, props.userSettings.defaultOpenTarget])
 
   const onCreateProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
@@ -628,6 +663,7 @@ export function AppShell(props: AppShellProps) {
                 <SettingsPane
                   settings={props.userSettings}
                   onSettingChange={props.onUserSettingChange}
+                  availableOpenTargets={availableOpenTargets}
                 />
               </div>
             ) : (

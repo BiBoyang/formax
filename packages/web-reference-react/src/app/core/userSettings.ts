@@ -1,5 +1,20 @@
-export type OpenTarget = 'cursor' | 'vscode' | 'finder'
+export type OpenTarget = 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
 export type UiLanguage = 'zh-CN' | 'en-US' | 'ja-JP'
+
+export type OpenTargetOption = {
+  id: OpenTarget
+  label: string
+}
+
+export const DEFAULT_OPEN_TARGET_OPTIONS: OpenTargetOption[] = [
+  { id: 'vscode', label: 'VS Code' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'antigravity', label: 'Antigravity' },
+  { id: 'finder', label: 'Finder' },
+  { id: 'terminal', label: 'Terminal' },
+  { id: 'iterm2', label: 'iTerm2' },
+  { id: 'xcode', label: 'Xcode' },
+]
 
 export type UserSettings = {
   defaultOpenTarget: OpenTarget
@@ -11,7 +26,7 @@ export type UserSettings = {
 export type UpdateUserSetting = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
-  defaultOpenTarget: 'cursor',
+  defaultOpenTarget: 'vscode',
   language: 'zh-CN',
   preventSleep: true,
   longTextRequireCmdEnter: false,

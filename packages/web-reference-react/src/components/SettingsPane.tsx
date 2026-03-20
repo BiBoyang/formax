@@ -2,11 +2,12 @@ import { memo, useState } from 'react'
 import { Card, CardContent } from './ui/card'
 import { cn } from '../lib/utils'
 import { ScrollArea } from './ui/scroll-area'
-import type { UpdateUserSetting, UserSettings } from '../app/core/userSettings'
+import type { OpenTargetOption, UpdateUserSetting, UserSettings } from '../app/core/userSettings'
 
 export type SettingsPaneProps = {
   settings: UserSettings
   onSettingChange: UpdateUserSetting
+  availableOpenTargets: OpenTargetOption[]
 }
 
 function SettingsSection({ children }: { children: React.ReactNode }) {
@@ -70,7 +71,7 @@ function BasicSelect({
   onChange,
 }: {
   value: string
-  options: string[]
+  options: Array<{ value: string; label: string }>
   onChange: (nextValue: string) => void
 }) {
   return (
@@ -80,8 +81,8 @@ function BasicSelect({
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
         </option>
       ))}
     </select>
@@ -107,7 +108,11 @@ function SegmentedControl({ value, options, onChange }: { value: string; options
   )
 }
 
-export const SettingsPane = memo(function SettingsPane({ settings, onSettingChange }: SettingsPaneProps) {
+export const SettingsPane = memo(function SettingsPane({
+  settings,
+  onSettingChange,
+  availableOpenTargets,
+}: SettingsPaneProps) {
   const [followBehavior, setFollowBehavior] = useState('引导')
   const [threadDetailLevel, setThreadDetailLevel] = useState('带代码命令的步骤')
   const [speedPreset, setSpeedPreset] = useState('Standard')
@@ -126,20 +131,12 @@ export const SettingsPane = memo(function SettingsPane({ settings, onSettingChan
               description="默认打开文件和文件夹的位置"
               control={
                 <BasicSelect
-                  value={
-                    settings.defaultOpenTarget === 'vscode'
-                      ? 'VS Code'
-                      : settings.defaultOpenTarget === 'finder'
-                        ? 'Finder'
-                        : 'Cursor'
-                  }
-                  options={['Cursor', 'VS Code', 'Finder']}
-                  onChange={(nextValue) =>
-                    onSettingChange(
-                      'defaultOpenTarget',
-                      nextValue === 'VS Code' ? 'vscode' : nextValue === 'Finder' ? 'finder' : 'cursor',
-                    )
-                  }
+                  value={settings.defaultOpenTarget}
+                  options={availableOpenTargets.map((target) => ({
+                    value: target.id,
+                    label: target.label,
+                  }))}
+                  onChange={(nextValue) => onSettingChange('defaultOpenTarget', nextValue as UserSettings['defaultOpenTarget'])}
                 />
               }
             />
@@ -148,19 +145,14 @@ export const SettingsPane = memo(function SettingsPane({ settings, onSettingChan
               description="应用 UI 语言"
               control={
                 <BasicSelect
-                  value={
-                    settings.language === 'en-US'
-                      ? 'English (US)'
-                      : settings.language === 'ja-JP'
-                        ? '日本語'
-                        : '中文 (中国)'
-                  }
-                  options={['中文 (中国)', 'English (US)', '日本語']}
+                  value={settings.language}
+                  options={[
+                    { value: 'zh-CN', label: '中文 (中国)' },
+                    { value: 'en-US', label: 'English (US)' },
+                    { value: 'ja-JP', label: '日本語' },
+                  ]}
                   onChange={(nextValue) =>
-                    onSettingChange(
-                      'language',
-                      nextValue === 'English (US)' ? 'en-US' : nextValue === '日本語' ? 'ja-JP' : 'zh-CN',
-                    )
+                    onSettingChange('language', nextValue as UserSettings['language'])
                   }
                 />
               }
@@ -171,7 +163,11 @@ export const SettingsPane = memo(function SettingsPane({ settings, onSettingChan
               control={
                 <BasicSelect
                   value={threadDetailLevel}
-                  options={['只看结果', '带代码命令的步骤', '完整上下文']}
+                  options={[
+                    { value: '只看结果', label: '只看结果' },
+                    { value: '带代码命令的步骤', label: '带代码命令的步骤' },
+                    { value: '完整上下文', label: '完整上下文' },
+                  ]}
                   onChange={setThreadDetailLevel}
                 />
               }
@@ -199,7 +195,17 @@ export const SettingsPane = memo(function SettingsPane({ settings, onSettingChan
             <SettingsRow
               label="Speed"
               description="Choose how quickly inference runs across threads, subagents, and compaction. Fast uses 2x plan usage."
-              control={<BasicSelect value={speedPreset} options={['Standard', 'Fast', 'Eco']} onChange={setSpeedPreset} />}
+              control={
+                <BasicSelect
+                  value={speedPreset}
+                  options={[
+                    { value: 'Standard', label: 'Standard' },
+                    { value: 'Fast', label: 'Fast' },
+                    { value: 'Eco', label: 'Eco' },
+                  ]}
+                  onChange={setSpeedPreset}
+                />
+              }
             />
             <SettingsRow
               label="跟进行为"
@@ -218,7 +224,11 @@ export const SettingsPane = memo(function SettingsPane({ settings, onSettingChan
               control={
                 <BasicSelect
                   value={turnNotificationPolicy}
-                  options={['仅当应用失焦时', '总是提醒', '从不']}
+                  options={[
+                    { value: '仅当应用失焦时', label: '仅当应用失焦时' },
+                    { value: '总是提醒', label: '总是提醒' },
+                    { value: '从不', label: '从不' },
+                  ]}
                   onChange={setTurnNotificationPolicy}
                 />
               }

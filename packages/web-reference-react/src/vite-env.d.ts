@@ -23,6 +23,12 @@ type FormaxDesktopBridge = {
     getPreventSleep?: () => Promise<boolean>
     setPreventSleep?: (enabled: boolean) => Promise<boolean>
   }
+  openTargets?: {
+    listAvailable?: () => Promise<Array<{
+      id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
+      label: string
+    }>>
+  }
 }
 
 interface Window {
