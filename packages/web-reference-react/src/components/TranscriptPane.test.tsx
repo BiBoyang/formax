@@ -366,6 +366,26 @@ describe('TranscriptPane', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('requires Cmd/Ctrl+Enter for long prompt when longTextRequireCmdEnter is enabled', () => {
+    const onSend = vi.fn((event) => event.preventDefault())
+    render(
+      <TranscriptPane
+        {...baseProps({
+          inputText: 'line 1\nline 2',
+          longTextRequireCmdEnter: true,
+          onSend,
+        })}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSend).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(onSend).toHaveBeenCalledTimes(1)
+  })
+
   it('renders running thinking as lightweight line', () => {
     render(
       <TranscriptPane

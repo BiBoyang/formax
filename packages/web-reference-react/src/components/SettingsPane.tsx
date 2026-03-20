@@ -2,8 +2,12 @@ import { memo, useState } from 'react'
 import { Card, CardContent } from './ui/card'
 import { cn } from '../lib/utils'
 import { ScrollArea } from './ui/scroll-area'
+import type { UpdateUserSetting, UserSettings } from '../app/core/userSettings'
 
-export type SettingsPaneProps = {}
+export type SettingsPaneProps = {
+  settings: UserSettings
+  onSettingChange: UpdateUserSetting
+}
 
 function SettingsSection({ children }: { children: React.ReactNode }) {
   return (
@@ -60,11 +64,20 @@ function BasicSwitch({ checked, onChange }: { checked: boolean; onChange: (v: bo
   )
 }
 
-function BasicSelect({ value, options }: { value: string; options: string[] }) {
+function BasicSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: string[]
+  onChange: (nextValue: string) => void
+}) {
   return (
     <select
       className="h-[32px] items-center justify-between rounded-md border border-input bg-background/50 px-3 py-1 text-[12px] ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-1 w-[220px] shadow-sm"
-      defaultValue={value}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
     >
       {options.map((opt) => (
         <option key={opt} value={opt}>
@@ -94,10 +107,11 @@ function SegmentedControl({ value, options, onChange }: { value: string; options
   )
 }
 
-export const SettingsPane = memo(function SettingsPane() {
-  const [preventSleep, setPreventSleep] = useState(true)
-  const [cmdEnter, setCmdEnter] = useState(false)
+export const SettingsPane = memo(function SettingsPane({ settings, onSettingChange }: SettingsPaneProps) {
   const [followBehavior, setFollowBehavior] = useState('引导')
+  const [threadDetailLevel, setThreadDetailLevel] = useState('带代码命令的步骤')
+  const [speedPreset, setSpeedPreset] = useState('Standard')
+  const [turnNotificationPolicy, setTurnNotificationPolicy] = useState('仅当应用失焦时')
 
   return (
     <div className="h-full w-full flex flex-col bg-background relative overflow-hidden app-shell-settings-pane">
@@ -110,32 +124,82 @@ export const SettingsPane = memo(function SettingsPane() {
             <SettingsRow
               label="默认打开目标"
               description="默认打开文件和文件夹的位置"
-              control={<BasicSelect value="Cursor" options={['Cursor', 'VS Code', 'Finder']} />}
+              control={
+                <BasicSelect
+                  value={
+                    settings.defaultOpenTarget === 'vscode'
+                      ? 'VS Code'
+                      : settings.defaultOpenTarget === 'finder'
+                        ? 'Finder'
+                        : 'Cursor'
+                  }
+                  options={['Cursor', 'VS Code', 'Finder']}
+                  onChange={(nextValue) =>
+                    onSettingChange(
+                      'defaultOpenTarget',
+                      nextValue === 'VS Code' ? 'vscode' : nextValue === 'Finder' ? 'finder' : 'cursor',
+                    )
+                  }
+                />
+              }
             />
             <SettingsRow
               label="语言"
               description="应用 UI 语言"
-              control={<BasicSelect value="中文 (中国)" options={['中文 (中国)', 'English (US)', '日本語']} />}
+              control={
+                <BasicSelect
+                  value={
+                    settings.language === 'en-US'
+                      ? 'English (US)'
+                      : settings.language === 'ja-JP'
+                        ? '日本語'
+                        : '中文 (中国)'
+                  }
+                  options={['中文 (中国)', 'English (US)', '日本語']}
+                  onChange={(nextValue) =>
+                    onSettingChange(
+                      'language',
+                      nextValue === 'English (US)' ? 'en-US' : nextValue === '日本語' ? 'ja-JP' : 'zh-CN',
+                    )
+                  }
+                />
+              }
             />
             <SettingsRow
               label="线程详细信息"
               description="选择线程中命令输出的显示量"
-              control={<BasicSelect value="带代码命令的步骤" options={['只看结果', '带代码命令的步骤', '完整上下文']} />}
+              control={
+                <BasicSelect
+                  value={threadDetailLevel}
+                  options={['只看结果', '带代码命令的步骤', '完整上下文']}
+                  onChange={setThreadDetailLevel}
+                />
+              }
             />
             <SettingsRow
               label="运行防止系统休眠"
               description="在 Codex 运行任务线程时，让你的电脑保持唤醒状态。"
-              control={<BasicSwitch checked={preventSleep} onChange={setPreventSleep} />}
+              control={
+                <BasicSwitch
+                  checked={settings.preventSleep}
+                  onChange={(nextValue) => onSettingChange('preventSleep', nextValue)}
+                />
+              }
             />
             <SettingsRow
               label="需按 ⌘ + 回车键发送长文本提示"
               description="启用后，长文本提示需按 ⌘ + 回车键发送。"
-              control={<BasicSwitch checked={cmdEnter} onChange={setCmdEnter} />}
+              control={
+                <BasicSwitch
+                  checked={settings.longTextRequireCmdEnter}
+                  onChange={(nextValue) => onSettingChange('longTextRequireCmdEnter', nextValue)}
+                />
+              }
             />
             <SettingsRow
               label="Speed"
               description="Choose how quickly inference runs across threads, subagents, and compaction. Fast uses 2x plan usage."
-              control={<BasicSelect value="Standard" options={['Standard', 'Fast', 'Eco']} />}
+              control={<BasicSelect value={speedPreset} options={['Standard', 'Fast', 'Eco']} onChange={setSpeedPreset} />}
             />
             <SettingsRow
               label="跟进行为"
@@ -151,7 +215,13 @@ export const SettingsPane = memo(function SettingsPane() {
             <SettingsRow
               label="轮次完成通知"
               description="设置 Codex 完成任务时的提醒"
-              control={<BasicSelect value="仅当应用失焦时" options={['仅当应用失焦时', '总是提醒', '从不']} />}
+              control={
+                <BasicSelect
+                  value={turnNotificationPolicy}
+                  options={['仅当应用失焦时', '总是提醒', '从不']}
+                  onChange={setTurnNotificationPolicy}
+                />
+              }
             />
             <SettingsRow
               label="启用权限通知"

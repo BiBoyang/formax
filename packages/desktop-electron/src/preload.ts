@@ -4,9 +4,11 @@ const PICK_PROJECT_FOLDER_CHANNEL = 'formax:desktop:pick-project-folder'
 const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
 const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
+const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
+type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type WindowAppearanceState = {
   revision: number
   windowTransparencyEnabled: boolean
@@ -25,6 +27,10 @@ type FormaxDesktopRuntimeInfo = {
     getState: () => Promise<WindowAppearanceState>
     setWindowTransparency: (enabled: boolean) => Promise<WindowAppearanceState>
     subscribe: (listener: (state: WindowAppearanceState) => void) => () => void
+  }
+  powerManagement: {
+    getPreventSleep: () => Promise<boolean>
+    setPreventSleep: (enabled: boolean) => Promise<boolean>
   }
 }
 
@@ -141,6 +147,23 @@ const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
       ipcRenderer.invoke(WINDOW_CONTROL_CHANNEL, 'toggle-maximize' satisfies DesktopWindowControl),
   }),
   windowAppearance: createWindowAppearanceBridge(),
+  powerManagement: Object.freeze({
+    getPreventSleep: async () => {
+      const state = await ipcRenderer.invoke(
+        POWER_MANAGEMENT_CHANNEL,
+        'get-prevent-sleep' satisfies DesktopPowerManagementAction,
+      )
+      return state === true
+    },
+    setPreventSleep: async (enabled: boolean) => {
+      const state = await ipcRenderer.invoke(
+        POWER_MANAGEMENT_CHANNEL,
+        'set-prevent-sleep' satisfies DesktopPowerManagementAction,
+        enabled === true,
+      )
+      return state === true
+    },
+  }),
 })
 
 contextBridge.exposeInMainWorld('formaxDesktop', runtimeInfo)

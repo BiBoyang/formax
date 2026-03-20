@@ -19,6 +19,10 @@ type FormaxDesktopBridge = {
     setWindowTransparency?: (enabled: boolean) => Promise<WindowAppearanceState>
     subscribe?: (listener: (state: WindowAppearanceState) => void) => () => void
   }
+  powerManagement?: {
+    getPreventSleep?: () => Promise<boolean>
+    setPreventSleep?: (enabled: boolean) => Promise<boolean>
+  }
 }
 
 interface Window {

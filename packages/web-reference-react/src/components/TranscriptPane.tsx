@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react'
 import { getWebSupportedSlashCommandSpecs, type WebSupportedSlashCommandSpec } from '../app/core/commandSupport'
+import { shouldTreatAsLongPrompt } from '../app/core/userSettings'
 import { cn } from '../lib/utils'
 import { resolveCommandRouting } from '../semantics'
 import { Badge } from './ui/badge'
@@ -219,6 +220,7 @@ export type TranscriptPaneProps = {
   isSending?: boolean
   isInterrupting?: boolean
   lastRpcError?: RpcErrorLike | null
+  longTextRequireCmdEnter?: boolean
 }
 
 function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline' | 'destructive' {
@@ -572,6 +574,7 @@ type ComposerDockProps = {
   isInterrupting: boolean
   onInterrupt: () => void
   onSend: (event: FormEvent) => void
+  longTextRequireCmdEnter: boolean
 }
 
 const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
@@ -760,6 +763,14 @@ const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
               if (event.key !== 'Enter' || event.shiftKey) return
               const nativeEvent = event.nativeEvent as KeyboardEvent
               if (isImeComposing || nativeEvent.isComposing || nativeEvent.keyCode === 229) return
+              if (
+                props.longTextRequireCmdEnter === true &&
+                shouldTreatAsLongPrompt(props.inputText) &&
+                !nativeEvent.metaKey &&
+                !nativeEvent.ctrlKey
+              ) {
+                return
+              }
               event.preventDefault()
               if (props.activeThreadId && props.connectionStatus === 'connected' && !props.inputText.trim()) return
               if (props.activeThreadId && props.connectionStatus === 'connected' && !props.isSending) {
@@ -856,6 +867,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     isSending = false,
     isInterrupting = false,
     lastRpcError = null,
+    longTextRequireCmdEnter = false,
   } = props
   const turnInitRenderLimit = virtualizationEnabled ? VIRTUALIZED_TURN_INIT_RENDER_LIMIT : TURN_INIT_RENDER_LIMIT
   const turnBatchRenderSize = virtualizationEnabled ? VIRTUALIZED_TURN_BATCH_RENDER_SIZE : TURN_BATCH_RENDER_SIZE
@@ -1205,6 +1217,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
           isInterrupting={isInterrupting}
           onInterrupt={onInterrupt}
           onSend={handleSend}
+          longTextRequireCmdEnter={longTextRequireCmdEnter}
         />
       ) : (
         <div data-testid="composer-locked" className="h-4" />

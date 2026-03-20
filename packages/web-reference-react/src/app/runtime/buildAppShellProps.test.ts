@@ -74,11 +74,21 @@ describe('buildAppShellProps', () => {
       feedback: {
         noticeMessage: null,
       },
+      settings: {
+        userSettings: {
+          defaultOpenTarget: 'cursor',
+          language: 'zh-CN',
+          preventSleep: true,
+          longTextRequireCmdEnter: false,
+        },
+        onUserSettingChange: vi.fn(),
+      },
     })
 
     expect(props.selectedCwd).toBe('/repo')
     expect(props.mode).toBe('normal')
     expect(props.noticeMessage).toBe(null)
     expect(typeof props.onRequestDiffPatch).toBe('function')
+    expect(props.userSettings.language).toBe('zh-CN')
   })
 })

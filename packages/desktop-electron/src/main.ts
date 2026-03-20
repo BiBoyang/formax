@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -31,9 +31,11 @@ const WINDOW_CONTROL_CHANNEL = 'formax:desktop:window-control'
 const WINDOW_APPEARANCE_CHANNEL = 'formax:desktop:window-appearance'
 const WINDOW_APPEARANCE_STATE_CHANNEL = 'formax:desktop:window-appearance:state'
 const WINDOW_APPEARANCE_STATE_FILE = 'window-appearance.json'
+const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
+type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 
 type ManagedRuntimeConfig = {
   scriptPath: string
@@ -49,6 +51,27 @@ let managedRuntimeStopping = false
 const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceState>()
 const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
 let initialWindowAppearanceState: WindowAppearanceState = createDefaultWindowAppearanceState()
+let preventSleepBlockerId: number | null = null
+
+function isPreventSleepEnabled(): boolean {
+  if (preventSleepBlockerId == null) return false
+  return powerSaveBlocker.isStarted(preventSleepBlockerId)
+}
+
+function setPreventSleepEnabled(enabled: boolean): boolean {
+  if (enabled) {
+    if (!isPreventSleepEnabled()) {
+      preventSleepBlockerId = powerSaveBlocker.start('prevent-app-suspension')
+    }
+    return true
+  }
+
+  if (preventSleepBlockerId != null && powerSaveBlocker.isStarted(preventSleepBlockerId)) {
+    powerSaveBlocker.stop(preventSleepBlockerId)
+  }
+  preventSleepBlockerId = null
+  return false
+}
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -604,6 +627,19 @@ function registerDesktopIpcHandlers(): void {
       })
     },
   )
+
+  ipcMain.handle(
+    POWER_MANAGEMENT_CHANNEL,
+    (_event, action: DesktopPowerManagementAction, enabled?: boolean) => {
+      if (action === 'get-prevent-sleep') {
+        return isPreventSleepEnabled()
+      }
+      if (action === 'set-prevent-sleep') {
+        return setPreventSleepEnabled(enabled === true)
+      }
+      return isPreventSleepEnabled()
+    },
+  )
 }
 
 function wireNavigationGuards(window: BrowserWindow): void {
@@ -695,6 +731,7 @@ async function bootstrap(): Promise<void> {
   })
 
   app.on('before-quit', () => {
+    setPreventSleepEnabled(false)
     requestManagedRuntimeShutdown()
   })
 

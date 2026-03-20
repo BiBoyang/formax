@@ -46,6 +46,7 @@ import { useDevRuntimeApi } from './runtime/useDevRuntimeApi'
 import { useDevLoadAllHistory } from './runtime/useDevLoadAllHistory'
 import { useTranscriptDisplayState } from './runtime/useTranscriptDisplayState'
 import { useThreadUrlSync } from './runtime/useThreadUrlSync'
+import { useUserSettings } from './runtime/useUserSettings'
 import {
   type ArchiveThreadLike,
 } from '../semantics'
@@ -74,6 +75,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
     usePaneLayout()
+  const { userSettings, updateUserSetting } = useUserSettings()
   const {
     inputText,
     diffSnapshot,
@@ -626,6 +628,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [noticeMessage],
   )
 
+  const settingsSection = useMemo<BuildAppShellPropsArgs['settings']>(
+    () => ({
+      userSettings,
+      onUserSettingChange: updateUserSetting,
+    }),
+    [updateUserSetting, userSettings],
+  )
+
   return useMemo(
     () =>
       buildAppShellProps({
@@ -635,12 +645,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         approval: approvalSection,
         diff: diffSection,
         feedback: feedbackSection,
+        settings: settingsSection,
       }),
     [
       approvalSection,
       diffSection,
       feedbackSection,
       layoutSection,
+      settingsSection,
       threadSection,
       transcriptSection,
     ],

@@ -13,6 +13,7 @@ import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
+import type { UpdateUserSetting, UserSettings } from '../core/userSettings'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
@@ -110,6 +111,8 @@ export type AppShellProps = {
   onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
   isRefreshingDiff: boolean
   noticeMessage: string | null
+  userSettings: UserSettings
+  onUserSettingChange: UpdateUserSetting
 }
 
 export function AppShell(props: AppShellProps) {
@@ -142,6 +145,8 @@ export function AppShell(props: AppShellProps) {
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning
+  const shouldKeepSystemAwake =
+    props.userSettings.preventSleep && (props.isSending || props.isInterrupting || props.activeTurnId != null)
 
   useEffect(() => {
     if (!props.isSidebarOpen) return
@@ -325,6 +330,15 @@ export function AppShell(props: AppShellProps) {
     }
   }, [isDesktopClient])
 
+  useEffect(() => {
+    if (!isDesktopClient) return
+    const setPreventSleep = desktopBridge?.powerManagement?.setPreventSleep
+    if (!setPreventSleep) return
+    void setPreventSleep(shouldKeepSystemAwake).catch(() => {
+      // Keep UI responsive if desktop power-management bridge is unavailable.
+    })
+  }, [desktopBridge, isDesktopClient, shouldKeepSystemAwake])
+
   const onCreateProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
     const nextCwd = await desktopBridge.pickProjectFolder()
@@ -400,6 +414,7 @@ export function AppShell(props: AppShellProps) {
       isSending: props.isSending,
       isInterrupting: props.isInterrupting,
       lastRpcError: props.lastRpcError,
+      longTextRequireCmdEnter: props.userSettings.longTextRequireCmdEnter,
     }),
     [
       props.activeThread,
@@ -421,6 +436,7 @@ export function AppShell(props: AppShellProps) {
       props.onLoadEarlier,
       props.onModeChange,
       props.onSend,
+      props.userSettings.longTextRequireCmdEnter,
       props.transcriptVirtualizationEnabled,
     ],
   )
@@ -609,7 +625,10 @@ export function AppShell(props: AppShellProps) {
 
             {props.isSettingsOpen ? (
               <div className="flex-1 min-h-0 min-w-0 flex flex-col pt-10">
-                <SettingsPane />
+                <SettingsPane
+                  settings={props.userSettings}
+                  onSettingChange={props.onUserSettingChange}
+                />
               </div>
             ) : (
               <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 min-w-0">

@@ -76,6 +76,8 @@ type DiffSection = Pick<
 
 type FeedbackSection = Pick<AppShellProps, 'noticeMessage'>
 
+type SettingsSection = Pick<AppShellProps, 'userSettings' | 'onUserSettingChange'>
+
 export type BuildAppShellPropsArgs = {
   thread: ThreadSection
   layout: LayoutSection
@@ -83,6 +85,7 @@ export type BuildAppShellPropsArgs = {
   approval: ApprovalSection
   diff: DiffSection
   feedback: FeedbackSection
+  settings: SettingsSection
 }
 
 export function buildAppShellProps(args: BuildAppShellPropsArgs): AppShellProps {
@@ -93,5 +96,6 @@ export function buildAppShellProps(args: BuildAppShellPropsArgs): AppShellProps 
     ...args.approval,
     ...args.diff,
     ...args.feedback,
+    ...args.settings,
   }
 }
