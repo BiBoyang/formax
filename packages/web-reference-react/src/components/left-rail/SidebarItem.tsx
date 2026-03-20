@@ -79,7 +79,7 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
   if (kind === 'menu') {
     return (
       <DropdownMenuItem
-        className={cn('gap-2', sidebarItemToneClass[tone], className)}
+        className={cn('h-8 gap-3 px-3 py-0 ui-text-base', sidebarItemToneClass[tone], className)}
         disabled={disabled}
         onSelect={() => onActivate?.()}
       >

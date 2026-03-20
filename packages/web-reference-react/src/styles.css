@@ -127,6 +127,7 @@ body {
 
 .app-shell-right-surface {
   background: var(--right-surface);
+  border-left: 1px solid var(--border);
 }
 
 .app-shell-right-header {

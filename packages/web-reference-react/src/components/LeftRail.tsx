@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FolderPlus, Globe, Settings, Sparkles, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore, Clock3 } from 'lucide-react'
+import { FolderPlus, Globe, Settings, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
 import { Button } from './ui/button'
@@ -289,8 +289,8 @@ export function LeftRail(props: LeftRailProps) {
               disabled={isBusy}
             />
             <div className="space-y-px">
-              <SidebarItem kind="static" icon={<Clock3 className="h-4 w-4" />} label="Automation" />
-              <SidebarItem kind="static" icon={<Sparkles className="h-4 w-4" />} label="Skills" />
+              {/* <SidebarItem kind="static" icon={<Clock3 className="h-4 w-4" />} label="Automation" /> */}
+              {/* <SidebarItem kind="static" icon={<Sparkles className="h-4 w-4" />} label="Skills" /> */}
             </div>
           </div>
 
@@ -376,7 +376,7 @@ export function LeftRail(props: LeftRailProps) {
           <DropdownMenuTrigger asChild>
             <SidebarItem className="app-shell-no-drag" icon={<Settings className="h-4 w-4" />} label="设置" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-48 app-shell-no-drag" side="top" align="start" sideOffset={8}>
+          <DropdownMenuContent className="w-[280px] app-shell-no-drag" side="top" align="start" sideOffset={8}>
             {onOpenSettings ? (
               <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label="设置" onActivate={onOpenSettings} />
             ) : null}
