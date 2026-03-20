@@ -683,7 +683,20 @@ export function AppShell(props: AppShellProps) {
             )}
 
             {props.isSettingsOpen ? (
-              <div className="flex-1 min-h-0 min-w-0 flex flex-col pt-10">
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                <header
+                  className={cn(
+                    'h-[var(--desktop-chrome-height)] flex-none app-shell-right-header',
+                    isDesktopClient && 'app-shell-drag-region',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'h-full min-w-0 flex items-center px-4 app-shell-header-row-motion',
+                      isDesktopClient && !props.isSidebarOpen && 'app-shell-header-row-shifted',
+                    )}
+                  />
+                </header>
                 <SettingsPane
                   settings={props.userSettings}
                   onSettingChange={props.onUserSettingChange}

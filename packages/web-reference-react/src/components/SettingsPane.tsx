@@ -130,133 +130,135 @@ export const SettingsPane = memo(function SettingsPane({
 
   return (
     <div className="h-full w-full flex flex-col bg-background relative overflow-hidden app-shell-settings-pane">
-      <div className="flex-1 min-h-0 flex justify-center">
-        <ScrollArea className="w-full h-full max-w-3xl px-8 pb-10">
-          <div className="mb-6">
+      <div className="flex-1 min-h-0">
+        <ScrollArea className="h-full w-full">
+          <div className="mx-auto w-full max-w-3xl px-8 pt-8 pb-10">
+            <div className="mb-6">
             <h2 className="text-[20px] font-bold tracking-tight">{t('settings.generalTitle')}</h2>
-          </div>
-          <SettingsSection>
-            <SettingsRow
-              label={t('settings.defaultOpenTarget.label')}
-              description={t('settings.defaultOpenTarget.description')}
-              control={
-                <BasicSelect
-                  value={settings.defaultOpenTarget}
-                  options={availableOpenTargets.map((target) => ({
-                    value: target.id,
-                    label: target.label,
-                  }))}
-                  onChange={(nextValue) => onSettingChange('defaultOpenTarget', nextValue as UserSettings['defaultOpenTarget'])}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.language.label')}
-              description={t('settings.language.description')}
-              control={
-                <BasicSelect
-                  value={settings.language}
-                  options={[
-                    { value: 'zh-CN', label: t('settings.language.zhCN') },
-                    { value: 'en-US', label: t('settings.language.enUS') },
-                  ]}
-                  onChange={(nextValue) =>
-                    onSettingChange('language', nextValue as UserSettings['language'])
-                  }
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.threadDetail.label')}
-              description={t('settings.threadDetail.description')}
-              control={
-                <BasicSelect
-                  value={threadDetailLevel}
-                  options={[
-                    { value: 'resultOnly', label: t('settings.threadDetail.resultOnly') },
-                    { value: 'stepsWithCode', label: t('settings.threadDetail.stepsWithCode') },
-                    { value: 'fullContext', label: t('settings.threadDetail.fullContext') },
-                  ]}
-                  onChange={(nextValue) => setThreadDetailLevel(nextValue as 'resultOnly' | 'stepsWithCode' | 'fullContext')}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.preventSleep.label')}
-              description={t('settings.preventSleep.description')}
-              control={
-                <BasicSwitch
-                  checked={settings.preventSleep}
-                  onChange={(nextValue) => onSettingChange('preventSleep', nextValue)}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.longTextSend.label')}
-              description={t('settings.longTextSend.description')}
-              control={
-                <BasicSwitch
-                  checked={settings.longTextRequireCmdEnter}
-                  onChange={(nextValue) => onSettingChange('longTextRequireCmdEnter', nextValue)}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.speed.label')}
-              description={t('settings.speed.description')}
-              control={
-                <BasicSelect
-                  value={speedPreset}
-                  options={[
-                    { value: 'standard', label: t('settings.speed.standard') },
-                    { value: 'fast', label: t('settings.speed.fast') },
-                    { value: 'eco', label: t('settings.speed.eco') },
-                  ]}
-                  onChange={(nextValue) => setSpeedPreset(nextValue as 'standard' | 'fast' | 'eco')}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.followBehavior.label')}
-              description={t('settings.followBehavior.description')}
-              control={
-                <SegmentedControl
-                  value={followBehavior}
-                  onChange={(nextValue) => setFollowBehavior(nextValue as 'queue' | 'lead')}
-                  options={[
-                    { value: 'queue', label: t('settings.followBehavior.queue') },
-                    { value: 'lead', label: t('settings.followBehavior.lead') },
-                  ]}
-                />
-              }
-            />
-          </SettingsSection>
+            </div>
+            <SettingsSection>
+              <SettingsRow
+                label={t('settings.defaultOpenTarget.label')}
+                description={t('settings.defaultOpenTarget.description')}
+                control={
+                  <BasicSelect
+                    value={settings.defaultOpenTarget}
+                    options={availableOpenTargets.map((target) => ({
+                      value: target.id,
+                      label: target.label,
+                    }))}
+                    onChange={(nextValue) => onSettingChange('defaultOpenTarget', nextValue as UserSettings['defaultOpenTarget'])}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.language.label')}
+                description={t('settings.language.description')}
+                control={
+                  <BasicSelect
+                    value={settings.language}
+                    options={[
+                      { value: 'zh-CN', label: t('settings.language.zhCN') },
+                      { value: 'en-US', label: t('settings.language.enUS') },
+                    ]}
+                    onChange={(nextValue) =>
+                      onSettingChange('language', nextValue as UserSettings['language'])
+                    }
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.threadDetail.label')}
+                description={t('settings.threadDetail.description')}
+                control={
+                  <BasicSelect
+                    value={threadDetailLevel}
+                    options={[
+                      { value: 'resultOnly', label: t('settings.threadDetail.resultOnly') },
+                      { value: 'stepsWithCode', label: t('settings.threadDetail.stepsWithCode') },
+                      { value: 'fullContext', label: t('settings.threadDetail.fullContext') },
+                    ]}
+                    onChange={(nextValue) => setThreadDetailLevel(nextValue as 'resultOnly' | 'stepsWithCode' | 'fullContext')}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.preventSleep.label')}
+                description={t('settings.preventSleep.description')}
+                control={
+                  <BasicSwitch
+                    checked={settings.preventSleep}
+                    onChange={(nextValue) => onSettingChange('preventSleep', nextValue)}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.longTextSend.label')}
+                description={t('settings.longTextSend.description')}
+                control={
+                  <BasicSwitch
+                    checked={settings.longTextRequireCmdEnter}
+                    onChange={(nextValue) => onSettingChange('longTextRequireCmdEnter', nextValue)}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.speed.label')}
+                description={t('settings.speed.description')}
+                control={
+                  <BasicSelect
+                    value={speedPreset}
+                    options={[
+                      { value: 'standard', label: t('settings.speed.standard') },
+                      { value: 'fast', label: t('settings.speed.fast') },
+                      { value: 'eco', label: t('settings.speed.eco') },
+                    ]}
+                    onChange={(nextValue) => setSpeedPreset(nextValue as 'standard' | 'fast' | 'eco')}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.followBehavior.label')}
+                description={t('settings.followBehavior.description')}
+                control={
+                  <SegmentedControl
+                    value={followBehavior}
+                    onChange={(nextValue) => setFollowBehavior(nextValue as 'queue' | 'lead')}
+                    options={[
+                      { value: 'queue', label: t('settings.followBehavior.queue') },
+                      { value: 'lead', label: t('settings.followBehavior.lead') },
+                    ]}
+                  />
+                }
+              />
+            </SettingsSection>
 
-          <div className="mb-4 mt-8">
-            <h2 className="text-[20px] font-bold tracking-tight">{t('settings.notificationsTitle')}</h2>
+            <div className="mb-4 mt-8">
+              <h2 className="text-[20px] font-bold tracking-tight">{t('settings.notificationsTitle')}</h2>
+            </div>
+            <SettingsSection>
+              <SettingsRow
+                label={t('settings.turnNotification.label')}
+                description={t('settings.turnNotification.description')}
+                control={
+                  <BasicSelect
+                    value={turnNotificationPolicy}
+                    options={[
+                      { value: 'whenUnfocused', label: t('settings.turnNotification.whenUnfocused') },
+                      { value: 'always', label: t('settings.turnNotification.always') },
+                      { value: 'never', label: t('settings.turnNotification.never') },
+                    ]}
+                    onChange={(nextValue) => setTurnNotificationPolicy(nextValue as 'whenUnfocused' | 'always' | 'never')}
+                  />
+                }
+              />
+              <SettingsRow
+                label={t('settings.permissionNotification.label')}
+                description={t('settings.permissionNotification.description')}
+                control={<BasicSwitch checked={true} onChange={() => {}} />}
+              />
+            </SettingsSection>
           </div>
-          <SettingsSection>
-            <SettingsRow
-              label={t('settings.turnNotification.label')}
-              description={t('settings.turnNotification.description')}
-              control={
-                <BasicSelect
-                  value={turnNotificationPolicy}
-                  options={[
-                    { value: 'whenUnfocused', label: t('settings.turnNotification.whenUnfocused') },
-                    { value: 'always', label: t('settings.turnNotification.always') },
-                    { value: 'never', label: t('settings.turnNotification.never') },
-                  ]}
-                  onChange={(nextValue) => setTurnNotificationPolicy(nextValue as 'whenUnfocused' | 'always' | 'never')}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.permissionNotification.label')}
-              description={t('settings.permissionNotification.description')}
-              control={<BasicSwitch checked={true} onChange={() => {}} />}
-            />
-          </SettingsSection>
         </ScrollArea>
       </div>
     </div>
