@@ -164,12 +164,23 @@ const rpcMock = vi.hoisted(() => {
 })
 
 const xtermMock = vi.hoisted(() => {
+  type MockTerminalOptions = {
+    theme?: Record<string, string>
+  }
+  const instances: MockTerminal[] = []
+
   class MockTerminal {
     cols = 120
     rows = 36
+    options: MockTerminalOptions
     private host: HTMLElement | null = null
     private output = ''
     private dataListeners = new Set<(data: string) => void>()
+
+    constructor(options: MockTerminalOptions = {}) {
+      this.options = { ...options }
+      instances.push(this)
+    }
 
     loadAddon() {}
 
@@ -215,7 +226,11 @@ const xtermMock = vi.hoisted(() => {
     fit() {}
   }
 
-  return { MockTerminal, MockFitAddon }
+  const reset = () => {
+    instances.length = 0
+  }
+
+  return { MockTerminal, MockFitAddon, instances, reset }
 })
 
 vi.mock('@xterm/xterm', () => {
@@ -277,6 +292,7 @@ describe('App thread history integration', () => {
 
   beforeEach(() => {
     rpcMock.reset()
+    xtermMock.reset()
     window.history.replaceState(null, '', '/')
     window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
@@ -718,6 +734,41 @@ describe('App thread history integration', () => {
       expect(terminalHarness.ensureSession.mock.calls[0]?.[0]).toBe('thread-alpha')
       expect(await screen.findByTestId('terminal-pane')).toBeInTheDocument()
     } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('reads terminal theme colors from css tokens', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+    const root = document.documentElement
+    root.style.setProperty('--terminal-bg', 'rgb(12, 34, 56)')
+    root.style.setProperty('--terminal-fg', 'rgb(240, 240, 245)')
+    root.style.setProperty('--terminal-cursor', 'rgb(111, 122, 133)')
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+
+      await waitFor(() => {
+        const terminalInstance =
+          xtermMock.instances[xtermMock.instances.length - 1]
+        expect(terminalInstance).toBeDefined()
+        expect(terminalInstance?.options.theme?.background).toBe('rgb(12, 34, 56)')
+        expect(terminalInstance?.options.theme?.foreground).toBe('rgb(240, 240, 245)')
+        expect(terminalInstance?.options.theme?.cursor).toBe('rgb(111, 122, 133)')
+      })
+    } finally {
+      root.style.removeProperty('--terminal-bg')
+      root.style.removeProperty('--terminal-fg')
+      root.style.removeProperty('--terminal-cursor')
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge
       } else {

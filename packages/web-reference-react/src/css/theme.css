@@ -86,6 +86,28 @@
   --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
   --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
   --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
+  --terminal-bg: color-mix(in oklch, var(--background) 86%, black);
+  --terminal-fg: color-mix(in oklch, var(--foreground) 92%, transparent);
+  --terminal-cursor: var(--foreground);
+  --terminal-cursor-accent: var(--background);
+  --terminal-selection-bg: color-mix(in oklch, var(--foreground) 24%, transparent);
+  --terminal-selection-fg: var(--foreground);
+  --terminal-ansi-black: color-mix(in oklch, var(--foreground) 42%, var(--background));
+  --terminal-ansi-red: color-mix(in oklch, var(--destructive) 82%, var(--foreground));
+  --terminal-ansi-green: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
+  --terminal-ansi-yellow: color-mix(in oklch, var(--chart-2) 84%, var(--foreground));
+  --terminal-ansi-blue: color-mix(in oklch, var(--primary) 88%, var(--foreground));
+  --terminal-ansi-magenta: color-mix(in oklch, var(--chart-5) 84%, var(--foreground));
+  --terminal-ansi-cyan: color-mix(in oklch, var(--chart-4) 82%, var(--foreground));
+  --terminal-ansi-white: color-mix(in oklch, var(--foreground) 78%, var(--background));
+  --terminal-ansi-bright-black: color-mix(in oklch, var(--foreground) 56%, var(--background));
+  --terminal-ansi-bright-red: color-mix(in oklch, var(--destructive) 94%, var(--foreground));
+  --terminal-ansi-bright-green: color-mix(in oklch, var(--diff-add) 94%, var(--foreground));
+  --terminal-ansi-bright-yellow: color-mix(in oklch, var(--chart-2) 92%, var(--foreground));
+  --terminal-ansi-bright-blue: color-mix(in oklch, var(--primary) 96%, var(--foreground));
+  --terminal-ansi-bright-magenta: color-mix(in oklch, var(--chart-5) 92%, var(--foreground));
+  --terminal-ansi-bright-cyan: color-mix(in oklch, var(--chart-4) 90%, var(--foreground));
+  --terminal-ansi-bright-white: color-mix(in oklch, var(--foreground) 96%, var(--background));
 }
 
 .dark {
@@ -168,6 +190,28 @@
   --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
   --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
   --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
+  --terminal-bg: color-mix(in oklch, var(--background) 84%, black);
+  --terminal-fg: color-mix(in oklch, var(--foreground) 94%, transparent);
+  --terminal-cursor: var(--foreground);
+  --terminal-cursor-accent: var(--background);
+  --terminal-selection-bg: color-mix(in oklch, var(--foreground) 20%, transparent);
+  --terminal-selection-fg: var(--foreground);
+  --terminal-ansi-black: color-mix(in oklch, var(--foreground) 36%, var(--background));
+  --terminal-ansi-red: color-mix(in oklch, var(--destructive) 86%, var(--foreground));
+  --terminal-ansi-green: color-mix(in oklch, var(--diff-add) 84%, var(--foreground));
+  --terminal-ansi-yellow: color-mix(in oklch, var(--chart-2) 80%, var(--foreground));
+  --terminal-ansi-blue: color-mix(in oklch, var(--primary) 84%, var(--foreground));
+  --terminal-ansi-magenta: color-mix(in oklch, var(--chart-5) 80%, var(--foreground));
+  --terminal-ansi-cyan: color-mix(in oklch, var(--chart-4) 80%, var(--foreground));
+  --terminal-ansi-white: color-mix(in oklch, var(--foreground) 76%, var(--background));
+  --terminal-ansi-bright-black: color-mix(in oklch, var(--foreground) 54%, var(--background));
+  --terminal-ansi-bright-red: color-mix(in oklch, var(--destructive) 92%, var(--foreground));
+  --terminal-ansi-bright-green: color-mix(in oklch, var(--diff-add) 90%, var(--foreground));
+  --terminal-ansi-bright-yellow: color-mix(in oklch, var(--chart-2) 88%, var(--foreground));
+  --terminal-ansi-bright-blue: color-mix(in oklch, var(--primary) 92%, var(--foreground));
+  --terminal-ansi-bright-magenta: color-mix(in oklch, var(--chart-5) 90%, var(--foreground));
+  --terminal-ansi-bright-cyan: color-mix(in oklch, var(--chart-4) 88%, var(--foreground));
+  --terminal-ansi-bright-white: color-mix(in oklch, var(--foreground) 98%, var(--background));
 }
 
 @theme inline {

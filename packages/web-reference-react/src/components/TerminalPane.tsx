@@ -6,6 +6,7 @@ import { Button } from './ui/button'
 import { useI18n } from '../app/i18n/I18nProvider'
 
 type DesktopTerminalBridge = NonNullable<NonNullable<Window['formaxDesktop']>['terminal']>
+type XtermTheme = NonNullable<NonNullable<ConstructorParameters<typeof Terminal>[0]>['theme']>
 
 type TerminalPaneProps = {
   threadId: string
@@ -15,6 +16,107 @@ type TerminalPaneProps = {
 
 const TERMINAL_RESIZE_DEBOUNCE_MS = 80
 const NULL_EXIT_CODE_LABEL = 'null'
+const ROOT_THEME_OBSERVER_ATTRIBUTES = ['class', 'data-theme', 'data-window-transparency'] as const
+const FALLBACK_TERMINAL_THEME: XtermTheme = {
+  background: '#0f1115',
+  foreground: '#f5f7fa',
+  cursor: '#f5f7fa',
+  cursorAccent: '#0f1115',
+  selectionBackground: 'rgba(245, 247, 250, 0.24)',
+  selectionForeground: '#f5f7fa',
+  black: '#1c1f26',
+  red: '#e86671',
+  green: '#7ecb6f',
+  yellow: '#e5c76b',
+  blue: '#6aa6ff',
+  magenta: '#c38bff',
+  cyan: '#68d4e5',
+  white: '#d8dee9',
+  brightBlack: '#5d6675',
+  brightRed: '#ff8d96',
+  brightGreen: '#a7e58f',
+  brightYellow: '#f6de92',
+  brightBlue: '#93c0ff',
+  brightMagenta: '#d7a8ff',
+  brightCyan: '#9ce9f6',
+  brightWhite: '#ffffff',
+}
+
+function readCssColorToken(styles: CSSStyleDeclaration, tokenName: string, fallback: string): string {
+  const value = styles.getPropertyValue(tokenName).trim()
+  return value.length > 0 ? value : fallback
+}
+
+function resolveTerminalThemeFromCss(): XtermTheme {
+  if (typeof window === 'undefined' || typeof getComputedStyle !== 'function') {
+    return FALLBACK_TERMINAL_THEME
+  }
+  const styles = window.getComputedStyle(document.documentElement)
+  return {
+    background: readCssColorToken(styles, '--terminal-bg', FALLBACK_TERMINAL_THEME.background ?? '#0f1115'),
+    foreground: readCssColorToken(styles, '--terminal-fg', FALLBACK_TERMINAL_THEME.foreground ?? '#f5f7fa'),
+    cursor: readCssColorToken(styles, '--terminal-cursor', FALLBACK_TERMINAL_THEME.cursor ?? '#f5f7fa'),
+    cursorAccent: readCssColorToken(
+      styles,
+      '--terminal-cursor-accent',
+      FALLBACK_TERMINAL_THEME.cursorAccent ?? '#0f1115',
+    ),
+    selectionBackground: readCssColorToken(
+      styles,
+      '--terminal-selection-bg',
+      FALLBACK_TERMINAL_THEME.selectionBackground ?? 'rgba(245, 247, 250, 0.24)',
+    ),
+    selectionForeground: readCssColorToken(
+      styles,
+      '--terminal-selection-fg',
+      FALLBACK_TERMINAL_THEME.selectionForeground ?? '#f5f7fa',
+    ),
+    black: readCssColorToken(styles, '--terminal-ansi-black', FALLBACK_TERMINAL_THEME.black ?? '#1c1f26'),
+    red: readCssColorToken(styles, '--terminal-ansi-red', FALLBACK_TERMINAL_THEME.red ?? '#e86671'),
+    green: readCssColorToken(styles, '--terminal-ansi-green', FALLBACK_TERMINAL_THEME.green ?? '#7ecb6f'),
+    yellow: readCssColorToken(styles, '--terminal-ansi-yellow', FALLBACK_TERMINAL_THEME.yellow ?? '#e5c76b'),
+    blue: readCssColorToken(styles, '--terminal-ansi-blue', FALLBACK_TERMINAL_THEME.blue ?? '#6aa6ff'),
+    magenta: readCssColorToken(styles, '--terminal-ansi-magenta', FALLBACK_TERMINAL_THEME.magenta ?? '#c38bff'),
+    cyan: readCssColorToken(styles, '--terminal-ansi-cyan', FALLBACK_TERMINAL_THEME.cyan ?? '#68d4e5'),
+    white: readCssColorToken(styles, '--terminal-ansi-white', FALLBACK_TERMINAL_THEME.white ?? '#d8dee9'),
+    brightBlack: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-black',
+      FALLBACK_TERMINAL_THEME.brightBlack ?? '#5d6675',
+    ),
+    brightRed: readCssColorToken(styles, '--terminal-ansi-bright-red', FALLBACK_TERMINAL_THEME.brightRed ?? '#ff8d96'),
+    brightGreen: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-green',
+      FALLBACK_TERMINAL_THEME.brightGreen ?? '#a7e58f',
+    ),
+    brightYellow: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-yellow',
+      FALLBACK_TERMINAL_THEME.brightYellow ?? '#f6de92',
+    ),
+    brightBlue: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-blue',
+      FALLBACK_TERMINAL_THEME.brightBlue ?? '#93c0ff',
+    ),
+    brightMagenta: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-magenta',
+      FALLBACK_TERMINAL_THEME.brightMagenta ?? '#d7a8ff',
+    ),
+    brightCyan: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-cyan',
+      FALLBACK_TERMINAL_THEME.brightCyan ?? '#9ce9f6',
+    ),
+    brightWhite: readCssColorToken(
+      styles,
+      '--terminal-ansi-bright-white',
+      FALLBACK_TERMINAL_THEME.brightWhite ?? '#ffffff',
+    ),
+  }
+}
 
 export function TerminalPane(props: TerminalPaneProps) {
   const { t } = useI18n()
@@ -33,6 +135,12 @@ export function TerminalPane(props: TerminalPaneProps) {
     void props.bridge.resize(props.threadId, terminal.cols, terminal.rows).catch(() => undefined)
   }, [props.bridge, props.threadId])
 
+  const syncTerminalTheme = useCallback(() => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    terminal.options.theme = resolveTerminalThemeFromCss()
+  }, [])
+
   useEffect(() => {
     const host = terminalHostRef.current
     if (!host) return
@@ -45,9 +153,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       scrollback: 5000,
       fontFamily:
         'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      theme: {
-        background: '#0a0e14',
-      },
+      theme: resolveTerminalThemeFromCss(),
     })
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
@@ -66,6 +172,23 @@ export function TerminalPane(props: TerminalPaneProps) {
       fitAddonRef.current = null
     }
   }, [props.bridge, props.threadId])
+
+  useEffect(() => {
+    const root = document.documentElement
+    syncTerminalTheme()
+    if (typeof MutationObserver !== 'function') return
+
+    const observer = new MutationObserver(() => {
+      syncTerminalTheme()
+    })
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: [...ROOT_THEME_OBSERVER_ATTRIBUTES],
+    })
+    return () => {
+      observer.disconnect()
+    }
+  }, [syncTerminalTheme, props.threadId])
 
   useEffect(() => {
     let cancelled = false
@@ -215,6 +338,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         <div
           ref={terminalHostRef}
           className="h-full min-h-0 w-full overflow-hidden rounded-md border border-border/70"
+          style={{ backgroundColor: 'var(--terminal-bg)' }}
         />
       </div>
     </div>
