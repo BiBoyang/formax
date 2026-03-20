@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react'
 import { memo, useState } from 'react'
 import { Card, CardContent } from './ui/card'
 import { cn } from '../lib/utils'
@@ -76,17 +77,22 @@ function BasicSelect({
   onChange: (nextValue: string) => void
 }) {
   return (
-    <select
-      className="h-8 items-center justify-between rounded-md border border-input bg-background/50 px-3 py-1 ui-text-base ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-1 w-[220px]"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+    <div className="relative w-[220px]">
+      <select
+        className="h-8 w-full appearance-none rounded-md border border-transparent bg-[var(--sidebar-list-active)] px-3 py-1 pr-9 ui-text-base outline-none transition-colors hover:bg-[var(--sidebar-list-hover)] focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+      />
+    </div>
   )
 }
 
@@ -134,7 +140,7 @@ export const SettingsPane = memo(function SettingsPane({
         <ScrollArea className="h-full w-full">
           <div className="mx-auto w-full max-w-3xl px-8 pt-8 pb-10">
             <div className="mb-6">
-            <h2 className="text-[20px] font-bold tracking-tight">{t('settings.generalTitle')}</h2>
+              <h2 className="text-[20px] font-bold tracking-tight">{t('settings.generalTitle')}</h2>
             </div>
             <SettingsSection>
               <SettingsRow

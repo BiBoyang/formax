@@ -71,10 +71,10 @@
   --sidebar-text-muted: color-mix(in oklch, var(--foreground) 72%, transparent);
   --sidebar-list-hover-solid: color-mix(in oklch, var(--foreground) 10%, var(--sidebar));
   --sidebar-list-active-solid: color-mix(in oklch, var(--foreground) 14%, var(--sidebar));
-  --sidebar-list-hover-translucent: color-mix(in oklch, var(--foreground) 12%, transparent);
-  --sidebar-list-active-translucent: color-mix(in oklch, var(--foreground) 18%, transparent);
-  --sidebar-list-hover: var(--sidebar-list-hover-solid);
-  --sidebar-list-active: var(--sidebar-list-active-solid);
+  --sidebar-list-hover-translucent: color-mix(in oklch, var(--foreground) 10.5%, transparent);
+  --sidebar-list-active-translucent: color-mix(in oklch, var(--foreground) 5.5%, transparent);
+  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
+  --sidebar-list-active: var(--sidebar-list-active-translucent);
   --sidebar-list-idle-opacity: 0.76;
   --surface-subtle: color-mix(in srgb, var(--background) 94%, black);
   --surface-user-bubble: color-mix(in srgb, var(--background) 94%, black);
@@ -154,9 +154,9 @@
   --sidebar-list-hover-solid: color-mix(in oklch, var(--foreground) 14%, var(--sidebar));
   --sidebar-list-active-solid: color-mix(in oklch, var(--foreground) 20%, var(--sidebar));
   --sidebar-list-hover-translucent: color-mix(in oklch, var(--foreground) 20%, transparent);
-  --sidebar-list-active-translucent: color-mix(in oklch, var(--foreground) 30%, transparent);
-  --sidebar-list-hover: var(--sidebar-list-hover-solid);
-  --sidebar-list-active: var(--sidebar-list-active-solid);
+  --sidebar-list-active-translucent: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --sidebar-list-hover: var(--sidebar-list-hover-translucent);
+  --sidebar-list-active: var(--sidebar-list-active-translucent);
   --sidebar-list-idle-opacity: 0.74;
   --surface-subtle: color-mix(in oklch, var(--foreground) 10%, var(--background));
   --surface-user-bubble: color-mix(in oklch, var(--foreground) 10%, var(--background));
