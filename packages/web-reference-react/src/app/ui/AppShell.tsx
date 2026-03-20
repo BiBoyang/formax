@@ -234,6 +234,14 @@ export function AppShell(props: AppShellProps) {
     props.onDevLoadAllEarlier?.()
   }, [props.onDevLoadAllEarlier])
 
+  const onOpenSettings = useCallback(() => {
+    props.setIsSettingsOpen(true)
+  }, [props.setIsSettingsOpen])
+
+  const onCloseSettings = useCallback(() => {
+    props.setIsSettingsOpen(false)
+  }, [props.setIsSettingsOpen])
+
   const commitHostWindowAppearanceState = useCallback((payload: unknown) => {
     const normalizedState = normalizeDesktopWindowAppearanceState(payload)
     setDesktopWindowAppearanceState((previous) =>
@@ -342,6 +350,9 @@ export function AppShell(props: AppShellProps) {
       onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
       isWindowTransparent,
       onToggleWindowTransparency: isDesktopClient ? onToggleWindowTransparency : undefined,
+      isSettingsOpen: props.isSettingsOpen,
+      onOpenSettings,
+      onCloseSettings,
     }),
     [
       props.activeThreadId,
@@ -356,10 +367,13 @@ export function AppShell(props: AppShellProps) {
       props.onStartThreadInCwd,
       props.selectedCwd,
       props.sortedThreads,
+      props.isSettingsOpen,
       isDesktopClient,
       isWindowTransparent,
       desktopBridge,
       onCreateProject,
+      onOpenSettings,
+      onCloseSettings,
       onToggleWindowTransparency,
     ],
   )
