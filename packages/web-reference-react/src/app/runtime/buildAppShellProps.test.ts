@@ -22,6 +22,8 @@ describe('buildAppShellProps', () => {
         isSidebarOpen: true,
         setIsSidebarOpen: vi.fn(),
         sidebarWidth: 24,
+        isRightRailOpen: true,
+        setIsRightRailOpen: vi.fn(),
         rightRailWidth: 40,
         setSidebarWidth: vi.fn(),
         setRightRailWidth: vi.fn(),

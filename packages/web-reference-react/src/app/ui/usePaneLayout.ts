@@ -3,6 +3,7 @@ import {
   RIGHT_RAIL_DEFAULT_SIZE,
   RIGHT_RAIL_MAX_SIZE,
   RIGHT_RAIL_MIN_SIZE,
+  RIGHT_RAIL_OPEN_STORAGE_KEY,
   RIGHT_RAIL_WIDTH_STORAGE_KEY,
   SIDEBAR_DEFAULT_SIZE,
   SIDEBAR_MAX_SIZE,
@@ -37,6 +38,12 @@ export function usePaneLayout(port?: PaneSizingPort) {
     )
     return clampSidebarWidth(storedSidebar)
   })
+  const [isRightRailOpen, setIsRightRailOpen] = useState(() => {
+    const stored = layoutPort.readStoredPaneBoolean(RIGHT_RAIL_OPEN_STORAGE_KEY)
+    if (stored != null) return stored
+    // Backward compatibility: right rail was visible by default before open-state persistence existed.
+    return true
+  })
   const [rightRailWidth, setRightRailWidth] = useState(() => {
     const storedRight = readStoredPercent(
       layoutPort.readStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY),
@@ -53,6 +60,10 @@ export function usePaneLayout(port?: PaneSizingPort) {
     layoutPort.writeStoredPaneWidth(RIGHT_RAIL_WIDTH_STORAGE_KEY, rightRailWidth)
   }, [layoutPort, rightRailWidth])
 
+  useEffect(() => {
+    layoutPort.writeStoredPaneBoolean(RIGHT_RAIL_OPEN_STORAGE_KEY, isRightRailOpen)
+  }, [layoutPort, isRightRailOpen])
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   return {
@@ -60,6 +71,8 @@ export function usePaneLayout(port?: PaneSizingPort) {
     setIsSidebarOpen,
     sidebarWidth,
     setSidebarWidth,
+    isRightRailOpen,
+    setIsRightRailOpen,
     rightRailWidth,
     setRightRailWidth,
     isSettingsOpen,

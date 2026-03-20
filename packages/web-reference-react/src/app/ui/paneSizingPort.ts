@@ -2,6 +2,8 @@ export interface PaneSizingPort {
   getViewportWidth: () => number
   readStoredPaneWidth: (storageKey: string) => number | null
   writeStoredPaneWidth: (storageKey: string, width: number) => void
+  readStoredPaneBoolean: (storageKey: string) => boolean | null
+  writeStoredPaneBoolean: (storageKey: string, value: boolean) => void
   onViewportResize: (listener: () => void) => () => void
 }
 
@@ -24,6 +26,24 @@ export function createBrowserPaneSizingPort(defaultViewportWidth = 1600): PaneSi
       if (typeof window === 'undefined') return
       try {
         window.localStorage.setItem(storageKey, String(Math.round(width)))
+      } catch {
+        // best effort only
+      }
+    },
+    readStoredPaneBoolean: (storageKey: string) => {
+      if (typeof window === 'undefined') return null
+      try {
+        const raw = window.localStorage.getItem(storageKey)
+        if (!raw) return null
+        return raw === 'true'
+      } catch {
+        return null
+      }
+    },
+    writeStoredPaneBoolean: (storageKey: string, value: boolean) => {
+      if (typeof window === 'undefined') return
+      try {
+        window.localStorage.setItem(storageKey, value ? 'true' : 'false')
       } catch {
         // best effort only
       }

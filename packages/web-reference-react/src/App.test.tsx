@@ -321,6 +321,21 @@ describe('App thread history integration', () => {
     throw new Error(`Unable to set composer mode to ${target}`)
   }
 
+  const SIDEBAR_SETTINGS_LABEL = /Settings|设置/
+
+  async function clickWindowTransparencyMenuItem() {
+    const leftRail = await screen.findByTestId('left-rail')
+    const settingsTrigger = within(leftRail).getByRole('button', { name: SIDEBAR_SETTINGS_LABEL })
+    fireEvent.keyDown(settingsTrigger, { key: 'Enter' })
+    fireEvent.click(settingsTrigger, { button: 0 })
+    const menuItems = await screen.findAllByRole('menuitem')
+    const transparencyItem = menuItems[menuItems.length - 1]
+    if (!transparencyItem) {
+      throw new Error('Expected transparency menu item to exist')
+    }
+    fireEvent.click(transparencyItem)
+  }
+
   it('restores persisted sidebar and right rail widths', async () => {
     const originalInnerWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 })
@@ -371,7 +386,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('toggles desktop window transparency from header button', async () => {
+  it('toggles desktop window transparency from settings menu', async () => {
     const originalDesktopBridge = window.formaxDesktop
     const getState = vi.fn(async () => createDesktopWindowAppearanceState(false, 1))
     const setWindowTransparency = vi.fn(async (enabled: boolean) => createDesktopWindowAppearanceState(enabled, 2))
@@ -393,15 +408,11 @@ describe('App thread history integration', () => {
         expect(appShell.getAttribute('data-window-transparency')).toBe('off')
       })
 
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
-      expect(transparencyToggle.getAttribute('aria-pressed')).toBe('false')
-
-      fireEvent.click(transparencyToggle)
+      await clickWindowTransparencyMenuItem()
 
       await waitFor(() => {
         expect(appShell.getAttribute('data-window-transparency')).toBe('on')
       })
-      expect(transparencyToggle.getAttribute('aria-pressed')).toBe('true')
       expect(setWindowTransparency).toHaveBeenCalled()
       expect(setWindowTransparency.mock.calls.some(([enabled]) => enabled === true)).toBe(true)
       expect(getState).toHaveBeenCalledTimes(1)
@@ -432,8 +443,7 @@ describe('App thread history integration', () => {
       render(<App />)
 
       const appShell = await screen.findByTestId('app-shell')
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
-      fireEvent.click(transparencyToggle)
+      await clickWindowTransparencyMenuItem()
 
       await waitFor(() => {
         expect(appShell.getAttribute('data-window-transparency')).toBe('on')
@@ -472,18 +482,17 @@ describe('App thread history integration', () => {
       render(<App />)
 
       const appShell = await screen.findByTestId('app-shell')
-      const transparencyToggle = screen.getByRole('button', { name: 'Toggle window transparency' })
 
       expect(getState).toHaveBeenCalledTimes(1)
       expect(setWindowTransparency).not.toHaveBeenCalled()
 
-      fireEvent.click(transparencyToggle)
+      await clickWindowTransparencyMenuItem()
       await waitFor(() => {
         expect(setWindowTransparency).toHaveBeenCalledTimes(1)
       })
       expect(setWindowTransparency.mock.calls[0]?.[0]).toBe(true)
 
-      fireEvent.click(transparencyToggle)
+      await clickWindowTransparencyMenuItem()
 
       // Disable call should wait until the in-flight enable call settles.
       expect(setWindowTransparency).toHaveBeenCalledTimes(1)
@@ -501,10 +510,6 @@ describe('App thread history integration', () => {
 
       await act(async () => {
         pending.shift()?.()
-      })
-
-      await waitFor(() => {
-        expect(transparencyToggle.getAttribute('aria-pressed')).toBe('false')
       })
 
       await waitFor(() => {

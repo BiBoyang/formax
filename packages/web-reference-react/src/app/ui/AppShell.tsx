@@ -1,6 +1,16 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
-import { PanelLeft } from 'lucide-react'
+import {
+  PanelLeft,
+  ChevronDown,
+  Code,
+  Settings,
+  ArrowRightLeft,
+  GitCommitHorizontal,
+  SquareTerminal,
+  PlusSquare,
+  Copy,
+} from 'lucide-react'
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
@@ -11,6 +21,13 @@ import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '../../components/ui/tooltip'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import { DEFAULT_OPEN_TARGET_OPTIONS, type OpenTargetOption, type UpdateUserSetting, type UserSettings } from '../core/userSettings'
@@ -69,6 +86,8 @@ export type AppShellProps = {
   isSidebarOpen: boolean
   setIsSidebarOpen: Dispatch<SetStateAction<boolean>>
   sidebarWidth: number
+  isRightRailOpen: boolean
+  setIsRightRailOpen: Dispatch<SetStateAction<boolean>>
   rightRailWidth: number
   setSidebarWidth: Dispatch<SetStateAction<number>>
   setRightRailWidth: Dispatch<SetStateAction<number>>
@@ -116,6 +135,10 @@ export type AppShellProps = {
   onUserSettingChange: UpdateUserSetting
 }
 
+const SHARED_HEADER_BTN_ICON = 'h-[26px] w-[26px] px-0 flex items-center justify-center text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground transition-colors rounded-[6px]'
+const SHARED_HEADER_BTN_GROUP = 'h-[26px] flex items-center rounded-[6px] border border-border/60 bg-transparent overflow-hidden text-muted-foreground hover:text-foreground transition-colors'
+const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:bg-[var(--sidebar-list-hover)] transition-colors'
+
 export function AppShell(props: AppShellProps) {
   const { t } = useI18n()
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
@@ -124,7 +147,6 @@ export function AppShell(props: AppShellProps) {
     DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
   const [availableOpenTargets, setAvailableOpenTargets] = useState<OpenTargetOption[]>(DEFAULT_OPEN_TARGET_OPTIONS)
-  const [isWindowTransparencyPending, setIsWindowTransparencyPending] = useState(false)
   const isWindowTransparent = desktopWindowAppearanceState.windowTransparencyEnabled
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
@@ -142,8 +164,11 @@ export function AppShell(props: AppShellProps) {
   const windowTransparencyIntentRef = useRef(isWindowTransparent)
   const latestWindowTransparencyEnabledRef = useRef(isWindowTransparent)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
+  const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
+  const lastOpenRightRailWidthRef = useRef(clampRightRailWidth(rightRailPercent))
   const previousSidebarOpenRef = useRef(props.isSidebarOpen)
+  const previousRightRailOpenRef = useRef(props.isRightRailOpen)
   const showDevLoadAllButton = props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
@@ -180,6 +205,28 @@ export function AppShell(props: AppShellProps) {
     panelGroup.setLayout([restoredSidebarWidth, Math.max(0, 100 - restoredSidebarWidth)])
   }, [props.isSidebarOpen])
 
+  useEffect(() => {
+    if (!props.isRightRailOpen) return
+    lastOpenRightRailWidthRef.current = clampRightRailWidth(props.rightRailWidth)
+  }, [props.isRightRailOpen, props.rightRailWidth])
+
+  useEffect(() => {
+    const panelGroup = rightRailPanelGroupRef.current
+    if (!panelGroup) return
+    if (previousRightRailOpenRef.current === props.isRightRailOpen) return
+    previousRightRailOpenRef.current = props.isRightRailOpen
+    const currentLayout = panelGroup.getLayout()
+    if (currentLayout.length < 2) return
+
+    if (!props.isRightRailOpen) {
+      panelGroup.setLayout([100, 0])
+      return
+    }
+
+    const restoredRightRailWidth = clampRightRailWidth(lastOpenRightRailWidthRef.current)
+    panelGroup.setLayout([Math.max(0, 100 - restoredRightRailWidth), restoredRightRailWidth])
+  }, [props.isRightRailOpen])
+
   const commitSidebarWidth = useCallback((nextSidebarWidth: number) => {
     props.setSidebarWidth((previous) => (Math.abs(nextSidebarWidth - previous) >= 1 ? nextSidebarWidth : previous))
   }, [props.setSidebarWidth])
@@ -194,18 +241,13 @@ export function AppShell(props: AppShellProps) {
     if (!props.isSidebarOpen) return
     const clampedSidebar = clampSidebarWidth(sidebarSizePercent)
     pendingSidebarPercentRef.current = clampedSidebar
-    if (!isLeftDraggingRef.current && Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
-      commitSidebarWidth(clampedSidebar)
-    }
-  }, [commitSidebarWidth, props.isSidebarOpen, props.sidebarWidth])
+  }, [props.isSidebarOpen])
 
   const onRightResize = useCallback((rightSizePercent: number) => {
+    if (!props.isRightRailOpen) return
     const clampedRight = clampRightRailWidth(rightSizePercent)
     pendingRightRailPercentRef.current = clampedRight
-    if (!isRightDraggingRef.current && Math.abs(clampedRight - props.rightRailWidth) >= 1) {
-      commitRightRailWidth(clampedRight)
-    }
-  }, [commitRightRailWidth, props.rightRailWidth])
+  }, [props.isRightRailOpen])
 
   const onLeftDragStateChange = useCallback((isDragging: boolean) => {
     isLeftDraggingRef.current = isDragging
@@ -220,11 +262,12 @@ export function AppShell(props: AppShellProps) {
   const onRightDragStateChange = useCallback((isDragging: boolean) => {
     isRightDraggingRef.current = isDragging
     if (isDragging) return
+    if (!props.isRightRailOpen) return
     const clampedRight = pendingRightRailPercentRef.current
     if (Math.abs(clampedRight - props.rightRailWidth) >= 1) {
       commitRightRailWidth(clampedRight)
     }
-  }, [commitRightRailWidth, props.rightRailWidth])
+  }, [commitRightRailWidth, props.isRightRailOpen, props.rightRailWidth])
 
   const onToggleSidebar = useCallback(() => {
     if (props.isSidebarOpen) {
@@ -237,6 +280,18 @@ export function AppShell(props: AppShellProps) {
     props.setSidebarWidth(restoredSidebarWidth)
     props.setIsSidebarOpen(true)
   }, [props.isSidebarOpen, props.setIsSidebarOpen, props.setSidebarWidth, props.sidebarWidth])
+
+  const onToggleRightRail = useCallback(() => {
+    if (props.isRightRailOpen) {
+      lastOpenRightRailWidthRef.current = clampRightRailWidth(props.rightRailWidth)
+      props.setIsRightRailOpen(false)
+      return
+    }
+
+    const restoredRightRailWidth = clampRightRailWidth(lastOpenRightRailWidthRef.current)
+    props.setRightRailWidth(restoredRightRailWidth)
+    props.setIsRightRailOpen(true)
+  }, [props.isRightRailOpen, props.setIsRightRailOpen, props.setRightRailWidth, props.rightRailWidth])
 
   const onDevLoadAllEarlier = useCallback(() => {
     props.onDevLoadAllEarlier?.()
@@ -268,7 +323,6 @@ export function AppShell(props: AppShellProps) {
     windowTransparencyIntentRef.current = nextEnabled
 
     pendingWindowTransparencyCommandsRef.current += 1
-    setIsWindowTransparencyPending(true)
 
     const nextCommand = windowTransparencyCommandQueueRef.current
       .then(async () => {
@@ -281,7 +335,6 @@ export function AppShell(props: AppShellProps) {
       .finally(() => {
         pendingWindowTransparencyCommandsRef.current = Math.max(0, pendingWindowTransparencyCommandsRef.current - 1)
         if (pendingWindowTransparencyCommandsRef.current === 0) {
-          setIsWindowTransparencyPending(false)
           windowTransparencyIntentRef.current = latestWindowTransparencyEnabledRef.current
         }
       })
@@ -601,7 +654,8 @@ export function AppShell(props: AppShellProps) {
             {!props.isSettingsOpen && (
               <header
                 className={cn(
-                  'h-[var(--desktop-chrome-height)] flex-none border-b app-shell-right-header',
+                  'h-[var(--desktop-chrome-height)] flex-none app-shell-right-header',
+                  props.isRightRailOpen && 'border-b',
                   isDesktopClient && 'app-shell-drag-region',
                 )}
               >
@@ -637,22 +691,6 @@ export function AppShell(props: AppShellProps) {
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-2">
-                  {isDesktopClient ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t('appShell.toggleWindowTransparency')}
-                      aria-pressed={isWindowTransparent}
-                      aria-busy={isWindowTransparencyPending ? 'true' : undefined}
-                      className="h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground app-shell-no-drag"
-                      onClick={onToggleWindowTransparency}
-                    >
-                      {isWindowTransparencyPending
-                        ? t('appShell.updatingWindow')
-                        : (isWindowTransparent ? t('appShell.windowSolid') : t('appShell.windowTransparent'))}
-                    </Button>
-                  ) : null}
                   {showDevLoadAllButton ? (
                     <Button
                       type="button"
@@ -660,7 +698,8 @@ export function AppShell(props: AppShellProps) {
                       size="sm"
                       data-testid="header-dev-load-all-earlier"
                       className={cn(
-                        'h-8 px-2 ui-text-meta text-muted-foreground hover:text-foreground',
+                        'h-8 px-2 ui-text-meta bg-transparent transition-colors',
+                        'text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
                         isDesktopClient && 'app-shell-no-drag',
                       )}
                       onClick={onDevLoadAllEarlier}
@@ -669,14 +708,162 @@ export function AppShell(props: AppShellProps) {
                       {props.devLoadAllRunning ? t('appShell.loadingAllEarlierDev') : t('appShell.loadAllEarlierDev')}
                     </Button>
                   ) : null}
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={cn(SHARED_HEADER_BTN_ICON, isDesktopClient && 'app-shell-no-drag')}
+                          onClick={onOpenSettings}
+                          aria-label="Settings"
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-[13px]">
+                        Settings
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <div className={cn(SHARED_HEADER_BTN_GROUP, isDesktopClient && "app-shell-no-drag")}>
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className={cn(SHARED_HEADER_BTN_INNER, "px-2 border-r border-border/40")}
+                            onClick={() => {
+                              if (props.selectedCwd) {
+                                onOpenFolderInTarget(props.selectedCwd)
+                              }
+                            }}
+                          >
+                            <Code className="h-4 w-4 text-blue-500" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-[13px]">
+                          Open in VS Code
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={cn(SHARED_HEADER_BTN_INNER, "px-1.5 text-muted-foreground hover:text-foreground")}>
+                          <ChevronDown className="h-3.5 w-3.5 leading-none" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 z-[200]">
+                        <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => {
+                          if (props.selectedCwd) {
+                            onOpenFolderInTarget(props.selectedCwd)
+                          }
+                        }}>
+                          <Code className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-[13px]">{openFolderActionLabel}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      SHARED_HEADER_BTN_GROUP,
+                      "px-2 gap-1 hover:bg-[var(--sidebar-list-hover)] border-border/60",
+                      isDesktopClient && "app-shell-no-drag"
+                    )}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                    <span className="text-[12px]">移至工作树</span>
+                  </button>
+
+                  <div className={cn(SHARED_HEADER_BTN_GROUP, isDesktopClient && "app-shell-no-drag")}>
+                    <button
+                      type="button"
+                      className={cn(SHARED_HEADER_BTN_INNER, "px-2 gap-1 border-r border-border/40")}
+                    >
+                      <GitCommitHorizontal className="h-3.5 w-3.5" />
+                      <span className="text-[12px]">提交</span>
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={cn(SHARED_HEADER_BTN_INNER, "px-1.5")}>
+                          <ChevronDown className="h-3.5 w-3.5 leading-none" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 z-[200]">
+                        <DropdownMenuItem className="text-[13px] cursor-pointer">
+                          Placeholder Action
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="w-px h-4 bg-border/60 mx-1" />
+
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={cn(SHARED_HEADER_BTN_ICON, isDesktopClient && "app-shell-no-drag")}
+                        >
+                          <SquareTerminal className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-[13px]">
+                        切换终端 ⌘J
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] transition-colors select-none',
+                      props.isRightRailOpen
+                        ? 'bg-[var(--sidebar-list-hover)] text-foreground'
+                        : 'bg-transparent text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
+                      isDesktopClient && 'app-shell-no-drag',
+                    )}
+                    onClick={onToggleRightRail}
+                  >
+                    <PlusSquare className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-1 text-[12px] font-medium tracking-tight mt-[1px]">
+                      <span className="text-green-600 dark:text-green-500">+210</span>
+                      <span className="text-red-600 dark:text-red-500">-88</span>
+                    </div>
+                  </button>
+
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={cn(SHARED_HEADER_BTN_ICON, isDesktopClient && "app-shell-no-drag")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-[13px]">
+                        Open in Popout Window
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
                   {props.activeTurnId ? (
                     <div className="rounded-full border border-border bg-background px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
                       {t('appShell.turnBadge', { id: props.activeTurnId.slice(0, 8) })}
                     </div>
                   ) : null}
-                  <div className="rounded-full bg-muted px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">
-                    {props.connectionStatus}
-                  </div>
                 </div>
               </div>
               </header>
@@ -695,7 +882,25 @@ export function AppShell(props: AppShellProps) {
                       'h-full min-w-0 flex items-center px-4 app-shell-header-row-motion',
                       isDesktopClient && !props.isSidebarOpen && 'app-shell-header-row-shifted',
                     )}
-                  />
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground',
+                        isDesktopClient && 'app-shell-no-drag',
+                      )}
+                      onClick={onToggleSidebar}
+                      aria-label={t('appShell.toggleSidebar')}
+                    >
+                      <PanelLeft
+                        className={cn(
+                          'h-4 w-4 app-shell-header-icon-motion',
+                          !props.isSidebarOpen && 'rotate-180',
+                        )}
+                      />
+                    </Button>
+                  </div>
                 </header>
                 <SettingsPane
                   settings={props.userSettings}
@@ -704,8 +909,8 @@ export function AppShell(props: AppShellProps) {
                 />
               </div>
             ) : (
-              <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 min-w-0">
-                <ResizablePanel defaultSize={centerPercent} minSize={35}>
+              <ResizablePanelGroup ref={rightRailPanelGroupRef} direction="horizontal" className="flex-1 min-h-0 min-w-0">
+                <ResizablePanel defaultSize={props.isRightRailOpen ? centerPercent : 100} minSize={35}>
                 <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
                   {props.noticeMessage ? (
                     <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
@@ -721,19 +926,30 @@ export function AppShell(props: AppShellProps) {
               </ResizablePanel>
 
               <ResizableHandle
-                className="relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0"
+                className={cn(
+                  'relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0',
+                  !props.isRightRailOpen && 'pointer-events-none opacity-0',
+                )}
                 onDragging={onRightDragStateChange}
               />
 
               <ResizablePanel
                 defaultSize={rightRailPercent}
-                minSize={rightRailMinPercent}
-                maxSize={rightRailMaxPercent}
+                size={props.isRightRailOpen ? rightRailPercent : 0}
+                minSize={props.isRightRailOpen ? rightRailMinPercent : 0}
+                maxSize={props.isRightRailOpen ? rightRailMaxPercent : 0}
                 onResize={onRightResize}
+                className={cn(
+                  'app-shell-panel-motion',
+                  !props.isRightRailOpen && 'pointer-events-none',
+                )}
               >
                 <div
                   data-testid="right-rail"
-                  className="h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden"
+                  className={cn(
+                    'h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
+                    props.isRightRailOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
+                  )}
                 >
                   <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
                 </div>

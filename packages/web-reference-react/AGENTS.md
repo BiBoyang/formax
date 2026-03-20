@@ -25,3 +25,7 @@
 - App-server interaction contract: `docs/contracts/app-server-interaction-contract.md`
 - Web parity adapter contract: `docs/contracts/web-parity-adapter-contract.md`
 - App-server UI spec: `docs/frontend/app-server-ui-spec.md`
+
+## UI & Styling Guidelines (Important)
+- **Hover & Active States**: For list items, sidebar items, and top header interactive buttons, **ALWAYS** use the translucent color system (`hover:bg-[var(--sidebar-list-hover)]` and `bg-[var(--sidebar-list-active)]`). 
+- **Do NOT use solid colors** (like `bg-muted`, `bg-accent`, or the defined but unused `--sidebar-list-hover-solid`) for these interaction states. The translucent variables `color-mix(..., transparent)` are specifically designed so that hover appears deeper than active, seamlessly blending into underneath backgrounds.

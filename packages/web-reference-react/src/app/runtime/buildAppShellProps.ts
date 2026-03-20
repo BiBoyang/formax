@@ -21,6 +21,8 @@ type LayoutSection = Pick<
   | 'isSidebarOpen'
   | 'setIsSidebarOpen'
   | 'sidebarWidth'
+  | 'isRightRailOpen'
+  | 'setIsRightRailOpen'
   | 'rightRailWidth'
   | 'setSidebarWidth'
   | 'setRightRailWidth'

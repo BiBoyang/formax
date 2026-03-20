@@ -8,3 +8,4 @@ export const SIDEBAR_DEFAULT_SIZE = 18
 export const SEEN_EVENT_CAP = 2000
 export const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-size-percent'
 export const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-size-percent'
+export const RIGHT_RAIL_OPEN_STORAGE_KEY = 'formax:web:right-rail-open'

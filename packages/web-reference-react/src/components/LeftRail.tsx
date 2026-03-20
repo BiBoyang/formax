@@ -235,7 +235,7 @@ export function LeftRail(props: LeftRailProps) {
             />
           )}
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body [mask-image:linear-gradient(to_bottom,transparent,black_32px,black_calc(100%-32px),transparent)]">
           <div className="flex flex-col min-h-full">
             <div className="px-2 space-y-px flex-none">
               <SidebarItem
@@ -285,7 +285,7 @@ export function LeftRail(props: LeftRailProps) {
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body [mask-image:linear-gradient(to_bottom,transparent,black_32px,black_calc(100%-32px),transparent)]">
         <div className="flex flex-col min-h-full">
           <div className="px-2 space-y-px flex-none">
             {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
