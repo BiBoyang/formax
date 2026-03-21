@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { FolderPlus, Globe, Settings, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
@@ -27,6 +27,8 @@ import {
   type SuppressInteractionEvent,
   writeOpenByCwdToStorage,
 } from './left-rail'
+
+const LEFT_RAIL_TOP_FADE_SCROLL_THRESHOLD_PX = 80
 
 export type LeftRailProps = {
   connectionStatus?: 'disconnected' | 'connecting' | 'connected'
@@ -98,6 +100,7 @@ export function LeftRail(props: LeftRailProps) {
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
+  const [showRailTopFade, setShowRailTopFade] = useState(false)
   const nowMinuteBucket = Math.floor(Date.now() / 60_000)
   const nowMsSnapshot = useMemo(() => Date.now(), [nowMinuteBucket])
   const canRenameThread = Boolean(onRenameThread)
@@ -127,6 +130,10 @@ export function LeftRail(props: LeftRailProps) {
     persistedOpenByCwdRef.current = serialized
     writeOpenByCwdToStorage(openByCwd)
   }, [openByCwd])
+
+  useEffect(() => {
+    setShowRailTopFade(false)
+  }, [isSettingsOpen])
 
   const closeRenameDialog = useCallback(() => {
     if (isRenaming) return
@@ -191,6 +198,11 @@ export function LeftRail(props: LeftRailProps) {
     })
   }, [])
 
+  const handleRailScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const shouldShowTopFade = event.currentTarget.scrollTop > LEFT_RAIL_TOP_FADE_SCROLL_THRESHOLD_PX
+    setShowRailTopFade((previous) => (previous === shouldShowTopFade ? previous : shouldShowTopFade))
+  }, [])
+
   const submitRename = useCallback(async () => {
     if (!renameThreadTarget || !onRenameThread) return
     const nextLabel = renameValue.trim()
@@ -235,7 +247,13 @@ export function LeftRail(props: LeftRailProps) {
             />
           )}
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body [mask-image:linear-gradient(to_bottom,transparent,black_32px,black_calc(100%-32px),transparent)]">
+        <div
+          className={cn(
+            'flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body',
+            showRailTopFade ? 'app-scroll-fade-mask-y' : 'app-scroll-fade-mask-bottom',
+          )}
+          onScroll={handleRailScroll}
+        >
           <div className="flex flex-col min-h-full">
             <div className="px-2 space-y-px flex-none">
               <SidebarItem
@@ -285,7 +303,13 @@ export function LeftRail(props: LeftRailProps) {
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body [mask-image:linear-gradient(to_bottom,transparent,black_32px,black_calc(100%-32px),transparent)]">
+      <div
+        className={cn(
+          'flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body',
+          showRailTopFade ? 'app-scroll-fade-mask-y' : 'app-scroll-fade-mask-bottom',
+        )}
+        onScroll={handleRailScroll}
+      >
         <div className="flex flex-col min-h-full">
           <div className="px-2 space-y-px flex-none">
             {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}

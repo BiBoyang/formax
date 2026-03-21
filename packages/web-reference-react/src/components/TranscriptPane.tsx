@@ -492,10 +492,7 @@ const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) 
 
   return (
     <section className="transcript flex-1 overflow-hidden relative">
-      <ScrollArea 
-        ref={props.scrollAreaRef} 
-        className="h-full [mask-image:linear-gradient(to_bottom,transparent,black_32px)]"
-      >
+      <ScrollArea ref={props.scrollAreaRef} className="h-full app-scroll-fade-mask-top">
         <div
           className={cn(
             'flex min-w-0 flex-col gap-4 py-8 pb-14 w-full',

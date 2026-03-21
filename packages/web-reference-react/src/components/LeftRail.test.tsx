@@ -65,6 +65,38 @@ describe('LeftRail', () => {
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 
+  it('shows top fade only after passing the scroll threshold', () => {
+    const { container } = render(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onStartThread={() => undefined}
+        onStartThreadInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const scrollBody = container.querySelector('.left-rail-scroll-body')
+    expect(scrollBody).not.toBeNull()
+    expect(scrollBody).toHaveClass('app-scroll-fade-mask-bottom')
+    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-y')
+
+    if (!scrollBody) return
+    scrollBody.scrollTop = 90
+    fireEvent.scroll(scrollBody)
+    expect(scrollBody).toHaveClass('app-scroll-fade-mask-y')
+    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-bottom')
+
+    scrollBody.scrollTop = 40
+    fireEvent.scroll(scrollBody)
+    expect(scrollBody).toHaveClass('app-scroll-fade-mask-bottom')
+    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-y')
+  })
+
   it('supports thread action menu for rename/copy', async () => {
     const onRenameThread = vi.fn(async () => undefined)
     const onArchiveThread = vi.fn(async () => undefined)

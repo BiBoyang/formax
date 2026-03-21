@@ -53,7 +53,7 @@ function normalizeCwdPath(cwd: string): string {
   return cwd.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-function cwdLabel(cwd: string): string {
+export function folderNameFromCwd(cwd: string): string {
   const normalized = normalizeCwdPath(cwd)
   if (!normalized) return cwd
   const parts = normalized.split('/').filter(Boolean)
@@ -72,7 +72,7 @@ export function groupThreadsByCwd(threads: ThreadViewModel[]): LeftRailThreadGro
   }
 
   const groups: LeftRailThreadGroup[] = Array.from(groupMap.entries()).map(([cwd, grouped]) => {
-    const folderName = cwdLabel(cwd)
+    const folderName = folderNameFromCwd(cwd)
     return {
       cwd,
       folderName,

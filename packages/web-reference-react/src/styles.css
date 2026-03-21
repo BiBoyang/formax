@@ -13,6 +13,8 @@
   --desktop-header-leading-shift: calc(var(--desktop-traffic-light-inset-x) + var(--desktop-traffic-light-safe-width) + 4px);
   --desktop-pane-motion-duration: 220ms;
   --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-scroll-fade-size: 16px;
+  --app-scroll-fade-mask-color: black;
   --app-backdrop-surface: var(--sidebar);
   --app-backdrop-blur: 0px;
   --app-backdrop-surface-transparent-light: rgb(245 245 245 / 0.94);
@@ -174,6 +176,51 @@ body {
 
 .left-rail-scroll-body {
   scrollbar-gutter: stable both-edges;
+}
+
+.app-scroll-fade-mask-y {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+}
+
+.app-scroll-fade-mask-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--app-scroll-fade-mask-color),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    var(--app-scroll-fade-mask-color),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+}
+
+.app-scroll-fade-mask-top {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size)
+  );
 }
 
 .app-shell-panel-motion {

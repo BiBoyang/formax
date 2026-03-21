@@ -36,6 +36,7 @@ import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
+import { folderNameFromCwd } from '../../components/left-rail/utils'
 
 const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
@@ -208,6 +209,13 @@ export function AppShell(props: AppShellProps) {
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning
+  const activeWorkspaceLabel = useMemo(() => {
+    const cwd = props.activeThread?.cwd ?? props.selectedCwd
+    if (cwd) {
+      return folderNameFromCwd(cwd)
+    }
+    return isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')
+  }, [isDesktopClient, props.activeThread?.cwd, props.selectedCwd, t])
   const shouldKeepSystemAwake =
     props.userSettings.preventSleep && (props.isSending || props.isInterrupting || props.activeTurnId != null)
   const activeThreadId = props.activeThreadId
@@ -922,10 +930,10 @@ export function AppShell(props: AppShellProps) {
                       )}
                     />
                   </Button>
-                  <div className="min-w-0 flex flex-col leading-tight">
-                    <div className="truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
-                    <div className="ui-text-meta text-muted-foreground/80 truncate">
-                      {isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')}
+                  <div className="min-w-0 flex items-center gap-2 leading-tight">
+                    <div className="flex-1 min-w-0 truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
+                    <div className="min-w-0 max-w-[40%] truncate ui-text-meta text-muted-foreground/80">
+                      {activeWorkspaceLabel}
                     </div>
                   </div>
                 </div>
