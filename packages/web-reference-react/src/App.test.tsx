@@ -758,6 +758,49 @@ describe('App thread history integration', () => {
     }
   })
 
+  it('reuses a single xterm instance across terminal toggles and thread switches', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const terminalHarness = createDesktopTerminalHarness()
+    window.formaxDesktop = terminalHarness.desktopBridge
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+      await waitFor(() => {
+        expect(xtermMock.instances).toHaveLength(1)
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
+      await waitFor(() => {
+        expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+      expect(xtermMock.instances).toHaveLength(1)
+
+      fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+      await waitFor(() => {
+        expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle terminal' }))
+      await screen.findByTestId('terminal-pane')
+      await waitFor(() => {
+        expect(terminalHarness.getSnapshot).toHaveBeenCalledWith('thread-beta')
+      })
+      expect(xtermMock.instances).toHaveLength(1)
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
   it('reads terminal theme colors from css tokens', async () => {
     const originalDesktopBridge = window.formaxDesktop
     const terminalHarness = createDesktopTerminalHarness()

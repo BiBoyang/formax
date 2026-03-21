@@ -11,6 +11,7 @@ type XtermTheme = NonNullable<NonNullable<ConstructorParameters<typeof Terminal>
 type TerminalPaneProps = {
   threadId: string
   bridge: DesktopTerminalBridge
+  visible: boolean
   onClose: () => void
 }
 
@@ -116,17 +117,28 @@ export function TerminalPane(props: TerminalPaneProps) {
   const terminalHostRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const activeThreadIdRef = useRef(props.threadId)
+  const isVisibleRef = useRef(props.visible)
   const snapshotHydratingRef = useRef(false)
   const bufferedEventsDuringSnapshotRef = useRef<DesktopTerminalEvent[]>([])
   const [statusLine, setStatusLine] = useState<string | null>(null)
 
+  useEffect(() => {
+    activeThreadIdRef.current = props.threadId
+  }, [props.threadId])
+
+  useEffect(() => {
+    isVisibleRef.current = props.visible
+  }, [props.visible])
+
   const syncTerminalSize = useCallback(() => {
+    if (!isVisibleRef.current) return
     const terminal = terminalRef.current
     const fitAddon = fitAddonRef.current
     if (!terminal || !fitAddon) return
     fitAddon.fit()
-    void props.bridge.resize(props.threadId, terminal.cols, terminal.rows).catch(() => undefined)
-  }, [props.bridge, props.threadId])
+    void props.bridge.resize(activeThreadIdRef.current, terminal.cols, terminal.rows).catch(() => undefined)
+  }, [props.bridge])
 
   const syncTerminalTheme = useCallback(() => {
     const terminal = terminalRef.current
@@ -158,7 +170,7 @@ export function TerminalPane(props: TerminalPaneProps) {
     fitAddonRef.current = fitAddon
 
     const inputDisposable = terminal.onData((data: string) => {
-      void props.bridge.write(props.threadId, data).catch(() => undefined)
+      void props.bridge.write(activeThreadIdRef.current, data).catch(() => undefined)
     })
 
     return () => {
@@ -167,7 +179,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       terminalRef.current = null
       fitAddonRef.current = null
     }
-  }, [props.bridge, props.threadId])
+  }, [props.bridge])
 
   useEffect(() => {
     const root = document.documentElement
@@ -184,7 +196,7 @@ export function TerminalPane(props: TerminalPaneProps) {
     return () => {
       observer.disconnect()
     }
-  }, [syncTerminalTheme, props.threadId])
+  }, [syncTerminalTheme])
 
   useEffect(() => {
     let cancelled = false
@@ -232,8 +244,10 @@ export function TerminalPane(props: TerminalPaneProps) {
             ? Math.max(0, Math.floor(snapshot.dataSeq))
             : 0
         applyBufferedEvents(snapshotDataSeq)
-        syncTerminalSize()
-        terminal.focus()
+        if (isVisibleRef.current) {
+          syncTerminalSize()
+          terminal.focus()
+        }
       })
       .catch(() => {
         if (cancelled) return
@@ -307,9 +321,19 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [syncTerminalSize])
 
+  useEffect(() => {
+    if (!props.visible) return
+    const terminal = terminalRef.current
+    if (!terminal) return
+    syncTerminalSize()
+    terminal.focus()
+  }, [props.visible, syncTerminalSize])
+
   return (
     <div
-      data-testid="terminal-pane"
+      {...(props.visible ? { 'data-testid': 'terminal-pane' } : {})}
+      hidden={!props.visible}
+      aria-hidden={!props.visible}
       className="h-full min-h-0 min-w-0 border-t border-border/80 bg-background flex flex-col pt-1 pb-1"
     >
       <div className="h-8 px-4 flex items-center justify-between gap-2">
