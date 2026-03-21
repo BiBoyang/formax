@@ -28,7 +28,7 @@
 
 - [x] WAF-00 建立包级 CODEMAP
 - [x] WAF-01 建立重构任务索引
-- [ ] WAF-10 提取 App 测试公共夹具
+- [x] WAF-10 提取 App 测试公共夹具
 - [ ] WAF-11 拆分 App 集成测试（第一批）
 - [ ] WAF-12 拆分 App 集成测试（第二批）
 - [ ] WAF-20 提取 Header 组件
@@ -76,7 +76,7 @@
 
 ## Phase 1（先拆测试，锁定行为）
 
-### [ ] WAF-10 提取 App 测试公共夹具
+### [x] WAF-10 提取 App 测试公共夹具
 
 - 允许修改：
   - `packages/web-reference-react/src/App.test.tsx`
@@ -89,6 +89,8 @@
   - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx`
 - 完成标准：
   - `App.test.tsx` 可读性明显提升，重复模板减少。
+- 最近一次执行：
+  - 2026-03-22: 已完成。抽取 `src/test/appTestHarness.tsx`，迁移常用 helper（mode 切换、透明度菜单、desktop terminal harness），`App.test.tsx` 回归通过。
 
 ### [ ] WAF-11 拆分 App 集成测试（第一批）
 
