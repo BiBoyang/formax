@@ -29,7 +29,7 @@
 - [x] WAF-00 建立包级 CODEMAP
 - [x] WAF-01 建立重构任务索引
 - [x] WAF-10 提取 App 测试公共夹具
-- [ ] WAF-11 拆分 App 集成测试（第一批）
+- [x] WAF-11 拆分 App 集成测试（第一批）
 - [ ] WAF-12 拆分 App 集成测试（第二批）
 - [x] WAF-20 提取 Header 组件
 - [x] WAF-21 提取桌面桥接 hook
@@ -92,7 +92,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。抽取 `src/test/appTestHarness.tsx`，迁移常用 helper（mode 切换、透明度菜单、desktop terminal harness），`App.test.tsx` 回归通过。
 
-### [ ] WAF-11 拆分 App 集成测试（第一批）
+### [x] WAF-11 拆分 App 集成测试（第一批）
 
 - 允许修改：
   - `src/App.test.tsx`
@@ -109,7 +109,7 @@
 - 完成标准：
   - `App.test.tsx` 至少减少 25%-35% 行数。
 - 最近一次执行：
-  - 2026-03-22: 进行中。已新增 `src/__tests__/app-terminal.integration.test.tsx` 并迁移 10 个 terminal 相关用例；`src/App.test.tsx` 保留 47 个非 terminal 用例。两者单测均通过。
+  - 2026-03-22: 已完成。新增 `src/__tests__/app-terminal.integration.test.tsx`（10 个 terminal 用例）与 `src/__tests__/app-thread.integration.test.tsx`（8 个 thread 管理用例），`src/App.test.tsx` 收敛到 39 个主链路用例。三者单测与 `type-check` 均通过。
 
 ### [ ] WAF-12 拆分 App 集成测试（第二批）
 
