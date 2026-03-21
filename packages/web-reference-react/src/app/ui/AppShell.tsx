@@ -14,13 +14,14 @@ import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
 import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
-import { DEFAULT_OPEN_TARGET_OPTIONS, type OpenTargetOption, type UpdateUserSetting, type UserSettings } from '../core/userSettings'
+import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
 import { AppShellHeader } from './AppShellHeader'
+import { useDesktopBridge } from './useDesktopBridge'
 
 const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
@@ -33,51 +34,6 @@ const TERMINAL_DEFAULT_SIZE = 32
 
 function clampTerminalHeight(sizePercent: number): number {
   return Math.max(TERMINAL_MIN_SIZE, Math.min(TERMINAL_MAX_SIZE, sizePercent))
-}
-
-type DesktopBridge = NonNullable<Window['formaxDesktop']>
-type DesktopTerminalBridge = NonNullable<NonNullable<Window['formaxDesktop']>['terminal']>
-type DesktopWindowAppearanceState = {
-  revision: number
-  windowTransparencyEnabled: boolean
-}
-
-const DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE: DesktopWindowAppearanceState = {
-  revision: 0,
-  windowTransparencyEnabled: true,
-}
-
-function readDesktopBridge(): DesktopBridge | null {
-  if (typeof window === 'undefined') return null
-  return window.formaxDesktop ?? null
-}
-
-function readDesktopTerminalBridge(bridge: DesktopBridge | null): DesktopTerminalBridge | null {
-  const candidate = bridge?.terminal
-  if (
-    !candidate?.ensureSession ||
-    !candidate.getSnapshot ||
-    !candidate.write ||
-    !candidate.resize ||
-    !candidate.destroySession ||
-    !candidate.subscribe
-  ) {
-    return null
-  }
-  return candidate as DesktopTerminalBridge
-}
-
-function normalizeDesktopWindowAppearanceState(payload: unknown): DesktopWindowAppearanceState {
-  if (!payload || typeof payload !== 'object') return DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE
-  const candidate = payload as Partial<DesktopWindowAppearanceState>
-  const revisionRaw = candidate.revision
-  const revision =
-    typeof revisionRaw === 'number' && Number.isFinite(revisionRaw) && revisionRaw >= 0 ? Math.floor(revisionRaw) : 0
-  const windowTransparencyEnabled = candidate.windowTransparencyEnabled === true
-  return {
-    revision,
-    windowTransparencyEnabled,
-  }
 }
 
 export type AppShellProps = {
@@ -147,17 +103,17 @@ export type AppShellProps = {
 
 export function AppShell(props: AppShellProps) {
   const { t } = useI18n()
-  const desktopBridge = useMemo(() => readDesktopBridge(), [])
-  const terminalBridge = useMemo(() => readDesktopTerminalBridge(desktopBridge), [desktopBridge])
-  const isDesktopClient = desktopBridge != null
-  const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
-    DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
-  )
-  const [availableOpenTargets, setAvailableOpenTargets] = useState<OpenTargetOption[]>(DEFAULT_OPEN_TARGET_OPTIONS)
+  const shouldKeepSystemAwake =
+    props.userSettings.preventSleep && (props.isSending || props.isInterrupting || props.activeTurnId != null)
+  const { availableOpenTargets, desktopBridge, isDesktopClient, isWindowTransparent, onToggleWindowTransparency, terminalBridge } =
+    useDesktopBridge({
+      shouldKeepSystemAwake,
+      defaultOpenTarget: props.userSettings.defaultOpenTarget,
+      onUserSettingChange: props.onUserSettingChange,
+    })
   const [terminalVisibleByThreadId, setTerminalVisibleByThreadId] = useState<Record<string, boolean>>({})
   const [residentTerminalThreadId, setResidentTerminalThreadId] = useState<string | null>(null)
   const [terminalHeightPercent, setTerminalHeightPercent] = useState(TERMINAL_DEFAULT_SIZE)
-  const isWindowTransparent = desktopWindowAppearanceState.windowTransparencyEnabled
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE
@@ -170,10 +126,6 @@ export function AppShell(props: AppShellProps) {
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
   const isTerminalDraggingRef = useRef(false)
-  const windowTransparencyCommandQueueRef = useRef<Promise<void>>(Promise.resolve())
-  const pendingWindowTransparencyCommandsRef = useRef(0)
-  const windowTransparencyIntentRef = useRef(isWindowTransparent)
-  const latestWindowTransparencyEnabledRef = useRef(isWindowTransparent)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const terminalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
@@ -196,8 +148,6 @@ export function AppShell(props: AppShellProps) {
     }
     return isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')
   }, [isDesktopClient, props.activeThread?.cwd, props.selectedCwd, t])
-  const shouldKeepSystemAwake =
-    props.userSettings.preventSleep && (props.isSending || props.isInterrupting || props.activeTurnId != null)
   const activeThreadId = props.activeThreadId
   const activeThreadTerminalVisible = activeThreadId ? terminalVisibleByThreadId[activeThreadId] === true : false
   const showTerminalPane = Boolean(
@@ -215,13 +165,6 @@ export function AppShell(props: AppShellProps) {
     if (!props.isSidebarOpen) return
     lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
   }, [props.isSidebarOpen, props.sidebarWidth])
-
-  useEffect(() => {
-    latestWindowTransparencyEnabledRef.current = isWindowTransparent
-    if (pendingWindowTransparencyCommandsRef.current === 0) {
-      windowTransparencyIntentRef.current = isWindowTransparent
-    }
-  }, [isWindowTransparent])
 
   useEffect(() => {
     const panelGroup = panelGroupRef.current
@@ -482,130 +425,6 @@ export function AppShell(props: AppShellProps) {
   const onCloseSettings = useCallback(() => {
     props.setIsSettingsOpen(false)
   }, [props.setIsSettingsOpen])
-
-  const commitHostWindowAppearanceState = useCallback((payload: unknown) => {
-    const normalizedState = normalizeDesktopWindowAppearanceState(payload)
-    setDesktopWindowAppearanceState((previous) =>
-      normalizedState.revision >= previous.revision ? normalizedState : previous,
-    )
-    if (pendingWindowTransparencyCommandsRef.current === 0) {
-      windowTransparencyIntentRef.current = normalizedState.windowTransparencyEnabled
-    }
-  }, [])
-
-  const onToggleWindowTransparency = useCallback(() => {
-    if (!isDesktopClient) return
-    const setWindowTransparency = desktopBridge?.windowAppearance?.setWindowTransparency
-    if (!setWindowTransparency) return
-    const nextEnabled = !windowTransparencyIntentRef.current
-    windowTransparencyIntentRef.current = nextEnabled
-
-    pendingWindowTransparencyCommandsRef.current += 1
-
-    const nextCommand = windowTransparencyCommandQueueRef.current
-      .then(async () => {
-        const nextState = await setWindowTransparency(nextEnabled)
-        commitHostWindowAppearanceState(nextState)
-      })
-      .catch(() => {
-        // Ignore transient desktop-bridge failures and keep latest known host state.
-      })
-      .finally(() => {
-        pendingWindowTransparencyCommandsRef.current = Math.max(0, pendingWindowTransparencyCommandsRef.current - 1)
-        if (pendingWindowTransparencyCommandsRef.current === 0) {
-          windowTransparencyIntentRef.current = latestWindowTransparencyEnabledRef.current
-        }
-      })
-
-    windowTransparencyCommandQueueRef.current = nextCommand.then(() => undefined, () => undefined)
-  }, [commitHostWindowAppearanceState, desktopBridge, isDesktopClient])
-
-  useEffect(() => {
-    if (!isDesktopClient) return
-    const windowAppearance = desktopBridge?.windowAppearance
-    if (!windowAppearance) return
-    let isDisposed = false
-
-    const syncInitialState = async () => {
-      if (!windowAppearance.getState) return
-      try {
-        const state = await windowAppearance.getState()
-        if (isDisposed) return
-        commitHostWindowAppearanceState(state)
-      } catch {
-        // Keep renderer fallback state when desktop bridge get-state is unavailable.
-      }
-    }
-
-    void syncInitialState()
-
-    const unsubscribe = windowAppearance.subscribe?.((state) => {
-      if (isDisposed) return
-      commitHostWindowAppearanceState(state)
-    })
-
-    return () => {
-      isDisposed = true
-      unsubscribe?.()
-    }
-  }, [commitHostWindowAppearanceState, desktopBridge, isDesktopClient])
-
-  useEffect(() => {
-    if (!isDesktopClient) return
-    const root = document.documentElement
-    root.dataset.windowTransparency = isWindowTransparent ? 'on' : 'off'
-  }, [isDesktopClient, isWindowTransparent])
-
-  useEffect(() => {
-    if (!isDesktopClient) return
-    const root = document.documentElement
-    return () => {
-      delete root.dataset.windowTransparency
-    }
-  }, [isDesktopClient])
-
-  useEffect(() => {
-    if (!isDesktopClient) return
-    const setPreventSleep = desktopBridge?.powerManagement?.setPreventSleep
-    if (!setPreventSleep) return
-    void setPreventSleep(shouldKeepSystemAwake).catch(() => {
-      // Keep UI responsive if desktop power-management bridge is unavailable.
-    })
-  }, [desktopBridge, isDesktopClient, shouldKeepSystemAwake])
-
-  useEffect(() => {
-    if (!isDesktopClient) return
-    const listAvailableOpenTargets = desktopBridge?.openTargets?.listAvailable
-    if (!listAvailableOpenTargets) return
-    let cancelled = false
-    void listAvailableOpenTargets()
-      .then((targets) => {
-        if (cancelled) return
-        if (!Array.isArray(targets) || targets.length === 0) {
-          setAvailableOpenTargets(DEFAULT_OPEN_TARGET_OPTIONS)
-          return
-        }
-        setAvailableOpenTargets(
-          targets
-            .filter((target): target is OpenTargetOption => Boolean(target?.id) && Boolean(target?.label))
-            .map((target) => ({ id: target.id, label: target.label })),
-        )
-      })
-      .catch(() => {
-        if (cancelled) return
-        setAvailableOpenTargets(DEFAULT_OPEN_TARGET_OPTIONS)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [desktopBridge, isDesktopClient])
-
-  useEffect(() => {
-    if (availableOpenTargets.length === 0) return
-    const hasConfiguredTarget = availableOpenTargets.some((target) => target.id === props.userSettings.defaultOpenTarget)
-    if (hasConfiguredTarget) return
-    props.onUserSettingChange('defaultOpenTarget', availableOpenTargets[0]!.id)
-  }, [availableOpenTargets, props.onUserSettingChange, props.userSettings.defaultOpenTarget])
 
   const onCreateProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
