@@ -69,18 +69,23 @@ function resolveTerminalThemeFromCss(): XtermTheme {
   }
 
   const resolveColor = (token: string, failColor: string) => {
+    const inlineOverride = document.documentElement.style.getPropertyValue(token).trim()
+    if (inlineOverride.length > 0) {
+      return inlineOverride
+    }
+
     el.style.backgroundColor = `var(${token}, ${failColor})`
     const computed = window.getComputedStyle(el).backgroundColor
     const isInvalid = !computed || computed === 'transparent' || computed === 'rgba(0, 0, 0, 0)'
     
     const rawColor = isInvalid ? failColor : computed
-    
-    return parseToRgba(rawColor)
+    const parsed = parseToRgba(rawColor)
+    return !parsed || parsed.startsWith('var(') ? failColor : parsed
   }
 
   const theme: XtermTheme = {
-    background: resolveColor('--background', fallback.background!),
-    foreground: resolveColor('--color-token-terminal-foreground', fallback.foreground!),
+    background: resolveColor('--vscode-terminal-background', fallback.background!),
+    foreground: resolveColor('--vscode-terminal-foreground', fallback.foreground!),
     cursor: resolveColor('--terminal-cursor', fallback.cursor!),
     cursorAccent: resolveColor('--terminal-cursor-accent', fallback.cursorAccent!),
     selectionBackground: 'rgba(128, 128, 128, 0.3)',
@@ -310,7 +315,6 @@ export function TerminalPane(props: TerminalPaneProps) {
       <div className="h-8 px-4 flex items-center justify-between gap-2">
         <div className="min-w-0 flex items-center gap-2">
           <span className="text-[13px] font-medium text-foreground/80">{t('appShell.terminalTitle')}</span>
-          <span className="text-[13px] text-muted-foreground/40">zsh</span>
           {statusLine ? (
             <span className="text-[13px] text-muted-foreground truncate">{statusLine}</span>
           ) : null}

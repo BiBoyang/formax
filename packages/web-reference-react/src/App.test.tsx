@@ -1,6 +1,22 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
+
+const ORIGINAL_CANVAS_GET_CONTEXT = HTMLCanvasElement.prototype.getContext
+
+beforeEach(() => {
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: vi.fn(() => null),
+  })
+})
+
+afterEach(() => {
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: ORIGINAL_CANVAS_GET_CONTEXT,
+  })
+})
 
 const rpcMock = vi.hoisted(() => {
   const CANONICAL_SOURCES = new Set(['engine', 'tool', 'policy', 'system', 'ui'])
@@ -747,8 +763,8 @@ describe('App thread history integration', () => {
     const terminalHarness = createDesktopTerminalHarness()
     window.formaxDesktop = terminalHarness.desktopBridge
     const root = document.documentElement
-    root.style.setProperty('--terminal-bg', 'rgb(12, 34, 56)')
-    root.style.setProperty('--terminal-fg', 'rgb(240, 240, 245)')
+    root.style.setProperty('--vscode-terminal-background', 'rgb(12, 34, 56)')
+    root.style.setProperty('--vscode-terminal-foreground', 'rgb(240, 240, 245)')
     root.style.setProperty('--terminal-cursor', 'rgb(111, 122, 133)')
 
     try {
@@ -766,8 +782,8 @@ describe('App thread history integration', () => {
         expect(terminalInstance?.options.theme?.cursor).toBe('rgb(111, 122, 133)')
       })
     } finally {
-      root.style.removeProperty('--terminal-bg')
-      root.style.removeProperty('--terminal-fg')
+      root.style.removeProperty('--vscode-terminal-background')
+      root.style.removeProperty('--vscode-terminal-foreground')
       root.style.removeProperty('--terminal-cursor')
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge
