@@ -37,7 +37,7 @@
 - [x] WAF-23 提取 panel drag 提交逻辑
 - [x] WAF-30 提取 TranscriptFeed
 - [x] WAF-31 提取 ComposerDock + Slash 菜单状态
-- [ ] WAF-32 提取渲染窗口 hook
+- [x] WAF-32 提取渲染窗口 hook
 - [ ] WAF-40 样式按域拆分（不动视觉）
 - [ ] WAF-D1 Context 化消除 props drilling（deferred）
 - [ ] WAF-D2 runtime 目录大重排（deferred）
@@ -230,7 +230,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。新增 `src/components/composer/ComposerDock.tsx`、`src/components/composer/SlashCommandMenu.tsx`、`src/components/composer/useSlashCommandState.ts`，`TranscriptPane.tsx` 移除 composer/slash 状态细节，键盘交互保持一致；`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
-### [ ] WAF-32 提取渲染窗口 hook
+### [x] WAF-32 提取渲染窗口 hook
 
 - 允许修改：
   - `src/components/TranscriptPane.tsx`
@@ -242,6 +242,8 @@
   - transcript 相关测试 + App 集成测试通过。
 - 完成标准：
   - `TranscriptPane.tsx` 目标降至 500-700 行。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `src/components/transcript/useRenderWindow.ts`，迁移 render limit/history gap/滚动同步状态机，`TranscriptPane.tsx` 仅保留容器编排；当前降至约 681 行。`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
 ## Phase 4（样式组织优化，仓内文件为准）
 
