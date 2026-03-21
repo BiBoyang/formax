@@ -108,6 +108,8 @@
   - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx`
 - 完成标准：
   - `App.test.tsx` 至少减少 25%-35% 行数。
+- 最近一次执行：
+  - 2026-03-22: 进行中。已新增 `src/__tests__/app-terminal.integration.test.tsx` 并迁移 10 个 terminal 相关用例；`src/App.test.tsx` 保留 47 个非 terminal 用例。两者单测均通过。
 
 ### [ ] WAF-12 拆分 App 集成测试（第二批）
 
