@@ -125,6 +125,8 @@
   - 分别运行新增测试文件 + `src/App.test.tsx`
 - 完成标准：
   - `App.test.tsx` 控制在 1000-1500 行内。
+- 最近一次执行：
+  - 2026-03-22: 进行中。新增 `src/__tests__/app-approval.integration.test.tsx` 并迁移 5 个 approval/ask 相关用例，`src/App.test.tsx` 从 3245 行降到 2839 行；`type-check` 与对应测试通过。
 
 ## Phase 2（拆 AppShell，收益最大）
 
