@@ -10,3 +10,4 @@
 - `anthropic-fake-overload-and-header-routing.md`
 - `repl-transcript-static-rootcause.md`
 - `repl-transcript-surface-handoff-pitfall.md`
+- `xterm-canvas-selection-transparent-fallback.md`
