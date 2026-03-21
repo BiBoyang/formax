@@ -18,28 +18,28 @@ const TERMINAL_RESIZE_DEBOUNCE_MS = 80
 const NULL_EXIT_CODE_LABEL = 'null'
 const ROOT_THEME_OBSERVER_ATTRIBUTES = ['class', 'data-theme', 'data-window-transparency'] as const
 const FALLBACK_TERMINAL_THEME: XtermTheme = {
-  background: '#0f1115',
-  foreground: '#f5f7fa',
-  cursor: '#f5f7fa',
-  cursorAccent: '#0f1115',
-  selectionBackground: 'rgba(245, 247, 250, 0.24)',
-  selectionForeground: '#f5f7fa',
-  black: '#1c1f26',
-  red: '#e86671',
-  green: '#7ecb6f',
-  yellow: '#e5c76b',
-  blue: '#6aa6ff',
-  magenta: '#c38bff',
-  cyan: '#68d4e5',
-  white: '#d8dee9',
-  brightBlack: '#5d6675',
-  brightRed: '#ff8d96',
-  brightGreen: '#a7e58f',
-  brightYellow: '#f6de92',
-  brightBlue: '#93c0ff',
-  brightMagenta: '#d7a8ff',
-  brightCyan: '#9ce9f6',
-  brightWhite: '#ffffff',
+  background: 'rgba(0, 0, 0, 0)',
+  foreground: '#383a42',
+  cursor: '#383a42',
+  cursorAccent: '#ffffff',
+  selectionBackground: 'rgba(56, 58, 66, 0.2)',
+  selectionForeground: '#383a42',
+  black: '#e5e5e6',
+  red: '#e45649',
+  green: '#50a14f',
+  yellow: '#c18401',
+  blue: '#4078f2',
+  magenta: '#a626a4',
+  cyan: '#0184bc',
+  white: '#a0a1a7',
+  brightBlack: '#a0a1a7',
+  brightRed: '#e45649',
+  brightGreen: '#50a14f',
+  brightYellow: '#986801',
+  brightBlue: '#4078f2',
+  brightMagenta: '#a626a4',
+  brightCyan: '#0184bc',
+  brightWhite: '#fafafa',
 }
 
 function readCssColorToken(styles: CSSStyleDeclaration, tokenName: string, fallback: string): string {
@@ -48,73 +48,39 @@ function readCssColorToken(styles: CSSStyleDeclaration, tokenName: string, fallb
 }
 
 function resolveTerminalThemeFromCss(): XtermTheme {
+  const fallback = FALLBACK_TERMINAL_THEME
   if (typeof window === 'undefined' || typeof getComputedStyle !== 'function') {
-    return FALLBACK_TERMINAL_THEME
+    return fallback
   }
   const styles = window.getComputedStyle(document.documentElement)
+
   return {
-    background: readCssColorToken(styles, '--terminal-bg', FALLBACK_TERMINAL_THEME.background ?? '#0f1115'),
-    foreground: readCssColorToken(styles, '--terminal-fg', FALLBACK_TERMINAL_THEME.foreground ?? '#f5f7fa'),
-    cursor: readCssColorToken(styles, '--terminal-cursor', FALLBACK_TERMINAL_THEME.cursor ?? '#f5f7fa'),
-    cursorAccent: readCssColorToken(
-      styles,
-      '--terminal-cursor-accent',
-      FALLBACK_TERMINAL_THEME.cursorAccent ?? '#0f1115',
-    ),
+    background: readCssColorToken(styles, '--terminal-bg', fallback.background ?? 'rgba(0, 0, 0, 0)'),
+    foreground: readCssColorToken(styles, '--terminal-fg', fallback.foreground ?? '#383a42'),
+    cursor: readCssColorToken(styles, '--terminal-cursor', fallback.cursor ?? '#383a42'),
+    cursorAccent: readCssColorToken(styles, '--terminal-cursor-accent', fallback.cursorAccent ?? '#ffffff'),
     selectionBackground: readCssColorToken(
       styles,
       '--terminal-selection-bg',
-      FALLBACK_TERMINAL_THEME.selectionBackground ?? 'rgba(245, 247, 250, 0.24)',
+      fallback.selectionBackground ?? 'rgba(56, 58, 66, 0.2)',
     ),
-    selectionForeground: readCssColorToken(
-      styles,
-      '--terminal-selection-fg',
-      FALLBACK_TERMINAL_THEME.selectionForeground ?? '#f5f7fa',
-    ),
-    black: readCssColorToken(styles, '--terminal-ansi-black', FALLBACK_TERMINAL_THEME.black ?? '#1c1f26'),
-    red: readCssColorToken(styles, '--terminal-ansi-red', FALLBACK_TERMINAL_THEME.red ?? '#e86671'),
-    green: readCssColorToken(styles, '--terminal-ansi-green', FALLBACK_TERMINAL_THEME.green ?? '#7ecb6f'),
-    yellow: readCssColorToken(styles, '--terminal-ansi-yellow', FALLBACK_TERMINAL_THEME.yellow ?? '#e5c76b'),
-    blue: readCssColorToken(styles, '--terminal-ansi-blue', FALLBACK_TERMINAL_THEME.blue ?? '#6aa6ff'),
-    magenta: readCssColorToken(styles, '--terminal-ansi-magenta', FALLBACK_TERMINAL_THEME.magenta ?? '#c38bff'),
-    cyan: readCssColorToken(styles, '--terminal-ansi-cyan', FALLBACK_TERMINAL_THEME.cyan ?? '#68d4e5'),
-    white: readCssColorToken(styles, '--terminal-ansi-white', FALLBACK_TERMINAL_THEME.white ?? '#d8dee9'),
-    brightBlack: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-black',
-      FALLBACK_TERMINAL_THEME.brightBlack ?? '#5d6675',
-    ),
-    brightRed: readCssColorToken(styles, '--terminal-ansi-bright-red', FALLBACK_TERMINAL_THEME.brightRed ?? '#ff8d96'),
-    brightGreen: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-green',
-      FALLBACK_TERMINAL_THEME.brightGreen ?? '#a7e58f',
-    ),
-    brightYellow: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-yellow',
-      FALLBACK_TERMINAL_THEME.brightYellow ?? '#f6de92',
-    ),
-    brightBlue: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-blue',
-      FALLBACK_TERMINAL_THEME.brightBlue ?? '#93c0ff',
-    ),
-    brightMagenta: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-magenta',
-      FALLBACK_TERMINAL_THEME.brightMagenta ?? '#d7a8ff',
-    ),
-    brightCyan: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-cyan',
-      FALLBACK_TERMINAL_THEME.brightCyan ?? '#9ce9f6',
-    ),
-    brightWhite: readCssColorToken(
-      styles,
-      '--terminal-ansi-bright-white',
-      FALLBACK_TERMINAL_THEME.brightWhite ?? '#ffffff',
-    ),
+    selectionForeground: readCssColorToken(styles, '--terminal-selection-fg', fallback.selectionForeground ?? '#383a42'),
+    black: readCssColorToken(styles, '--terminal-ansi-black', fallback.black ?? '#e5e5e6'),
+    red: readCssColorToken(styles, '--terminal-ansi-red', fallback.red ?? '#e45649'),
+    green: readCssColorToken(styles, '--terminal-ansi-green', fallback.green ?? '#50a14f'),
+    yellow: readCssColorToken(styles, '--terminal-ansi-yellow', fallback.yellow ?? '#c18401'),
+    blue: readCssColorToken(styles, '--terminal-ansi-blue', fallback.blue ?? '#4078f2'),
+    magenta: readCssColorToken(styles, '--terminal-ansi-magenta', fallback.magenta ?? '#a626a4'),
+    cyan: readCssColorToken(styles, '--terminal-ansi-cyan', fallback.cyan ?? '#0184bc'),
+    white: readCssColorToken(styles, '--terminal-ansi-white', fallback.white ?? '#a0a1a7'),
+    brightBlack: readCssColorToken(styles, '--terminal-ansi-bright-black', fallback.brightBlack ?? '#a0a1a7'),
+    brightRed: readCssColorToken(styles, '--terminal-ansi-bright-red', fallback.brightRed ?? '#e45649'),
+    brightGreen: readCssColorToken(styles, '--terminal-ansi-bright-green', fallback.brightGreen ?? '#50a14f'),
+    brightYellow: readCssColorToken(styles, '--terminal-ansi-bright-yellow', fallback.brightYellow ?? '#986801'),
+    brightBlue: readCssColorToken(styles, '--terminal-ansi-bright-blue', fallback.brightBlue ?? '#4078f2'),
+    brightMagenta: readCssColorToken(styles, '--terminal-ansi-bright-magenta', fallback.brightMagenta ?? '#a626a4'),
+    brightCyan: readCssColorToken(styles, '--terminal-ansi-bright-cyan', fallback.brightCyan ?? '#0184bc'),
+    brightWhite: readCssColorToken(styles, '--terminal-ansi-bright-white', fallback.brightWhite ?? '#fafafa'),
   }
 }
 
@@ -146,8 +112,11 @@ export function TerminalPane(props: TerminalPaneProps) {
     if (!host) return
 
     const terminal = new Terminal({
+      allowTransparency: true,
       convertEol: false,
       cursorBlink: true,
+      cursorStyle: 'bar',
+      cursorWidth: 2,
       fontSize: 12,
       lineHeight: 1.25,
       scrollback: 5000,
@@ -314,31 +283,32 @@ export function TerminalPane(props: TerminalPaneProps) {
   return (
     <div
       data-testid="terminal-pane"
-      className="h-full min-h-0 min-w-0 border-t border-border/80 bg-background flex flex-col"
+      className="h-full min-h-0 min-w-0 border-t border-border/80 bg-background flex flex-col pt-1 pb-1"
     >
-      <div className="h-9 px-2 border-b border-border/70 flex items-center justify-between gap-2">
+      <div className="h-8 px-4 flex items-center justify-between gap-2">
         <div className="min-w-0 flex items-center gap-2">
-          <span className="ui-text-meta font-medium text-foreground/90">{t('appShell.terminalTitle')}</span>
+          <span className="text-[13px] font-medium text-foreground/80">{t('appShell.terminalTitle')}</span>
           {statusLine ? (
-            <span className="ui-text-meta text-muted-foreground truncate">{statusLine}</span>
+            <span className="text-[13px] text-muted-foreground truncate">{statusLine}</span>
           ) : null}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          aria-label={t('appShell.closeTerminal')}
-          onClick={props.onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground/50 hover:text-foreground hover:bg-transparent"
+            aria-label={t('appShell.closeTerminal')}
+            onClick={props.onClose}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 px-4 pt-0.5 pb-2">
         <div
           ref={terminalHostRef}
-          className="h-full min-h-0 w-full overflow-hidden rounded-md border border-border/70"
-          style={{ backgroundColor: 'var(--terminal-bg)' }}
+          className="h-full min-h-0 w-full overflow-hidden"
         />
       </div>
     </div>
