@@ -40,7 +40,7 @@
 - [x] WAF-32 提取渲染窗口 hook
 - [x] WAF-40 样式按域拆分（不动视觉）
 - [x] WAF-D1 Context 化消除 props drilling（deferred）
-- [ ] WAF-D2 runtime 目录大重排（deferred）
+- [x] WAF-D2 runtime 目录大重排（deferred）
 
 ## Phase 0（低风险，先做）
 
@@ -277,9 +277,11 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。新增 `plans/web-reference-react-context-spike.md`，明确 Context 候选边界、风险分级、实施顺序与验证清单；本轮未修改生产代码。
 
-### [ ] WAF-D2 runtime 目录大重排
+### [x] WAF-D2 runtime 目录大重排
 
 - 原因：涉及路径迁移与依赖边界，回归成本高；需在行为稳定窗口执行。
+- 最近一次执行：
+  - 2026-03-22: 已完成方案收敛。新增 `plans/web-reference-react-runtime-reorg-spike.md`，定义目标目录、分阶段迁移和回滚/测试守护；本轮不执行生产代码迁移。
 
 ## 切片模板（每次开工复制）
 
