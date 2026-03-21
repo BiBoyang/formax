@@ -42,46 +42,68 @@ const FALLBACK_TERMINAL_THEME: XtermTheme = {
   brightWhite: '#fafafa',
 }
 
-function readCssColorToken(styles: CSSStyleDeclaration, tokenName: string, fallback: string): string {
-  const value = styles.getPropertyValue(tokenName).trim()
-  return value.length > 0 ? value : fallback
-}
-
 function resolveTerminalThemeFromCss(): XtermTheme {
   const fallback = FALLBACK_TERMINAL_THEME
-  if (typeof window === 'undefined' || typeof getComputedStyle !== 'function') {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
     return fallback
   }
-  const styles = window.getComputedStyle(document.documentElement)
 
-  return {
-    background: readCssColorToken(styles, '--terminal-bg', fallback.background ?? 'rgba(0, 0, 0, 0)'),
-    foreground: readCssColorToken(styles, '--terminal-fg', fallback.foreground ?? '#383a42'),
-    cursor: readCssColorToken(styles, '--terminal-cursor', fallback.cursor ?? '#383a42'),
-    cursorAccent: readCssColorToken(styles, '--terminal-cursor-accent', fallback.cursorAccent ?? '#ffffff'),
-    selectionBackground: readCssColorToken(
-      styles,
-      '--terminal-selection-bg',
-      fallback.selectionBackground ?? 'rgba(56, 58, 66, 0.2)',
-    ),
-    selectionForeground: readCssColorToken(styles, '--terminal-selection-fg', fallback.selectionForeground ?? '#383a42'),
-    black: readCssColorToken(styles, '--terminal-ansi-black', fallback.black ?? '#e5e5e6'),
-    red: readCssColorToken(styles, '--terminal-ansi-red', fallback.red ?? '#e45649'),
-    green: readCssColorToken(styles, '--terminal-ansi-green', fallback.green ?? '#50a14f'),
-    yellow: readCssColorToken(styles, '--terminal-ansi-yellow', fallback.yellow ?? '#c18401'),
-    blue: readCssColorToken(styles, '--terminal-ansi-blue', fallback.blue ?? '#4078f2'),
-    magenta: readCssColorToken(styles, '--terminal-ansi-magenta', fallback.magenta ?? '#a626a4'),
-    cyan: readCssColorToken(styles, '--terminal-ansi-cyan', fallback.cyan ?? '#0184bc'),
-    white: readCssColorToken(styles, '--terminal-ansi-white', fallback.white ?? '#a0a1a7'),
-    brightBlack: readCssColorToken(styles, '--terminal-ansi-bright-black', fallback.brightBlack ?? '#a0a1a7'),
-    brightRed: readCssColorToken(styles, '--terminal-ansi-bright-red', fallback.brightRed ?? '#e45649'),
-    brightGreen: readCssColorToken(styles, '--terminal-ansi-bright-green', fallback.brightGreen ?? '#50a14f'),
-    brightYellow: readCssColorToken(styles, '--terminal-ansi-bright-yellow', fallback.brightYellow ?? '#986801'),
-    brightBlue: readCssColorToken(styles, '--terminal-ansi-bright-blue', fallback.brightBlue ?? '#4078f2'),
-    brightMagenta: readCssColorToken(styles, '--terminal-ansi-bright-magenta', fallback.brightMagenta ?? '#a626a4'),
-    brightCyan: readCssColorToken(styles, '--terminal-ansi-bright-cyan', fallback.brightCyan ?? '#0184bc'),
-    brightWhite: readCssColorToken(styles, '--terminal-ansi-bright-white', fallback.brightWhite ?? '#fafafa'),
+  const el = document.createElement('div')
+  el.style.display = 'none'
+  document.body.appendChild(el)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
+  const parseToRgba = (colorStr: string): string => {
+    if (!ctx || !colorStr || colorStr === 'transparent' || colorStr === 'rgba(0, 0, 0, 0)') {
+      return colorStr
+    }
+    ctx.clearRect(0, 0, 1, 1)
+    ctx.fillStyle = colorStr
+    ctx.fillRect(0, 0, 1, 1)
+    const data = ctx.getImageData(0, 0, 1, 1).data
+    return `rgba(${data[0]}, ${data[1]}, ${data[2]}, ${data[3] / 255})`
   }
+
+  const resolveColor = (token: string, failColor: string) => {
+    el.style.backgroundColor = `var(${token}, ${failColor})`
+    const computed = window.getComputedStyle(el).backgroundColor
+    const isInvalid = !computed || computed === 'transparent' || computed === 'rgba(0, 0, 0, 0)'
+    
+    const rawColor = isInvalid ? failColor : computed
+    
+    return parseToRgba(rawColor)
+  }
+
+  const theme: XtermTheme = {
+    background: resolveColor('--background', fallback.background!),
+    foreground: resolveColor('--color-token-terminal-foreground', fallback.foreground!),
+    cursor: resolveColor('--terminal-cursor', fallback.cursor!),
+    cursorAccent: resolveColor('--terminal-cursor-accent', fallback.cursorAccent!),
+    selectionBackground: 'rgba(128, 128, 128, 0.3)',
+    black: resolveColor('--vscode-terminal-ansiBlack', fallback.black!),
+    red: resolveColor('--vscode-terminal-ansiRed', fallback.red!),
+    green: resolveColor('--vscode-terminal-ansiGreen', fallback.green!),
+    yellow: resolveColor('--vscode-terminal-ansiYellow', fallback.yellow!),
+    blue: resolveColor('--vscode-terminal-ansiBlue', fallback.blue!),
+    magenta: resolveColor('--vscode-terminal-ansiMagenta', fallback.magenta!),
+    cyan: resolveColor('--vscode-terminal-ansiCyan', fallback.cyan!),
+    white: resolveColor('--vscode-terminal-ansiWhite', fallback.white!),
+    brightBlack: resolveColor('--vscode-terminal-ansiBrightBlack', fallback.brightBlack!),
+    brightRed: resolveColor('--vscode-terminal-ansiBrightRed', fallback.brightRed!),
+    brightGreen: resolveColor('--vscode-terminal-ansiBrightGreen', fallback.brightGreen!),
+    brightYellow: resolveColor('--vscode-terminal-ansiBrightYellow', fallback.brightYellow!),
+    brightBlue: resolveColor('--vscode-terminal-ansiBrightBlue', fallback.brightBlue!),
+    brightMagenta: resolveColor('--vscode-terminal-ansiBrightMagenta', fallback.brightMagenta!),
+    brightCyan: resolveColor('--vscode-terminal-ansiBrightCyan', fallback.brightCyan!),
+    brightWhite: resolveColor('--vscode-terminal-ansiBrightWhite', fallback.brightWhite!),
+  }
+
+  el.remove()
+  return theme
 }
 
 export function TerminalPane(props: TerminalPaneProps) {
@@ -288,6 +310,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       <div className="h-8 px-4 flex items-center justify-between gap-2">
         <div className="min-w-0 flex items-center gap-2">
           <span className="text-[13px] font-medium text-foreground/80">{t('appShell.terminalTitle')}</span>
+          <span className="text-[13px] text-muted-foreground/40">zsh</span>
           {statusLine ? (
             <span className="text-[13px] text-muted-foreground truncate">{statusLine}</span>
           ) : null}
