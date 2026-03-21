@@ -36,7 +36,7 @@
 - [x] WAF-22 提取终端可见性与高度恢复 hook
 - [x] WAF-23 提取 panel drag 提交逻辑
 - [x] WAF-30 提取 TranscriptFeed
-- [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
+- [x] WAF-31 提取 ComposerDock + Slash 菜单状态
 - [ ] WAF-32 提取渲染窗口 hook
 - [ ] WAF-40 样式按域拆分（不动视觉）
 - [ ] WAF-D1 Context 化消除 props drilling（deferred）
@@ -213,7 +213,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。抽出 `src/components/transcript/TranscriptFeed.tsx` 承接 welcome/feed/error/loading 视图，`TranscriptPane.tsx` 保留容器状态与滚动状态机；`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
-### [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
+### [x] WAF-31 提取 ComposerDock + Slash 菜单状态
 
 - 允许修改：
   - `src/components/TranscriptPane.tsx`
@@ -227,6 +227,8 @@
   - `npm --prefix packages/web-reference-react run test -- src/components/TranscriptPane.test.tsx`
 - 完成标准：
   - 新命令扩展只需改 composer 子目录。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `src/components/composer/ComposerDock.tsx`、`src/components/composer/SlashCommandMenu.tsx`、`src/components/composer/useSlashCommandState.ts`，`TranscriptPane.tsx` 移除 composer/slash 状态细节，键盘交互保持一致；`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
 ### [ ] WAF-32 提取渲染窗口 hook
 
