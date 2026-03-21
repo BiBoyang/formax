@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
@@ -18,10 +18,10 @@ import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
-import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
 import { AppShellHeader } from './AppShellHeader'
 import { useDesktopBridge } from './useDesktopBridge'
+import { usePanelDragCommit } from './usePanelDragCommit'
 import { TERMINAL_MAX_SIZE, TERMINAL_MIN_SIZE, useTerminalVisibility } from './useTerminalVisibility'
 
 const MemoLeftRail = memo(LeftRail)
@@ -111,17 +111,9 @@ export function AppShell(props: AppShellProps) {
   const rightRailMinPercent = RIGHT_RAIL_MIN_SIZE
   const rightRailMaxPercent = RIGHT_RAIL_MAX_SIZE
   const centerPercent = Math.max(0, 100 - rightRailPercent)
-  const pendingSidebarPercentRef = useRef(sidebarPercent)
-  const pendingRightRailPercentRef = useRef(rightRailPercent)
-  const isLeftDraggingRef = useRef(false)
-  const isRightDraggingRef = useRef(false)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const terminalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
-  const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
-  const lastOpenRightRailWidthRef = useRef(clampRightRailWidth(rightRailPercent))
-  const previousSidebarOpenRef = useRef(props.isSidebarOpen)
-  const previousRightRailOpenRef = useRef(props.isRightRailOpen)
   const showDevLoadAllButton = props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
@@ -152,114 +144,25 @@ export function AppShell(props: AppShellProps) {
     terminalPanelGroupRef,
   })
 
-  useEffect(() => {
-    if (!props.isSidebarOpen) return
-    lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
-  }, [props.isSidebarOpen, props.sidebarWidth])
-
-  useEffect(() => {
-    const panelGroup = panelGroupRef.current
-    if (!panelGroup) return
-    if (previousSidebarOpenRef.current === props.isSidebarOpen) return
-    previousSidebarOpenRef.current = props.isSidebarOpen
-    const currentLayout = panelGroup.getLayout()
-    if (currentLayout.length < 2) return
-
-    if (!props.isSidebarOpen) {
-      panelGroup.setLayout([0, 100])
-      return
-    }
-
-    const restoredSidebarWidth = clampSidebarWidth(lastOpenSidebarWidthRef.current)
-    panelGroup.setLayout([restoredSidebarWidth, Math.max(0, 100 - restoredSidebarWidth)])
-  }, [props.isSidebarOpen])
-
-  useEffect(() => {
-    if (!props.isRightRailOpen) return
-    lastOpenRightRailWidthRef.current = clampRightRailWidth(props.rightRailWidth)
-  }, [props.isRightRailOpen, props.rightRailWidth])
-
-  useEffect(() => {
-    const panelGroup = rightRailPanelGroupRef.current
-    if (!panelGroup) return
-    if (previousRightRailOpenRef.current === props.isRightRailOpen) return
-    previousRightRailOpenRef.current = props.isRightRailOpen
-    const currentLayout = panelGroup.getLayout()
-    if (currentLayout.length < 2) return
-
-    if (!props.isRightRailOpen) {
-      panelGroup.setLayout([100, 0])
-      return
-    }
-
-    const restoredRightRailWidth = clampRightRailWidth(lastOpenRightRailWidthRef.current)
-    panelGroup.setLayout([Math.max(0, 100 - restoredRightRailWidth), restoredRightRailWidth])
-  }, [props.isRightRailOpen])
-  const commitSidebarWidth = useCallback((nextSidebarWidth: number) => {
-    props.setSidebarWidth((previous) => (Math.abs(nextSidebarWidth - previous) >= 1 ? nextSidebarWidth : previous))
-  }, [props.setSidebarWidth])
-
-  const commitRightRailWidth = useCallback((nextRightRailWidth: number) => {
-    props.setRightRailWidth((previous) =>
-      Math.abs(nextRightRailWidth - previous) >= 1 ? nextRightRailWidth : previous,
-    )
-  }, [props.setRightRailWidth])
-
-  const onLeftResize = useCallback((sidebarSizePercent: number) => {
-    if (!props.isSidebarOpen) return
-    const clampedSidebar = clampSidebarWidth(sidebarSizePercent)
-    pendingSidebarPercentRef.current = clampedSidebar
-  }, [props.isSidebarOpen])
-
-  const onRightResize = useCallback((rightSizePercent: number) => {
-    if (!props.isRightRailOpen) return
-    const clampedRight = clampRightRailWidth(rightSizePercent)
-    pendingRightRailPercentRef.current = clampedRight
-  }, [props.isRightRailOpen])
-
-  const onLeftDragStateChange = useCallback((isDragging: boolean) => {
-    isLeftDraggingRef.current = isDragging
-    if (isDragging) return
-    if (!props.isSidebarOpen) return
-    const clampedSidebar = pendingSidebarPercentRef.current
-    if (Math.abs(clampedSidebar - props.sidebarWidth) >= 1) {
-      commitSidebarWidth(clampedSidebar)
-    }
-  }, [commitSidebarWidth, props.isSidebarOpen, props.sidebarWidth])
-
-  const onRightDragStateChange = useCallback((isDragging: boolean) => {
-    isRightDraggingRef.current = isDragging
-    if (isDragging) return
-    if (!props.isRightRailOpen) return
-    const clampedRight = pendingRightRailPercentRef.current
-    if (Math.abs(clampedRight - props.rightRailWidth) >= 1) {
-      commitRightRailWidth(clampedRight)
-    }
-  }, [commitRightRailWidth, props.isRightRailOpen, props.rightRailWidth])
-
-  const onToggleSidebar = useCallback(() => {
-    if (props.isSidebarOpen) {
-      lastOpenSidebarWidthRef.current = clampSidebarWidth(props.sidebarWidth)
-      props.setIsSidebarOpen(false)
-      return
-    }
-
-    const restoredSidebarWidth = clampSidebarWidth(lastOpenSidebarWidthRef.current)
-    props.setSidebarWidth(restoredSidebarWidth)
-    props.setIsSidebarOpen(true)
-  }, [props.isSidebarOpen, props.setIsSidebarOpen, props.setSidebarWidth, props.sidebarWidth])
-
-  const onToggleRightRail = useCallback(() => {
-    if (props.isRightRailOpen) {
-      lastOpenRightRailWidthRef.current = clampRightRailWidth(props.rightRailWidth)
-      props.setIsRightRailOpen(false)
-      return
-    }
-
-    const restoredRightRailWidth = clampRightRailWidth(lastOpenRightRailWidthRef.current)
-    props.setRightRailWidth(restoredRightRailWidth)
-    props.setIsRightRailOpen(true)
-  }, [props.isRightRailOpen, props.setIsRightRailOpen, props.setRightRailWidth, props.rightRailWidth])
+  const {
+    onLeftDragStateChange,
+    onLeftResize,
+    onRightDragStateChange,
+    onRightResize,
+    onToggleRightRail,
+    onToggleSidebar,
+  } = usePanelDragCommit({
+    isRightRailOpen: props.isRightRailOpen,
+    isSidebarOpen: props.isSidebarOpen,
+    panelGroupRef,
+    rightRailPanelGroupRef,
+    rightRailWidth: props.rightRailWidth,
+    setIsRightRailOpen: props.setIsRightRailOpen,
+    setIsSidebarOpen: props.setIsSidebarOpen,
+    setRightRailWidth: props.setRightRailWidth,
+    setSidebarWidth: props.setSidebarWidth,
+    sidebarWidth: props.sidebarWidth,
+  })
 
   const onDevLoadAllEarlier = useCallback(() => {
     props.onDevLoadAllEarlier?.()

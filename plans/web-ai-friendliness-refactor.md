@@ -34,7 +34,7 @@
 - [x] WAF-20 提取 Header 组件
 - [x] WAF-21 提取桌面桥接 hook
 - [x] WAF-22 提取终端可见性与高度恢复 hook
-- [ ] WAF-23 提取 panel drag 提交逻辑
+- [x] WAF-23 提取 panel drag 提交逻辑
 - [ ] WAF-30 提取 TranscriptFeed
 - [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
 - [ ] WAF-32 提取渲染窗口 hook
@@ -175,7 +175,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。新增 `src/app/ui/useTerminalVisibility.ts`，迁移终端显隐、thread 绑定、高度记忆、`Ctrl/Cmd+J` 快捷键与归档清理逻辑；`AppShell.tsx` 仅保留组合调用。`type-check`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
-### [ ] WAF-23 提取 panel drag 提交逻辑
+### [x] WAF-23 提取 panel drag 提交逻辑
 
 - 允许修改：
   - `src/app/ui/AppShell.tsx`
@@ -188,6 +188,8 @@
   - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx`
 - 完成标准：
   - `AppShell.tsx` 降至 700-800 行区间。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `src/app/ui/usePanelDragCommit.ts`，迁移 sidebar/right-rail 的拖拽提交、开关恢复与 panel layout 同步；`AppShell.tsx` 改为组合调用。`type-check`、`App.test.tsx`、`LeftRail.test.tsx` 通过。
 
 ## Phase 3（拆 TranscriptPane）
 
