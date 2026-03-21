@@ -9,6 +9,7 @@ Canonical docs:
 - [docs/contracts/web-parity-adapter-contract.md](../../docs/contracts/web-parity-adapter-contract.md)
 - [docs/frontend/app-server-ui-spec.md](../../docs/frontend/app-server-ui-spec.md)
 - [docs/runbooks/app-server-manual-runbook.md](../../docs/runbooks/app-server-manual-runbook.md)
+- [CODEMAP.md](./CODEMAP.md) (package-local "where to change what" index)
 
 Use this README for local app bootstrap, test commands, and implementation-local performance notes. Stable protocol, Web adapter/reducer/cursor behavior, or UI behavior changes should update the linked docs first.
 

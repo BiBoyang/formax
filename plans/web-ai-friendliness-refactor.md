@@ -26,8 +26,8 @@
 
 ## 任务看板（勾选）
 
-- [ ] WAF-00 建立包级 CODEMAP
-- [ ] WAF-01 建立重构任务索引
+- [x] WAF-00 建立包级 CODEMAP
+- [x] WAF-01 建立重构任务索引
 - [ ] WAF-10 提取 App 测试公共夹具
 - [ ] WAF-11 拆分 App 集成测试（第一批）
 - [ ] WAF-12 拆分 App 集成测试（第二批）
@@ -44,7 +44,7 @@
 
 ## Phase 0（低风险，先做）
 
-### [ ] WAF-00 建立包级 CODEMAP
+### [x] WAF-00 建立包级 CODEMAP
 
 - 允许修改：
   - `packages/web-reference-react/CODEMAP.md`（新建）
@@ -57,8 +57,10 @@
   - 人工检查：新增功能时可在 30 秒内定位目标目录。
 - 完成标准：
   - 任何新对话可先读 `CODEMAP.md` 再开工，不必全局搜索猜入口。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `packages/web-reference-react/CODEMAP.md`，并在包 README 增加入口链接。
 
-### [ ] WAF-01 建立重构任务索引
+### [x] WAF-01 建立重构任务索引
 
 - 允许修改：
   - `plans/web-ai-friendliness-refactor.md`
@@ -69,6 +71,8 @@
   - 文档中每个任务都含状态与最近一次执行记录。
 - 完成标准：
   - 后续执行可直接按任务 ID 继续，不需要重复梳理上下文。
+- 最近一次执行：
+  - 2026-03-22: 已完成。任务清单改为 checklist 形式，并维护 `todo/done/deferred` 可视状态。
 
 ## Phase 1（先拆测试，锁定行为）
 
