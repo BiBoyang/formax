@@ -16,6 +16,7 @@ type TerminalPaneProps = {
 }
 
 const TERMINAL_RESIZE_DEBOUNCE_MS = 80
+const TERMINAL_VISIBILITY_SETTLE_MS = 250
 const NULL_EXIT_CODE_LABEL = 'null'
 const ROOT_THEME_OBSERVER_ATTRIBUTES = ['class', 'data-theme', 'data-window-transparency'] as const
 const FALLBACK_TERMINAL_THEME: XtermTheme = {
@@ -119,6 +120,7 @@ export function TerminalPane(props: TerminalPaneProps) {
   const fitAddonRef = useRef<FitAddon | null>(null)
   const activeThreadIdRef = useRef(props.threadId)
   const isVisibleRef = useRef(props.visible)
+  const visibilitySettlingRef = useRef(false)
   const snapshotHydratingRef = useRef(false)
   const bufferedEventsDuringSnapshotRef = useRef<DesktopTerminalEvent[]>([])
   const [statusLine, setStatusLine] = useState<string | null>(null)
@@ -131,14 +133,24 @@ export function TerminalPane(props: TerminalPaneProps) {
     isVisibleRef.current = props.visible
   }, [props.visible])
 
+  const syncPtySizeFromTerminal = useCallback(() => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    void props.bridge.resize(activeThreadIdRef.current, terminal.cols, terminal.rows).catch(() => undefined)
+  }, [props.bridge])
+
   const syncTerminalSize = useCallback(() => {
     if (!isVisibleRef.current) return
+    if (visibilitySettlingRef.current) {
+      syncPtySizeFromTerminal()
+      return
+    }
     const terminal = terminalRef.current
     const fitAddon = fitAddonRef.current
     if (!terminal || !fitAddon) return
     fitAddon.fit()
-    void props.bridge.resize(activeThreadIdRef.current, terminal.cols, terminal.rows).catch(() => undefined)
-  }, [props.bridge])
+    syncPtySizeFromTerminal()
+  }, [syncPtySizeFromTerminal])
 
   const syncTerminalTheme = useCallback(() => {
     const terminal = terminalRef.current
@@ -297,6 +309,7 @@ export function TerminalPane(props: TerminalPaneProps) {
 
     let timer: ReturnType<typeof setTimeout> | null = null
     const scheduleSync = () => {
+      if (visibilitySettlingRef.current) return
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         syncTerminalSize()
@@ -322,12 +335,24 @@ export function TerminalPane(props: TerminalPaneProps) {
   }, [syncTerminalSize])
 
   useEffect(() => {
-    if (!props.visible) return
+    if (!props.visible) {
+      visibilitySettlingRef.current = false
+      return
+    }
     const terminal = terminalRef.current
     if (!terminal) return
-    syncTerminalSize()
-    terminal.focus()
-  }, [props.visible, syncTerminalSize])
+    visibilitySettlingRef.current = true
+    syncPtySizeFromTerminal()
+    const settleTimer = setTimeout(() => {
+      visibilitySettlingRef.current = false
+      syncTerminalSize()
+      terminal.focus()
+    }, TERMINAL_VISIBILITY_SETTLE_MS)
+    return () => {
+      clearTimeout(settleTimer)
+      visibilitySettlingRef.current = false
+    }
+  }, [props.visible, syncPtySizeFromTerminal, syncTerminalSize])
 
   return (
     <div
