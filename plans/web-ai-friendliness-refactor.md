@@ -35,7 +35,7 @@
 - [x] WAF-21 提取桌面桥接 hook
 - [x] WAF-22 提取终端可见性与高度恢复 hook
 - [x] WAF-23 提取 panel drag 提交逻辑
-- [ ] WAF-30 提取 TranscriptFeed
+- [x] WAF-30 提取 TranscriptFeed
 - [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
 - [ ] WAF-32 提取渲染窗口 hook
 - [ ] WAF-40 样式按域拆分（不动视觉）
@@ -197,7 +197,7 @@
 
 ## Phase 3（拆 TranscriptPane）
 
-### [ ] WAF-30 提取 TranscriptFeed
+### [x] WAF-30 提取 TranscriptFeed
 
 - 允许修改：
   - `src/components/TranscriptPane.tsx`
@@ -210,6 +210,8 @@
   - `npm --prefix packages/web-reference-react run test -- src/components/TranscriptPane.test.tsx`
 - 完成标准：
   - `TranscriptPane.tsx` 明显缩短并变为容器角色。
+- 最近一次执行：
+  - 2026-03-22: 已完成。抽出 `src/components/transcript/TranscriptFeed.tsx` 承接 welcome/feed/error/loading 视图，`TranscriptPane.tsx` 保留容器状态与滚动状态机；`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
 ### [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
 
