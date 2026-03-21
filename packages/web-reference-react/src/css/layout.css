@@ -1,0 +1,258 @@
+:root {
+  color-scheme: light;
+  --desktop-chrome-height: 3rem;
+  --desktop-chrome-row-height: 2rem;
+  --desktop-chrome-row-padding-y: calc((var(--desktop-chrome-height) - var(--desktop-chrome-row-height)) / 2);
+  --desktop-traffic-light-size: 14px;
+  --desktop-traffic-light-safe-height: 20px;
+  --desktop-traffic-light-safe-width: 72px;
+  --desktop-traffic-light-inset-x: 20px;
+  --desktop-traffic-light-offset-y: calc(
+    (var(--desktop-chrome-height) - var(--desktop-traffic-light-safe-height)) / 2
+  );
+  --desktop-header-leading-shift: calc(var(--desktop-traffic-light-inset-x) + var(--desktop-traffic-light-safe-width) + 4px);
+  --desktop-pane-motion-duration: 220ms;
+  --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-scroll-fade-size: 16px;
+  --app-scroll-fade-mask-color: black;
+  --app-backdrop-surface: var(--sidebar);
+  --app-backdrop-blur: 0px;
+  --app-backdrop-surface-transparent-light: rgb(245 245 245 / 0.94);
+  --app-backdrop-surface-transparent-dark: rgb(22 22 22 / 0.92);
+  --right-surface: var(--background);
+  --right-header-surface: color-mix(in oklch, var(--right-surface) 92%, transparent);
+  --right-rail-border: color-mix(in oklch, var(--border) 78%, transparent);
+}
+
+/* Modern Scrollbar Styling (macOS inspired) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+  background-clip: content-box;
+}
+
+/* Firefox support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 20%, transparent) transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+}
+
+body {
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      960px 360px at -8% -14%,
+      color-mix(in oklch, var(--sidebar) 88%, white) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      820px 340px at 112% -12%,
+      color-mix(in oklch, var(--muted) 62%, white) 0%,
+      transparent 62%
+    ),
+    var(--background);
+}
+
+#root {
+  overflow: hidden;
+}
+
+.app-shell-desktop .app-shell-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.app-shell-desktop .app-shell-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.app-shell-root-surface {
+  transition: none;
+  background: var(--app-backdrop-surface);
+  -webkit-backdrop-filter: blur(var(--app-backdrop-blur));
+  backdrop-filter: blur(var(--app-backdrop-blur));
+}
+
+.app-shell-sidebar-panel {
+  transition: none;
+  background: transparent;
+  border-right: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.app-shell-sidebar-host,
+.app-sidebar-rail,
+.app-sidebar-topbar,
+.app-sidebar-bottombar {
+  background: transparent;
+}
+
+.app-sidebar-topbar,
+.app-sidebar-bottombar {
+  transition: border-color var(--desktop-pane-motion-duration) var(--desktop-pane-motion-ease);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.app-shell-right-surface {
+  background: var(--right-surface);
+  border-left: 1px solid var(--border);
+}
+
+.app-shell-right-header {
+  background: var(--right-header-surface);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.app-shell-right-rail {
+  background: transparent;
+  border-left: 1px solid var(--right-rail-border);
+}
+
+.app-shell-desktop[data-window-transparency='on'] {
+  --app-backdrop-surface: var(--app-backdrop-surface-transparent-light);
+  --app-backdrop-blur: 22px;
+}
+
+.dark.app-shell-desktop[data-window-transparency='on'] {
+  --app-backdrop-surface: var(--app-backdrop-surface-transparent-dark);
+  --app-backdrop-blur: 22px;
+}
+
+:root[data-window-transparency='on'],
+:root[data-window-transparency='on'] body,
+:root[data-window-transparency='on'] #root {
+  background: transparent !important;
+}
+
+.dark:root[data-window-transparency='on'],
+.dark:root[data-window-transparency='on'] body,
+.dark:root[data-window-transparency='on'] #root {
+  background: transparent !important;
+}
+
+.app-shell-left-resize-handle[data-slot='resizable-handle'] {
+  width: 0 !important;
+  background: transparent !important;
+}
+
+.app-shell-left-resize-handle[data-slot='resizable-handle']::after {
+  background: transparent !important;
+}
+
+.left-rail-scroll-body {
+  scrollbar-gutter: stable both-edges;
+}
+
+.app-scroll-fade-mask-y {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+}
+
+.app-scroll-fade-mask-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--app-scroll-fade-mask-color),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    var(--app-scroll-fade-mask-color),
+    var(--app-scroll-fade-mask-color) calc(100% - var(--app-scroll-fade-size)),
+    transparent
+  );
+}
+
+.app-scroll-fade-mask-top {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--app-scroll-fade-mask-color) var(--app-scroll-fade-size)
+  );
+}
+
+.app-shell-panel-motion {
+  transition-property: flex-grow;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: flex-grow;
+}
+
+.app-shell-sidebar-content-motion {
+  transition-property: opacity, transform;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: opacity, transform;
+}
+
+.app-shell-header-row-motion {
+  transition-property: padding-left;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: padding-left;
+}
+
+.app-shell-header-row-shifted {
+  padding-left: calc(1rem + var(--desktop-header-leading-shift));
+}
+
+.app-shell-header-icon-motion {
+  transition-property: transform;
+  transition-duration: var(--desktop-pane-motion-duration);
+  transition-timing-function: var(--desktop-pane-motion-ease);
+  will-change: transform;
+}
+
+/* Layout styles removed in favor of Tailwind utility classes */

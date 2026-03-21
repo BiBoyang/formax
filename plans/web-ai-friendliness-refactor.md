@@ -38,7 +38,7 @@
 - [x] WAF-30 提取 TranscriptFeed
 - [x] WAF-31 提取 ComposerDock + Slash 菜单状态
 - [x] WAF-32 提取渲染窗口 hook
-- [ ] WAF-40 样式按域拆分（不动视觉）
+- [x] WAF-40 样式按域拆分（不动视觉）
 - [ ] WAF-D1 Context 化消除 props drilling（deferred）
 - [ ] WAF-D2 runtime 目录大重排（deferred）
 
@@ -243,11 +243,11 @@
 - 完成标准：
   - `TranscriptPane.tsx` 目标降至 500-700 行。
 - 最近一次执行：
-  - 2026-03-22: 已完成。新增 `src/components/transcript/useRenderWindow.ts`，迁移 render limit/history gap/滚动同步状态机，`TranscriptPane.tsx` 仅保留容器编排；当前降至约 681 行。`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
+  - 2026-03-22: 已完成。新增 `src/components/transcript/useRenderWindow.ts`，迁移 render limit/history gap/滚动同步状态机，`TranscriptPane.tsx` 仅保留容器编排；当前降至 373 行。`type-check`、`TranscriptPane.test.tsx`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
 ## Phase 4（样式组织优化，仓内文件为准）
 
-### [ ] WAF-40 样式按域拆分（不动视觉）
+### [x] WAF-40 样式按域拆分（不动视觉）
 
 - 允许修改：
   - `src/styles.css`
@@ -265,6 +265,8 @@
   - 人工 smoke：sidebar/transcript/terminal 视觉一致。
 - 完成标准：
   - 样式修改可以按域定位，不再在单文件全局搜索。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `src/css/index.css`、`src/css/layout.css`、`src/css/sidebar.css`、`src/css/transcript.css`，`styles.css` 退化为统一入口转发；保持 `theme.css` 独立职责。`type-check`、`App.test.tsx`、`LeftRail.test.tsx`、`TranscriptPane.test.tsx` 全通过。
 
 ## Deferred（当前不执行）
 
