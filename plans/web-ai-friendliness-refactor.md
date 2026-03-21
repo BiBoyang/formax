@@ -30,7 +30,7 @@
 - [x] WAF-01 建立重构任务索引
 - [x] WAF-10 提取 App 测试公共夹具
 - [x] WAF-11 拆分 App 集成测试（第一批）
-- [ ] WAF-12 拆分 App 集成测试（第二批）
+- [x] WAF-12 拆分 App 集成测试（第二批）
 - [x] WAF-20 提取 Header 组件
 - [x] WAF-21 提取桌面桥接 hook
 - [x] WAF-22 提取终端可见性与高度恢复 hook
@@ -111,7 +111,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。新增 `src/__tests__/app-terminal.integration.test.tsx`（10 个 terminal 用例）与 `src/__tests__/app-thread.integration.test.tsx`（8 个 thread 管理用例），`src/App.test.tsx` 收敛到 39 个主链路用例。三者单测与 `type-check` 均通过。
 
-### [ ] WAF-12 拆分 App 集成测试（第二批）
+### [x] WAF-12 拆分 App 集成测试（第二批）
 
 - 允许修改：
   - `src/App.test.tsx`
@@ -126,7 +126,7 @@
 - 完成标准：
   - `App.test.tsx` 控制在 1000-1500 行内。
 - 最近一次执行：
-  - 2026-03-22: 进行中。新增 `src/__tests__/app-approval.integration.test.tsx`（5 个 approval/ask 用例）与 `src/__tests__/app-composer.integration.test.tsx`（15 个 mode/command/composer 用例），`src/App.test.tsx` 从 3245 行降到 1889 行；`type-check` 与对应测试通过。
+  - 2026-03-22: 已完成。新增 `src/__tests__/app-composer.integration.test.tsx`（15 个 composer/mode/command 用例）、`src/__tests__/app-approval.integration.test.tsx`（5 个 approval/ask 用例）、`src/__tests__/app-diff.integration.test.tsx`（7 个 replay/hasGap 用例）；`src/App.test.tsx` 从 3245 行降到 901 行。`type-check` 与分拆后的集成测试均通过。
 
 ## Phase 2（拆 AppShell，收益最大）
 
