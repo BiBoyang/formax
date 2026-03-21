@@ -33,7 +33,7 @@
 - [ ] WAF-12 拆分 App 集成测试（第二批）
 - [x] WAF-20 提取 Header 组件
 - [x] WAF-21 提取桌面桥接 hook
-- [ ] WAF-22 提取终端可见性与高度恢复 hook
+- [x] WAF-22 提取终端可见性与高度恢复 hook
 - [ ] WAF-23 提取 panel drag 提交逻辑
 - [ ] WAF-30 提取 TranscriptFeed
 - [ ] WAF-31 提取 ComposerDock + Slash 菜单状态
@@ -159,7 +159,7 @@
 - 最近一次执行：
   - 2026-03-22: 已完成。提取 `src/app/ui/useDesktopBridge.ts`（window appearance / open targets / preventSleep / desktop bridge 读取），`AppShell.tsx` 保留组合与业务调用；`type-check` 与 `App.test.tsx` 通过。
 
-### [ ] WAF-22 提取终端可见性与高度恢复 hook
+### [x] WAF-22 提取终端可见性与高度恢复 hook
 
 - 允许修改：
   - `src/app/ui/AppShell.tsx`
@@ -172,6 +172,8 @@
   - terminal 相关测试全过。
 - 完成标准：
   - 终端状态机逻辑从 `AppShell.tsx` 主体分离。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `src/app/ui/useTerminalVisibility.ts`，迁移终端显隐、thread 绑定、高度记忆、`Ctrl/Cmd+J` 快捷键与归档清理逻辑；`AppShell.tsx` 仅保留组合调用。`type-check`、`App.test.tsx`、`LeftRail.test.tsx` 全通过。
 
 ### [ ] WAF-23 提取 panel drag 提交逻辑
 

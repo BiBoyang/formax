@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { PanelLeft } from 'lucide-react'
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
@@ -22,19 +22,12 @@ import { clampRightRailWidth, clampSidebarWidth } from './usePaneLayout'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
 import { AppShellHeader } from './AppShellHeader'
 import { useDesktopBridge } from './useDesktopBridge'
+import { TERMINAL_MAX_SIZE, TERMINAL_MIN_SIZE, useTerminalVisibility } from './useTerminalVisibility'
 
 const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
-
-const TERMINAL_MIN_SIZE = 18
-const TERMINAL_MAX_SIZE = 60
-const TERMINAL_DEFAULT_SIZE = 32
-
-function clampTerminalHeight(sizePercent: number): number {
-  return Math.max(TERMINAL_MIN_SIZE, Math.min(TERMINAL_MAX_SIZE, sizePercent))
-}
 
 export type AppShellProps = {
   sortedThreads: ThreadViewModel[]
@@ -111,9 +104,6 @@ export function AppShell(props: AppShellProps) {
       defaultOpenTarget: props.userSettings.defaultOpenTarget,
       onUserSettingChange: props.onUserSettingChange,
     })
-  const [terminalVisibleByThreadId, setTerminalVisibleByThreadId] = useState<Record<string, boolean>>({})
-  const [residentTerminalThreadId, setResidentTerminalThreadId] = useState<string | null>(null)
-  const [terminalHeightPercent, setTerminalHeightPercent] = useState(TERMINAL_DEFAULT_SIZE)
   const sidebarPercent = props.sidebarWidth
   const sidebarMinPercent = SIDEBAR_MIN_SIZE
   const sidebarMaxPercent = SIDEBAR_MAX_SIZE
@@ -125,16 +115,11 @@ export function AppShell(props: AppShellProps) {
   const pendingRightRailPercentRef = useRef(rightRailPercent)
   const isLeftDraggingRef = useRef(false)
   const isRightDraggingRef = useRef(false)
-  const isTerminalDraggingRef = useRef(false)
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const terminalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
-  const terminalVisibleByThreadIdRef = useRef<Record<string, boolean>>({})
-  const terminalHeightRef = useRef(TERMINAL_DEFAULT_SIZE)
-  const knownThreadIdsRef = useRef<Set<string>>(new Set(props.sortedThreads.map((thread) => thread.id)))
   const lastOpenSidebarWidthRef = useRef(clampSidebarWidth(sidebarPercent))
   const lastOpenRightRailWidthRef = useRef(clampRightRailWidth(rightRailPercent))
-  const lastOpenTerminalHeightRef = useRef(clampTerminalHeight(TERMINAL_DEFAULT_SIZE))
   const previousSidebarOpenRef = useRef(props.isSidebarOpen)
   const previousRightRailOpenRef = useRef(props.isRightRailOpen)
   const showDevLoadAllButton = props.devLoadAllEnabled === true
@@ -148,18 +133,24 @@ export function AppShell(props: AppShellProps) {
     }
     return isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')
   }, [isDesktopClient, props.activeThread?.cwd, props.selectedCwd, t])
-  const activeThreadId = props.activeThreadId
-  const activeThreadTerminalVisible = activeThreadId ? terminalVisibleByThreadId[activeThreadId] === true : false
-  const showTerminalPane = Boolean(
-    isDesktopClient &&
-      terminalBridge &&
-      activeThreadId &&
-      activeThreadTerminalVisible &&
-      !props.isSettingsOpen,
-  )
-  const terminalPaneThreadId = showTerminalPane && activeThreadId ? activeThreadId : residentTerminalThreadId
-  const previousTerminalOpenRef = useRef(showTerminalPane)
-  const canToggleTerminal = Boolean(isDesktopClient && terminalBridge && activeThreadId)
+  const {
+    canToggleTerminal,
+    onCloseTerminalPane,
+    onTerminalDragStateChange,
+    onTerminalResize,
+    onToggleTerminal,
+    showTerminalPane,
+    terminalHeightPercent,
+    terminalPaneThreadId,
+  } = useTerminalVisibility({
+    activeThreadCwd: props.activeThread?.cwd,
+    activeThreadId: props.activeThreadId,
+    isSettingsOpen: props.isSettingsOpen,
+    selectedCwd: props.selectedCwd,
+    sortedThreads: props.sortedThreads,
+    terminalBridge: isDesktopClient ? terminalBridge : null,
+    terminalPanelGroupRef,
+  })
 
   useEffect(() => {
     if (!props.isSidebarOpen) return
@@ -189,15 +180,6 @@ export function AppShell(props: AppShellProps) {
   }, [props.isRightRailOpen, props.rightRailWidth])
 
   useEffect(() => {
-    if (!terminalBridge) {
-      setResidentTerminalThreadId(null)
-      return
-    }
-    if (!showTerminalPane || !activeThreadId) return
-    setResidentTerminalThreadId((previous) => (previous === activeThreadId ? previous : activeThreadId))
-  }, [activeThreadId, showTerminalPane, terminalBridge])
-
-  useEffect(() => {
     const panelGroup = rightRailPanelGroupRef.current
     if (!panelGroup) return
     if (previousRightRailOpenRef.current === props.isRightRailOpen) return
@@ -213,28 +195,6 @@ export function AppShell(props: AppShellProps) {
     const restoredRightRailWidth = clampRightRailWidth(lastOpenRightRailWidthRef.current)
     panelGroup.setLayout([Math.max(0, 100 - restoredRightRailWidth), restoredRightRailWidth])
   }, [props.isRightRailOpen])
-
-  useEffect(() => {
-    const panelGroup = terminalPanelGroupRef.current
-    if (!panelGroup) return
-    if (previousTerminalOpenRef.current === showTerminalPane) return
-    previousTerminalOpenRef.current = showTerminalPane
-    const currentLayout = panelGroup.getLayout()
-    if (currentLayout.length < 2) return
-
-    if (!showTerminalPane) {
-      const currentTerminalHeight = currentLayout[1]
-      if (typeof currentTerminalHeight === 'number' && Number.isFinite(currentTerminalHeight) && currentTerminalHeight > 0) {
-        lastOpenTerminalHeightRef.current = clampTerminalHeight(currentTerminalHeight)
-      }
-      panelGroup.setLayout([100, 0])
-      return
-    }
-
-    const restoredTerminalHeight = clampTerminalHeight(lastOpenTerminalHeightRef.current)
-    panelGroup.setLayout([Math.max(35, 100 - restoredTerminalHeight), restoredTerminalHeight])
-  }, [showTerminalPane])
-
   const commitSidebarWidth = useCallback((nextSidebarWidth: number) => {
     props.setSidebarWidth((previous) => (Math.abs(nextSidebarWidth - previous) >= 1 ? nextSidebarWidth : previous))
   }, [props.setSidebarWidth])
@@ -300,119 +260,6 @@ export function AppShell(props: AppShellProps) {
     props.setRightRailWidth(restoredRightRailWidth)
     props.setIsRightRailOpen(true)
   }, [props.isRightRailOpen, props.setIsRightRailOpen, props.setRightRailWidth, props.rightRailWidth])
-
-  useEffect(() => {
-    terminalVisibleByThreadIdRef.current = terminalVisibleByThreadId
-  }, [terminalVisibleByThreadId])
-
-  useEffect(() => {
-    terminalHeightRef.current = terminalHeightPercent
-  }, [terminalHeightPercent])
-
-  useEffect(() => {
-    if (!showTerminalPane) return
-    lastOpenTerminalHeightRef.current = clampTerminalHeight(terminalHeightPercent)
-  }, [showTerminalPane, terminalHeightPercent])
-
-  const onCloseTerminalPane = useCallback(() => {
-    const threadId = props.activeThreadId
-    if (!threadId) return
-    lastOpenTerminalHeightRef.current = clampTerminalHeight(terminalHeightRef.current)
-    setTerminalVisibleByThreadId((previous) => {
-      if (previous[threadId] !== true) return previous
-      return { ...previous, [threadId]: false }
-    })
-  }, [props.activeThreadId])
-
-  const onToggleTerminal = useCallback(async () => {
-    if (!terminalBridge) return
-    const threadId = props.activeThreadId
-    if (!threadId) return
-
-    const currentlyVisible = terminalVisibleByThreadIdRef.current[threadId] === true
-    if (currentlyVisible) {
-      lastOpenTerminalHeightRef.current = clampTerminalHeight(terminalHeightRef.current)
-      setTerminalVisibleByThreadId((previous) => ({ ...previous, [threadId]: false }))
-      return
-    }
-    const nextCwd = props.activeThread?.cwd ?? props.selectedCwd ?? undefined
-    const result = await terminalBridge.ensureSession(threadId, nextCwd)
-    if (!result.exists) return
-
-    const restoredHeight = clampTerminalHeight(lastOpenTerminalHeightRef.current)
-    setTerminalHeightPercent(restoredHeight)
-    setTerminalVisibleByThreadId((previous) => ({ ...previous, [threadId]: true }))
-  }, [props.activeThread?.cwd, props.activeThreadId, props.selectedCwd, terminalBridge])
-
-  const onTerminalDragStateChange = useCallback((isDragging: boolean) => {
-    isTerminalDraggingRef.current = isDragging
-  }, [])
-
-  const onTerminalResize = useCallback((sizePercent: number) => {
-    if (!isTerminalDraggingRef.current) return
-    const threadId = props.activeThreadId
-    if (!threadId) return
-    const activeThreadTerminalVisible = terminalVisibleByThreadIdRef.current[threadId] === true
-    if (!activeThreadTerminalVisible || props.isSettingsOpen) return
-    if (sizePercent <= 0) return
-    const clamped = clampTerminalHeight(sizePercent)
-    lastOpenTerminalHeightRef.current = clamped
-    setTerminalHeightPercent(clamped)
-  }, [props.activeThreadId, props.isSettingsOpen])
-
-  useEffect(() => {
-    const currentIds = new Set(props.sortedThreads.map((thread) => thread.id))
-    const removedThreadIds = Array.from(knownThreadIdsRef.current).filter((threadId) => !currentIds.has(threadId))
-    knownThreadIdsRef.current = currentIds
-    if (removedThreadIds.length === 0) return
-
-    if (residentTerminalThreadId && removedThreadIds.includes(residentTerminalThreadId)) {
-      setResidentTerminalThreadId(null)
-    }
-
-    setTerminalVisibleByThreadId((previous) => {
-      let changed = false
-      const next: Record<string, boolean> = { ...previous }
-      for (const threadId of removedThreadIds) {
-        if (threadId in next) {
-          delete next[threadId]
-          changed = true
-        }
-      }
-      return changed ? next : previous
-    })
-
-    if (!terminalBridge) return
-    for (const threadId of removedThreadIds) {
-      void terminalBridge.destroySession(threadId).catch(() => undefined)
-    }
-  }, [props.sortedThreads, residentTerminalThreadId, terminalBridge])
-
-  useEffect(() => {
-    if (!terminalBridge) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
-      if (event.shiftKey || event.altKey) return
-      const isTrigger = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j'
-      if (!isTrigger) return
-      const target = event.target
-      if (target instanceof HTMLElement) {
-        const tagName = target.tagName.toLowerCase()
-        const isEditableTarget =
-          target.isContentEditable ||
-          tagName === 'input' ||
-          tagName === 'textarea' ||
-          target.getAttribute('role') === 'textbox'
-        if (isEditableTarget) return
-      }
-      event.preventDefault()
-      void onToggleTerminal()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onToggleTerminal, terminalBridge])
 
   const onDevLoadAllEarlier = useCallback(() => {
     props.onDevLoadAllEarlier?.()
