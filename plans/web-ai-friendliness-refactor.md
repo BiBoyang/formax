@@ -39,7 +39,7 @@
 - [x] WAF-31 提取 ComposerDock + Slash 菜单状态
 - [x] WAF-32 提取渲染窗口 hook
 - [x] WAF-40 样式按域拆分（不动视觉）
-- [ ] WAF-D1 Context 化消除 props drilling（deferred）
+- [x] WAF-D1 Context 化消除 props drilling（deferred）
 - [ ] WAF-D2 runtime 目录大重排（deferred）
 
 ## Phase 0（低风险，先做）
@@ -270,10 +270,12 @@
 
 ## Deferred（当前不执行）
 
-### [ ] WAF-D1 Context 化消除 props drilling（先做 spike）
+### [x] WAF-D1 Context 化消除 props drilling（先做 spike）
 
 - 原因：改动面大，容易引入渲染边界变化；待 Phase 1-3 完成后再评估。
 - 只允许先做 1 个 spike 文档，不直接改生产链路。
+- 最近一次执行：
+  - 2026-03-22: 已完成。新增 `plans/web-reference-react-context-spike.md`，明确 Context 候选边界、风险分级、实施顺序与验证清单；本轮未修改生产代码。
 
 ### [ ] WAF-D2 runtime 目录大重排
 
