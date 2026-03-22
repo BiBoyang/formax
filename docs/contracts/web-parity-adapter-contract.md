@@ -149,6 +149,6 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 1. 先更新本文件。
 2. 若变更触及共享 canonical 语义，再先更新 `docs/contracts/semantics-contract.md`。
 3. 再更新 `docs/frontend/app-server-ui-spec.md` 的实现摘要。
-4. 最后更新 `packages/web-reference-react/README.md` 等 code-local deep dive。
+4. 最后更新 `packages/web-reference-react/AGENTS.md` 等 code-local guide。
 
 若实现与本合同冲突，应视为实现漂移并立即收敛修正。
