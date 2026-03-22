@@ -1,8 +1,16 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { PropsWithChildren, ReactElement } from 'react'
+import { I18nProvider } from '../app/i18n/I18nProvider'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptPaneProps } from './TranscriptPane'
 import { formatRpcErrorDetails, TranscriptPane } from './TranscriptPane'
 import { shouldStopWheelPropagation } from './scrollBoundary'
+
+function renderWithI18n(ui: ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }: PropsWithChildren) => <I18nProvider language="en-US">{children}</I18nProvider>,
+  })
+}
 
 function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPaneProps {
   return {
@@ -116,7 +124,7 @@ describe('TranscriptPane', () => {
     const onSend = vi.fn((event) => event.preventDefault())
     const onInterrupt = vi.fn()
 
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           activeThreadId: null,
@@ -171,7 +179,7 @@ describe('TranscriptPane', () => {
   })
 
   it('renders assistant markdown into structured content', async () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [{ id: 'm1', kind: 'message', role: 'assistant', text: '# Plan\n\n- first item\n- second item' }],
@@ -187,7 +195,7 @@ describe('TranscriptPane', () => {
   })
 
   it('hides composer when composerLocked is true and restores when false', () => {
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           composerLocked: true,
@@ -212,7 +220,7 @@ describe('TranscriptPane', () => {
 
   it('cycles mode with Shift+Tab in composer input', () => {
     const onModeChange = vi.fn()
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           mode: 'normal',
@@ -228,7 +236,7 @@ describe('TranscriptPane', () => {
   })
 
   it('shows slash command menu when composer input starts with slash', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '/',
@@ -244,7 +252,7 @@ describe('TranscriptPane', () => {
   })
 
   it('filters slash command menu by typed command token', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '/co',
@@ -260,7 +268,7 @@ describe('TranscriptPane', () => {
 
   it('opens slash command menu from quick button and inserts selected command', () => {
     const onInputTextChange = vi.fn()
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '',
@@ -278,7 +286,7 @@ describe('TranscriptPane', () => {
 
   it('closes auto-open slash menu after selecting a slash command', () => {
     const onInputTextChange = vi.fn()
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '/to',
@@ -304,7 +312,7 @@ describe('TranscriptPane', () => {
 
   it('keeps slash menu suppressed after selection when input has leading spaces', () => {
     const onInputTextChange = vi.fn()
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '   /to',
@@ -329,7 +337,7 @@ describe('TranscriptPane', () => {
   })
 
   it('allows Escape to close slash menu opened by typing slash', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '/to',
@@ -346,7 +354,7 @@ describe('TranscriptPane', () => {
 
   it('does not send on Enter while IME composition is active', () => {
     const onSend = vi.fn((event) => event.preventDefault())
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: 'zhang',
@@ -368,7 +376,7 @@ describe('TranscriptPane', () => {
 
   it('requires Cmd/Ctrl+Enter for long prompt when longTextRequireCmdEnter is enabled', () => {
     const onSend = vi.fn((event) => event.preventDefault())
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: 'line 1\nline 2',
@@ -387,7 +395,7 @@ describe('TranscriptPane', () => {
   })
 
   it('renders running thinking as lightweight line', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({ logs: [{ id: 'thinking-1', kind: 'thinking', status: 'running', text: 'Step A. Step B.', turnId: 'turn-1' }] })}
       />,
@@ -398,7 +406,7 @@ describe('TranscriptPane', () => {
   })
 
   it('renders compact welcome canvas without prompt ideas', () => {
-    const { container } = render(
+    const { container } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           activeThreadId: null,
@@ -417,7 +425,7 @@ describe('TranscriptPane', () => {
   })
 
   it('does not render finalized thinking rows in the primary transcript', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [{ id: 'thinking-1', kind: 'thinking', status: 'finalized', text: 'Step A.\nStep B.', turnId: 'turn-1' }],
@@ -444,7 +452,7 @@ describe('TranscriptPane', () => {
       turnId: 'turn-1',
     }))
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [...messageLogs, ...finalizedThinking],
@@ -457,7 +465,7 @@ describe('TranscriptPane', () => {
   })
 
   it('adds visual turn boundaries when turn id changes in transcript stream', () => {
-    const { container } = render(
+    const { container } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [
@@ -491,7 +499,7 @@ describe('TranscriptPane', () => {
       turnId: index >= 4 && index <= 8 ? 'turn-1' : index >= 9 && index <= 11 ? 'turn-2' : undefined,
     }))
 
-    const { container } = render(
+    const { container } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -508,7 +516,7 @@ describe('TranscriptPane', () => {
   it('renders provided logs and keeps load-earlier callback wiring', () => {
     const onLoadEarlier = vi.fn()
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           historyMore: true,
@@ -539,7 +547,7 @@ describe('TranscriptPane', () => {
   })
 
   it('renders notice rows as system feedback items', () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [{ id: 'n1', kind: 'notice', level: 'info', text: 'Input resolved: submitted' }],
@@ -552,7 +560,7 @@ describe('TranscriptPane', () => {
   })
 
   it('shows jump-to-bottom button when user scrolls up', async () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [
@@ -614,7 +622,7 @@ describe('TranscriptPane', () => {
   })
 
   it('coalesces burst scroll events into a single animation frame update', async () => {
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [
@@ -680,7 +688,7 @@ describe('TranscriptPane', () => {
   })
 
   it('sticks to bottom when turn loading appears even if log length is unchanged', async () => {
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
@@ -740,7 +748,7 @@ describe('TranscriptPane', () => {
       text: `msg-${index}`,
     }))
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -765,7 +773,7 @@ describe('TranscriptPane', () => {
       text: `server-msg-${index}`,
     }))
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -790,7 +798,7 @@ describe('TranscriptPane', () => {
       text: `all-msg-${index}`,
     }))
 
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -817,7 +825,7 @@ describe('TranscriptPane', () => {
 
   it('keeps earlier history visible after load-earlier prep request', () => {
     const onLoadEarlier = vi.fn()
-    const { rerender } = render(
+    const { rerender } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           historyMore: true,
@@ -864,7 +872,7 @@ describe('TranscriptPane', () => {
       return 1
     })
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -921,7 +929,7 @@ describe('TranscriptPane', () => {
       return 1
     })
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -977,7 +985,7 @@ describe('TranscriptPane', () => {
       return 1
     })
 
-    const { rerender, container } = render(
+    const { rerender, container } = renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs: initialLogs,
@@ -1037,7 +1045,7 @@ describe('TranscriptPane', () => {
       text: `long-msg-${index}`,
     }))
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,
@@ -1066,7 +1074,7 @@ describe('TranscriptPane', () => {
       text: `virt-msg-${index}`,
     }))
 
-    render(
+    renderWithI18n(
       <TranscriptPane
         {...baseProps({
           logs,

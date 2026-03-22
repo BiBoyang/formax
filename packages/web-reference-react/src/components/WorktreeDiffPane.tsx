@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useI18n } from '../app/i18n/I18nProvider'
 import { ScrollArea } from './ui/scroll-area'
 import { cn } from '../lib/utils'
 import { shouldStopWheelPropagation } from './scrollBoundary'
@@ -7,6 +8,7 @@ import { DiffPatchView } from './diff/DiffPatchView'
 import { truncatePathFromLeft, type DiffFileViewModel } from './diff/diffTypes'
 
 type DiffFile = DiffFileViewModel
+type PatchErrorKind = 'unavailable' | 'load_failed'
 
 export type DiffSnapshot = {
   cwd: string
@@ -37,6 +39,7 @@ export type WorktreeDiffPaneProps = {
 const MAX_RENDERABLE_DIFF_FILES = 120
 
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
+  const { t } = useI18n()
   const {
     diffSnapshot = null,
     onRefreshDiff,
@@ -48,7 +51,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const [listOpen, setListOpen] = useState(true)
   const [patchByPath, setPatchByPath] = useState<Record<string, DiffFilePatchPayload>>({})
   const [patchLoadingByPath, setPatchLoadingByPath] = useState<Record<string, boolean>>({})
-  const [patchErrorByPath, setPatchErrorByPath] = useState<Record<string, string>>({})
+  const [patchErrorByPath, setPatchErrorByPath] = useState<Record<string, PatchErrorKind>>({})
   const diffScrollAreaRef = useRef<HTMLDivElement | null>(null)
   const snapshotKeyRef = useRef<string>('')
   const files = diffSnapshot?.files ?? []
@@ -105,13 +108,13 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       const payload = await onRequestPatch(filePath)
       if (snapshotKeyRef.current !== requestSnapshotKey) return
       if (!payload || !payload.found || !payload.patch) {
-        setPatchErrorByPath((prev) => ({ ...prev, [filePath]: 'Patch unavailable for this file' }))
+        setPatchErrorByPath((prev) => ({ ...prev, [filePath]: 'unavailable' }))
         return
       }
       setPatchByPath((prev) => ({ ...prev, [filePath]: payload }))
     } catch {
       if (snapshotKeyRef.current !== requestSnapshotKey) return
-      setPatchErrorByPath((prev) => ({ ...prev, [filePath]: 'Failed to load file patch' }))
+      setPatchErrorByPath((prev) => ({ ...prev, [filePath]: 'load_failed' }))
     } finally {
       setPatchLoadingByPath((prev) => {
         if (snapshotKeyRef.current !== requestSnapshotKey) return prev
@@ -157,16 +160,16 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       {showHeader ? (
         <div className="flex-none flex items-center justify-between px-6 h-14 bg-background z-[30]">
           <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setListOpen(!listOpen)}>
-            <h2 className="ui-text-base font-semibold ui-text-primary">Uncommitted worktree changes</h2>
+            <h2 className="ui-text-base font-semibold ui-text-primary">{t('worktreeDiff.title')}</h2>
             <ChevronDown className={cn('size-3.5 ui-text-secondary transition-transform', !listOpen && '-rotate-90')} />
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5 ui-text-secondary">
-              <span className="ui-text-meta ui-text-secondary">Changes: {files.length}</span>
+              <span className="ui-text-meta ui-text-secondary">{t('worktreeDiff.changesCount', { count: files.length })}</span>
               <button
                 type="button"
-                aria-label="Refresh diff"
+                aria-label={t('worktreeDiff.refresh')}
                 className="inline-flex items-center justify-center rounded-md p-0.5"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -194,32 +197,30 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
               !diffSnapshot ? null : isLargeChangeSet ? (
                 <div className="min-h-[55vh] grid place-items-center">
                   <div className="text-center">
-                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">
-                      Change set too large to preview
-                    </h3>
-                    <p className="mt-2 ui-text-base text-muted-foreground">Refine the scope to inspect file diffs here</p>
+                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.changeSetTooLargeTitle')}</h3>
+                    <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.changeSetTooLargeBody')}</p>
                   </div>
                 </div>
               ) : files.length === 0 && !diffSnapshot.hasChanges ? (
                 <div className="min-h-[55vh] grid place-items-center">
                   <div className="text-center">
                     <div className="text-[30px] leading-none">🧹</div>
-                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">No unstaged changes</h3>
-                    <p className="mt-2 ui-text-base text-muted-foreground">Code changes will appear here</p>
+                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.emptyTitle')}</h3>
+                    <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.emptyBody')}</p>
                   </div>
                 </div>
               ) : hasTruncatedButNoFiles ? (
                 <div className="min-h-[55vh] grid place-items-center">
                   <div className="text-center">
-                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">Large diff detected</h3>
-                    <p className="mt-2 ui-text-base text-muted-foreground">Preview unavailable for current diff budget</p>
+                    <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.largeDiffTitle')}</h3>
+                    <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.previewUnavailable')}</p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2 pt-1">
                   {hasTruncatedPreview ? (
                     <div className="rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-2">
-                      <div className="ui-text-meta ui-text-secondary">Large diff detected - showing partial preview.</div>
+                      <div className="ui-text-meta ui-text-secondary">{t('worktreeDiff.partialPreview')}</div>
                     </div>
                   ) : null}
                   {files.map((file) => {
@@ -230,6 +231,12 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                     const displayDeletions = loadedPatch?.deletions ?? file.deletions
                     const patchLoading = Boolean(patchLoadingByPath[file.path])
                     const patchError = patchErrorByPath[file.path]
+                    const patchErrorMessage =
+                      patchError === 'load_failed'
+                        ? t('worktreeDiff.patchLoadFailed')
+                        : patchError === 'unavailable'
+                          ? t('worktreeDiff.patchUnavailable')
+                          : null
 
                     return (
                       <div key={file.path} className="flex min-w-0 flex-col group relative">
@@ -274,11 +281,11 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                             <DiffPatchView patch={patch} />
                           ) : patchLoading || (onRequestPatch && !patchError && !file.patch) ? (
                             <div className="rounded-b-[10px] border-x border-b border-border/70 px-4 py-3 ui-text-meta ui-text-secondary bg-white">
-                              Loading patch...
+                              {t('worktreeDiff.loadingPatch')}
                             </div>
                           ) : (
                             <div className="rounded-b-[10px] border-x border-b border-border/70 px-4 py-3 ui-text-meta text-muted-foreground bg-white">
-                              {patchError ?? 'Patch unavailable for this file'}
+                              {patchErrorMessage ?? t('worktreeDiff.patchUnavailable')}
                             </div>
                           )
                         ) : null}

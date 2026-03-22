@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
 import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
@@ -26,20 +27,20 @@ function getActionCommand(payload: Record<string, unknown>): string | null {
   return trimmed || null
 }
 
-function getPanelTitle(payload: Record<string, unknown>): string {
+function getPanelTitle(payload: Record<string, unknown>, t: I18nTranslator): string {
   const prompt = payload.prompt
   if (typeof prompt === 'string' && prompt.trim()) return prompt.trim()
   const title = payload.title
   if (typeof title === 'string' && title.trim()) return title.trim()
   const command = getActionCommand(payload)
-  if (command) return 'Do you want to run this command?'
-  return 'Do you want to allow this action?'
+  if (command) return t('approval.runCommandTitle')
+  return t('approval.allowActionTitle')
 }
 
-function getRememberDescription(command: string | null): string {
-  if (!command) return 'Remember this allow decision so you are not asked again for this action pattern.'
+function getRememberDescription(command: string | null, t: I18nTranslator): string {
+  if (!command) return t('approval.rememberDescription')
   const prefix = command.split(/\s+/).slice(0, 3).join(' ')
-  return `Remember for commands starting with: ${prefix}`
+  return t('approval.rememberCommandPrefix', { prefix })
 }
 
 function hasWorkspaceDir(payload: Record<string, unknown>): boolean {
@@ -64,6 +65,7 @@ function shouldPromptScopeStep(payload: Record<string, unknown>): boolean {
 
 export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
   const { inputId, payload, isSubmitting, onSubmit } = props
+  const { t } = useI18n()
   const payloadRecord = toRecord(payload)
   const command = getActionCommand(payloadRecord)
   const toolName = typeof payloadRecord.toolName === 'string' ? payloadRecord.toolName : 'Tool'
@@ -81,25 +83,33 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
 
   const stepLabel =
     step === 'scope'
-      ? '2 of 2'
-      : `1 of ${decisionNeedsScopeStep ? 2 : 1}`
+      ? t('approval.stepText', { current: 2, total: 2 })
+      : t('approval.stepText', { current: 1, total: decisionNeedsScopeStep ? 2 : 1 })
 
   const decisionOptions = useMemo(
     () => [
-      { key: 'approve' as const, label: 'Approve once', detail: 'Allow this action this time only.' },
+      {
+        key: 'approve' as const,
+        label: t('approval.decision.approveOnce.label'),
+        detail: t('approval.decision.approveOnce.detail'),
+      },
       {
         key: 'approve_remember' as const,
-        label: 'Approve and remember',
-        detail: getRememberDescription(command),
+        label: t('approval.decision.approveRemember.label'),
+        detail: getRememberDescription(command, t),
       },
-      { key: 'reject' as const, label: 'Reject', detail: 'Do not run this action.' },
+      {
+        key: 'reject' as const,
+        label: t('approval.decision.reject.label'),
+        detail: t('approval.decision.reject.detail'),
+      },
       {
         key: 'feedback' as const,
-        label: 'Reject with feedback',
-        detail: 'Tell Codex what to do differently before retrying.',
+        label: t('approval.decision.feedback.label'),
+        detail: t('approval.decision.feedback.detail'),
       },
     ],
-    [command],
+    [command, t],
   )
 
   const canSubmitDecisionStep = decision !== 'feedback' || feedback.trim().length > 0
@@ -128,8 +138,8 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
   return (
     <ApprovalPanelSurface testId={`approval-submit-panel-${inputId}`} onSubmit={submit}>
       <div className="flex items-start justify-between gap-2 px-3">
-        <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{getPanelTitle(payloadRecord)}</h3>
-        <span aria-label="Approval step" className="pt-2 text-xs text-muted-foreground">
+        <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{getPanelTitle(payloadRecord, t)}</h3>
+        <span aria-label={t('approval.stepLabel')} className="pt-2 text-xs text-muted-foreground">
           {stepLabel}
         </span>
       </div>
@@ -138,7 +148,7 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
         {command ? (
           <div className="font-mono text-[12px] leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">{command}</div>
         ) : (
-          <div className="text-xs text-muted-foreground">Tool: {toolName}</div>
+          <div className="text-xs text-muted-foreground">{t('approval.toolLabel', { toolName })}</div>
         )}
       </div>
 
@@ -170,10 +180,10 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
           {decision === 'feedback' ? (
             <div className="mt-2">
               <Textarea
-                aria-label="Approval feedback"
+                aria-label={t('approval.feedbackLabel')}
                 value={feedback}
                 onChange={(event) => setFeedback(event.target.value)}
-                placeholder="Tell Codex what to do differently"
+                placeholder={t('approval.feedbackPlaceholder')}
                 className="min-h-[88px]"
               />
             </div>
@@ -185,42 +195,42 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
               disabled={isSubmitting || !canSubmitDecisionStep}
               className="h-8 rounded-full px-5 text-sm font-medium"
             >
-              {isSubmitting ? 'Submitting...' : decisionNeedsScopeStep ? 'Continue' : 'Submit'}
+              {isSubmitting ? t('approval.submitting') : decisionNeedsScopeStep ? t('approval.continue') : t('approval.submit')}
             </Button>
           </div>
         </>
       ) : (
         <>
           <div className="mt-2">
-            <div className="mb-2 px-1 text-xs text-muted-foreground">Choose where this remembered allow should apply.</div>
+            <div className="mb-2 px-1 text-xs text-muted-foreground">{t('approval.scope.title')}</div>
             <div className="space-y-1">
               <ApprovalOptionButton
                 onClick={() => setScope('session')}
                 selected={scope === 'session'}
-                primaryText="1. Session"
-                secondaryText="Only this active session."
+                primaryText={`1. ${t('approval.scope.session.label')}`}
+                secondaryText={t('approval.scope.session.detail')}
               />
               <ApprovalOptionButton
                 onClick={() => setScope('project')}
                 selected={scope === 'project'}
-                primaryText="2. Project"
-                secondaryText="All sessions in this project folder."
+                primaryText={`2. ${t('approval.scope.project.label')}`}
+                secondaryText={t('approval.scope.project.detail')}
               />
               <ApprovalOptionButton
                 onClick={() => setScope('global')}
                 selected={scope === 'global'}
-                primaryText="3. Global"
-                secondaryText="All projects on this machine."
+                primaryText={`3. ${t('approval.scope.global.label')}`}
+                secondaryText={t('approval.scope.global.detail')}
               />
             </div>
           </div>
 
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button type="button" variant="ghost" className="h-8 px-3 text-sm" onClick={() => setStep('decision')}>
-              Back
+              {t('approval.back')}
             </Button>
             <Button type="submit" disabled={isSubmitting} className="h-8 rounded-full px-5 text-sm font-medium">
-              {isSubmitting ? 'Submitting...' : 'Submit'}
+              {isSubmitting ? t('approval.submitting') : t('approval.submit')}
             </Button>
           </div>
         </>

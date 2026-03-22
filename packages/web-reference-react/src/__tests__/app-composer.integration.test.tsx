@@ -1,6 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
+
+vi.mock('../app/core/userSettings', async () => {
+  const actual = await vi.importActual<typeof import('../app/core/userSettings')>('../app/core/userSettings')
+  return {
+    ...actual,
+    DEFAULT_USER_SETTINGS: { ...actual.DEFAULT_USER_SETTINGS, language: 'en-US' },
+  }
+})
 import { setComposerMode } from '../test/appTestHarness'
 
 const ORIGINAL_CANVAS_GET_CONTEXT = HTMLCanvasElement.prototype.getContext

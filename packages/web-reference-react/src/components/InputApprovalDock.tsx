@@ -1,4 +1,5 @@
 import type { PendingInput } from '../types'
+import { useI18n } from '../app/i18n/I18nProvider'
 import { AskQuestionPagerPanel } from './approval/AskQuestionPagerPanel'
 import { ApprovalSubmitPanel } from './approval/ApprovalSubmitPanel'
 import { Button } from './ui/button'
@@ -25,6 +26,7 @@ export type InputApprovalDockProps = {
 }
 
 export function InputApprovalDock(props: InputApprovalDockProps) {
+  const { t } = useI18n()
   const {
     input,
     isAskOpen,
@@ -70,9 +72,9 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
           ) : (
             <div data-testid="ask-dock-collapsed" className="rounded-2xl border bg-background/95 px-4 py-3 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">Question pending. Resume when ready.</span>
+                <span className="text-sm text-muted-foreground">{t('inputApproval.pending')}</span>
                 <Button type="button" size="sm" onClick={onAskOpen}>
-                  Resume
+                  {t('inputApproval.resume')}
                 </Button>
               </div>
             </div>

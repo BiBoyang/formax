@@ -101,13 +101,13 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                   size="sm"
                   className={cn(SHARED_HEADER_BTN_ICON, props.isDesktopClient && 'app-shell-no-drag')}
                   onClick={props.onOpenSettings}
-                  aria-label="Settings"
+                  aria-label={t('appShell.settings')}
                 >
                   <Settings className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-[13px]">
-                Settings
+                {t('appShell.settings')}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -129,7 +129,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-[13px]">
-                  Open in VS Code
+                  {t('appShell.openInVsCode')}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -165,13 +165,13 @@ export function AppShellHeader(props: AppShellHeaderProps) {
             )}
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            <span className="text-[12px]">移至工作树</span>
+            <span className="text-[12px]">{t('appShell.moveToWorktree')}</span>
           </button>
 
           <div className={cn(SHARED_HEADER_BTN_GROUP, props.isDesktopClient && 'app-shell-no-drag')}>
             <button type="button" className={cn(SHARED_HEADER_BTN_INNER, 'px-2 gap-1 border-r border-border/40')}>
               <GitCommitHorizontal className="h-3.5 w-3.5" />
-              <span className="text-[12px]">提交</span>
+              <span className="text-[12px]">{t('appShell.commit')}</span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -180,7 +180,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 z-[200]">
-                <DropdownMenuItem className="text-[13px] cursor-pointer">Placeholder Action</DropdownMenuItem>
+                <DropdownMenuItem className="text-[13px] cursor-pointer">{t('appShell.placeholderAction')}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -245,7 +245,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-[13px]">
-                Open in Popout Window
+                {t('appShell.openInPopoutWindow')}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

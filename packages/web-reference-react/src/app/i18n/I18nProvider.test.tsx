@@ -23,7 +23,7 @@ describe('I18nProvider', () => {
 
     expect(screen.getByTestId('general')).toHaveTextContent('常规')
     expect(screen.getByTestId('follow')).toHaveTextContent('跟进行为')
-    expect(screen.getByTestId('open-target')).toHaveTextContent('Open in VS Code')
+    expect(screen.getByTestId('open-target')).toHaveTextContent('在 VS Code 中打开')
   })
 
   it('renders en-US catalog text', () => {

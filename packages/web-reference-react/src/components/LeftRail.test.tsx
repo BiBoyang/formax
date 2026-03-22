@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { PropsWithChildren, ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { I18nProvider } from '../app/i18n/I18nProvider'
 import { LeftRail } from './LeftRail'
 
 const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
+
+function renderWithI18n(ui: ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }: PropsWithChildren) => <I18nProvider language="en-US">{children}</I18nProvider>,
+  })
+}
 
 const threads = [
   {
@@ -37,7 +45,7 @@ describe('LeftRail', () => {
     const onSelectCwd = vi.fn()
     const onStartThread = vi.fn()
 
-    render(
+    renderWithI18n(
       <LeftRail
         connectionStatus="connected"
         threads={threads}
@@ -66,7 +74,7 @@ describe('LeftRail', () => {
   })
 
   it('shows top fade only after passing the scroll threshold', () => {
-    const { container } = render(
+    const { container } = renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -108,7 +116,7 @@ describe('LeftRail', () => {
     })
 
     try {
-      render(
+      renderWithI18n(
         <LeftRail
           threads={threads}
           selectedCwd="/repo"
@@ -171,7 +179,7 @@ describe('LeftRail', () => {
     const onStartThread = vi.fn()
     const onStartThreadInCwd = vi.fn()
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -193,7 +201,7 @@ describe('LeftRail', () => {
   it('disables folder quick action while thread actions are busy', () => {
     const onStartThreadInCwd = vi.fn()
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -215,7 +223,7 @@ describe('LeftRail', () => {
   })
 
   it('shows desktop-only tooltip for add project action when folder picker is unavailable', async () => {
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -235,13 +243,13 @@ describe('LeftRail', () => {
     fireEvent.pointerMove(addProjectButton)
     fireEvent.mouseEnter(addProjectButton)
     const tooltip = await screen.findByRole('tooltip')
-    expect(tooltip).toHaveTextContent('仅桌面客户端可用')
+    expect(tooltip).toHaveTextContent('Desktop client only')
   })
 
   it('runs add project action when folder picker is available', async () => {
     const onCreateProject = vi.fn(async () => undefined)
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -267,7 +275,7 @@ describe('LeftRail', () => {
     const onSelectCwd = vi.fn()
     const onHideThreadGroup = vi.fn()
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -292,7 +300,7 @@ describe('LeftRail', () => {
   })
 
   it('opens folder actions menu on left click and ignores right click', async () => {
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -317,7 +325,7 @@ describe('LeftRail', () => {
   })
 
   it('closes folder actions menu after clicking outside', async () => {
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -350,7 +358,7 @@ describe('LeftRail', () => {
     const onSelectCwd = vi.fn()
     const onHideThreadGroup = vi.fn()
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={[threads[0]]}
         selectedCwd="/repo"
@@ -378,7 +386,7 @@ describe('LeftRail', () => {
   })
 
   it('hides groups from props-controlled hidden list', () => {
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -397,7 +405,7 @@ describe('LeftRail', () => {
   })
 
   it('shows fixed bottom settings menu trigger', () => {
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -411,7 +419,7 @@ describe('LeftRail', () => {
       />,
     )
 
-    const settingsTrigger = screen.getByRole('button', { name: '设置' })
+    const settingsTrigger = screen.getByRole('button', { name: 'Settings' })
     expect(settingsTrigger).toBeInTheDocument()
     expect(settingsTrigger).toHaveAttribute('aria-haspopup', 'menu')
   })
@@ -450,7 +458,7 @@ describe('LeftRail', () => {
       },
     ]
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={unorderedThreads}
         selectedCwd="/workspace/alpha"
@@ -478,7 +486,7 @@ describe('LeftRail', () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2026-03-03T03:00:52.000Z'))
-      render(
+      renderWithI18n(
         <LeftRail
           threads={[
             {
@@ -512,7 +520,7 @@ describe('LeftRail', () => {
   it('restores folder open state from localStorage cache', () => {
     window.localStorage.setItem(OPEN_BY_CWD_STORAGE_KEY, JSON.stringify({ '/repo': false, '/repo-b': true }))
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo-b"
@@ -533,7 +541,7 @@ describe('LeftRail', () => {
   })
 
   it('persists folder open state to localStorage after toggle', async () => {
-    const { unmount } = render(
+    const { unmount } = renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo"
@@ -557,7 +565,7 @@ describe('LeftRail', () => {
 
     unmount()
 
-    render(
+    renderWithI18n(
       <LeftRail
         threads={threads}
         selectedCwd="/repo-b"

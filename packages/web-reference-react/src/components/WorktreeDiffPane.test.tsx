@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { I18nProvider, type I18nProviderProps } from '../app/i18n/I18nProvider'
 import { WorktreeDiffPane } from './WorktreeDiffPane'
+
+function renderPane(node: ReactElement, language: I18nProviderProps['language'] = 'en-US') {
+  return render(<I18nProvider language={language}>{node}</I18nProvider>)
+}
 
 describe('WorktreeDiffPane', () => {
   it('renders diff files and expands patch content', () => {
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -30,7 +36,7 @@ describe('WorktreeDiffPane', () => {
     const fileRow = screen.getByTestId('diff-file-row-packages/web-reference-react/src/App.tsx')
     expect(fileRow.className).not.toContain('sticky')
     expect(fileRow.className).not.toContain('top-0')
-    fireEvent.click(screen.getByRole('button', { name: /apps\/web-reference-react\/src\/App\.tsx/i }))
+    fireEvent.click(fileRow)
     expect(screen.getByText('new')).toBeInTheDocument()
   })
 
@@ -43,7 +49,7 @@ describe('WorktreeDiffPane', () => {
       additions: 1,
       deletions: 1,
     }))
-    render(
+    renderPane(
       <WorktreeDiffPane
         onRequestPatch={onRequestPatch}
         diffSnapshot={{
@@ -77,7 +83,7 @@ describe('WorktreeDiffPane', () => {
       deletions: 1,
     }))
 
-    render(
+    renderPane(
       <WorktreeDiffPane
         onRequestPatch={onRequestPatch}
         diffSnapshot={{
@@ -123,7 +129,7 @@ describe('WorktreeDiffPane', () => {
         deletions: 1,
       })
 
-    const { rerender } = render(
+    const { rerender } = renderPane(
       <WorktreeDiffPane
         onRequestPatch={onRequestPatch}
         diffSnapshot={{
@@ -146,22 +152,24 @@ describe('WorktreeDiffPane', () => {
     expect(await screen.findByText('new-v1')).toBeInTheDocument()
 
     rerender(
-      <WorktreeDiffPane
-        onRequestPatch={onRequestPatch}
-        diffSnapshot={{
-          cwd: '/repo',
-          generatedAt: '2026-02-09T00:00:01.000Z',
-          hasChanges: true,
-          truncated: false,
-          files: [
-            {
-              path: 'src/reload.ts',
-              additions: 1,
-              deletions: 1,
-            },
-          ],
-        }}
-      />,
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane
+          onRequestPatch={onRequestPatch}
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:01.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [
+              {
+                path: 'src/reload.ts',
+                additions: 1,
+                deletions: 1,
+              },
+            ],
+          }}
+        />
+      </I18nProvider>,
     )
 
     await waitFor(() => {
@@ -173,7 +181,7 @@ describe('WorktreeDiffPane', () => {
 
   it('does not auto-retry patch requests after an unavailable result until user retries', async () => {
     const onRequestPatch = vi.fn(async () => null)
-    render(
+    renderPane(
       <WorktreeDiffPane
         onRequestPatch={onRequestPatch}
         diffSnapshot={{
@@ -199,6 +207,42 @@ describe('WorktreeDiffPane', () => {
     expect(onRequestPatch).toHaveBeenCalledTimes(1)
   })
 
+  it('re-translates persisted patch errors when the UI language changes', async () => {
+    const onRequestPatch = vi.fn(async () => null)
+    const snapshot = {
+      cwd: '/repo',
+      generatedAt: '2026-02-09T00:00:00.000Z',
+      hasChanges: true,
+      truncated: false,
+      files: [
+        {
+          path: 'src/unavailable.ts',
+          additions: 0,
+          deletions: 0,
+        },
+      ],
+    }
+
+    const { rerender } = renderPane(
+      <WorktreeDiffPane onRequestPatch={onRequestPatch} diffSnapshot={snapshot} />,
+      'en-US',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /src\/unavailable\.ts/i }))
+    expect(await screen.findByText('Patch unavailable for this file')).toBeInTheDocument()
+    expect(onRequestPatch).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <I18nProvider language="zh-CN">
+        <WorktreeDiffPane onRequestPatch={onRequestPatch} diffSnapshot={snapshot} />
+      </I18nProvider>,
+    )
+
+    expect(await screen.findByText('当前文件无法提供补丁')).toBeInTheDocument()
+    expect(screen.queryByText('Patch unavailable for this file')).not.toBeInTheDocument()
+    expect(onRequestPatch).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores stale patch response after snapshot refresh and keeps latest patch', async () => {
     let resolveFirst: (value: any) => void = () => undefined
     let resolveSecond: (value: any) => void = () => undefined
@@ -212,7 +256,7 @@ describe('WorktreeDiffPane', () => {
       .mockReturnValueOnce(firstPromise)
       .mockReturnValueOnce(secondPromise)
 
-    const { rerender } = render(
+    const { rerender } = renderPane(
       <WorktreeDiffPane
         onRequestPatch={onRequestPatch}
         diffSnapshot={{
@@ -231,16 +275,18 @@ describe('WorktreeDiffPane', () => {
     })
 
     rerender(
-      <WorktreeDiffPane
-        onRequestPatch={onRequestPatch}
-        diffSnapshot={{
-          cwd: '/repo',
-          generatedAt: '2026-02-09T00:00:01.000Z',
-          hasChanges: true,
-          truncated: false,
-          files: [{ path: 'src/race.ts', additions: 2, deletions: 1 }],
-        }}
-      />,
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane
+          onRequestPatch={onRequestPatch}
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:01.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [{ path: 'src/race.ts', additions: 2, deletions: 1 }],
+          }}
+        />
+      </I18nProvider>,
     )
 
     await waitFor(() => {
@@ -272,7 +318,7 @@ describe('WorktreeDiffPane', () => {
 
   it('refreshes diff from header control', () => {
     const onRefreshDiff = vi.fn()
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -293,7 +339,7 @@ describe('WorktreeDiffPane', () => {
 
   it('left-truncates long file path but keeps full path as title', () => {
     const longPath = 'packages/web-reference-react/src/some/really/deeply/nested/folder/with/a/very/long/file/path/example.ts'
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -313,13 +359,13 @@ describe('WorktreeDiffPane', () => {
   })
 
   it('does not show clean-state message before diff snapshot is loaded', () => {
-    render(<WorktreeDiffPane diffSnapshot={null} />)
+    renderPane(<WorktreeDiffPane diffSnapshot={null} />)
     expect(screen.queryByText('No unstaged changes')).not.toBeInTheDocument()
     expect(screen.queryByText('Code changes will appear here')).not.toBeInTheDocument()
   })
 
   it('shows budget message when snapshot is truncated and no files are available', () => {
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -335,7 +381,7 @@ describe('WorktreeDiffPane', () => {
   })
 
   it('shows large-change-set message when file count exceeds render limit', () => {
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -356,7 +402,7 @@ describe('WorktreeDiffPane', () => {
   })
 
   it('shows partial preview banner and keeps renderable files when diff is truncated', () => {
-    render(
+    renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
@@ -378,5 +424,24 @@ describe('WorktreeDiffPane', () => {
     expect(screen.getByText('Large diff detected - showing partial preview.')).toBeInTheDocument()
     expect(screen.getByTestId('diff-file-row-src/partial.ts')).toBeInTheDocument()
     expect(screen.queryByText('Change set too large to preview')).not.toBeInTheDocument()
+  })
+
+  it('renders zh-CN diff status copy through i18n messages', () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }}
+      />,
+      'zh-CN',
+    )
+
+    expect(screen.getByText('未提交的工作树变更')).toBeInTheDocument()
+    expect(screen.getByText('变更数：0')).toBeInTheDocument()
+    expect(screen.getByText('没有未暂存的变更')).toBeInTheDocument()
   })
 })

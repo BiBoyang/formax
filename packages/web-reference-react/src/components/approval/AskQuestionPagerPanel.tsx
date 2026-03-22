@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
+import { useI18n } from '../../app/i18n/I18nProvider'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
@@ -78,6 +79,7 @@ function hasQuestionAnswer(question: PresentationAskQuestion, rawValue: string):
 }
 
 export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
+  const { t } = useI18n()
   const {
     inputId,
     questions,
@@ -122,14 +124,14 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   if (!current) {
     return (
       <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
-        <h3 className="px-3 py-2 text-[15px] font-semibold tracking-tight text-foreground">No questions available</h3>
+        <h3 className="px-3 py-2 text-[15px] font-semibold tracking-tight text-foreground">{t('askQuestion.noQuestionsTitle')}</h3>
         <p className="px-3 text-sm text-muted-foreground">
-          This request does not include any valid questions. You can dismiss it and continue in composer.
+          {t('askQuestion.noQuestionsBody')}
         </p>
         <div className="mt-4 flex items-center justify-between gap-3 px-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
-              Dismiss
+              {t('askQuestion.dismiss')}
             </Button>
             <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
           </div>
@@ -139,7 +141,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   }
 
   const options = Array.isArray(current.options) ? current.options : []
-  const title = current.question?.trim() || current.header?.trim() || 'Question'
+  const title = current.question?.trim() || current.header?.trim() || t('askQuestion.fallbackTitle')
 
   return (
     <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
@@ -148,17 +150,19 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         <div className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
           <button
             type="button"
-            aria-label="Previous question"
+            aria-label={t('askQuestion.previous')}
             onClick={() => onPageChange(Math.max(0, clampedPageIndex - 1))}
             disabled={clampedPageIndex <= 0}
             className="rounded-md p-0.5 transition hover:bg-muted disabled:opacity-40"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-          <span aria-label="Question index">{`${clampedPageIndex + 1} of ${totalPages}`}</span>
+          <span aria-label={t('askQuestion.indexLabel')}>
+            {t('askQuestion.indexText', { current: clampedPageIndex + 1, total: totalPages })}
+          </span>
           <button
             type="button"
-            aria-label="Next question"
+            aria-label={t('askQuestion.next')}
             onClick={() => onPageChange(Math.min(totalPages - 1, clampedPageIndex + 1))}
             disabled={isLastPage || !canMoveForward}
             className="rounded-md p-0.5 transition hover:bg-muted disabled:opacity-40"
@@ -172,7 +176,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         {options.length > 0 ? (
           <>
             {current.multiSelect ? (
-              <div className="px-1 text-xs text-muted-foreground">Select one or more options.</div>
+              <div className="px-1 text-xs text-muted-foreground">{t('askQuestion.multiSelectHint')}</div>
             ) : null}
             {options.map((option, optionIndex) => {
               const selected = current.multiSelect
@@ -200,10 +204,10 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
           </>
         ) : (
           <Input
-            aria-label="Question answer"
+            aria-label={t('askQuestion.answerLabel')}
             value={currentValue}
             onChange={(event) => onDraftChange(currentFieldId, event.target.value)}
-            placeholder="Type your answer"
+            placeholder={t('askQuestion.answerPlaceholder')}
             className="h-9 rounded-xl text-sm"
           />
         )}
@@ -212,7 +216,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
       <div className="mt-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Button type="button" variant="ghost" size="sm" className="h-8 px-3 text-sm" onClick={onDismiss}>
-            Dismiss
+            {t('askQuestion.dismiss')}
           </Button>
           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
         </div>
@@ -228,7 +232,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
           disabled={isSubmitting || (isLastPage ? !canSubmitAll : !canMoveForward)}
           className="h-8 rounded-full px-5 text-sm font-medium"
         >
-          {isSubmitting ? 'Submitting...' : isLastPage ? 'Submit' : 'Continue'}
+          {isSubmitting ? t('askQuestion.submitting') : isLastPage ? t('askQuestion.submit') : t('askQuestion.continue')}
         </Button>
       </div>
     </ApprovalPanelSurface>
