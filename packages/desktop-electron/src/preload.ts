@@ -72,6 +72,7 @@ type FormaxDesktopRuntimeInfo = {
   }
 }
 
+
 function createDefaultWindowAppearanceState(): WindowAppearanceState {
   return {
     revision: 0,

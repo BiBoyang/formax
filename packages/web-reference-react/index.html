@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Formax App Server Reference (React)</title>
+    <script>
+      ;(() => {
+        try {
+          if (!window.formaxDesktop) return
+          document.documentElement.dataset.windowTransparency = 'on'
+        } catch {
+          // Ignore bootstrap hints outside desktop runtime.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

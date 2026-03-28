@@ -13,12 +13,14 @@
   --desktop-header-leading-shift: calc(var(--desktop-traffic-light-inset-x) + var(--desktop-traffic-light-safe-width) + 4px);
   --desktop-pane-motion-duration: 220ms;
   --desktop-pane-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --window-transparency-fade-duration: 140ms;
+  --window-transparency-fade-ease: ease-out;
   --app-scroll-fade-size: 16px;
   --app-scroll-fade-mask-color: black;
   --app-backdrop-surface: var(--sidebar);
   --app-backdrop-blur: 0px;
-  --app-backdrop-surface-transparent-light: rgb(245 245 245 / 0.94);
-  --app-backdrop-surface-transparent-dark: rgb(22 22 22 / 0.92);
+  --app-backdrop-surface-transparent-light: transparent;
+  --app-backdrop-surface-transparent-dark: transparent;
   --right-surface: var(--background);
   --right-header-surface: color-mix(in oklch, var(--right-surface) 92%, transparent);
   --right-rail-border: color-mix(in oklch, var(--border) 78%, transparent);
@@ -63,6 +65,7 @@ body,
   width: 100%;
   height: 100%;
   max-width: 100vw;
+  transition: background-color var(--window-transparency-fade-duration) var(--window-transparency-fade-ease);
 }
 
 body {
@@ -98,10 +101,10 @@ body {
 }
 
 .app-shell-root-surface {
-  transition: none;
+  transition: background-color var(--window-transparency-fade-duration) var(--window-transparency-fade-ease);
   background: var(--app-backdrop-surface);
-  -webkit-backdrop-filter: blur(var(--app-backdrop-blur));
-  backdrop-filter: blur(var(--app-backdrop-blur));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .app-shell-sidebar-panel {
@@ -144,13 +147,11 @@ body {
 }
 
 .app-shell-desktop[data-window-transparency='on'] {
-  --app-backdrop-surface: var(--app-backdrop-surface-transparent-light);
-  --app-backdrop-blur: 22px;
+  --app-backdrop-surface: transparent;
 }
 
 .dark.app-shell-desktop[data-window-transparency='on'] {
-  --app-backdrop-surface: var(--app-backdrop-surface-transparent-dark);
-  --app-backdrop-blur: 22px;
+  --app-backdrop-surface: transparent;
 }
 
 :root[data-window-transparency='on'],
@@ -162,6 +163,14 @@ body {
 .dark:root[data-window-transparency='on'],
 .dark:root[data-window-transparency='on'] body,
 .dark:root[data-window-transparency='on'] #root {
+  background: transparent !important;
+}
+
+/* Desktop mac: keep the base layer transparent in both modes to avoid transient white flash
+   during native vibrancy toggles. Opaque visuals are provided by app-shell surfaces. */
+:root[data-desktop-client='true'][data-desktop-platform='mac'],
+:root[data-desktop-client='true'][data-desktop-platform='mac'] body,
+:root[data-desktop-client='true'][data-desktop-platform='mac'] #root {
   background: transparent !important;
 }
 

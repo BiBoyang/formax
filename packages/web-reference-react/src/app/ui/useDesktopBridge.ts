@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_OPEN_TARGET_OPTIONS, type OpenTargetOption, type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 
 type DesktopBridge = NonNullable<Window['formaxDesktop']>
@@ -57,6 +57,10 @@ export function useDesktopBridge(args: UseDesktopBridgeArgs) {
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
   const terminalBridge = useMemo(() => readDesktopTerminalBridge(desktopBridge), [desktopBridge])
   const isDesktopClient = desktopBridge != null
+  const isMacDesktopClient =
+    isDesktopClient &&
+    typeof navigator !== 'undefined' &&
+    (navigator.userAgentData?.platform?.toLowerCase() === 'macos' || /mac/i.test(navigator.platform))
   const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
     DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
@@ -140,17 +144,21 @@ export function useDesktopBridge(args: UseDesktopBridgeArgs) {
     }
   }, [commitHostWindowAppearanceState, desktopBridge, isDesktopClient])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isDesktopClient) return
     const root = document.documentElement
     root.dataset.windowTransparency = isWindowTransparent ? 'on' : 'off'
-  }, [isDesktopClient, isWindowTransparent])
+    root.dataset.desktopClient = 'true'
+    root.dataset.desktopPlatform = isMacDesktopClient ? 'mac' : 'other'
+  }, [isDesktopClient, isMacDesktopClient, isWindowTransparent])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isDesktopClient) return
     const root = document.documentElement
     return () => {
       delete root.dataset.windowTransparency
+      delete root.dataset.desktopClient
+      delete root.dataset.desktopPlatform
     }
   }, [isDesktopClient])
 

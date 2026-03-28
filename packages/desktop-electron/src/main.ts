@@ -14,6 +14,7 @@ const LOAD_RETRY_INTERVAL_MS = 500
 const MANAGED_RUNTIME_WAIT_TIMEOUT_MS = 30_000
 const MANAGED_RUNTIME_WAIT_POLL_MS = 250
 const MANAGED_RUNTIME_KILL_GRACE_MS = 4_000
+const WINDOW_TRANSPARENCY_FADE_SETTLE_MS = 160
 const DESKTOP_CHROME_HEIGHT_PX = 56
 const MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX = 20
 const MAC_TRAFFIC_LIGHT_INSET_X_PX = 20
@@ -1033,13 +1034,13 @@ function publishWindowAppearanceState(window: BrowserWindow, state: WindowAppear
 
 function queueWindowAppearanceMutation(
   window: BrowserWindow,
-  runMutation: (currentState: WindowAppearanceState) => WindowAppearanceState,
+  runMutation: (currentState: WindowAppearanceState) => WindowAppearanceState | Promise<WindowAppearanceState>,
 ): Promise<WindowAppearanceState> {
   const webContentsId = window.webContents.id
   const previousQueue = windowAppearanceQueueByWebContentsId.get(webContentsId) ?? Promise.resolve()
-  const nextStatePromise = previousQueue.then(() => {
+  const nextStatePromise = previousQueue.then(async () => {
     const currentState = readWindowAppearanceState(webContentsId)
-    const nextState = runMutation(currentState)
+    const nextState = await runMutation(currentState)
     publishWindowAppearanceState(window, nextState)
     return nextState
   })
@@ -1113,7 +1114,7 @@ function registerDesktopIpcHandlers(): void {
       }
 
       const shouldEnable = enabled === true
-      return queueWindowAppearanceMutation(ownerWindow, (currentState) => {
+      return queueWindowAppearanceMutation(ownerWindow, async (currentState) => {
         writePersistedWindowTransparencyEnabled(shouldEnable)
         const nextState: WindowAppearanceState = {
           revision: currentState.revision + 1,
@@ -1122,6 +1123,18 @@ function registerDesktopIpcHandlers(): void {
         initialWindowAppearanceState = {
           revision: 0,
           windowTransparencyEnabled: shouldEnable,
+        }
+        if (process.platform === 'darwin') {
+          if (shouldEnable) {
+            // Enabling: activate native vibrancy before renderer goes transparent
+            ownerWindow.setVibrancy('sidebar')
+          } else {
+            // Disabling: let renderer fill in opaque background first,
+            // then remove native vibrancy after CSS transition completes
+            publishWindowAppearanceState(ownerWindow, nextState)
+            await sleep(WINDOW_TRANSPARENCY_FADE_SETTLE_MS)
+            ownerWindow.setVibrancy(null)
+          }
         }
         return nextState
       })
@@ -1212,6 +1225,7 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
           frame: false,
           titleBarStyle: 'hidden',
           visualEffectState: 'active',
+          vibrancy: initialWindowAppearanceState.windowTransparencyEnabled ? 'sidebar' : undefined,
         }
       : {}),
     webPreferences: {
