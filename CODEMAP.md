@@ -82,6 +82,7 @@ This file is a “where to change what” index for quickly navigating the codeb
   - Wiring entry: `packages/core/src/features/repl/useReplController.ts`
 - Budget + stats: `packages/core/src/chat/context/budget.ts`
 - Token estimate fallback: `packages/core/src/chat/context/estimate.ts`
+- Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
 - Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
 - Hard pruning rules (tool pair invariants + truncation): `packages/core/src/chat/context/prune.ts`
 - Compaction tail selection (keep last N turns): `packages/core/src/chat/context/compact.ts`

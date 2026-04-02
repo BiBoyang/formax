@@ -1,6 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
+import { microCompactHistory } from '../../../../chat/context/microCompact'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -66,6 +67,8 @@ export function createContextCompressionService(deps: {
     }
   }
 
+  const microCompactMessages = (messages: ChatHistory): ChatHistory => microCompactHistory({ messages }).messages
+
   return {
     async prepareHistoryForTurn(args: {
       contextWindowTokens: number | undefined
@@ -81,7 +84,7 @@ export function createContextCompressionService(deps: {
       autoCompacted: boolean
       showAutoCompactNotice: boolean
     }> {
-      let nextHistory = args.history
+      let nextHistory = microCompactMessages(args.history)
       let autoCompacted = false
       let showAutoCompactNotice = false
 
@@ -128,6 +131,7 @@ export function createContextCompressionService(deps: {
               messages: compactResult.compactedHistory,
               contextWindowTokens: args.contextWindowTokens,
             })
+            nextHistory = microCompactMessages(nextHistory)
             args.lastAutoCompactSeqRef.current = args.sendSeq
             autoCompacted = true
             showAutoCompactNotice = deps.cfg.ui.showAutoCompactNotice === true
@@ -137,7 +141,6 @@ export function createContextCompressionService(deps: {
         }
       }
 
-      // Future Phase 2 hook: insert microcompact here before the final pre-turn prune.
       const preparedMessages = pruneMessages({
         system: args.system,
         messages: [...nextHistory, args.user],
@@ -169,7 +172,7 @@ export function createContextCompressionService(deps: {
     } {
       const history = pruneMessages({
         system: args.system,
-        messages: args.history,
+        messages: microCompactMessages(args.history),
         contextWindowTokens: args.contextWindowTokens,
       })
 

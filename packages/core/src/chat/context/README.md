@@ -1,6 +1,6 @@
 # packages/core/src/chat/context
 
-Last verified: 2026-01-15
+Last verified: 2026-04-03
 
 Formax 的“上下文管理”分两条线：
 
@@ -34,6 +34,7 @@ Formax 的“上下文管理”分两条线：
 │ - user: buildUserContent     │
 │ - injected: reminders/plan   │
 └───────┬──────────────────────┘
+        │ microCompactHistory (P2: 轻量清理旧 tool_result)
         │ pruneForPromptBudget (P3: 硬截断兜底)
         v
 ┌──────────────────────────────┐
@@ -99,6 +100,12 @@ Formax 的“上下文管理”分两条线：
 
 - `packages/core/src/chat/context/prune.ts`：`pruneForPromptBudget()`（安全兜底，保持 tool 对）
 - `packages/core/src/chat/context/prune.test.ts`：单测覆盖（预算 fit + tool 对不变量）
+
+### 想改“轻量压缩 / microcompact（P2）”
+
+- `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认只压 `Read` / `Grep` / `Glob` 的旧大结果）
+- `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性）
+- `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
 
 ### 想改“/compact（P4）”
 

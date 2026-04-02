@@ -33,6 +33,7 @@
 - `docs/learnings/2026-03-08-auto-memory-permission-whitelist.md`
 - `docs/learnings/2026-03-12-auto-memory-whitelist-unconditional.md`
 - `docs/learnings/2026-03-12-config-plans-whitelist.md`
+- `docs/learnings/2026-04-03-context-microcompact-mvp.md`
 
 ## Web Reference Runtime / Performance
 

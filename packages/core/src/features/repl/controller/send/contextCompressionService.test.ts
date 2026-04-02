@@ -73,6 +73,20 @@ function createService(overrides?: Record<string, unknown>) {
   return { service, handleEvent }
 }
 
+function assistantToolUse(id: string, name: string, input: Record<string, unknown>): any {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name, input }],
+  }
+}
+
+function userToolResult(id: string, content: string): any {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content }],
+  }
+}
+
 describe('createContextCompressionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -197,6 +211,58 @@ describe('createContextCompressionService', () => {
     })
   })
 
+  it('microcompacts old heavy tool results before auto-compact is decided', async () => {
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      return serialized.includes('[Older tool result cleared by microcompact:') ? 800 : 2200
+    })
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 9000,
+      autoCompactLimitTokens: 1500,
+      percentRemaining: 86,
+      shouldAutoCompact: usedTokens >= 1500,
+    }))
+
+    const { service } = createService()
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+        userToolResult('read-1', 'a'.repeat(4000)),
+        assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+        userToolResult('read-2', 'b'.repeat(4000)),
+        assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+        userToolResult('read-3', 'c'.repeat(4000)),
+        assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+        userToolResult('read-4', 'd'.repeat(4000)),
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(runCompactFlow).not.toHaveBeenCalled()
+    expect(out.history[1]).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 'read-1',
+          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+        },
+      ],
+    })
+    expect(out.context).toEqual({
+      usedTokens: 800,
+      limitTokens: 9000,
+      percentRemaining: 86,
+      source: 'estimate',
+    })
+  })
+
   it('swallows auto-compact failures and keeps turn preparation best-effort', async () => {
     vi.mocked(runCompactFlow).mockRejectedValueOnce(new Error('compact failed'))
 
@@ -299,5 +365,40 @@ describe('createContextCompressionService', () => {
         source: 'estimate',
       },
     })
+  })
+
+  it('microcompacts older eligible tool results during post-turn finalization', () => {
+    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
+      messages,
+      pruned: false,
+    }))
+
+    const { service } = createService()
+    const out = service.finalizeHistoryAfterTurn({
+      contextWindowTokens: 100_000,
+      history: [
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+        userToolResult('read-1', 'a'.repeat(4000)),
+        assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+        userToolResult('read-2', 'b'.repeat(4000)),
+        assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+        userToolResult('read-3', 'c'.repeat(4000)),
+        assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+        userToolResult('read-4', 'd'.repeat(4000)),
+      ],
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(out.history[1]).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 'read-1',
+          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+        },
+      ],
+    })
+    expect((out.history[7] as any).content[0].content).toBe('d'.repeat(4000))
   })
 })
