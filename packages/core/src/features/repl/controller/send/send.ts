@@ -1,9 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
-import { estimatePromptTokens } from '../../../../chat/context/estimate'
+import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
-import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
@@ -18,7 +16,8 @@ import { isConsumedCommandResult, type OverlaySpec } from '../../../commands/con
 import { isAbortLikeError, isExactSlashCommand } from '../shared/utils'
 import { buildLocalCommandInjectedBlocks } from '../../injectedBlocks'
 import { makeMessageId } from '../shared/ids'
-import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
+import type { CompactLifecycleEvent } from './compactFlow'
+import { createContextCompressionService } from './contextCompressionService'
 import { formatErrorSubline } from '../shared/errorSubline'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
@@ -142,39 +141,30 @@ export async function maybeHandleCompactCommand(args: {
       : null
 
     const instructions = args.text.replace(/^\/compact\b/i, '').trim()
-    const compactResult = await runCompactFlow({
-      source: 'manual',
-      instructions,
+    const compression = createContextCompressionService({
+      mode: args.mode,
+      getReplMode: args.getReplMode,
+      setReplMode: args.setReplMode,
+      getPlanPath: args.getPlanPath,
+      cfg: args.cfg,
       engine: args.engine,
-      previousHistory,
-      keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
-      system,
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
       model: args.cfg.llm.model,
       thinkingEnabled: args.cfg.llm.thinkingMode,
-      mode: args.mode,
-      getReplMode: args.getReplMode,
-      setReplMode: args.setReplMode,
-      getPlanPath: args.getPlanPath,
-      onStreamEvent: (ev) => {
-        if (ev.type === 'usage') args.handleEvent(ev)
-      },
-      onLifecycle: args.onCompactLifecycle,
+      handleEvent: args.handleEvent,
+      onCompactLifecycle: args.onCompactLifecycle,
+    })
+    const compactResult = await compression.runManualCompact({
+      contextWindowTokens,
+      previousHistory,
+      keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+      instructions,
+      system,
     })
 
-    args.historyRef.current =
-      contextWindowTokens
-        ? pruneForPromptBudget({
-            system,
-            messages: compactResult.compactedHistory,
-            contextWindowTokens,
-            effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-            autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-            baselineTokens: args.cfg.context.baselineTokens,
-          }).messages
-        : compactResult.compactedHistory
+    args.historyRef.current = compactResult.compactedHistory
 
     args.setMessages((prev) => {
       const withoutPendingCompactCommand = prev.filter((msg) => msg.id !== pendingCompactCommandMessageId)
@@ -217,26 +207,7 @@ export async function maybeHandleCompactCommand(args: {
       ]
     })
 
-    if (contextWindowTokens) {
-      const usedTokens = estimatePromptTokens({ system, messages: args.historyRef.current })
-      const stats = computeContextStats({
-        config: {
-          contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
-        },
-        usedTokens,
-      })
-      args.setContext({
-        usedTokens: stats.usedTokens,
-        limitTokens: stats.effectiveLimitTokens,
-        percentRemaining: stats.percentRemaining,
-        source: 'estimate',
-      })
-    } else {
-      args.setContext(null)
-    }
+    args.setContext(compactResult.context)
   } catch (e) {
     if (isAbortLikeError(e)) {
       return true

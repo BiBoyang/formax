@@ -77,7 +77,7 @@ This file is a “where to change what” index for quickly navigating the codeb
   - Pre-main command handlers (`/compact`, consumed slash, local async): `packages/core/src/features/repl/controller/send/send.ts`
   - Main turn execution + prompt/history pipeline: `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
   - Main turn deps/refs context builder: `packages/core/src/features/repl/controller/send/sendMainTurnContext.ts`
-  - Auto-compact preflight/apply helper: `packages/core/src/features/repl/controller/send/sendAutoCompact.ts`
+  - Context compression coordination service (manual compact + auto-compact preflight + pre/post prune/context): `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
   - Shared send context types/builders: `packages/core/src/features/repl/controller/send/sendTypes.ts`
   - Wiring entry: `packages/core/src/features/repl/useReplController.ts`
 - Budget + stats: `packages/core/src/chat/context/budget.ts`

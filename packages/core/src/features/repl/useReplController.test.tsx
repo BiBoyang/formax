@@ -20,6 +20,8 @@ import { SessionWriter } from './sessionSave/writer'
 import * as sendOrchestration from './controller/send/sendOrchestration'
 import * as sendBashMode from './controller/send/bashMode'
 import * as sessionController from './controller/session'
+import * as sessionDirtyTracking from './controller/session/sessionDirtyTracking'
+import * as sessionLifecycle from './controller/session/sessionLifecycle'
 import * as controllerShared from './controller/shared'
 import {
   areToolInfosEqual,
@@ -99,8 +101,8 @@ describe('useReplController targeted branch coverage', () => {
     vi.stubEnv('FORMAX_SESSION_SAVE', '1')
     vi.stubEnv('FORMAX_CONFIG_DIR', tempConfigDir)
 
-    const markSpy = vi.spyOn(sessionController, 'markDirtyMessageIdsFromTransition')
-    const persistSpy = vi.spyOn(sessionController, 'persistDirtyStableMessages')
+    const markSpy = vi.spyOn(sessionDirtyTracking, 'markDirtyMessageIdsFromTransition')
+    const persistSpy = vi.spyOn(sessionLifecycle, 'persistDirtyStableMessages')
     const engine: ChatEngine = {
       runTurn: vi.fn(async ({ history, user, onEvent }) => {
         onEvent({ type: 'complete' } as StreamEvent)

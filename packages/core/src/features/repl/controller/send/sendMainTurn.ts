@@ -1,8 +1,5 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import { computeContextStats } from '../../../../chat/context/budget'
-import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
-import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
@@ -23,7 +20,9 @@ import { makeMessageId } from '../shared/ids'
 import type { CanonicalUiMessage, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
 import type { CompactLifecycleEvent } from './compactFlow'
 import { isAbortLikeError } from '../shared/utils'
-import { maybeRunAutoCompactBeforeTurn } from './sendAutoCompact'
+import { createContextCompressionService } from './contextCompressionService'
+
+const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
 type RunMainSendTurnArgs = {
   input: {
@@ -155,14 +154,8 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         }
       : null
 
-    await maybeRunAutoCompactBeforeTurn({
+    const compression = createContextCompressionService({
       cfg: args.cfg,
-      contextWindowTokens,
-      sendSeq,
-      lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
-      historyRef: args.historyRef,
-      user,
-      system,
       engine: args.engine,
       mode: args.mode,
       getReplMode: args.getReplMode,
@@ -171,47 +164,36 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       cwd,
       signal: abortController.signal,
       promptBudget: args.contextBudgetConfigRef.current,
+      model: args.cfg.llm.model,
+      thinkingEnabled: args.cfg.llm.thinkingMode,
       handleEvent: args.handleEvent,
       onCompactLifecycle: args.onCompactLifecycle,
-      emitCanonicalUiMessage: args.emitCanonicalUiMessage,
-      setMessages: args.setMessages,
     })
 
-    const prunedForTurn = contextWindowTokens
-      ? pruneForPromptBudget({
-          system,
-          messages: [...args.historyRef.current, user],
-          contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
+    const prepared = await compression.prepareHistoryForTurn({
+      contextWindowTokens,
+      sendSeq,
+      lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
+      history: args.historyRef.current,
+      user,
+      system,
+    })
+
+    args.historyRef.current = prepared.history
+    if (prepared.autoCompacted && prepared.showAutoCompactNotice) {
+      if (args.emitCanonicalUiMessage) {
+        args.emitCanonicalUiMessage({
+          role: 'assistant',
+          content: AUTO_COMPACT_NOTICE_TEXT,
+          uiKind: 'command_subline',
         })
-      : { messages: [...args.historyRef.current, user], pruned: false }
-
-    const prunedUser = prunedForTurn.messages[prunedForTurn.messages.length - 1]!
-    const prunedHistory = prunedForTurn.messages.slice(0, -1)
-    args.historyRef.current = prunedHistory
-
-    if (contextWindowTokens) {
-      const usedTokens = estimatePromptTokens({ system, messages: [...prunedHistory, prunedUser] })
-      const stats = computeContextStats({
-        config: {
-          contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
-        },
-        usedTokens,
-      })
-      args.setContext({
-        usedTokens: stats.usedTokens,
-        limitTokens: stats.effectiveLimitTokens,
-        percentRemaining: stats.percentRemaining,
-        source: 'estimate',
-      })
-    } else {
-      args.setContext(null)
+      } else {
+        appendLegacyCommandSubline(args.setMessages, AUTO_COMPACT_NOTICE_TEXT)
+      }
     }
+    args.setContext(prepared.context)
+    const prunedHistory = prepared.history
+    const prunedUser = prepared.user
 
     const exec = {
       replMode: args.mode,
@@ -245,36 +227,13 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
         : nextHistory
 
-    args.historyRef.current =
-      contextWindowTokens
-        ? pruneForPromptBudget({
-            system,
-            messages: stripped,
-            contextWindowTokens,
-            effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-            autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-            baselineTokens: args.cfg.context.baselineTokens,
-          }).messages
-        : stripped
-
-    if (contextWindowTokens) {
-      const usedTokens = estimatePromptTokens({ system, messages: args.historyRef.current })
-      const stats = computeContextStats({
-        config: {
-          contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
-        },
-        usedTokens,
-      })
-      args.setContext({
-        usedTokens: stats.usedTokens,
-        limitTokens: stats.effectiveLimitTokens,
-        percentRemaining: stats.percentRemaining,
-        source: 'estimate',
-      })
-    }
+    const finalized = compression.finalizeHistoryAfterTurn({
+      contextWindowTokens,
+      history: stripped,
+      system,
+    })
+    args.historyRef.current = finalized.history
+    args.setContext(finalized.context)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to send message'
     if (isAbortLikeError(e)) {
@@ -290,18 +249,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           uiKind: 'command_subline',
         })
       } else {
-        args.setMessages((prev) => [
-          ...prev.filter(
-            (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),
-          ),
-          {
-            id: `error-${Date.now()}`,
-            role: 'assistant',
-            ui: { kind: 'command_subline' as const },
-            content: subline,
-            timestamp: new Date(),
-          },
-        ])
+        replaceLegacyErrorRow(args.setMessages, subline)
       }
     }
   } finally {
@@ -323,4 +271,38 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   }
 
   return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
+}
+
+function appendLegacyCommandSubline(
+  updateRows: SendStateSetters['setMessages'],
+  content: string,
+): void {
+  updateRows((prev) => [
+    ...prev,
+    {
+      id: makeMessageId('assistant'),
+      role: 'assistant',
+      ui: { kind: 'command_subline' as const },
+      content,
+      timestamp: new Date(),
+    },
+  ])
+}
+
+function replaceLegacyErrorRow(
+  updateRows: SendStateSetters['setMessages'],
+  content: string,
+): void {
+  updateRows((prev) => [
+    ...prev.filter(
+      (m) => !(m.role === 'assistant' && m.content === '' && m.ui?.kind !== 'compact_boundary'),
+    ),
+    {
+      id: `error-${Date.now()}`,
+      role: 'assistant',
+      ui: { kind: 'command_subline' as const },
+      content,
+      timestamp: new Date(),
+    },
+  ])
 }

@@ -17,7 +17,6 @@ const SEMANTIC_BASELINE_COUNTS = {
   'packages/core/src/features/repl/controller/send/sendMainTurn.ts': 2,
   'packages/core/src/features/repl/controller/send/bashMode.ts': 2,
   'packages/core/src/features/repl/controller/send/send.ts': 7,
-  'packages/core/src/features/repl/controller/send/sendAutoCompact.ts': 1,
   'packages/core/src/features/repl/controller/session/sessionTransitions.ts': 2,
   'packages/core/src/features/repl/controller/ui/overlays.ts': 4,
   'packages/core/src/features/repl/controller/ui/surfaceReset.ts': 1,

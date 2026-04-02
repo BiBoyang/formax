@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runMainSendTurn } from './sendMainTurn'
-import { computeContextStats } from '../../../../chat/context/budget'
-import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
-import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import { buildSystemPrompt } from '../../../../prompts'
 import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
 import {
@@ -14,23 +11,11 @@ import { buildTurnInput } from '../../../semantics/adapters/turnInputBuilder'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { makeMessageId } from '../shared/ids'
 import { isAbortLikeError } from '../shared/utils'
-import { maybeRunAutoCompactBeforeTurn } from './sendAutoCompact'
+import { createContextCompressionService } from './contextCompressionService'
 import { getDeferredToolExposureStore } from '../../../../tools/runtime/deferredToolExposure'
-
-vi.mock('../../../../chat/context/budget', () => ({
-  computeContextStats: vi.fn(),
-}))
-
-vi.mock('../../../../chat/context/estimate', () => ({
-  estimatePromptTokens: vi.fn(),
-}))
 
 vi.mock('../../../../chat/context/modelWindow', () => ({
   getKnownContextWindowTokens: vi.fn(),
-}))
-
-vi.mock('../../../../chat/context/prune', () => ({
-  pruneForPromptBudget: vi.fn(),
 }))
 
 vi.mock('../../../../prompts', () => ({
@@ -70,9 +55,12 @@ vi.mock('../shared/utils', () => ({
   isAbortLikeError: vi.fn(),
 }))
 
-vi.mock('./sendAutoCompact', () => ({
-  maybeRunAutoCompactBeforeTurn: vi.fn(),
+vi.mock('./contextCompressionService', () => ({
+  createContextCompressionService: vi.fn(),
 }))
+
+const prepareHistoryForTurn = vi.fn()
+const finalizeHistoryAfterTurn = vi.fn()
 
 function createCfg(overrides?: Record<string, unknown>): any {
   return {
@@ -189,22 +177,42 @@ describe('runMainSendTurn', () => {
     vi.mocked(buildOutputStyleInjectedBlocks).mockReturnValue([{ type: 'text', text: 'style-block' }] as any)
     vi.mocked(buildSystemPrompt).mockReturnValue([{ type: 'text', text: 'system' }] as any)
     vi.mocked(getKnownContextWindowTokens).mockReturnValue(150_000)
-    vi.mocked(estimatePromptTokens).mockReturnValue(1234)
-    vi.mocked(computeContextStats).mockReturnValue({
-      usedTokens: 1234,
-      effectiveLimitTokens: 9000,
-      percentRemaining: 86,
-      shouldAutoCompact: false,
-    } as any)
-    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
-      messages,
-      pruned: false,
-    }))
     vi.mocked(buildSkillToolSpecForCwdWithOptions).mockReturnValue({ name: 'Skill', patched: true } as any)
     vi.mocked(buildAvailableSkillsSystemReminderText).mockReturnValue(
       '<system-reminder>\nThe following skills are available for use with the Skill tool:\n\n- alpha: Alpha skill\n</system-reminder>',
     )
-    vi.mocked(maybeRunAutoCompactBeforeTurn).mockResolvedValue(undefined)
+    prepareHistoryForTurn.mockImplementation(async ({ history, user, contextWindowTokens }: any) => ({
+      history,
+      user,
+      context:
+        contextWindowTokens === undefined
+          ? null
+          : {
+              usedTokens: 1234,
+              limitTokens: 9000,
+              percentRemaining: 86,
+              source: 'estimate',
+            },
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    }))
+    finalizeHistoryAfterTurn.mockImplementation(({ history, contextWindowTokens }: any) => ({
+      history,
+      context:
+        contextWindowTokens === undefined
+          ? null
+          : {
+              usedTokens: 1234,
+              limitTokens: 9000,
+              percentRemaining: 86,
+              source: 'estimate',
+            },
+    }))
+    vi.mocked(createContextCompressionService).mockReturnValue({
+      prepareHistoryForTurn,
+      finalizeHistoryAfterTurn,
+      runManualCompact: vi.fn(),
+    } as any)
     vi.mocked(formatErrorSubline).mockImplementation((msg: string) => `ERR:${msg}`)
     vi.mocked(isAbortLikeError).mockReturnValue(false)
   })
@@ -217,7 +225,9 @@ describe('runMainSendTurn', () => {
       userMessageId: 'user-id',
       turnOutcome: 'completed',
     })
-    expect(maybeRunAutoCompactBeforeTurn).toHaveBeenCalledTimes(1)
+    expect(createContextCompressionService).toHaveBeenCalledTimes(1)
+    expect(prepareHistoryForTurn).toHaveBeenCalledTimes(1)
+    expect(finalizeHistoryAfterTurn).toHaveBeenCalledTimes(1)
     expect(harness.refs.sendSeqRef.current).toBe(1)
     expect(harness.refs.pendingExitPlanReminderRef.current).toBe(false)
     expect(harness.refs.pendingInjectedBlocksRef.current).toEqual([])
@@ -242,6 +252,52 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('emits auto-compact notice only when prepare step reports it should be shown', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
+      context: {
+        usedTokens: 1234,
+        limitTokens: 9000,
+        percentRemaining: 86,
+        source: 'estimate',
+      },
+      autoCompacted: true,
+      showAutoCompactNotice: true,
+    })
+    const harness = createHarness()
+
+    await runMainSendTurn(harness)
+
+    expect(harness._spies.emitCanonicalUiMessage).toHaveBeenCalledWith({
+      role: 'assistant',
+      content: 'Conversation history auto-compacted (summary kept for future turns).',
+      uiKind: 'command_subline',
+    })
+
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
+      context: {
+        usedTokens: 1234,
+        limitTokens: 9000,
+        percentRemaining: 86,
+        source: 'estimate',
+      },
+      autoCompacted: true,
+      showAutoCompactNotice: false,
+    })
+    const harnessWithoutNotice = createHarness()
+
+    await runMainSendTurn(harnessWithoutNotice)
+
+    expect(harnessWithoutNotice._spies.emitCanonicalUiMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Conversation history auto-compacted (summary kept for future turns).',
+      }),
+    )
+  })
+
   it('falls back to unknown model context window and clears context when unavailable', async () => {
     vi.mocked(getKnownContextWindowTokens).mockReturnValueOnce(undefined as any)
     const harness = createHarness()
@@ -257,9 +313,9 @@ describe('runMainSendTurn', () => {
 
     expect(result.turnOutcome).toBe('completed')
     expect(harness._spies.setContext).toHaveBeenCalledWith(null)
-    expect(pruneForPromptBudget).not.toHaveBeenCalledWith(
+    expect(prepareHistoryForTurn).toHaveBeenCalledWith(
       expect.objectContaining({
-        contextWindowTokens: expect.any(Number),
+        contextWindowTokens: undefined,
       }),
     )
   })
@@ -364,8 +420,13 @@ describe('runMainSendTurn', () => {
         semanticBlocks: [{ type: 'text', text: 'semantic-block' }],
       } as any
     })
-    vi.mocked(maybeRunAutoCompactBeforeTurn).mockImplementationOnce(async (args: any) => {
+    vi.mocked(createContextCompressionService).mockImplementationOnce((args: any) => {
       expect(args.getPlanPath()).toBeNull()
+      return {
+        prepareHistoryForTurn,
+        finalizeHistoryAfterTurn,
+        runManualCompact: vi.fn(),
+      } as any
     })
     harness._spies.engine.runTurn.mockImplementationOnce(async (args: any) => {
       expect(args.exec.getPlanPath()).toBeNull()

@@ -14,10 +14,9 @@
 | `packages/core/src/features/repl/controller/streaming/streamingLegacyTranscript.ts`   | 1    | legacy transcript mutator 单入口。                   |
 | `packages/core/src/features/repl/controller/canonical/canonicalProjectionPipeline.ts` | 1    | canonical projection 合并到 static surface 的受控写入。   |
 | `packages/core/src/features/repl/controller/turnActions.ts`                           | 2    | 本地 bash usage 提示 + local bash canonical tail 收口。 |
-| `packages/core/src/features/repl/controller/send/sendMainTurn.ts`                     | 2    | user echo 锚点 + 错误 fallback。                      |
+| `packages/core/src/features/repl/controller/send/sendMainTurn.ts`                     | 1    | user echo 锚点；其余 legacy fallback 已收口到 helper。 |
 | `packages/core/src/features/repl/controller/send/bashMode.ts`                         | 2    | legacy transcript 模式下的本地 bash 写入。                |
 | `packages/core/src/features/repl/controller/send/send.ts`                             | 7    | slash/overlay/UI 输出。                             |
-| `packages/core/src/features/repl/controller/send/sendAutoCompact.ts`                  | 1    | compact notice UI。                               |
 | `packages/core/src/features/repl/controller/session/sessionTransitions.ts`            | 2    | 会话切换/恢复写入。                                       |
 | `packages/core/src/features/repl/controller/ui/overlays.ts`                           | 4    | overlay 关闭/提示消息。                                 |
 | `packages/core/src/features/repl/controller/ui/surfaceReset.ts`                       | 1    | surface reset 交易中的 UI 写入。                        |
@@ -41,4 +40,3 @@
   - `scripts/check-repl-single-writer.mjs`
   - 本审计文档
   - `plans/app-server/` 下对应评审记录
-

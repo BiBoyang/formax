@@ -2,14 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './send'
 import { buildSystemPrompt } from '../../../../prompts'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
-import { pruneForPromptBudget } from '../../../../chat/context/prune'
-import { estimatePromptTokens } from '../../../../chat/context/estimate'
-import { computeContextStats } from '../../../../chat/context/budget'
-import { runCompactFlow } from './compactFlow'
 import { makeMessageId } from '../shared/ids'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { slashEffectToCommandResult, isSlashCommandResultData } from '../../../commands/adapter'
 import { isConsumedCommandResult } from '../../../commands/contracts'
+import { createContextCompressionService } from './contextCompressionService'
 
 vi.mock('../../../../prompts', () => ({
   buildSystemPrompt: vi.fn(),
@@ -17,22 +14,6 @@ vi.mock('../../../../prompts', () => ({
 
 vi.mock('../../../../chat/context/modelWindow', () => ({
   getKnownContextWindowTokens: vi.fn(),
-}))
-
-vi.mock('../../../../chat/context/prune', () => ({
-  pruneForPromptBudget: vi.fn(),
-}))
-
-vi.mock('../../../../chat/context/estimate', () => ({
-  estimatePromptTokens: vi.fn(),
-}))
-
-vi.mock('../../../../chat/context/budget', () => ({
-  computeContextStats: vi.fn(),
-}))
-
-vi.mock('./compactFlow', () => ({
-  runCompactFlow: vi.fn(),
 }))
 
 vi.mock('../shared/ids', () => ({
@@ -51,6 +32,12 @@ vi.mock('../../../commands/adapter', () => ({
 vi.mock('../../../commands/contracts', () => ({
   isConsumedCommandResult: vi.fn((result: any) => Boolean(result?.consumed)),
 }))
+
+vi.mock('./contextCompressionService', () => ({
+  createContextCompressionService: vi.fn(),
+}))
+
+const runManualCompact = vi.fn()
 
 function createCfg(overrides?: Record<string, unknown>): any {
   return {
@@ -89,17 +76,20 @@ describe('send handlers', () => {
     vi.mocked(formatErrorSubline).mockImplementation((msg: string) => `ERR:${msg}`)
     vi.mocked(buildSystemPrompt).mockReturnValue([{ type: 'text', text: 'system' }] as any)
     vi.mocked(getKnownContextWindowTokens).mockReturnValue(120_000)
-    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({ messages, pruned: false }))
-    vi.mocked(estimatePromptTokens).mockReturnValue(1234)
-    vi.mocked(computeContextStats).mockReturnValue({
-      usedTokens: 1234,
-      effectiveLimitTokens: 9000,
-      percentRemaining: 86,
-      shouldAutoCompact: false,
-    } as any)
-    vi.mocked(runCompactFlow).mockResolvedValue({
+    runManualCompact.mockResolvedValue({
       compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }],
       summary: 'summary',
+      context: {
+        usedTokens: 1234,
+        limitTokens: 9000,
+        percentRemaining: 86,
+        source: 'estimate',
+      },
+    } as any)
+    vi.mocked(createContextCompressionService).mockReturnValue({
+      prepareHistoryForTurn: vi.fn(),
+      finalizeHistoryAfterTurn: vi.fn(),
+      runManualCompact,
     } as any)
     vi.mocked(slashEffectToCommandResult).mockImplementation((effect: any) => effect?.__result ?? { consumed: false })
     vi.mocked(isConsumedCommandResult).mockImplementation((result: any) => Boolean(result?.consumed))
@@ -146,6 +136,11 @@ describe('send handlers', () => {
 
   it('runs compact command with usage-event forwarding and context fallback', async () => {
     vi.mocked(getKnownContextWindowTokens).mockReturnValueOnce(undefined as any)
+    runManualCompact.mockResolvedValueOnce({
+      compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }],
+      summary: 'summary',
+      context: null,
+    })
     const messageState = createMessageState()
     const setIsLoading = vi.fn()
     const setLoadingText = vi.fn()
@@ -189,10 +184,19 @@ describe('send handlers', () => {
     expect(result).toBe(true)
     expect(setLoadingText).toHaveBeenCalledWith('Compacting conversation')
     expect(setThinkingText).toHaveBeenCalledWith('')
-    const compactArgs = vi.mocked(runCompactFlow).mock.calls[0]?.[0] as any
-    compactArgs.onStreamEvent({ type: 'usage', usage: { input_tokens: 1, output_tokens: 2 } })
-    compactArgs.onStreamEvent({ type: 'assistant_delta', text: 'ignore' })
-    expect(handleEvent).toHaveBeenCalledTimes(1)
+    expect(createContextCompressionService).toHaveBeenCalledWith(
+      expect.objectContaining({
+        handleEvent,
+        promptBudget: null,
+      }),
+    )
+    expect(runManualCompact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: 'keep this',
+        keepLastTurns: 0,
+        contextWindowTokens: undefined,
+      }),
+    )
     expect(setContext).toHaveBeenCalledWith(null)
     expect(abortControllerRef.current).toBeNull()
     expect(contextBudgetConfigRef.current).toBeNull()
@@ -229,7 +233,7 @@ describe('send handlers', () => {
 
     const errorState = createMessageState()
     const setError = vi.fn()
-    vi.mocked(runCompactFlow).mockRejectedValueOnce(new Error('compact boom'))
+    runManualCompact.mockRejectedValueOnce(new Error('compact boom'))
     const errorResult = await maybeHandleCompactCommand({
       text: '/compact',
       provider: 'anthropic',
@@ -261,7 +265,7 @@ describe('send handlers', () => {
 
   it('returns true on compact abort and reports non-abort failures', async () => {
     const messageStateAbort = createMessageState()
-    vi.mocked(runCompactFlow).mockRejectedValueOnce(new Error('Request aborted'))
+    runManualCompact.mockRejectedValueOnce(new Error('Request aborted'))
     const abortResult = await maybeHandleCompactCommand({
       text: '/compact',
       provider: 'anthropic',
@@ -291,7 +295,7 @@ describe('send handlers', () => {
 
     const messageStateError = createMessageState()
     const setError = vi.fn()
-    vi.mocked(runCompactFlow).mockRejectedValueOnce('bad-error')
+    runManualCompact.mockRejectedValueOnce('bad-error')
     const errorResult = await maybeHandleCompactCommand({
       text: '/compact',
       provider: 'anthropic',
