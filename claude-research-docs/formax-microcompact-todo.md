@@ -19,6 +19,10 @@
   - 小结果不压
   - `is_error: true` 的结果不压
   - `Bash` / `WebFetch` 默认不压，避免把不可稳定重放的证据过早丢掉
+- 已新增 `/context` 诊断入口：
+  - 会输出 system / history / tool_result 的近似占用
+  - 会输出当前 snapshot 中的 microcompacted 条数
+  - 会输出按 tool name 的结果分布概览
 
 ## 这一版故意还没做的
 
@@ -48,9 +52,11 @@
 
 ### 4. 可观测性 / 诊断能力
 
-- 还没有 `/context` 风格的上下文分解视图
-- 还没有 microcompact 命中统计
+- `/context` 已有第一版，但还不够细
+- 还没有真正的 turn-level microcompact 命中统计
 - 还没有 debug 开关去显示“本轮压了几条、压了哪些工具”
+- 还没有 per-message / per-tool-result 的排行视图
+- 还没有 web/app-server 路径下的 `/context`
 
 ### 5. Claude Code 级完整压缩体系
 
@@ -66,13 +72,15 @@
    - 至少返回 `compactedBlocks`、`compactedToolNames`
 2. 丰富 `Read` / `Grep` / `Glob` 的 stub 信息
    - 让压缩后的历史更可读
-3. 增加 `/context` 诊断视图
-   - 先看 system / history / tool_result 各自占多少
+3. 给 `/context` 增加更细的排行和命中统计
+   - 例如 top tool_result contributors、最近被 microcompact 的工具类型
 4. 专门设计 `Bash` / `WebFetch` 的安全策略
    - 先定义哪些结果可视为“可重放”，哪些必须保留原文
-5. 评估是否要压附加 text block
+5. 评估是否把 `/context` 带到 web/app-server
+   - 避免只有 TUI 能看诊断
+6. 评估是否要压附加 text block
    - 尤其是大型工具输出后的跟随文本
-6. 再考虑更高阶能力
+7. 再考虑更高阶能力
    - boundary
    - rehydrate
    - session memory compact

@@ -16,6 +16,8 @@ export type ContextDiagnostics = {
   assistantMessageCount: number
   toolResultBlockCount: number
   microCompactedToolResultCount: number
+  toolResultCountsByToolName: Array<{ toolName: string; count: number }>
+  microCompactedCountsByToolName: Array<{ toolName: string; count: number }>
   contextWindowTokens: number | null
   effectiveLimitTokens: number | null
   autoCompactLimitTokens: number | null
@@ -57,6 +59,8 @@ export function analyzeContextDiagnostics(args: {
     assistantMessageCount: args.messages.filter((message) => message?.role === 'assistant').length,
     toolResultBlockCount: split.toolResultBlockCount,
     microCompactedToolResultCount: split.microCompactedToolResultCount,
+    toolResultCountsByToolName: split.toolResultCountsByToolName,
+    microCompactedCountsByToolName: split.microCompactedCountsByToolName,
     contextWindowTokens: budget?.contextWindowTokens ?? null,
     effectiveLimitTokens: budget?.effectiveLimitTokens ?? null,
     autoCompactLimitTokens: budget?.autoCompactLimitTokens ?? null,
@@ -105,6 +109,8 @@ export function formatContextDiagnosticsReport(args: {
     `- Assistant messages: ${formatInt(diagnostics.assistantMessageCount)}`,
     `- Tool result blocks: ${formatInt(diagnostics.toolResultBlockCount)}`,
     `- Microcompacted tool results: ${formatInt(diagnostics.microCompactedToolResultCount)}`,
+    `- Tool-result tool mix: ${formatCountsByToolName(diagnostics.toolResultCountsByToolName)}`,
+    `- Microcompacted tool mix: ${formatCountsByToolName(diagnostics.microCompactedCountsByToolName)}`,
     '',
     'Notes',
     '- Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
@@ -118,11 +124,16 @@ function splitHistorySlices(messages: PromptMessage[]): {
   nonToolMessages: PromptMessage[]
   toolResultBlockCount: number
   microCompactedToolResultCount: number
+  toolResultCountsByToolName: Array<{ toolName: string; count: number }>
+  microCompactedCountsByToolName: Array<{ toolName: string; count: number }>
 } {
   const toolResultMessages: PromptMessage[] = []
   const nonToolMessages: PromptMessage[] = []
   let toolResultBlockCount = 0
   let microCompactedToolResultCount = 0
+  const toolUsesById = collectToolUsesById(messages)
+  const toolResultCountMap = new Map<string, number>()
+  const microCompactedCountMap = new Map<string, number>()
 
   for (const message of messages) {
     if (!message || !Array.isArray(message.content)) continue
@@ -141,8 +152,11 @@ function splitHistorySlices(messages: PromptMessage[]): {
       })
       toolResultBlockCount += toolBlocks.length
       for (const block of toolBlocks as any[]) {
+        const toolName = readToolNameForResult(toolUsesById, block)
+        bumpCount(toolResultCountMap, toolName)
         if (toolResultContentToText(block?.content).startsWith(MICROCOMPACT_STUB_PREFIX)) {
           microCompactedToolResultCount += 1
+          bumpCount(microCompactedCountMap, toolName)
         }
       }
     }
@@ -160,7 +174,39 @@ function splitHistorySlices(messages: PromptMessage[]): {
     nonToolMessages,
     toolResultBlockCount,
     microCompactedToolResultCount,
+    toolResultCountsByToolName: toSortedCounts(toolResultCountMap),
+    microCompactedCountsByToolName: toSortedCounts(microCompactedCountMap),
   }
+}
+
+function collectToolUsesById(messages: PromptMessage[]): Map<string, string> {
+  const out = new Map<string, string>()
+
+  for (const message of messages) {
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_use') continue
+      if (typeof block.id !== 'string' || typeof block.name !== 'string') continue
+      out.set(block.id, block.name)
+    }
+  }
+
+  return out
+}
+
+function readToolNameForResult(toolUsesById: Map<string, string>, block: any): string {
+  if (typeof block?.tool_use_id !== 'string') return 'Unknown'
+  return toolUsesById.get(block.tool_use_id) ?? 'Unknown'
+}
+
+function bumpCount(map: Map<string, number>, key: string): void {
+  map.set(key, (map.get(key) ?? 0) + 1)
+}
+
+function toSortedCounts(map: Map<string, number>): Array<{ toolName: string; count: number }> {
+  return [...map.entries()]
+    .map(([toolName, count]) => ({ toolName, count }))
+    .sort((a, b) => b.count - a.count || a.toolName.localeCompare(b.toolName))
 }
 
 function formatInt(value: number): string {
@@ -177,4 +223,9 @@ function formatMaybeBool(value: boolean | null): string {
 
 function formatMaybePercent(value: number | null): string {
   return value == null ? 'unknown' : `${Math.max(0, Math.min(100, Math.round(value)))}%`
+}
+
+function formatCountsByToolName(rows: Array<{ toolName: string; count: number }>): string {
+  if (rows.length === 0) return 'none'
+  return rows.map((row) => `${row.toolName}=${formatInt(row.count)}`).join(', ')
 }
