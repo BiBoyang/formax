@@ -125,7 +125,7 @@ Transcript 类型要求（必须可区分）：
 
 要求：
 
-1. 一期 commander 子集固定为：`/init`、`/clear`、`/compact`、`/todos`。
+1. 一期 commander 子集固定为：`/init`、`/clear`、`/compact`、`/context`、`/todos`。
 2. UI 需提供 command 输入路径：
    - composer 直接输入 `/...`
    - 快捷命令按钮（至少包含 3 个子集命令）
@@ -201,6 +201,7 @@ Transcript 类型要求（必须可区分）：
 7. 在窄屏和宽屏下输入框始终可见。
 8. transcript 中能区分 user/assistant/tool/system 四类输出。
 9. commander 子集命令可提交并在 transcript 中看到结果或错误。
+10. `/context` 必须以本地 transcript 输出返回 diagnostics 文本，且不得启动新的 active turn。
 
 ## 10. 样式约束（执行规则）
 

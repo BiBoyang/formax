@@ -94,13 +94,14 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 精确 `/compact` MUST 在 generic slash dispatch 之前由 dedicated compact path 处理。
 
 `CMD-203A`  
-精确 `/context` MUST 在 generic slash dispatch 之前由 dedicated local diagnostics path 处理。
+精确 `/context` 在 TUI 路径 MUST 先走 dedicated local diagnostics path；app-server / Web 路径 MAY 通过 `command/dispatch` 返回同等的本地 diagnostics 输出。
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：
 1. `/init`
 2. `/compact`
-3. `/todos`
+3. `/context`
+4. `/todos`
 
 `CMD-205`  
 未知 slash command 或未被消费的 slash command MUST fall through 到主发送流程；不得被强制转成本地错误。

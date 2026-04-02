@@ -26,6 +26,14 @@ describe('commandRouting', () => {
     expect(out.shouldUseCommandDispatch).toBe(true)
   })
 
+  it('classifies /context as command-dispatchable', () => {
+    const out = resolveCommandRouting('/context')
+    expect(out.commandName).toBe('/context')
+    expect(out.commandArgs).toBe('')
+    expect(out.isSlashCommand).toBe(true)
+    expect(out.shouldUseCommandDispatch).toBe(true)
+  })
+
   it('keeps unknown slash commands on turn/start route', () => {
     const out = resolveCommandRouting('/permissions')
     expect(out.commandName).toBe('/permissions')

@@ -1,4 +1,6 @@
 import pkg from '../../package.json'
+import { buildContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
+import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { AppServer } from './server.js'
 import {
@@ -232,6 +234,28 @@ export async function runAppServer(args?: {
             : undefined,
       })
       return lazyTurnRunner
+    },
+    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode }) => {
+      const runtime = await createRuntime({ cwd: dispatchCwd, env })
+      const sessionFilePath = await findSessionFileBySessionId({
+        cwd: dispatchCwd,
+        env,
+        platform: args?.platform,
+        homedir: args?.homedir,
+        sessionId: threadId,
+      })
+      const replay = sessionFilePath ? await readSessionFile(sessionFilePath) : null
+
+      return {
+        stdout: buildContextDiagnosticsReport({
+          cwd: dispatchCwd,
+          cfg: runtime.cfg,
+          runtimeFlags: runtime.runtimeFlags,
+          allowedSubagents: runtime.allowedSubagents,
+          mode,
+          messages: replay?.history ?? [],
+        }),
+      }
     },
     limits: {
       // Exposed verbatim via initialize.result.limits for client-side guardrails.

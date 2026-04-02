@@ -331,6 +331,15 @@ describe('App thread history integration', () => {
             },
           }
         }
+        if (command === '/context') {
+          return {
+            command,
+            dispatched: true,
+            local: {
+              stdout: 'Context diagnostics\n- Mode: normal\n- Tool result blocks: 1',
+            },
+          }
+        }
         const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
         return {
           command,
@@ -1089,7 +1098,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('uses command/dispatch for /init and /todos only', async () => {
+  it('uses command/dispatch for /init, /todos, and /context', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
@@ -1131,6 +1140,24 @@ describe('App thread history integration', () => {
       false,
     )
     expect(await screen.findByText('No todos currently tracked')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/context' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.command === '/context',
+        ),
+      ).toBe(true)
+    })
+    expect(rpcMock.requests.some((entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/context')).toBe(
+      false,
+    )
+    expect(await screen.findByText('Context diagnostics')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))

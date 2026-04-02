@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
-import { analyzeContextDiagnostics, formatContextDiagnosticsReport } from '../../../../chat/context/contextDiagnostics'
+import { buildContextDiagnosticsReport } from '../../../../chat/context/contextDiagnostics'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
@@ -249,39 +249,15 @@ export function maybeBuildContextSlashEffect(args: {
     return { kind: 'local', stdout: 'Usage: /context' }
   }
 
-  const cwd = process.cwd()
-  const system = buildSystemPrompt({
-    allowedSubagents: args.allowedSubagents,
-    cwd,
-    model: args.cfg.llm.model,
-    variant: resolveSystemPromptVariant({
-      deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
-    }),
-  })
-
-  const contextWindowTokens =
-    args.cfg.llm.contextWindowTokens ??
-    getKnownContextWindowTokens({ provider: args.provider, model: args.cfg.llm.model })
-
-  const diagnostics = analyzeContextDiagnostics({
-    system,
-    messages: args.historyRef.current,
-    budgetConfig: contextWindowTokens
-      ? {
-          contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
-        }
-      : null,
-  })
-
   return {
     kind: 'local',
-    stdout: formatContextDiagnosticsReport({
-      diagnostics,
+    stdout: buildContextDiagnosticsReport({
+      cwd: process.cwd(),
+      cfg: args.cfg,
+      runtimeFlags: args.runtimeFlags,
+      allowedSubagents: args.allowedSubagents,
       mode: args.mode,
-      model: args.cfg.llm.model,
+      messages: args.historyRef.current,
     }),
   }
 }

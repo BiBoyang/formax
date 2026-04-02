@@ -550,7 +550,7 @@ AskUserQuestion payload：
 }
 ```
 
-形态 B：本地命令输出（当前 `/todos`）
+形态 B：本地命令输出（当前 `/todos`、`/context`）
 
 ```ts
 {
@@ -566,6 +566,7 @@ AskUserQuestion payload：
 
 - `/init`：走形态 A（转发 turn）
 - `/compact`：走形态 A（转发 turn；由 TurnRunner 执行 compact 语义）
+- `/context`：走形态 B（本地 diagnostics 输出；额外参数返回 `Usage: /context`）
 - `/todos`：走形态 B（本地输出）
 - 其他命令：返回 `INVALID_PARAMS`（Unsupported params.command）
 

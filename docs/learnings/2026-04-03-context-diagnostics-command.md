@@ -4,6 +4,7 @@
 
 - Formax 新增了精确 `/context` 命令入口。
 - 该命令当前走本地诊断路径，不进入主模型发送。
+- TUI 仍由 dedicated local path 直接处理；app-server / Web 现在也能通过 `command/dispatch` 获取同一类 diagnostics 输出。
 - 输出聚焦当前持久化 prompt snapshot：
   - system prompt 估算
   - history total 估算
@@ -19,6 +20,6 @@
 
 ## Current limits
 
-- 当前是 TUI 本地入口，web reference 还没有对应支持。
 - `tool_result` / `other history` 的拆分是近似估算，不保证与总量完全可加。
 - 还没有 `/context --json` 或更细粒度的 per-message / per-tool 排序视图。
+- app-server / Web 当前仍只返回纯文本 diagnostics；还没有结构化 JSON 版本给客户端做 richer rendering。

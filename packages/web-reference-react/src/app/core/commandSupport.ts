@@ -7,6 +7,7 @@ const WEB_SUPPORTED_SLASH_COMMAND_SPECS: readonly WebSupportedSlashCommandSpec[]
   { command: '/init', description: 'Initialize repository guidance from this project.' },
   { command: '/clear', description: 'Clear the current conversation and start fresh.' },
   { command: '/compact', description: 'Compact context and keep the latest progress.' },
+  { command: '/context', description: 'Show current context budget and tool-result diagnostics.' },
   { command: '/todos', description: 'List current task todos and statuses.' },
 ]
 

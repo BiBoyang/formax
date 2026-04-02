@@ -1,8 +1,13 @@
 import type { ContextBudgetConfig } from './budget'
 import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
+import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
+import type { RuntimeConfig } from '../../config/config'
+import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
+import { buildSystemPrompt } from '../../prompts'
+import { resolveSystemPromptVariant } from '../../prompts/system'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 export type ContextDiagnostics = {
@@ -70,6 +75,50 @@ export function analyzeContextDiagnostics(args: {
     remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
     shouldAutoCompact: stats?.shouldAutoCompact ?? null,
   }
+}
+
+export function buildContextDiagnosticsReport(args: {
+  cwd: string
+  cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: string
+  messages: PromptMessage[]
+}): string {
+  const system = buildSystemPrompt({
+    allowedSubagents: args.allowedSubagents,
+    cwd: args.cwd,
+    model: args.cfg.llm.model,
+    variant: resolveSystemPromptVariant({
+      deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
+    }),
+  })
+
+  const contextWindowTokens =
+    args.cfg.llm.contextWindowTokens ??
+    getKnownContextWindowTokens({
+      provider: args.cfg.llm.provider,
+      model: args.cfg.llm.model,
+    })
+
+  const diagnostics = analyzeContextDiagnostics({
+    system,
+    messages: args.messages,
+    budgetConfig: contextWindowTokens
+      ? {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        }
+      : null,
+  })
+
+  return formatContextDiagnosticsReport({
+    diagnostics,
+    mode: args.mode,
+    model: args.cfg.llm.model,
+  })
 }
 
 export function formatContextDiagnosticsReport(args: {

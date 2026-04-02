@@ -1,6 +1,6 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-03-12
+更新时间：2026-04-03
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
@@ -86,6 +86,22 @@
 - 并发约束：
   - 同一 `threadId` 同时最多 1 个 in-flight turn
   - 冲突时返回 `INVALID_PARAMS`（`Turn already running...`）
+
+## 2.5.1 command/dispatch
+
+- 入参：`{ threadId, command, mode?, cwd? }`
+- 返回分两类：
+  - turn-dispatch：`{ command, dispatched: true, turn }`
+  - local-dispatch：`{ command, dispatched: true, local: { stdout } }`
+- 当前命令子集：
+  - `/init`、`/compact` MUST 走 turn-dispatch
+  - `/todos`、`/context` MUST 走 local-dispatch
+- `/context` 语义约束：
+  - 输出 MUST 基于当前持久化 prompt history snapshot 生成
+  - 输出 MUST 以 `local.stdout` 返回，不得启动新的 turn
+  - 额外参数当前 MUST 返回 `Usage: /context`
+- 失败条件：
+  - 不支持的命令 -> `INVALID_PARAMS`（`Unsupported params.command...`）
 
 ## 2.6 turn/interrupt
 

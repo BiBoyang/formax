@@ -2444,6 +2444,51 @@ describe('AppServer', () => {
     expect((out[0] as any).result.local.stdout).toBeTypeOf('string')
   })
 
+  it('routes /context via command/dispatch as local diagnostics output', async () => {
+    const resolveContextDiagnostics = vi.fn(async () => ({
+      stdout: 'Context diagnostics\n- Mode: plan\n- Tool result blocks: 2',
+    }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return { thread: { id: 't-1', cwd: '/repo/from-thread', createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+      } as any,
+      resolveContextDiagnostics,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', { threadId: 't-1', command: '/context', cwd: '/repo/from-param', mode: 'plan' }),
+    )
+
+    expect((out[0] as any).result.dispatched).toBe(true)
+    expect((out[0] as any).result.command).toBe('/context')
+    expect((out[0] as any).result.local.stdout).toContain('Context diagnostics')
+    expect(resolveContextDiagnostics).toHaveBeenCalledWith({
+      threadId: 't-1',
+      cwd: '/repo/from-param',
+      mode: 'plan',
+    })
+  })
+
+  it('returns usage for /context with extra arguments without invoking diagnostics resolver', async () => {
+    const resolveContextDiagnostics = vi.fn(async () => ({ stdout: 'should not run' }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return { thread: { id: 't-1', cwd: process.cwd(), createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+      } as any,
+      resolveContextDiagnostics,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/context now' }))
+    expect((out[0] as any).result.local.stdout).toBe('Usage: /context')
+    expect(resolveContextDiagnostics).not.toHaveBeenCalled()
+  })
+
   it('passes cwd through command/dispatch and submitInput ignores missing stale toolUseId mapping', async () => {
     const startTurn = vi.fn(async () => ({ turn: { id: 'turn-1', status: 'running' } }))
     const submitInput = vi.fn(async () => ({}))

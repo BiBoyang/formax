@@ -75,6 +75,11 @@ export type AppServerOptions = {
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
+  resolveContextDiagnostics?: (args: {
+    threadId: string
+    cwd: string
+    mode: 'normal' | 'acceptEdits' | 'plan'
+  }) => Promise<{ stdout: string }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
   limits?: {
@@ -95,6 +100,7 @@ export class AppServer {
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
+  private readonly resolveContextDiagnostics?: AppServerOptions['resolveContextDiagnostics']
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   private readonly serverInstanceId: string
   private readonly limits: {
@@ -125,6 +131,7 @@ export class AppServer {
     this.threadStore = args.threadStore ?? new ThreadStore()
     this.turnRunner = args.turnRunner ?? null
     this.resolveTurnRunner = args.resolveTurnRunner
+    this.resolveContextDiagnostics = args.resolveContextDiagnostics
     this.emitNotification = args.emitNotification
     this.serverInstanceId = args.serverInstanceId ?? randomUUID()
     // initialize.result.limits is sourced from runAppServer() wiring (index.ts):
@@ -368,9 +375,41 @@ export class AppServer {
           ]
         }
 
-        if (commandRouting.commandName === '/todos') {
+        if (commandRouting.commandName === '/todos' || commandRouting.commandName === '/context') {
           const thread = await this.threadStore.readThread(params.threadId)
           const dispatchCwd = params.cwd ? path.resolve(params.cwd) : thread.thread.cwd
+
+          if (commandRouting.commandName === '/context') {
+            if (commandRouting.commandArgs) {
+              return [
+                makeSuccessResponse(req.id, {
+                  command: params.command,
+                  dispatched: true,
+                  local: {
+                    stdout: 'Usage: /context',
+                  },
+                }),
+              ]
+            }
+            if (!this.resolveContextDiagnostics) {
+              throw new Error(`Failed to dispatch local command: ${params.command}`)
+            }
+            const effect = await this.resolveContextDiagnostics({
+              threadId: params.threadId,
+              cwd: dispatchCwd,
+              mode: params.mode ?? 'normal',
+            })
+            return [
+              makeSuccessResponse(req.id, {
+                command: params.command,
+                dispatched: true,
+                local: {
+                  stdout: stripAnsiSgr(effect.stdout),
+                },
+              }),
+            ]
+          }
+
           const slashRegistry = createSlashCommandRegistry({ cwd: dispatchCwd })
           const normalizedDispatchCommand = commandRouting.commandArgs
             ? `${commandRouting.commandName} ${commandRouting.commandArgs}`
