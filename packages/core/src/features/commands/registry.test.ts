@@ -101,6 +101,15 @@ describe('SlashCommandRegistry', () => {
     await fsp.rm(cwd, { recursive: true, force: true })
   })
 
+  it('includes /context in suggestions (handled by controller)', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
+    const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })
+    expect(reg.list().some((c) => c.command === '/context')).toBe(true)
+    expect(reg.suggest('/con').some((c) => c.command === '/context')).toBe(true)
+    expect(reg.dispatch('/context')).toBe(null)
+    await fsp.rm(cwd, { recursive: true, force: true })
+  })
+
   it('dispatches /agents to open the agents dialog', async () => {
     const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-registry-'))
     const reg = createSlashCommandRegistry({ cwd, globalConfigDir: cwd })

@@ -313,6 +313,76 @@ describe('resolvePreMainSendRouting', () => {
     expect(onCompactRequested).toHaveBeenCalledTimes(1)
   })
 
+  it('handles /context as a local diagnostics command and appends report sublines', async () => {
+    const { args, getMessages } = createRoutingHarness({
+      text: '/context',
+      historyRef: {
+        current: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }],
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'read-1',
+                content: '[Older tool result cleared by microcompact: Read /repo/src/auth.ts]',
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect?.kind).toBe('local')
+    const messages = getMessages()
+    expect(messages[0]).toMatchObject({ role: 'user', content: '/context' })
+    expect(messages.some((msg) => msg.role === 'assistant' && msg.content === 'Context diagnostics')).toBe(true)
+    expect(
+      messages.some(
+        (msg) =>
+          msg.role === 'assistant' &&
+          msg.ui?.kind === 'command_subline' &&
+          String(msg.content).includes('Microcompacted tool results: 1'),
+      ),
+    ).toBe(true)
+  })
+
+  it('shows usage for /context with extra args and does not fall through', async () => {
+    const { args, getMessages } = createRoutingHarness({
+      text: '/context now',
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect).toEqual({ kind: 'local', stdout: 'Usage: /context' })
+    expect(getMessages()[0]).toMatchObject({ role: 'user', content: '/context now' })
+    expect(getMessages()[1]).toMatchObject({
+      role: 'assistant',
+      ui: { kind: 'command_subline' },
+      content: 'Usage: /context',
+    })
+  })
+
+  it('accepts /context with leading spaces and still renders diagnostics', async () => {
+    const { args, getMessages } = createRoutingHarness({
+      text: '   /context',
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect?.kind).toBe('local')
+    expect(getMessages()[0]).toMatchObject({ role: 'user', content: '   /context' })
+    expect(getMessages().some((msg) => msg.role === 'assistant' && msg.content === 'Context diagnostics')).toBe(true)
+  })
+
   it('falls through to main turn when input is not a slash command', async () => {
     const { args } = createRoutingHarness({
       text: 'plain input',

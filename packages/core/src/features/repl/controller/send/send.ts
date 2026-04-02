@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
+import { analyzeContextDiagnostics, formatContextDiagnosticsReport } from '../../../../chat/context/contextDiagnostics'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
@@ -232,9 +233,63 @@ export async function maybeHandleCompactCommand(args: {
   return true
 }
 
+export function maybeBuildContextSlashEffect(args: {
+  text: string
+  provider: 'openai' | 'anthropic'
+  cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: ReplMode
+  historyRef: { current: ChatHistory }
+}): SlashCommandEffect | null {
+  if (!isExactSlashCommand(args.text, '/context')) return null
+
+  const extraArgs = args.text.trimStart().replace(/^\/context\b/i, '').trim()
+  if (extraArgs) {
+    return { kind: 'local', stdout: 'Usage: /context' }
+  }
+
+  const cwd = process.cwd()
+  const system = buildSystemPrompt({
+    allowedSubagents: args.allowedSubagents,
+    cwd,
+    model: args.cfg.llm.model,
+    variant: resolveSystemPromptVariant({
+      deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
+    }),
+  })
+
+  const contextWindowTokens =
+    args.cfg.llm.contextWindowTokens ??
+    getKnownContextWindowTokens({ provider: args.provider, model: args.cfg.llm.model })
+
+  const diagnostics = analyzeContextDiagnostics({
+    system,
+    messages: args.historyRef.current,
+    budgetConfig: contextWindowTokens
+      ? {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        }
+      : null,
+  })
+
+  return {
+    kind: 'local',
+    stdout: formatContextDiagnosticsReport({
+      diagnostics,
+      mode: args.mode,
+      model: args.cfg.llm.model,
+    }),
+  }
+}
+
 export async function maybeHandleConsumedSlashCommand(args: {
   text: string
   preferredSlashSpecId?: string
+  slashEffect?: SlashCommandEffect | null
   commandRegistry?: SlashCommandRegistry
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
@@ -249,9 +304,11 @@ export async function maybeHandleConsumedSlashCommand(args: {
   setThinkingText: Dispatch<SetStateAction<string>>
   setError: Dispatch<SetStateAction<string | null>>
 }): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
-  const slashEffect = args.text.startsWith('/')
-    ? args.commandRegistry?.dispatch(args.text, { preferredSpecId: args.preferredSlashSpecId }) ?? null
-    : null
+  const slashEffect =
+    args.slashEffect ??
+    (args.text.startsWith('/')
+      ? args.commandRegistry?.dispatch(args.text, { preferredSpecId: args.preferredSlashSpecId }) ?? null
+      : null)
   const slashResult = slashEffectToCommandResult(slashEffect)
   if (!isConsumedCommandResult(slashResult)) return { slashEffect, shouldReturn: false }
 

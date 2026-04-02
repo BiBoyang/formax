@@ -8,7 +8,7 @@ import type { OverlaySpec } from '../../../commands/contracts'
 import { resolveCommandRouting } from '../../../semantics/core/commandRouting'
 import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
 import type { CompactLifecycleEvent } from './compactFlow'
-import { maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './send'
+import { maybeBuildContextSlashEffect, maybeHandleClearCommand, maybeHandleCompactCommand, maybeHandleConsumedSlashCommand } from './send'
 import { applyProviderErrorToState } from '../shared/providerError'
 
 export async function resolvePreMainSendRouting(args: {
@@ -86,6 +86,36 @@ export async function resolvePreMainSendRouting(args: {
       onCompactLifecycle: args.onCompactLifecycle,
     })
     return { slashEffect: null, shouldReturn: true }
+  }
+
+  const contextSlashEffect = maybeBuildContextSlashEffect({
+      text: args.text,
+      provider: args.provider,
+      cfg: args.cfg,
+      runtimeFlags: args.runtimeFlags,
+      allowedSubagents: args.allowedSubagents,
+      mode: args.mode,
+      historyRef: args.historyRef,
+    })
+  if (contextSlashEffect) {
+    return await maybeHandleConsumedSlashCommand({
+      text: args.text,
+      slashEffect: contextSlashEffect,
+      preferredSlashSpecId: args.preferredSlashSpecId,
+      commandRegistry: args.commandRegistry,
+      openOverlay: args.openOverlay,
+      closeOverlay: args.closeOverlay,
+      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+      onLocalCommandRecordForNextTurn: args.onSlashLocalAsyncRecordForNextTurn,
+      thinkingBufferRef: args.thinkingBufferRef,
+      thinkingLastFlushAtRef: args.thinkingLastFlushAtRef,
+      currentAssistantIdRef: args.currentAssistantIdRef,
+      setMessages: args.setMessages,
+      setIsLoading: args.setIsLoading,
+      setLoadingText: args.setLoadingText,
+      setThinkingText: args.setThinkingText,
+      setError: args.setError,
+    })
   }
 
   let slashEffect: SlashCommandEffect | null = null

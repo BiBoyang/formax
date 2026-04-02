@@ -10,7 +10,7 @@
 - slash command dispatch 的默认优先级与 `preferredSpecId` 选择行为
 - `SlashCommandEffect -> CommandResult` 的 UI / model 映射
 - overlay dismiss subline、local/local_async 输出、model injection 边界
-- 精确 `/clear`、`/compact` 与未知 slash command 的 pre-main 路由边界
+- 精确 `/clear`、`/compact`、`/context` 与未知 slash command 的 pre-main 路由边界
 
 不在范围内：
 - 非 slash command 的普通用户输入语义
@@ -49,7 +49,7 @@ user / project command 的目录扫描、frontmatter 解析与覆盖规则 MUST 
 `SlashCommandEffect` 到 `CommandResult` 的 UI / model 分流 MUST 以 `packages/core/src/features/commands/adapter.ts` 与 `packages/core/src/features/commands/contracts.ts` 为准。
 
 `CMD-004`  
-REPL pre-main slash routing（`/clear`、`/compact`、generic dispatch、fall-through）MUST 以 `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts` 与 `packages/core/src/features/semantics/core/commandRouting.ts` 为准。
+REPL pre-main slash routing（`/clear`、`/compact`、`/context`、generic dispatch、fall-through）MUST 以 `packages/core/src/features/repl/controller/send/sendPreMainRouting.ts` 与 `packages/core/src/features/semantics/core/commandRouting.ts` 为准。
 
 ## 2. 发现与覆盖优先级
 
@@ -92,6 +92,9 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 
 `CMD-203`  
 精确 `/compact` MUST 在 generic slash dispatch 之前由 dedicated compact path 处理。
+
+`CMD-203A`  
+精确 `/context` MUST 在 generic slash dispatch 之前由 dedicated local diagnostics path 处理。
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：

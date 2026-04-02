@@ -107,6 +107,12 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
 
+### 想改“上下文诊断 / /context”
+
+- `packages/core/src/chat/context/contextDiagnostics.ts`：`analyzeContextDiagnostics()` + `formatContextDiagnosticsReport()`
+- `packages/core/src/chat/context/contextDiagnostics.test.ts`：单测覆盖（slice 估算、budget 字段、报告文案）
+- `packages/core/src/features/repl/controller/send/send.ts`：`/context` 的本地命令入口
+
 ### 想改“/compact（P4）”
 
 `/compact` 已实现。主要入口：

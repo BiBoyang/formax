@@ -4,7 +4,7 @@ import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
 const DEFAULT_MIN_RESULT_CHARS = 1200
 const DEFAULT_MAX_STUB_CHARS = 120
-const STUB_PREFIX = '[Older tool result cleared by microcompact:'
+export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcompact:'
 const DEFAULT_ELIGIBLE_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
 
 type ToolUseMeta = {
@@ -134,8 +134,8 @@ function collectEligibleToolResults(args: {
 }
 
 function buildMicrocompactStub(tool: ToolUseMeta): string {
-  const maxSummaryChars = Math.max(12, DEFAULT_MAX_STUB_CHARS - STUB_PREFIX.length - 2)
-  return `${STUB_PREFIX} ${clipMiddle(summarizeToolUse(tool), maxSummaryChars)}]`
+  const maxSummaryChars = Math.max(12, DEFAULT_MAX_STUB_CHARS - MICROCOMPACT_STUB_PREFIX.length - 2)
+  return `${MICROCOMPACT_STUB_PREFIX} ${clipMiddle(summarizeToolUse(tool), maxSummaryChars)}]`
 }
 
 function summarizeToolUse(tool: ToolUseMeta): string {
@@ -178,7 +178,7 @@ function summarizeToolUse(tool: ToolUseMeta): string {
 }
 
 function isAlreadyMicroCompacted(content: unknown): boolean {
-  return toolResultContentToText(content as any).startsWith(STUB_PREFIX)
+  return toolResultContentToText(content as any).startsWith(MICROCOMPACT_STUB_PREFIX)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

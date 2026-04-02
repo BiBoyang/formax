@@ -112,6 +112,13 @@ const BUILTIN_SPECS: SlashCommandSpec[] = [
     implemented: true,
   },
   {
+    id: 'builtin:/context',
+    source: 'builtin',
+    command: '/context',
+    description: 'Show a local breakdown of current prompt context usage',
+    implemented: true,
+  },
+  {
     id: 'builtin:/status',
     source: 'builtin',
     command: '/status',
