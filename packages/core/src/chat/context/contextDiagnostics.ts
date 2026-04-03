@@ -3,6 +3,8 @@ import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
+import { microCompactHistory } from './microCompact'
+import { pruneForPromptBudget } from './prune'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
@@ -31,17 +33,43 @@ export type ContextDiagnostics = {
   remainingToEffectiveLimit: number | null
   remainingToAutoCompactLimit: number | null
   shouldAutoCompact: boolean | null
+  topSnapshotContributors: ContextContributor[]
 }
+
+export type NextTurnFixedContextGroup = {
+  label: string
+  blocks: PromptBlock[]
+}
+
+export type NextTurnFixedContextDiagnostics = {
+  fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
+  projectedHistoryTokens: number
+  projectedHistoryDeltaTokens: number
+  fixedTokens: number
+  totalTokens: number
+  remainingToEffectiveLimit: number | null
+  remainingToAutoCompactLimit: number | null
+  shouldAutoCompact: boolean | null
+  topAssembledContributors: ContextContributor[]
+}
+
+export type ContextContributor = {
+  label: string
+  tokens: number
+}
+
+const TOP_CONTRIBUTOR_LIMIT = 5
 
 export function analyzeContextDiagnostics(args: {
   system: PromptBlock[]
   messages: PromptMessage[]
   budgetConfig?: ContextBudgetConfig | null
 }): ContextDiagnostics {
+  const toolUsesById = collectToolUsesById(args.messages)
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
   const historyTokens = estimatePromptTokens({ system: [], messages: args.messages })
   const totalTokens = estimatePromptTokens({ system: args.system, messages: args.messages })
-  const split = splitHistorySlices(args.messages)
+  const split = splitHistorySlices(args.messages, toolUsesById)
   const toolResultTokens = estimatePromptTokens({ system: [], messages: split.toolResultMessages })
   const otherHistoryTokens = estimatePromptTokens({ system: [], messages: split.nonToolMessages })
 
@@ -74,6 +102,84 @@ export function analyzeContextDiagnostics(args: {
     remainingToEffectiveLimit: budget ? Math.max(0, budget.effectiveLimitTokens - totalTokens) : null,
     remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
     shouldAutoCompact: stats?.shouldAutoCompact ?? null,
+    topSnapshotContributors: buildTopSnapshotContributors({
+      system: args.system,
+      messages: args.messages,
+      toolUsesById,
+    }),
+  }
+}
+
+export function analyzeNextTurnFixedContext(args: {
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  fixedGroups: NextTurnFixedContextGroup[]
+  budgetConfig?: ContextBudgetConfig | null
+}): NextTurnFixedContextDiagnostics {
+  const fixedGroups = args.fixedGroups
+    .map((group) => ({
+      label: group.label,
+      blocks: Array.isArray(group.blocks) ? group.blocks : [],
+    }))
+    .filter((group) => group.blocks.length > 0)
+
+  const microCompactedHistory = microCompactHistory({ messages: args.messages }).messages
+  const fixedUserMessage =
+    fixedGroups.length > 0
+      ? ({
+          role: 'user' as const,
+          content: fixedGroups.flatMap((group) => group.blocks),
+        } satisfies PromptMessage)
+      : null
+
+  const rawPreparedMessages = fixedUserMessage ? [...microCompactedHistory, fixedUserMessage] : [...microCompactedHistory]
+  const preparedMessages = args.budgetConfig
+    ? pruneForPromptBudget({
+        system: args.system,
+        messages: rawPreparedMessages,
+        ...args.budgetConfig,
+      }).messages
+    : rawPreparedMessages
+
+  const projectedHistory = fixedUserMessage ? preparedMessages.slice(0, -1) : preparedMessages
+  const preparedFixedMessage = fixedUserMessage ? (preparedMessages[preparedMessages.length - 1] ?? fixedUserMessage) : null
+  const assembledMessages = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
+  const projectedToolUsesById = collectToolUsesById(projectedHistory)
+
+  const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
+  const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
+  const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: args.messages })
+  const fixedTokens = preparedFixedMessage ? estimatePromptTokens({ system: [], messages: [preparedFixedMessage] }) : 0
+  const stats = args.budgetConfig
+    ? computeContextStats({
+        config: args.budgetConfig,
+        usedTokens: totalTokens,
+      })
+    : null
+  const budget = args.budgetConfig ? computeContextBudget(args.budgetConfig) : null
+
+  return {
+    fixedGroups: fixedGroups.map((group) => ({
+      label: group.label,
+      blockCount: group.blocks.length,
+      tokens: estimatePromptTokens({
+        system: [],
+        messages: [{ role: 'user', content: group.blocks }],
+      }),
+    })),
+    projectedHistoryTokens,
+    projectedHistoryDeltaTokens: projectedHistoryTokens - snapshotHistoryTokens,
+    fixedTokens,
+    totalTokens,
+    remainingToEffectiveLimit: budget ? Math.max(0, budget.effectiveLimitTokens - totalTokens) : null,
+    remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
+    shouldAutoCompact: stats?.shouldAutoCompact ?? null,
+    topAssembledContributors: buildTopAssembledContributors({
+      system: args.system,
+      projectedHistory,
+      projectedToolUsesById,
+      fixedGroups,
+    }),
   }
 }
 
@@ -84,6 +190,7 @@ export function buildContextDiagnosticsReport(args: {
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
   messages: PromptMessage[]
+  nextTurnFixedGroups?: NextTurnFixedContextGroup[]
 }): string {
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
@@ -114,8 +221,23 @@ export function buildContextDiagnosticsReport(args: {
       : null,
   })
 
+  const nextTurn = analyzeNextTurnFixedContext({
+    system,
+    messages: args.messages,
+    fixedGroups: args.nextTurnFixedGroups ?? [],
+    budgetConfig: contextWindowTokens
+      ? {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        }
+      : null,
+  })
+
   return formatContextDiagnosticsReport({
     diagnostics,
+    nextTurn,
     mode: args.mode,
     model: args.cfg.llm.model,
   })
@@ -123,6 +245,7 @@ export function buildContextDiagnosticsReport(args: {
 
 export function formatContextDiagnosticsReport(args: {
   diagnostics: ContextDiagnostics
+  nextTurn?: NextTurnFixedContextDiagnostics | null
   mode: string
   model: string
 }): string {
@@ -161,14 +284,34 @@ export function formatContextDiagnosticsReport(args: {
     `- Tool-result tool mix: ${formatCountsByToolName(diagnostics.toolResultCountsByToolName)}`,
     `- Microcompacted tool mix: ${formatCountsByToolName(diagnostics.microCompactedCountsByToolName)}`,
     '',
+    'Top snapshot contributors',
+    ...formatContributors(diagnostics.topSnapshotContributors),
+    '',
+    'Next-turn fixed context (before future user text)',
+    `- Projected history after microcompact/prune: ${formatMaybeInt(args.nextTurn?.projectedHistoryTokens ?? null)}`,
+    `- Projected history delta vs snapshot: ${formatSignedMaybeInt(args.nextTurn?.projectedHistoryDeltaTokens ?? null)}`,
+    `- Fixed additions total: ${formatMaybeInt(args.nextTurn?.fixedTokens ?? null)}`,
+    ...formatFixedGroups(args.nextTurn?.fixedGroups ?? []),
+    `- Assembled fixed total: ${formatMaybeInt(args.nextTurn?.totalTokens ?? null)}`,
+    `- Remaining to effective limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToEffectiveLimit ?? null)}`,
+    `- Remaining to auto-compact limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToAutoCompactLimit ?? null)}`,
+    `- Auto-compact would trigger before future user text: ${formatMaybeBool(args.nextTurn?.shouldAutoCompact ?? null)}`,
+    '',
+    'Top assembled contributors before future user text',
+    ...formatContributors(args.nextTurn?.topAssembledContributors ?? []),
+    '',
     'Notes',
     '- Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
+    '- Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
   ]
 
   return lines.join('\n')
 }
 
-function splitHistorySlices(messages: PromptMessage[]): {
+function splitHistorySlices(
+  messages: PromptMessage[],
+  toolUsesById: Map<string, ToolUseMeta> = collectToolUsesById(messages),
+): {
   toolResultMessages: PromptMessage[]
   nonToolMessages: PromptMessage[]
   toolResultBlockCount: number
@@ -180,7 +323,6 @@ function splitHistorySlices(messages: PromptMessage[]): {
   const nonToolMessages: PromptMessage[] = []
   let toolResultBlockCount = 0
   let microCompactedToolResultCount = 0
-  const toolUsesById = collectToolUsesById(messages)
   const toolResultCountMap = new Map<string, number>()
   const microCompactedCountMap = new Map<string, number>()
 
@@ -228,24 +370,32 @@ function splitHistorySlices(messages: PromptMessage[]): {
   }
 }
 
-function collectToolUsesById(messages: PromptMessage[]): Map<string, string> {
-  const out = new Map<string, string>()
+type ToolUseMeta = {
+  name: string
+  input: unknown
+}
+
+function collectToolUsesById(messages: PromptMessage[]): Map<string, ToolUseMeta> {
+  const out = new Map<string, ToolUseMeta>()
 
   for (const message of messages) {
     if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
     for (const block of message.content as any[]) {
       if (block?.type !== 'tool_use') continue
       if (typeof block.id !== 'string' || typeof block.name !== 'string') continue
-      out.set(block.id, block.name)
+      out.set(block.id, {
+        name: block.name,
+        input: block.input,
+      })
     }
   }
 
   return out
 }
 
-function readToolNameForResult(toolUsesById: Map<string, string>, block: any): string {
+function readToolNameForResult(toolUsesById: Map<string, ToolUseMeta>, block: any): string {
   if (typeof block?.tool_use_id !== 'string') return 'Unknown'
-  return toolUsesById.get(block.tool_use_id) ?? 'Unknown'
+  return toolUsesById.get(block.tool_use_id)?.name ?? 'Unknown'
 }
 
 function bumpCount(map: Map<string, number>, key: string): void {
@@ -277,4 +427,188 @@ function formatMaybePercent(value: number | null): string {
 function formatCountsByToolName(rows: Array<{ toolName: string; count: number }>): string {
   if (rows.length === 0) return 'none'
   return rows.map((row) => `${row.toolName}=${formatInt(row.count)}`).join(', ')
+}
+
+function formatSignedMaybeInt(value: number | null): string {
+  if (value == null) return 'unknown'
+  const rounded = Math.round(value)
+  if (rounded > 0) return `+${formatInt(rounded)}`
+  if (rounded < 0) return `-${formatInt(Math.abs(rounded))}`
+  return '0'
+}
+
+function formatFixedGroups(rows: Array<{ label: string; blockCount: number; tokens: number }>): string[] {
+  if (rows.length === 0) return ['- Fixed group breakdown: none']
+  return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)} (${formatInt(row.blockCount)} blocks)`)
+}
+
+function buildTopSnapshotContributors(args: {
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  toolUsesById: Map<string, ToolUseMeta>
+}): ContextContributor[] {
+  return sortContributors([
+    {
+      label: 'System prompt',
+      tokens: estimatePromptTokens({ system: args.system, messages: [] }),
+    },
+    ...buildHistoryContributors({
+      messages: args.messages,
+      toolUsesById: args.toolUsesById,
+    }),
+  ]).slice(0, TOP_CONTRIBUTOR_LIMIT)
+}
+
+function buildTopAssembledContributors(args: {
+  system: PromptBlock[]
+  projectedHistory: PromptMessage[]
+  projectedToolUsesById: Map<string, ToolUseMeta>
+  fixedGroups: Array<{ label: string; blocks: PromptBlock[] }>
+}): ContextContributor[] {
+  return sortContributors([
+    {
+      label: 'System prompt',
+      tokens: estimatePromptTokens({ system: args.system, messages: [] }),
+    },
+    ...buildHistoryContributors({
+      messages: args.projectedHistory,
+      toolUsesById: args.projectedToolUsesById,
+    }),
+    ...args.fixedGroups.map((group) => ({
+      label: `Fixed: ${group.label}`,
+      tokens: estimatePromptTokens({
+        system: [],
+        messages: [{ role: 'user', content: group.blocks }],
+      }),
+    })),
+  ]).slice(0, TOP_CONTRIBUTOR_LIMIT)
+}
+
+function buildHistoryContributors(args: {
+  messages: PromptMessage[]
+  toolUsesById: Map<string, ToolUseMeta>
+}): ContextContributor[] {
+  const contributors: ContextContributor[] = []
+  let userOrdinal = 0
+  let assistantOrdinal = 0
+
+  for (const message of args.messages) {
+    if (!message || !Array.isArray(message.content)) continue
+
+    if (message.role === 'user') userOrdinal += 1
+    if (message.role === 'assistant') assistantOrdinal += 1
+
+    const roleOrdinal = message.role === 'assistant' ? assistantOrdinal : message.role === 'user' ? userOrdinal : 0
+
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_result') continue
+      contributors.push({
+        label: buildToolResultContributorLabel(args.toolUsesById, block),
+        tokens: estimatePromptTokens({
+          system: [],
+          messages: [{ ...message, content: [block] as any }],
+        }),
+      })
+    }
+
+    const nonToolBlocks = (message.content as any[]).filter((block) => block?.type !== 'tool_result')
+    if (nonToolBlocks.length === 0) continue
+    contributors.push({
+      label: buildMessageContributorLabel({
+        role: message.role,
+        ordinal: roleOrdinal,
+        blocks: nonToolBlocks,
+      }),
+      tokens: estimatePromptTokens({
+        system: [],
+        messages: [{ ...message, content: nonToolBlocks as any }],
+      }),
+    })
+  }
+
+  return contributors.filter((row) => row.tokens > 0)
+}
+
+function buildToolResultContributorLabel(toolUsesById: Map<string, ToolUseMeta>, block: any): string {
+  if (typeof block?.tool_use_id !== 'string') return 'Tool result: Unknown'
+  const meta = toolUsesById.get(block.tool_use_id)
+  if (!meta) return 'Tool result: Unknown'
+  const summary = summarizeToolUse(meta)
+  return summary ? `Tool result: ${summary}` : `Tool result: ${meta.name}`
+}
+
+function buildMessageContributorLabel(args: {
+  role: PromptMessage['role']
+  ordinal: number
+  blocks: any[]
+}): string {
+  const roleLabel = args.role === 'assistant' ? 'Assistant' : args.role === 'user' ? 'User' : 'Message'
+  const preview = readBlockPreview(args.blocks)
+  if (preview) {
+    return `${roleLabel} message #${Math.max(1, args.ordinal)}: "${preview}"`
+  }
+  const kinds = [...new Set(args.blocks.map((block) => String(block?.type ?? 'unknown')))]
+  return `${roleLabel} message #${Math.max(1, args.ordinal)} (${kinds.join(', ')})`
+}
+
+function readBlockPreview(blocks: any[]): string | null {
+  for (const block of blocks) {
+    if (block?.type === 'text' && typeof block.text === 'string') {
+      return truncateLabel(block.text.trim())
+    }
+    if (block?.type === 'tool_use' && typeof block.name === 'string') {
+      return truncateLabel(`tool_use ${block.name}`)
+    }
+  }
+  return null
+}
+
+function summarizeToolUse(meta: ToolUseMeta): string {
+  const input = readObject(meta.input)
+  if (meta.name === 'Read') {
+    const filePath = readStringField(input, 'file_path') ?? readStringField(input, 'path')
+    return filePath ? `Read ${truncateLabel(filePath)}` : 'Read'
+  }
+  if (meta.name === 'Grep') {
+    const pattern = readStringField(input, 'pattern')
+    const path = readStringField(input, 'path')
+    if (pattern && path) return `Grep "${truncateLabel(pattern, 24)}" in ${truncateLabel(path, 36)}`
+    if (pattern) return `Grep "${truncateLabel(pattern, 24)}"`
+    return 'Grep'
+  }
+  if (meta.name === 'Glob') {
+    const pattern = readStringField(input, 'pattern')
+    const path = readStringField(input, 'path')
+    if (pattern && path) return `Glob "${truncateLabel(pattern, 24)}" in ${truncateLabel(path, 36)}`
+    if (pattern) return `Glob "${truncateLabel(pattern, 24)}"`
+    return 'Glob'
+  }
+  return truncateLabel(meta.name, 48)
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function readStringField(input: Record<string, unknown> | null, key: string): string | null {
+  const value = input?.[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function truncateLabel(value: string, maxLength = 56): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, Math.max(0, maxLength - 1))}…`
+}
+
+function sortContributors(rows: ContextContributor[]): ContextContributor[] {
+  return rows
+    .filter((row) => row.tokens > 0)
+    .sort((a, b) => b.tokens - a.tokens || a.label.localeCompare(b.label))
+}
+
+function formatContributors(rows: ContextContributor[]): string[] {
+  if (rows.length === 0) return ['- Top contributors: none']
+  return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)}`)
 }

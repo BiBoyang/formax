@@ -82,6 +82,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     cfg: args.deps.cfg,
     runtimeFlags: args.deps.runtimeFlags,
     allowedSubagents: args.deps.allowedSubagents,
+    tools: args.deps.tools,
     mode: args.deps.mode,
     ...replModeAccess,
     getPlanPath: () => args.deps.planSession?.getPlanPath() ?? null,
@@ -96,6 +97,9 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     onCompactRequested: args.callbacks.onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn: args.callbacks.onSlashLocalAsyncRecordForNextTurn,
     onSlashLocalRecordForNextTurn: args.callbacks.onSlashLocalRecordForNextTurn,
+    reminderServiceRef: args.turnRefs.reminderServiceRef,
+    pendingExitPlanReminderRef: args.turnRefs.pendingExitPlanReminderRef,
+    deferredToolExposureSessionKeyRef: args.turnRefs.deferredToolExposureSessionKeyRef,
   })
   if (preMainRouting.shouldReturn) return
   const slashEffect = preMainRouting.slashEffect

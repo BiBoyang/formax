@@ -86,6 +86,15 @@ export class ReminderService {
     return [...reminders, ...context]
   }
 
+  peekInjectedBlocks(args: { cwd: string; now?: number; includeAutoMemory?: boolean }): PromptBlock[] {
+    const snapshot = cloneReminderSessionState(this.store.get())
+    try {
+      return this.generateInjectedBlocks(args)
+    } finally {
+      this.store.set(snapshot)
+    }
+  }
+
   private buildTodoReminders(args: { cwd: string; now: number; state: ReminderSessionState }): PromptBlock[] {
     const { exists, todos } = readTodos(args.cwd)
     if (todos === null) return []
@@ -177,4 +186,14 @@ function findLatestReminder(
     if (!latest || at > latest.at) latest = { key, at }
   }
   return latest
+}
+
+function cloneReminderSessionState(state: ReminderSessionState): ReminderSessionState {
+  return {
+    lastTodoWriteAt: state.lastTodoWriteAt,
+    nonTodoToolUsesSinceLastTodoWrite: state.nonTodoToolUsesSinceLastTodoWrite,
+    remindersSentAt: { ...state.remindersSentAt },
+    remindersSentText: { ...state.remindersSentText },
+    reminderCount: state.reminderCount,
+  }
 }

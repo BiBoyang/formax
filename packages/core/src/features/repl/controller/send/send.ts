@@ -6,11 +6,16 @@ import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindo
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
 import { buildSystemPrompt } from '../../../../prompts'
+import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/outputStyle'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import { resolveSystemPromptVariant } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
+import { resolveDeferredToolExposureForTurn } from '../../../../tools/runtime/deferredToolExposureResolver'
+import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
+import { ReminderService } from '../../reminders/ReminderService'
+import { buildTurnInput } from '../../../semantics/adapters/turnInputBuilder'
 import { slashEffectToCommandResult, isSlashCommandResultData } from '../../../commands/adapter'
 import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../../../commands/registry'
 import { isConsumedCommandResult, type OverlaySpec } from '../../../commands/contracts'
@@ -239,8 +244,14 @@ export function maybeBuildContextSlashEffect(args: {
   cfg: RuntimeConfig
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
+  tools: ToolDefinition[]
   mode: ReplMode
+  getPlanPath: () => string | null
   historyRef: { current: ChatHistory }
+  pendingInjectedBlocksRef: { current: PromptBlock[] }
+  reminderServiceRef?: { current: ReminderService | null }
+  includeExitPlanReminder?: boolean
+  deferredToolExposureSessionKey?: string
 }): SlashCommandEffect | null {
   if (!isExactSlashCommand(args.text, '/context')) return null
 
@@ -249,15 +260,45 @@ export function maybeBuildContextSlashEffect(args: {
     return { kind: 'local', stdout: 'Usage: /context' }
   }
 
+  const cwd = process.cwd()
+  const deferredToolExposureEnabled = args.runtimeFlags?.deferredToolExposureEnabled === true
+  const reminderService = args.reminderServiceRef?.current ?? new ReminderService()
+  const toolExposure = resolveDeferredToolExposureForTurn({
+    cwd,
+    tools: args.tools,
+    deferredToolExposureEnabled,
+    explicitSessionKey: args.deferredToolExposureSessionKey,
+    toolSearchEngine: args.runtimeFlags?.toolSearchEngine,
+  })
+  const turnInput = buildTurnInput({
+    rawText: '',
+    mode: args.mode,
+    planPath: args.getPlanPath(),
+    includeExitPlanReminder: args.includeExitPlanReminder,
+  })
+  const reminderBlocks = reminderService.peekInjectedBlocks({
+    cwd,
+    includeAutoMemory: deferredToolExposureEnabled,
+  })
+  const outputStyleBlocks = buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle)
+  const pendingInjectedBlocks = [...args.pendingInjectedBlocksRef.current]
+
   return {
     kind: 'local',
     stdout: buildContextDiagnosticsReport({
-      cwd: process.cwd(),
+      cwd,
       cfg: args.cfg,
       runtimeFlags: args.runtimeFlags,
       allowedSubagents: args.allowedSubagents,
       mode: args.mode,
       messages: args.historyRef.current,
+      nextTurnFixedGroups: [
+        { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+        { label: 'Reminder blocks', blocks: reminderBlocks },
+        { label: 'Output-style blocks', blocks: outputStyleBlocks },
+        { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+        { label: 'Pending injected blocks', blocks: pendingInjectedBlocks },
+      ],
     }),
   }
 }

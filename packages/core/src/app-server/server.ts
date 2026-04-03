@@ -79,6 +79,7 @@ export type AppServerOptions = {
     threadId: string
     cwd: string
     mode: 'normal' | 'acceptEdits' | 'plan'
+    includeExitPlanReminder: boolean
   }) => Promise<{ stdout: string }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
@@ -398,6 +399,10 @@ export class AppServer {
               threadId: params.threadId,
               cwd: dispatchCwd,
               mode: params.mode ?? 'normal',
+              includeExitPlanReminder: this.resolveExitPlanReminder({
+                threadId: params.threadId,
+                requestedMode: params.mode,
+              }).include,
             })
             return [
               makeSuccessResponse(req.id, {

@@ -11,15 +11,25 @@
   - tool result slice 估算
   - budget / auto-compact 压力
   - microcompacted tool result 数量
+- 现在还会额外输出 “next-turn fixed context” 视图：
+  - projected history after microcompact/prune
+  - deferred tool exposure / reminders / mode semantics / pending injected blocks 等固定开销
+  - future user text 出现前的 assembled total / remaining budget
+- 现在还会额外输出两个 top contributors 排行：
+  - 当前 snapshot 里最重的 system / message / tool_result
+  - future user text 出现前 assembled fixed context 里最重的 system / projected history / fixed groups
 
 ## Why this shape
 
 - 先把 `/context` 做成本地即时命令，比让模型“解释上下文状态”更稳定，也更便于后续调 `microcompact` / auto-compact。
 - 把统计逻辑放在 `chat/context/contextDiagnostics.ts`，让 send 层只负责命令入口和 UI subline 输出。
 - 第一版故意只看“当前持久化 prompt history”，不把下一轮 injected blocks 混进来，避免诊断结果被临时提示污染。
+- 升级版改为同时给出一个“未来用户正文之前的固定上下文投影”，这样能更接近真实 assembled prompt，又不需要真的执行 full auto-compact 或猜测用户下一句。
+- 加 top contributors 是因为单看总量还不够，调压缩时我们还需要知道“到底是哪几段最胖”。
 
 ## Current limits
 
 - `tool_result` / `other history` 的拆分是近似估算，不保证与总量完全可加。
-- 还没有 `/context --json` 或更细粒度的 per-message / per-tool 排序视图。
+- 还没有 `/context --json`、message id / tool_use_id 级别的精确定位、或更细的 per-system-section 视图。
 - app-server / Web 当前仍只返回纯文本 diagnostics；还没有结构化 JSON 版本给客户端做 richer rendering。
+- next-turn 视图当前仍不包含“未来真实用户正文”的 token，也不会真的执行 full auto-compact；它是保守的固定开销投影，不是一次完整 dry-run。

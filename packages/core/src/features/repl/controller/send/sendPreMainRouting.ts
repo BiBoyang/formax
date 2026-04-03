@@ -2,7 +2,9 @@ import type { ChatEngine } from '../../../../chat/engine'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { StreamEvent } from '../../../../streaming/types'
+import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
+import type { ReminderService } from '../../reminders/ReminderService'
 import type { LocalCommandRecord, SlashCommandEffect, SlashCommandRegistry } from '../../../commands/registry'
 import type { OverlaySpec } from '../../../commands/contracts'
 import { resolveCommandRouting } from '../../../semantics/core/commandRouting'
@@ -21,6 +23,7 @@ export async function resolvePreMainSendRouting(args: {
   cfg: RuntimeConfig
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
+  tools: ToolDefinition[]
   mode: ReplMode
   getPlanPath: () => string | null
   commandRegistry?: SlashCommandRegistry
@@ -32,6 +35,9 @@ export async function resolvePreMainSendRouting(args: {
   onCompactRequested?: () => void
   onSlashLocalAsyncRecordForNextTurn?: (rec: LocalCommandRecord) => void
   onSlashLocalRecordForNextTurn?: (rec: LocalCommandRecord) => void
+  reminderServiceRef?: { current: ReminderService | null }
+  pendingExitPlanReminderRef?: { current: boolean }
+  deferredToolExposureSessionKeyRef?: { current: string }
 } & ReplModeAccess &
   SendTurnSharedRefs &
   SendStateSetters): Promise<{ slashEffect: SlashCommandEffect | null; shouldReturn: boolean }> {
@@ -94,8 +100,14 @@ export async function resolvePreMainSendRouting(args: {
       cfg: args.cfg,
       runtimeFlags: args.runtimeFlags,
       allowedSubagents: args.allowedSubagents,
+      tools: args.tools,
       mode: args.mode,
+      getPlanPath: args.getPlanPath,
       historyRef: args.historyRef,
+      pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+      reminderServiceRef: args.reminderServiceRef,
+      includeExitPlanReminder: args.pendingExitPlanReminderRef?.current === true,
+      deferredToolExposureSessionKey: args.deferredToolExposureSessionKeyRef?.current,
     })
   if (contextSlashEffect) {
     return await maybeHandleConsumedSlashCommand({

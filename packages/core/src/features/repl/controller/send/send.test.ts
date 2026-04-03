@@ -54,6 +54,7 @@ function createRoutingHarness(overrides?: Partial<Parameters<typeof resolvePreMa
     engine: { runTurn: vi.fn() } as any,
     cfg: createBaseCfg(),
     allowedSubagents: [],
+    tools: [],
     mode: 'normal',
     getReplMode: () => 'normal',
     setReplMode: () => {},
@@ -334,6 +335,9 @@ describe('resolvePreMainSendRouting', () => {
           },
         ],
       },
+      pendingInjectedBlocksRef: {
+        current: [{ type: 'text', text: '<local-command-stdout>recent local output</local-command-stdout>' }],
+      },
     })
 
     const result = await resolvePreMainSendRouting(args)
@@ -349,6 +353,38 @@ describe('resolvePreMainSendRouting', () => {
           msg.role === 'assistant' &&
           msg.ui?.kind === 'command_subline' &&
           String(msg.content).includes('Microcompacted tool results: 1'),
+      ),
+    ).toBe(true)
+    expect(
+      messages.some(
+        (msg) =>
+          msg.role === 'assistant' &&
+          msg.ui?.kind === 'command_subline' &&
+          String(msg.content).includes('Top snapshot contributors'),
+      ),
+    ).toBe(true)
+    expect(
+      messages.some(
+        (msg) =>
+          msg.role === 'assistant' &&
+          msg.ui?.kind === 'command_subline' &&
+          String(msg.content).includes('Next-turn fixed context (before future user text)'),
+      ),
+    ).toBe(true)
+    expect(
+      messages.some(
+        (msg) =>
+          msg.role === 'assistant' &&
+          msg.ui?.kind === 'command_subline' &&
+          String(msg.content).includes('Pending injected blocks:'),
+      ),
+    ).toBe(true)
+    expect(
+      messages.some(
+        (msg) =>
+          msg.role === 'assistant' &&
+          msg.ui?.kind === 'command_subline' &&
+          String(msg.content).includes('Top assembled contributors before future user text'),
       ),
     ).toBe(true)
   })

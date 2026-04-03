@@ -1,7 +1,9 @@
 import pkg from '../../package.json'
 import { buildContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
 import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
+import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
+import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import { AppServer } from './server.js'
 import {
   classifyRpcMessage,
@@ -235,7 +237,7 @@ export async function runAppServer(args?: {
       })
       return lazyTurnRunner
     },
-    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode }) => {
+    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode, includeExitPlanReminder }) => {
       const runtime = await createRuntime({ cwd: dispatchCwd, env })
       const sessionFilePath = await findSessionFileBySessionId({
         cwd: dispatchCwd,
@@ -245,6 +247,20 @@ export async function runAppServer(args?: {
         sessionId: threadId,
       })
       const replay = sessionFilePath ? await readSessionFile(sessionFilePath) : null
+      const deferredToolExposureEnabled = runtime.runtimeFlags.deferredToolExposureEnabled === true
+      const toolExposure = resolveDeferredToolExposureForTurn({
+        cwd: dispatchCwd,
+        tools: runtime.tools,
+        deferredToolExposureEnabled,
+        explicitSessionKey: `app-server:${threadId}`,
+        toolSearchEngine: runtime.runtimeFlags.toolSearchEngine,
+      })
+      const turnInput = buildTurnInput({
+        rawText: '',
+        mode,
+        planPath: null,
+        includeExitPlanReminder,
+      })
 
       return {
         stdout: buildContextDiagnosticsReport({
@@ -254,6 +270,10 @@ export async function runAppServer(args?: {
           allowedSubagents: runtime.allowedSubagents,
           mode,
           messages: replay?.history ?? [],
+          nextTurnFixedGroups: [
+            { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+            { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+          ],
         }),
       }
     },

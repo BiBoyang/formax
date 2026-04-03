@@ -2469,6 +2469,7 @@ describe('AppServer', () => {
       threadId: 't-1',
       cwd: '/repo/from-param',
       mode: 'plan',
+      includeExitPlanReminder: false,
     })
   })
 

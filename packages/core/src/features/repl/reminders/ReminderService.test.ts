@@ -221,6 +221,47 @@ describe('ReminderService', () => {
     }
   })
 
+  it('peekInjectedBlocks is side-effect free for reminder cooldown state', async () => {
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
+    const prevTodosPath = process.env.FORMAX_TODOS_PATH
+    const prevConfigDir = process.env.FORMAX_CONFIG_DIR
+    const prevTodosSessionId = process.env.FORMAX_TODOS_SESSION_ID
+
+    try {
+      if (prevTodosPath !== undefined) delete process.env.FORMAX_TODOS_PATH
+      vi.stubEnv('FORMAX_CONFIG_DIR', dir)
+      vi.stubEnv('FORMAX_TODOS_SESSION_ID', 'test-session')
+
+      const todosPath = resolveTodosPath(dir)
+      await fsp.mkdir(path.dirname(todosPath), { recursive: true })
+      await fsp.writeFile(
+        todosPath,
+        JSON.stringify({ todos: [{ content: 'x', status: 'pending', activeForm: 'x' }] }, null, 2),
+        'utf8',
+      )
+
+      const service = new ReminderService({
+        config: { todoEmptyTtlMs: Number.POSITIVE_INFINITY, todoUnusedCooldownMs: 60_000, todoUnusedWithListCooldownMs: 60_000 },
+      })
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 1 })
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 2 })
+      service.recordToolResult({ toolName: 'Task', ok: true, now: 3 })
+
+      const peeked = service.peekInjectedBlocks({ cwd: dir, now: 4 })
+      expect(peeked).toHaveLength(1)
+      expect((peeked[0] as any).text).toContain("The TodoWrite tool hasn't been used recently")
+
+      const generated = service.generateInjectedBlocks({ cwd: dir, now: 4 })
+      expect(generated).toHaveLength(1)
+      expect((generated[0] as any).text).toContain("The TodoWrite tool hasn't been used recently")
+    } finally {
+      restoreEnv('FORMAX_TODOS_PATH', prevTodosPath)
+      restoreEnv('FORMAX_CONFIG_DIR', prevConfigDir)
+      restoreEnv('FORMAX_TODOS_SESSION_ID', prevTodosSessionId)
+      await fsp.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('injects empty todo reminder even when maxRemindersPerSession is 0', async () => {
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-reminders-'))
     const prevTodosPath = process.env.FORMAX_TODOS_PATH

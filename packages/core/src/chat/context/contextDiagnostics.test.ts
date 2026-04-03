@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeContextDiagnostics, formatContextDiagnosticsReport } from './contextDiagnostics'
+import { analyzeContextDiagnostics, analyzeNextTurnFixedContext, formatContextDiagnosticsReport } from './contextDiagnostics'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 
 describe('contextDiagnostics', () => {
@@ -49,6 +49,9 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactedToolResultCount).toBe(1)
     expect(out.toolResultCountsByToolName).toEqual([{ toolName: 'Read', count: 1 }])
     expect(out.microCompactedCountsByToolName).toEqual([{ toolName: 'Read', count: 1 }])
+    expect(out.topSnapshotContributors.length).toBeGreaterThan(0)
+    expect(out.topSnapshotContributors.some((row) => row.label === 'System prompt')).toBe(true)
+    expect(out.topSnapshotContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
     expect(out.totalTokens).toBeGreaterThan(0)
     expect(out.systemTokens).toBeGreaterThan(0)
     expect(out.historyTokens).toBeGreaterThan(0)
@@ -78,6 +81,47 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Context window: unknown')
     expect(out).toContain('- Tool result blocks: 0')
     expect(out).toContain('- Tool-result tool mix: none')
+    expect(out).toContain('Top snapshot contributors')
+    expect(out).toContain('Next-turn fixed context (before future user text)')
+    expect(out).toContain('- Fixed group breakdown: none')
+    expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
+  })
+
+  it('analyzes next-turn fixed context projection with group breakdown', () => {
+    const out = analyzeNextTurnFixedContext({
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'previous assistant message' }],
+        },
+      ],
+      fixedGroups: [
+        {
+          label: 'Mode semantic blocks',
+          blocks: [{ type: 'text', text: '<system-reminder>Plan mode is active.</system-reminder>' }],
+        },
+        {
+          label: 'Pending injected blocks',
+          blocks: [{ type: 'text', text: '<local-command-stdout>saved settings</local-command-stdout>' }],
+        },
+      ],
+      budgetConfig: {
+        contextWindowTokens: 100_000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 12_000,
+      },
+    })
+
+    expect(out.fixedGroups.map((row) => row.label)).toEqual(['Mode semantic blocks', 'Pending injected blocks'])
+    expect(out.fixedTokens).toBeGreaterThan(0)
+    expect(out.projectedHistoryTokens).toBeGreaterThan(0)
+    expect(out.totalTokens).toBeGreaterThan(out.fixedTokens)
+    expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
+    expect(out.topAssembledContributors.length).toBeGreaterThan(0)
+    expect(out.topAssembledContributors.some((row) => row.label === 'System prompt')).toBe(true)
+    expect(out.topAssembledContributors.some((row) => row.label === 'Fixed: Pending injected blocks')).toBe(true)
   })
 })
