@@ -99,7 +99,9 @@
 - `/context` 语义约束：
   - 输出 MUST 基于当前持久化 prompt history snapshot 生成
   - 输出 MUST 以 `local.stdout` 返回，不得启动新的 turn
-  - 额外参数当前 MUST 返回 `Usage: /context`
+  - 无参数 MUST 返回 text diagnostics
+  - 当参数精确为 `--json` 时 MUST 返回同一 diagnostics 数据的 JSON 文本
+  - 其余参数 MUST 返回 `Usage: /context [--json]`
 - 失败条件：
   - 不支持的命令 -> `INVALID_PARAMS`（`Unsupported params.command...`）
 

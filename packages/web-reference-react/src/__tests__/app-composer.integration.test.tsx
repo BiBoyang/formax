@@ -340,6 +340,15 @@ describe('App thread history integration', () => {
             },
           }
         }
+        if (command === '/context --json') {
+          return {
+            command,
+            dispatched: true,
+            local: {
+              stdout: '{\n  "kind": "formax.context_diagnostics",\n  "schemaVersion": 1\n}',
+            },
+          }
+        }
         const threadId = (params as { threadId?: string } | undefined)?.threadId ?? 'thread-alpha'
         return {
           command,
@@ -1098,7 +1107,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('uses command/dispatch for /init, /todos, and /context', async () => {
+  it('uses command/dispatch for /init, /todos, /context, and /context --json', async () => {
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
@@ -1158,6 +1167,26 @@ describe('App thread history integration', () => {
       false,
     )
     expect(await screen.findByText('Context diagnostics')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/context --json' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'command/dispatch' &&
+            (entry.params as any)?.threadId === 'thread-alpha' &&
+            (entry.params as any)?.command === '/context --json',
+        ),
+      ).toBe(true)
+    })
+    expect(
+      rpcMock.requests.some(
+        (entry) => entry.method === 'turn/start' && (entry.params as any)?.input?.text === '/context --json',
+      ),
+    ).toBe(false)
+    expect(await screen.findByText(/"kind": "formax.context_diagnostics"/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: '/permissions' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))

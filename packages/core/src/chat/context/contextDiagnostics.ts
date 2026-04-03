@@ -58,7 +58,30 @@ export type ContextContributor = {
   tokens: number
 }
 
+export type ContextDiagnosticsPayload = {
+  kind: 'formax.context_diagnostics'
+  schemaVersion: 1
+  mode: string
+  model: string
+  snapshot: ContextDiagnostics
+  nextTurnFixed: NextTurnFixedContextDiagnostics
+  notes: string[]
+}
+
+export type ContextDiagnosticsOutputFormat = 'text' | 'json'
+
+const DEFAULT_CONTEXT_DIAGNOSTICS_NOTES = [
+  'Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
+  'Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
+] as const
+
 const TOP_CONTRIBUTOR_LIMIT = 5
+
+export function resolveContextDiagnosticsOutputFormat(argsText: string): ContextDiagnosticsOutputFormat | null {
+  const normalized = String(argsText || '').trim()
+  if (!normalized) return 'text'
+  return normalized === '--json' ? 'json' : null
+}
 
 export function analyzeContextDiagnostics(args: {
   system: PromptBlock[]
@@ -192,6 +215,37 @@ export function buildContextDiagnosticsReport(args: {
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
 }): string {
+  const payload = buildContextDiagnosticsPayload(args)
+  return formatContextDiagnosticsReport({
+    diagnostics: payload.snapshot,
+    nextTurn: payload.nextTurnFixed,
+    mode: payload.mode,
+    model: payload.model,
+    notes: payload.notes,
+  })
+}
+
+export function buildContextDiagnosticsJson(args: {
+  cwd: string
+  cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: string
+  messages: PromptMessage[]
+  nextTurnFixedGroups?: NextTurnFixedContextGroup[]
+}): string {
+  return JSON.stringify(buildContextDiagnosticsPayload(args), null, 2)
+}
+
+export function buildContextDiagnosticsPayload(args: {
+  cwd: string
+  cfg: RuntimeConfig
+  runtimeFlags?: RuntimeFlags
+  allowedSubagents: Array<{ name: string; description: string }>
+  mode: string
+  messages: PromptMessage[]
+  nextTurnFixedGroups?: NextTurnFixedContextGroup[]
+}): ContextDiagnosticsPayload {
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
     cwd: args.cwd,
@@ -235,12 +289,15 @@ export function buildContextDiagnosticsReport(args: {
       : null,
   })
 
-  return formatContextDiagnosticsReport({
-    diagnostics,
-    nextTurn,
+  return {
+    kind: 'formax.context_diagnostics',
+    schemaVersion: 1,
     mode: args.mode,
     model: args.cfg.llm.model,
-  })
+    snapshot: diagnostics,
+    nextTurnFixed: nextTurn,
+    notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],
+  }
 }
 
 export function formatContextDiagnosticsReport(args: {
@@ -248,6 +305,7 @@ export function formatContextDiagnosticsReport(args: {
   nextTurn?: NextTurnFixedContextDiagnostics | null
   mode: string
   model: string
+  notes?: string[]
 }): string {
   const { diagnostics } = args
   const lines = [
@@ -301,8 +359,7 @@ export function formatContextDiagnosticsReport(args: {
     ...formatContributors(args.nextTurn?.topAssembledContributors ?? []),
     '',
     'Notes',
-    '- Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
-    '- Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
+    ...formatNotes(args.notes ?? DEFAULT_CONTEXT_DIAGNOSTICS_NOTES),
   ]
 
   return lines.join('\n')
@@ -611,4 +668,8 @@ function sortContributors(rows: ContextContributor[]): ContextContributor[] {
 function formatContributors(rows: ContextContributor[]): string[] {
   if (rows.length === 0) return ['- Top contributors: none']
   return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)}`)
+}
+
+function formatNotes(notes: readonly string[]): string[] {
+  return notes.map((note) => `- ${note}`)
 }

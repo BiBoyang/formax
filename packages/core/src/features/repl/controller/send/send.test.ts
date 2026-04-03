@@ -397,12 +397,12 @@ describe('resolvePreMainSendRouting', () => {
     const result = await resolvePreMainSendRouting(args)
 
     expect(result.shouldReturn).toBe(true)
-    expect(result.slashEffect).toEqual({ kind: 'local', stdout: 'Usage: /context' })
+    expect(result.slashEffect).toEqual({ kind: 'local', stdout: 'Usage: /context [--json]' })
     expect(getMessages()[0]).toMatchObject({ role: 'user', content: '/context now' })
     expect(getMessages()[1]).toMatchObject({
       role: 'assistant',
       ui: { kind: 'command_subline' },
-      content: 'Usage: /context',
+      content: 'Usage: /context [--json]',
     })
   })
 
@@ -417,6 +417,39 @@ describe('resolvePreMainSendRouting', () => {
     expect(result.slashEffect?.kind).toBe('local')
     expect(getMessages()[0]).toMatchObject({ role: 'user', content: '   /context' })
     expect(getMessages().some((msg) => msg.role === 'assistant' && msg.content === 'Context diagnostics')).toBe(true)
+  })
+
+  it('supports /context --json as a local diagnostics command', async () => {
+    const { args, getMessages } = createRoutingHarness({
+      text: '/context --json',
+      historyRef: {
+        current: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'grep-1', name: 'Grep', input: { pattern: 'login', path: '/repo/src' } }],
+          },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'grep-1', content: 'login line 1\nlogin line 2' }] as any,
+          },
+        ],
+      },
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+
+    expect(result.shouldReturn).toBe(true)
+    expect(result.slashEffect?.kind).toBe('local')
+    const stdout = (result.slashEffect as any).stdout as string
+    const parsed = JSON.parse(stdout)
+    expect(parsed.kind).toBe('formax.context_diagnostics')
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.snapshot.toolResultBlockCount).toBe(1)
+    expect(parsed.nextTurnFixed).toBeTruthy()
+
+    const messages = getMessages()
+    expect(messages[0]).toMatchObject({ role: 'user', content: '/context --json' })
+    expect(messages.some((msg) => String(msg.content).includes('"kind": "formax.context_diagnostics"'))).toBe(true)
   })
 
   it('falls through to main turn when input is not a slash command', async () => {

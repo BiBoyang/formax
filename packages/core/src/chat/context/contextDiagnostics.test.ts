@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeContextDiagnostics, analyzeNextTurnFixedContext, formatContextDiagnosticsReport } from './contextDiagnostics'
+import {
+  analyzeContextDiagnostics,
+  analyzeNextTurnFixedContext,
+  buildContextDiagnosticsJson,
+  formatContextDiagnosticsReport,
+  resolveContextDiagnosticsOutputFormat,
+} from './contextDiagnostics'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 
 describe('contextDiagnostics', () => {
@@ -123,5 +129,62 @@ describe('contextDiagnostics', () => {
     expect(out.topAssembledContributors.length).toBeGreaterThan(0)
     expect(out.topAssembledContributors.some((row) => row.label === 'System prompt')).toBe(true)
     expect(out.topAssembledContributors.some((row) => row.label === 'Fixed: Pending injected blocks')).toBe(true)
+  })
+
+  it('builds JSON diagnostics output from the same structured payload', () => {
+    const raw = buildContextDiagnosticsJson({
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: '',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 100_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 12_000,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: {
+          logsDir: '',
+          subagentsDir: '',
+          planDir: '',
+        },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      messages: [],
+      nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
+    })
+
+    const parsed = JSON.parse(raw)
+    expect(parsed.kind).toBe('formax.context_diagnostics')
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.mode).toBe('normal')
+    expect(parsed.snapshot).toBeTruthy()
+    expect(parsed.nextTurnFixed).toBeTruthy()
+    expect(parsed.notes).toBeInstanceOf(Array)
+  })
+
+  it('parses supported /context output formats', () => {
+    expect(resolveContextDiagnosticsOutputFormat('')).toBe('text')
+    expect(resolveContextDiagnosticsOutputFormat('   ')).toBe('text')
+    expect(resolveContextDiagnosticsOutputFormat('--json')).toBe('json')
+    expect(resolveContextDiagnosticsOutputFormat(' --json ')).toBe('json')
+    expect(resolveContextDiagnosticsOutputFormat('--yaml')).toBe(null)
   })
 })

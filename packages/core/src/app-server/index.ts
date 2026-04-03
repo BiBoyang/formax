@@ -1,5 +1,5 @@
 import pkg from '../../package.json'
-import { buildContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
+import { buildContextDiagnosticsJson, buildContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
 import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
@@ -237,7 +237,7 @@ export async function runAppServer(args?: {
       })
       return lazyTurnRunner
     },
-    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode, includeExitPlanReminder }) => {
+    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode, includeExitPlanReminder, format }) => {
       const runtime = await createRuntime({ cwd: dispatchCwd, env })
       const sessionFilePath = await findSessionFileBySessionId({
         cwd: dispatchCwd,
@@ -263,18 +263,32 @@ export async function runAppServer(args?: {
       })
 
       return {
-        stdout: buildContextDiagnosticsReport({
-          cwd: dispatchCwd,
-          cfg: runtime.cfg,
-          runtimeFlags: runtime.runtimeFlags,
-          allowedSubagents: runtime.allowedSubagents,
-          mode,
-          messages: replay?.history ?? [],
-          nextTurnFixedGroups: [
-            { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
-            { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
-          ],
-        }),
+        stdout:
+          format === 'json'
+            ? buildContextDiagnosticsJson({
+                cwd: dispatchCwd,
+                cfg: runtime.cfg,
+                runtimeFlags: runtime.runtimeFlags,
+                allowedSubagents: runtime.allowedSubagents,
+                mode,
+                messages: replay?.history ?? [],
+                nextTurnFixedGroups: [
+                  { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+                  { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+                ],
+              })
+            : buildContextDiagnosticsReport({
+                cwd: dispatchCwd,
+                cfg: runtime.cfg,
+                runtimeFlags: runtime.runtimeFlags,
+                allowedSubagents: runtime.allowedSubagents,
+                mode,
+                messages: replay?.history ?? [],
+                nextTurnFixedGroups: [
+                  { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+                  { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+                ],
+              }),
       }
     },
     limits: {

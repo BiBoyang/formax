@@ -2470,6 +2470,36 @@ describe('AppServer', () => {
       cwd: '/repo/from-param',
       mode: 'plan',
       includeExitPlanReminder: false,
+      format: 'text',
+    })
+  })
+
+  it('routes /context --json via command/dispatch as local diagnostics output', async () => {
+    const resolveContextDiagnostics = vi.fn(async () => ({
+      stdout: '{\n  "kind": "formax.context_diagnostics"\n}',
+    }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return { thread: { id: 't-1', cwd: '/repo/from-thread', createdAt: '', updatedAt: '' }, transcriptPreview: [] } as any
+        },
+      } as any,
+      resolveContextDiagnostics,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    const out = await server.handleMessage(
+      request(2, 'command/dispatch', { threadId: 't-1', command: '/context --json', cwd: '/repo/from-param', mode: 'plan' }),
+    )
+
+    expect((out[0] as any).result.dispatched).toBe(true)
+    expect((out[0] as any).result.local.stdout).toContain('"kind": "formax.context_diagnostics"')
+    expect(resolveContextDiagnostics).toHaveBeenCalledWith({
+      threadId: 't-1',
+      cwd: '/repo/from-param',
+      mode: 'plan',
+      includeExitPlanReminder: false,
+      format: 'json',
     })
   })
 
@@ -2486,7 +2516,7 @@ describe('AppServer', () => {
     })
     await server.handleMessage(request(1, 'initialize'))
     const out = await server.handleMessage(request(2, 'command/dispatch', { threadId: 't-1', command: '/context now' }))
-    expect((out[0] as any).result.local.stdout).toBe('Usage: /context')
+    expect((out[0] as any).result.local.stdout).toBe('Usage: /context [--json]')
     expect(resolveContextDiagnostics).not.toHaveBeenCalled()
   })
 

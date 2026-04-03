@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { resolveContextDiagnosticsOutputFormat } from '../chat/context/contextDiagnostics.js'
 import {
   JSON_RPC_ERRORS,
   type JsonRpcErrorResponse,
@@ -80,6 +81,7 @@ export type AppServerOptions = {
     cwd: string
     mode: 'normal' | 'acceptEdits' | 'plan'
     includeExitPlanReminder: boolean
+    format: 'text' | 'json'
   }) => Promise<{ stdout: string }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
@@ -381,13 +383,14 @@ export class AppServer {
           const dispatchCwd = params.cwd ? path.resolve(params.cwd) : thread.thread.cwd
 
           if (commandRouting.commandName === '/context') {
-            if (commandRouting.commandArgs) {
+            const outputFormat = resolveContextDiagnosticsOutputFormat(commandRouting.commandArgs ?? '')
+            if (!outputFormat) {
               return [
                 makeSuccessResponse(req.id, {
                   command: params.command,
                   dispatched: true,
                   local: {
-                    stdout: 'Usage: /context',
+                    stdout: 'Usage: /context [--json]',
                   },
                 }),
               ]
@@ -403,6 +406,7 @@ export class AppServer {
                 threadId: params.threadId,
                 requestedMode: params.mode,
               }).include,
+              format: outputFormat,
             })
             return [
               makeSuccessResponse(req.id, {

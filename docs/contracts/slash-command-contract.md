@@ -98,6 +98,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 1. 当前 persisted prompt history snapshot 视图
 2. “next-turn fixed context” 视图（未来用户正文出现前的固定上下文开销投影）
 3. snapshot 与 next-turn fixed 视图各自的 top contributors 排行，帮助识别最重的 system / history / fixed blocks
+4. 当参数精确为 `--json` 时，MUST 返回同一 diagnostics 数据的 JSON 文本表示
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：
@@ -105,6 +106,12 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 2. `/compact`
 3. `/context`
 4. `/todos`
+
+`CMD-203B`
+精确 `/context` 当前仅接受两种参数形态：
+1. 无参数：返回人类可读的 text diagnostics
+2. `--json`：返回 JSON diagnostics
+其余参数 MUST 返回 `Usage: /context [--json]`
 
 `CMD-205`  
 未知 slash command 或未被消费的 slash command MUST fall through 到主发送流程；不得被强制转成本地错误。

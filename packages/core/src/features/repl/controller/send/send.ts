@@ -1,7 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
-import { buildContextDiagnosticsReport } from '../../../../chat/context/contextDiagnostics'
+import {
+  buildContextDiagnosticsJson,
+  buildContextDiagnosticsReport,
+  resolveContextDiagnosticsOutputFormat,
+} from '../../../../chat/context/contextDiagnostics'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { PromptBlock } from '../../../../prompts'
@@ -255,9 +259,9 @@ export function maybeBuildContextSlashEffect(args: {
 }): SlashCommandEffect | null {
   if (!isExactSlashCommand(args.text, '/context')) return null
 
-  const extraArgs = args.text.trimStart().replace(/^\/context\b/i, '').trim()
-  if (extraArgs) {
-    return { kind: 'local', stdout: 'Usage: /context' }
+  const outputFormat = resolveContextDiagnosticsOutputFormat(args.text.trimStart().replace(/^\/context\b/i, '').trim())
+  if (!outputFormat) {
+    return { kind: 'local', stdout: 'Usage: /context [--json]' }
   }
 
   const cwd = process.cwd()
@@ -285,21 +289,38 @@ export function maybeBuildContextSlashEffect(args: {
 
   return {
     kind: 'local',
-    stdout: buildContextDiagnosticsReport({
-      cwd,
-      cfg: args.cfg,
-      runtimeFlags: args.runtimeFlags,
-      allowedSubagents: args.allowedSubagents,
-      mode: args.mode,
-      messages: args.historyRef.current,
-      nextTurnFixedGroups: [
-        { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
-        { label: 'Reminder blocks', blocks: reminderBlocks },
-        { label: 'Output-style blocks', blocks: outputStyleBlocks },
-        { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
-        { label: 'Pending injected blocks', blocks: pendingInjectedBlocks },
-      ],
-    }),
+    stdout:
+      outputFormat === 'json'
+        ? buildContextDiagnosticsJson({
+            cwd,
+            cfg: args.cfg,
+            runtimeFlags: args.runtimeFlags,
+            allowedSubagents: args.allowedSubagents,
+            mode: args.mode,
+            messages: args.historyRef.current,
+            nextTurnFixedGroups: [
+              { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+              { label: 'Reminder blocks', blocks: reminderBlocks },
+              { label: 'Output-style blocks', blocks: outputStyleBlocks },
+              { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+              { label: 'Pending injected blocks', blocks: pendingInjectedBlocks },
+            ],
+          })
+        : buildContextDiagnosticsReport({
+            cwd,
+            cfg: args.cfg,
+            runtimeFlags: args.runtimeFlags,
+            allowedSubagents: args.allowedSubagents,
+            mode: args.mode,
+            messages: args.historyRef.current,
+            nextTurnFixedGroups: [
+              { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+              { label: 'Reminder blocks', blocks: reminderBlocks },
+              { label: 'Output-style blocks', blocks: outputStyleBlocks },
+              { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+              { label: 'Pending injected blocks', blocks: pendingInjectedBlocks },
+            ],
+          }),
   }
 }
 
