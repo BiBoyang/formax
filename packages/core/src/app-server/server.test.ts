@@ -2447,6 +2447,15 @@ describe('AppServer', () => {
   it('routes /context via command/dispatch as local diagnostics output', async () => {
     const resolveContextDiagnostics = vi.fn(async () => ({
       stdout: 'Context diagnostics\n- Mode: plan\n- Tool result blocks: 2',
+      diagnostics: {
+        kind: 'formax.context_diagnostics' as const,
+        schemaVersion: 1 as const,
+        mode: 'plan',
+        model: 'claude-3-5-sonnet-latest',
+        snapshot: {} as any,
+        nextTurnFixed: {} as any,
+        notes: [],
+      },
     }))
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -2465,6 +2474,7 @@ describe('AppServer', () => {
     expect((out[0] as any).result.dispatched).toBe(true)
     expect((out[0] as any).result.command).toBe('/context')
     expect((out[0] as any).result.local.stdout).toContain('Context diagnostics')
+    expect((out[0] as any).result.local.diagnostics?.kind).toBe('formax.context_diagnostics')
     expect(resolveContextDiagnostics).toHaveBeenCalledWith({
       threadId: 't-1',
       cwd: '/repo/from-param',
@@ -2477,6 +2487,15 @@ describe('AppServer', () => {
   it('routes /context --json via command/dispatch as local diagnostics output', async () => {
     const resolveContextDiagnostics = vi.fn(async () => ({
       stdout: '{\n  "kind": "formax.context_diagnostics"\n}',
+      diagnostics: {
+        kind: 'formax.context_diagnostics' as const,
+        schemaVersion: 1 as const,
+        mode: 'plan',
+        model: 'claude-3-5-sonnet-latest',
+        snapshot: {} as any,
+        nextTurnFixed: {} as any,
+        notes: [],
+      },
     }))
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -2494,6 +2513,7 @@ describe('AppServer', () => {
 
     expect((out[0] as any).result.dispatched).toBe(true)
     expect((out[0] as any).result.local.stdout).toContain('"kind": "formax.context_diagnostics"')
+    expect((out[0] as any).result.local.diagnostics?.schemaVersion).toBe(1)
     expect(resolveContextDiagnostics).toHaveBeenCalledWith({
       threadId: 't-1',
       cwd: '/repo/from-param',
@@ -2504,7 +2524,7 @@ describe('AppServer', () => {
   })
 
   it('returns usage for /context with extra arguments without invoking diagnostics resolver', async () => {
-    const resolveContextDiagnostics = vi.fn(async () => ({ stdout: 'should not run' }))
+    const resolveContextDiagnostics = vi.fn(async () => ({ stdout: 'should not run', diagnostics: {} as any }))
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
       threadStore: {

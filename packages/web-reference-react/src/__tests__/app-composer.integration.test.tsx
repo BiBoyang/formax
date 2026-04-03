@@ -337,6 +337,11 @@ describe('App thread history integration', () => {
             dispatched: true,
             local: {
               stdout: 'Context diagnostics\n- Mode: normal\n- Tool result blocks: 1',
+              diagnostics: {
+                kind: 'formax.context_diagnostics',
+                schemaVersion: 1,
+                mode: 'normal',
+              },
             },
           }
         }
@@ -346,6 +351,11 @@ describe('App thread history integration', () => {
             dispatched: true,
             local: {
               stdout: '{\n  "kind": "formax.context_diagnostics",\n  "schemaVersion": 1\n}',
+              diagnostics: {
+                kind: 'formax.context_diagnostics',
+                schemaVersion: 1,
+                mode: 'normal',
+              },
             },
           }
         }

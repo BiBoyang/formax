@@ -15,6 +15,17 @@ export type RpcStartedThread = {
 export type RpcTurnStartLikeResult = {
   turnId: string | null
   localStdout: string
+  localDiagnostics: RpcContextDiagnosticsPayload | null
+}
+
+export type RpcContextDiagnosticsPayload = {
+  kind: 'formax.context_diagnostics'
+  schemaVersion: number
+  mode?: string
+  model?: string
+  snapshot?: Record<string, unknown>
+  nextTurnFixed?: Record<string, unknown>
+  notes?: string[]
 }
 
 export type RpcInputSubmitResult = {
@@ -65,9 +76,11 @@ export function parseTurnStartLikeResponse(value: unknown): RpcTurnStartLikeResu
   const local = asRecord(root.local)
   const turnId = typeof turn.id === 'string' && turn.id.trim() ? turn.id : null
   const localStdout = typeof local.stdout === 'string' ? local.stdout : ''
+  const localDiagnostics = parseContextDiagnosticsPayload(local.diagnostics)
   return {
     turnId,
     localStdout,
+    localDiagnostics,
   }
 }
 
@@ -101,4 +114,31 @@ export function parseThreadMessagesResponse(value: unknown): RpcThreadMessagesRe
 
 export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {
   return asResolvedInputs(value)
+}
+
+function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPayload | null {
+  const record = asRecord(value)
+  if (record.kind !== 'formax.context_diagnostics') return null
+  const schemaVersion =
+    typeof record.schemaVersion === 'number' && Number.isFinite(record.schemaVersion) ? record.schemaVersion : 0
+  if (!schemaVersion) return null
+  const mode = typeof record.mode === 'string' ? record.mode : undefined
+  const model = typeof record.model === 'string' ? record.model : undefined
+  const snapshot = asOptionalRecord(record.snapshot)
+  const nextTurnFixed = asOptionalRecord(record.nextTurnFixed)
+  const notes = Array.isArray(record.notes) ? record.notes.filter((row): row is string => typeof row === 'string') : undefined
+  return {
+    kind: 'formax.context_diagnostics',
+    schemaVersion,
+    ...(mode ? { mode } : {}),
+    ...(model ? { model } : {}),
+    ...(snapshot ? { snapshot } : {}),
+    ...(nextTurnFixed ? { nextTurnFixed } : {}),
+    ...(notes ? { notes } : {}),
+  }
+}
+
+function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value as Record<string, unknown>
 }

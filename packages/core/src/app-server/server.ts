@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import type { ContextDiagnosticsPayload } from '../chat/context/contextDiagnostics.js'
 import { resolveContextDiagnosticsOutputFormat } from '../chat/context/contextDiagnostics.js'
 import {
   JSON_RPC_ERRORS,
@@ -82,7 +83,7 @@ export type AppServerOptions = {
     mode: 'normal' | 'acceptEdits' | 'plan'
     includeExitPlanReminder: boolean
     format: 'text' | 'json'
-  }) => Promise<{ stdout: string }>
+  }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
   limits?: {
@@ -409,15 +410,16 @@ export class AppServer {
               format: outputFormat,
             })
             return [
-              makeSuccessResponse(req.id, {
-                command: params.command,
-                dispatched: true,
-                local: {
-                  stdout: stripAnsiSgr(effect.stdout),
-                },
-              }),
-            ]
-          }
+                makeSuccessResponse(req.id, {
+                  command: params.command,
+                  dispatched: true,
+                  local: {
+                    stdout: stripAnsiSgr(effect.stdout),
+                    diagnostics: effect.diagnostics,
+                  },
+                }),
+              ]
+            }
 
           const slashRegistry = createSlashCommandRegistry({ cwd: dispatchCwd })
           const normalizedDispatchCommand = commandRouting.commandArgs

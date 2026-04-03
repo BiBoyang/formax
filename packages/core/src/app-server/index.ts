@@ -1,5 +1,5 @@
 import pkg from '../../package.json'
-import { buildContextDiagnosticsJson, buildContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
+import { buildContextDiagnosticsPayload, formatContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
 import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
@@ -262,33 +262,31 @@ export async function runAppServer(args?: {
         includeExitPlanReminder,
       })
 
+      const diagnostics = buildContextDiagnosticsPayload({
+        cwd: dispatchCwd,
+        cfg: runtime.cfg,
+        runtimeFlags: runtime.runtimeFlags,
+        allowedSubagents: runtime.allowedSubagents,
+        mode,
+        messages: replay?.history ?? [],
+        nextTurnFixedGroups: [
+          { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
+          { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+        ],
+      })
+
       return {
         stdout:
           format === 'json'
-            ? buildContextDiagnosticsJson({
-                cwd: dispatchCwd,
-                cfg: runtime.cfg,
-                runtimeFlags: runtime.runtimeFlags,
-                allowedSubagents: runtime.allowedSubagents,
-                mode,
-                messages: replay?.history ?? [],
-                nextTurnFixedGroups: [
-                  { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
-                  { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
-                ],
-              })
-            : buildContextDiagnosticsReport({
-                cwd: dispatchCwd,
-                cfg: runtime.cfg,
-                runtimeFlags: runtime.runtimeFlags,
-                allowedSubagents: runtime.allowedSubagents,
-                mode,
-                messages: replay?.history ?? [],
-                nextTurnFixedGroups: [
-                  { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
-                  { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
-                ],
+            ? JSON.stringify(diagnostics, null, 2)
+            : formatContextDiagnosticsReport({
+                diagnostics: diagnostics.snapshot,
+                nextTurn: diagnostics.nextTurnFixed,
+                mode: diagnostics.mode,
+                model: diagnostics.model,
+                notes: diagnostics.notes,
               }),
+        diagnostics,
       }
     },
     limits: {

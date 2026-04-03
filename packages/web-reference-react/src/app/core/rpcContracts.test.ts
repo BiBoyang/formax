@@ -20,13 +20,31 @@ describe('rpcContracts', () => {
   })
 
   it('parses turn/start and command/dispatch like response shape', () => {
-    expect(parseTurnStartLikeResponse({ turn: { id: 'turn-1' }, local: { stdout: 'hello' } })).toEqual({
+    expect(
+      parseTurnStartLikeResponse({
+        turn: { id: 'turn-1' },
+        local: {
+          stdout: 'hello',
+          diagnostics: {
+            kind: 'formax.context_diagnostics',
+            schemaVersion: 1,
+            mode: 'normal',
+          },
+        },
+      }),
+    ).toEqual({
       turnId: 'turn-1',
       localStdout: 'hello',
+      localDiagnostics: {
+        kind: 'formax.context_diagnostics',
+        schemaVersion: 1,
+        mode: 'normal',
+      },
     })
     expect(parseTurnStartLikeResponse({ turn: {}, local: {} })).toEqual({
       turnId: null,
       localStdout: '',
+      localDiagnostics: null,
     })
   })
 

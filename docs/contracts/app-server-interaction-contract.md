@@ -92,13 +92,14 @@
 - 入参：`{ threadId, command, mode?, cwd? }`
 - 返回分两类：
   - turn-dispatch：`{ command, dispatched: true, turn }`
-  - local-dispatch：`{ command, dispatched: true, local: { stdout } }`
+  - local-dispatch：`{ command, dispatched: true, local: { stdout, diagnostics? } }`
 - 当前命令子集：
   - `/init`、`/compact` MUST 走 turn-dispatch
   - `/todos`、`/context` MUST 走 local-dispatch
 - `/context` 语义约束：
   - 输出 MUST 基于当前持久化 prompt history snapshot 生成
   - 输出 MUST 以 `local.stdout` 返回，不得启动新的 turn
+  - 当命令为 `/context` 或 `/context --json` 时，server SHOULD 额外返回 `local.diagnostics` 结构化 payload，供客户端直接消费
   - 无参数 MUST 返回 text diagnostics
   - 当参数精确为 `--json` 时 MUST 返回同一 diagnostics 数据的 JSON 文本
   - 其余参数 MUST 返回 `Usage: /context [--json]`

@@ -6,6 +6,7 @@
 - 该命令当前走本地诊断路径，不进入主模型发送。
 - TUI 仍由 dedicated local path 直接处理；app-server / Web 现在也能通过 `command/dispatch` 获取同一类 diagnostics 输出。
 - `/context --json` 现在会返回同一 diagnostics 数据的 JSON 文本表示。
+- app-server `/context` / `/context --json` 现在还会额外返回 `local.diagnostics` 结构化 payload，客户端可以直接消费，不必反解析 stdout。
 - 输出聚焦当前持久化 prompt snapshot：
   - system prompt 估算
   - history total 估算
@@ -32,6 +33,6 @@
 ## Current limits
 
 - `tool_result` / `other history` 的拆分是近似估算，不保证与总量完全可加。
-- 现在虽然有 `/context --json`，但 app-server / Web 仍然只是把 JSON 文本放进 `local.stdout`；还没有把结构化 payload 作为独立字段暴露给客户端。
+- app-server 已经暴露 `local.diagnostics`，但 Web 目前仍主要把它当作“为后续 richer UI 预留的数据”，还没有真正渲染成专用诊断面板。
 - 还没有 message id / tool_use_id 级别的精确定位、或更细的 per-system-section 视图。
 - next-turn 视图当前仍不包含“未来真实用户正文”的 token，也不会真的执行 full auto-compact；它是保守的固定开销投影，不是一次完整 dry-run。
