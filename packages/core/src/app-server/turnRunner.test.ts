@@ -1829,6 +1829,14 @@ describe('TurnRunner', () => {
       sectionCount: 2,
       estimatedTokens: expect.any(Number),
     })
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.preservedSegment).toEqual({
+      schemaVersion: 1,
+      continuationMessageCount: 1,
+      preservedTailMessageCount: 0,
+      summaryFingerprint: expect.any(String),
+      headFingerprint: null,
+      tailFingerprint: null,
+    })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
     expect(summary.messageCount).toBe(1)

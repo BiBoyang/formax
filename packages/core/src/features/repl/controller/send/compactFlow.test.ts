@@ -63,6 +63,14 @@ describe('runCompactFlow', () => {
       },
     })
     expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preservedSegment).toEqual({
+      schemaVersion: 1,
+      continuationMessageCount: 1,
+      preservedTailMessageCount: 0,
+      summaryFingerprint: expect.any(String),
+      headFingerprint: null,
+      tailFingerprint: null,
+    })
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })
     expect(onLifecycle).toHaveBeenNthCalledWith(2, { type: 'compact_succeeded', source: 'manual' })
     expect(onStreamEvent.mock.calls.map((call) => call[0].type)).toEqual(['thinking_delta', 'thinking_stop', 'usage'])

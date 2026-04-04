@@ -101,7 +101,7 @@
   - 输出 MUST 以 `local.stdout` 返回，不得启动新的 turn
   - 当命令为 `/context` 或 `/context --json` 时，server SHOULD 额外返回 `local.diagnostics` 结构化 payload，供客户端直接消费
   - `local.diagnostics.nextTurnFixed` SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`）
-  - `local.diagnostics` SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost` 也 SHOULD 一并暴露
+  - `local.diagnostics` SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
   - 当前 `summaryKind` MAY 为：
     - `model_summary`
     - `session_memory`

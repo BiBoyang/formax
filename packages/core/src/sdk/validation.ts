@@ -62,6 +62,14 @@ const promptMessageSchema = z
               sectionCount: z.number().int().nonnegative(),
               estimatedTokens: z.number().int().nonnegative(),
             }).optional(),
+            preservedSegment: z.object({
+              schemaVersion: z.literal(1),
+              continuationMessageCount: z.number().int().nonnegative(),
+              preservedTailMessageCount: z.number().int().nonnegative(),
+              summaryFingerprint: z.string(),
+              headFingerprint: z.string().nullable(),
+              tailFingerprint: z.string().nullable(),
+            }).optional(),
           })
           .optional(),
       })

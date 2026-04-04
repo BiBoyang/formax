@@ -113,13 +113,14 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/contextDiagnostics.test.ts`：单测覆盖（slice 估算、budget 字段、报告文案）
 - `packages/core/src/features/repl/controller/send/send.ts`：`/context` 的本地命令入口
 - 当前 `/context` snapshot 与主路径 prompt 估算已统一基于“最近 compact boundary 后 continuation view”；如果没有 boundary，才退化为全 persisted history
+- 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
 
 ### 想改“/compact（P4）”
 
 `/compact` 已实现。主要入口：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
 - compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`）
-- history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、rehydration 拼装、continuation view helper；当前最小 working-set anchor 已覆盖最近成功 `Read`，但只允许回卷最近 1 个额外 user turn）
+- history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前最小 working-set anchor 已覆盖最近成功 `Read`，但只允许回卷最近 1 个额外 user turn）
 
 ### 想改“session memory / rolling memory（P5 起点）”
 

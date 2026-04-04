@@ -1,4 +1,5 @@
 import type { PromptMessage } from '../../prompts'
+import { createHash } from 'node:crypto'
 import { estimatePromptTokens } from './estimate'
 
 const CONTINUED_SESSION_SUMMARY_PREFIX =
@@ -42,6 +43,15 @@ export type CompactRehydrationCost = {
   estimatedTokens: number
 }
 
+export type CompactPreservedSegment = {
+  schemaVersion: 1
+  continuationMessageCount: number
+  preservedTailMessageCount: number
+  summaryFingerprint: string
+  headFingerprint: string | null
+  tailFingerprint: string | null
+}
+
 export type CompactBoundaryMeta = {
   schemaVersion: 1
   trigger?: CompactBoundaryTrigger
@@ -50,6 +60,7 @@ export type CompactBoundaryMeta = {
   keepStrategy?: CompactBoundaryKeepStrategy
   rehydrationPlan?: CompactRehydrationPlan
   rehydrationCost?: CompactRehydrationCost
+  preservedSegment?: CompactPreservedSegment
 }
 
 function isToolResultMessage(msg: PromptMessage): boolean {
@@ -272,6 +283,7 @@ export function buildCompactBoundaryMessage(args: {
   keepStrategy: CompactBoundaryKeepStrategy
   rehydrationPlan?: CompactRehydrationPlan
   rehydrationCost?: CompactRehydrationCost
+  preservedSegment?: CompactPreservedSegment
 }): PromptMessage {
   return {
     role: 'assistant',
@@ -285,6 +297,7 @@ export function buildCompactBoundaryMessage(args: {
         keepStrategy: args.keepStrategy,
         ...(args.rehydrationPlan ? { rehydrationPlan: args.rehydrationPlan } : {}),
         ...(args.rehydrationCost ? { rehydrationCost: args.rehydrationCost } : {}),
+        ...(args.preservedSegment ? { preservedSegment: args.preservedSegment } : {}),
       },
     },
   }
@@ -375,6 +388,45 @@ export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
   return text.startsWith(CONTINUED_SESSION_SUMMARY_PREFIX)
 }
 
+export function buildCompactPreservedSegmentMeta(args: {
+  summaryMessage: PromptMessage
+  preservedTail: PromptMessage[]
+}): CompactPreservedSegment {
+  const head = args.preservedTail[0] ?? null
+  const tail = args.preservedTail[args.preservedTail.length - 1] ?? null
+  return {
+    schemaVersion: 1,
+    continuationMessageCount: 1 + args.preservedTail.length,
+    preservedTailMessageCount: args.preservedTail.length,
+    summaryFingerprint: fingerprintPromptMessage(args.summaryMessage),
+    headFingerprint: head ? fingerprintPromptMessage(head) : null,
+    tailFingerprint: tail ? fingerprintPromptMessage(tail) : null,
+  }
+}
+
+export function continuationMatchesPreservedSegment(args: {
+  boundary: CompactBoundaryMeta | null | undefined
+  continuationMessages: PromptMessage[]
+}): boolean {
+  const preservedSegment = args.boundary?.preservedSegment
+  if (!preservedSegment) return false
+  if (args.continuationMessages.length !== preservedSegment.continuationMessageCount) return false
+  const summaryMessage = args.continuationMessages[0]
+  if (!summaryMessage) return false
+  if (fingerprintPromptMessage(summaryMessage) !== preservedSegment.summaryFingerprint) return false
+
+  const preservedTail = args.continuationMessages.slice(1)
+  if (preservedTail.length !== preservedSegment.preservedTailMessageCount) return false
+  if (preservedTail.length === 0) {
+    return preservedSegment.headFingerprint == null && preservedSegment.tailFingerprint == null
+  }
+
+  return (
+    fingerprintPromptMessage(preservedTail[0]!) === preservedSegment.headFingerprint &&
+    fingerprintPromptMessage(preservedTail[preservedTail.length - 1]!) === preservedSegment.tailFingerprint
+  )
+}
+
 export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
@@ -393,6 +445,7 @@ export function rebuildHistoryAfterCompaction(args: {
     keepStrategy: CompactBoundaryKeepStrategy
     rehydrationPlan?: CompactRehydrationPlan
     rehydrationCost?: CompactRehydrationCost
+    preservedSegment?: CompactPreservedSegment
   }
 }): PromptMessage[] {
   const summaryText = buildCompactionSummaryUserText(args.summary, args.rehydration)
@@ -402,7 +455,25 @@ export function rebuildHistoryAfterCompaction(args: {
   }
 
   const tail = selectTailForCompaction(args.previousHistory, args.keepStrategy)
-  return [buildCompactBoundaryMessage(args.boundaryMeta), summaryMsg, ...tail]
+  return [
+    buildCompactBoundaryMessage({
+      ...args.boundaryMeta,
+      preservedSegment: args.boundaryMeta.preservedSegment ?? buildCompactPreservedSegmentMeta({
+        summaryMessage: summaryMsg,
+        preservedTail: tail,
+      }),
+    }),
+    summaryMsg,
+    ...tail,
+  ]
+}
+
+function fingerprintPromptMessage(message: PromptMessage): string {
+  const normalized = JSON.stringify({
+    role: message.role,
+    content: Array.isArray(message.content) ? message.content : [],
+  })
+  return createHash('sha1').update(normalized).digest('hex').slice(0, 16)
 }
 
 function estimateHistoryTokens(messages: PromptMessage[]): number {

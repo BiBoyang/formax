@@ -65,6 +65,14 @@ export type PromptMessageMeta = {
       sectionCount: number
       estimatedTokens: number
     }
+    preservedSegment?: {
+      schemaVersion: 1
+      continuationMessageCount: number
+      preservedTailMessageCount: number
+      summaryFingerprint: string
+      headFingerprint: string | null
+      tailFingerprint: string | null
+    }
   }
 }
 

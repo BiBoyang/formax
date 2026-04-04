@@ -142,6 +142,7 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Tool result blocks: 0')
     expect(out).toContain('- Tool-result tool mix: none')
     expect(out).toContain('- Rehydration cost: none')
+    expect(out).toContain('- Preserved segment: none')
     expect(out).toContain('Top snapshot contributors')
     expect(out).toContain('Next-turn fixed context (before future user text)')
     expect(out).toContain('- Projected history before microcompact/prune: 22')
@@ -276,6 +277,14 @@ describe('contextDiagnostics', () => {
             sectionCount: 2,
             estimatedTokens: 64,
           },
+          preservedSegment: {
+            schemaVersion: 1,
+            continuationMessageCount: 3,
+            preservedTailMessageCount: 2,
+            summaryFingerprint: 'summary-fingerprint',
+            headFingerprint: 'head-fingerprint',
+            tailFingerprint: 'tail-fingerprint',
+          },
         }),
       ],
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
@@ -284,7 +293,7 @@ describe('contextDiagnostics', () => {
     const parsed = JSON.parse(raw)
     expect(parsed.kind).toBe('formax.context_diagnostics')
     expect(parsed.schemaVersion).toBe(1)
-    expect(parsed.latestCompactBoundary).toEqual({
+    expect(parsed.latestCompactBoundary).toMatchObject({
       schemaVersion: 1,
       trigger: 'auto',
       preTokens: 88,
@@ -304,6 +313,14 @@ describe('contextDiagnostics', () => {
         sectionCount: 2,
         estimatedTokens: 64,
       },
+    })
+    expect(parsed.latestCompactBoundary.preservedSegment).toEqual({
+      schemaVersion: 1,
+      continuationMessageCount: 3,
+      preservedTailMessageCount: 2,
+      summaryFingerprint: 'summary-fingerprint',
+      headFingerprint: 'head-fingerprint',
+      tailFingerprint: 'tail-fingerprint',
     })
     expect(parsed.mode).toBe('normal')
     expect(parsed.snapshot).toBeTruthy()
@@ -352,6 +369,14 @@ describe('contextDiagnostics', () => {
           sectionCount: 2,
           estimatedTokens: 48,
         },
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 3,
+          preservedTailMessageCount: 2,
+          summaryFingerprint: 'summary-abc',
+          headFingerprint: 'head-abc',
+          tailFingerprint: 'tail-abc',
+        },
       },
       diagnostics,
       mode: 'plan',
@@ -360,6 +385,7 @@ describe('contextDiagnostics', () => {
 
     expect(out).toContain('- Rehydration plan: recent_files(high/planned), plan_state(high/planned)')
     expect(out).toContain('- Rehydration cost: 2 sections / 48 tokens')
+    expect(out).toContain('- Preserved segment: continuation=3, preserved_tail=2, head=head-abc, tail=tail-abc')
     expect(out).toContain('- Keep strategy: keep_combo(turns=2, min_tokens=1,200, min_user_turns=1)')
   })
 })

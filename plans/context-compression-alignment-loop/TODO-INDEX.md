@@ -24,10 +24,6 @@
 
 ## Slice Group C: Compact Protocol Upgrade
 
-- `CCA-023` 引入 preserved segment metadata
-  - 目标：为未来 resume / partial compact / relink 做准备
-  - 验收：metadata 结构与恢复路径最小可测
-
 ## Slice Group D: Post-Compact Recovery
 
 ## Slice Group E: Keep Strategy Upgrade
@@ -62,7 +58,6 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-023`
-2. `CCA-070`
-3. `CCA-071`
-4. `CCA-061`
+1. `CCA-070`
+2. `CCA-071`
+3. `CCA-061`

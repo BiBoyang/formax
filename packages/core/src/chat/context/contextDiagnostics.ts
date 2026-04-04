@@ -341,6 +341,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Keep strategy: ${formatKeepStrategy(args.latestCompactBoundary?.keepStrategy ?? null)}`,
     `- Rehydration plan: ${formatRehydrationPlan(args.latestCompactBoundary?.rehydrationPlan ?? null)}`,
     `- Rehydration cost: ${formatRehydrationCost(args.latestCompactBoundary?.rehydrationCost ?? null)}`,
+    `- Preserved segment: ${formatPreservedSegment(args.latestCompactBoundary?.preservedSegment ?? null)}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,
@@ -417,6 +418,11 @@ function formatRehydrationPlan(value: CompactBoundaryMeta['rehydrationPlan'] | n
 function formatRehydrationCost(value: CompactBoundaryMeta['rehydrationCost'] | null): string {
   if (!value) return 'none'
   return `${formatInt(value.sectionCount)} sections / ${formatInt(value.estimatedTokens)} tokens`
+}
+
+function formatPreservedSegment(value: CompactBoundaryMeta['preservedSegment'] | null): string {
+  if (!value) return 'none'
+  return `continuation=${formatInt(value.continuationMessageCount)}, preserved_tail=${formatInt(value.preservedTailMessageCount)}, head=${value.headFingerprint ?? 'none'}, tail=${value.tailFingerprint ?? 'none'}`
 }
 
 function splitHistorySlices(

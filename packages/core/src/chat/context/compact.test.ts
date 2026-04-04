@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import {
   buildAutoCompactKeepStrategy,
+  buildCompactPreservedSegmentMeta,
   buildDefaultCompactRehydrationPlan,
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
+  continuationMatchesPreservedSegment,
   collectRecentReadFilesForRehydration,
   estimateCompactRehydrationCost,
   findLatestCompactBoundaryIndex,
@@ -198,6 +200,18 @@ describe('rebuildHistoryAfterCompaction', () => {
       keepLastTurns: 1,
     })
     expect((next[0]!.meta?.compactBoundary as any)?.rehydrationPlan).toEqual(rehydrationPlan)
+    expect((next[0]!.meta?.compactBoundary as any)?.preservedSegment).toEqual(
+      buildCompactPreservedSegmentMeta({
+        summaryMessage: next[1]!,
+        preservedTail: next.slice(2),
+      }),
+    )
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: next[0]!.meta?.compactBoundary as any,
+        continuationMessages: next.slice(1),
+      }),
+    ).toBe(true)
     expect(next[1]!.role).toBe('user')
     expect((next[1]!.content as any[])[0]!.text).toContain('This session is being continued from a previous conversation')
     expect((next[1]!.content as any[])[0]!.text).toContain('S')
@@ -259,6 +273,29 @@ describe('compaction summary helpers', () => {
       txt('user', 'second summary'),
       txt('assistant', 'tail two'),
     ])
+  })
+
+  it('reports preserved segment mismatches when continuation messages drift', () => {
+    const summary = txt('user', 'summary')
+    const preservedTail = [txt('assistant', 'tail one'), txt('user', 'tail two')]
+    const preservedSegment = buildCompactPreservedSegmentMeta({
+      summaryMessage: summary,
+      preservedTail,
+    })
+
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: { schemaVersion: 1, preservedSegment },
+        continuationMessages: [summary, ...preservedTail],
+      }),
+    ).toBe(true)
+
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: { schemaVersion: 1, preservedSegment },
+        continuationMessages: [summary, txt('assistant', 'mutated tail'), preservedTail[1]!],
+      }),
+    ).toBe(false)
   })
 
   it('builds a default rehydration plan from mode and plan-path state', () => {

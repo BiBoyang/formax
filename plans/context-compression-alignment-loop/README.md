@@ -27,6 +27,8 @@
   - `packages/core/src/chat/context/compact.ts`
   - `packages/core/src/chat/engine.ts`
   - `packages/core/src/chat/context/contextDiagnostics.ts`
+- 已完成：preserved segment metadata 起点
+  - `packages/core/src/chat/context/compact.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
@@ -146,6 +148,7 @@ Claude Code：
 Formax 当前：
 - 已有 metadata-only compact boundary event，可进入 persisted history / replay
 - 已有最小 boundary metadata，并能通过 diagnostics payload 读到最新 boundary
+- 已有最小 `preservedSegment` metadata（`continuationMessageCount`、`preservedTailMessageCount`、`summaryFingerprint`、`headFingerprint`、`tailFingerprint`），可用于最小 continuation 校验
 - 缺：
   - preserved segment relink
   - transcript / session / remote 协议对齐

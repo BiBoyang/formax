@@ -39,6 +39,7 @@
 - `docs/learnings/2026-04-04-boundary-first-continuation-view.md`
 - `docs/learnings/2026-04-04-memory-first-auto-compact.md`
 - `docs/learnings/2026-04-04-partial-compact-no-go.md`
+- `docs/learnings/2026-04-04-preserved-segment-metadata.md`
 - `docs/learnings/2026-04-04-rolling-session-memory-sidecar.md`
 - `docs/learnings/2026-04-04-session-memory-draft-schema.md`
 
