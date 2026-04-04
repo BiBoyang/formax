@@ -31,7 +31,7 @@ const promptMessageSchema = z
         compactBoundary: z
           .object({
             schemaVersion: z.literal(1),
-            trigger: z.enum(['manual', 'auto']).optional(),
+            trigger: z.enum(['manual', 'auto', 'reactive']).optional(),
             preTokens: z.number().optional(),
             summaryKind: z.enum(['model_summary', 'session_memory']).optional(),
             keepStrategy: z

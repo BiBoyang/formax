@@ -17,9 +17,9 @@ import type { ReplMode } from '../../mode'
 import { extractAssistantText } from '../shared/utils'
 
 export type CompactLifecycleEvent =
-  | { type: 'compact_started'; source: 'manual' | 'auto' }
-  | { type: 'compact_succeeded'; source: 'manual' | 'auto' }
-  | { type: 'compact_failed'; source: 'manual' | 'auto'; error: string }
+  | { type: 'compact_started'; source: 'manual' | 'auto' | 'reactive' }
+  | { type: 'compact_succeeded'; source: 'manual' | 'auto' | 'reactive' }
+  | { type: 'compact_failed'; source: 'manual' | 'auto' | 'reactive'; error: string }
 
 export type CompactFlowResult = {
   summary: string
@@ -27,7 +27,7 @@ export type CompactFlowResult = {
 }
 
 export async function runCompactFlow(args: {
-  source: 'manual' | 'auto'
+  source: 'manual' | 'auto' | 'reactive'
   instructions: string
   engine: ChatEngine
   previousHistory: ChatHistory
@@ -49,7 +49,7 @@ export async function runCompactFlow(args: {
 
   const compactionScope = resolveHistoryForCompaction({
     previousHistory: args.previousHistory,
-    allowPartial: args.source === 'auto',
+    allowPartial: args.source !== 'manual',
   })
 
   const compactUser: ChatHistory[number] = {
@@ -91,7 +91,7 @@ export async function runCompactFlow(args: {
 
     args.onLifecycle?.({ type: 'compact_succeeded', source: args.source })
     const keepStrategy =
-      args.source === 'auto'
+      args.source !== 'manual'
         ? buildAutoCompactKeepStrategy(args.keepLastTurns)
         : {
             kind: 'keep_last_turns' as const,

@@ -40,6 +40,10 @@
   - `packages/core/src/chat/context/compact.ts`
   - `packages/core/src/features/repl/controller/send/compactFlow.ts`
   - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
+- 已完成：reactive compact
+  - `packages/core/src/features/repl/controller/send/reactiveCompact.ts`
+  - `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+  - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
@@ -114,7 +118,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 3. compact 后恢复仍不完整
 4. keep 策略仍然比较简单
 5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
-6. 没有 reactive compact
+6. reactive compact 已有最小 fallback，但还没有 richer diagnostics / trigger reason 可见性
 7. 没有 context collapse / cache-aware intermediate layer
 8. remote thread restore 还没有 compact 协议对齐
 
@@ -219,7 +223,11 @@ Formax 当前：
   - 当前只对已有 latest boundary 的 auto compact 生效
   - 会把最新 boundary 后的 continuation 当成新的 compact 作用域
   - 旧 compact summary 会继续参与“要总结什么”，但不会再被当作 preserved tail 保留
-- 仍然没有 reactive compact
+- 已有 reactive compact MVP：
+  - 仅在主 turn 首次 provider 调用因上下文超限类错误失败时触发
+  - 会先尝试 session-memory compact，再 fallback model-summary compact
+  - compact 成功后只重试一次，不会无限循环
+  - 仍缺 richer diagnostics / trigger reason / provider-specific shaping
 
 ## H. diagnostics / introspection
 

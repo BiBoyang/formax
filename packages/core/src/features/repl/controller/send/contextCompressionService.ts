@@ -141,7 +141,8 @@ export function createContextCompressionService(deps: {
       user: args.user,
     })
 
-  const tryRunSessionMemoryAutoCompact = async (args: {
+  const tryRunSessionMemoryCompact = async (args: {
+    source: 'auto' | 'reactive'
     previousHistory: ChatHistory
     keepLastTurns: number
     system: PromptBlock[]
@@ -194,7 +195,7 @@ export function createContextCompressionService(deps: {
         ],
       )
 
-      deps.onCompactLifecycle?.({ type: 'compact_started', source: 'auto' })
+      deps.onCompactLifecycle?.({ type: 'compact_started', source: args.source })
       lifecycleStarted = true
       const compactedHistory = rebuildHistoryAfterCompaction({
         summary,
@@ -203,7 +204,7 @@ export function createContextCompressionService(deps: {
         keepStrategy,
         rehydration,
         boundaryMeta: {
-          trigger: 'auto',
+          trigger: args.source,
           preTokens: estimatePromptTokens({
             system: args.system,
             messages: args.previousHistory,
@@ -214,13 +215,13 @@ export function createContextCompressionService(deps: {
           rehydrationCost: estimateCompactRehydrationCost(rehydration),
         },
       })
-      deps.onCompactLifecycle?.({ type: 'compact_succeeded', source: 'auto' })
+      deps.onCompactLifecycle?.({ type: 'compact_succeeded', source: args.source })
       return compactedHistory
     } catch (error) {
       if (lifecycleStarted) {
         deps.onCompactLifecycle?.({
           type: 'compact_failed',
-          source: 'auto',
+          source: args.source,
           error: error instanceof Error ? error.message : 'Session memory compact failed',
         })
       }
@@ -270,7 +271,8 @@ export function createContextCompressionService(deps: {
 
         if (stats.shouldAutoCompact) {
           try {
-            const sessionMemoryCompactedHistory = await tryRunSessionMemoryAutoCompact({
+            const sessionMemoryCompactedHistory = await tryRunSessionMemoryCompact({
+              source: 'auto',
               previousHistory: nextHistory,
               keepLastTurns: deps.cfg.context.compactKeepLastTurns,
               system: args.system,
@@ -408,6 +410,71 @@ export function createContextCompressionService(deps: {
         context: estimateContext({
           system: args.system,
           messages: compactedHistory,
+          contextWindowTokens: args.contextWindowTokens,
+        }),
+      }
+    },
+
+    async runReactiveCompact(args: {
+      contextWindowTokens: number | undefined
+      previousHistory: ChatHistory
+      user: PromptMessage
+      system: PromptBlock[]
+    }): Promise<{
+      history: ChatHistory
+      user: PromptMessage
+      context: EstimatedContextState
+    }> {
+      const sessionMemoryCompactedHistory = await tryRunSessionMemoryCompact({
+        source: 'reactive',
+        previousHistory: args.previousHistory,
+        keepLastTurns: deps.cfg.context.compactKeepLastTurns,
+        system: args.system,
+      })
+      const compactedHistory =
+        sessionMemoryCompactedHistory ??
+        (
+          await runCompactFlow({
+            source: 'reactive',
+            instructions: '',
+            engine: deps.engine,
+            previousHistory: args.previousHistory,
+            keepLastTurns: deps.cfg.context.compactKeepLastTurns,
+            system: args.system,
+            cwd: deps.cwd,
+            signal: deps.signal,
+            promptBudget: deps.promptBudget,
+            model: deps.model,
+            thinkingEnabled: deps.thinkingEnabled,
+            mode: deps.mode,
+            getReplMode: deps.getReplMode,
+            setReplMode: deps.setReplMode,
+            getPlanPath: deps.getPlanPath,
+            onLifecycle: deps.onCompactLifecycle,
+          })
+        ).compactedHistory
+
+      const nextHistory = applyCompactedHistory({
+        compactedHistory,
+        system: args.system,
+        contextWindowTokens: args.contextWindowTokens,
+        user: args.user,
+      })
+
+      const preparedMessages = pruneMessages({
+        system: args.system,
+        messages: [...nextHistory, args.user],
+        contextWindowTokens: args.contextWindowTokens,
+      })
+      const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
+      const preparedHistory = preparedMessages.slice(0, -1)
+
+      return {
+        history: preparedHistory,
+        user: preparedUser,
+        context: estimateContext({
+          system: args.system,
+          messages: [...preparedHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
       }

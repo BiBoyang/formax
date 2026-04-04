@@ -41,7 +41,7 @@
 | `CCA-071` session persistence / resume boundary-aware restore | 已完成 | Cleared | resume / continue 已能恢复到 boundary-first continuation view |
 | diagnostics 已能看到 latest boundary | 已完成 | Supportive | 有助于调试，但不是单独 blocker 的解除条件 |
 | memory-first auto compact | 已完成 | Supportive | 说明 compact 协议可复用，但不等于 partial compact 已具备条件 |
-| reactive compact | 未完成 | Non-blocker | 可以后做，不是 partial compact 的前置条件 |
+| reactive compact | 已完成 | Non-blocker | 现已补齐，但它本来就不是 partial compact 的前置条件 |
 
 ## Blockers（必须先满足）
 
@@ -186,7 +186,7 @@ message/tool contributor drill-down 很有价值，
 3. `CCA-070`：app-server compact boundary protocol
 4. `CCA-071`：session persistence / resume boundary-aware restore
 5. `CCA-061`：partial compact MVP
-6. `CCA-062`：reactive compact
+6. `CCA-062`：reactive compact（已完成）
 
 ## Partial Compact 最小可行范围（供未来 `CCA-061` 参考）
 

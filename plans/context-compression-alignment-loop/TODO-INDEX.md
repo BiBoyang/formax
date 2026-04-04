@@ -30,10 +30,6 @@
 
 ## Slice Group G: Higher-Order Compression
 
-- `CCA-062` 实现 reactive compact
-  - 目标：在 provider 侧真正超限或特定错误时，有受控 fallback compact 路径
-  - 验收：出错后不是直接失败，而是尝试 compact/retry
-
 - `CCA-063` 评估 context collapse / cache-aware layer
   - 目标：研究是否需要位于 microcompact 与 full compact 之间的中间层
   - 验收：给出采用/不采用的技术判断，而不是无限搁置
@@ -46,5 +42,5 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-062`
-2. `CCA-072`
+1. `CCA-072`
+2. `CCA-063`

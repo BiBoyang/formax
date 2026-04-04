@@ -361,6 +361,38 @@ describe('createContextCompressionService', () => {
     expect(JSON.stringify(out.history)).toContain('latest assistant')
   })
 
+  it('reactively compacts with source=reactive when session memory is unavailable', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
+    vi.mocked(pruneForPromptBudget).mockReturnValue({
+      messages: [
+        { role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] },
+        { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+      ],
+      pruned: true,
+    } as any)
+
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+    })
+    const out = await service.runReactiveCompact({
+      contextWindowTokens: 100_000,
+      previousHistory: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(runCompactFlow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(runCompactFlow).mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        source: 'reactive',
+        keepLastTurns: 3,
+      }),
+    )
+    expect(vi.mocked(runCompactFlow).mock.calls[0]?.[0]).not.toHaveProperty('onStreamEvent')
+    expect(out.history).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }])
+    expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'reactive-user' }] })
+  })
+
   it('falls back to model-summary auto-compact when session memory is unavailable', async () => {
     vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
 

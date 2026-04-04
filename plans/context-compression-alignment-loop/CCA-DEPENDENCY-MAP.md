@@ -157,7 +157,7 @@ flowchart TD
 
 > 明确 partial compact 现在是否能安全开工。
 
-当前结论是：`NO-GO`
+当前结论曾经是：`NO-GO`
 
 参考：
 - [CCA-060-partial-compact-go-no-go.md](./CCA-060-partial-compact-go-no-go.md)
@@ -168,13 +168,13 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-062`
-2. `CCA-072`
+1. `CCA-072`
+2. `CCA-063`
 
 对应含义：
 
-1. partial compact 已完成后，继续补 provider 错误下的 reactive compact
-2. diagnostics payload 的正式客户端消费契约继续并行补强
+1. diagnostics payload 的正式客户端消费契约继续补强
+2. 继续评估 context collapse / cache-aware 中间层是否值得引入
 
 ---
 

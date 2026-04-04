@@ -61,6 +61,7 @@ vi.mock('./contextCompressionService', () => ({
 
 const prepareHistoryForTurn = vi.fn()
 const finalizeHistoryAfterTurn = vi.fn()
+const runReactiveCompact = vi.fn()
 
 function createCfg(overrides?: Record<string, unknown>): any {
   return {
@@ -211,10 +212,89 @@ describe('runMainSendTurn', () => {
     vi.mocked(createContextCompressionService).mockReturnValue({
       prepareHistoryForTurn,
       finalizeHistoryAfterTurn,
+      runReactiveCompact,
       runManualCompact: vi.fn(),
     } as any)
     vi.mocked(formatErrorSubline).mockImplementation((msg: string) => `ERR:${msg}`)
     vi.mocked(isAbortLikeError).mockReturnValue(false)
+  })
+
+  it('reactively compacts and retries once when the provider rejects for context overflow', async () => {
+    runReactiveCompact.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+      context: {
+        usedTokens: 900,
+        limitTokens: 9000,
+        percentRemaining: 90,
+        source: 'estimate',
+      },
+    })
+    const harness = createHarness()
+    harness._spies.engine.runTurn
+      .mockRejectedValueOnce(
+        new Error("This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens."),
+      )
+      .mockResolvedValueOnce([
+        { role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] },
+        { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'assistant' }] },
+      ])
+
+    const result = await runMainSendTurn(harness)
+
+    expect(result.turnOutcome).toBe('completed')
+    expect(runReactiveCompact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousHistory: [],
+        user: expect.objectContaining({
+          role: 'user',
+          content: expect.arrayContaining([{ type: 'text', text: 'user-block' }]),
+        }),
+      }),
+    )
+    expect(harness._spies.engine.runTurn).toHaveBeenCalledTimes(2)
+    expect(harness._spies.engine.runTurn.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+        user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+      }),
+    )
+    expect(harness._spies.setError).not.toHaveBeenCalledWith(
+      "This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens.",
+    )
+  })
+
+  it('surfaces the original provider overflow error when reactive compact itself fails', async () => {
+    runReactiveCompact.mockRejectedValueOnce(new Error('Compact failed: empty summary'))
+    const harness = createHarness()
+    harness._spies.engine.runTurn.mockRejectedValueOnce(
+      new Error("This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens."),
+    )
+
+    const result = await runMainSendTurn(harness)
+
+    expect(result.turnOutcome).toBe('failed')
+    expect(harness._spies.engine.runTurn).toHaveBeenCalledTimes(1)
+    expect(harness._spies.setError).toHaveBeenCalledWith(
+      "This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens.",
+    )
+  })
+
+  it('preserves abort semantics when the reactive compact attempt is cancelled', async () => {
+    vi.mocked(isAbortLikeError)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    runReactiveCompact.mockRejectedValueOnce(new Error('Request aborted'))
+    const harness = createHarness()
+    harness._spies.engine.runTurn.mockRejectedValueOnce(
+      new Error("This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens."),
+    )
+
+    const result = await runMainSendTurn(harness)
+
+    expect(result.turnOutcome).toBe('aborted')
+    expect(harness._spies.setError).not.toHaveBeenCalledWith('Request aborted')
   })
 
   it('runs a successful main turn with patched tools and context updates', async () => {
@@ -373,6 +453,7 @@ describe('runMainSendTurn', () => {
       content: 'ERR:boom',
       uiKind: 'command_subline',
     })
+    expect(runReactiveCompact).not.toHaveBeenCalled()
   })
 
   it('falls back to legacy transcript error row when canonical emitter is absent', async () => {
@@ -425,6 +506,7 @@ describe('runMainSendTurn', () => {
       return {
         prepareHistoryForTurn,
         finalizeHistoryAfterTurn,
+        runReactiveCompact,
         runManualCompact: vi.fn(),
       } as any
     })

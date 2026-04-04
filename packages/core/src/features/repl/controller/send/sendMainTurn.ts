@@ -21,6 +21,7 @@ import type { CanonicalUiMessage, SendStateSetters, SendTurnSharedRefs } from '.
 import type { CompactLifecycleEvent } from './compactFlow'
 import { isAbortLikeError } from '../shared/utils'
 import { createContextCompressionService } from './contextCompressionService'
+import { isReactiveCompactEligibleError } from './reactiveCompact'
 
 const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
@@ -93,6 +94,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
   args.contextBudgetConfigRef.current = null
   const sendSeq = (args.sendSeqRef.current += 1)
   let turnOutcome: 'completed' | 'aborted' | 'failed' = 'completed'
+  let sawAbortLikeError = false
 
   try {
     if (!args.reminderServiceRef.current) args.reminderServiceRef.current = new ReminderService()
@@ -204,29 +206,59 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       getPlanPath: () => args.planSession?.getPlanPath() ?? null,
       ...(toolExposure.toolExposureSessionKey ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey } : {}),
     }
-    const historyLen = prunedHistory.length
     const resolveToolsForCall = toolExposure.resolveToolsForCall
     const toolsForTurn = toolExposure.toolsForTurn
-    const nextHistory = await args.engine.runTurn({
-      history: prunedHistory,
-      user: prunedUser,
-      system,
-      tools: toolsForTurn,
-      resolveToolsForCall,
-      onEvent: args.handleEvent,
-      cwd,
-      signal: abortController.signal,
-      promptBudget: args.contextBudgetConfigRef.current,
-      model: args.cfg.llm.model,
-      thinkingEnabled: args.cfg.llm.thinkingMode,
-      exec,
-    })
+    const runTurnWith = async (history: ChatHistory, user: typeof prunedUser) =>
+      args.engine.runTurn({
+        history,
+        user,
+        system,
+        tools: toolsForTurn,
+        resolveToolsForCall,
+        onEvent: args.handleEvent,
+        cwd,
+        signal: abortController.signal,
+        promptBudget: args.contextBudgetConfigRef.current,
+        model: args.cfg.llm.model,
+        thinkingEnabled: args.cfg.llm.thinkingMode,
+        exec,
+      })
+
+    let executionHistory = prunedHistory
+    let executionUser = prunedUser
+    let nextHistory: ChatHistory
+    try {
+      nextHistory = await runTurnWith(executionHistory, executionUser)
+    } catch (error) {
+      const abortLike = isAbortLikeError(error)
+      if (abortLike) sawAbortLikeError = true
+      if (!abortLike && isReactiveCompactEligibleError(error)) {
+        let reactivePrepared
+        try {
+          reactivePrepared = await compression.runReactiveCompact({
+            contextWindowTokens,
+            previousHistory: executionHistory,
+            user: executionUser,
+            system,
+          })
+        } catch (reactiveError) {
+          const reactiveAbortLike = isAbortLikeError(reactiveError)
+          if (reactiveAbortLike) sawAbortLikeError = true
+          throw reactiveAbortLike ? reactiveError : error
+        }
+        executionHistory = reactivePrepared.history
+        executionUser = reactivePrepared.user
+        nextHistory = await runTurnWith(executionHistory, executionUser)
+      } else {
+        throw error
+      }
+    }
 
     args.pendingExitPlanReminderRef.current = false
 
     const stripped =
       injectedBlocks.length > 0
-        ? stripInjectedBlocksFromHistory(nextHistory, historyLen, injectedBlocks.length)
+        ? stripInjectedBlocksFromHistory(nextHistory, executionHistory.length, injectedBlocks.length)
         : nextHistory
 
     const finalized = compression.finalizeHistoryAfterTurn({
@@ -238,7 +270,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     args.setContext(finalized.context)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to send message'
-    if (isAbortLikeError(e)) {
+    if (sawAbortLikeError || isAbortLikeError(e)) {
       turnOutcome = 'aborted'
     } else {
       turnOutcome = 'failed'
