@@ -25,6 +25,9 @@
 - `plans/skills/TODO.md`：Skill 相关（抓包验证点 + 少量增强项），与权限主线会交叉
 - `plans/sdk-contract-alignment-loop/TODO-INDEX.md`：SDK 对齐滚动循环（原则：外部契约对齐 + 内部实现解耦，未支持能力不做）
 - `plans/hooks/TODO.md`：Hooks 事件清单 & matcher 规则（哪些已实现/待接线）
+- `plans/context-compression-alignment-loop/TODO-INDEX.md`：上下文压缩对齐滚动清单（Claude Code 差异地图 + 分阶段补齐）
+  - 当前状态：新建执行清单，建议作为上下文压缩主线参考
+  - 关联调研：`docs/references/claude-code-context-compression-research.md`
 
 ## 参考材料（非执行清单）
 
