@@ -39,6 +39,13 @@ export type PromptBlock =
 export type PromptMessageMeta = {
   compactBoundary?: {
     schemaVersion: 1
+    trigger?: 'manual' | 'auto'
+    preTokens?: number
+    summaryKind?: 'model_summary'
+    keepStrategy?: {
+      kind: 'keep_last_turns'
+      keepLastTurns: number
+    }
   }
 }
 

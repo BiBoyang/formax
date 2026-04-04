@@ -72,7 +72,12 @@ describe('contextDiagnostics', () => {
     const out = analyzeContextDiagnostics({
       system: [{ type: 'text', text: 'system instructions' }],
       messages: [
-        buildCompactBoundaryMessage(),
+        buildCompactBoundaryMessage({
+          trigger: 'manual',
+          preTokens: 42,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 0 },
+        }),
         { role: 'user', content: [{ type: 'text', text: 'summary' }] },
         { role: 'assistant', content: [{ type: 'text', text: 'next step' }] },
       ],
@@ -221,13 +226,30 @@ describe('contextDiagnostics', () => {
       } as any,
       allowedSubagents: [],
       mode: 'normal',
-      messages: [],
+      messages: [
+        buildCompactBoundaryMessage({
+          trigger: 'auto',
+          preTokens: 88,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 4 },
+        }),
+      ],
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
     })
 
     const parsed = JSON.parse(raw)
     expect(parsed.kind).toBe('formax.context_diagnostics')
     expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 88,
+      summaryKind: 'model_summary',
+      keepStrategy: {
+        kind: 'keep_last_turns',
+        keepLastTurns: 4,
+      },
+    })
     expect(parsed.mode).toBe('normal')
     expect(parsed.snapshot).toBeTruthy()
     expect(parsed.nextTurnFixed).toBeTruthy()

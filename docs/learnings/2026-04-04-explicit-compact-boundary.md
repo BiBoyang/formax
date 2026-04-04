@@ -4,8 +4,13 @@
 
 - compact 后的 persisted history 不再只有 summary user message。
 - `rebuildHistoryAfterCompaction(...)` 现在会在 summary 之前插入一个 metadata-only compact boundary message。
-- boundary 当前不带业务 metadata，只表达一件事：`这里是一次 compact 的边界点`。
+- boundary 现在会携带最小 metadata：
+  - `trigger`
+  - `preTokens`
+  - `summaryKind`
+  - `keepStrategy`
 - `ChatEngine` 与 token estimation 会在真实 prompt 组装时忽略这类 boundary message。
+- `/context --json` 与 app-server `local.diagnostics` 现在会暴露 `latestCompactBoundary`，方便直接检查最近一次 compact 的边界元信息。
 
 ## Why this shape
 
@@ -16,8 +21,8 @@
   - session / replay 看得见
   - 后续协议升级有锚点
   - 对现有 transcript 和模型上下文影响最小
+- 第二步补最小 metadata，是为了让 boundary 真正开始承担协议职责，而不只是“有一个占位点”。
 
 ## Follow-ups
 
-- 下一步是 `CCA-021`：给 boundary 补 metadata，例如 trigger、preTokens、summaryKind、keepStrategy。
-- 之后再做 `CCA-022`：让 prompt 视图逐步基于最近 boundary 构建，而不是继续把 summary user message 当唯一语义锚点。
+- 下一步是 `CCA-022`：让 prompt 视图逐步基于最近 boundary 构建，而不是继续把 summary user message 当唯一语义锚点。

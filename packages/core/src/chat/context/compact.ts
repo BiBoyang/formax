@@ -3,8 +3,19 @@ import type { PromptMessage } from '../../prompts'
 const CONTINUED_SESSION_SUMMARY_PREFIX =
   'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
 
+export type CompactBoundaryTrigger = 'manual' | 'auto'
+export type CompactBoundarySummaryKind = 'model_summary'
+export type CompactBoundaryKeepStrategy = {
+  kind: 'keep_last_turns'
+  keepLastTurns: number
+}
+
 export type CompactBoundaryMeta = {
   schemaVersion: 1
+  trigger?: CompactBoundaryTrigger
+  preTokens?: number
+  summaryKind?: CompactBoundarySummaryKind
+  keepStrategy?: CompactBoundaryKeepStrategy
 }
 
 function isToolResultMessage(msg: PromptMessage): boolean {
@@ -53,13 +64,22 @@ export function buildCompactionSummaryUserText(summary: string): string {
   )
 }
 
-export function buildCompactBoundaryMessage(): PromptMessage {
+export function buildCompactBoundaryMessage(args: {
+  trigger: CompactBoundaryTrigger
+  preTokens: number
+  summaryKind: CompactBoundarySummaryKind
+  keepStrategy: CompactBoundaryKeepStrategy
+}): PromptMessage {
   return {
     role: 'assistant',
     content: [],
     meta: {
       compactBoundary: {
         schemaVersion: 1,
+        trigger: args.trigger,
+        preTokens: Math.max(0, Math.round(args.preTokens)),
+        summaryKind: args.summaryKind,
+        keepStrategy: args.keepStrategy,
       },
     },
   }
@@ -67,6 +87,18 @@ export function buildCompactBoundaryMessage(): PromptMessage {
 
 export function isCompactBoundaryMessage(msg: PromptMessage | null | undefined): boolean {
   return msg?.role === 'assistant' && msg?.meta?.compactBoundary?.schemaVersion === 1
+}
+
+export function readCompactBoundaryMeta(msg: PromptMessage | null | undefined): CompactBoundaryMeta | null {
+  return isCompactBoundaryMessage(msg) ? (msg!.meta!.compactBoundary as CompactBoundaryMeta) : null
+}
+
+export function findLatestCompactBoundary(messages: PromptMessage[]): CompactBoundaryMeta | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const meta = readCompactBoundaryMeta(messages[index])
+    if (meta) return meta
+  }
+  return null
 }
 
 export function stripCompactBoundaryMessages(messages: PromptMessage[]): PromptMessage[] {
@@ -86,6 +118,12 @@ export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
   keepLastTurns: number
+  boundaryMeta: {
+    trigger: CompactBoundaryTrigger
+    preTokens: number
+    summaryKind: CompactBoundarySummaryKind
+    keepStrategy: CompactBoundaryKeepStrategy
+  }
 }): PromptMessage[] {
   const summaryText = buildCompactionSummaryUserText(args.summary)
   const summaryMsg: PromptMessage = {
@@ -94,7 +132,7 @@ export function rebuildHistoryAfterCompaction(args: {
   }
 
   const tail = selectTailForCompaction(args.previousHistory, args.keepLastTurns)
-  return [buildCompactBoundaryMessage(), summaryMsg, ...tail]
+  return [buildCompactBoundaryMessage(args.boundaryMeta), summaryMsg, ...tail]
 }
 
 function unwrapSystemReminder(text: string): string {

@@ -1811,6 +1811,13 @@ describe('TurnRunner', () => {
     expect(replay.history).toHaveLength(2)
     expect(replay.history[0]?.role).toBe('assistant')
     expect((replay.history[0] as any)?.meta?.compactBoundary?.schemaVersion).toBe(1)
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.trigger).toBe('manual')
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.summaryKind).toBe('model_summary')
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.keepStrategy).toEqual({
+      kind: 'keep_last_turns',
+      keepLastTurns: 0,
+    })
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
     expect(summary.messageCount).toBe(1)
     const summaryText = Array.isArray(replay.history[1]?.content)

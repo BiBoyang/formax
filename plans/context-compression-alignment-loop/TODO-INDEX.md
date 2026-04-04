@@ -31,10 +31,6 @@
 
 ## Slice Group C: Compact Protocol Upgrade
 
-- `CCA-021` 为 compact boundary 增加 metadata
-  - 目标：至少记录 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`
-  - 验收：boundary metadata 能通过 session / app-server 被读到
-
 - `CCA-022` 让 prompt 视图基于最近 boundary 构建
   - 目标：主路径从“全 history + summary message”演进到“最近 boundary 后 continuation view”
   - 验收：有针对 boundary slicing 的测试
@@ -119,9 +115,8 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-021`
+1. `CCA-030`
 2. `CCA-006`
-3. `CCA-030`
-4. `CCA-040`
-5. `CCA-050`
-6. `CCA-060`
+3. `CCA-040`
+4. `CCA-050`
+5. `CCA-060`

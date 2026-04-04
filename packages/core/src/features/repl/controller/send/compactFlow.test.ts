@@ -49,6 +49,16 @@ describe('runCompactFlow', () => {
 
     expect(out.summary).toBe('compact summary')
     expect(out.compactedHistory.length).toBeGreaterThan(0)
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary).toMatchObject({
+      schemaVersion: 1,
+      trigger: 'manual',
+      summaryKind: 'model_summary',
+      keepStrategy: {
+        kind: 'keep_last_turns',
+        keepLastTurns: 0,
+      },
+    })
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })
     expect(onLifecycle).toHaveBeenNthCalledWith(2, { type: 'compact_succeeded', source: 'manual' })
     expect(onStreamEvent.mock.calls.map((call) => call[0].type)).toEqual(['thinking_delta', 'thinking_stop', 'usage'])

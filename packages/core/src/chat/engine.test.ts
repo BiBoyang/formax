@@ -33,7 +33,12 @@ describe('ChatEngine', () => {
 
     const out = await engine.runTurn({
       history: [
-        buildCompactBoundaryMessage(),
+        buildCompactBoundaryMessage({
+          trigger: 'manual',
+          preTokens: 42,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 0 },
+        }),
         { role: 'user', content: [{ type: 'text', text: 'summary' }] },
       ],
       user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
@@ -48,6 +53,7 @@ describe('ChatEngine', () => {
     expect((capturedMessages[0]!.content[0] as any).text).toBe('summary')
     expect((capturedMessages[1]!.content[0] as any).text).toBe('continue')
     expect(out[0]?.meta?.compactBoundary?.schemaVersion).toBe(1)
+    expect(out[0]?.meta?.compactBoundary?.trigger).toBe('manual')
     expect(out).toHaveLength(4)
   })
 

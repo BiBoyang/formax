@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { isCompactBoundaryMessage, rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
+import { estimatePromptTokens } from '../chat/context/estimate.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
@@ -641,6 +642,18 @@ export class TurnRunner {
           summary,
           previousHistory: history,
           keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+          boundaryMeta: {
+            trigger: 'manual',
+            preTokens: estimatePromptTokens({
+              system,
+              messages: history,
+            }),
+            summaryKind: 'model_summary',
+            keepStrategy: {
+              kind: 'keep_last_turns',
+              keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+            },
+          },
         })
         assistantText = COMPACT_BANNER_TEXT
         emitStreamTurnEvent({ type: 'assistant_delta', text: assistantText })

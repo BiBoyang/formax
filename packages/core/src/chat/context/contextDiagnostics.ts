@@ -5,7 +5,7 @@ import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
-import { stripCompactBoundaryMessages } from './compact'
+import { findLatestCompactBoundary, type CompactBoundaryMeta, stripCompactBoundaryMessages } from './compact'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
@@ -65,6 +65,7 @@ export type ContextDiagnosticsPayload = {
   schemaVersion: 1
   mode: string
   model: string
+  latestCompactBoundary: CompactBoundaryMeta | null
   snapshot: ContextDiagnostics
   nextTurnFixed: NextTurnFixedContextDiagnostics
   notes: string[]
@@ -228,6 +229,7 @@ export function buildContextDiagnosticsReport(args: {
 }): string {
   const payload = buildContextDiagnosticsPayload(args)
   return formatContextDiagnosticsReport({
+    latestCompactBoundary: payload.latestCompactBoundary,
     diagnostics: payload.snapshot,
     nextTurn: payload.nextTurnFixed,
     mode: payload.mode,
@@ -305,6 +307,7 @@ export function buildContextDiagnosticsPayload(args: {
     schemaVersion: 1,
     mode: args.mode,
     model: args.cfg.llm.model,
+    latestCompactBoundary: findLatestCompactBoundary(args.messages),
     snapshot: diagnostics,
     nextTurnFixed: nextTurn,
     notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],
@@ -312,6 +315,7 @@ export function buildContextDiagnosticsPayload(args: {
 }
 
 export function formatContextDiagnosticsReport(args: {
+  latestCompactBoundary?: CompactBoundaryMeta | null
   diagnostics: ContextDiagnostics
   nextTurn?: NextTurnFixedContextDiagnostics | null
   mode: string
@@ -324,6 +328,12 @@ export function formatContextDiagnosticsReport(args: {
     '- Snapshot: current persisted prompt history only (excludes /context and next-turn injected blocks)',
     `- Mode: ${args.mode}`,
     `- Model: ${args.model || 'unknown'}`,
+    '',
+    'Latest compact boundary',
+    `- Trigger: ${args.latestCompactBoundary?.trigger ?? 'none'}`,
+    `- Pre-compact tokens: ${formatMaybeInt(args.latestCompactBoundary?.preTokens ?? null)}`,
+    `- Summary kind: ${args.latestCompactBoundary?.summaryKind ?? 'none'}`,
+    `- Keep strategy: ${formatKeepStrategy(args.latestCompactBoundary?.keepStrategy ?? null)}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,
@@ -379,6 +389,14 @@ export function formatContextDiagnosticsReport(args: {
   ]
 
   return lines.join('\n')
+}
+
+function formatKeepStrategy(value: CompactBoundaryMeta['keepStrategy'] | null): string {
+  if (!value) return 'none'
+  if (value.kind === 'keep_last_turns') {
+    return `keep_last_turns(${formatInt(value.keepLastTurns)})`
+  }
+  return 'unknown'
 }
 
 function splitHistorySlices(

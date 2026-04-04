@@ -1,6 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { rebuildHistoryAfterCompaction } from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
+import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import type { PromptBlock } from '../../../../prompts'
 import { buildCompactRequest } from '../../../../prompts/compact'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -83,6 +84,18 @@ export async function runCompactFlow(args: {
         summary,
         previousHistory: args.previousHistory,
         keepLastTurns: args.keepLastTurns,
+        boundaryMeta: {
+          trigger: args.source,
+          preTokens: estimatePromptTokens({
+            system: args.system,
+            messages: args.previousHistory,
+          }),
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_last_turns',
+            keepLastTurns: args.keepLastTurns,
+          },
+        },
       }),
     }
   } catch (error) {

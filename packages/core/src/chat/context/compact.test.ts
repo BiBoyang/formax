@@ -69,9 +69,23 @@ describe('selectTailForCompaction', () => {
 describe('rebuildHistoryAfterCompaction', () => {
   it('prepends an explicit boundary, summary, and keeps the selected tail', () => {
     const previous: PromptMessage[] = [txt('user', 'u1'), txt('assistant', 'a1'), txt('user', 'u2'), txt('assistant', 'a2')]
-    const next = rebuildHistoryAfterCompaction({ summary: 'S', previousHistory: previous, keepLastTurns: 1 })
+    const next = rebuildHistoryAfterCompaction({
+      summary: 'S',
+      previousHistory: previous,
+      keepLastTurns: 1,
+      boundaryMeta: {
+        trigger: 'manual',
+        preTokens: 321,
+        summaryKind: 'model_summary',
+        keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+      },
+    })
     expect(next.length).toBe(4)
     expect(isCompactBoundaryMessage(next[0]!)).toBe(true)
+    expect((next[0]!.meta?.compactBoundary as any)?.keepStrategy).toEqual({
+      kind: 'keep_last_turns',
+      keepLastTurns: 1,
+    })
     expect(next[1]!.role).toBe('user')
     expect((next[1]!.content as any[])[0]!.text).toContain('This session is being continued from a previous conversation')
     expect((next[1]!.content as any[])[0]!.text).toContain('S')
@@ -82,8 +96,14 @@ describe('rebuildHistoryAfterCompaction', () => {
 
 describe('compaction summary helpers', () => {
   it('builds and strips explicit compact boundary messages', () => {
-    const boundary = buildCompactBoundaryMessage()
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 0 },
+    })
     expect(isCompactBoundaryMessage(boundary)).toBe(true)
+    expect((boundary.meta?.compactBoundary as any)?.trigger).toBe('manual')
     expect(
       stripCompactBoundaryMessages([boundary, txt('user', 'kept')]),
     ).toEqual([txt('user', 'kept')])
