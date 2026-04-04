@@ -36,6 +36,10 @@
   - `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
   - `packages/core/src/runtime/bootstrap/session.ts`
   - `packages/core/src/sdk/query/resume.ts`
+- 已完成：partial compact MVP
+  - `packages/core/src/chat/context/compact.ts`
+  - `packages/core/src/features/repl/controller/send/compactFlow.ts`
+  - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
@@ -110,10 +114,9 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 3. compact 后恢复仍不完整
 4. keep 策略仍然比较简单
 5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
-6. 没有 partial compact
-7. 没有 reactive compact
-8. 没有 context collapse / cache-aware intermediate layer
-9. remote thread restore 还没有 compact 协议对齐
+6. 没有 reactive compact
+7. 没有 context collapse / cache-aware intermediate layer
+8. remote thread restore 还没有 compact 协议对齐
 
 ## 与 Claude Code 的差异地图
 
@@ -212,7 +215,11 @@ Claude Code：
 - 有 413 / media 错误后的 reactive compact 路径
 
 Formax 当前：
-- 都没有
+- 已有 partial compact MVP：
+  - 当前只对已有 latest boundary 的 auto compact 生效
+  - 会把最新 boundary 后的 continuation 当成新的 compact 作用域
+  - 旧 compact summary 会继续参与“要总结什么”，但不会再被当作 preserved tail 保留
+- 仍然没有 reactive compact
 
 ## H. diagnostics / introspection
 

@@ -44,6 +44,7 @@
 - `docs/learnings/2026-04-04-preserved-segment-metadata.md`
 - `docs/learnings/2026-04-04-rolling-session-memory-sidecar.md`
 - `docs/learnings/2026-04-04-session-memory-draft-schema.md`
+- `docs/learnings/2026-04-05-partial-compact-mvp.md`
 
 ## Web Reference Runtime / Performance
 

@@ -30,10 +30,6 @@
 
 ## Slice Group G: Higher-Order Compression
 
-- `CCA-061` 实现 partial compact 最小版
-  - 目标：只替换某个 boundary 之前的旧段，而不是整段重压
-  - 验收：history 重构后 UI、session、resume 语义仍稳定
-
 - `CCA-062` 实现 reactive compact
   - 目标：在 provider 侧真正超限或特定错误时，有受控 fallback compact 路径
   - 验收：出错后不是直接失败，而是尝试 compact/retry
@@ -50,4 +46,5 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-061`
+1. `CCA-062`
+2. `CCA-072`

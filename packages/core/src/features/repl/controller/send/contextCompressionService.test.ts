@@ -290,6 +290,77 @@ describe('createContextCompressionService', () => {
     )
   })
 
+  it('uses only the latest continuation segment for session-memory auto compact when a boundary already exists', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'normal',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['tighten the CTA copy'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'model_summary',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 1,
+          keepMinTokens: 1200,
+          keepMinUserTurns: 1,
+        },
+        rehydrationPlan: null,
+      },
+    } as any)
+
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+    })
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'very old turn' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '' }],
+          meta: {
+            compactBoundary: {
+              schemaVersion: 1,
+              trigger: 'auto',
+              preTokens: 2048,
+              summaryKind: 'model_summary',
+              keepStrategy: {
+                kind: 'keep_combo',
+                keepLastTurns: 2,
+                keepMinTokens: 1200,
+                keepMinUserTurns: 1,
+              },
+            },
+          },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'old compact summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'carry working set' }] },
+        { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
+      ] as any,
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(out.autoCompacted).toBe(true)
+    expect(JSON.stringify(out.history)).not.toContain('very old turn')
+    expect(JSON.stringify(out.history)).not.toContain('old compact summary')
+    expect(JSON.stringify(out.history)).toContain('latest user')
+    expect(JSON.stringify(out.history)).toContain('latest assistant')
+  })
+
   it('falls back to model-summary auto-compact when session memory is unavailable', async () => {
     vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
 

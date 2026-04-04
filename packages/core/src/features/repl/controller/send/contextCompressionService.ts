@@ -6,6 +6,7 @@ import {
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
+  resolveHistoryForCompaction,
 } from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
@@ -164,11 +165,15 @@ export function createContextCompressionService(deps: {
       if (!summary) return null
 
       const keepStrategy = buildAutoCompactKeepStrategy(args.keepLastTurns)
+      const compactionScope = resolveHistoryForCompaction({
+        previousHistory: args.previousHistory,
+        allowPartial: true,
+      })
       const fallbackRehydration = buildPostCompactRehydration({
         cwd: deps.cwd,
         mode: deps.mode,
         planPath: deps.getPlanPath(),
-        previousHistory: args.previousHistory,
+        previousHistory: compactionScope.history,
       })
       const rehydration = buildSessionMemoryCompactionRehydration({
         draft,
@@ -193,7 +198,8 @@ export function createContextCompressionService(deps: {
       lifecycleStarted = true
       const compactedHistory = rebuildHistoryAfterCompaction({
         summary,
-        previousHistory: args.previousHistory,
+        previousHistory: compactionScope.history,
+        tailSourceHistory: compactionScope.tailSourceHistory,
         keepStrategy,
         rehydration,
         boundaryMeta: {

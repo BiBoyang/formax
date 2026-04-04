@@ -119,7 +119,7 @@ Formax 的“上下文管理”分两条线：
 
 `/compact` 已实现。主要入口：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
-- compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`）
+- compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`，且当已有 latest boundary 时，会优先对 continuation 作用域做 partial compact）
 - history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前最小 working-set anchor 已覆盖最近成功 `Read`，但只允许回卷最近 1 个额外 user turn）
 
 ### 想改“session memory / rolling memory（P5 起点）”

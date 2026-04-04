@@ -168,15 +168,13 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-061`
-2. `CCA-062`
-3. `CCA-072`
+1. `CCA-062`
+2. `CCA-072`
 
 对应含义：
 
-1. 在 boundary-first prompt view、preserved segment、app-server compact boundary、boundary-aware restore 都补齐后，再进入 partial compact
-2. provider 错误下的 reactive compact 放在其后
-3. diagnostics payload 的正式客户端消费契约继续并行补强
+1. partial compact 已完成后，继续补 provider 错误下的 reactive compact
+2. diagnostics payload 的正式客户端消费契约继续并行补强
 
 ---
 

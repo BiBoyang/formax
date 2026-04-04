@@ -196,4 +196,58 @@ describe('runCompactFlow', () => {
     })
     expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('u2')
   })
+
+  it('uses only the latest continuation segment for auto partial compact when a boundary already exists', async () => {
+    const runTurn = vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'partial summary' }] }] as ChatHistory)
+    const existingBoundary = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '' }],
+      meta: {
+        compactBoundary: {
+          schemaVersion: 1,
+          trigger: 'auto',
+          preTokens: 600,
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_combo',
+            keepLastTurns: 2,
+            keepMinTokens: 1200,
+            keepMinUserTurns: 1,
+          },
+        },
+      },
+    } as any
+
+    const out = await runCompactFlow(
+      baseArgs({
+        source: 'auto',
+        keepLastTurns: 1,
+        previousHistory: [
+          { role: 'user', content: [{ type: 'text', text: 'very old turn' }] },
+          existingBoundary,
+          { role: 'user', content: [{ type: 'text', text: 'old compact summary' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'carry working set' }] },
+          { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
+        ] as ChatHistory,
+        engine: { runTurn } as any,
+      }),
+    )
+
+    expect(runTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        history: [
+          { role: 'user', content: [{ type: 'text', text: 'old compact summary' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'carry working set' }] },
+          { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
+        ],
+      }),
+    )
+    expect((out.compactedHistory[1] as any)?.content?.[0]?.text).toContain('partial summary')
+    expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('latest user')
+    expect((out.compactedHistory[3] as any)?.content?.[0]?.text).toBe('latest assistant')
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('very old turn')
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('old compact summary')
+  })
 })

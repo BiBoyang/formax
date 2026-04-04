@@ -1,7 +1,7 @@
 # CCA-060 Partial Compact Go/No-Go Checklist
 
 更新时间：2026-04-04
-状态：历史检查已完成，原 blocker 已清空；`CCA-061` 可以开始
+状态：历史检查已完成，原 blocker 已清空；`CCA-061` 已完成
 
 ## 目的
 
@@ -28,7 +28,7 @@
 所以它现在的角色更像一份**历史 gate 记录**：
 
 1. 说明为什么当时不能直接上 partial compact
-2. 说明现在为什么可以进入 `CCA-061`
+2. 说明后来为什么可以进入并完成 `CCA-061`
 3. 为后续回看 partial compact 的前置条件提供依据
 
 ## Go/No-Go 总表
@@ -212,4 +212,4 @@ message/tool contributor drill-down 很有价值，
 
 - **历史上 partial compact 曾经是 `NO-GO`**
 - **原始 blocker `CCA-022` / `CCA-023` / `CCA-070` / `CCA-071` 现在都已清空**
-- **下一步可以正式进入 `CCA-061` runtime 实现**
+- **`CCA-061` 已经可以并且已经进入 runtime 实现**

@@ -5,6 +5,7 @@ import {
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
+  resolveHistoryForCompaction,
 } from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
@@ -46,6 +47,11 @@ export async function runCompactFlow(args: {
 }): Promise<CompactFlowResult> {
   args.onLifecycle?.({ type: 'compact_started', source: args.source })
 
+  const compactionScope = resolveHistoryForCompaction({
+    previousHistory: args.previousHistory,
+    allowPartial: args.source === 'auto',
+  })
+
   const compactUser: ChatHistory[number] = {
     role: 'user',
     content: [{ type: 'text', text: buildCompactRequest(args.instructions) }],
@@ -60,7 +66,7 @@ export async function runCompactFlow(args: {
 
   try {
     const compactedHistory = await args.engine.runTurn({
-      history: args.previousHistory,
+      history: compactionScope.history,
       user: compactUser,
       system: args.system,
       tools: [],
@@ -110,7 +116,8 @@ export async function runCompactFlow(args: {
       summary,
       compactedHistory: rebuildHistoryAfterCompaction({
         summary,
-        previousHistory: args.previousHistory,
+        previousHistory: compactionScope.history,
+        tailSourceHistory: compactionScope.tailSourceHistory,
         keepStrategy,
         rehydration,
         boundaryMeta: {

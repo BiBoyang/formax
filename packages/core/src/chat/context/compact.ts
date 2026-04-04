@@ -384,6 +384,33 @@ export function buildActiveHistoryFromSessionReplay(messages: PromptMessage[]): 
   return getContinuationMessagesAfterLatestCompactBoundary(messages)
 }
 
+export function resolveHistoryForCompaction(args: {
+  previousHistory: PromptMessage[]
+  allowPartial: boolean
+}): {
+  history: PromptMessage[]
+  tailSourceHistory: PromptMessage[]
+  partial: boolean
+} {
+  if (!args.allowPartial) {
+    return {
+      history: args.previousHistory,
+      tailSourceHistory: args.previousHistory,
+      partial: false,
+    }
+  }
+
+  const latestBoundaryIndex = findLatestCompactBoundaryIndex(args.previousHistory)
+  const continuation = getContinuationMessagesAfterLatestCompactBoundary(args.previousHistory)
+  const partial = latestBoundaryIndex >= 0 && continuation.length > 0
+  const tailSourceHistory = partial && continuation[0]?.role === 'user' ? continuation.slice(1) : continuation
+  return {
+    history: partial ? continuation : args.previousHistory,
+    tailSourceHistory: partial ? tailSourceHistory : args.previousHistory,
+    partial,
+  }
+}
+
 export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
   if (!msg || msg.role !== 'user') return false
   if (isToolResultMessage(msg)) return false
@@ -434,6 +461,7 @@ export function continuationMatchesPreservedSegment(args: {
 export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
+  tailSourceHistory?: PromptMessage[]
   keepStrategy: CompactBoundaryKeepStrategy
   rehydration?: {
     recentFiles?: string[]
@@ -458,7 +486,7 @@ export function rebuildHistoryAfterCompaction(args: {
     content: [{ type: 'text', text: summaryText }] as any,
   }
 
-  const tail = selectTailForCompaction(args.previousHistory, args.keepStrategy)
+  const tail = selectTailForCompaction(args.tailSourceHistory ?? args.previousHistory, args.keepStrategy)
   return [
     buildCompactBoundaryMessage({
       ...args.boundaryMeta,

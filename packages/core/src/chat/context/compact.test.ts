@@ -15,6 +15,7 @@ import {
   isCompactionSummaryUserMessage,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
+  resolveHistoryForCompaction,
   selectTailForCompaction,
   stripCompactBoundaryMessages,
 } from './compact'
@@ -273,6 +274,56 @@ describe('compaction summary helpers', () => {
       txt('user', 'second summary'),
       txt('assistant', 'tail two'),
     ])
+  })
+
+  it('uses the latest boundary continuation as the partial compaction scope', () => {
+    const history = [
+      txt('user', 'before first compact'),
+      buildCompactBoundaryMessage({
+        trigger: 'manual',
+        preTokens: 456,
+        summaryKind: 'model_summary',
+        keepStrategy: buildAutoCompactKeepStrategy(2),
+      }),
+      txt('user', 'previous compact summary'),
+      txt('assistant', 'working tail'),
+      txt('user', 'latest user'),
+      txt('assistant', 'latest assistant'),
+    ]
+
+    expect(
+      resolveHistoryForCompaction({
+        previousHistory: history,
+        allowPartial: true,
+      }),
+    ).toEqual({
+      history: [
+        txt('user', 'previous compact summary'),
+        txt('assistant', 'working tail'),
+        txt('user', 'latest user'),
+        txt('assistant', 'latest assistant'),
+      ],
+      tailSourceHistory: [
+        txt('assistant', 'working tail'),
+        txt('user', 'latest user'),
+        txt('assistant', 'latest assistant'),
+      ],
+      partial: true,
+    })
+  })
+
+  it('falls back to the full history when no compact boundary exists', () => {
+    const history = [txt('user', 'u1'), txt('assistant', 'a1')]
+    expect(
+      resolveHistoryForCompaction({
+        previousHistory: history,
+        allowPartial: true,
+      }),
+    ).toEqual({
+      history,
+      tailSourceHistory: history,
+      partial: false,
+    })
   })
 
   it('reports preserved segment mismatches when continuation messages drift', () => {
