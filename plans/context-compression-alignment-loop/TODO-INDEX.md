@@ -24,10 +24,6 @@
 
 ## Slice Group C: Compact Protocol Upgrade
 
-- `CCA-022` 让 prompt 视图基于最近 boundary 构建
-  - 目标：主路径从“全 history + summary message”演进到“最近 boundary 后 continuation view”
-  - 验收：有针对 boundary slicing 的测试
-
 - `CCA-023` 引入 preserved segment metadata
   - 目标：为未来 resume / partial compact / relink 做准备
   - 验收：metadata 结构与恢复路径最小可测
@@ -66,8 +62,7 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-022`
-2. `CCA-023`
-3. `CCA-070`
-4. `CCA-071`
-5. `CCA-061`
+1. `CCA-023`
+2. `CCA-070`
+3. `CCA-071`
+4. `CCA-061`

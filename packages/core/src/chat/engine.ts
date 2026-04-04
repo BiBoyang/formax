@@ -3,7 +3,7 @@ import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
 import type { ContextBudgetConfig } from './context/budget'
-import { stripCompactBoundaryMessages } from './context/compact'
+import { getContinuationMessagesAfterLatestCompactBoundary } from './context/compact'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pruneForPromptBudget } from './context/prune'
@@ -265,13 +265,13 @@ export function createChatEngine(deps: {
           const promptBaseMessages = promptBudget?.contextWindowTokens
             ? pruneForPromptBudget({
                 system: systemForThisCall,
-                messages: stripCompactBoundaryMessages(loopMessages),
+                messages: getContinuationMessagesAfterLatestCompactBoundary(loopMessages),
                 contextWindowTokens: promptBudget.contextWindowTokens,
                 effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
                 autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
                 baselineTokens: promptBudget.baselineTokens,
               }).messages
-            : stripCompactBoundaryMessages(loopMessages)
+            : getContinuationMessagesAfterLatestCompactBoundary(loopMessages)
 
           const injectedMessages = buildMessagesWithPostToolUseText(promptBaseMessages, pendingPostToolUseTextByToolUseId)
           const preCallExtra =

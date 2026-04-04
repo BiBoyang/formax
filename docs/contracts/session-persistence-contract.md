@@ -141,7 +141,7 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 该 boundary：
 1. MUST 能被 replay / resume 原样恢复
 2. MUST NOT 依赖可见文本内容来识别
-3. MUST 在真实 prompt 组装前被忽略，不得作为模型可见历史正文发送
+3. MUST 在真实 prompt 组装前参与“最新 compact boundary 后 continuation view”的切片计算；boundary 自身不得作为模型可见历史正文发送
 4. 当前 SHOULD 至少包含：`trigger`、`preTokens`、`summaryKind`、`keepStrategy`
    - `summaryKind` 当前 MAY 为 `model_summary` 或 `session_memory`
    - `keepStrategy` 当前 MAY 为 `keep_last_turns` 或 `keep_combo`

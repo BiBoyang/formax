@@ -349,9 +349,22 @@ export function findLatestCompactBoundary(messages: PromptMessage[]): CompactBou
   return null
 }
 
+export function findLatestCompactBoundaryIndex(messages: PromptMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isCompactBoundaryMessage(messages[index])) return index
+  }
+  return -1
+}
+
 export function stripCompactBoundaryMessages(messages: PromptMessage[]): PromptMessage[] {
   if (!messages.some((message) => isCompactBoundaryMessage(message))) return messages
   return messages.filter((message) => !isCompactBoundaryMessage(message))
+}
+
+export function getContinuationMessagesAfterLatestCompactBoundary(messages: PromptMessage[]): PromptMessage[] {
+  const latestBoundaryIndex = findLatestCompactBoundaryIndex(messages)
+  if (latestBoundaryIndex < 0) return stripCompactBoundaryMessages(messages)
+  return stripCompactBoundaryMessages(messages.slice(latestBoundaryIndex + 1))
 }
 
 export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {

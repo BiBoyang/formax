@@ -7,6 +7,8 @@ import {
   buildCompactionSummaryUserText,
   collectRecentReadFilesForRehydration,
   estimateCompactRehydrationCost,
+  findLatestCompactBoundaryIndex,
+  getContinuationMessagesAfterLatestCompactBoundary,
   isCompactBoundaryMessage,
   isCompactionSummaryUserMessage,
   markCompactRehydrationApplied,
@@ -227,6 +229,36 @@ describe('compaction summary helpers', () => {
     expect(
       stripCompactBoundaryMessages([boundary, txt('user', 'kept')]),
     ).toEqual([txt('user', 'kept')])
+  })
+
+  it('returns the latest compact-boundary continuation view', () => {
+    const firstBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+    })
+    const secondBoundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 456,
+      summaryKind: 'session_memory',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+    })
+    const history = [
+      txt('user', 'before first compact'),
+      firstBoundary,
+      txt('user', 'first summary'),
+      txt('assistant', 'tail one'),
+      secondBoundary,
+      txt('user', 'second summary'),
+      txt('assistant', 'tail two'),
+    ]
+
+    expect(findLatestCompactBoundaryIndex(history)).toBe(4)
+    expect(getContinuationMessagesAfterLatestCompactBoundary(history)).toEqual([
+      txt('user', 'second summary'),
+      txt('assistant', 'tail two'),
+    ])
   })
 
   it('builds a default rehydration plan from mode and plan-path state', () => {

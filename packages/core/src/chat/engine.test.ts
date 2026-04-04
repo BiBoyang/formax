@@ -57,6 +57,56 @@ describe('ChatEngine', () => {
     expect(out).toHaveLength(4)
   })
 
+  it('uses only the latest compact-boundary continuation view for prompt history', async () => {
+    let capturedMessages: PromptMessage[] = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        capturedMessages = args.messages as PromptMessage[]
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    await engine.runTurn({
+      history: [
+        buildCompactBoundaryMessage({
+          trigger: 'manual',
+          preTokens: 21,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+        }),
+        { role: 'user', content: [{ type: 'text', text: 'summary-1' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'tail-1' }] },
+        buildCompactBoundaryMessage({
+          trigger: 'auto',
+          preTokens: 42,
+          summaryKind: 'session_memory',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+        }),
+        { role: 'user', content: [{ type: 'text', text: 'summary-2' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'tail-2' }] },
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      system: [],
+      tools: [],
+      onEvent: () => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(capturedMessages).toHaveLength(3)
+    expect(capturedMessages.some((message) => message.meta?.compactBoundary)).toBe(false)
+    expect((capturedMessages[0]!.content[0] as any).text).toBe('summary-2')
+    expect((capturedMessages[1]!.content[0] as any).text).toBe('tail-2')
+    expect((capturedMessages[2]!.content[0] as any).text).toBe('continue')
+  })
+
   it('captures request payload and skips network when request dry-run is enabled', async () => {
     const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-'))
     let streamCalls = 0

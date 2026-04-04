@@ -90,6 +90,37 @@ describe('contextDiagnostics', () => {
     expect(out.topSnapshotContributors.some((row) => row.label.includes('Assistant message'))).toBe(true)
   })
 
+  it('uses only the latest compact-boundary continuation view in diagnostics', () => {
+    const out = analyzeContextDiagnostics({
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [
+        buildCompactBoundaryMessage({
+          trigger: 'manual',
+          preTokens: 42,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+        }),
+        { role: 'user', content: [{ type: 'text', text: 'summary-1' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'tail-1' }] },
+        buildCompactBoundaryMessage({
+          trigger: 'auto',
+          preTokens: 88,
+          summaryKind: 'session_memory',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+        }),
+        { role: 'user', content: [{ type: 'text', text: 'summary-2' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'tail-2' }] },
+      ],
+      budgetConfig: null,
+    })
+
+    expect(out.messageCount).toBe(2)
+    expect(out.userMessageCount).toBe(1)
+    expect(out.assistantMessageCount).toBe(1)
+    expect(out.topSnapshotContributors.some((row) => row.label.includes('tail-1'))).toBe(false)
+    expect(out.topSnapshotContributors.some((row) => row.label.includes('summary-2'))).toBe(true)
+  })
+
   it('formats a readable diagnostics report with unknown budget values', () => {
     const diagnostics = analyzeContextDiagnostics({
       system: [{ type: 'text', text: 'system instructions' }],
@@ -104,7 +135,7 @@ describe('contextDiagnostics', () => {
     })
 
     expect(out).toContain('Context diagnostics')
-    expect(out).toContain('- Snapshot: current persisted prompt history only')
+    expect(out).toContain('- Snapshot: latest compact-boundary continuation view only')
     expect(out).toContain('- Mode: plan')
     expect(out).toContain('- Model: claude-3-5-sonnet-latest')
     expect(out).toContain('- Context window: unknown')
@@ -121,6 +152,7 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Fixed group breakdown: none')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
+    expect(out).toContain('latest compact-boundary continuation view')
   })
 
   it('analyzes next-turn fixed context projection with group breakdown', () => {

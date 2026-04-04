@@ -95,7 +95,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 
 `CMD-203A`  
 精确 `/context` 在 TUI 路径 MUST 先走 dedicated local diagnostics path；app-server / Web 路径 MAY 通过 `command/dispatch` 返回同等的本地 diagnostics 输出。当前 diagnostics 输出 MUST 同时包含：
-1. 当前 persisted prompt history snapshot 视图
+1. 当前最新 compact boundary 后 continuation-view snapshot 视图（若不存在 boundary，则退化为当前 persisted prompt history）
 2. “next-turn fixed context” 视图（未来用户正文出现前的固定上下文开销投影）
 3. snapshot 与 next-turn fixed 视图各自的 top contributors 排行，帮助识别最重的 system / history / fixed blocks
 4. 当参数精确为 `--json` 时，MUST 返回同一 diagnostics 数据的 JSON 文本表示

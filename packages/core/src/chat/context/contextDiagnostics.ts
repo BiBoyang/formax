@@ -7,8 +7,8 @@ import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
 import {
   findLatestCompactBoundary,
+  getContinuationMessagesAfterLatestCompactBoundary,
   type CompactBoundaryMeta,
-  stripCompactBoundaryMessages,
 } from './compact'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
@@ -79,6 +79,7 @@ export type ContextDiagnosticsOutputFormat = 'text' | 'json'
 
 const DEFAULT_CONTEXT_DIAGNOSTICS_NOTES = [
   'Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
+  'When compact boundaries exist, snapshot/history analysis uses the latest compact-boundary continuation view instead of the full persisted history.',
   'Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
 ] as const
 
@@ -95,7 +96,7 @@ export function analyzeContextDiagnostics(args: {
   messages: PromptMessage[]
   budgetConfig?: ContextBudgetConfig | null
 }): ContextDiagnostics {
-  const promptMessages = stripCompactBoundaryMessages(args.messages)
+  const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const toolUsesById = collectToolUsesById(promptMessages)
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
   const historyTokens = estimatePromptTokens({ system: [], messages: promptMessages })
@@ -147,7 +148,7 @@ export function analyzeNextTurnFixedContext(args: {
   fixedGroups: NextTurnFixedContextGroup[]
   budgetConfig?: ContextBudgetConfig | null
 }): NextTurnFixedContextDiagnostics {
-  const promptMessages = stripCompactBoundaryMessages(args.messages)
+  const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const fixedGroups = args.fixedGroups
     .map((group) => ({
       label: group.label,
@@ -329,7 +330,7 @@ export function formatContextDiagnosticsReport(args: {
   const { diagnostics } = args
   const lines = [
     'Context diagnostics',
-    '- Snapshot: current persisted prompt history only (excludes /context and next-turn injected blocks)',
+    '- Snapshot: latest compact-boundary continuation view only (excludes /context and next-turn injected blocks)',
     `- Mode: ${args.mode}`,
     `- Model: ${args.model || 'unknown'}`,
     '',
