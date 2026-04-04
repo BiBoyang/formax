@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { UserInputManager } from '../../../../tools/runtime/userInputManager'
+import { buildActiveHistoryFromSessionReplay } from '../../../../chat/context/compact'
 import { applyAbortToMessages } from './abortTranscript'
 
 type SessionWriterLike = {
@@ -150,7 +151,7 @@ export async function runResumeSessionTransition(args: {
 
   // Reset transient runtime state, then restore persisted state.
   args.resetSessionState()
-  args.historyRef.current = replay.history
+  args.historyRef.current = buildActiveHistoryFromSessionReplay(replay.history)
 
   await args.replaceTranscript(sanitizedMessages)
   args.lastPersistedSigByMsgIdRef.current = args.buildPersistedSigMap(sanitizedMessages)

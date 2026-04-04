@@ -3,6 +3,7 @@ import {
   findSessionFileBySessionId,
   readSessionFile,
 } from '../../features/repl/sessionSave/reader.js'
+import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptMessage } from '../../prompts/index.js'
 import type { QueryOptions } from '../types.js'
 import {
@@ -42,7 +43,7 @@ async function loadReplayFromFile(args: { filePath: string; context: string }): 
     const replay = parseRawSessionReplayOutput(rawReplay)
     return {
       sessionId: replay.sessionId,
-      history: clonePromptHistory(replay.history),
+      history: buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history)),
       sessionFilePath: args.filePath,
     }
   } catch (error) {

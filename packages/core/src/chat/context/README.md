@@ -132,7 +132,8 @@ Formax 的“上下文管理”分两条线：
 - 当前定位：
   - 这是 **session-scoped working memory draft**，不是现有按 cwd 的 `MEMORY.md` 替代品
   - 当前已经接进 turn completion 的后台刷新，也已接进 auto compact fallback chain
-  - 但还没有接进 resume / continue 恢复路径
+  - REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 已会把 persisted history 恢复成 boundary-first continuation view
+  - 但 rolling session memory sidecar 还没有接进 memory-first resume / continue 恢复路径
 
 ---
 

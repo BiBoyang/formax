@@ -112,7 +112,7 @@ flowchart TD
 
 ### 3. compact protocol 组
 
-这组是接下来最关键的主线：
+这组已经完成了最关键的前置主线：
 
 1. `CCA-022`：boundary-first prompt view
 2. `CCA-023`：preserved segment metadata
@@ -168,21 +168,15 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-022`
-2. `CCA-023`
-3. `CCA-070`
-4. `CCA-071`
-5. `CCA-061`
-6. `CCA-062`
+1. `CCA-061`
+2. `CCA-062`
+3. `CCA-072`
 
 对应含义：
 
-1. 先让 prompt 真实视图基于 boundary
-2. 再让 compact 结果具备 preserved segment 语义
-3. 再把 compact boundary 升级成跨端协议
-4. 再让 session persistence / resume 真正理解 boundary
-5. 最后才做 partial compact
-6. provider 错误下的 reactive compact 放在其后
+1. 在 boundary-first prompt view、preserved segment、app-server compact boundary、boundary-aware restore 都补齐后，再进入 partial compact
+2. provider 错误下的 reactive compact 放在其后
+3. diagnostics payload 的正式客户端消费契约继续并行补强
 
 ---
 

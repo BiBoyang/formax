@@ -380,6 +380,10 @@ export function getContinuationMessagesAfterLatestCompactBoundary(messages: Prom
   return stripCompactBoundaryMessages(messages.slice(latestBoundaryIndex + 1))
 }
 
+export function buildActiveHistoryFromSessionReplay(messages: PromptMessage[]): PromptMessage[] {
+  return getContinuationMessagesAfterLatestCompactBoundary(messages)
+}
+
 export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
   if (!msg || msg.role !== 'user') return false
   if (isToolResultMessage(msg)) return false

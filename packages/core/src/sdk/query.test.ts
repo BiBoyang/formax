@@ -1693,6 +1693,46 @@ describe('sdk query()', () => {
     }
   })
 
+  it('restores continuation history instead of replaying pre-boundary messages for options.resume', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.role).toBe('user')
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('compact summary')
+      expect(turnArgs.history[1]?.role).toBe('assistant')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('preserved assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'old user before boundary' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '' }],
+          meta: {
+            compactBoundary: {
+              schemaVersion: 1,
+              trigger: 'manual',
+              preTokens: 1200,
+              summaryKind: 'model_summary',
+            },
+          },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
+      ],
+    })
+
+    await collectMessages({
+      prompt: 'resume prompt',
+      options: { resume: 'session-abc' },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+  })
+
   it('uses options.sessionId when resume is not provided', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
@@ -2236,6 +2276,46 @@ describe('sdk query()', () => {
       expect(result.subtype).toBe('success')
       expect(result.session_id).toBe('continued-session-id')
     }
+  })
+
+  it('restores continuation history instead of replaying pre-boundary messages for options.continue', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history).toHaveLength(2)
+      expect(turnArgs.history[0]?.content?.[0]?.text).toBe('continued summary')
+      expect(turnArgs.history[1]?.content?.[0]?.text).toBe('continued preserved assistant')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'old continued user before boundary' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '' }],
+          meta: {
+            compactBoundary: {
+              schemaVersion: 1,
+              trigger: 'auto',
+              preTokens: 2048,
+              summaryKind: 'session_memory',
+            },
+          },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'continued summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] },
+      ],
+    })
+
+    await collectMessages({
+      prompt: 'continue prompt',
+      options: {
+        continue: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
   })
 
   it('allows continue when sessionId matches latest session', async () => {

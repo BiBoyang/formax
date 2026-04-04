@@ -95,6 +95,58 @@ describe('runResumeSessionTransition', () => {
     expect(replaceTranscript).toHaveBeenCalledWith(messages)
   })
 
+  it('restores historyRef to the continuation view after the latest compact boundary', async () => {
+    const compactBoundary = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '' }],
+      meta: {
+        compactBoundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          preTokens: 1200,
+          summaryKind: 'model_summary',
+        },
+      },
+    } as any
+    const compactSummary = {
+      role: 'user',
+      content: [{ type: 'text', text: 'Summary of previous session' }],
+    } as any
+    const preservedAssistant = {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Preserved assistant turn' }],
+    } as any
+    const history: ChatHistory = [
+      { role: 'user', content: [{ type: 'text', text: 'Old user turn before boundary' }] } as any,
+      compactBoundary,
+      compactSummary,
+      preservedAssistant,
+    ]
+    const historyRef = { current: [] as ChatHistory }
+    const replaceTranscript = vi.fn(async () => undefined)
+
+    await runResumeSessionTransition({
+      filePath: '/tmp/session.jsonl',
+      readSessionFile: async () => ({ messages: [], history }),
+      beginNewSession: () => undefined,
+      sessionSaveEnabled: false,
+      sessionWriterRef: { current: null },
+      lastPersistedSigByMsgIdRef: { current: new Map() },
+      lastPersistedMsgByIdRef: { current: new Map() },
+      resetSessionState: () => undefined,
+      historyRef,
+      replaceTranscript,
+      openExistingSessionWriter: async () => {
+        throw new Error('should not be called')
+      },
+      buildPersistedSigMap: () => new Map(),
+      buildPersistedMsgRefMap: () => new Map(),
+    })
+
+    expect(historyRef.current).toEqual([compactSummary, preservedAssistant])
+    expect(replaceTranscript).toHaveBeenCalledWith([])
+  })
+
   it('drops trailing /resume command rows from replayed messages', async () => {
     const replayMessages = [
       createMsg('m1', 'hello'),

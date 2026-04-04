@@ -44,15 +44,10 @@
 
 ## Slice Group H: Cross-Surface / Protocol Parity
 
-- `CCA-071` 把 compact boundary 纳入 session persistence / resume
-  - 目标：resume 后 continuation view 和 compact 语义一致
-  - 验收：session restore 有针对 boundary 的回归测试
-
 - `CCA-072` 为 diagnostics payload 提供正式客户端消费契约
   - 目标：让 Web/TUI 以后做 richer panel 时不再依赖隐式字段约定
   - 验收：contract 文档明确 `local.diagnostics` schema 与兼容规则
 
 ## 当前推荐执行顺序
 
-1. `CCA-071`
-2. `CCA-061`
+1. `CCA-061`

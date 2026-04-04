@@ -1,7 +1,7 @@
 # CCA-060 Partial Compact Go/No-Go Checklist
 
 更新时间：2026-04-04
-状态：当前结论 = `NO-GO`
+状态：历史检查已完成，原 blocker 已清空；`CCA-061` 可以开始
 
 ## 目的
 
@@ -17,30 +17,28 @@
 
 ## 当前结论
 
-当前 Formax **还不适合直接实现 partial compact**。
+这份清单创建时的结论是 `NO-GO`。  
+截至 2026-04-04，本清单里列出的四个硬 blocker 已全部补齐：
 
-原因不是“压缩逻辑不够多”，而是**协议和恢复层还不够稳**：
+- boundary-first continuation view
+- preserved segment metadata
+- boundary-aware session restore
+- app-server compact boundary protocol
 
-- boundary 已存在，但 prompt 组装还不是 boundary-first continuation view
-- 还没有 preserved segment metadata
-- session persistence / resume 还没有 boundary-aware restore 合同
-- app-server / Web 还没有 compact boundary 事件级协议
+所以它现在的角色更像一份**历史 gate 记录**：
 
-如果在这些条件没补齐前直接做 partial compact，很容易把问题从“上下文压缩”升级成：
-
-- history relink 错位
-- resume 后 continuation view 不一致
-- Web/TUI replay 分叉
-- session restore 恢复不出正确的 compact 语义
+1. 说明为什么当时不能直接上 partial compact
+2. 说明现在为什么可以进入 `CCA-061`
+3. 为后续回看 partial compact 的前置条件提供依据
 
 ## Go/No-Go 总表
 
 | 项目 | 当前状态 | 结论 | 备注 |
 | --- | --- | --- | --- |
-| `CCA-022` boundary-first prompt view | 未完成 | Blocker | partial compact 必须先能稳定拿到“最近 boundary 之后的 continuation view” |
-| `CCA-023` preserved segment metadata | 未完成 | Blocker | 没有 preserved segment，partial compact 后很难做 relink / resume |
-| `CCA-070` app-server compact boundary protocol | 未完成 | Blocker | 跨端看不到 compact 事件级语义时，partial compact 很难做 parity |
-| `CCA-071` session persistence / resume boundary-aware restore | 未完成 | Blocker | resume 如果不认 boundary，partial compact 会把恢复链条搞乱 |
+| `CCA-022` boundary-first prompt view | 已完成 | Cleared | partial compact 现在可以稳定拿到“最近 boundary 之后的 continuation view” |
+| `CCA-023` preserved segment metadata | 已完成 | Cleared | 现在已有最小 preserved segment metadata 作为 relink / resume 起点 |
+| `CCA-070` app-server compact boundary protocol | 已完成 | Cleared | compact boundary 现在已有 app-server 事件级协议 |
+| `CCA-071` session persistence / resume boundary-aware restore | 已完成 | Cleared | resume / continue 已能恢复到 boundary-first continuation view |
 | diagnostics 已能看到 latest boundary | 已完成 | Supportive | 有助于调试，但不是单独 blocker 的解除条件 |
 | memory-first auto compact | 已完成 | Supportive | 说明 compact 协议可复用，但不等于 partial compact 已具备条件 |
 | reactive compact | 未完成 | Non-blocker | 可以后做，不是 partial compact 的前置条件 |
@@ -181,7 +179,7 @@ message/tool contributor drill-down 很有价值，
 
 ## 推荐推进顺序
 
-在 `CCA-060` 之后，建议顺序改成：
+在 blocker 清空后，建议顺序改成：
 
 1. `CCA-022`：boundary-first prompt view
 2. `CCA-023`：preserved segment metadata
@@ -210,8 +208,8 @@ message/tool contributor drill-down 很有价值，
 
 ## 当前动作结论
 
-`CCA-060` 的输出结论是：
+`CCA-060` 当前更准确的输出结论是：
 
-- **当前 partial compact = NO-GO**
-- **最先该补的是 `CCA-022` 和 `CCA-023`，然后是 `CCA-070` / `CCA-071`**
-- **在这些条件没完成前，不建议直接进入 `CCA-061` runtime 实现**
+- **历史上 partial compact 曾经是 `NO-GO`**
+- **原始 blocker `CCA-022` / `CCA-023` / `CCA-070` / `CCA-071` 现在都已清空**
+- **下一步可以正式进入 `CCA-061` runtime 实现**

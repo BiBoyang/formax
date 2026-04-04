@@ -1,4 +1,5 @@
 import { findLatestSessionFile, readSessionFile } from '../../features/repl/sessionSave/index.js'
+import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 
 export async function resolveInitialSession(args: {
   cwd: string
@@ -18,7 +19,11 @@ export async function resolveInitialSession(args: {
     const filePath = await findLatestSessionFile({ cwd: args.cwd, env: args.env })
     if (!filePath) return null
     const replay = await readSessionFile(filePath)
-    return { filePath, messages: replay.messages, history: replay.history }
+    return {
+      filePath,
+      messages: replay.messages,
+      history: buildActiveHistoryFromSessionReplay(replay.history),
+    }
   } catch {
     return null
   }

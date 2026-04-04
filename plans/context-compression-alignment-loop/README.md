@@ -32,6 +32,10 @@
 - 已完成：compact boundary app-server protocol 起点
   - `packages/core/src/app-server/turnRunner.ts`
   - `packages/core/src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
+- 已完成：session persistence / resume boundary-aware restore
+  - `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
+  - `packages/core/src/runtime/bootstrap/session.ts`
+  - `packages/core/src/sdk/query/resume.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
@@ -102,14 +106,14 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 ### 仍然缺失的高价值能力
 
 1. `microcompact` 还不够聪明
-2. compact 仍然不是协议化 boundary 事件
-3. compact 后仍缺 rehydrate
+2. compact 协议虽然已经起步，但还不够完整
+3. compact 后恢复仍不完整
 4. keep 策略仍然比较简单
-5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 resume / thread restore
+5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
 6. 没有 partial compact
 7. 没有 reactive compact
 8. 没有 context collapse / cache-aware intermediate layer
-9. remote / SDK / session persistence 还没有 compact 协议对齐
+9. remote thread restore 还没有 compact 协议对齐
 
 ## 与 Claude Code 的差异地图
 
@@ -153,9 +157,10 @@ Formax 当前：
 - 已有最小 boundary metadata，并能通过 diagnostics payload 读到最新 boundary
 - 已有最小 `preservedSegment` metadata（`continuationMessageCount`、`preservedTailMessageCount`、`summaryFingerprint`、`headFingerprint`、`tailFingerprint`），可用于最小 continuation 校验
 - app-server `turn/event` 已有 `compact_boundary` 协议事件，canonical adapter 可映射成 `system_message(uiKind="compact_boundary")`
+- REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 已会把 persisted history 恢复成 boundary-first continuation view，而不是直接把 replay.history 原样塞回 active baseline
 - 缺：
   - preserved segment relink
-  - session restore / remote 协议对齐
+  - remote thread restore 协议对齐
 
 ## D. compact 后恢复能力
 
@@ -236,7 +241,7 @@ Claude Code：
 
 Formax 当前：
 - `/context` 结构化 payload 已进入 app-server local result
-- 但 compact 本身还没有同等级协议化
+- compact boundary 已开始进入 session restore / SDK resume 协议层，但 remote thread restore 仍未完全对齐
 
 ## 执行原则（固定）
 

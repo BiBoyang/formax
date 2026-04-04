@@ -162,6 +162,21 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 5. 当前 auto compact MAY 先读取该 sidecar，以 session memory 生成 compaction summary；若 sidecar 不存在、不可读或不可用，MUST 静默回退到 model summary compact
 6. 当前 resume / continue 流程 MAY 忽略该 sidecar；若未来开始消费，必须先更新本合同
 
+`SES-304C`
+当 file-backed restore 需要把 persisted history 恢复成“下一轮 active prompt baseline”时，系统 MUST 以最近 compact boundary 之后的 continuation view 为准，而不是直接把完整 replay.history 原样作为 active history。  
+该规则当前至少适用于：
+1. REPL `/resume`
+2. CLI `resumeLast`
+3. SDK `query(..., { resume })`
+4. SDK `query(..., { continue: true })`
+
+`SES-304D`
+`SES-304C` 的 boundary-aware restore MUST 满足以下约束：
+1. session JSONL replay 仍 MUST 保持原样权威；不得为了 restore 方便而改写历史 replay 语义
+2. compact boundary 自身 MUST NOT 进入恢复后的 active history
+3. compact summary 与 preserved tail 若位于最新 boundary 之后，MUST 继续作为恢复后的 active history 一部分保留
+4. 若会话不存在 compact boundary，恢复结果 MUST 退化为“去掉 boundary message 后的完整 persisted history”
+
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：
 1. `options.dir` 存在时以其为 lookup cwd
