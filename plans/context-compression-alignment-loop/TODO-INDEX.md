@@ -4,13 +4,6 @@
 
 更新时间：2026-04-03
 
-## Slice Group A: Microcompact Phase 2
-
-- `CCA-006` 评估并实现附加 text block 的安全压缩
-  - 目标：处理 tool_result 后跟随的大块 text，而不误伤正常对话
-  - 验收：只命中明确的大输出伴随块，普通消息不受影响
-  - 备注：当前需先明确“哪些 text block 算 machine-generated companion block”，否则容易误伤正常对话文本
-
 ## Slice Group B: Diagnostics Phase 2
 
 - `CCA-010` 增加 per-system-section diagnostics
@@ -99,8 +92,7 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-006`
-2. `CCA-040`
-3. `CCA-050`
-4. `CCA-060`
-5. `CCA-070`
+1. `CCA-040`
+2. `CCA-050`
+3. `CCA-060`
+4. `CCA-070`

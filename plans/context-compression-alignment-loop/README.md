@@ -38,6 +38,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已从 send 主链路分散调用，收敛为统一协调服务。
 2. 轻量压缩层 MVP
   - 已支持 `Read` / `Grep` / `Glob` 的旧 tool result stub 化。
+  - 已支持 `Skill` 的旧 machine-generated companion body 安全 stub 化，且不会误伤普通 trailing text。
   - stub 现在会保留更高价值的最小上下文，例如 `Read` 的体量信息、`Grep` 的近似命中数、`Glob` 的近似路径数。
   - `microcompact` 现在会按上下文压力分档，动态调整工具覆盖、保留数量与最小结果大小阈值。
   - `Bash` / `WebFetch` 现在有保守的 allow/deny 规则：只有明确低风险、可重放的结果才允许进入 microcompact。
@@ -105,6 +106,7 @@ Formax 当前：
 - 只有本地 stub 替换版 MVP
 - 当前限制：
   - 主要处理 `Read` / `Grep` / `Glob`
+  - 只对已知安全的 `Skill` companion block 做窄范围命中
   - `Bash` / `WebFetch` 仅在高压力档位 + 保守 allow/deny 下参与
   - 没有缓存感知路径
 

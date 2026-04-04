@@ -3,7 +3,11 @@
 ## What changed
 
 - Formax 在 `contextCompressionService` 前后置链路里新增了 `microCompactHistory()`。
-- 第一版只处理旧的、较大的、且可重取的 tool result：`Read`、`Grep`、`Glob`。
+- 第一版先处理旧的、较大的、且可重取的 tool result：`Read`、`Grep`、`Glob`。
+- 后续增量又补上了一个更窄但高价值的安全路径：
+  - `Skill` 的 machine-generated companion text block（来自 `ToolResult.extraTextBlocks`）
+  - 当前只命中已知的 skill body 形态：以 `Base directory for this skill:` 开头的附加块
+  - 这条路径不会误伤普通 trailing text，也不会改掉 `Launching skill: ...` 这类短 launch stub
 - microcompact 会保留最近 3 个符合条件的 tool result 原文，更早的结果替换成短 stub，例如：
   - `[Older tool result cleared by microcompact: Read /repo/src/auth.ts]`
 - richer stub 现在会补充更高价值的最小上下文：
@@ -17,6 +21,10 @@
 - 把算法放在 `chat/context`，把编排留在 `contextCompressionService`，避免把 send 层再次做成巨型 orchestrator。
 - stub 保留最少但可读的信息，方便模型和开发者知道“之前读过什么”，而不是只看到一个无意义的 cleared 标记。
 - richer stub 的目标不是“摘要原文”，而是让后续继续工作时，至少还能知道“读过哪个文件、grep 了什么、结果大概有多大”。
+- 对 `Skill` companion block 来说，最值钱的信息不是完整 skill body 一直留在 prompt 里，而是：
+  - 这是哪个 skill 的 body
+  - 它曾经被注入过
+  - 大概有多大
 - adaptive 策略现在会按上下文压力分档，动态调节：
   - 压哪些工具
   - 保留最近多少条原始结果
@@ -29,6 +37,11 @@
 ## Current limits
 
 - 这是 MVP，不是 Claude Code 级完整方案。
-- 还没有按 token 压力做自适应策略，只是固定规则。
+- 已有按 token 压力分档的自适应策略，但还没有缓存感知 / 时间感知路径。
+- 目前只对已知安全的 machine-generated companion block 做了非常窄的命中：
+  - 只覆盖 `Skill`
+  - 只覆盖紧跟 `tool_result` 的第一个 text block
+  - 只覆盖以 `Base directory for this skill:` 开头的附加块
+- 还没有处理更一般化的 post-tool text 或其他工具的 companion block。
 - 还没有 boundary metadata、post-compact rehydration、session memory compact。
-- 还没有 `/context` 风格的细分诊断视图。
+- boundary metadata、post-compact rehydration、`/context` diagnostics 已经补到第一版，但仍然离 Claude Code 的成熟分层体系有差距。

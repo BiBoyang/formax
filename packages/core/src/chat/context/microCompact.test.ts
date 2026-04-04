@@ -97,6 +97,75 @@ describe('microCompactHistory', () => {
     expect(oldMessage.content[1]).toEqual({ type: 'text', text: 'extra reminder' })
   })
 
+  it('microcompacts older machine-generated Skill companion blocks without touching the launch stub', () => {
+    const oldCompanionText = `Base directory for this skill: /repo/.formax/skills/frontend-design\n\n${'A'.repeat(4000)}`
+    const messages: PromptMessage[] = [
+      assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
+      userToolResult('skill-1', 'Launching skill: frontend-design', [
+        {
+          type: 'text',
+          text: oldCompanionText,
+        },
+      ]),
+      assistantToolUse('skill-2', 'Skill', { skill: 'pdf' }),
+      userToolResult('skill-2', 'Launching skill: pdf', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/pdf\n\n${'B'.repeat(4000)}`,
+        },
+      ]),
+      assistantToolUse('skill-3', 'Skill', { skill: 'release' }),
+      userToolResult('skill-3', 'Launching skill: release', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/release\n\n${'C'.repeat(4000)}`,
+        },
+      ]),
+      assistantToolUse('skill-4', 'Skill', { skill: 'qa' }),
+      userToolResult('skill-4', 'Launching skill: qa', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/qa\n\n${'D'.repeat(4000)}`,
+        },
+      ]),
+    ]
+
+    const out = microCompactHistory({ messages })
+    const oldMessage = out.messages[1]!
+
+    expect(out.compacted).toBe(true)
+    expect(out.compactedBlocks).toBe(1)
+    expect(out.compactedToolNames).toEqual(['Skill'])
+    expect(out.estimatedTokensSaved).toBeGreaterThan(0)
+    expect((oldMessage.content[0] as any).content).toBe('Launching skill: frontend-design')
+    expect((oldMessage.content[1] as any).text).toBe(
+      `[Older companion block cleared by microcompact: Skill(frontend-design) body (~${oldCompanionText.length.toLocaleString('en-US')} chars)]`,
+    )
+    expect((out.messages[3]!.content[1] as any).text).toContain('Base directory for this skill')
+  })
+
+  it('keeps ordinary trailing text blocks intact even for Skill tool results', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
+      userToolResult('skill-1', 'Launching skill: frontend-design', [{ type: 'text', text: 'human note '.repeat(300) }]),
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+      userToolResult('read-3', 'c'.repeat(4000)),
+      assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+      userToolResult('read-4', 'd'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({ messages })
+
+    expect((out.messages[1]!.content[1] as any).text).toBe('human note '.repeat(300))
+    expect((out.messages[3]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
+    )
+  })
+
   it('keeps Bash and WebFetch results intact by default', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
@@ -186,31 +255,31 @@ describe('microCompactHistory', () => {
   it('resolves predictable adaptive policies for different pressure tiers', () => {
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: null })).toEqual({
       pressureTier: 'default',
-      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill'],
       keepRecentToolResults: 3,
       minResultChars: 1200,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.3 })).toEqual({
       pressureTier: 'relaxed',
-      eligibleToolNames: ['Read'],
+      eligibleToolNames: ['Read', 'Skill'],
       keepRecentToolResults: 4,
       minResultChars: 2400,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.6 })).toEqual({
       pressureTier: 'steady',
-      eligibleToolNames: ['Read', 'Grep'],
+      eligibleToolNames: ['Read', 'Grep', 'Skill'],
       keepRecentToolResults: 3,
       minResultChars: 1600,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.8 })).toEqual({
       pressureTier: 'tight',
-      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill'],
       keepRecentToolResults: 2,
       minResultChars: 1200,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
       pressureTier: 'critical',
-      eligibleToolNames: ['Read', 'Grep', 'Glob', 'Bash', 'WebFetch'],
+      eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill', 'Bash', 'WebFetch'],
       keepRecentToolResults: 1,
       minResultChars: 800,
     })

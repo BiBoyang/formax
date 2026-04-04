@@ -5,7 +5,9 @@ const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
 const DEFAULT_MIN_RESULT_CHARS = 1200
 const DEFAULT_MAX_STUB_CHARS = 120
 export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcompact:'
-const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob'] as const
+const MICROCOMPACT_COMPANION_STUB_PREFIX = '[Older companion block cleared by microcompact:'
+const SKILL_COMPANION_PREFIX = 'Base directory for this skill: '
+const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'Skill'] as const
 const SAFE_BASH_COMMANDS = [
   'cat',
   'head',
@@ -46,6 +48,9 @@ type EligibleToolResultRef = {
   blockIndex: number
   toolUseId: string
   tool: ToolUseMeta
+  compactToolResult: boolean
+  companionTextBlockIndex?: number
+  companionText?: string
 }
 
 export type MicroCompactImpact = {
@@ -77,7 +82,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
   if (ratio < 0.5) {
     return {
       pressureTier: 'relaxed',
-      eligibleToolNames: ['Read'],
+      eligibleToolNames: ['Read', 'Skill'],
       keepRecentToolResults: 4,
       minResultChars: 2400,
     }
@@ -85,7 +90,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
   if (ratio < 0.75) {
     return {
       pressureTier: 'steady',
-      eligibleToolNames: ['Read', 'Grep'],
+      eligibleToolNames: ['Read', 'Grep', 'Skill'],
       keepRecentToolResults: 3,
       minResultChars: 1600,
     }
@@ -158,13 +163,36 @@ export function microCompactHistory(args: {
     if (!currentBlock || typeof currentBlock !== 'object') continue
     if ((currentBlock as any).type !== 'tool_result') continue
 
-    const rawResultText = toolResultContentToText((currentBlock as any).content)
-    const replacementBlock = {
-      ...currentBlock,
-      content: buildMicrocompactStub(ref.tool, rawResultText),
-    } as any
+    if (ref.compactToolResult) {
+      const rawResultText = toolResultContentToText((currentBlock as any).content)
+      const replacementBlock = {
+        ...currentBlock,
+        content: buildMicrocompactStub(ref.tool, rawResultText),
+      } as any
 
-    nextBlocks[ref.blockIndex] = replacementBlock
+      nextBlocks[ref.blockIndex] = replacementBlock
+      estimatedTokensSaved += Math.max(
+        0,
+        estimateTextTokens(rawResultText) - estimateTextTokens(toolResultContentToText(replacementBlock.content)),
+      )
+    }
+
+    if (
+      ref.companionTextBlockIndex != null &&
+      typeof ref.companionText === 'string' &&
+      ref.companionTextBlockIndex > ref.blockIndex &&
+      ref.companionTextBlockIndex < nextBlocks.length
+    ) {
+      const companionBlock = nextBlocks[ref.companionTextBlockIndex] as any
+      if (companionBlock?.type === 'text') {
+        const replacementText = buildCompanionMicrocompactStub(ref.tool, ref.companionText)
+        nextBlocks[ref.companionTextBlockIndex] = {
+          ...companionBlock,
+          text: replacementText,
+        }
+        estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.companionText) - estimateTextTokens(replacementText))
+      }
+    }
 
     const patchedMessage = {
       ...sourceMessage,
@@ -178,10 +206,6 @@ export function microCompactHistory(args: {
       compactedToolNameSet.add(ref.tool.name)
       compactedToolNames.push(ref.tool.name)
     }
-    estimatedTokensSaved += Math.max(
-      0,
-      estimateTextTokens(rawResultText) - estimateTextTokens(toolResultContentToText(replacementBlock.content)),
-    )
   }
 
   return {
@@ -234,21 +258,33 @@ function collectEligibleToolResults(args: {
       if (block?.type !== 'tool_result') continue
       if (block?.is_error === true) continue
       if (typeof block.tool_use_id !== 'string' || block.tool_use_id.length === 0) continue
-      if (isAlreadyMicroCompacted(block.content)) continue
 
       const tool = args.toolUsesById.get(block.tool_use_id)
       if (!tool) continue
       if (!args.eligibleToolNames.has(tool.name)) continue
 
       const raw = toolResultContentToText(block.content)
-      if (raw.length < args.minResultChars) continue
-      if (!isSafeToolResultToMicroCompact(tool, raw)) continue
+      const companion = getEligibleCompanionTextBlock({
+        blocks: message.content as any[],
+        tool,
+        toolResultBlockIndex: blockIndex,
+        minChars: args.minResultChars,
+      })
+      const compactToolResult =
+        raw.length >= args.minResultChars &&
+        !isAlreadyMicroCompacted(block.content) &&
+        isSafeToolResultToMicroCompact(tool, raw)
+
+      if (!compactToolResult && !companion) continue
 
       out.push({
         messageIndex,
         blockIndex,
         toolUseId: block.tool_use_id,
         tool,
+        compactToolResult,
+        companionTextBlockIndex: companion?.blockIndex,
+        companionText: companion?.text,
       })
     }
   }
@@ -259,6 +295,14 @@ function collectEligibleToolResults(args: {
 function buildMicrocompactStub(tool: ToolUseMeta, rawResultText: string): string {
   const maxSummaryChars = Math.max(12, DEFAULT_MAX_STUB_CHARS - MICROCOMPACT_STUB_PREFIX.length - 2)
   return `${MICROCOMPACT_STUB_PREFIX} ${clipMiddle(summarizeToolUse(tool, rawResultText), maxSummaryChars)}]`
+}
+
+function buildCompanionMicrocompactStub(tool: ToolUseMeta, rawCompanionText: string): string {
+  const maxSummaryChars = Math.max(12, DEFAULT_MAX_STUB_CHARS - MICROCOMPACT_COMPANION_STUB_PREFIX.length - 2)
+  return `${MICROCOMPACT_COMPANION_STUB_PREFIX} ${clipMiddle(
+    summarizeCompanionBlock(tool, rawCompanionText),
+    maxSummaryChars,
+  )}]`
 }
 
 function summarizeToolUse(tool: ToolUseMeta, rawResultText: string): string {
@@ -300,6 +344,16 @@ function summarizeToolUse(tool: ToolUseMeta, rawResultText: string): string {
   }
 
   return `${name} result`
+}
+
+function summarizeCompanionBlock(tool: ToolUseMeta, rawCompanionText: string): string {
+  if (tool.name === 'Skill') {
+    const skillName = readString(tool.input.skill)
+    const label = skillName ? `Skill(${clipMiddle(skillName, 40)}) body` : 'Skill body'
+    return `${label} (~${formatCount(rawCompanionText.length)} chars)`
+  }
+
+  return `${clipMiddle(tool.name || 'Tool', 24)} companion block`
 }
 
 function summarizeReadFootprint(rawResultText: string): string {
@@ -356,6 +410,29 @@ function isSafeWebFetchUrl(url: string | null): boolean {
 
 function isAlreadyMicroCompacted(content: unknown): boolean {
   return toolResultContentToText(content as any).startsWith(MICROCOMPACT_STUB_PREFIX)
+}
+
+function getEligibleCompanionTextBlock(args: {
+  blocks: any[]
+  tool: ToolUseMeta
+  toolResultBlockIndex: number
+  minChars: number
+}): { blockIndex: number; text: string } | null {
+  const candidateIndex = args.toolResultBlockIndex + 1
+  if (candidateIndex >= args.blocks.length) return null
+
+  const block = args.blocks[candidateIndex]
+  if (block?.type !== 'text' || typeof block.text !== 'string') return null
+  if (block.text.length < args.minChars) return null
+  if (block.text.startsWith(MICROCOMPACT_COMPANION_STUB_PREFIX)) return null
+  if (!isSafeCompanionTextToMicroCompact(args.tool, block.text)) return null
+
+  return { blockIndex: candidateIndex, text: block.text }
+}
+
+function isSafeCompanionTextToMicroCompact(tool: ToolUseMeta, text: string): boolean {
+  if (tool.name === 'Skill') return text.startsWith(SKILL_COMPANION_PREFIX)
+  return false
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
