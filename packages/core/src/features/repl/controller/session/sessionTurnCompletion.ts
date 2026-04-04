@@ -1,10 +1,12 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
+import type { ReplMode } from '../../mode'
 import {
   extractLastAssistantTextFromHistory,
   maybeAutoGenerateSessionTitle,
   type MaybeAutoGenerateSessionTitleArgs,
 } from '../../../sessionTitle'
+import { persistRollingSessionMemory } from './sessionRollingMemory'
 import { shouldPersistUiMsg } from './sessionLifecycle'
 
 type TurnCompletionWriter = {
@@ -15,6 +17,14 @@ type TurnCompletionWriter = {
 
 type AutoGenerateSessionTitle = (args: MaybeAutoGenerateSessionTitleArgs) => Promise<string | null>
 type AssistantTextExtractor = (history: ChatHistory) => string | null
+type PersistRollingSessionMemory = (args: {
+  sessionFilePath: string
+  cwd: string
+  mode: ReplMode
+  planPath: string | null
+  history: ChatHistory
+}) => Promise<void>
+type ScheduleBackgroundTask = (task: () => void) => void
 
 export function collectUiStatsForTurnCompletion(messages: Msg[]): {
   uiMsgCount: number
@@ -42,11 +52,15 @@ export function runSessionTurnCompletionSideEffects(args: {
   messages: Msg[]
   engine: Pick<ChatEngine, 'runTurn'>
   cwd: string
+  mode: ReplMode
+  planPath: string | null
   attemptedSessionIds: Set<string>
   checkedTopicPromptKeys: Set<string>
   model: string
   autoGenerateSessionTitle?: AutoGenerateSessionTitle
   extractAssistantText?: AssistantTextExtractor
+  persistRollingMemory?: PersistRollingSessionMemory
+  scheduleBackgroundTask?: ScheduleBackgroundTask
 }): void {
   if (!args.writer) return
   if (!args.wasLoading || args.isLoading) return
@@ -57,6 +71,19 @@ export function runSessionTurnCompletionSideEffects(args: {
 
   const assistantText = (args.extractAssistantText ?? extractLastAssistantTextFromHistory)(args.history)
   const autoGenerate = args.autoGenerateSessionTitle ?? maybeAutoGenerateSessionTitle
+  const persistRollingMemory = args.persistRollingMemory ?? persistRollingSessionMemory
+  const scheduleBackgroundTask = args.scheduleBackgroundTask ?? ((task: () => void) => setTimeout(task, 0))
+
+  scheduleBackgroundTask(() => {
+    void persistRollingMemory({
+      sessionFilePath: args.writer.filePath,
+      cwd: args.cwd,
+      mode: args.mode,
+      planPath: args.planPath,
+      history: args.history,
+    }).catch(() => null)
+  })
+
   void autoGenerate({
     filePath: args.writer.filePath,
     engine: args.engine,

@@ -1,6 +1,6 @@
 # Session Persistence Contract（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-04-04  
 状态：规范性（Normative）
 
 本文档定义 Formax 本地 session 文件、resume 语义、以及 app-server 恢复 stale input 的共享合同。
@@ -27,6 +27,8 @@
 - `packages/core/src/features/repl/sessionSave/paths.ts`
 - `packages/core/src/features/repl/sessionSave/writer.ts`
 - `packages/core/src/features/repl/sessionSave/reader.ts`
+- `packages/core/src/features/repl/sessionSave/sessionMemorySidecar.ts`
+- `packages/core/src/features/repl/controller/session/sessionRollingMemory.ts`
 - `packages/core/src/sdk/query/resume.ts`
 - `packages/core/src/sdk/query/persistence.ts`
 - `packages/core/src/sdk/query/runner.ts`
@@ -146,6 +148,15 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 6. 当前当 `recent_files` 已实际注入 compaction summary reminder 时，对应 `rehydrationPlan.items[*].status` SHOULD 升为 `applied`
 7. 当前当 compact summary 已实际注入 plan excerpt、todo summary、mode text 时，对应 `plan_state`、`todo_state`、`mode_state` 的 `status` SHOULD 升为 `applied`
 8. 当前若 compact 已注入 rehydration 文本，boundary SHOULD 额外记录 `rehydrationCost`，至少包含 `sectionCount` 与 `estimatedTokens`
+
+`SES-304B`
+会话持久化当前 MAY 额外维护一个与 session JSONL 相邻的 rolling session memory sidecar。
+该 sidecar：
+1. 当前 MUST 使用与 session 文件同目录、同 basename 的 `.memory.json` 后缀路径
+2. 当前内容 SHOULD 保存最新 `SessionMemoryDraft`
+3. 当前 MAY 在 turn 完成后异步刷新；不得阻塞主 turn 完成路径
+4. 当前 MUST NOT 取代 JSONL session 文件的 replay / resume 权威性
+5. 当前 resume / continue 流程 MAY 忽略该 sidecar；若未来开始消费，必须先更新本合同
 
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：

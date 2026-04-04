@@ -38,10 +38,6 @@
 
 ## Slice Group F: Session Memory / Rolling Memory
 
-- `CCA-051` 引入后台维护的 rolling memory
-  - 目标：不等到 full compact 时才总结历史
-  - 验收：每轮或定期更新 memory，且不显著拖慢主路径
-
 - `CCA-052` 实现 memory-first auto compact
   - 目标：auto compact 先尝试 session memory compact，再 fallback full summary compact
   - 验收：存在 clear fallback chain 与测试
@@ -80,6 +76,6 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-051`
+1. `CCA-052`
 2. `CCA-060`
 3. `CCA-070`

@@ -355,6 +355,8 @@ export function useReplController(deps: {
     historyRef,
     engine: deps.engine,
     cwd: runtimeCwd,
+    mode: deps.mode,
+    getPlanPath: () => deps.planSession?.getPlanPath() ?? null,
     attemptedSessionIds: autoTitleRefs.attemptedSessionIdsRef.current,
     checkedTopicPromptKeys: autoTitleRefs.checkedTopicPromptKeysRef.current,
     model: deps.cfg.llm.model,

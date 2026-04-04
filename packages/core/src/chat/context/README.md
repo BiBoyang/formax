@@ -124,9 +124,11 @@ Formax 的“上下文管理”分两条线：
 
 - `packages/core/src/chat/context/sessionMemory.ts`：`buildSessionMemoryDraft()` + `mergeSessionMemoryDraft()`
 - `packages/core/src/chat/context/sessionMemory.test.ts`：builder / merge 规则回归
+- `packages/core/src/features/repl/controller/session/sessionRollingMemory.ts`：每轮 turn 完成后的 rolling memory sidecar 刷新
+- `packages/core/src/features/repl/sessionSave/sessionMemorySidecar.ts`：session `.memory.json` sidecar 路径与原子写入
 - 当前定位：
   - 这是 **session-scoped working memory draft**，不是现有按 cwd 的 `MEMORY.md` 替代品
-  - 当前只定义 schema、builder 与 merge 规则，还没有接进 runtime 更新或 auto compact fallback
+  - 当前已经接进 turn completion 的后台刷新，但还没有接进 auto compact fallback / resume 恢复
 
 ---
 

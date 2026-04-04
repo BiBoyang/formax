@@ -74,6 +74,8 @@ describe('useSessionPersistence', () => {
         historyRef={{ current: [] as ChatHistory }}
         engine={{} as any}
         cwd='/tmp/cwd'
+        mode='normal'
+        getPlanPath={() => null}
         attemptedSessionIds={new Set<string>()}
         checkedTopicPromptKeys={new Set<string>()}
         model='sonnet'
@@ -114,6 +116,8 @@ describe('useSessionPersistence', () => {
         historyRef={{ current: [] as ChatHistory }}
         engine={{} as any}
         cwd='/tmp/cwd'
+        mode='normal'
+        getPlanPath={() => null}
         attemptedSessionIds={new Set<string>()}
         checkedTopicPromptKeys={new Set<string>()}
         model='sonnet'
@@ -139,6 +143,8 @@ describe('useSessionPersistence', () => {
         historyRef={{ current: [] as ChatHistory }}
         engine={{} as any}
         cwd='/tmp/cwd'
+        mode='normal'
+        getPlanPath={() => null}
         attemptedSessionIds={new Set<string>()}
         checkedTopicPromptKeys={new Set<string>()}
         model='sonnet'
@@ -180,6 +186,8 @@ describe('useSessionPersistence', () => {
         historyRef={{ current: [] as ChatHistory }}
         engine={{} as any}
         cwd='/tmp/cwd'
+        mode='normal'
+        getPlanPath={() => null}
         attemptedSessionIds={new Set<string>()}
         checkedTopicPromptKeys={new Set<string>()}
         model='sonnet'
@@ -216,6 +224,8 @@ describe('useSessionPersistence', () => {
         historyRef={{ current: [] as ChatHistory }}
         engine={{} as any}
         cwd='/tmp/cwd'
+        mode='plan'
+        getPlanPath={() => '/tmp/current-plan.md'}
         attemptedSessionIds={new Set<string>(['s1'])}
         checkedTopicPromptKeys={new Set<string>(['k1'])}
         model='sonnet'
@@ -230,6 +240,8 @@ describe('useSessionPersistence', () => {
         wasLoading: true,
         isLoading: false,
         cwd: '/tmp/cwd',
+        mode: 'plan',
+        planPath: '/tmp/current-plan.md',
         model: 'sonnet',
       }),
     )

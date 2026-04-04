@@ -90,6 +90,8 @@ describe('runSessionTurnCompletionSideEffects', () => {
       messages: [createMsg({ role: 'user', content: 'hello' })],
       engine: createEngine(),
       cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
       attemptedSessionIds: new Set(),
       checkedTopicPromptKeys: new Set(),
       model: 'claude-3-5-sonnet-latest',
@@ -111,6 +113,8 @@ describe('runSessionTurnCompletionSideEffects', () => {
       messages: [createMsg({ role: 'user', content: 'hello' })],
       engine: createEngine(),
       cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
       attemptedSessionIds: new Set(),
       checkedTopicPromptKeys: new Set(),
       model: 'claude-3-5-sonnet-latest',
@@ -134,6 +138,8 @@ describe('runSessionTurnCompletionSideEffects', () => {
       messages: [createMsg({ role: 'user', content: 'hello' })],
       engine: createEngine(),
       cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
       attemptedSessionIds: new Set(),
       checkedTopicPromptKeys: new Set(),
       model: 'claude-3-5-sonnet-latest',
@@ -153,6 +159,8 @@ describe('runSessionTurnCompletionSideEffects', () => {
     const checkedTopicPromptKeys = new Set<string>()
     const autoGenerateSessionTitle = vi.fn(async () => null)
     const extractAssistantText = vi.fn(() => 'assistant from history')
+    const persistRollingMemory = vi.fn(async () => undefined)
+    const scheduleBackgroundTask = vi.fn((task: () => void) => task())
 
     runSessionTurnCompletionSideEffects({
       writer,
@@ -165,11 +173,15 @@ describe('runSessionTurnCompletionSideEffects', () => {
       ],
       engine,
       cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
       attemptedSessionIds,
       checkedTopicPromptKeys,
       model: 'claude-3-5-sonnet-latest',
       autoGenerateSessionTitle,
       extractAssistantText,
+      persistRollingMemory,
+      scheduleBackgroundTask,
     })
 
     expect(writer.appendHistorySnapshot).toHaveBeenCalledWith(history)
@@ -177,6 +189,14 @@ describe('runSessionTurnCompletionSideEffects', () => {
       uiMsgCount: 2,
       firstUserPrompt: 'first prompt',
       lastUserPrompt: 'last prompt',
+    })
+    expect(scheduleBackgroundTask).toHaveBeenCalledTimes(1)
+    expect(persistRollingMemory).toHaveBeenCalledWith({
+      sessionFilePath: writer.filePath,
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      history,
     })
     expect(autoGenerateSessionTitle).toHaveBeenCalledWith({
       filePath: writer.filePath,
@@ -197,6 +217,10 @@ describe('runSessionTurnCompletionSideEffects', () => {
     const autoGenerateSessionTitle = vi.fn(async () => {
       throw new Error('failed')
     })
+    const persistRollingMemory = vi.fn(async () => {
+      throw new Error('rolling memory failed')
+    })
+    const scheduleBackgroundTask = vi.fn((task: () => void) => task())
 
     runSessionTurnCompletionSideEffects({
       writer,
@@ -206,17 +230,22 @@ describe('runSessionTurnCompletionSideEffects', () => {
       messages: [createMsg({ id: 'u1', role: 'user', content: 'prompt' })],
       engine: createEngine(),
       cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
       attemptedSessionIds: new Set(),
       checkedTopicPromptKeys: new Set(),
       model: 'claude-3-5-sonnet-latest',
       autoGenerateSessionTitle,
       extractAssistantText: () => null,
+      persistRollingMemory,
+      scheduleBackgroundTask,
     })
 
     await Promise.resolve()
     expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
     expect(writer.appendEvent).toHaveBeenCalledTimes(1)
     expect(autoGenerateSessionTitle).toHaveBeenCalledTimes(1)
+    expect(persistRollingMemory).toHaveBeenCalledTimes(1)
   })
 
   it('uses default assistant extractor and auto-title generator when overrides are omitted', () => {
@@ -233,6 +262,8 @@ describe('runSessionTurnCompletionSideEffects', () => {
       messages: [createMsg({ id: 'u1', role: 'user', content: '' })],
       engine: createEngine(),
       cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
       attemptedSessionIds: new Set(),
       checkedTopicPromptKeys: new Set(),
       model: 'claude-3-5-sonnet-latest',

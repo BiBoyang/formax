@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { MutableRefObject } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
+import type { ReplMode } from '../../mode'
 import type { SessionWriter } from '../../sessionSave/writer'
 import {
   buildMessageByIdMap,
@@ -30,6 +31,8 @@ function useSessionPersistence(args: {
   historyRef: MutableRefObject<ChatHistory>
   engine: ChatEngine
   cwd: string
+  mode: ReplMode
+  getPlanPath: () => string | null
   attemptedSessionIds: Set<string>
   checkedTopicPromptKeys: Set<string>
   model: string
@@ -90,6 +93,8 @@ function useSessionPersistence(args: {
       messages: args.messages,
       engine: args.engine,
       cwd: args.cwd,
+      mode: args.mode,
+      planPath: args.getPlanPath(),
       attemptedSessionIds: args.attemptedSessionIds,
       checkedTopicPromptKeys: args.checkedTopicPromptKeys,
       model: args.model,
@@ -101,9 +106,11 @@ function useSessionPersistence(args: {
     args.historyRef,
     args.isLoading,
     args.messages,
+    args.mode,
     args.model,
     args.previousIsLoadingRef,
     args.sessionWriterRef,
+    args.getPlanPath,
     args.attemptedSessionIds,
   ])
 }

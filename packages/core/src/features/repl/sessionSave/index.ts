@@ -3,4 +3,4 @@ export * from './writer'
 export * from './reader'
 export * from './historyStrip'
 export * from './paths'
-
+export * from './sessionMemorySidecar'

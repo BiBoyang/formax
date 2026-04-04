@@ -18,6 +18,9 @@
 - 已完成：app-server `local.diagnostics` 结构化 payload
 - 已完成：session memory draft schema（builder + merge rules）
   - `packages/core/src/chat/context/sessionMemory.ts`
+- 已完成：rolling session memory sidecar（turn completion async refresh）
+  - `packages/core/src/features/repl/controller/session/sessionRollingMemory.ts`
+  - `packages/core/src/features/repl/sessionSave/sessionMemorySidecar.ts`
 
 但从 Claude Code 的能力模型来看，Formax 仍然明显停留在“分层体系的前半段”。
 
@@ -85,7 +88,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 2. compact 仍然不是协议化 boundary 事件
 3. compact 后仍缺 rehydrate
 4. keep 策略仍然比较简单
-5. 已有 session memory draft schema，但尚未进入 runtime / auto compact
+5. 已有 rolling session memory sidecar，但尚未进入 auto compact / resume
 6. 没有 partial compact
 7. 没有 reactive compact
 8. 没有 context collapse / cache-aware intermediate layer
@@ -175,7 +178,7 @@ Claude Code：
 
 Formax 当前：
 - 已有 `sessionMemory.ts` 提供最小 draft schema（长期事实层 / 活动任务层 / 当前策略层）
-- 仍没有 rolling memory layer
+- 已有 turn-completion 驱动的 rolling memory sidecar
 - 仍没有 memory-first auto compact
 
 ## G. partial / reactive compact
