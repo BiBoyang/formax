@@ -1,12 +1,12 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import {
   buildDefaultCompactRehydrationPlan,
-  collectRecentReadFilesForRehydration,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
 } from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
+import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
 import type { PromptBlock } from '../../../../prompts'
 import { buildCompactRequest } from '../../../../prompts/compact'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -82,13 +82,19 @@ export async function runCompactFlow(args: {
     }
 
     args.onLifecycle?.({ type: 'compact_succeeded', source: args.source })
-    const recentFiles = collectRecentReadFilesForRehydration(args.previousHistory)
+    const rehydration = buildPostCompactRehydration({
+      cwd: args.cwd,
+      mode: args.mode,
+      planPath: args.getPlanPath(),
+      previousHistory: args.previousHistory,
+    })
     const rehydrationPlan = markCompactRehydrationApplied(
       buildDefaultCompactRehydrationPlan({
         mode: args.mode,
         planPath: args.getPlanPath(),
+        hasTodoState: rehydration.hasTodoState,
       }),
-      recentFiles.length > 0 ? ['recent_files'] : [],
+      rehydration.appliedKinds,
     )
 
     return {
@@ -97,9 +103,7 @@ export async function runCompactFlow(args: {
         summary,
         previousHistory: args.previousHistory,
         keepLastTurns: args.keepLastTurns,
-        rehydration: {
-          recentFiles,
-        },
+        rehydration,
         boundaryMeta: {
           trigger: args.source,
           preTokens: estimatePromptTokens({

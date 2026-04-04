@@ -16,6 +16,11 @@
 - 当前第一批真正落地的 rehydration 是 `recent_files`：
   - compact summary 会附带最近成功 `Read` 的文件路径清单
   - boundary 里的 `recent_files` 状态会从 `planned` 升成 `applied`
+- 当前第二批落地的 rehydration 是 `plan/todos/mode`：
+  - compact summary 会附带当前 mode 文本
+  - 有 plan path 时会附带 plan path + plan excerpt
+  - 有 todo 列表时会附带精简后的 todo summary
+  - boundary 里的 `plan_state`、`todo_state`、`mode_state` 会在对应内容真正注入后升成 `applied`
 - `ChatEngine` 与 token estimation 会在真实 prompt 组装时忽略这类 boundary message。
 - `/context --json` 与 app-server `local.diagnostics` 现在会暴露 `latestCompactBoundary`，方便直接检查最近一次 compact 的边界元信息。
 
@@ -33,4 +38,4 @@
 
 ## Follow-ups
 
-- 下一步是 `CCA-032`：继续把 plan/todos/mode 也纳入 compact 后恢复层，再把 `/context` 扩到可见 rehydration 成本。
+- 下一步是 `CCA-033`：把 rehydration 本身的 token/block 成本也暴露到 `/context`，让恢复层不再是黑盒。

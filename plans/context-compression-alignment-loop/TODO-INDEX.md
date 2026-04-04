@@ -41,10 +41,6 @@
 
 ## Slice Group D: Post-Compact Recovery
 
-- `CCA-032` 实现 plan/todos/mode rehydrate
-  - 目标：compact 后补回当前计划、todos、mode reminder 的稳定表示
-  - 验收：plan mode / todos 驱动的任务在 compact 后不明显掉状态
-
 - `CCA-033` 让 `/context` 能显示 compact 后 rehydration 成本
   - 目标：让恢复层本身也可见，不再是隐形 token 成本
   - 验收：diagnostics 中可读出 rehydration block/token
@@ -107,8 +103,8 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-032`
-2. `CCA-033`
-3. `CCA-006`
-4. `CCA-040`
-5. `CCA-050`
+1. `CCA-033`
+2. `CCA-006`
+3. `CCA-040`
+4. `CCA-050`
+5. `CCA-060`

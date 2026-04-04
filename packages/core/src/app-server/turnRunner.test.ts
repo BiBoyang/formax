@@ -1821,8 +1821,8 @@ describe('TurnRunner', () => {
       schemaVersion: 1,
       items: [
         { kind: 'recent_files', priority: 'high', status: 'planned' },
-        { kind: 'plan_state', priority: 'high', status: 'planned' },
-        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+        { kind: 'plan_state', priority: 'high', status: 'applied' },
+        { kind: 'mode_state', priority: 'medium', status: 'applied' },
       ],
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
@@ -1832,6 +1832,9 @@ describe('TurnRunner', () => {
       ? String((replay.history[1]!.content[0] as { text?: string } | undefined)?.text ?? '')
       : ''
     expect(summaryText).toContain('This session is being continued from a previous conversation')
+    expect(summaryText).toContain('Mode state to keep in working memory:')
+    expect(summaryText).toContain('Current mode: plan')
+    expect(summaryText).toContain('Plan state to keep in working memory:')
 
     expect(replay.messages.some((message) => message.role === 'user' && message.content === '/compact keep the intent only')).toBe(true)
     expect(

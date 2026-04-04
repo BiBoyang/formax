@@ -49,7 +49,7 @@ export type PromptMessageMeta = {
     rehydrationPlan?: {
       schemaVersion: 1
       items: Array<{
-        kind: 'recent_files' | 'plan_state' | 'mode_state'
+        kind: 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
         priority: 'high' | 'medium'
         status: 'planned' | 'applied'
       }>

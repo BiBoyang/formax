@@ -141,13 +141,19 @@ describe('runCompactFlow', () => {
       schemaVersion: 1,
       items: [
         { kind: 'recent_files', priority: 'high', status: 'applied' },
-        { kind: 'plan_state', priority: 'high', status: 'planned' },
-        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+        { kind: 'plan_state', priority: 'high', status: 'applied' },
+        { kind: 'mode_state', priority: 'medium', status: 'applied' },
       ],
     })
     expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain(
       'Recent files to keep in working memory:',
     )
     expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain('/repo/src/auth.ts')
+    expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain(
+      'Mode state to keep in working memory:',
+    )
+    expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain(
+      'Plan state to keep in working memory:',
+    )
   })
 })

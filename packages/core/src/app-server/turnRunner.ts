@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import {
   buildDefaultCompactRehydrationPlan,
-  collectRecentReadFilesForRehydration,
   isCompactBoundaryMessage,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import { estimatePromptTokens } from '../chat/context/estimate.js'
+import { buildPostCompactRehydration } from '../chat/context/postCompactRehydration.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
@@ -644,21 +644,25 @@ export class TurnRunner {
         if (!summary) {
           throw new Error('Compact failed: empty summary')
         }
-        const recentFiles = collectRecentReadFilesForRehydration(history)
+        const rehydration = buildPostCompactRehydration({
+          cwd: running.cwd,
+          mode: running.replMode,
+          planPath: running.planPath,
+          previousHistory: history,
+        })
         const rehydrationPlan = markCompactRehydrationApplied(
           buildDefaultCompactRehydrationPlan({
             mode: running.replMode,
             planPath: running.planPath,
+            hasTodoState: rehydration.hasTodoState,
           }),
-          recentFiles.length > 0 ? ['recent_files'] : [],
+          rehydration.appliedKinds,
         )
         nextHistoryForSnapshot = rebuildHistoryAfterCompaction({
           summary,
           previousHistory: history,
           keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
-          rehydration: {
-            recentFiles,
-          },
+          rehydration,
           boundaryMeta: {
             trigger: 'manual',
             preTokens: estimatePromptTokens({

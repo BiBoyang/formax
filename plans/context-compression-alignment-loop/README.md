@@ -50,10 +50,13 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 4. post-compact rehydration 第一版
    - compact summary 现在会补回最近成功 `Read` 的文件路径清单。
    - compact boundary 的 `rehydrationPlan` 会把 `recent_files` 从 `planned` 升为 `applied`。
-5. `microcompact` turn-level metrics
+5. post-compact rehydration 第二版
+   - compact summary 现在会补回当前 mode 文本、plan path + excerpt、精简后的 todo summary。
+   - compact boundary 的 `plan_state`、`todo_state`、`mode_state` 会在对应内容真正注入后升为 `applied`。
+6. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-6. 可观测性第一版
+7. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图

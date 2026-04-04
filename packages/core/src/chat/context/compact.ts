@@ -11,7 +11,7 @@ export type CompactBoundaryKeepStrategy = {
   keepLastTurns: number
 }
 
-export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'mode_state'
+export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
 export type CompactRehydrationItemPriority = 'high' | 'medium'
 export type CompactRehydrationItemStatus = 'planned' | 'applied'
 
@@ -137,6 +137,10 @@ export function buildCompactionSummaryUserText(
   summary: string,
   rehydration?: {
     recentFiles?: string[]
+    modeText?: string | null
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
   },
 ): string {
   const trimmed = String(summary || '').trim()
@@ -144,9 +148,13 @@ export function buildCompactionSummaryUserText(
     ? rehydration!.recentFiles.map((value) => String(value || '').trim()).filter(Boolean)
     : []
   const rehydrationSuffix =
-    recentFiles.length > 0
-      ? `\n\n${RECENT_FILES_REHYDRATION_PREFIX}\n${recentFiles.map((file) => `- ${file}`).join('\n')}`
-      : ''
+    buildRehydrationSuffix({
+      recentFiles,
+      modeText: rehydration?.modeText ?? null,
+      planPath: rehydration?.planPath ?? null,
+      planExcerpt: rehydration?.planExcerpt ?? null,
+      todoSummary: rehydration?.todoSummary ?? null,
+    })
   return (
     '<system-reminder>\n' +
     `${CONTINUED_SESSION_SUMMARY_PREFIX}\n` +
@@ -181,6 +189,7 @@ export function buildCompactBoundaryMessage(args: {
 export function buildDefaultCompactRehydrationPlan(args: {
   mode: 'normal' | 'acceptEdits' | 'plan'
   planPath: string | null
+  hasTodoState?: boolean
 }): CompactRehydrationPlan {
   const items: CompactRehydrationItem[] = [
     {
@@ -193,6 +202,14 @@ export function buildDefaultCompactRehydrationPlan(args: {
   if (args.planPath || args.mode === 'plan') {
     items.push({
       kind: 'plan_state',
+      priority: 'high',
+      status: 'planned',
+    })
+  }
+
+  if (args.hasTodoState) {
+    items.push({
+      kind: 'todo_state',
       priority: 'high',
       status: 'planned',
     })
@@ -247,6 +264,10 @@ export function rebuildHistoryAfterCompaction(args: {
   keepLastTurns: number
   rehydration?: {
     recentFiles?: string[]
+    modeText?: string | null
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
   }
   boundaryMeta: {
     trigger: CompactBoundaryTrigger
@@ -264,6 +285,46 @@ export function rebuildHistoryAfterCompaction(args: {
 
   const tail = selectTailForCompaction(args.previousHistory, args.keepLastTurns)
   return [buildCompactBoundaryMessage(args.boundaryMeta), summaryMsg, ...tail]
+}
+
+function buildRehydrationSuffix(args: {
+  recentFiles: string[]
+  modeText: string | null
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+}): string {
+  const sections: string[] = []
+  const recentFiles = args.recentFiles.map((file) => sanitizeReminderText(file))
+  const modeText = args.modeText ? sanitizeReminderText(args.modeText) : null
+  const planPath = args.planPath ? sanitizeReminderText(args.planPath) : null
+  const planExcerpt = args.planExcerpt ? sanitizeReminderText(args.planExcerpt) : null
+  const todoSummary = args.todoSummary ? sanitizeReminderText(args.todoSummary) : null
+
+  if (recentFiles.length > 0) {
+    sections.push(`${RECENT_FILES_REHYDRATION_PREFIX}\n${recentFiles.map((file) => `- ${file}`).join('\n')}`)
+  }
+
+  if (modeText) {
+    sections.push(`Mode state to keep in working memory:\n- ${modeText}`)
+  }
+
+  if (planPath || planExcerpt) {
+    const lines = ['Plan state to keep in working memory:']
+    if (planPath) lines.push(`- Plan path: ${planPath}`)
+    if (planExcerpt) lines.push(`- Plan excerpt: ${planExcerpt}`)
+    sections.push(lines.join('\n'))
+  }
+
+  if (todoSummary) {
+    sections.push(`Todo state to keep in working memory:\n${todoSummary}`)
+  }
+
+  return sections.length > 0 ? `\n\n${sections.join('\n\n')}` : ''
+}
+
+function sanitizeReminderText(value: string): string {
+  return String(value || '').replace(/<\/?system-reminder>/gi, '[system-reminder]')
 }
 
 function unwrapSystemReminder(text: string): string {
