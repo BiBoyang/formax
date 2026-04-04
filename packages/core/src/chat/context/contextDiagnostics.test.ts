@@ -7,6 +7,7 @@ import {
   resolveContextDiagnosticsOutputFormat,
 } from './contextDiagnostics'
 import type { PromptBlock, PromptMessage } from '../../prompts'
+import { buildCompactBoundaryMessage } from './compact'
 
 describe('contextDiagnostics', () => {
   it('analyzes prompt slices, counts tool results, and detects microcompacted stubs', () => {
@@ -65,6 +66,23 @@ describe('contextDiagnostics', () => {
     expect(out.otherHistoryTokens).toBeGreaterThan(0)
     expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
     expect(out.shouldAutoCompact).toBe(false)
+  })
+
+  it('ignores explicit compact boundary messages in snapshot counts', () => {
+    const out = analyzeContextDiagnostics({
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [
+        buildCompactBoundaryMessage(),
+        { role: 'user', content: [{ type: 'text', text: 'summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'next step' }] },
+      ],
+      budgetConfig: null,
+    })
+
+    expect(out.messageCount).toBe(2)
+    expect(out.userMessageCount).toBe(1)
+    expect(out.assistantMessageCount).toBe(1)
+    expect(out.topSnapshotContributors.some((row) => row.label.includes('Assistant message'))).toBe(true)
   })
 
   it('formats a readable diagnostics report with unknown budget values', () => {

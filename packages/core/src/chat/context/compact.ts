@@ -3,6 +3,10 @@ import type { PromptMessage } from '../../prompts'
 const CONTINUED_SESSION_SUMMARY_PREFIX =
   'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
 
+export type CompactBoundaryMeta = {
+  schemaVersion: 1
+}
+
 function isToolResultMessage(msg: PromptMessage): boolean {
   if (msg.role !== 'user' || !Array.isArray(msg.content)) return false
   return msg.content.some((b: any) => b?.type === 'tool_result')
@@ -49,6 +53,27 @@ export function buildCompactionSummaryUserText(summary: string): string {
   )
 }
 
+export function buildCompactBoundaryMessage(): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [],
+    meta: {
+      compactBoundary: {
+        schemaVersion: 1,
+      },
+    },
+  }
+}
+
+export function isCompactBoundaryMessage(msg: PromptMessage | null | undefined): boolean {
+  return msg?.role === 'assistant' && msg?.meta?.compactBoundary?.schemaVersion === 1
+}
+
+export function stripCompactBoundaryMessages(messages: PromptMessage[]): PromptMessage[] {
+  if (!messages.some((message) => isCompactBoundaryMessage(message))) return messages
+  return messages.filter((message) => !isCompactBoundaryMessage(message))
+}
+
 export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
   if (!msg || msg.role !== 'user') return false
   if (isToolResultMessage(msg)) return false
@@ -69,7 +94,7 @@ export function rebuildHistoryAfterCompaction(args: {
   }
 
   const tail = selectTailForCompaction(args.previousHistory, args.keepLastTurns)
-  return [summaryMsg, ...tail]
+  return [buildCompactBoundaryMessage(), summaryMsg, ...tail]
 }
 
 function unwrapSystemReminder(text: string): string {

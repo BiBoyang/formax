@@ -3,6 +3,7 @@ import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
 import type { ContextBudgetConfig } from './context/budget'
+import { stripCompactBoundaryMessages } from './context/compact'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pruneForPromptBudget } from './context/prune'
@@ -258,24 +259,21 @@ export function createChatEngine(deps: {
           // IMPORTANT:
           // - PostToolUse.additionalContext should affect the *next* model call.
           // - It should NOT be persisted into long-term chat history (to avoid context pollution).
-          // We therefore patch the messages we send to the model, but we keep `loopMessages` intact.
-          if (promptBudget?.contextWindowTokens) {
-            const prunedBase = pruneForPromptBudget({
-              system: systemForThisCall,
-              messages: loopMessages,
-              contextWindowTokens: promptBudget.contextWindowTokens,
-              effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
-              autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
-              baselineTokens: promptBudget.baselineTokens,
-            }).messages
+          // We therefore patch the messages we send to the model, but we keep
+          // `loopMessages` intact so persistence/replay can preserve protocol-only
+          // markers such as compact boundaries.
+          const promptBaseMessages = promptBudget?.contextWindowTokens
+            ? pruneForPromptBudget({
+                system: systemForThisCall,
+                messages: stripCompactBoundaryMessages(loopMessages),
+                contextWindowTokens: promptBudget.contextWindowTokens,
+                effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
+                autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
+                baselineTokens: promptBudget.baselineTokens,
+              }).messages
+            : stripCompactBoundaryMessages(loopMessages)
 
-            if (prunedBase !== loopMessages) {
-              loopMessages.length = 0
-              loopMessages.push(...prunedBase)
-            }
-          }
-
-          const injectedMessages = buildMessagesWithPostToolUseText(loopMessages, pendingPostToolUseTextByToolUseId)
+          const injectedMessages = buildMessagesWithPostToolUseText(promptBaseMessages, pendingPostToolUseTextByToolUseId)
           const preCallExtra =
             pendingStopText || pendingSessionStartText || pendingUserPromptSubmitText
               ? [

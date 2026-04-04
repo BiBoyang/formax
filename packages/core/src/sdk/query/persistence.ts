@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { SessionWriter } from '../../features/repl/sessionSave/writer.js'
 import type { PromptMessage } from '../../prompts/index.js'
+import { isCompactBoundaryMessage } from '../../chat/context/compact.js'
 
 type QuerySessionWriter = Pick<
   SessionWriter,
@@ -39,6 +40,7 @@ function firstUserPromptFromHistory(history: PromptMessage[]): string | null {
 function countUiMessages(history: PromptMessage[]): number {
   return history.reduce((count, message) => {
     if (!message) return count
+    if (isCompactBoundaryMessage(message)) return count
     if (message.role === 'user' || message.role === 'assistant') return count + 1
     return count
   }, 0)

@@ -9,6 +9,7 @@
 - `CCA-006` 评估并实现附加 text block 的安全压缩
   - 目标：处理 tool_result 后跟随的大块 text，而不误伤正常对话
   - 验收：只命中明确的大输出伴随块，普通消息不受影响
+  - 备注：当前需先明确“哪些 text block 算 machine-generated companion block”，否则容易误伤正常对话文本
 
 ## Slice Group B: Diagnostics Phase 2
 
@@ -29,10 +30,6 @@
   - 验收：JSON diagnostics 中有更稳定的 contributor identity
 
 ## Slice Group C: Compact Protocol Upgrade
-
-- `CCA-020` 引入显式 compact boundary 事件
-  - 目标：compact 不再只依赖 summary user message 语义
-  - 验收：history 中出现可识别 boundary block/message，且不改变现有 transcript 基本可用性
 
 - `CCA-021` 为 compact boundary 增加 metadata
   - 目标：至少记录 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`
@@ -122,10 +119,9 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-006`
-2. `CCA-020`
-3. `CCA-021`
-4. `CCA-030`
-5. `CCA-040`
-6. `CCA-050`
-7. `CCA-060`
+1. `CCA-021`
+2. `CCA-006`
+3. `CCA-030`
+4. `CCA-040`
+5. `CCA-050`
+6. `CCA-060`

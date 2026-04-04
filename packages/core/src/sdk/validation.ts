@@ -26,6 +26,15 @@ const promptMessageSchema = z
   .object({
     role: z.enum(['user', 'assistant']),
     content: z.array(promptBlockSchema),
+    meta: z
+      .object({
+        compactBoundary: z
+          .object({
+            schemaVersion: z.literal(1),
+          })
+          .optional(),
+      })
+      .optional(),
   })
   .strict()
 

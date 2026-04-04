@@ -5,6 +5,7 @@ import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
+import { stripCompactBoundaryMessages } from './compact'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
@@ -89,11 +90,12 @@ export function analyzeContextDiagnostics(args: {
   messages: PromptMessage[]
   budgetConfig?: ContextBudgetConfig | null
 }): ContextDiagnostics {
-  const toolUsesById = collectToolUsesById(args.messages)
+  const promptMessages = stripCompactBoundaryMessages(args.messages)
+  const toolUsesById = collectToolUsesById(promptMessages)
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
-  const historyTokens = estimatePromptTokens({ system: [], messages: args.messages })
-  const totalTokens = estimatePromptTokens({ system: args.system, messages: args.messages })
-  const split = splitHistorySlices(args.messages, toolUsesById)
+  const historyTokens = estimatePromptTokens({ system: [], messages: promptMessages })
+  const totalTokens = estimatePromptTokens({ system: args.system, messages: promptMessages })
+  const split = splitHistorySlices(promptMessages, toolUsesById)
   const toolResultTokens = estimatePromptTokens({ system: [], messages: split.toolResultMessages })
   const otherHistoryTokens = estimatePromptTokens({ system: [], messages: split.nonToolMessages })
 
@@ -111,9 +113,9 @@ export function analyzeContextDiagnostics(args: {
     historyTokens,
     toolResultTokens,
     otherHistoryTokens,
-    messageCount: args.messages.length,
-    userMessageCount: args.messages.filter((message) => message?.role === 'user').length,
-    assistantMessageCount: args.messages.filter((message) => message?.role === 'assistant').length,
+    messageCount: promptMessages.length,
+    userMessageCount: promptMessages.filter((message) => message?.role === 'user').length,
+    assistantMessageCount: promptMessages.filter((message) => message?.role === 'assistant').length,
     toolResultBlockCount: split.toolResultBlockCount,
     microCompactedToolResultCount: split.microCompactedToolResultCount,
     toolResultCountsByToolName: split.toolResultCountsByToolName,
@@ -128,7 +130,7 @@ export function analyzeContextDiagnostics(args: {
     shouldAutoCompact: stats?.shouldAutoCompact ?? null,
     topSnapshotContributors: buildTopSnapshotContributors({
       system: args.system,
-      messages: args.messages,
+      messages: promptMessages,
       toolUsesById,
     }),
   }
@@ -140,6 +142,7 @@ export function analyzeNextTurnFixedContext(args: {
   fixedGroups: NextTurnFixedContextGroup[]
   budgetConfig?: ContextBudgetConfig | null
 }): NextTurnFixedContextDiagnostics {
+  const promptMessages = stripCompactBoundaryMessages(args.messages)
   const fixedGroups = args.fixedGroups
     .map((group) => ({
       label: group.label,
@@ -147,7 +150,7 @@ export function analyzeNextTurnFixedContext(args: {
     }))
     .filter((group) => group.blocks.length > 0)
 
-  const microCompactResult = microCompactHistory({ messages: args.messages })
+  const microCompactResult = microCompactHistory({ messages: promptMessages })
   const microCompactedHistory = microCompactResult.messages
   const fixedUserMessage =
     fixedGroups.length > 0
@@ -173,7 +176,7 @@ export function analyzeNextTurnFixedContext(args: {
 
   const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
   const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
-  const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: args.messages })
+  const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: promptMessages })
   const fixedTokens = preparedFixedMessage ? estimatePromptTokens({ system: [], messages: [preparedFixedMessage] }) : 0
   const stats = args.budgetConfig
     ? computeContextStats({

@@ -134,6 +134,13 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 3. 后续 `options.resume`
 4. 后续 `options.continue`
 
+`SES-304A`
+当会话经历 compact 后，history snapshot MAY 在 compaction summary 前写入 metadata-only compact boundary message。
+该 boundary：
+1. MUST 能被 replay / resume 原样恢复
+2. MUST NOT 依赖可见文本内容来识别
+3. MUST 在真实 prompt 组装前被忽略，不得作为模型可见历史正文发送
+
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：
 1. `options.dir` 存在时以其为 lookup cwd

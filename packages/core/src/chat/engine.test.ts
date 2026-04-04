@@ -11,8 +11,46 @@ import path from 'node:path'
 import { createToolSearchToolHandler } from '../tools/modules/toolSearch/handler'
 import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure'
 import { createToolExecutor } from '../tools/executor'
+import { buildCompactBoundaryMessage } from './context/compact'
 
 describe('ChatEngine', () => {
+  it('strips compact boundary messages before sending prompt history to the client', async () => {
+    let capturedMessages: PromptMessage[] = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        capturedMessages = args.messages as PromptMessage[]
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    const out = await engine.runTurn({
+      history: [
+        buildCompactBoundaryMessage(),
+        { role: 'user', content: [{ type: 'text', text: 'summary' }] },
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      system: [],
+      tools: [],
+      onEvent: () => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(capturedMessages).toHaveLength(2)
+    expect(capturedMessages.some((message) => message.meta?.compactBoundary)).toBe(false)
+    expect((capturedMessages[0]!.content[0] as any).text).toBe('summary')
+    expect((capturedMessages[1]!.content[0] as any).text).toBe('continue')
+    expect(out[0]?.meta?.compactBoundary?.schemaVersion).toBe(1)
+    expect(out).toHaveLength(4)
+  })
+
   it('captures request payload and skips network when request dry-run is enabled', async () => {
     const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-'))
     let streamCalls = 0

@@ -1806,11 +1806,15 @@ describe('TurnRunner', () => {
     })
     expect(filePath).toBeTruthy()
     const replay = await readSessionFile(filePath!)
+    const summary = await readSessionSummary(filePath!)
 
-    expect(replay.history).toHaveLength(1)
-    expect(replay.history[0]?.role).toBe('user')
-    const summaryText = Array.isArray(replay.history[0]?.content)
-      ? String((replay.history[0]!.content[0] as { text?: string } | undefined)?.text ?? '')
+    expect(replay.history).toHaveLength(2)
+    expect(replay.history[0]?.role).toBe('assistant')
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.schemaVersion).toBe(1)
+    expect(replay.history[1]?.role).toBe('user')
+    expect(summary.messageCount).toBe(1)
+    const summaryText = Array.isArray(replay.history[1]?.content)
+      ? String((replay.history[1]!.content[0] as { text?: string } | undefined)?.text ?? '')
       : ''
     expect(summaryText).toContain('This session is being continued from a previous conversation')
 

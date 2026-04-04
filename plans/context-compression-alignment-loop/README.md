@@ -37,14 +37,17 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 1. 压缩编排层
    - 已从 send 主链路分散调用，收敛为统一协调服务。
 2. 轻量压缩层 MVP
-   - 已支持 `Read` / `Grep` / `Glob` 的旧 tool result stub 化。
-   - stub 现在会保留更高价值的最小上下文，例如 `Read` 的体量信息、`Grep` 的近似命中数、`Glob` 的近似路径数。
-   - `microcompact` 现在会按上下文压力分档，动态调整工具覆盖、保留数量与最小结果大小阈值。
-   - `Bash` / `WebFetch` 现在有保守的 allow/deny 规则：只有明确低风险、可重放的结果才允许进入 microcompact。
-3. `microcompact` turn-level metrics
+  - 已支持 `Read` / `Grep` / `Glob` 的旧 tool result stub 化。
+  - stub 现在会保留更高价值的最小上下文，例如 `Read` 的体量信息、`Grep` 的近似命中数、`Glob` 的近似路径数。
+  - `microcompact` 现在会按上下文压力分档，动态调整工具覆盖、保留数量与最小结果大小阈值。
+  - `Bash` / `WebFetch` 现在有保守的 allow/deny 规则：只有明确低风险、可重放的结果才允许进入 microcompact。
+3. compact 协议起点
+   - compact 后的 persisted history 现在会写入显式 compact boundary message。
+   - 该 boundary 目前是 metadata-only event：可被 session/replay 识别，但会在真实 prompt 组装前被统一过滤，不污染模型上下文。
+4. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-4. 可观测性第一版
+5. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图
@@ -89,10 +92,9 @@ Claude Code：
 Formax 当前：
 - 只有本地 stub 替换版 MVP
 - 当前限制：
-  - 只处理 `Read` / `Grep` / `Glob`
-  - 没有按压力自适应策略
+  - 主要处理 `Read` / `Grep` / `Glob`
+  - `Bash` / `WebFetch` 仅在高压力档位 + 保守 allow/deny 下参与
   - 没有缓存感知路径
-  - 没有 `Bash` / `WebFetch` 的安全策略
 
 ## C. compact 协议层
 
@@ -103,9 +105,8 @@ Claude Code：
 - resume/remote/SDK 都认这套协议
 
 Formax 当前：
-- compact 仍然本质上是“summary user message + tail”
+- 已有 metadata-only compact boundary event，可进入 persisted history / replay
 - 缺：
-  - boundary 事件
   - metadata
   - preserved segment relink
   - transcript / session / remote 协议对齐

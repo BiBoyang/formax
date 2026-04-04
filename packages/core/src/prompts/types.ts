@@ -36,7 +36,14 @@ export type PromptBlock =
   // Allow forward-compatible blocks without breaking callers
   | Record<string, any>
 
+export type PromptMessageMeta = {
+  compactBoundary?: {
+    schemaVersion: 1
+  }
+}
+
 export type PromptMessage = {
   role: 'user' | 'assistant'
   content: PromptBlock[]
+  meta?: PromptMessageMeta
 }

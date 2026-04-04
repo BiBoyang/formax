@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import { rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
+import { isCompactBoundaryMessage, rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
@@ -697,7 +697,10 @@ export class TurnRunner {
       }
       await writer.appendHistorySnapshot(historyForSnapshot)
       const firstUserPrompt = firstUserPromptFromHistory(history) ?? running.inputText
-      const uiMsgCount = historyForSnapshot.filter((message) => message.role === 'user' || message.role === 'assistant').length
+      const uiMsgCount = historyForSnapshot.filter((message) => {
+        if (isCompactBoundaryMessage(message)) return false
+        return message.role === 'user' || message.role === 'assistant'
+      }).length
       await writer.appendEvent('ui_stats', {
         uiMsgCount,
         firstUserPrompt,
