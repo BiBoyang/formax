@@ -39,6 +39,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 2. 轻量压缩层 MVP
    - 已支持 `Read` / `Grep` / `Glob` 的旧 tool result stub 化。
    - stub 现在会保留更高价值的最小上下文，例如 `Read` 的体量信息、`Grep` 的近似命中数、`Glob` 的近似路径数。
+   - `microcompact` 现在会按上下文压力分档，动态调整工具覆盖、保留数量与最小结果大小阈值。
 3. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段

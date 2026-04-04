@@ -5,7 +5,7 @@ const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
 const DEFAULT_MIN_RESULT_CHARS = 1200
 const DEFAULT_MAX_STUB_CHARS = 120
 export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcompact:'
-const DEFAULT_ELIGIBLE_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
+const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob'] as const
 
 type ToolUseMeta = {
   name: string
@@ -24,6 +24,57 @@ export type MicroCompactImpact = {
   compactedToolNames: string[]
   estimatedTokensSaved: number
   keptRecentBlocks: number
+}
+
+export type AdaptiveMicroCompactPolicy = {
+  pressureTier: 'default' | 'relaxed' | 'steady' | 'tight' | 'critical'
+  eligibleToolNames: string[]
+  keepRecentToolResults: number
+  minResultChars: number
+}
+
+export function resolveAdaptiveMicroCompactPolicy(args: {
+  pressureRatio?: number | null
+}): AdaptiveMicroCompactPolicy {
+  const ratio = Number.isFinite(args.pressureRatio) ? Math.max(0, args.pressureRatio!) : null
+  if (ratio == null) {
+    return {
+      pressureTier: 'default',
+      eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+      keepRecentToolResults: DEFAULT_KEEP_RECENT_TOOL_RESULTS,
+      minResultChars: DEFAULT_MIN_RESULT_CHARS,
+    }
+  }
+  if (ratio < 0.5) {
+    return {
+      pressureTier: 'relaxed',
+      eligibleToolNames: ['Read'],
+      keepRecentToolResults: 4,
+      minResultChars: 2400,
+    }
+  }
+  if (ratio < 0.75) {
+    return {
+      pressureTier: 'steady',
+      eligibleToolNames: ['Read', 'Grep'],
+      keepRecentToolResults: 3,
+      minResultChars: 1600,
+    }
+  }
+  if (ratio < 0.9) {
+    return {
+      pressureTier: 'tight',
+      eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+      keepRecentToolResults: 2,
+      minResultChars: 1200,
+    }
+  }
+  return {
+    pressureTier: 'critical',
+    eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+    keepRecentToolResults: 1,
+    minResultChars: 800,
+  }
 }
 
 export function microCompactHistory(args: {

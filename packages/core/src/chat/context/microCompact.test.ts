@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { microCompactHistory } from './microCompact'
+import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from './microCompact'
 import type { PromptMessage } from '../../prompts'
 
 function assistantToolUse(id: string, name: string, input: Record<string, unknown>): PromptMessage {
@@ -181,5 +181,38 @@ describe('microCompactHistory', () => {
     expect((out.messages[3]!.content[0] as any).content).toBe(
       '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (3 paths)]',
     )
+  })
+
+  it('resolves predictable adaptive policies for different pressure tiers', () => {
+    expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: null })).toEqual({
+      pressureTier: 'default',
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      keepRecentToolResults: 3,
+      minResultChars: 1200,
+    })
+    expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.3 })).toEqual({
+      pressureTier: 'relaxed',
+      eligibleToolNames: ['Read'],
+      keepRecentToolResults: 4,
+      minResultChars: 2400,
+    })
+    expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.6 })).toEqual({
+      pressureTier: 'steady',
+      eligibleToolNames: ['Read', 'Grep'],
+      keepRecentToolResults: 3,
+      minResultChars: 1600,
+    })
+    expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.8 })).toEqual({
+      pressureTier: 'tight',
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      keepRecentToolResults: 2,
+      minResultChars: 1200,
+    })
+    expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
+      pressureTier: 'critical',
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      keepRecentToolResults: 1,
+      minResultChars: 800,
+    })
   })
 })

@@ -1,7 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
-import { microCompactHistory } from '../../../../chat/context/microCompact'
+import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import type { PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -67,7 +67,43 @@ export function createContextCompressionService(deps: {
     }
   }
 
-  const microCompactMessages = (messages: ChatHistory): ChatHistory => microCompactHistory({ messages }).messages
+  const microCompactMessages = (args: {
+    history: ChatHistory
+    system: PromptBlock[]
+    contextWindowTokens: number | undefined
+    user?: PromptMessage
+  }): ChatHistory => {
+    const policy = resolveAdaptiveMicroCompactPolicy({
+      pressureRatio: resolveMicroCompactPressureRatio({
+        system: args.system,
+        contextWindowTokens: args.contextWindowTokens,
+        messages: args.user ? [...args.history, args.user] : args.history,
+      }),
+    })
+    return microCompactHistory({
+      messages: args.history,
+      eligibleToolNames: policy.eligibleToolNames,
+      keepRecentToolResults: policy.keepRecentToolResults,
+      minResultChars: policy.minResultChars,
+    }).messages
+  }
+
+  const resolveMicroCompactPressureRatio = (args: {
+    system: PromptBlock[]
+    messages: ChatHistory
+    contextWindowTokens: number | undefined
+  }): number | null => {
+    if (!args.contextWindowTokens) return null
+    const stats = computeContextStats({
+      config: buildBudgetConfig(args.contextWindowTokens),
+      usedTokens: estimatePromptTokens({
+        system: args.system,
+        messages: args.messages,
+      }),
+    })
+    if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
+    return stats.usedTokens / stats.effectiveLimitTokens
+  }
 
   return {
     async prepareHistoryForTurn(args: {
@@ -84,7 +120,12 @@ export function createContextCompressionService(deps: {
       autoCompacted: boolean
       showAutoCompactNotice: boolean
     }> {
-      let nextHistory = microCompactMessages(args.history)
+      let nextHistory = microCompactMessages({
+        history: args.history,
+        system: args.system,
+        contextWindowTokens: args.contextWindowTokens,
+        user: args.user,
+      })
       let autoCompacted = false
       let showAutoCompactNotice = false
 
@@ -131,7 +172,12 @@ export function createContextCompressionService(deps: {
               messages: compactResult.compactedHistory,
               contextWindowTokens: args.contextWindowTokens,
             })
-            nextHistory = microCompactMessages(nextHistory)
+            nextHistory = microCompactMessages({
+              history: nextHistory,
+              system: args.system,
+              contextWindowTokens: args.contextWindowTokens,
+              user: args.user,
+            })
             args.lastAutoCompactSeqRef.current = args.sendSeq
             autoCompacted = true
             showAutoCompactNotice = deps.cfg.ui.showAutoCompactNotice === true
@@ -172,7 +218,11 @@ export function createContextCompressionService(deps: {
     } {
       const history = pruneMessages({
         system: args.system,
-        messages: microCompactMessages(args.history),
+        messages: microCompactMessages({
+          history: args.history,
+          system: args.system,
+          contextWindowTokens: args.contextWindowTokens,
+        }),
         contextWindowTokens: args.contextWindowTokens,
       })
 

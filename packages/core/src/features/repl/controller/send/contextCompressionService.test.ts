@@ -214,7 +214,7 @@ describe('createContextCompressionService', () => {
   it('microcompacts old heavy tool results before auto-compact is decided', async () => {
     vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
       const serialized = JSON.stringify(messages)
-      return serialized.includes('[Older tool result cleared by microcompact:') ? 800 : 2200
+      return serialized.includes('[Older tool result cleared by microcompact:') ? 800 : 7000
     })
     vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
       contextWindowTokens: 100_000,
@@ -261,6 +261,84 @@ describe('createContextCompressionService', () => {
       percentRemaining: 86,
       source: 'estimate',
     })
+  })
+
+  it('adapts microcompact aggressiveness based on pressure tiers', async () => {
+    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
+      messages,
+      pruned: false,
+    }))
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 10_000,
+      autoCompactLimitTokens: 9_000,
+      percentRemaining: 50,
+      shouldAutoCompact: false,
+    }))
+
+    const history = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'b'.repeat(4000)),
+      assistantToolUse('glob-1', 'Glob', { pattern: '**/*.ts', path: '/repo/src' }),
+      userToolResult('glob-1', 'src/a.ts\nsrc/b.ts\nsrc/c.ts'.repeat(300)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/d.ts' }),
+      userToolResult('read-2', 'd'.repeat(4000)),
+    ]
+
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      if (serialized.includes('pressure=critical')) return 9_500
+      if (serialized.includes('pressure=relaxed')) return 3_500
+      return serialized.includes('[Older tool result cleared by microcompact:') ? 700 : 1_000
+    })
+
+    const { service } = createService({
+      cfg: createCfg({
+        context: {
+          enableAutoCompact: false,
+          autoCompactMinTurnsBetweenRuns: 2,
+          compactKeepLastTurns: 3,
+          effectiveContextWindowPercent: 0.9,
+          autoCompactTokenLimitPercent: 0.85,
+          baselineTokens: 1000,
+        },
+      }),
+    })
+
+    const relaxed = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history,
+      user: { role: 'user', content: [{ type: 'text', text: 'pressure=relaxed' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+    const critical = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 11,
+      lastAutoCompactSeqRef: { current: 0 },
+      history,
+      user: { role: 'user', content: [{ type: 'text', text: 'pressure=critical' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(JSON.stringify(relaxed.history)).not.toContain('Grep "login"')
+    expect(JSON.stringify(relaxed.history)).not.toContain('Glob "**/*.ts"')
+    expect(JSON.stringify(relaxed.history)).not.toContain('[Older tool result cleared by microcompact:')
+
+    expect((critical.history[1] as any).content[0].content).toBe(
+      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
+    )
+    expect((critical.history[3] as any).content[0].content).toBe(
+      '[Older tool result cleared by microcompact: Grep "login" in /repo/src (1 hits)]',
+    )
+    expect(String((critical.history[5] as any).content[0].content)).toContain(
+      '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (',
+    )
+    expect((critical.history[7] as any).content[0].content).toBe('d'.repeat(4000))
   })
 
   it('swallows auto-compact failures and keeps turn preparation best-effort', async () => {
@@ -371,6 +449,18 @@ describe('createContextCompressionService', () => {
     vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
       messages,
       pruned: false,
+    }))
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      return serialized.includes('[Older tool result cleared by microcompact:') ? 700 : 8_500
+    })
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 9_000,
+      autoCompactLimitTokens: 8_500,
+      percentRemaining: 10,
+      shouldAutoCompact: false,
     }))
 
     const { service } = createService()
