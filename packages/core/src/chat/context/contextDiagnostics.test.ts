@@ -89,6 +89,11 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Tool-result tool mix: none')
     expect(out).toContain('Top snapshot contributors')
     expect(out).toContain('Next-turn fixed context (before future user text)')
+    expect(out).toContain('- Projected history before microcompact/prune: 22')
+    expect(out).toContain('- Projected history after microcompact/prune: unknown')
+    expect(out).toContain('- Estimated tokens saved by microcompact: 0')
+    expect(out).toContain('- Microcompact compacted blocks: 0')
+    expect(out).toContain('- Microcompact compacted tools: none')
     expect(out).toContain('- Fixed group breakdown: none')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
@@ -208,6 +213,8 @@ describe('contextDiagnostics', () => {
     expect(parsed.mode).toBe('normal')
     expect(parsed.snapshot).toBeTruthy()
     expect(parsed.nextTurnFixed).toBeTruthy()
+    expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
+    expect(parsed.nextTurnFixed.projectedHistoryTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
       compactedBlocks: 0,
       compactedToolNames: [],

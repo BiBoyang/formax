@@ -12,6 +12,11 @@
   - `compactedToolNames`
   - `estimatedTokensSaved`
   - `keptRecentBlocks`
+- `/context` 的 text diagnostics 现在也会直接展示一段 microcompact impact：
+  - projected history before microcompact/prune
+  - projected history after microcompact/prune
+  - estimated tokens saved by microcompact
+  - compacted blocks / kept recent blocks / compacted tools
 - 输出聚焦当前持久化 prompt snapshot：
   - system prompt 估算
   - history total 估算
@@ -34,7 +39,7 @@
 - 升级版改为同时给出一个“未来用户正文之前的固定上下文投影”，这样能更接近真实 assembled prompt，又不需要真的执行 full auto-compact 或猜测用户下一句。
 - 加 top contributors 是因为单看总量还不够，调压缩时我们还需要知道“到底是哪几段最胖”。
 - 先把 `--json` 做成“结构化数据的文本输出”而不是直接扩展 `command/dispatch` 协议，可以在不改现有 local-dispatch shape 的前提下，让 TUI / app-server / Web 同步获得机器可读版本。
-- 在真正把 microcompact impact 渲染到 `/context` 文本前，先把 impact 字段放进 diagnostics payload，更适合分两步推进：先稳定数据层，再单独做展示层。
+- 我们先把 impact 字段放进 diagnostics payload，再把 `/context` 文本展示接上，这样数据层和展示层可以分两次小回合推进，各自更容易验证。
 
 ## Current limits
 

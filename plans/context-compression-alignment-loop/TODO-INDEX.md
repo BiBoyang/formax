@@ -6,10 +6,6 @@
 
 ## Slice Group A: Microcompact Phase 2
 
-- `CCA-002` 在 `/context` 中展示 microcompact impact
-  - 目标：新增 `before/after projected history`、`estimated tokens saved by microcompact`
-  - 验收：TUI/app-server text + JSON diagnostics 均包含 impact 字段
-
 - `CCA-003` 丰富 `Read` / `Grep` / `Glob` stub
   - 目标：保留更高价值的最小上下文，例如 pattern/path/可能的命中摘要
   - 验收：stub 更可读，但 token 仍显著低于原始结果
@@ -138,12 +134,11 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-002`
-2. `CCA-003`
-3. `CCA-004`
-4. `CCA-020`
-5. `CCA-021`
-6. `CCA-030`
-7. `CCA-040`
-8. `CCA-050`
-9. `CCA-060`
+1. `CCA-003`
+2. `CCA-004`
+3. `CCA-020`
+4. `CCA-021`
+5. `CCA-030`
+6. `CCA-040`
+7. `CCA-050`
+8. `CCA-060`

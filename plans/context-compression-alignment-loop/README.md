@@ -45,6 +45,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图
+   - 已有 microcompact impact 展示（before/after projected history、estimated tokens saved）
    - 已有 top contributors
    - 已有 JSON diagnostics
    - 已有 app-server 结构化 payload

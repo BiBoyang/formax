@@ -354,8 +354,13 @@ export function formatContextDiagnosticsReport(args: {
     ...formatContributors(diagnostics.topSnapshotContributors),
     '',
     'Next-turn fixed context (before future user text)',
+    `- Projected history before microcompact/prune: ${formatInt(diagnostics.historyTokens)}`,
     `- Projected history after microcompact/prune: ${formatMaybeInt(args.nextTurn?.projectedHistoryTokens ?? null)}`,
     `- Projected history delta vs snapshot: ${formatSignedMaybeInt(args.nextTurn?.projectedHistoryDeltaTokens ?? null)}`,
+    `- Estimated tokens saved by microcompact: ${formatInt(args.nextTurn?.microCompactImpact.estimatedTokensSaved ?? 0)}`,
+    `- Microcompact compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.compactedBlocks ?? 0)}`,
+    `- Microcompact kept recent eligible blocks: ${formatInt(args.nextTurn?.microCompactImpact.keptRecentBlocks ?? 0)}`,
+    `- Microcompact compacted tools: ${formatToolNames(args.nextTurn?.microCompactImpact.compactedToolNames ?? [])}`,
     `- Fixed additions total: ${formatMaybeInt(args.nextTurn?.fixedTokens ?? null)}`,
     ...formatFixedGroups(args.nextTurn?.fixedGroups ?? []),
     `- Assembled fixed total: ${formatMaybeInt(args.nextTurn?.totalTokens ?? null)}`,
@@ -492,6 +497,11 @@ function formatMaybePercent(value: number | null): string {
 function formatCountsByToolName(rows: Array<{ toolName: string; count: number }>): string {
   if (rows.length === 0) return 'none'
   return rows.map((row) => `${row.toolName}=${formatInt(row.count)}`).join(', ')
+}
+
+function formatToolNames(value: string[]): string {
+  if (value.length === 0) return 'none'
+  return value.join(', ')
 }
 
 function formatSignedMaybeInt(value: number | null): string {
