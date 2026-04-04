@@ -36,11 +36,6 @@
 
 ## Slice Group H: Cross-Surface / Protocol Parity
 
-- `CCA-072` 为 diagnostics payload 提供正式客户端消费契约
-  - 目标：让 Web/TUI 以后做 richer panel 时不再依赖隐式字段约定
-  - 验收：contract 文档明确 `local.diagnostics` schema 与兼容规则
-
 ## 当前推荐执行顺序
 
-1. `CCA-072`
-2. `CCA-063`
+1. `CCA-063`

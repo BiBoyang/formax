@@ -100,9 +100,20 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 3. snapshot 与 next-turn fixed 视图各自的 top contributors 排行，帮助识别最重的 system / history / fixed blocks
 4. 当参数精确为 `--json` 时，MUST 返回同一 diagnostics 数据的 JSON 文本表示
 5. app-server / Web 的 local-dispatch MAY 额外携带同一 diagnostics 数据的结构化 payload，避免客户端反解析 stdout
-6. `nextTurnFixed` diagnostics payload SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
-7. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
-8. diagnostics payload SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
+6. app-server / Web 当前的 `local.diagnostics` payload 在 `schemaVersion=1` 下 MUST 提供稳定消费契约：
+   - `kind`
+   - `schemaVersion`
+   - `mode`
+   - `model`
+   - `latestCompactBoundary`
+   - `snapshot`
+   - `nextTurnFixed`
+   - `notes`
+   未知附加字段 MAY 存在，但客户端 MUST 忽略它们。
+7. `nextTurnFixed` diagnostics payload MUST 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
+8. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
+9. diagnostics payload MUST 暴露 `latestCompactBoundary`；若该值非 `null`，至少要稳定提供 `schemaVersion`，并 SHOULD 暴露 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
+10. 当 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误时，客户端 MUST 将整个 diagnostics payload 视为不可用，而不是继续做 loose partial parsing
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

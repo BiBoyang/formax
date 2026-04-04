@@ -16,6 +16,10 @@
   - `packages/core/src/chat/context/contextDiagnostics.ts`
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
+- 已完成：diagnostics payload 正式客户端消费契约
+  - `docs/contracts/app-server-interaction-contract.md`
+  - `docs/contracts/slash-command-contract.md`
+  - `packages/web-reference-react/src/app/core/rpcContracts.ts`
 - 已完成：session memory draft schema（builder + merge rules）
   - `packages/core/src/chat/context/sessionMemory.ts`
 - 已完成：rolling session memory sidecar（turn completion async refresh）
@@ -243,6 +247,7 @@ Formax 当前：
   - JSON diagnostics
   - top contributors
   - app-server payload
+  - 客户端稳定 schema（`schemaVersion=1`）
 - 还缺：
   - per-system-section breakdown
   - pre/post microcompact impact view

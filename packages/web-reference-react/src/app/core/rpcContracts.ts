@@ -18,14 +18,115 @@ export type RpcTurnStartLikeResult = {
   localDiagnostics: RpcContextDiagnosticsPayload | null
 }
 
+export type RpcContextContributor = {
+  label: string
+  tokens: number
+}
+
+export type RpcCountByToolName = {
+  toolName: string
+  count: number
+}
+
+export type RpcMicroCompactImpact = {
+  compactedBlocks: number
+  compactedToolNames: string[]
+  estimatedTokensSaved: number
+  keptRecentBlocks: number
+}
+
+export type RpcCompactBoundaryKeepStrategy =
+  | {
+      kind: 'keep_last_turns'
+      keepLastTurns: number
+    }
+  | {
+      kind: 'keep_combo'
+      keepLastTurns: number
+      keepMinTokens: number
+      keepMinUserTurns: number
+    }
+
+export type RpcCompactRehydrationPlan = {
+  schemaVersion: 1
+  items: Array<{
+    kind: 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
+    priority: 'high' | 'medium'
+    status: 'planned' | 'applied'
+  }>
+}
+
+export type RpcCompactRehydrationCost = {
+  sectionCount: number
+  estimatedTokens: number
+}
+
+export type RpcCompactPreservedSegment = {
+  schemaVersion: 1
+  continuationMessageCount: number
+  preservedTailMessageCount: number
+  summaryFingerprint: string
+  headFingerprint: string | null
+  tailFingerprint: string | null
+}
+
+export type RpcLatestCompactBoundary = {
+  schemaVersion: 1
+  trigger?: 'manual' | 'auto' | 'reactive'
+  preTokens?: number
+  summaryKind?: 'model_summary' | 'session_memory'
+  keepStrategy?: RpcCompactBoundaryKeepStrategy
+  rehydrationPlan?: RpcCompactRehydrationPlan
+  rehydrationCost?: RpcCompactRehydrationCost
+  preservedSegment?: RpcCompactPreservedSegment
+}
+
+export type RpcContextDiagnosticsSnapshot = {
+  totalTokens: number
+  systemTokens: number
+  historyTokens: number
+  toolResultTokens: number
+  otherHistoryTokens: number
+  messageCount: number
+  userMessageCount: number
+  assistantMessageCount: number
+  toolResultBlockCount: number
+  microCompactedToolResultCount: number
+  toolResultCountsByToolName: RpcCountByToolName[]
+  microCompactedCountsByToolName: RpcCountByToolName[]
+  contextWindowTokens: number | null
+  effectiveLimitTokens: number | null
+  autoCompactLimitTokens: number | null
+  baselineTokens: number | null
+  percentRemaining: number | null
+  remainingToEffectiveLimit: number | null
+  remainingToAutoCompactLimit: number | null
+  shouldAutoCompact: boolean | null
+  topSnapshotContributors: RpcContextContributor[]
+}
+
+export type RpcNextTurnFixedContextDiagnostics = {
+  fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
+  microCompactImpact: RpcMicroCompactImpact
+  projectedHistoryTokens: number
+  projectedHistoryDeltaTokens: number
+  fixedTokens: number
+  totalTokens: number
+  remainingToEffectiveLimit: number | null
+  remainingToAutoCompactLimit: number | null
+  shouldAutoCompact: boolean | null
+  topAssembledContributors: RpcContextContributor[]
+}
+
 export type RpcContextDiagnosticsPayload = {
   kind: 'formax.context_diagnostics'
-  schemaVersion: number
-  mode?: string
-  model?: string
-  snapshot?: Record<string, unknown>
-  nextTurnFixed?: Record<string, unknown>
-  notes?: string[]
+  schemaVersion: 1
+  mode: string
+  model: string
+  latestCompactBoundary: RpcLatestCompactBoundary | null
+  snapshot: RpcContextDiagnosticsSnapshot
+  nextTurnFixed: RpcNextTurnFixedContextDiagnostics
+  notes: string[]
 }
 
 export type RpcInputSubmitResult = {
@@ -119,26 +220,338 @@ export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {
 function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPayload | null {
   const record = asRecord(value)
   if (record.kind !== 'formax.context_diagnostics') return null
-  const schemaVersion =
-    typeof record.schemaVersion === 'number' && Number.isFinite(record.schemaVersion) ? record.schemaVersion : 0
-  if (!schemaVersion) return null
-  const mode = typeof record.mode === 'string' ? record.mode : undefined
-  const model = typeof record.model === 'string' ? record.model : undefined
-  const snapshot = asOptionalRecord(record.snapshot)
-  const nextTurnFixed = asOptionalRecord(record.nextTurnFixed)
-  const notes = Array.isArray(record.notes) ? record.notes.filter((row): row is string => typeof row === 'string') : undefined
+  if (record.schemaVersion !== 1) return null
+  const mode = typeof record.mode === 'string' && record.mode.trim() ? record.mode : null
+  const model = typeof record.model === 'string' && record.model.trim() ? record.model : null
+  const snapshot = parseContextDiagnosticsSnapshot(record.snapshot)
+  const nextTurnFixed = parseNextTurnFixedContextDiagnostics(record.nextTurnFixed)
+  const latestCompactBoundary = parseStrictLatestCompactBoundaryField(record)
+  const notes = parseRequiredStringList(record.notes)
+  if (!mode || !model || !snapshot || !nextTurnFixed || !latestCompactBoundary || !notes) return null
   return {
     kind: 'formax.context_diagnostics',
-    schemaVersion,
-    ...(mode ? { mode } : {}),
-    ...(model ? { model } : {}),
-    ...(snapshot ? { snapshot } : {}),
-    ...(nextTurnFixed ? { nextTurnFixed } : {}),
-    ...(notes ? { notes } : {}),
+    schemaVersion: 1,
+    mode,
+    model,
+    latestCompactBoundary: latestCompactBoundary.value,
+    snapshot,
+    nextTurnFixed,
+    notes: notes.value,
   }
 }
 
 function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   return value as Record<string, unknown>
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function parseContributors(value: unknown): RpcContextContributor[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: RpcContextContributor[] = []
+  for (const row of value) {
+    const record = asOptionalRecord(row)
+    if (!record) return null
+    const label = typeof record.label === 'string' && record.label.trim() ? record.label : null
+    const tokens = asFiniteNumber(record.tokens)
+    if (!label || tokens == null) return null
+    rows.push({ label, tokens })
+  }
+  return rows
+}
+
+function parseCountByToolNameList(value: unknown): RpcCountByToolName[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: RpcCountByToolName[] = []
+  for (const row of value) {
+    const record = asOptionalRecord(row)
+    if (!record) return null
+    const toolName = typeof record.toolName === 'string' && record.toolName.trim() ? record.toolName : null
+    const count = asFiniteNumber(record.count)
+    if (!toolName || count == null) return null
+    rows.push({ toolName, count })
+  }
+  return rows
+}
+
+function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const compactedBlocks = asFiniteNumber(record.compactedBlocks)
+  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+  const keptRecentBlocks = asFiniteNumber(record.keptRecentBlocks)
+  const compactedToolNames = parseRequiredStringList(record.compactedToolNames)
+  if (compactedBlocks == null || estimatedTokensSaved == null || keptRecentBlocks == null || !compactedToolNames) {
+    return null
+  }
+  return {
+    compactedBlocks,
+    compactedToolNames: compactedToolNames.value,
+    estimatedTokensSaved,
+    keptRecentBlocks,
+  }
+}
+
+function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsSnapshot | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const toolResultCountsByToolName = parseCountByToolNameList(record.toolResultCountsByToolName)
+  const microCompactedCountsByToolName = parseCountByToolNameList(record.microCompactedCountsByToolName)
+  const topSnapshotContributors = parseContributors(record.topSnapshotContributors)
+  if (!toolResultCountsByToolName || !microCompactedCountsByToolName || !topSnapshotContributors) return null
+
+  const totalTokens = asFiniteNumber(record.totalTokens)
+  const systemTokens = asFiniteNumber(record.systemTokens)
+  const historyTokens = asFiniteNumber(record.historyTokens)
+  const toolResultTokens = asFiniteNumber(record.toolResultTokens)
+  const otherHistoryTokens = asFiniteNumber(record.otherHistoryTokens)
+  const messageCount = asFiniteNumber(record.messageCount)
+  const userMessageCount = asFiniteNumber(record.userMessageCount)
+  const assistantMessageCount = asFiniteNumber(record.assistantMessageCount)
+  const toolResultBlockCount = asFiniteNumber(record.toolResultBlockCount)
+  const microCompactedToolResultCount = asFiniteNumber(record.microCompactedToolResultCount)
+  if (
+    totalTokens == null ||
+    systemTokens == null ||
+    historyTokens == null ||
+    toolResultTokens == null ||
+    otherHistoryTokens == null ||
+    messageCount == null ||
+    userMessageCount == null ||
+    assistantMessageCount == null ||
+    toolResultBlockCount == null ||
+    microCompactedToolResultCount == null
+  ) {
+    return null
+  }
+  const contextWindowTokens = parseRequiredNullableNumber(record.contextWindowTokens)
+  const effectiveLimitTokens = parseRequiredNullableNumber(record.effectiveLimitTokens)
+  const autoCompactLimitTokens = parseRequiredNullableNumber(record.autoCompactLimitTokens)
+  const baselineTokens = parseRequiredNullableNumber(record.baselineTokens)
+  const percentRemaining = parseRequiredNullableNumber(record.percentRemaining)
+  const remainingToEffectiveLimit = parseRequiredNullableNumber(record.remainingToEffectiveLimit)
+  const remainingToAutoCompactLimit = parseRequiredNullableNumber(record.remainingToAutoCompactLimit)
+  const shouldAutoCompact = parseRequiredNullableBoolean(record.shouldAutoCompact)
+  if (
+    !contextWindowTokens ||
+    !effectiveLimitTokens ||
+    !autoCompactLimitTokens ||
+    !baselineTokens ||
+    !percentRemaining ||
+    !remainingToEffectiveLimit ||
+    !remainingToAutoCompactLimit ||
+    !shouldAutoCompact
+  ) {
+    return null
+  }
+
+  return {
+    totalTokens,
+    systemTokens,
+    historyTokens,
+    toolResultTokens,
+    otherHistoryTokens,
+    messageCount,
+    userMessageCount,
+    assistantMessageCount,
+    toolResultBlockCount,
+    microCompactedToolResultCount,
+    toolResultCountsByToolName,
+    microCompactedCountsByToolName,
+    contextWindowTokens: contextWindowTokens.value,
+    effectiveLimitTokens: effectiveLimitTokens.value,
+    autoCompactLimitTokens: autoCompactLimitTokens.value,
+    baselineTokens: baselineTokens.value,
+    percentRemaining: percentRemaining.value,
+    remainingToEffectiveLimit: remainingToEffectiveLimit.value,
+    remainingToAutoCompactLimit: remainingToAutoCompactLimit.value,
+    shouldAutoCompact: shouldAutoCompact.value,
+    topSnapshotContributors,
+  }
+}
+
+function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedContextDiagnostics | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const fixedGroupsValue = record.fixedGroups
+  if (!Array.isArray(fixedGroupsValue)) return null
+  const fixedGroups: RpcNextTurnFixedContextDiagnostics['fixedGroups'] = []
+  for (const row of fixedGroupsValue) {
+    const item = asOptionalRecord(row)
+    if (!item) return null
+    const label = typeof item.label === 'string' && item.label.trim() ? item.label : null
+    const blockCount = asFiniteNumber(item.blockCount)
+    const tokens = asFiniteNumber(item.tokens)
+    if (!label || blockCount == null || tokens == null) return null
+    fixedGroups.push({ label, blockCount, tokens })
+  }
+  const microCompactImpact = parseMicroCompactImpact(record.microCompactImpact)
+  const topAssembledContributors = parseContributors(record.topAssembledContributors)
+  const projectedHistoryTokens = asFiniteNumber(record.projectedHistoryTokens)
+  const projectedHistoryDeltaTokens = asFiniteNumber(record.projectedHistoryDeltaTokens)
+  const fixedTokens = asFiniteNumber(record.fixedTokens)
+  const totalTokens = asFiniteNumber(record.totalTokens)
+  if (
+    !microCompactImpact ||
+    !topAssembledContributors ||
+    projectedHistoryTokens == null ||
+    projectedHistoryDeltaTokens == null ||
+    fixedTokens == null ||
+    totalTokens == null
+  ) {
+    return null
+  }
+  const remainingToEffectiveLimit = parseRequiredNullableNumber(record.remainingToEffectiveLimit)
+  const remainingToAutoCompactLimit = parseRequiredNullableNumber(record.remainingToAutoCompactLimit)
+  const shouldAutoCompact = parseRequiredNullableBoolean(record.shouldAutoCompact)
+  if (!remainingToEffectiveLimit || !remainingToAutoCompactLimit || !shouldAutoCompact) return null
+  return {
+    fixedGroups,
+    microCompactImpact,
+    projectedHistoryTokens,
+    projectedHistoryDeltaTokens,
+    fixedTokens,
+    totalTokens,
+    remainingToEffectiveLimit: remainingToEffectiveLimit.value,
+    remainingToAutoCompactLimit: remainingToAutoCompactLimit.value,
+    shouldAutoCompact: shouldAutoCompact.value,
+    topAssembledContributors,
+  }
+}
+
+function parseLatestCompactBoundary(value: unknown): RpcLatestCompactBoundary | null {
+  if (value == null) return null
+  const record = asOptionalRecord(value)
+  if (!record || record.schemaVersion !== 1) return null
+
+  const keepStrategy = parseKeepStrategy(record.keepStrategy)
+  const rehydrationPlan = parseRehydrationPlan(record.rehydrationPlan)
+  const rehydrationCost = parseRehydrationCost(record.rehydrationCost)
+  const preservedSegment = parsePreservedSegment(record.preservedSegment)
+  const trigger =
+    record.trigger === 'manual' || record.trigger === 'auto' || record.trigger === 'reactive' ? record.trigger : undefined
+  const summaryKind =
+    record.summaryKind === 'model_summary' || record.summaryKind === 'session_memory'
+      ? record.summaryKind
+      : undefined
+
+  return {
+    schemaVersion: 1,
+    ...(trigger ? { trigger } : {}),
+    ...(asFiniteNumber(record.preTokens) != null ? { preTokens: asFiniteNumber(record.preTokens)! } : {}),
+    ...(summaryKind ? { summaryKind } : {}),
+    ...(keepStrategy ? { keepStrategy } : {}),
+    ...(rehydrationPlan ? { rehydrationPlan } : {}),
+    ...(rehydrationCost ? { rehydrationCost } : {}),
+    ...(preservedSegment ? { preservedSegment } : {}),
+  }
+}
+
+function parseStrictLatestCompactBoundaryField(
+  record: Record<string, unknown>,
+): { value: RpcLatestCompactBoundary | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, 'latestCompactBoundary')) return null
+  const value = record.latestCompactBoundary
+  if (value === null) return { value: null }
+  const parsed = parseLatestCompactBoundary(value)
+  return parsed ? { value: parsed } : null
+}
+
+function parseRequiredStringList(value: unknown): { value: string[] } | null {
+  if (!Array.isArray(value)) return null
+  const rows: string[] = []
+  for (const row of value) {
+    if (typeof row !== 'string') return null
+    rows.push(row)
+  }
+  return { value: rows }
+}
+
+function parseRequiredNullableNumber(value: unknown): { value: number | null } | null {
+  if (value === null) return { value: null }
+  const parsed = asFiniteNumber(value)
+  return parsed == null ? null : { value: parsed }
+}
+
+function parseRequiredNullableBoolean(value: unknown): { value: boolean | null } | null {
+  if (value === null) return { value: null }
+  return typeof value === 'boolean' ? { value } : null
+}
+
+function parseKeepStrategy(value: unknown): RpcCompactBoundaryKeepStrategy | null {
+  const record = asOptionalRecord(value)
+  if (!record || typeof record.kind !== 'string') return null
+  if (record.kind === 'keep_last_turns') {
+    const keepLastTurns = asFiniteNumber(record.keepLastTurns)
+    return keepLastTurns == null ? null : { kind: 'keep_last_turns', keepLastTurns }
+  }
+  if (record.kind === 'keep_combo') {
+    const keepLastTurns = asFiniteNumber(record.keepLastTurns)
+    const keepMinTokens = asFiniteNumber(record.keepMinTokens)
+    const keepMinUserTurns = asFiniteNumber(record.keepMinUserTurns)
+    if (keepLastTurns == null || keepMinTokens == null || keepMinUserTurns == null) return null
+    return { kind: 'keep_combo', keepLastTurns, keepMinTokens, keepMinUserTurns }
+  }
+  return null
+}
+
+function parseRehydrationPlan(value: unknown): RpcCompactRehydrationPlan | null {
+  const record = asOptionalRecord(value)
+  if (!record || record.schemaVersion !== 1 || !Array.isArray(record.items)) return null
+  const items: RpcCompactRehydrationPlan['items'] = []
+  for (const row of record.items) {
+    const item = asOptionalRecord(row)
+    if (!item) return null
+    const kind =
+      item.kind === 'recent_files' || item.kind === 'plan_state' || item.kind === 'todo_state' || item.kind === 'mode_state'
+        ? item.kind
+        : null
+    const priority = item.priority === 'high' || item.priority === 'medium' ? item.priority : null
+    const status = item.status === 'planned' || item.status === 'applied' ? item.status : null
+    if (!kind || !priority || !status) return null
+    items.push({ kind, priority, status })
+  }
+  return { schemaVersion: 1, items }
+}
+
+function parseRehydrationCost(value: unknown): RpcCompactRehydrationCost | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const sectionCount = asFiniteNumber(record.sectionCount)
+  const estimatedTokens = asFiniteNumber(record.estimatedTokens)
+  if (sectionCount == null || estimatedTokens == null) return null
+  return { sectionCount, estimatedTokens }
+}
+
+function parsePreservedSegment(value: unknown): RpcCompactPreservedSegment | null {
+  const record = asOptionalRecord(value)
+  if (!record || record.schemaVersion !== 1) return null
+  const continuationMessageCount = asFiniteNumber(record.continuationMessageCount)
+  const preservedTailMessageCount = asFiniteNumber(record.preservedTailMessageCount)
+  const summaryFingerprint =
+    typeof record.summaryFingerprint === 'string' && record.summaryFingerprint ? record.summaryFingerprint : null
+  const headFingerprint =
+    record.headFingerprint == null
+      ? null
+      : typeof record.headFingerprint === 'string'
+        ? record.headFingerprint
+        : null
+  const tailFingerprint =
+    record.tailFingerprint == null
+      ? null
+      : typeof record.tailFingerprint === 'string'
+        ? record.tailFingerprint
+        : null
+  if (continuationMessageCount == null || preservedTailMessageCount == null || !summaryFingerprint) return null
+  return {
+    schemaVersion: 1,
+    continuationMessageCount,
+    preservedTailMessageCount,
+    summaryFingerprint,
+    headFingerprint,
+    tailFingerprint,
+  }
 }

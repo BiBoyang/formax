@@ -99,15 +99,63 @@
 - `/context` 语义约束：
   - 输出 MUST 基于当前持久化 prompt history snapshot 生成
   - 输出 MUST 以 `local.stdout` 返回，不得启动新的 turn
-  - 当命令为 `/context` 或 `/context --json` 时，server SHOULD 额外返回 `local.diagnostics` 结构化 payload，供客户端直接消费
-  - `local.diagnostics.nextTurnFixed` SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`）
-  - `local.diagnostics` SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
+  - 当命令为 `/context` 或 `/context --json` 时，server MUST 额外返回 `local.diagnostics` 结构化 payload，供客户端直接消费
+  - `local.diagnostics` 当前 canonical payload 形状 MUST 为：
+    - `kind: "formax.context_diagnostics"`
+    - `schemaVersion: 1`
+    - `mode: string`
+    - `model: string`
+    - `latestCompactBoundary: CompactBoundaryMeta | null`
+    - `snapshot: ContextDiagnosticsSnapshot`
+    - `nextTurnFixed: NextTurnFixedContextDiagnostics`
+    - `notes: string[]`
+  - `local.diagnostics.snapshot` 当前稳定字段 MUST 包含：
+    - `totalTokens`
+    - `systemTokens`
+    - `historyTokens`
+    - `toolResultTokens`
+    - `otherHistoryTokens`
+    - `messageCount`
+    - `userMessageCount`
+    - `assistantMessageCount`
+    - `toolResultBlockCount`
+    - `microCompactedToolResultCount`
+    - `toolResultCountsByToolName`
+    - `microCompactedCountsByToolName`
+    - `contextWindowTokens`
+    - `effectiveLimitTokens`
+    - `autoCompactLimitTokens`
+    - `baselineTokens`
+    - `percentRemaining`
+    - `remainingToEffectiveLimit`
+    - `remainingToAutoCompactLimit`
+    - `shouldAutoCompact`
+    - `topSnapshotContributors`
+  - `local.diagnostics.nextTurnFixed` 当前稳定字段 MUST 包含：
+    - `fixedGroups`
+    - `microCompactImpact`
+    - `projectedHistoryTokens`
+    - `projectedHistoryDeltaTokens`
+    - `fixedTokens`
+    - `totalTokens`
+    - `remainingToEffectiveLimit`
+    - `remainingToAutoCompactLimit`
+    - `shouldAutoCompact`
+    - `topAssembledContributors`
+  - `local.diagnostics.nextTurnFixed.microCompactImpact` MUST 暴露：
+    - `compactedBlocks`
+    - `compactedToolNames`
+    - `estimatedTokensSaved`
+    - `keptRecentBlocks`
+  - `local.diagnostics.latestCompactBoundary` 若非 `null`，当前稳定字段 MUST 至少包含 `schemaVersion`，并 MAY 包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`
   - 当前 `summaryKind` MAY 为：
     - `model_summary`
     - `session_memory`
   - 当前 `keepStrategy` MAY 为：
     - `keep_last_turns`
     - `keep_combo`（`keepLastTurns`、`keepMinTokens`、`keepMinUserTurns`）
+  - 当 `local.diagnostics.schemaVersion === 1` 时，客户端 MUST 仅依赖上述稳定字段；未知附加字段 MUST 忽略
+  - 若 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误，客户端 MUST 将 `local.diagnostics` 视为不可用，而不是回退到隐式 loose object 消费
   - 无参数 MUST 返回 text diagnostics
   - 当参数精确为 `--json` 时 MUST 返回同一 diagnostics 数据的 JSON 文本
   - 其余参数 MUST 返回 `Usage: /context [--json]`

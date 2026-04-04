@@ -168,13 +168,11 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-072`
-2. `CCA-063`
+1. `CCA-063`
 
 对应含义：
 
-1. diagnostics payload 的正式客户端消费契约继续补强
-2. 继续评估 context collapse / cache-aware 中间层是否值得引入
+1. 继续评估 context collapse / cache-aware 中间层是否值得引入
 
 ---
 
