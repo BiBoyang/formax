@@ -1,6 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import {
   buildDefaultCompactRehydrationPlan,
+  estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
 } from '../../../../chat/context/compact'
@@ -116,6 +117,7 @@ export async function runCompactFlow(args: {
             keepLastTurns: args.keepLastTurns,
           },
           rehydrationPlan,
+          rehydrationCost: estimateCompactRehydrationCost(rehydration),
         },
       }),
     }

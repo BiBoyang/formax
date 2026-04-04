@@ -5,6 +5,7 @@ import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   collectRecentReadFilesForRehydration,
+  estimateCompactRehydrationCost,
   isCompactBoundaryMessage,
   isCompactionSummaryUserMessage,
   markCompactRehydrationApplied,
@@ -181,6 +182,18 @@ describe('compaction summary helpers', () => {
     expect(text).toContain('Mode state to keep in working memory:')
     expect(text).toContain('Plan state to keep in working memory:')
     expect(text).toContain('Todo state to keep in working memory:')
+  })
+
+  it('estimates rehydration cost from the appended sections', () => {
+    const cost = estimateCompactRehydrationCost({
+      recentFiles: ['/repo/src/auth.ts'],
+      modeText: 'Current mode: plan',
+      planPath: '/repo/.formax/plan.md',
+      todoSummary: '[1. [in_progress] patch compact flow]',
+    })
+
+    expect(cost.sectionCount).toBe(4)
+    expect(cost.estimatedTokens).toBeGreaterThan(0)
   })
 
   it('sanitizes embedded system-reminder delimiters inside rehydration content', () => {

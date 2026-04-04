@@ -110,6 +110,7 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Context window: unknown')
     expect(out).toContain('- Tool result blocks: 0')
     expect(out).toContain('- Tool-result tool mix: none')
+    expect(out).toContain('- Rehydration cost: none')
     expect(out).toContain('Top snapshot contributors')
     expect(out).toContain('Next-turn fixed context (before future user text)')
     expect(out).toContain('- Projected history before microcompact/prune: 22')
@@ -239,6 +240,10 @@ describe('contextDiagnostics', () => {
               { kind: 'mode_state', priority: 'medium', status: 'planned' },
             ],
           },
+          rehydrationCost: {
+            sectionCount: 2,
+            estimatedTokens: 64,
+          },
         }),
       ],
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
@@ -262,6 +267,10 @@ describe('contextDiagnostics', () => {
           { kind: 'recent_files', priority: 'high', status: 'planned' },
           { kind: 'mode_state', priority: 'medium', status: 'planned' },
         ],
+      },
+      rehydrationCost: {
+        sectionCount: 2,
+        estimatedTokens: 64,
       },
     })
     expect(parsed.mode).toBe('normal')
@@ -307,6 +316,10 @@ describe('contextDiagnostics', () => {
             { kind: 'plan_state', priority: 'high', status: 'planned' },
           ],
         },
+        rehydrationCost: {
+          sectionCount: 2,
+          estimatedTokens: 48,
+        },
       },
       diagnostics,
       mode: 'plan',
@@ -314,5 +327,6 @@ describe('contextDiagnostics', () => {
     })
 
     expect(out).toContain('- Rehydration plan: recent_files(high/planned), plan_state(high/planned)')
+    expect(out).toContain('- Rehydration cost: 2 sections / 48 tokens')
   })
 })

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import {
   buildDefaultCompactRehydrationPlan,
+  estimateCompactRehydrationCost,
   isCompactBoundaryMessage,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
@@ -675,6 +676,7 @@ export class TurnRunner {
               keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
             },
             rehydrationPlan,
+            rehydrationCost: estimateCompactRehydrationCost(rehydration),
           },
         })
         assistantText = COMPACT_BANNER_TEXT

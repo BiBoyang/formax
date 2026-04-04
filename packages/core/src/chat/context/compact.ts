@@ -1,4 +1,5 @@
 import type { PromptMessage } from '../../prompts'
+import { estimatePromptTokens } from './estimate'
 
 const CONTINUED_SESSION_SUMMARY_PREFIX =
   'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
@@ -26,6 +27,11 @@ export type CompactRehydrationPlan = {
   items: CompactRehydrationItem[]
 }
 
+export type CompactRehydrationCost = {
+  sectionCount: number
+  estimatedTokens: number
+}
+
 export type CompactBoundaryMeta = {
   schemaVersion: 1
   trigger?: CompactBoundaryTrigger
@@ -33,6 +39,7 @@ export type CompactBoundaryMeta = {
   summaryKind?: CompactBoundarySummaryKind
   keepStrategy?: CompactBoundaryKeepStrategy
   rehydrationPlan?: CompactRehydrationPlan
+  rehydrationCost?: CompactRehydrationCost
 }
 
 function isToolResultMessage(msg: PromptMessage): boolean {
@@ -163,12 +170,49 @@ export function buildCompactionSummaryUserText(
   )
 }
 
+export function estimateCompactRehydrationCost(rehydration?: {
+  recentFiles?: string[]
+  modeText?: string | null
+  planPath?: string | null
+  planExcerpt?: string | null
+  todoSummary?: string | null
+}): CompactRehydrationCost {
+  const sections = buildRehydrationSections({
+    recentFiles: Array.isArray(rehydration?.recentFiles) ? rehydration!.recentFiles : [],
+    modeText: rehydration?.modeText ?? null,
+    planPath: rehydration?.planPath ?? null,
+    planExcerpt: rehydration?.planExcerpt ?? null,
+    todoSummary: rehydration?.todoSummary ?? null,
+  })
+
+  if (sections.length === 0) {
+    return {
+      sectionCount: 0,
+      estimatedTokens: 0,
+    }
+  }
+
+  return {
+    sectionCount: sections.length,
+    estimatedTokens: estimatePromptTokens({
+      system: [],
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: sections.join('\n\n') }] as any,
+        },
+      ],
+    }),
+  }
+}
+
 export function buildCompactBoundaryMessage(args: {
   trigger: CompactBoundaryTrigger
   preTokens: number
   summaryKind: CompactBoundarySummaryKind
   keepStrategy: CompactBoundaryKeepStrategy
   rehydrationPlan?: CompactRehydrationPlan
+  rehydrationCost?: CompactRehydrationCost
 }): PromptMessage {
   return {
     role: 'assistant',
@@ -181,6 +225,7 @@ export function buildCompactBoundaryMessage(args: {
         summaryKind: args.summaryKind,
         keepStrategy: args.keepStrategy,
         ...(args.rehydrationPlan ? { rehydrationPlan: args.rehydrationPlan } : {}),
+        ...(args.rehydrationCost ? { rehydrationCost: args.rehydrationCost } : {}),
       },
     },
   }
@@ -275,6 +320,7 @@ export function rebuildHistoryAfterCompaction(args: {
     summaryKind: CompactBoundarySummaryKind
     keepStrategy: CompactBoundaryKeepStrategy
     rehydrationPlan?: CompactRehydrationPlan
+    rehydrationCost?: CompactRehydrationCost
   }
 }): PromptMessage[] {
   const summaryText = buildCompactionSummaryUserText(args.summary, args.rehydration)
@@ -294,6 +340,17 @@ function buildRehydrationSuffix(args: {
   planExcerpt: string | null
   todoSummary: string | null
 }): string {
+  const sections = buildRehydrationSections(args)
+  return sections.length > 0 ? `\n\n${sections.join('\n\n')}` : ''
+}
+
+function buildRehydrationSections(args: {
+  recentFiles: string[]
+  modeText: string | null
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+}): string[] {
   const sections: string[] = []
   const recentFiles = args.recentFiles.map((file) => sanitizeReminderText(file))
   const modeText = args.modeText ? sanitizeReminderText(args.modeText) : null
@@ -320,7 +377,7 @@ function buildRehydrationSuffix(args: {
     sections.push(`Todo state to keep in working memory:\n${todoSummary}`)
   }
 
-  return sections.length > 0 ? `\n\n${sections.join('\n\n')}` : ''
+  return sections
 }
 
 function sanitizeReminderText(value: string): string {

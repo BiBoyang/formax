@@ -54,6 +54,10 @@ export type PromptMessageMeta = {
         status: 'planned' | 'applied'
       }>
     }
+    rehydrationCost?: {
+      sectionCount: number
+      estimatedTokens: number
+    }
   }
 }
 

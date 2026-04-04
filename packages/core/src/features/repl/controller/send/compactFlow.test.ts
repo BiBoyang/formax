@@ -145,6 +145,10 @@ describe('runCompactFlow', () => {
         { kind: 'mode_state', priority: 'medium', status: 'applied' },
       ],
     })
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.rehydrationCost).toEqual({
+      sectionCount: 3,
+      estimatedTokens: expect.any(Number),
+    })
     expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain(
       'Recent files to keep in working memory:',
     )

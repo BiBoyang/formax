@@ -21,6 +21,10 @@
   - 有 plan path 时会附带 plan path + plan excerpt
   - 有 todo 列表时会附带精简后的 todo summary
   - boundary 里的 `plan_state`、`todo_state`、`mode_state` 会在对应内容真正注入后升成 `applied`
+- 当前 `/context` 还能直接读到 `rehydrationCost`：
+  - `sectionCount`
+  - `estimatedTokens`
+  - 这样 compact 后恢复层本身的成本不再是黑盒
 - `ChatEngine` 与 token estimation 会在真实 prompt 组装时忽略这类 boundary message。
 - `/context --json` 与 app-server `local.diagnostics` 现在会暴露 `latestCompactBoundary`，方便直接检查最近一次 compact 的边界元信息。
 
@@ -38,4 +42,4 @@
 
 ## Follow-ups
 
-- 下一步是 `CCA-033`：把 rehydration 本身的 token/block 成本也暴露到 `/context`，让恢复层不再是黑盒。
+- 下一步是 `CCA-006`：继续评估更安全的附加 text block 压缩边界，避免在更复杂的用户内容上过早做高风险 microcompact。

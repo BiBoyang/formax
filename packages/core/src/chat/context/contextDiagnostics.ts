@@ -339,6 +339,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Summary kind: ${args.latestCompactBoundary?.summaryKind ?? 'none'}`,
     `- Keep strategy: ${formatKeepStrategy(args.latestCompactBoundary?.keepStrategy ?? null)}`,
     `- Rehydration plan: ${formatRehydrationPlan(args.latestCompactBoundary?.rehydrationPlan ?? null)}`,
+    `- Rehydration cost: ${formatRehydrationCost(args.latestCompactBoundary?.rehydrationCost ?? null)}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,
@@ -407,6 +408,11 @@ function formatKeepStrategy(value: CompactBoundaryMeta['keepStrategy'] | null): 
 function formatRehydrationPlan(value: CompactBoundaryMeta['rehydrationPlan'] | null): string {
   if (!value || !Array.isArray(value.items) || value.items.length === 0) return 'none'
   return value.items.map((item) => `${item.kind}(${item.priority}/${item.status})`).join(', ')
+}
+
+function formatRehydrationCost(value: CompactBoundaryMeta['rehydrationCost'] | null): string {
+  if (!value) return 'none'
+  return `${formatInt(value.sectionCount)} sections / ${formatInt(value.estimatedTokens)} tokens`
 }
 
 function splitHistorySlices(

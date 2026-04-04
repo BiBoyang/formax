@@ -41,10 +41,6 @@
 
 ## Slice Group D: Post-Compact Recovery
 
-- `CCA-033` 让 `/context` 能显示 compact 后 rehydration 成本
-  - 目标：让恢复层本身也可见，不再是隐形 token 成本
-  - 验收：diagnostics 中可读出 rehydration block/token
-
 ## Slice Group E: Keep Strategy Upgrade
 
 - `CCA-040` 从固定 `keepLastTurns` 升级为组合 keep 策略
@@ -103,8 +99,8 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-033`
-2. `CCA-006`
-3. `CCA-040`
-4. `CCA-050`
-5. `CCA-060`
+1. `CCA-006`
+2. `CCA-040`
+3. `CCA-050`
+4. `CCA-060`
+5. `CCA-070`

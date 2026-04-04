@@ -48,6 +48,10 @@ const promptMessageSchema = z
                 }).strict(),
               ),
             }).optional(),
+            rehydrationCost: z.object({
+              sectionCount: z.number().int().nonnegative(),
+              estimatedTokens: z.number().int().nonnegative(),
+            }).optional(),
           })
           .optional(),
       })

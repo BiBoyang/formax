@@ -1825,6 +1825,10 @@ describe('TurnRunner', () => {
         { kind: 'mode_state', priority: 'medium', status: 'applied' },
       ],
     })
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.rehydrationCost).toEqual({
+      sectionCount: 2,
+      estimatedTokens: expect.any(Number),
+    })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
     expect(summary.messageCount).toBe(1)

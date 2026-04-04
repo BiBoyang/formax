@@ -144,6 +144,7 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 5. 当前 SHOULD 允许携带最小 `rehydrationPlan`，用于声明 compact 后优先恢复的状态集合；当前最小集合 MAY 包含 `recent_files`、`plan_state`、`todo_state`、`mode_state`
 6. 当前当 `recent_files` 已实际注入 compaction summary reminder 时，对应 `rehydrationPlan.items[*].status` SHOULD 升为 `applied`
 7. 当前当 compact summary 已实际注入 plan excerpt、todo summary、mode text 时，对应 `plan_state`、`todo_state`、`mode_state` 的 `status` SHOULD 升为 `applied`
+8. 当前若 compact 已注入 rehydration 文本，boundary SHOULD 额外记录 `rehydrationCost`，至少包含 `sectionCount` 与 `estimatedTokens`
 
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：
