@@ -1,5 +1,10 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import { buildDefaultCompactRehydrationPlan, rebuildHistoryAfterCompaction } from '../../../../chat/context/compact'
+import {
+  buildDefaultCompactRehydrationPlan,
+  collectRecentReadFilesForRehydration,
+  markCompactRehydrationApplied,
+  rebuildHistoryAfterCompaction,
+} from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import type { PromptBlock } from '../../../../prompts'
@@ -77,6 +82,14 @@ export async function runCompactFlow(args: {
     }
 
     args.onLifecycle?.({ type: 'compact_succeeded', source: args.source })
+    const recentFiles = collectRecentReadFilesForRehydration(args.previousHistory)
+    const rehydrationPlan = markCompactRehydrationApplied(
+      buildDefaultCompactRehydrationPlan({
+        mode: args.mode,
+        planPath: args.getPlanPath(),
+      }),
+      recentFiles.length > 0 ? ['recent_files'] : [],
+    )
 
     return {
       summary,
@@ -84,6 +97,9 @@ export async function runCompactFlow(args: {
         summary,
         previousHistory: args.previousHistory,
         keepLastTurns: args.keepLastTurns,
+        rehydration: {
+          recentFiles,
+        },
         boundaryMeta: {
           trigger: args.source,
           preTokens: estimatePromptTokens({
@@ -95,10 +111,7 @@ export async function runCompactFlow(args: {
             kind: 'keep_last_turns',
             keepLastTurns: args.keepLastTurns,
           },
-          rehydrationPlan: buildDefaultCompactRehydrationPlan({
-            mode: args.mode,
-            planPath: args.getPlanPath(),
-          }),
+          rehydrationPlan,
         },
       }),
     }

@@ -51,7 +51,7 @@ export type PromptMessageMeta = {
       items: Array<{
         kind: 'recent_files' | 'plan_state' | 'mode_state'
         priority: 'high' | 'medium'
-        status: 'planned'
+        status: 'planned' | 'applied'
       }>
     }
   }

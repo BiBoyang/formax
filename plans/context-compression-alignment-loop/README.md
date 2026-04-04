@@ -47,10 +47,13 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - boundary 现在已携带最小 metadata：`trigger`、`preTokens`、`summaryKind`、`keepStrategy`。
    - boundary 现在可额外携带轻量 `rehydrationPlan`，先把 compact 后要补回的状态协议化。
    - `/context --json` 与 app-server `local.diagnostics` 已可读出 `latestCompactBoundary`。
-4. `microcompact` turn-level metrics
+4. post-compact rehydration 第一版
+   - compact summary 现在会补回最近成功 `Read` 的文件路径清单。
+   - compact boundary 的 `rehydrationPlan` 会把 `recent_files` 从 `planned` 升为 `applied`。
+5. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-5. 可观测性第一版
+6. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图

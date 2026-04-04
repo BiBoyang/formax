@@ -4,8 +4,10 @@ import {
   buildDefaultCompactRehydrationPlan,
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
+  collectRecentReadFilesForRehydration,
   isCompactBoundaryMessage,
   isCompactionSummaryUserMessage,
+  markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   selectTailForCompaction,
   stripCompactBoundaryMessages,
@@ -19,6 +21,13 @@ function toolUse(id: string): PromptMessage {
   return {
     role: 'assistant',
     content: [{ type: 'tool_use', id, name: 'Read', input: { file_path: '/tmp/a' } }] as any,
+  }
+}
+
+function readToolUse(id: string, filePath: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Read', input: { file_path: filePath } }] as any,
   }
 }
 
@@ -85,6 +94,9 @@ describe('rebuildHistoryAfterCompaction', () => {
         keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
         rehydrationPlan,
       },
+      rehydration: {
+        recentFiles: ['/repo/src/auth.ts'],
+      },
     })
     expect(next.length).toBe(4)
     expect(isCompactBoundaryMessage(next[0]!)).toBe(true)
@@ -96,6 +108,8 @@ describe('rebuildHistoryAfterCompaction', () => {
     expect(next[1]!.role).toBe('user')
     expect((next[1]!.content as any[])[0]!.text).toContain('This session is being continued from a previous conversation')
     expect((next[1]!.content as any[])[0]!.text).toContain('S')
+    expect((next[1]!.content as any[])[0]!.text).toContain('Recent files to keep in working memory:')
+    expect((next[1]!.content as any[])[0]!.text).toContain('/repo/src/auth.ts')
     expect((next[2]!.content as any[])[0]!.text).toBe('u2')
     expect((next[3]!.content as any[])[0]!.text).toBe('a2')
   })
@@ -151,6 +165,44 @@ describe('compaction summary helpers', () => {
     const text = buildCompactionSummaryUserText('' as any)
     expect(text).toContain('The conversation is summarized below:')
     expect(text).toContain('\n\n</system-reminder>')
+  })
+
+  it('collects recent successful Read files for rehydration and marks them applied', () => {
+    const history: PromptMessage[] = [
+      readToolUse('r1', '/repo/src/auth.ts'),
+      toolResult('r1'),
+      readToolUse('r2', '/repo/src/session.ts'),
+      toolResult('r2'),
+      readToolUse('r3', '/repo/src/auth.ts'),
+      toolResult('r3'),
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'r4', content: 'failed', is_error: true }] as any,
+      },
+      readToolUse('r4', '/repo/src/error.ts'),
+    ]
+
+    expect(collectRecentReadFilesForRehydration(history, 3)).toEqual([
+      '/repo/src/auth.ts',
+      '/repo/src/session.ts',
+    ])
+
+    expect(
+      markCompactRehydrationApplied(
+        buildDefaultCompactRehydrationPlan({
+          mode: 'plan',
+          planPath: '/repo/.formax/plan.md',
+        }),
+        ['recent_files'],
+      ),
+    ).toEqual({
+      schemaVersion: 1,
+      items: [
+        { kind: 'recent_files', priority: 'high', status: 'applied' },
+        { kind: 'plan_state', priority: 'high', status: 'planned' },
+        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+      ],
+    })
   })
 
   it('detects compact summary user messages', () => {

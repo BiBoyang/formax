@@ -114,4 +114,40 @@ describe('runCompactFlow', () => {
       error: 'Compact failed',
     })
   })
+
+  it('rehydrates recent Read files into the compact summary and marks them applied', async () => {
+    const out = await runCompactFlow(
+      baseArgs({
+        mode: 'plan',
+        getReplMode: () => 'plan',
+        getPlanPath: () => '/repo/.formax/plan.md',
+        previousHistory: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }],
+          },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'auth file contents' }],
+          },
+        ] as ChatHistory,
+        engine: {
+          runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] }] as ChatHistory),
+        } as any,
+      }),
+    )
+
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.rehydrationPlan).toEqual({
+      schemaVersion: 1,
+      items: [
+        { kind: 'recent_files', priority: 'high', status: 'applied' },
+        { kind: 'plan_state', priority: 'high', status: 'planned' },
+        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+      ],
+    })
+    expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain(
+      'Recent files to keep in working memory:',
+    )
+    expect(((out.compactedHistory[1] as any)?.content?.[0]?.text as string) || '').toContain('/repo/src/auth.ts')
+  })
 })

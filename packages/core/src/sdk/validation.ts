@@ -44,7 +44,7 @@ const promptMessageSchema = z
                 z.object({
                   kind: z.enum(['recent_files', 'plan_state', 'mode_state']),
                   priority: z.enum(['high', 'medium']),
-                  status: z.literal('planned'),
+                  status: z.enum(['planned', 'applied']),
                 }).strict(),
               ),
             }).optional(),

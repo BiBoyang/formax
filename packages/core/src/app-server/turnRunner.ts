@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import {
   buildDefaultCompactRehydrationPlan,
+  collectRecentReadFilesForRehydration,
   isCompactBoundaryMessage,
+  markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
@@ -642,10 +644,21 @@ export class TurnRunner {
         if (!summary) {
           throw new Error('Compact failed: empty summary')
         }
+        const recentFiles = collectRecentReadFilesForRehydration(history)
+        const rehydrationPlan = markCompactRehydrationApplied(
+          buildDefaultCompactRehydrationPlan({
+            mode: running.replMode,
+            planPath: running.planPath,
+          }),
+          recentFiles.length > 0 ? ['recent_files'] : [],
+        )
         nextHistoryForSnapshot = rebuildHistoryAfterCompaction({
           summary,
           previousHistory: history,
           keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+          rehydration: {
+            recentFiles,
+          },
           boundaryMeta: {
             trigger: 'manual',
             preTokens: estimatePromptTokens({
@@ -657,10 +670,7 @@ export class TurnRunner {
               kind: 'keep_last_turns',
               keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
             },
-            rehydrationPlan: buildDefaultCompactRehydrationPlan({
-              mode: running.replMode,
-              planPath: running.planPath,
-            }),
+            rehydrationPlan,
           },
         })
         assistantText = COMPACT_BANNER_TEXT

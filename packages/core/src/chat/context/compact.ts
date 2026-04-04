@@ -2,6 +2,7 @@ import type { PromptMessage } from '../../prompts'
 
 const CONTINUED_SESSION_SUMMARY_PREFIX =
   'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
+const RECENT_FILES_REHYDRATION_PREFIX = 'Recent files to keep in working memory:'
 
 export type CompactBoundaryTrigger = 'manual' | 'auto'
 export type CompactBoundarySummaryKind = 'model_summary'
@@ -12,7 +13,7 @@ export type CompactBoundaryKeepStrategy = {
 
 export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'mode_state'
 export type CompactRehydrationItemPriority = 'high' | 'medium'
-export type CompactRehydrationItemStatus = 'planned'
+export type CompactRehydrationItemStatus = 'planned' | 'applied'
 
 export type CompactRehydrationItem = {
   kind: CompactRehydrationItemKind
@@ -59,6 +60,21 @@ function findLastNonToolUserIndices(messages: PromptMessage[]): number[] {
   return out
 }
 
+function collectSuccessfulToolResultIds(messages: PromptMessage[]): Set<string> {
+  const out = new Set<string>()
+  for (const message of messages) {
+    if (message?.role !== 'user' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_result') continue
+      if (block?.is_error === true) continue
+      if (typeof block?.tool_use_id === 'string' && block.tool_use_id.length > 0) {
+        out.add(block.tool_use_id)
+      }
+    }
+  }
+  return out
+}
+
 export function selectTailForCompaction(messages: PromptMessage[], keepLastTurns: number): PromptMessage[] {
   const keep = Number.isFinite(keepLastTurns) ? Math.max(0, Math.floor(keepLastTurns)) : 0
   if (keep <= 0 || messages.length === 0) return []
@@ -70,12 +86,71 @@ export function selectTailForCompaction(messages: PromptMessage[], keepLastTurns
   return messages.slice(startUserIndex)
 }
 
-export function buildCompactionSummaryUserText(summary: string): string {
+export function collectRecentReadFilesForRehydration(messages: PromptMessage[], limit = 3): string[] {
+  const keep = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0
+  if (keep <= 0 || messages.length === 0) return []
+
+  const successfulToolResultIds = collectSuccessfulToolResultIds(messages)
+  if (successfulToolResultIds.size === 0) return []
+
+  const deduped = new Set<string>()
+  const recentFiles: string[] = []
+
+  for (let index = messages.length - 1; index >= 0 && recentFiles.length < keep; index -= 1) {
+    const message = messages[index]
+    if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_use') continue
+      if (block?.name !== 'Read') continue
+      if (!successfulToolResultIds.has(String(block?.id ?? ''))) continue
+      const filePath = typeof block?.input?.file_path === 'string' ? block.input.file_path.trim() : ''
+      if (!filePath || deduped.has(filePath)) continue
+      deduped.add(filePath)
+      recentFiles.push(filePath)
+      if (recentFiles.length >= keep) break
+    }
+  }
+
+  return recentFiles
+}
+
+export function markCompactRehydrationApplied(
+  plan: CompactRehydrationPlan,
+  appliedKinds: CompactRehydrationItemKind[],
+): CompactRehydrationPlan {
+  if (!Array.isArray(plan.items) || plan.items.length === 0 || appliedKinds.length === 0) return plan
+  const applied = new Set(appliedKinds)
+  return {
+    ...plan,
+    items: plan.items.map((item) =>
+      applied.has(item.kind)
+        ? {
+            ...item,
+            status: 'applied',
+          }
+        : item,
+    ),
+  }
+}
+
+export function buildCompactionSummaryUserText(
+  summary: string,
+  rehydration?: {
+    recentFiles?: string[]
+  },
+): string {
   const trimmed = String(summary || '').trim()
+  const recentFiles = Array.isArray(rehydration?.recentFiles)
+    ? rehydration!.recentFiles.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  const rehydrationSuffix =
+    recentFiles.length > 0
+      ? `\n\n${RECENT_FILES_REHYDRATION_PREFIX}\n${recentFiles.map((file) => `- ${file}`).join('\n')}`
+      : ''
   return (
     '<system-reminder>\n' +
     `${CONTINUED_SESSION_SUMMARY_PREFIX}\n` +
-    `${trimmed}\n` +
+    `${trimmed}${rehydrationSuffix}\n` +
     '</system-reminder>'
   )
 }
@@ -170,6 +245,9 @@ export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
   keepLastTurns: number
+  rehydration?: {
+    recentFiles?: string[]
+  }
   boundaryMeta: {
     trigger: CompactBoundaryTrigger
     preTokens: number
@@ -178,7 +256,7 @@ export function rebuildHistoryAfterCompaction(args: {
     rehydrationPlan?: CompactRehydrationPlan
   }
 }): PromptMessage[] {
-  const summaryText = buildCompactionSummaryUserText(args.summary)
+  const summaryText = buildCompactionSummaryUserText(args.summary, args.rehydration)
   const summaryMsg: PromptMessage = {
     role: 'user',
     content: [{ type: 'text', text: summaryText }] as any,

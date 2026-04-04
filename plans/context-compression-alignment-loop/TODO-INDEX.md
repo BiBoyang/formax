@@ -41,10 +41,6 @@
 
 ## Slice Group D: Post-Compact Recovery
 
-- `CCA-031` 实现最近文件 rehydrate
-  - 目标：compact 后补回最近 2-3 个高价值 `Read` 文件上下文
-  - 验收：compact 后第一轮继续工作时文件上下文恢复更稳
-
 - `CCA-032` 实现 plan/todos/mode rehydrate
   - 目标：compact 后补回当前计划、todos、mode reminder 的稳定表示
   - 验收：plan mode / todos 驱动的任务在 compact 后不明显掉状态
@@ -111,8 +107,8 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-031`
-2. `CCA-006`
-3. `CCA-040`
-4. `CCA-050`
-5. `CCA-060`
+1. `CCA-032`
+2. `CCA-033`
+3. `CCA-006`
+4. `CCA-040`
+5. `CCA-050`
