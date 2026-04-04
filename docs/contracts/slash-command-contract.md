@@ -102,7 +102,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 5. app-server / Web 的 local-dispatch MAY 额外携带同一 diagnostics 数据的结构化 payload，避免客户端反解析 stdout
 6. `nextTurnFixed` diagnostics payload SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
 7. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
-8. diagnostics payload SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`
+8. diagnostics payload SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan` 也 SHOULD 一并暴露
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import {
+  buildDefaultCompactRehydrationPlan,
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   isCompactBoundaryMessage,
@@ -69,6 +70,10 @@ describe('selectTailForCompaction', () => {
 describe('rebuildHistoryAfterCompaction', () => {
   it('prepends an explicit boundary, summary, and keeps the selected tail', () => {
     const previous: PromptMessage[] = [txt('user', 'u1'), txt('assistant', 'a1'), txt('user', 'u2'), txt('assistant', 'a2')]
+    const rehydrationPlan = buildDefaultCompactRehydrationPlan({
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+    })
     const next = rebuildHistoryAfterCompaction({
       summary: 'S',
       previousHistory: previous,
@@ -78,6 +83,7 @@ describe('rebuildHistoryAfterCompaction', () => {
         preTokens: 321,
         summaryKind: 'model_summary',
         keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+        rehydrationPlan,
       },
     })
     expect(next.length).toBe(4)
@@ -86,6 +92,7 @@ describe('rebuildHistoryAfterCompaction', () => {
       kind: 'keep_last_turns',
       keepLastTurns: 1,
     })
+    expect((next[0]!.meta?.compactBoundary as any)?.rehydrationPlan).toEqual(rehydrationPlan)
     expect(next[1]!.role).toBe('user')
     expect((next[1]!.content as any[])[0]!.text).toContain('This session is being continued from a previous conversation')
     expect((next[1]!.content as any[])[0]!.text).toContain('S')
@@ -101,12 +108,35 @@ describe('compaction summary helpers', () => {
       preTokens: 123,
       summaryKind: 'model_summary',
       keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 0 },
+      rehydrationPlan: buildDefaultCompactRehydrationPlan({
+        mode: 'normal',
+        planPath: null,
+      }),
     })
     expect(isCompactBoundaryMessage(boundary)).toBe(true)
     expect((boundary.meta?.compactBoundary as any)?.trigger).toBe('manual')
+    expect((boundary.meta?.compactBoundary as any)?.rehydrationPlan).toEqual({
+      schemaVersion: 1,
+      items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+    })
     expect(
       stripCompactBoundaryMessages([boundary, txt('user', 'kept')]),
     ).toEqual([txt('user', 'kept')])
+  })
+
+  it('builds a default rehydration plan from mode and plan-path state', () => {
+    expect(buildDefaultCompactRehydrationPlan({ mode: 'normal', planPath: null })).toEqual({
+      schemaVersion: 1,
+      items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+    })
+    expect(buildDefaultCompactRehydrationPlan({ mode: 'plan', planPath: '/repo/.formax/plan.md' })).toEqual({
+      schemaVersion: 1,
+      items: [
+        { kind: 'recent_files', priority: 'high', status: 'planned' },
+        { kind: 'plan_state', priority: 'high', status: 'planned' },
+        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+      ],
+    })
   })
 
   it('builds a user-summary preamble text block', () => {

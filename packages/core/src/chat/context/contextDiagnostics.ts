@@ -5,7 +5,11 @@ import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
-import { findLatestCompactBoundary, type CompactBoundaryMeta, stripCompactBoundaryMessages } from './compact'
+import {
+  findLatestCompactBoundary,
+  type CompactBoundaryMeta,
+  stripCompactBoundaryMessages,
+} from './compact'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
@@ -334,6 +338,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Pre-compact tokens: ${formatMaybeInt(args.latestCompactBoundary?.preTokens ?? null)}`,
     `- Summary kind: ${args.latestCompactBoundary?.summaryKind ?? 'none'}`,
     `- Keep strategy: ${formatKeepStrategy(args.latestCompactBoundary?.keepStrategy ?? null)}`,
+    `- Rehydration plan: ${formatRehydrationPlan(args.latestCompactBoundary?.rehydrationPlan ?? null)}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,
@@ -397,6 +402,11 @@ function formatKeepStrategy(value: CompactBoundaryMeta['keepStrategy'] | null): 
     return `keep_last_turns(${formatInt(value.keepLastTurns)})`
   }
   return 'unknown'
+}
+
+function formatRehydrationPlan(value: CompactBoundaryMeta['rehydrationPlan'] | null): string {
+  if (!value || !Array.isArray(value.items) || value.items.length === 0) return 'none'
+  return value.items.map((item) => `${item.kind}(${item.priority}/${item.status})`).join(', ')
 }
 
 function splitHistorySlices(

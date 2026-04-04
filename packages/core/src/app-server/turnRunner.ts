@@ -1,7 +1,11 @@
 import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import { isCompactBoundaryMessage, rebuildHistoryAfterCompaction } from '../chat/context/compact.js'
+import {
+  buildDefaultCompactRehydrationPlan,
+  isCompactBoundaryMessage,
+  rebuildHistoryAfterCompaction,
+} from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import { estimatePromptTokens } from '../chat/context/estimate.js'
 import type { PromptBlock } from '../prompts/index.js'
@@ -653,6 +657,10 @@ export class TurnRunner {
               kind: 'keep_last_turns',
               keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
             },
+            rehydrationPlan: buildDefaultCompactRehydrationPlan({
+              mode: running.replMode,
+              planPath: running.planPath,
+            }),
           },
         })
         assistantText = COMPACT_BANNER_TEXT

@@ -1817,6 +1817,14 @@ describe('TurnRunner', () => {
       kind: 'keep_last_turns',
       keepLastTurns: 0,
     })
+    expect((replay.history[0] as any)?.meta?.compactBoundary?.rehydrationPlan).toEqual({
+      schemaVersion: 1,
+      items: [
+        { kind: 'recent_files', priority: 'high', status: 'planned' },
+        { kind: 'plan_state', priority: 'high', status: 'planned' },
+        { kind: 'mode_state', priority: 'medium', status: 'planned' },
+      ],
+    })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
     expect(summary.messageCount).toBe(1)

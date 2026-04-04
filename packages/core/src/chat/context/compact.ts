@@ -10,12 +10,28 @@ export type CompactBoundaryKeepStrategy = {
   keepLastTurns: number
 }
 
+export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'mode_state'
+export type CompactRehydrationItemPriority = 'high' | 'medium'
+export type CompactRehydrationItemStatus = 'planned'
+
+export type CompactRehydrationItem = {
+  kind: CompactRehydrationItemKind
+  priority: CompactRehydrationItemPriority
+  status: CompactRehydrationItemStatus
+}
+
+export type CompactRehydrationPlan = {
+  schemaVersion: 1
+  items: CompactRehydrationItem[]
+}
+
 export type CompactBoundaryMeta = {
   schemaVersion: 1
   trigger?: CompactBoundaryTrigger
   preTokens?: number
   summaryKind?: CompactBoundarySummaryKind
   keepStrategy?: CompactBoundaryKeepStrategy
+  rehydrationPlan?: CompactRehydrationPlan
 }
 
 function isToolResultMessage(msg: PromptMessage): boolean {
@@ -69,6 +85,7 @@ export function buildCompactBoundaryMessage(args: {
   preTokens: number
   summaryKind: CompactBoundarySummaryKind
   keepStrategy: CompactBoundaryKeepStrategy
+  rehydrationPlan?: CompactRehydrationPlan
 }): PromptMessage {
   return {
     role: 'assistant',
@@ -80,8 +97,43 @@ export function buildCompactBoundaryMessage(args: {
         preTokens: Math.max(0, Math.round(args.preTokens)),
         summaryKind: args.summaryKind,
         keepStrategy: args.keepStrategy,
+        ...(args.rehydrationPlan ? { rehydrationPlan: args.rehydrationPlan } : {}),
       },
     },
+  }
+}
+
+export function buildDefaultCompactRehydrationPlan(args: {
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  planPath: string | null
+}): CompactRehydrationPlan {
+  const items: CompactRehydrationItem[] = [
+    {
+      kind: 'recent_files',
+      priority: 'high',
+      status: 'planned',
+    },
+  ]
+
+  if (args.planPath || args.mode === 'plan') {
+    items.push({
+      kind: 'plan_state',
+      priority: 'high',
+      status: 'planned',
+    })
+  }
+
+  if (args.mode !== 'normal') {
+    items.push({
+      kind: 'mode_state',
+      priority: 'medium',
+      status: 'planned',
+    })
+  }
+
+  return {
+    schemaVersion: 1,
+    items,
   }
 }
 
@@ -123,6 +175,7 @@ export function rebuildHistoryAfterCompaction(args: {
     preTokens: number
     summaryKind: CompactBoundarySummaryKind
     keepStrategy: CompactBoundaryKeepStrategy
+    rehydrationPlan?: CompactRehydrationPlan
   }
 }): PromptMessage[] {
   const summaryText = buildCompactionSummaryUserText(args.summary)

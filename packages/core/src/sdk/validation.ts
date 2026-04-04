@@ -38,6 +38,16 @@ const promptMessageSchema = z
               kind: z.literal('keep_last_turns'),
               keepLastTurns: z.number(),
             }).optional(),
+            rehydrationPlan: z.object({
+              schemaVersion: z.literal(1),
+              items: z.array(
+                z.object({
+                  kind: z.enum(['recent_files', 'plan_state', 'mode_state']),
+                  priority: z.enum(['high', 'medium']),
+                  status: z.literal('planned'),
+                }).strict(),
+              ),
+            }).optional(),
           })
           .optional(),
       })

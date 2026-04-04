@@ -141,6 +141,7 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 2. MUST NOT 依赖可见文本内容来识别
 3. MUST 在真实 prompt 组装前被忽略，不得作为模型可见历史正文发送
 4. 当前 SHOULD 至少包含：`trigger`、`preTokens`、`summaryKind`、`keepStrategy`
+5. 当前 SHOULD 允许携带最小 `rehydrationPlan`，用于声明 compact 后优先恢复的状态集合；当前最小集合 MAY 包含 `recent_files`、`plan_state`、`mode_state`
 
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：

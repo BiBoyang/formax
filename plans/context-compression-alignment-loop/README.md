@@ -45,6 +45,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - compact 后的 persisted history 现在会写入显式 compact boundary message。
    - 该 boundary 目前是 metadata-only event：可被 session/replay 识别，但会在真实 prompt 组装前被统一过滤，不污染模型上下文。
    - boundary 现在已携带最小 metadata：`trigger`、`preTokens`、`summaryKind`、`keepStrategy`。
+   - boundary 现在可额外携带轻量 `rehydrationPlan`，先把 compact 后要补回的状态协议化。
    - `/context --json` 与 app-server `local.diagnostics` 已可读出 `latestCompactBoundary`。
 4. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
@@ -129,6 +130,11 @@ Formax 当前：
   - 最近文件 rehydrate
   - 当前 plan/todos rehydrate
   - mode/reminder 稳定重注入
+- 当前已补最小 contract：
+  - compact boundary 可携带 `rehydrationPlan`
+  - 默认计划会先声明 `recent_files`
+  - `plan` / 有 `planPath` 时额外声明 `plan_state`
+  - 非 `normal` mode 时额外声明 `mode_state`
 
 ## E. keep 策略
 

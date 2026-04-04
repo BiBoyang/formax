@@ -46,6 +46,14 @@ export type PromptMessageMeta = {
       kind: 'keep_last_turns'
       keepLastTurns: number
     }
+    rehydrationPlan?: {
+      schemaVersion: 1
+      items: Array<{
+        kind: 'recent_files' | 'plan_state' | 'mode_state'
+        priority: 'high' | 'medium'
+        status: 'planned'
+      }>
+    }
   }
 }
 

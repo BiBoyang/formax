@@ -9,6 +9,10 @@
   - `preTokens`
   - `summaryKind`
   - `keepStrategy`
+- boundary 现在还可以携带一个轻量 `rehydrationPlan`，先声明 compact 后哪些状态需要优先补回：
+  - `recent_files`
+  - `plan_state`
+  - `mode_state`
 - `ChatEngine` 与 token estimation 会在真实 prompt 组装时忽略这类 boundary message。
 - `/context --json` 与 app-server `local.diagnostics` 现在会暴露 `latestCompactBoundary`，方便直接检查最近一次 compact 的边界元信息。
 
@@ -22,7 +26,8 @@
   - 后续协议升级有锚点
   - 对现有 transcript 和模型上下文影响最小
 - 第二步补最小 metadata，是为了让 boundary 真正开始承担协议职责，而不只是“有一个占位点”。
+- 第三步补最小 `rehydrationPlan`，是为了先把“compact 后要补什么”协议化，而不是等真正注入 rehydrate blocks 时再临时发明形状。
 
 ## Follow-ups
 
-- 下一步是 `CCA-022`：让 prompt 视图逐步基于最近 boundary 构建，而不是继续把 summary user message 当唯一语义锚点。
+- 下一步是 `CCA-031`：先实现最近文件 rehydrate，再继续把 `/context` 扩到可见 rehydration 成本。

@@ -57,6 +57,10 @@ describe('runCompactFlow', () => {
         kind: 'keep_last_turns',
         keepLastTurns: 0,
       },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+      },
     })
     expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })

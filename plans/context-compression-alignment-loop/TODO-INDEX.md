@@ -41,10 +41,6 @@
 
 ## Slice Group D: Post-Compact Recovery
 
-- `CCA-030` 设计轻量 post-compact rehydration contract
-  - 目标：明确 compact 后哪些状态必须补回
-  - 验收：README/contract 明确列出恢复项与优先级
-
 - `CCA-031` 实现最近文件 rehydrate
   - 目标：compact 后补回最近 2-3 个高价值 `Read` 文件上下文
   - 验收：compact 后第一轮继续工作时文件上下文恢复更稳
@@ -115,7 +111,7 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-030`
+1. `CCA-031`
 2. `CCA-006`
 3. `CCA-040`
 4. `CCA-050`

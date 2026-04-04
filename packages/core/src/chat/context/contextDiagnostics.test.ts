@@ -232,6 +232,13 @@ describe('contextDiagnostics', () => {
           preTokens: 88,
           summaryKind: 'model_summary',
           keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 4 },
+          rehydrationPlan: {
+            schemaVersion: 1,
+            items: [
+              { kind: 'recent_files', priority: 'high', status: 'planned' },
+              { kind: 'mode_state', priority: 'medium', status: 'planned' },
+            ],
+          },
         }),
       ],
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
@@ -248,6 +255,13 @@ describe('contextDiagnostics', () => {
       keepStrategy: {
         kind: 'keep_last_turns',
         keepLastTurns: 4,
+      },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [
+          { kind: 'recent_files', priority: 'high', status: 'planned' },
+          { kind: 'mode_state', priority: 'medium', status: 'planned' },
+        ],
       },
     })
     expect(parsed.mode).toBe('normal')
@@ -270,5 +284,35 @@ describe('contextDiagnostics', () => {
     expect(resolveContextDiagnosticsOutputFormat('--json')).toBe('json')
     expect(resolveContextDiagnosticsOutputFormat(' --json ')).toBe('json')
     expect(resolveContextDiagnosticsOutputFormat('--yaml')).toBe(null)
+  })
+
+  it('formats latest compact rehydration plan in the text report', () => {
+    const diagnostics = analyzeContextDiagnostics({
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      budgetConfig: null,
+    })
+
+    const out = formatContextDiagnosticsReport({
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'manual',
+        preTokens: 123,
+        summaryKind: 'model_summary',
+        keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [
+            { kind: 'recent_files', priority: 'high', status: 'planned' },
+            { kind: 'plan_state', priority: 'high', status: 'planned' },
+          ],
+        },
+      },
+      diagnostics,
+      mode: 'plan',
+      model: 'claude-3-5-sonnet-latest',
+    })
+
+    expect(out).toContain('- Rehydration plan: recent_files(high/planned), plan_state(high/planned)')
   })
 })

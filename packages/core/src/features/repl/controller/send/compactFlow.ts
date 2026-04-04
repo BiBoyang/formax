@@ -1,5 +1,5 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
-import { rebuildHistoryAfterCompaction } from '../../../../chat/context/compact'
+import { buildDefaultCompactRehydrationPlan, rebuildHistoryAfterCompaction } from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import type { PromptBlock } from '../../../../prompts'
@@ -95,6 +95,10 @@ export async function runCompactFlow(args: {
             kind: 'keep_last_turns',
             keepLastTurns: args.keepLastTurns,
           },
+          rehydrationPlan: buildDefaultCompactRehydrationPlan({
+            mode: args.mode,
+            planPath: args.getPlanPath(),
+          }),
         },
       }),
     }
