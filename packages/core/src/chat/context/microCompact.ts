@@ -6,6 +6,35 @@ const DEFAULT_MIN_RESULT_CHARS = 1200
 const DEFAULT_MAX_STUB_CHARS = 120
 export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcompact:'
 const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob'] as const
+const SAFE_BASH_COMMANDS = [
+  'cat',
+  'head',
+  'tail',
+  'ls',
+  'grep',
+  'rg',
+  'git status',
+  'git diff',
+  'git show',
+  'wc',
+  'pwd',
+  'which',
+  'stat',
+] as const
+const BASH_DISALLOWED_PATTERNS = ['&&', '&', '||', ';', '|', '>', '>>', '$(', '`', '\n', '\r'] as const
+const SAFE_WEBFETCH_HOSTS = new Set([
+  'developer.mozilla.org',
+  'docs.anthropic.com',
+  'docs.github.com',
+  'platform.openai.com',
+  'help.openai.com',
+  'react.dev',
+  'nextjs.org',
+  'vite.dev',
+  'nodejs.org',
+  'bun.sh',
+  'typescriptlang.org',
+])
 
 type ToolUseMeta = {
   name: string
@@ -71,7 +100,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
   }
   return {
     pressureTier: 'critical',
-    eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+    eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES, 'Bash', 'WebFetch'],
     keepRecentToolResults: 1,
     minResultChars: 800,
   }
@@ -213,6 +242,7 @@ function collectEligibleToolResults(args: {
 
       const raw = toolResultContentToText(block.content)
       if (raw.length < args.minResultChars) continue
+      if (!isSafeToolResultToMicroCompact(tool, raw)) continue
 
       out.push({
         messageIndex,
@@ -297,6 +327,31 @@ function countNonEmptyLines(value: string): number {
 
 function formatCount(value: number): string {
   return Math.max(0, Math.round(value)).toLocaleString('en-US')
+}
+
+function isSafeToolResultToMicroCompact(tool: ToolUseMeta, rawResultText: string): boolean {
+  if (tool.name === 'Bash') return isSafeBashCommand(readString(tool.input.command), rawResultText)
+  if (tool.name === 'WebFetch') return isSafeWebFetchUrl(readString(tool.input.url))
+  return true
+}
+
+function isSafeBashCommand(command: string | null, rawResultText: string): boolean {
+  if (!command || !rawResultText.trim()) return false
+  const normalized = command.trim().toLowerCase()
+  if (BASH_DISALLOWED_PATTERNS.some((pattern) => normalized.includes(pattern))) return false
+  return SAFE_BASH_COMMANDS.some((safeCommand) => normalized === safeCommand || normalized.startsWith(`${safeCommand} `))
+}
+
+function isSafeWebFetchUrl(url: string | null): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    if (parsed.search || parsed.hash) return false
+    return SAFE_WEBFETCH_HOSTS.has(parsed.hostname)
+  } catch {
+    return false
+  }
 }
 
 function isAlreadyMicroCompacted(content: unknown): boolean {

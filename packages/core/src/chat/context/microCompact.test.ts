@@ -210,9 +210,89 @@ describe('microCompactHistory', () => {
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
       pressureTier: 'critical',
-      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      eligibleToolNames: ['Read', 'Grep', 'Glob', 'Bash', 'WebFetch'],
       keepRecentToolResults: 1,
       minResultChars: 800,
     })
+  })
+
+  it('allows safe Bash and stable WebFetch results to microcompact', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('bash-1', 'Bash', { command: 'cat /repo/README.md' }),
+      userToolResult('bash-1', 'a'.repeat(4000)),
+      assistantToolUse('fetch-1', 'WebFetch', { url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }),
+      userToolResult('fetch-1', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1,
+      eligibleToolNames: ['Bash', 'WebFetch'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: Bash "cat /repo/README.md"]',
+    )
+    expect((out.messages[3]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: WebFetch https://developer.mozilla.org/en-US/docs/Web/JavaScript]',
+    )
+  })
+
+  it('keeps unsafe Bash and unstable WebFetch results intact', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('bash-1', 'Bash', { command: 'npm install && npm test' }),
+      userToolResult('bash-1', 'a'.repeat(4000)),
+      assistantToolUse('fetch-1', 'WebFetch', { url: 'https://example.com/search?q=test' }),
+      userToolResult('fetch-1', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1,
+      eligibleToolNames: ['Bash', 'WebFetch'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
+    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
+  })
+
+  it('keeps composed Bash commands with separators or newlines intact', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('bash-1', 'Bash', { command: 'cat /repo/README.md & rm -rf /tmp/demo' }),
+      userToolResult('bash-1', 'a'.repeat(4000)),
+      assistantToolUse('bash-2', 'Bash', { command: 'cat /repo/README.md\nrm -rf /tmp/demo' }),
+      userToolResult('bash-2', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1,
+      eligibleToolNames: ['Bash'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
+    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
+  })
+
+  it('keeps mutating single-command Bash invocations intact', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('bash-1', 'Bash', { command: 'sed -i "" "s/a/b/" /repo/file.ts' }),
+      userToolResult('bash-1', 'a'.repeat(4000)),
+      assistantToolUse('bash-2', 'Bash', { command: 'find . -delete' }),
+      userToolResult('bash-2', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1,
+      eligibleToolNames: ['Bash'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
+    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
   })
 })

@@ -21,7 +21,10 @@
   - 压哪些工具
   - 保留最近多少条原始结果
   - 最小结果大小阈值
-- `Bash` / `WebFetch` 暂时故意不进默认策略，因为它们经常承载不可稳定重放的证据，MVP 阶段先不做有损压缩。
+- `Bash` / `WebFetch` 不再是纯粹的“永不压缩”。
+  - `Bash` 只允许明确只读、无 shell 组合符的命令进入 microcompact。
+  - `WebFetch` 只允许稳定的 HTTPS 文档类 URL 且无 query/hash 的场景进入 microcompact。
+- `Bash` / `WebFetch` 仍然不进入“默认宽松策略”；只有在更高压力档位下，且命中保守 allow/deny 规则时，才允许进入 microcompact。
 
 ## Current limits
 
