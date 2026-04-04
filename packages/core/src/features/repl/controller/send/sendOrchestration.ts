@@ -45,6 +45,7 @@ type RunReplModelSendFlowArgs = {
     sendSeqRef: { current: number }
     autoCompactSeqRef: { current: number }
     reminderServiceRef: { current: ReminderService | null }
+    getSessionFilePath?: () => string | null
   }
   canonical: {
     turnIdRef: { current: string | null }
@@ -136,6 +137,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     sendSeqRef: args.turnRefs.sendSeqRef,
     lastAutoCompactSeqRef: args.turnRefs.autoCompactSeqRef,
     onCompactLifecycle: args.callbacks.onCompactLifecycle,
+    getSessionFilePath: args.turnRefs.getSessionFilePath,
   })
   try {
     const runResult = await runMainSendTurn({

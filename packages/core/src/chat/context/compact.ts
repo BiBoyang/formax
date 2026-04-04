@@ -9,7 +9,7 @@ const AUTO_COMPACT_KEEP_MIN_USER_TURNS = 1
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
 
 export type CompactBoundaryTrigger = 'manual' | 'auto'
-export type CompactBoundarySummaryKind = 'model_summary'
+export type CompactBoundarySummaryKind = 'model_summary' | 'session_memory'
 export type CompactBoundaryKeepStrategy =
   | {
       kind: 'keep_last_turns'

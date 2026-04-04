@@ -41,7 +41,7 @@ export type PromptMessageMeta = {
     schemaVersion: 1
     trigger?: 'manual' | 'auto'
     preTokens?: number
-    summaryKind?: 'model_summary'
+    summaryKind?: 'model_summary' | 'session_memory'
     keepStrategy?:
       | {
           kind: 'keep_last_turns'

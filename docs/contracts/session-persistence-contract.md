@@ -143,6 +143,7 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 2. MUST NOT 依赖可见文本内容来识别
 3. MUST 在真实 prompt 组装前被忽略，不得作为模型可见历史正文发送
 4. 当前 SHOULD 至少包含：`trigger`、`preTokens`、`summaryKind`、`keepStrategy`
+   - `summaryKind` 当前 MAY 为 `model_summary` 或 `session_memory`
    - `keepStrategy` 当前 MAY 为 `keep_last_turns` 或 `keep_combo`
 5. 当前 SHOULD 允许携带最小 `rehydrationPlan`，用于声明 compact 后优先恢复的状态集合；当前最小集合 MAY 包含 `recent_files`、`plan_state`、`todo_state`、`mode_state`
 6. 当前当 `recent_files` 已实际注入 compaction summary reminder 时，对应 `rehydrationPlan.items[*].status` SHOULD 升为 `applied`
@@ -156,7 +157,8 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 2. 当前内容 SHOULD 保存最新 `SessionMemoryDraft`
 3. 当前 MAY 在 turn 完成后异步刷新；不得阻塞主 turn 完成路径
 4. 当前 MUST NOT 取代 JSONL session 文件的 replay / resume 权威性
-5. 当前 resume / continue 流程 MAY 忽略该 sidecar；若未来开始消费，必须先更新本合同
+5. 当前 auto compact MAY 先读取该 sidecar，以 session memory 生成 compaction summary；若 sidecar 不存在、不可读或不可用，MUST 静默回退到 model summary compact
+6. 当前 resume / continue 流程 MAY 忽略该 sidecar；若未来开始消费，必须先更新本合同
 
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：

@@ -49,6 +49,7 @@ type RunMainSendTurnArgs = {
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+    getSessionFilePath?: () => string | null
   }
   state: SendStateSetters & {
     emitCanonicalUiMessage?: (message: CanonicalUiMessage) => void
@@ -168,6 +169,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       thinkingEnabled: args.cfg.llm.thinkingMode,
       handleEvent: args.handleEvent,
       onCompactLifecycle: args.onCompactLifecycle,
+      getSessionFilePath: args.getSessionFilePath,
     })
 
     const prepared = await compression.prepareHistoryForTurn({

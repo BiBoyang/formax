@@ -26,6 +26,7 @@ type MainTurnContextArgs = {
   sendSeqRef: { current: number }
   lastAutoCompactSeqRef: { current: number }
   onCompactLifecycle: ((ev: CompactLifecycleEvent) => void) | undefined
+  getSessionFilePath?: () => string | null
 }
 
 export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
@@ -48,6 +49,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+    getSessionFilePath?: () => string | null
   }
 } {
   return {
@@ -70,6 +72,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       sendSeqRef: args.sendSeqRef,
       lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
       onCompactLifecycle: args.onCompactLifecycle,
+      getSessionFilePath: args.getSessionFilePath,
     },
   }
 }

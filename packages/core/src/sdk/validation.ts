@@ -33,7 +33,7 @@ const promptMessageSchema = z
             schemaVersion: z.literal(1),
             trigger: z.enum(['manual', 'auto']).optional(),
             preTokens: z.number().optional(),
-            summaryKind: z.literal('model_summary').optional(),
+            summaryKind: z.enum(['model_summary', 'session_memory']).optional(),
             keepStrategy: z
               .union([
                 z.object({

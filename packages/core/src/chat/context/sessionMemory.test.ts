@@ -5,7 +5,14 @@ import { describe, expect, it } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath'
 import { buildCompactBoundaryMessage, buildCompactionSummaryUserText } from './compact'
-import { buildSessionMemoryDraft, mergeSessionMemoryDraft, type SessionMemoryDraft } from './sessionMemory'
+import {
+  buildSessionMemoryCompactionRehydration,
+  buildSessionMemoryCompactionSummary,
+  buildSessionMemoryDraft,
+  estimateSessionMemoryCompactionRehydrationCost,
+  mergeSessionMemoryDraft,
+  type SessionMemoryDraft,
+} from './sessionMemory'
 
 function txt(role: PromptMessage['role'], text: string): PromptMessage {
   return { role, content: [{ type: 'text', text }] as any }
@@ -299,5 +306,131 @@ describe('mergeSessionMemoryDraft', () => {
       keepStrategy: null,
       rehydrationPlan: null,
     })
+  })
+})
+
+describe('buildSessionMemoryCompactionSummary', () => {
+  it('renders a concise summary from rolling session memory fields', () => {
+    const summary = buildSessionMemoryCompactionSummary({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
+        recentUserPrompts: ['tighten CTA copy', 'preserve modal spacing'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Ship memory-first compact',
+        todoSummary: '1. add fallback 2. verify tests',
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'model_summary',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 2,
+          keepMinTokens: 1200,
+          keepMinUserTurns: 1,
+        },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+        },
+      },
+    })
+
+    expect(summary).toContain('Session memory recap:')
+    expect(summary).toContain('Recent user requests:')
+    expect(summary).toContain('- tighten CTA copy')
+    expect(summary).toContain('Working-set files:')
+    expect(summary).toContain('Current mode: plan')
+    expect(summary).toContain('Recent compact strategy:')
+    expect(summary).toContain('Workspace root: /repo')
+  })
+
+  it('caps long recap fields so memory-first compact stays size-reducing', () => {
+    const veryLongPrompt = `Refine the onboarding copy ${'and keep the tone calm '.repeat(20)}`
+    const summary = buildSessionMemoryCompactionSummary({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'normal',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: [veryLongPrompt, 'prompt 2', 'prompt 3', 'prompt 4 should be dropped'],
+        planPath: null,
+        planExcerpt: 'x'.repeat(400),
+        todoSummary: 'y'.repeat(400),
+      },
+      currentStrategy: {
+        lastCompactTrigger: null,
+        summaryKind: null,
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    })
+
+    expect(summary).toContain('Recent user requests:')
+    expect(summary).not.toContain(veryLongPrompt)
+    expect(summary).toContain('prompt 2')
+    expect(summary).toContain('prompt 3')
+    expect(summary).not.toContain('prompt 4 should be dropped')
+    expect(summary.length).toBeLessThan(900)
+    expect(summary).toContain('…')
+  })
+})
+
+describe('buildSessionMemoryCompactionRehydration', () => {
+  it('prefers session memory task state while falling back to existing rehydration fields', () => {
+    const draft: SessionMemoryDraft = {
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'acceptEdits',
+        recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
+        recentUserPrompts: [],
+        planPath: null,
+        planExcerpt: 'Memory plan excerpt',
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: null,
+        summaryKind: null,
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    }
+
+    const rehydration = buildSessionMemoryCompactionRehydration({
+      draft,
+      fallback: {
+        recentFiles: ['/repo/src/auth.ts', '/repo/src/ui.tsx'],
+        modeText: null,
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: null,
+        todoSummary: 'todo fallback',
+      },
+    })
+
+    expect(rehydration).toEqual({
+      recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts', '/repo/src/ui.tsx'],
+      modeText: 'Current mode: acceptEdits',
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Memory plan excerpt',
+      todoSummary: 'todo fallback',
+    })
+    expect(estimateSessionMemoryCompactionRehydrationCost({ draft })).toEqual(
+      expect.objectContaining({
+        sectionCount: expect.any(Number),
+        estimatedTokens: expect.any(Number),
+      }),
+    )
   })
 })

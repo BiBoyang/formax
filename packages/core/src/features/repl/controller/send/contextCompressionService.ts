@@ -1,13 +1,28 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
+import {
+  buildAutoCompactKeepStrategy,
+  buildDefaultCompactRehydrationPlan,
+  estimateCompactRehydrationCost,
+  markCompactRehydrationApplied,
+  rebuildHistoryAfterCompaction,
+} from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
+import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
+import {
+  buildSessionMemoryCompactionRehydration,
+  buildSessionMemoryCompactionSummary,
+  type SessionMemoryDraft,
+} from '../../../../chat/context/sessionMemory'
 import type { PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { ReplMode } from '../../mode'
+import { waitForRollingSessionMemoryFlush } from '../session/sessionRollingMemory'
 import { countNonToolUserTurns } from '../shared/utils'
+import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 export type EstimatedContextState = {
@@ -31,6 +46,9 @@ export function createContextCompressionService(deps: {
   thinkingEnabled: boolean
   handleEvent?: (ev: StreamEvent) => void
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+  getSessionFilePath?: () => string | null
+  readSessionMemoryFile?: (sessionFilePath: string) => Promise<SessionMemoryDraft | null>
+  waitForSessionMemoryFlush?: (sessionFilePath: string) => Promise<void>
 }) {
   const buildBudgetConfig = (contextWindowTokens: number): ContextBudgetConfig => ({
     contextWindowTokens,
@@ -105,6 +123,105 @@ export function createContextCompressionService(deps: {
     return stats.usedTokens / stats.effectiveLimitTokens
   }
 
+  const applyCompactedHistory = (args: {
+    compactedHistory: ChatHistory
+    system: PromptBlock[]
+    contextWindowTokens: number | undefined
+    user: PromptMessage
+  }): ChatHistory =>
+    microCompactMessages({
+      history: pruneMessages({
+        system: args.system,
+        messages: args.compactedHistory,
+        contextWindowTokens: args.contextWindowTokens,
+      }),
+      system: args.system,
+      contextWindowTokens: args.contextWindowTokens,
+      user: args.user,
+    })
+
+  const tryRunSessionMemoryAutoCompact = async (args: {
+    previousHistory: ChatHistory
+    keepLastTurns: number
+    system: PromptBlock[]
+  }): Promise<ChatHistory | null> => {
+    const sessionFilePath = deps.getSessionFilePath?.()
+    if (!sessionFilePath) return null
+
+    await (deps.waitForSessionMemoryFlush ?? waitForRollingSessionMemoryFlush)(sessionFilePath)
+
+    let draft: SessionMemoryDraft | null = null
+    try {
+      draft = await (deps.readSessionMemoryFile ?? readSessionMemoryFile)(sessionFilePath)
+    } catch {
+      return null
+    }
+    if (!draft) return null
+
+    let lifecycleStarted = false
+    try {
+      const summary = buildSessionMemoryCompactionSummary(draft).trim()
+      if (!summary) return null
+
+      const keepStrategy = buildAutoCompactKeepStrategy(args.keepLastTurns)
+      const fallbackRehydration = buildPostCompactRehydration({
+        cwd: deps.cwd,
+        mode: deps.mode,
+        planPath: deps.getPlanPath(),
+        previousHistory: args.previousHistory,
+      })
+      const rehydration = buildSessionMemoryCompactionRehydration({
+        draft,
+        fallback: fallbackRehydration,
+      })
+      const rehydrationPlan = markCompactRehydrationApplied(
+        draft.currentStrategy.rehydrationPlan ??
+          buildDefaultCompactRehydrationPlan({
+            mode: deps.mode,
+            planPath: deps.getPlanPath(),
+            hasTodoState: Boolean(rehydration.todoSummary),
+          }),
+        [
+          ...(rehydration.recentFiles.length > 0 ? (['recent_files'] as const) : []),
+          ...(rehydration.modeText ? (['mode_state'] as const) : []),
+          ...(rehydration.planPath || rehydration.planExcerpt ? (['plan_state'] as const) : []),
+          ...(rehydration.todoSummary ? (['todo_state'] as const) : []),
+        ],
+      )
+
+      deps.onCompactLifecycle?.({ type: 'compact_started', source: 'auto' })
+      lifecycleStarted = true
+      const compactedHistory = rebuildHistoryAfterCompaction({
+        summary,
+        previousHistory: args.previousHistory,
+        keepStrategy,
+        rehydration,
+        boundaryMeta: {
+          trigger: 'auto',
+          preTokens: estimatePromptTokens({
+            system: args.system,
+            messages: args.previousHistory,
+          }),
+          summaryKind: 'session_memory',
+          keepStrategy,
+          rehydrationPlan,
+          rehydrationCost: estimateCompactRehydrationCost(rehydration),
+        },
+      })
+      deps.onCompactLifecycle?.({ type: 'compact_succeeded', source: 'auto' })
+      return compactedHistory
+    } catch (error) {
+      if (lifecycleStarted) {
+        deps.onCompactLifecycle?.({
+          type: 'compact_failed',
+          source: 'auto',
+          error: error instanceof Error ? error.message : 'Session memory compact failed',
+        })
+      }
+      return null
+    }
+  }
+
   return {
     async prepareHistoryForTurn(args: {
       contextWindowTokens: number | undefined
@@ -147,33 +264,37 @@ export function createContextCompressionService(deps: {
 
         if (stats.shouldAutoCompact) {
           try {
-            const compactResult = await runCompactFlow({
-              source: 'auto',
-              instructions: '',
-              engine: deps.engine,
+            const sessionMemoryCompactedHistory = await tryRunSessionMemoryAutoCompact({
               previousHistory: nextHistory,
               keepLastTurns: deps.cfg.context.compactKeepLastTurns,
               system: args.system,
-              cwd: deps.cwd,
-              signal: deps.signal,
-              promptBudget: deps.promptBudget,
-              model: deps.model,
-              thinkingEnabled: deps.thinkingEnabled,
-              mode: deps.mode,
-              getReplMode: deps.getReplMode,
-              setReplMode: deps.setReplMode,
-              getPlanPath: deps.getPlanPath,
-              onStreamEvent: deps.handleEvent,
-              onLifecycle: deps.onCompactLifecycle,
             })
+            const compactedHistory =
+              sessionMemoryCompactedHistory ??
+              (
+                await runCompactFlow({
+                  source: 'auto',
+                  instructions: '',
+                  engine: deps.engine,
+                  previousHistory: nextHistory,
+                  keepLastTurns: deps.cfg.context.compactKeepLastTurns,
+                  system: args.system,
+                  cwd: deps.cwd,
+                  signal: deps.signal,
+                  promptBudget: deps.promptBudget,
+                  model: deps.model,
+                  thinkingEnabled: deps.thinkingEnabled,
+                  mode: deps.mode,
+                  getReplMode: deps.getReplMode,
+                  setReplMode: deps.setReplMode,
+                  getPlanPath: deps.getPlanPath,
+                  onStreamEvent: deps.handleEvent,
+                  onLifecycle: deps.onCompactLifecycle,
+                })
+              ).compactedHistory
 
-            nextHistory = pruneMessages({
-              system: args.system,
-              messages: compactResult.compactedHistory,
-              contextWindowTokens: args.contextWindowTokens,
-            })
-            nextHistory = microCompactMessages({
-              history: nextHistory,
+            nextHistory = applyCompactedHistory({
+              compactedHistory,
               system: args.system,
               contextWindowTokens: args.contextWindowTokens,
               user: args.user,

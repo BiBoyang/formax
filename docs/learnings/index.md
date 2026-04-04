@@ -36,6 +36,7 @@
 - `docs/learnings/2026-04-03-context-microcompact-mvp.md`
 - `docs/learnings/2026-04-03-context-diagnostics-command.md`
 - `docs/learnings/2026-04-04-explicit-compact-boundary.md`
+- `docs/learnings/2026-04-04-memory-first-auto-compact.md`
 - `docs/learnings/2026-04-04-rolling-session-memory-sidecar.md`
 - `docs/learnings/2026-04-04-session-memory-draft-schema.md`
 

@@ -375,6 +375,7 @@ export async function runSendAction(args: {
       sendSeqRef: args.refs.sendSeqRef,
       autoCompactSeqRef: args.refs.autoCompactSeqRef,
       reminderServiceRef: args.refs.reminderServiceRef,
+      getSessionFilePath: () => args.refs.sessionWriterRef.current?.filePath ?? null,
     },
     canonical: {
       turnIdRef: args.refs.canonicalTurnIdRef,

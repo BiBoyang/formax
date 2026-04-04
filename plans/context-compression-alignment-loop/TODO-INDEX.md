@@ -36,12 +36,6 @@
 
 ## Slice Group E: Keep Strategy Upgrade
 
-## Slice Group F: Session Memory / Rolling Memory
-
-- `CCA-052` 实现 memory-first auto compact
-  - 目标：auto compact 先尝试 session memory compact，再 fallback full summary compact
-  - 验收：存在 clear fallback chain 与测试
-
 ## Slice Group G: Higher-Order Compression
 
 - `CCA-060` 设计 partial compact 前置依赖检查
@@ -76,6 +70,6 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-052`
-2. `CCA-060`
-3. `CCA-070`
+1. `CCA-060`
+2. `CCA-070`
+3. `CCA-071`

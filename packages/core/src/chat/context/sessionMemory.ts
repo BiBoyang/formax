@@ -8,11 +8,19 @@ import type {
   CompactBoundaryTrigger,
   CompactRehydrationPlan,
 } from './compact'
-import { findLatestCompactBoundary, isCompactionSummaryUserMessage } from './compact'
+import { estimateCompactRehydrationCost, findLatestCompactBoundary, isCompactionSummaryUserMessage } from './compact'
 import { buildPostCompactRehydration } from './postCompactRehydration'
 
 const SESSION_MEMORY_RECENT_FILES_LIMIT = 5
 const SESSION_MEMORY_RECENT_PROMPTS_LIMIT = 3
+const SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT = 3
+const SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS = 160
+const SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS = 180
+const SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS = 180
+const SESSION_MEMORY_SUMMARY_PLAN_EXCERPT_MAX_CHARS = 240
+const SESSION_MEMORY_SUMMARY_TODO_MAX_CHARS = 240
+const SESSION_MEMORY_SUMMARY_WORKSPACE_MAX_CHARS = 180
+const SESSION_MEMORY_SUMMARY_MEMORY_PATH_MAX_CHARS = 180
 
 export type SessionMemoryDraft = {
   schemaVersion: 1
@@ -129,6 +137,118 @@ export function mergeSessionMemoryDraft(base: SessionMemoryDraft, patch: Session
   }
 }
 
+export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): string {
+  const lines = ['Session memory recap:']
+
+  const recentPrompts = draft.activeTask.recentUserPrompts
+    .map((value) => readNonEmptyString(value))
+    .filter((value): value is string => Boolean(value))
+  if (recentPrompts.length > 0) {
+    lines.push('Recent user requests:')
+    for (const prompt of recentPrompts.slice(0, SESSION_MEMORY_RECENT_PROMPTS_LIMIT)) {
+      lines.push(`- ${truncateForSummary(prompt, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS)}`)
+    }
+  }
+
+  const recentFiles = draft.activeTask.recentFiles
+    .map((value) => readNonEmptyString(value))
+    .filter((value): value is string => Boolean(value))
+  if (recentFiles.length > 0) {
+    lines.push('Working-set files:')
+    for (const filePath of recentFiles.slice(0, SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT)) {
+      lines.push(`- ${truncateForSummary(filePath, SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS)}`)
+    }
+  }
+
+  if (draft.activeTask.mode !== 'normal') {
+    lines.push(`Current mode: ${draft.activeTask.mode}`)
+  }
+
+  const planPath = readNonEmptyString(draft.activeTask.planPath)
+  if (planPath) {
+    lines.push(`Plan path: ${truncateForSummary(planPath, SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS)}`)
+  }
+
+  const planExcerpt = readNonEmptyString(draft.activeTask.planExcerpt)
+  if (planExcerpt) {
+    lines.push(`Plan excerpt: ${truncateForSummary(planExcerpt, SESSION_MEMORY_SUMMARY_PLAN_EXCERPT_MAX_CHARS)}`)
+  }
+
+  const todoSummary = readNonEmptyString(draft.activeTask.todoSummary)
+  if (todoSummary) {
+    lines.push(`Todo summary: ${truncateForSummary(todoSummary, SESSION_MEMORY_SUMMARY_TODO_MAX_CHARS)}`)
+  }
+
+  const strategyLines = formatStrategyLines(draft.currentStrategy)
+  if (strategyLines.length > 0) {
+    lines.push('Recent compact strategy:')
+    lines.push(...strategyLines)
+  }
+
+  const workspaceRoot = readNonEmptyString(draft.durableFacts.workspaceRoot)
+  if (workspaceRoot) {
+    lines.push(`Workspace root: ${truncateForSummary(workspaceRoot, SESSION_MEMORY_SUMMARY_WORKSPACE_MAX_CHARS)}`)
+  }
+
+  const projectMemoryPath = readNonEmptyString(draft.durableFacts.projectMemoryPath)
+  if (projectMemoryPath) {
+    lines.push(`Project memory file: ${truncateForSummary(projectMemoryPath, SESSION_MEMORY_SUMMARY_MEMORY_PATH_MAX_CHARS)}`)
+  }
+
+  return lines.join('\n').trim()
+}
+
+export function buildSessionMemoryCompactionRehydration(args: {
+  draft: SessionMemoryDraft
+  fallback?: {
+    recentFiles?: string[]
+    modeText?: string | null
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
+  }
+}): {
+  recentFiles: string[]
+  modeText: string | null
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+} {
+  const fallbackRecentFiles = Array.isArray(args.fallback?.recentFiles) ? args.fallback.recentFiles : []
+  return {
+    recentFiles: mergeRecentStrings({
+      newer: args.draft.activeTask.recentFiles,
+      older: fallbackRecentFiles,
+      limit: 3,
+    }),
+    modeText:
+      args.draft.activeTask.mode === 'normal'
+        ? args.fallback?.modeText ?? null
+        : `Current mode: ${args.draft.activeTask.mode}`,
+    planPath: readNonEmptyString(args.draft.activeTask.planPath) ?? args.fallback?.planPath ?? null,
+    planExcerpt: readNonEmptyString(args.draft.activeTask.planExcerpt) ?? args.fallback?.planExcerpt ?? null,
+    todoSummary: readNonEmptyString(args.draft.activeTask.todoSummary) ?? args.fallback?.todoSummary ?? null,
+  }
+}
+
+export function estimateSessionMemoryCompactionRehydrationCost(args: {
+  draft: SessionMemoryDraft
+  fallback?: {
+    recentFiles?: string[]
+    modeText?: string | null
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
+  }
+}) {
+  return estimateCompactRehydrationCost(
+    buildSessionMemoryCompactionRehydration({
+      draft: args.draft,
+      fallback: args.fallback,
+    }),
+  )
+}
+
 function collectRecentUserPrompts(messages: PromptMessage[], limit: number): string[] {
   const keep = Math.max(0, Math.floor(limit))
   if (keep <= 0) return []
@@ -147,6 +267,41 @@ function collectRecentUserPrompts(messages: PromptMessage[], limit: number): str
   }
 
   return prompts
+}
+
+function formatStrategyLines(strategy: SessionMemoryDraft['currentStrategy']): string[] {
+  const out: string[] = []
+  if (strategy.lastCompactTrigger) {
+    out.push(`- Trigger: ${strategy.lastCompactTrigger}`)
+  }
+  if (strategy.summaryKind) {
+    out.push(`- Summary kind: ${strategy.summaryKind}`)
+  }
+  if (strategy.keepStrategy) {
+    out.push(`- Keep strategy: ${formatKeepStrategy(strategy.keepStrategy)}`)
+  }
+  if (Array.isArray(strategy.rehydrationPlan?.items) && strategy.rehydrationPlan.items.length > 0) {
+    out.push(
+      `- Rehydration plan: ${strategy.rehydrationPlan.items
+        .map((item) => `${item.kind}(${item.priority}/${item.status})`)
+        .join(', ')}`,
+    )
+  }
+  return out
+}
+
+function formatKeepStrategy(strategy: CompactBoundaryKeepStrategy): string {
+  if (strategy.kind === 'keep_last_turns') {
+    return `keep_last_turns(${strategy.keepLastTurns})`
+  }
+  return `keep_combo(turns=${strategy.keepLastTurns}, min_tokens=${strategy.keepMinTokens}, min_user_turns=${strategy.keepMinUserTurns})`
+}
+
+function truncateForSummary(value: string, maxChars: number): string {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!normalized) return ''
+  if (!Number.isFinite(maxChars) || maxChars <= 1 || normalized.length <= maxChars) return normalized
+  return `${normalized.slice(0, maxChars - 1)}…`
 }
 
 function extractLeadingText(message: PromptMessage): string {

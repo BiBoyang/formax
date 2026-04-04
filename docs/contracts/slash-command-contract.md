@@ -103,6 +103,9 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 6. `nextTurnFixed` diagnostics payload SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
 7. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
 8. diagnostics payload SHOULD 暴露 `latestCompactBoundary`，至少包含 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost` 也 SHOULD 一并暴露
+当前 `summaryKind` MAY 为：
+ - `model_summary`
+ - `session_memory`
 当前 `keepStrategy` MAY 为：
  - `keep_last_turns`
  - `keep_combo`（`keepLastTurns`、`keepMinTokens`、`keepMinUserTurns`）

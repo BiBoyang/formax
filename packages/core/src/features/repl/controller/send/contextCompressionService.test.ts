@@ -4,6 +4,7 @@ import { computeContextStats } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import { runCompactFlow } from './compactFlow'
+import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { countNonToolUserTurns } from '../shared/utils'
 
 vi.mock('../../../../chat/context/budget', () => ({
@@ -20,6 +21,10 @@ vi.mock('../../../../chat/context/prune', () => ({
 
 vi.mock('./compactFlow', () => ({
   runCompactFlow: vi.fn(),
+}))
+
+vi.mock('../../sessionSave/sessionMemorySidecar', () => ({
+  readSessionMemoryFile: vi.fn(),
 }))
 
 vi.mock('../shared/utils', async () => {
@@ -102,6 +107,7 @@ describe('createContextCompressionService', () => {
       messages,
       pruned: false,
     }))
+    vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
     vi.mocked(runCompactFlow).mockResolvedValue({
       compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }],
       summary: 'summary',
@@ -209,6 +215,171 @@ describe('createContextCompressionService', () => {
       percentRemaining: 86,
       source: 'estimate',
     })
+  })
+
+  it('prefers rolling session memory for auto-compact when a session sidecar is available', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['tighten the CTA copy'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Ship memory-first compact',
+        todoSummary: '1. finalize compact path',
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'model_summary',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 2,
+          keepMinTokens: 1200,
+          keepMinUserTurns: 1,
+        },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+        },
+      },
+    } as any)
+
+    const waitForSessionMemoryFlush = vi.fn().mockResolvedValue(undefined)
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+      waitForSessionMemoryFlush,
+    })
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(waitForSessionMemoryFlush).toHaveBeenCalledWith('/tmp/formax/session.jsonl')
+    expect(readSessionMemoryFile).toHaveBeenCalledWith('/tmp/formax/session.jsonl')
+    expect(runCompactFlow).not.toHaveBeenCalled()
+    expect(out.autoCompacted).toBe(true)
+    expect(out.history[0]).toEqual(
+      expect.objectContaining({
+        role: 'assistant',
+        meta: expect.objectContaining({
+          compactBoundary: expect.objectContaining({
+            summaryKind: 'session_memory',
+            trigger: 'auto',
+          }),
+        }),
+      }),
+    )
+    expect(out.history[1]).toEqual(
+      expect.objectContaining({
+        role: 'user',
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'text',
+            text: expect.stringContaining('Session memory recap:'),
+          }),
+        ]),
+      }),
+    )
+  })
+
+  it('falls back to model-summary auto-compact when session memory is unavailable', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
+
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+    })
+    await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(readSessionMemoryFile).toHaveBeenCalledWith('/tmp/formax/session.jsonl')
+    expect(runCompactFlow).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to model-summary auto-compact when the session memory sidecar shape is invalid', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue({ schemaVersion: 1 } as any)
+
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+    })
+    await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(runCompactFlow).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits a failed lifecycle event before falling back when session-memory rebuild breaks after start', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'normal',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['tighten CTA copy'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: null,
+        summaryKind: null,
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    } as any)
+
+    let shouldThrowOnSingleMessage = true
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      if (Array.isArray(messages) && messages.length === 1 && shouldThrowOnSingleMessage) {
+        shouldThrowOnSingleMessage = false
+        throw new Error('pre-token failed')
+      }
+      return 1234
+    })
+
+    const onCompactLifecycle = vi.fn()
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+      onCompactLifecycle,
+    })
+    await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(onCompactLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'auto' })
+    expect(onCompactLifecycle).toHaveBeenNthCalledWith(2, {
+      type: 'compact_failed',
+      source: 'auto',
+      error: 'pre-token failed',
+    })
+    expect(runCompactFlow).toHaveBeenCalledTimes(1)
   })
 
   it('microcompacts old heavy tool results before auto-compact is decided', async () => {

@@ -126,9 +126,11 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/sessionMemory.test.ts`：builder / merge 规则回归
 - `packages/core/src/features/repl/controller/session/sessionRollingMemory.ts`：每轮 turn 完成后的 rolling memory sidecar 刷新
 - `packages/core/src/features/repl/sessionSave/sessionMemorySidecar.ts`：session `.memory.json` sidecar 路径与原子写入
+- `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：auto compact 会先尝试读取 session `.memory.json`，用 rolling session memory 生成 compact summary；拿不到 sidecar 或 sidecar 不可用时，再静默回退到 model summary compact
 - 当前定位：
   - 这是 **session-scoped working memory draft**，不是现有按 cwd 的 `MEMORY.md` 替代品
-  - 当前已经接进 turn completion 的后台刷新，但还没有接进 auto compact fallback / resume 恢复
+  - 当前已经接进 turn completion 的后台刷新，也已接进 auto compact fallback chain
+  - 但还没有接进 resume / continue 恢复路径
 
 ---
 

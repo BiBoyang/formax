@@ -5,6 +5,16 @@ import { writeSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 
 const rollingMemoryWriteQueue = new Map<string, Promise<void>>()
 
+export async function waitForRollingSessionMemoryFlush(sessionFilePath: string): Promise<void> {
+  const pending = rollingMemoryWriteQueue.get(sessionFilePath)
+  if (!pending) return
+  try {
+    await pending
+  } catch {
+    // Best-effort: callers will fall back if the sidecar remains unavailable.
+  }
+}
+
 export async function persistRollingSessionMemory(args: {
   sessionFilePath: string
   cwd: string
