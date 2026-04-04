@@ -39,6 +39,10 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 
 这份计划的目标，不是 1:1 复刻 Claude Code 文件结构，而是把这些能力拆成 Formax 可以连续交付的小切片。
 
+补充阅读：
+
+- 任务依赖图：[CCA-DEPENDENCY-MAP.md](./CCA-DEPENDENCY-MAP.md)
+
 ## 当前状态定位
 
 ### 已补上的基础能力
