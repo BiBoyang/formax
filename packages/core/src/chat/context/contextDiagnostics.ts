@@ -3,7 +3,7 @@ import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
-import { microCompactHistory } from './microCompact'
+import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
@@ -43,6 +43,7 @@ export type NextTurnFixedContextGroup = {
 
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
+  microCompactImpact: MicroCompactImpact
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
   fixedTokens: number
@@ -146,7 +147,8 @@ export function analyzeNextTurnFixedContext(args: {
     }))
     .filter((group) => group.blocks.length > 0)
 
-  const microCompactedHistory = microCompactHistory({ messages: args.messages }).messages
+  const microCompactResult = microCompactHistory({ messages: args.messages })
+  const microCompactedHistory = microCompactResult.messages
   const fixedUserMessage =
     fixedGroups.length > 0
       ? ({
@@ -190,6 +192,12 @@ export function analyzeNextTurnFixedContext(args: {
         messages: [{ role: 'user', content: group.blocks }],
       }),
     })),
+    microCompactImpact: {
+      compactedBlocks: microCompactResult.compactedBlocks,
+      compactedToolNames: microCompactResult.compactedToolNames,
+      estimatedTokensSaved: microCompactResult.estimatedTokensSaved,
+      keptRecentBlocks: microCompactResult.keptRecentBlocks,
+    },
     projectedHistoryTokens,
     projectedHistoryDeltaTokens: projectedHistoryTokens - snapshotHistoryTokens,
     fixedTokens,

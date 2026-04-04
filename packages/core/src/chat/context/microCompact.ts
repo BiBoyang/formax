@@ -19,6 +19,13 @@ type EligibleToolResultRef = {
   tool: ToolUseMeta
 }
 
+export type MicroCompactImpact = {
+  compactedBlocks: number
+  compactedToolNames: string[]
+  estimatedTokensSaved: number
+  keptRecentBlocks: number
+}
+
 export function microCompactHistory(args: {
   messages: PromptMessage[]
   keepRecentToolResults?: number
@@ -28,6 +35,9 @@ export function microCompactHistory(args: {
   messages: PromptMessage[]
   compacted: boolean
   compactedBlocks: number
+  compactedToolNames: string[]
+  estimatedTokensSaved: number
+  keptRecentBlocks: number
 } {
   const keepRecentToolResults = clampCount(args.keepRecentToolResults, DEFAULT_KEEP_RECENT_TOOL_RESULTS)
   const minResultChars = clampCount(args.minResultChars, DEFAULT_MIN_RESULT_CHARS)
@@ -41,12 +51,23 @@ export function microCompactHistory(args: {
   })
 
   if (eligibleBlocks.length <= keepRecentToolResults) {
-    return { messages: args.messages, compacted: false, compactedBlocks: 0 }
+    return {
+      messages: args.messages,
+      compacted: false,
+      compactedBlocks: 0,
+      compactedToolNames: [],
+      estimatedTokensSaved: 0,
+      keptRecentBlocks: eligibleBlocks.length,
+    }
   }
 
   const refsToCompact = eligibleBlocks.slice(0, eligibleBlocks.length - keepRecentToolResults)
   const patchedMessages = [...args.messages]
   const patchedByIndex = new Map<number, PromptMessage>()
+  const compactedToolNames: string[] = []
+  const compactedToolNameSet = new Set<string>()
+  let estimatedTokensSaved = 0
+  let compactedBlocks = 0
 
   for (const ref of refsToCompact) {
     const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
@@ -57,10 +78,12 @@ export function microCompactHistory(args: {
     if (!currentBlock || typeof currentBlock !== 'object') continue
     if ((currentBlock as any).type !== 'tool_result') continue
 
-    nextBlocks[ref.blockIndex] = {
+    const replacementBlock = {
       ...currentBlock,
       content: buildMicrocompactStub(ref.tool),
     } as any
+
+    nextBlocks[ref.blockIndex] = replacementBlock
 
     const patchedMessage = {
       ...sourceMessage,
@@ -68,13 +91,32 @@ export function microCompactHistory(args: {
     }
     patchedByIndex.set(ref.messageIndex, patchedMessage)
     patchedMessages[ref.messageIndex] = patchedMessage
+
+    compactedBlocks += 1
+    if (!compactedToolNameSet.has(ref.tool.name)) {
+      compactedToolNameSet.add(ref.tool.name)
+      compactedToolNames.push(ref.tool.name)
+    }
+    estimatedTokensSaved += Math.max(
+      0,
+      estimateTextTokens(toolResultContentToText((currentBlock as any).content)) -
+        estimateTextTokens(toolResultContentToText(replacementBlock.content)),
+    )
   }
 
   return {
     messages: patchedMessages,
-    compacted: refsToCompact.length > 0,
-    compactedBlocks: refsToCompact.length,
+    compacted: compactedBlocks > 0,
+    compactedBlocks,
+    compactedToolNames,
+    estimatedTokensSaved,
+    keptRecentBlocks: Math.max(0, eligibleBlocks.length - compactedBlocks),
   }
+}
+
+function estimateTextTokens(value: string): number {
+  const bytes = Buffer.byteLength(value, 'utf8')
+  return Math.max(0, Math.ceil(bytes / 4))
 }
 
 function collectToolUsesById(messages: PromptMessage[]): Map<string, ToolUseMeta> {

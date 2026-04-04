@@ -100,7 +100,35 @@ describe('contextDiagnostics', () => {
       messages: [
         {
           role: 'assistant',
-          content: [{ type: 'text', text: 'previous assistant message' }],
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'a'.repeat(4000) }] as any,
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-2', name: 'Read', input: { file_path: '/repo/b.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-2', content: 'b'.repeat(4000) }] as any,
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-3', name: 'Read', input: { file_path: '/repo/c.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-3', content: 'c'.repeat(4000) }] as any,
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-4', name: 'Read', input: { file_path: '/repo/d.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-4', content: 'd'.repeat(4000) }] as any,
         },
       ],
       fixedGroups: [
@@ -122,13 +150,16 @@ describe('contextDiagnostics', () => {
     })
 
     expect(out.fixedGroups.map((row) => row.label)).toEqual(['Mode semantic blocks', 'Pending injected blocks'])
+    expect(out.microCompactImpact.compactedBlocks).toBe(1)
+    expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
+    expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
+    expect(out.microCompactImpact.keptRecentBlocks).toBe(3)
     expect(out.fixedTokens).toBeGreaterThan(0)
     expect(out.projectedHistoryTokens).toBeGreaterThan(0)
     expect(out.totalTokens).toBeGreaterThan(out.fixedTokens)
     expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
     expect(out.topAssembledContributors.length).toBeGreaterThan(0)
-    expect(out.topAssembledContributors.some((row) => row.label === 'System prompt')).toBe(true)
-    expect(out.topAssembledContributors.some((row) => row.label === 'Fixed: Pending injected blocks')).toBe(true)
+    expect(out.topAssembledContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
   })
 
   it('builds JSON diagnostics output from the same structured payload', () => {
@@ -177,6 +208,12 @@ describe('contextDiagnostics', () => {
     expect(parsed.mode).toBe('normal')
     expect(parsed.snapshot).toBeTruthy()
     expect(parsed.nextTurnFixed).toBeTruthy()
+    expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
+      compactedBlocks: 0,
+      compactedToolNames: [],
+      estimatedTokensSaved: 0,
+      keptRecentBlocks: 0,
+    })
     expect(parsed.notes).toBeInstanceOf(Array)
   })
 

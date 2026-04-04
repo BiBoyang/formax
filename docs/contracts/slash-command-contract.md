@@ -100,6 +100,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 3. snapshot 与 next-turn fixed 视图各自的 top contributors 排行，帮助识别最重的 system / history / fixed blocks
 4. 当参数精确为 `--json` 时，MUST 返回同一 diagnostics 数据的 JSON 文本表示
 5. app-server / Web 的 local-dispatch MAY 额外携带同一 diagnostics 数据的结构化 payload，避免客户端反解析 stdout
+6. `nextTurnFixed` diagnostics payload SHOULD 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：
