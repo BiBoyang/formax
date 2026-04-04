@@ -1,6 +1,6 @@
 # packages/core/src/chat/context
 
-Last verified: 2026-04-03
+Last verified: 2026-04-04
 
 Formax 的“上下文管理”分两条线：
 
@@ -119,6 +119,14 @@ Formax 的“上下文管理”分两条线：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
 - compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`）
 - history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、rehydration 拼装；当前最小 working-set anchor 已覆盖最近成功 `Read`，但只允许回卷最近 1 个额外 user turn）
+
+### 想改“session memory / rolling memory（P5 起点）”
+
+- `packages/core/src/chat/context/sessionMemory.ts`：`buildSessionMemoryDraft()` + `mergeSessionMemoryDraft()`
+- `packages/core/src/chat/context/sessionMemory.test.ts`：builder / merge 规则回归
+- 当前定位：
+  - 这是 **session-scoped working memory draft**，不是现有按 cwd 的 `MEMORY.md` 替代品
+  - 当前只定义 schema、builder 与 merge 规则，还没有接进 runtime 更新或 auto compact fallback
 
 ---
 

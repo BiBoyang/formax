@@ -2,7 +2,7 @@
 
 只保留未完成项。已完成项不回填，历史以 Git commit 为准。
 
-更新时间：2026-04-03
+更新时间：2026-04-04
 
 ## Slice Group B: Diagnostics Phase 2
 
@@ -37,10 +37,6 @@
 ## Slice Group E: Keep Strategy Upgrade
 
 ## Slice Group F: Session Memory / Rolling Memory
-
-- `CCA-050` 设计 session memory 数据模型
-  - 目标：定义长期事实层、活动任务层、当前策略层的最小 schema
-  - 验收：有 schema / builder / merge 规则草案
 
 - `CCA-051` 引入后台维护的 rolling memory
   - 目标：不等到 full compact 时才总结历史
@@ -84,6 +80,6 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-050`
+1. `CCA-051`
 2. `CCA-060`
 3. `CCA-070`

@@ -16,6 +16,8 @@
   - `packages/core/src/chat/context/contextDiagnostics.ts`
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
+- 已完成：session memory draft schema（builder + merge rules）
+  - `packages/core/src/chat/context/sessionMemory.ts`
 
 但从 Claude Code 的能力模型来看，Formax 仍然明显停留在“分层体系的前半段”。
 
@@ -83,7 +85,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 2. compact 仍然不是协议化 boundary 事件
 3. compact 后仍缺 rehydrate
 4. keep 策略仍然比较简单
-5. 没有 session memory compact
+5. 已有 session memory draft schema，但尚未进入 runtime / auto compact
 6. 没有 partial compact
 7. 没有 reactive compact
 8. 没有 context collapse / cache-aware intermediate layer
@@ -144,16 +146,14 @@ Claude Code：
   - deferred instructions / MCP 等
 
 Formax 当前：
-- compact 后主要只有 summary + tail
-- 缺：
-  - 最近文件 rehydrate
-  - 当前 plan/todos rehydrate
-  - mode/reminder 稳定重注入
-- 当前已补最小 contract：
-  - compact boundary 可携带 `rehydrationPlan`
-  - 默认计划会先声明 `recent_files`
-  - `plan` / 有 `planPath` 时额外声明 `plan_state`
-  - 非 `normal` mode 时额外声明 `mode_state`
+- 已有 summary + tail + 最小 rehydration
+- 当前已补：
+  - 最近成功 `Read` 的文件路径 rehydrate
+  - 当前 `planPath` / `planExcerpt` / `todoSummary` / `mode` rehydrate
+  - compact boundary `rehydrationPlan` 与 `rehydrationCost`
+- 仍缺：
+  - skills / async agent / deferred instructions 等更高阶恢复项
+  - 更接近 Claude Code 的完整 continuation 恢复层
 
 ## E. keep 策略
 
@@ -174,8 +174,9 @@ Claude Code：
 - 优先利用持续维护的 memory，而不是每次重新总结整段历史
 
 Formax 当前：
-- 完全没有 session memory compact
-- 也没有 rolling memory layer
+- 已有 `sessionMemory.ts` 提供最小 draft schema（长期事实层 / 活动任务层 / 当前策略层）
+- 仍没有 rolling memory layer
+- 仍没有 memory-first auto compact
 
 ## G. partial / reactive compact
 
