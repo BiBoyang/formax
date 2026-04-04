@@ -329,7 +329,7 @@ describe('resolvePreMainSendRouting', () => {
               {
                 type: 'tool_result',
                 tool_use_id: 'read-1',
-                content: '[Older tool result cleared by microcompact: Read /repo/src/auth.ts]',
+                content: '[Older tool result cleared by microcompact: Read /repo/src/auth.ts (~4,000 chars)]',
               },
             ],
           },

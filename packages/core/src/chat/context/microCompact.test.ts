@@ -45,7 +45,7 @@ describe('microCompactHistory', () => {
     expect(out.estimatedTokensSaved).toBeGreaterThan(0)
     expect(out.keptRecentBlocks).toBe(3)
     expect((out.messages[1]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts]',
+      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts (~4,000 chars)]',
     )
     expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
     expect((out.messages[5]!.content[0] as any).content).toBe('c'.repeat(4000))
@@ -92,7 +92,7 @@ describe('microCompactHistory', () => {
     expect(oldMessage.content[0]).toMatchObject({
       type: 'tool_result',
       tool_use_id: 'read-1',
-      content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+      content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
     })
     expect(oldMessage.content[1]).toEqual({ type: 'text', text: 'extra reminder' })
   })
@@ -119,16 +119,16 @@ describe('microCompactHistory', () => {
     expect(out.keptRecentBlocks).toBe(0)
     expect(out.estimatedTokensSaved).toBeGreaterThan(0)
     expect((out.messages[1]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
     )
     expect((out.messages[3]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/b.ts]',
+      '[Older tool result cleared by microcompact: Read /repo/src/b.ts (~4,000 chars)]',
     )
     expect((out.messages[5]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/c.ts]',
+      '[Older tool result cleared by microcompact: Read /repo/src/c.ts (~4,000 chars)]',
     )
     expect((out.messages[7]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/d.ts]',
+      '[Older tool result cleared by microcompact: Read /repo/src/d.ts (~4,000 chars)]',
     )
     expect((out.messages[9]!.content[0] as any).content).toBe('e'.repeat(4000))
     expect((out.messages[11]!.content[0] as any).content).toBe('f'.repeat(4000))
@@ -163,5 +163,23 @@ describe('microCompactHistory', () => {
     expect(out.compactedToolNames).toEqual(['Read', 'Grep', 'Glob'])
     expect(out.keptRecentBlocks).toBe(0)
     expect(out.estimatedTokensSaved).toBeGreaterThan(0)
+  })
+
+  it('adds approximate hit and path counts to Grep and Glob stubs', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'a.ts:10:login\nb.ts:12:login\nc.ts:14:login'),
+      assistantToolUse('glob-1', 'Glob', { pattern: '**/*.ts', path: '/repo/src' }),
+      userToolResult('glob-1', 'src/a.ts\nsrc/b.ts\nsrc/c.ts'),
+    ]
+
+    const out = microCompactHistory({ messages, keepRecentToolResults: 0, minResultChars: 1 })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: Grep "login" in /repo/src (3 hits)]',
+    )
+    expect((out.messages[3]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (3 paths)]',
+    )
   })
 })

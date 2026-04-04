@@ -251,7 +251,7 @@ describe('createContextCompressionService', () => {
         {
           type: 'tool_result',
           tool_use_id: 'read-1',
-          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
         },
       ],
     })
@@ -395,7 +395,7 @@ describe('createContextCompressionService', () => {
         {
           type: 'tool_result',
           tool_use_id: 'read-1',
-          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts]',
+          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
         },
       ],
     })

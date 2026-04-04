@@ -103,7 +103,7 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
-- `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认只压 `Read` / `Grep` / `Glob` 的旧大结果）
+- `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认只压 `Read` / `Grep` / `Glob` 的旧大结果；stub 会保留路径/模式与近似体量摘要）
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
 

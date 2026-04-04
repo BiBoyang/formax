@@ -78,9 +78,10 @@ export function microCompactHistory(args: {
     if (!currentBlock || typeof currentBlock !== 'object') continue
     if ((currentBlock as any).type !== 'tool_result') continue
 
+    const rawResultText = toolResultContentToText((currentBlock as any).content)
     const replacementBlock = {
       ...currentBlock,
-      content: buildMicrocompactStub(ref.tool),
+      content: buildMicrocompactStub(ref.tool, rawResultText),
     } as any
 
     nextBlocks[ref.blockIndex] = replacementBlock
@@ -99,8 +100,7 @@ export function microCompactHistory(args: {
     }
     estimatedTokensSaved += Math.max(
       0,
-      estimateTextTokens(toolResultContentToText((currentBlock as any).content)) -
-        estimateTextTokens(toolResultContentToText(replacementBlock.content)),
+      estimateTextTokens(rawResultText) - estimateTextTokens(toolResultContentToText(replacementBlock.content)),
     )
   }
 
@@ -175,18 +175,18 @@ function collectEligibleToolResults(args: {
   return out
 }
 
-function buildMicrocompactStub(tool: ToolUseMeta): string {
+function buildMicrocompactStub(tool: ToolUseMeta, rawResultText: string): string {
   const maxSummaryChars = Math.max(12, DEFAULT_MAX_STUB_CHARS - MICROCOMPACT_STUB_PREFIX.length - 2)
-  return `${MICROCOMPACT_STUB_PREFIX} ${clipMiddle(summarizeToolUse(tool), maxSummaryChars)}]`
+  return `${MICROCOMPACT_STUB_PREFIX} ${clipMiddle(summarizeToolUse(tool, rawResultText), maxSummaryChars)}]`
 }
 
-function summarizeToolUse(tool: ToolUseMeta): string {
+function summarizeToolUse(tool: ToolUseMeta, rawResultText: string): string {
   const name = clipMiddle(tool.name || 'Tool', 24)
   const input = tool.input
 
   if (tool.name === 'Read') {
     const filePath = readString(input.file_path)
-    if (filePath) return `Read ${clipMiddle(filePath, 96)}`
+    if (filePath) return `Read ${clipMiddle(filePath, 72)} ${summarizeReadFootprint(rawResultText)}`
     return 'Read result'
   }
 
@@ -194,14 +194,16 @@ function summarizeToolUse(tool: ToolUseMeta): string {
     const pattern = readString(input.pattern)
     const path = readString(input.path)
     const patternPart = pattern ? `Grep ${quoteAndClip(pattern, 48)}` : 'Grep result'
-    return path ? `${patternPart} in ${clipMiddle(path, 72)}` : patternPart
+    const base = path ? `${patternPart} in ${clipMiddle(path, 48)}` : patternPart
+    return `${base} (${formatCount(countNonEmptyLines(rawResultText))} hits)`
   }
 
   if (tool.name === 'Glob') {
     const pattern = readString(input.pattern)
     const path = readString(input.path)
     const patternPart = pattern ? `Glob ${quoteAndClip(pattern, 48)}` : 'Glob result'
-    return path ? `${patternPart} in ${clipMiddle(path, 72)}` : patternPart
+    const base = path ? `${patternPart} in ${clipMiddle(path, 48)}` : patternPart
+    return `${base} (${formatCount(countNonEmptyLines(rawResultText))} paths)`
   }
 
   if (tool.name === 'Bash') {
@@ -217,6 +219,33 @@ function summarizeToolUse(tool: ToolUseMeta): string {
   }
 
   return `${name} result`
+}
+
+function summarizeReadFootprint(rawResultText: string): string {
+  const lineCount = countLines(rawResultText)
+  if (lineCount > 1) return `(${formatCount(lineCount)} lines)`
+  return `(~${formatCount(rawResultText.length)} chars)`
+}
+
+function countLines(value: string): number {
+  if (!value) return 0
+  let lines = 1
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) === 10) lines += 1
+  }
+  return lines
+}
+
+function countNonEmptyLines(value: string): number {
+  if (!value.trim()) return 0
+  return value
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .filter(Boolean).length
+}
+
+function formatCount(value: number): string {
+  return Math.max(0, Math.round(value)).toLocaleString('en-US')
 }
 
 function isAlreadyMicroCompacted(content: unknown): boolean {
