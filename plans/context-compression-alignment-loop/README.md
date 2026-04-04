@@ -61,10 +61,14 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - auto compact 不再只由固定 `keepLastTurns` 驱动。
    - 当前 auto compact 会使用组合 keep 策略：`keepLastTurns + keepMinTokens + keepMinUserTurns`。
    - 手动 `/compact` 仍保持 `keep_last_turns` 语义，先避免把用户显式触发的激进 compact 改得过大。
-8. `microcompact` turn-level metrics
+8. 最小工作集选择器第一版
+   - `keep_combo` 不再只看 turn 数和 token floor。
+   - 当前会把“最近成功 `Read` 所在 turn”当成 working-set anchor，但只允许回卷最近 1 个额外 user turn。
+   - 这样可以避免 auto compact 只因最后一轮聊天文本够长就把刚读过的文件上下文整段丢掉，同时不把很久以前的 `Read` 永久钉在 tail 里。
+9. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-9. 可观测性第一版
+10. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图
@@ -159,9 +163,9 @@ Claude Code：
 Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
-  - 当前只有 auto compact 用上 `keepMinTokens` / `keepMinUserTurns`
+  - 当前 working-set anchor 仍只覆盖最近成功 `Read`，且只做很窄的回卷
   - manual compact 还没有组合 keep 策略
-  - token-aware working-set 扩张
+  - 还没有更广义的“任务最小工作集”选择
 
 ## F. session memory / rolling memory
 

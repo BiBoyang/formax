@@ -116,6 +116,55 @@ describe('selectTailForCompaction', () => {
 
     expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['u2', 'a2', 'u3', 'a3'])
   })
+
+  it('keeps the latest successful Read turn as a working-set anchor for keep_combo', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'inspect auth.ts'),
+      readToolUse('read-1', '/repo/src/auth.ts'),
+      toolResult('read-1'),
+      txt('assistant', 'Auth flow has a stale redirect guard.'),
+      txt('user', 'rename the button copy'),
+      txt('assistant', 'x'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text ?? (m.content as any[])[0]?.type)).toEqual([
+      'inspect auth.ts',
+      'tool_use',
+      'tool_result',
+      'Auth flow has a stale redirect guard.',
+      'rename the button copy',
+      'x'.repeat(2400),
+    ])
+  })
+
+  it('does not rewind to stale Read turns once they are more than one extra user turn behind', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'inspect auth.ts'),
+      readToolUse('read-1', '/repo/src/auth.ts'),
+      toolResult('read-1'),
+      txt('assistant', 'Auth flow has a stale redirect guard.'),
+      txt('user', 'rename the button copy'),
+      txt('assistant', 'assistant note'),
+      txt('user', 'write release notes'),
+      txt('assistant', 'y'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['write release notes', 'y'.repeat(2400)])
+  })
 })
 
 describe('rebuildHistoryAfterCompaction', () => {

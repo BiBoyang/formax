@@ -13,6 +13,10 @@
   - 当前 auto compact 已开始使用 `keep_combo`
   - 形态是 `keepLastTurns + keepMinTokens + keepMinUserTurns`
   - 手动 `/compact` 仍保持 `keep_last_turns`
+- `keep_combo` 现在又多了一层最小 working-set 保护：
+  - 会把最近成功 `Read` 所在的 turn 当成 working-set anchor
+  - 只允许回卷最近 1 个额外 user turn，避免很早以前的 `Read` 把 tail 永久钉住
+  - 这样可以避免最后一轮聊天文本已经够长时，把刚读过文件的那轮上下文整段裁掉
 - boundary 现在还可以携带一个轻量 `rehydrationPlan`，先声明 compact 后哪些状态需要优先补回：
   - `recent_files`
   - `plan_state`

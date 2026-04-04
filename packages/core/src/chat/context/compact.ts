@@ -6,6 +6,7 @@ const CONTINUED_SESSION_SUMMARY_PREFIX =
 const RECENT_FILES_REHYDRATION_PREFIX = 'Recent files to keep in working memory:'
 const AUTO_COMPACT_KEEP_MIN_TOKENS = 1200
 const AUTO_COMPACT_KEEP_MIN_USER_TURNS = 1
+const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
 
 export type CompactBoundaryTrigger = 'manual' | 'auto'
 export type CompactBoundarySummaryKind = 'model_summary'
@@ -127,6 +128,15 @@ export function selectTailForCompaction(
   const requiredTurns = Math.max(strategy.keepLastTurns, strategy.keepMinUserTurns)
   if (requiredTurns > 0) {
     startTurnPosition = Math.max(0, userTurnIndices.length - requiredTurns)
+  }
+
+  const workingSetTurnPosition = findLatestReadWorkingSetTurnPosition(messages, userTurnIndices)
+  if (
+    workingSetTurnPosition != null &&
+    workingSetTurnPosition < startTurnPosition &&
+    startTurnPosition - workingSetTurnPosition <= READ_WORKING_SET_MAX_BACKTRACK_TURNS
+  ) {
+    startTurnPosition = workingSetTurnPosition
   }
 
   let tail = sliceTailFromUserTurn(messages, userTurnIndices, startTurnPosition)
@@ -394,6 +404,33 @@ function sliceTailFromUserTurn(messages: PromptMessage[], userTurnIndices: numbe
   if (turnPosition >= userTurnIndices.length) return []
   const startUserIndex = userTurnIndices[turnPosition]
   return typeof startUserIndex === 'number' ? messages.slice(startUserIndex) : []
+}
+
+function findLatestReadWorkingSetTurnPosition(messages: PromptMessage[], userTurnIndices: number[]): number | null {
+  if (messages.length === 0 || userTurnIndices.length === 0) return null
+  const successfulToolResultIds = collectSuccessfulToolResultIds(messages)
+  if (successfulToolResultIds.size === 0) return null
+
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messages[messageIndex]
+    if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
+
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_use') continue
+      if (block?.name !== 'Read') continue
+      if (!successfulToolResultIds.has(String(block?.id ?? ''))) continue
+      return findUserTurnPositionAtOrBeforeIndex(userTurnIndices, messageIndex)
+    }
+  }
+
+  return null
+}
+
+function findUserTurnPositionAtOrBeforeIndex(userTurnIndices: number[], messageIndex: number): number | null {
+  for (let position = userTurnIndices.length - 1; position >= 0; position -= 1) {
+    if ((userTurnIndices[position] ?? Number.POSITIVE_INFINITY) <= messageIndex) return position
+  }
+  return null
 }
 
 function normalizeKeepStrategy(value: CompactBoundaryKeepStrategy): CompactBoundaryKeepStrategy {
