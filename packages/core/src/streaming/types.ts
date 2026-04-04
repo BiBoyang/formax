@@ -1,4 +1,4 @@
-import type { PromptBlock, PromptMessage } from '../prompts/types'
+import type { PromptBlock, PromptMessage, PromptMessageMeta } from '../prompts/types'
 import type { ToolCall, ToolDefinition, ToolResult } from '../shared/toolContracts'
 
 export type TokenUsage = Partial<{
@@ -12,6 +12,7 @@ export type StopReason = string | null
 
 export type StreamEvent =
   | { type: 'assistant_delta'; text: string }
+  | { type: 'compact_boundary'; boundary: PromptMessageMeta['compactBoundary'] }
   | { type: 'thinking_delta'; thinking: string }
   | { type: 'thinking_stop' }
   | { type: 'tool_start'; id: string; name: string }

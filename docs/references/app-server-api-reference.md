@@ -687,6 +687,7 @@ AskUserQuestion payload：
 `event` 类型来自 `packages/core/src/streaming/types.ts`，典型值：
 
 - `assistant_delta`
+- `compact_boundary`
 - `thinking_delta` / `thinking_stop`
 - `tool_start` / `tool_input` / `tool_update` / `tool_end`
 - `usage`
@@ -699,6 +700,36 @@ AskUserQuestion payload：
 
 - 服务端会透传未知 `event.type`。
 - 客户端应以“unknown event fallback”处理（展示原始 payload），不要因未知类型中断渲染。
+
+`compact_boundary` 示例：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "turn/event",
+  "params": {
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "replaySeq": 42,
+    "eventId": "turn-1:42",
+    "ts": "2026-04-04T00:00:00.000Z",
+    "source": "system",
+    "event": {
+      "type": "compact_boundary",
+      "boundary": {
+        "schemaVersion": 1,
+        "trigger": "manual",
+        "preTokens": 3210,
+        "summaryKind": "model_summary",
+        "keepStrategy": {
+          "kind": "keep_last_turns",
+          "keepLastTurns": 0
+        }
+      }
+    }
+  }
+}
+```
 
 ## 6.3 `turn/modeChanged`
 

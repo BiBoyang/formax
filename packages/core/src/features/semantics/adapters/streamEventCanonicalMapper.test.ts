@@ -105,6 +105,43 @@ describe('streamEventCanonicalMapper', () => {
     expect(unknown).toEqual([])
   })
 
+  it('maps compact_boundary into a compact-boundary system message', () => {
+    const base = createEnvelopeFactory()
+    const events = toCanonicalEventsFromStreamPayload(
+      {
+        type: 'compact_boundary',
+        boundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          preTokens: 88,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 0 },
+        },
+      },
+      {
+        turnId: 'turn-1',
+        nextReplaySeq: base.nextReplaySeq,
+        envelopeFor: base.envelopeFor,
+        inferFailureStatus: inferCanonicalFailureStatus,
+      },
+    )
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: 'system_message',
+        turnId: 'turn-1',
+        role: 'assistant',
+        text: '',
+        uiKind: 'compact_boundary',
+        compactBoundary: expect.objectContaining({
+          schemaVersion: 1,
+          trigger: 'manual',
+          summaryKind: 'model_summary',
+        }),
+      }),
+    ])
+  })
+
   it('filters empty deltas and tool events without ids', () => {
     const base = createEnvelopeFactory()
     const emptyAssistant = toCanonicalEventsFromStreamPayload(

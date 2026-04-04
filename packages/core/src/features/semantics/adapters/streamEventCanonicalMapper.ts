@@ -1,4 +1,5 @@
 import type { CanonicalEvent } from '../core/canonicalEvents'
+import type { PromptMessageMeta } from '../../../prompts/types'
 import { formatToolInputAsParamsText } from '@formax/shared/paramsText'
 import { toolResultContentToText } from '@formax/shared/utils/toolResultContent'
 import { readCanonicalToolEndSummary, readCanonicalToolUpdateLine } from './toolEventCanonicalFields'
@@ -34,6 +35,14 @@ function readToolInput(event: StreamPayloadEvent): Record<string, unknown> | und
     return event.input as Record<string, unknown>
   }
   return undefined
+}
+
+function readCompactBoundary(event: StreamPayloadEvent): PromptMessageMeta['compactBoundary'] | undefined {
+  const boundary = event.boundary
+  if (!boundary || typeof boundary !== 'object' || Array.isArray(boundary)) return undefined
+  return (boundary as { schemaVersion?: unknown }).schemaVersion === 1
+    ? (boundary as PromptMessageMeta['compactBoundary'])
+    : undefined
 }
 
 function readToolResultContent(event: StreamPayloadEvent): string {
@@ -121,6 +130,22 @@ export function toCanonicalEventsFromStreamPayload(
     if (!textDelta) return []
     const seq = replaySeq()
     return [{ ...toEnvelope('assistant_delta', seq), kind: 'assistant_delta', turnId: options.turnId, textDelta }]
+  }
+
+  if (type === 'compact_boundary') {
+    const boundary = readCompactBoundary(event)
+    const seq = replaySeq()
+    return [
+      {
+        ...toEnvelope('system_message', seq),
+        kind: 'system_message',
+        turnId: options.turnId,
+        role: 'assistant',
+        text: '',
+        uiKind: 'compact_boundary',
+        ...(boundary ? { compactBoundary: boundary } : {}),
+      },
+    ]
   }
 
   if (type === 'thinking_delta') {

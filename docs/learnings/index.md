@@ -37,6 +37,7 @@
 - `docs/learnings/2026-04-03-context-diagnostics-command.md`
 - `docs/learnings/2026-04-04-explicit-compact-boundary.md`
 - `docs/learnings/2026-04-04-boundary-first-continuation-view.md`
+- `docs/learnings/2026-04-04-app-server-compact-boundary-event.md`
 - `docs/learnings/2026-04-04-memory-first-auto-compact.md`
 - `docs/learnings/2026-04-04-partial-compact-no-go.md`
 - `docs/learnings/2026-04-04-preserved-segment-metadata.md`

@@ -29,6 +29,9 @@
   - `packages/core/src/chat/context/contextDiagnostics.ts`
 - 已完成：preserved segment metadata 起点
   - `packages/core/src/chat/context/compact.ts`
+- 已完成：compact boundary app-server protocol 起点
+  - `packages/core/src/app-server/turnRunner.ts`
+  - `packages/core/src/features/semantics/adapters/turnNotificationCanonicalAdapter.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
@@ -149,9 +152,10 @@ Formax 当前：
 - 已有 metadata-only compact boundary event，可进入 persisted history / replay
 - 已有最小 boundary metadata，并能通过 diagnostics payload 读到最新 boundary
 - 已有最小 `preservedSegment` metadata（`continuationMessageCount`、`preservedTailMessageCount`、`summaryFingerprint`、`headFingerprint`、`tailFingerprint`），可用于最小 continuation 校验
+- app-server `turn/event` 已有 `compact_boundary` 协议事件，canonical adapter 可映射成 `system_message(uiKind="compact_boundary")`
 - 缺：
   - preserved segment relink
-  - transcript / session / remote 协议对齐
+  - session restore / remote 协议对齐
 
 ## D. compact 后恢复能力
 

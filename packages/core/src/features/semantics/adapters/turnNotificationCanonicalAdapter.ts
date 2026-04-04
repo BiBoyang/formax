@@ -30,7 +30,15 @@ const TURN_NOTIFICATION_CANONICAL_METHODS = new Set([
   'turn/inputRequested',
   'turn/inputResolved',
 ])
-const TURN_EVENT_STREAM_TYPES = new Set(['assistant_delta', 'thinking_delta', 'tool_start', 'tool_input', 'tool_update', 'tool_end'])
+export const TURN_EVENT_STREAM_TYPES = new Set([
+  'assistant_delta',
+  'compact_boundary',
+  'thinking_delta',
+  'tool_start',
+  'tool_input',
+  'tool_update',
+  'tool_end',
+])
 
 type TurnNotificationEnvelopeField = 'threadId' | 'turnId' | 'replaySeq' | 'eventId' | 'ts' | 'source' | 'schemaVersion'
 

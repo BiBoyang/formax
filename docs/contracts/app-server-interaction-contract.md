@@ -1,6 +1,6 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-04-03
+更新时间：2026-04-04
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
@@ -199,7 +199,7 @@ Canonical kind 集合（当前基线）：
 
 turn 通知到 canonical 的最小映射保证：
 
-- `turn/event`（`assistant_delta|thinking_delta|tool_start|tool_input|tool_update|tool_end`）映射为 1..N canonical 事件。
+- `turn/event`（`assistant_delta|compact_boundary|thinking_delta|tool_start|tool_input|tool_update|tool_end`）映射为 1..N canonical 事件。
 - `turn/completed` 固定映射为：
   1. `thinking_finalized`
   2. `turn_footer(status=completed)`
@@ -226,6 +226,10 @@ turn 通知到 canonical 的最小映射保证：
   - 服务端不对未知 `event.type` 做强校验，按原样透传给客户端。
   - 客户端必须以“可降级渲染”处理未知事件（至少保留原始 JSON 可见）。
   - `event` 的结构稳定性低于 envelope 字段，客户端不应把未知字段当作错误。
+- 当前 compact 相关最小协议事件：
+  - `event.type = "compact_boundary"`：表示当前 turn 产出了 compact boundary
+  - `event.boundary` SHOULD 暴露与 history snapshot 中一致的 `compactBoundary` metadata
+  - canonical adapter SHOULD 将该事件映射为 `system_message(uiKind="compact_boundary")`
 
 ## 3.3 turn/modeChanged
 

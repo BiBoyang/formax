@@ -6,6 +6,7 @@ import {
   estimateCompactRehydrationCost,
   isCompactBoundaryMessage,
   markCompactRehydrationApplied,
+  readCompactBoundaryMeta,
   rebuildHistoryAfterCompaction,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
@@ -682,6 +683,10 @@ export class TurnRunner {
             rehydrationCost: estimateCompactRehydrationCost(rehydration),
           },
         })
+        const compactBoundary = readCompactBoundaryMeta(nextHistoryForSnapshot[0] ?? null)
+        if (compactBoundary) {
+          emitStreamTurnEvent({ type: 'compact_boundary', boundary: compactBoundary })
+        }
         assistantText = COMPACT_BANNER_TEXT
         emitStreamTurnEvent({ type: 'assistant_delta', text: assistantText })
         await writer.appendEvent('compact_succeeded', {

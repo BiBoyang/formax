@@ -109,6 +109,59 @@ describe('turnNotificationCanonicalAdapter', () => {
     })
   })
 
+  it('maps turn/event compact_boundary into a compact-boundary system message', () => {
+    const events = toCanonicalEventsFromTurnNotification(
+      {
+        method: 'turn/event',
+        params: {
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          replaySeq: 20,
+          event: {
+            type: 'compact_boundary',
+            boundary: {
+              schemaVersion: 1,
+              trigger: 'auto',
+              preTokens: 1200,
+              summaryKind: 'session_memory',
+              keepStrategy: { kind: 'keep_combo', keepLastTurns: 2, keepMinTokens: 1200, keepMinUserTurns: 1 },
+            },
+          },
+        },
+      },
+      { fallbackThreadId: 'thread-fallback' },
+    )
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: 'system_message',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        replaySeq: 20,
+        role: 'assistant',
+        text: '',
+        uiKind: 'compact_boundary',
+        compactBoundary: expect.objectContaining({
+          schemaVersion: 1,
+          trigger: 'auto',
+          summaryKind: 'session_memory',
+        }),
+      }),
+    ])
+
+    const projection = events.reduce(
+      (state, event) => reduceTranscriptProjection(state, event),
+      createInitialTranscriptProjectionState({ threadId: 'thread-1' }),
+    )
+    expect(projection.segments).toHaveLength(1)
+    expect(projection.segments[0]).toMatchObject({
+      kind: 'system',
+      role: 'assistant',
+      text: '',
+      messageKind: 'compact_boundary',
+    })
+  })
+
   it('maps turn/failed to interrupted footer when message is abort-like', () => {
     const events = toCanonicalEventsFromTurnNotification(
       {

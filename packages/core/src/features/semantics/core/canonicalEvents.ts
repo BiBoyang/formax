@@ -1,5 +1,6 @@
 import type { InputKind, InputStatus } from '@formax/shared/inputContracts'
 import type { TokenUsage } from '@formax/shared/streaming'
+import type { PromptMessageMeta } from '../../../prompts/types'
 
 export type CanonicalEventSource = 'engine' | 'tool' | 'policy' | 'system' | 'ui'
 export const CANONICAL_EVENT_SCHEMA_VERSION = 1 as const
@@ -96,6 +97,7 @@ export type CanonicalSystemMessageEvent = CanonicalEventEnvelope & {
   role: 'assistant' | 'user'
   text: string
   uiKind?: CanonicalMessageUiKind
+  compactBoundary?: PromptMessageMeta['compactBoundary']
 }
 
 export type CanonicalEvent =

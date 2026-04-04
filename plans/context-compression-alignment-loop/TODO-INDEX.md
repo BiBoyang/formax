@@ -44,10 +44,6 @@
 
 ## Slice Group H: Cross-Surface / Protocol Parity
 
-- `CCA-070` 把 compact boundary 纳入 app-server 协议
-  - 目标：不是只有 `/context` 有结构化 payload，compact 事件本身也能被跨端识别
-  - 验收：app-server / Web 能识别 compact boundary 语义
-
 - `CCA-071` 把 compact boundary 纳入 session persistence / resume
   - 目标：resume 后 continuation view 和 compact 语义一致
   - 验收：session restore 有针对 boundary 的回归测试
@@ -58,6 +54,5 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-070`
-2. `CCA-071`
-3. `CCA-061`
+1. `CCA-071`
+2. `CCA-061`

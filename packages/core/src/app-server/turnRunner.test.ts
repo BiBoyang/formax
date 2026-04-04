@@ -1790,6 +1790,15 @@ describe('TurnRunner', () => {
         (n) =>
           n.method === 'turn/event' &&
           n.params?.turnId === compactStarted.turn.id &&
+          n.params?.event?.type === 'compact_boundary' &&
+          n.params?.event?.boundary?.summaryKind === 'model_summary',
+      ),
+    ).toBe(true)
+    expect(
+      notifications.some(
+        (n) =>
+          n.method === 'turn/event' &&
+          n.params?.turnId === compactStarted.turn.id &&
           n.params?.event?.type === 'assistant_delta' &&
           String(n.params?.event?.text ?? '').includes('Conversation compacted'),
       ),
