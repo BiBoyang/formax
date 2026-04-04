@@ -38,10 +38,6 @@
 
 ## Slice Group G: Higher-Order Compression
 
-- `CCA-060` 设计 partial compact 前置依赖检查
-  - 目标：先确认 boundary / relink / session restore 是否足够稳定
-  - 验收：有 go/no-go 清单，避免过早上 partial compact
-
 - `CCA-061` 实现 partial compact 最小版
   - 目标：只替换某个 boundary 之前的旧段，而不是整段重压
   - 验收：history 重构后 UI、session、resume 语义仍稳定
@@ -70,6 +66,8 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-060`
-2. `CCA-070`
-3. `CCA-071`
+1. `CCA-022`
+2. `CCA-023`
+3. `CCA-070`
+4. `CCA-071`
+5. `CCA-061`

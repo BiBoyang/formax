@@ -23,6 +23,8 @@
   - `packages/core/src/features/repl/sessionSave/sessionMemorySidecar.ts`
 - 已完成：memory-first auto compact
   - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
+- 已完成：partial compact go/no-go checklist
+  - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
 
 但从 Claude Code 的能力模型来看，Formax 仍然明显停留在“分层体系的前半段”。
 
@@ -261,8 +263,9 @@ Formax 当前：
 
 ### Stage 3：再做高阶压缩
 
-1. partial compact
-2. reactive compact
+1. 先按 `CCA-060` checklist 补齐 boundary-first prompt view / preserved segment / cross-surface protocol
+2. 再做 partial compact
+3. 最后做 reactive compact
 3. collapse / cache-aware layers
 
 ## 当前任务清单（唯一来源）
