@@ -63,6 +63,7 @@
 
 - app-server 接口对接手册：`docs/references/app-server-api-reference.md`
 - hooks payload / stdout 参考：`docs/references/hooks-payload-reference.md`
+- Claude Code 上下文压缩调研与 Formax 对照：`docs/references/claude-code-context-compression-research.md`
 
 ## 设计（Design）
 
