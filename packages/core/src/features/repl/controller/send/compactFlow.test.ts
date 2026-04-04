@@ -160,4 +160,32 @@ describe('runCompactFlow', () => {
       'Plan state to keep in working memory:',
     )
   })
+
+  it('uses keep_combo metadata for auto compact while preserving manual keep_last_turns behavior', async () => {
+    const out = await runCompactFlow(
+      baseArgs({
+        source: 'auto',
+        keepLastTurns: 2,
+        previousHistory: [
+          { role: 'user', content: [{ type: 'text', text: 'u1' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'a'.repeat(2400) }] },
+          { role: 'user', content: [{ type: 'text', text: 'u2' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'b'.repeat(5200) }] },
+          { role: 'user', content: [{ type: 'text', text: 'u3' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'c'.repeat(900) }] },
+        ] as ChatHistory,
+        engine: {
+          runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] }] as ChatHistory),
+        } as any,
+      }),
+    )
+
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.keepStrategy).toEqual({
+      kind: 'keep_combo',
+      keepLastTurns: 2,
+      keepMinTokens: 1200,
+      keepMinUserTurns: 1,
+    })
+    expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('u2')
+  })
 })

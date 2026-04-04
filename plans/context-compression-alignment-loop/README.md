@@ -57,10 +57,14 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 6. rehydration cost 可见性
    - compact boundary 现在会记录 `rehydrationCost`（`sectionCount`、`estimatedTokens`）。
    - `/context` text / JSON 与 app-server `local.diagnostics` 现在都能直接读到这层成本。
-7. `microcompact` turn-level metrics
+7. keep 策略第一版升级
+   - auto compact 不再只由固定 `keepLastTurns` 驱动。
+   - 当前 auto compact 会使用组合 keep 策略：`keepLastTurns + keepMinTokens + keepMinUserTurns`。
+   - 手动 `/compact` 仍保持 `keep_last_turns` 语义，先避免把用户显式触发的激进 compact 改得过大。
+8. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-8. 可观测性第一版
+9. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图
@@ -155,8 +159,8 @@ Claude Code：
 Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
-  - keepMinTokens
-  - keepMinUserTurns
+  - 当前只有 auto compact 用上 `keepMinTokens` / `keepMinUserTurns`
+  - manual compact 还没有组合 keep 策略
   - token-aware working-set 扩张
 
 ## F. session memory / rolling memory

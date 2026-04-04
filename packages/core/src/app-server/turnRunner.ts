@@ -662,7 +662,10 @@ export class TurnRunner {
         nextHistoryForSnapshot = rebuildHistoryAfterCompaction({
           summary,
           previousHistory: history,
-          keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+          keepStrategy: {
+            kind: 'keep_last_turns',
+            keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
+          },
           rehydration,
           boundaryMeta: {
             trigger: 'manual',

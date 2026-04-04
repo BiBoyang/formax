@@ -42,10 +42,17 @@ export type PromptMessageMeta = {
     trigger?: 'manual' | 'auto'
     preTokens?: number
     summaryKind?: 'model_summary'
-    keepStrategy?: {
-      kind: 'keep_last_turns'
-      keepLastTurns: number
-    }
+    keepStrategy?:
+      | {
+          kind: 'keep_last_turns'
+          keepLastTurns: number
+        }
+      | {
+          kind: 'keep_combo'
+          keepLastTurns: number
+          keepMinTokens: number
+          keepMinUserTurns: number
+        }
     rehydrationPlan?: {
       schemaVersion: 1
       items: Array<{

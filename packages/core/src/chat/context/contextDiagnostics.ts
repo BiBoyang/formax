@@ -402,6 +402,9 @@ function formatKeepStrategy(value: CompactBoundaryMeta['keepStrategy'] | null): 
   if (value.kind === 'keep_last_turns') {
     return `keep_last_turns(${formatInt(value.keepLastTurns)})`
   }
+  if (value.kind === 'keep_combo') {
+    return `keep_combo(turns=${formatInt(value.keepLastTurns)}, min_tokens=${formatInt(value.keepMinTokens)}, min_user_turns=${formatInt(value.keepMinUserTurns)})`
+  }
   return 'unknown'
 }
 

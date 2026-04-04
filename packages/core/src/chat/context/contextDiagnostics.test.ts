@@ -308,7 +308,7 @@ describe('contextDiagnostics', () => {
         trigger: 'manual',
         preTokens: 123,
         summaryKind: 'model_summary',
-        keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+        keepStrategy: { kind: 'keep_combo', keepLastTurns: 2, keepMinTokens: 1200, keepMinUserTurns: 1 },
         rehydrationPlan: {
           schemaVersion: 1,
           items: [
@@ -328,5 +328,6 @@ describe('contextDiagnostics', () => {
 
     expect(out).toContain('- Rehydration plan: recent_files(high/planned), plan_state(high/planned)')
     expect(out).toContain('- Rehydration cost: 2 sections / 48 tokens')
+    expect(out).toContain('- Keep strategy: keep_combo(turns=2, min_tokens=1,200, min_user_turns=1)')
   })
 })

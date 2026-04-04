@@ -4,13 +4,22 @@ import { estimatePromptTokens } from './estimate'
 const CONTINUED_SESSION_SUMMARY_PREFIX =
   'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:'
 const RECENT_FILES_REHYDRATION_PREFIX = 'Recent files to keep in working memory:'
+const AUTO_COMPACT_KEEP_MIN_TOKENS = 1200
+const AUTO_COMPACT_KEEP_MIN_USER_TURNS = 1
 
 export type CompactBoundaryTrigger = 'manual' | 'auto'
 export type CompactBoundarySummaryKind = 'model_summary'
-export type CompactBoundaryKeepStrategy = {
-  kind: 'keep_last_turns'
-  keepLastTurns: number
-}
+export type CompactBoundaryKeepStrategy =
+  | {
+      kind: 'keep_last_turns'
+      keepLastTurns: number
+    }
+  | {
+      kind: 'keep_combo'
+      keepLastTurns: number
+      keepMinTokens: number
+      keepMinUserTurns: number
+    }
 
 export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
 export type CompactRehydrationItemPriority = 'high' | 'medium'
@@ -82,15 +91,55 @@ function collectSuccessfulToolResultIds(messages: PromptMessage[]): Set<string> 
   return out
 }
 
-export function selectTailForCompaction(messages: PromptMessage[], keepLastTurns: number): PromptMessage[] {
-  const keep = Number.isFinite(keepLastTurns) ? Math.max(0, Math.floor(keepLastTurns)) : 0
-  if (keep <= 0 || messages.length === 0) return []
+export function buildAutoCompactKeepStrategy(keepLastTurns: number): CompactBoundaryKeepStrategy {
+  return {
+    kind: 'keep_combo',
+    keepLastTurns: clampCount(keepLastTurns),
+    keepMinTokens: AUTO_COMPACT_KEEP_MIN_TOKENS,
+    keepMinUserTurns: AUTO_COMPACT_KEEP_MIN_USER_TURNS,
+  }
+}
+
+export function selectTailForCompaction(
+  messages: PromptMessage[],
+  keepStrategy: number | CompactBoundaryKeepStrategy,
+): PromptMessage[] {
+  if (messages.length === 0) return []
 
   const userTurnIndices = findLastNonToolUserIndices(messages)
   if (userTurnIndices.length === 0) return []
 
-  const startUserIndex = userTurnIndices[Math.max(0, userTurnIndices.length - keep)] as number
-  return messages.slice(startUserIndex)
+  const strategy =
+    typeof keepStrategy === 'number'
+      ? ({
+          kind: 'keep_last_turns',
+          keepLastTurns: clampCount(keepStrategy),
+        } satisfies CompactBoundaryKeepStrategy)
+      : normalizeKeepStrategy(keepStrategy)
+
+  if (strategy.kind === 'keep_last_turns') {
+    if (strategy.keepLastTurns <= 0) return []
+    const startUserIndex = userTurnIndices[Math.max(0, userTurnIndices.length - strategy.keepLastTurns)] as number
+    return messages.slice(startUserIndex)
+  }
+
+  let startTurnPosition = userTurnIndices.length
+  const requiredTurns = Math.max(strategy.keepLastTurns, strategy.keepMinUserTurns)
+  if (requiredTurns > 0) {
+    startTurnPosition = Math.max(0, userTurnIndices.length - requiredTurns)
+  }
+
+  let tail = sliceTailFromUserTurn(messages, userTurnIndices, startTurnPosition)
+  while (
+    strategy.keepMinTokens > 0 &&
+    startTurnPosition > 0 &&
+    estimateHistoryTokens(tail) < strategy.keepMinTokens
+  ) {
+    startTurnPosition -= 1
+    tail = sliceTailFromUserTurn(messages, userTurnIndices, startTurnPosition)
+  }
+
+  return tail
 }
 
 export function collectRecentReadFilesForRehydration(messages: PromptMessage[], limit = 3): string[] {
@@ -306,7 +355,7 @@ export function isCompactionSummaryUserMessage(msg: PromptMessage): boolean {
 export function rebuildHistoryAfterCompaction(args: {
   summary: string
   previousHistory: PromptMessage[]
-  keepLastTurns: number
+  keepStrategy: CompactBoundaryKeepStrategy
   rehydration?: {
     recentFiles?: string[]
     modeText?: string | null
@@ -329,8 +378,43 @@ export function rebuildHistoryAfterCompaction(args: {
     content: [{ type: 'text', text: summaryText }] as any,
   }
 
-  const tail = selectTailForCompaction(args.previousHistory, args.keepLastTurns)
+  const tail = selectTailForCompaction(args.previousHistory, args.keepStrategy)
   return [buildCompactBoundaryMessage(args.boundaryMeta), summaryMsg, ...tail]
+}
+
+function estimateHistoryTokens(messages: PromptMessage[]): number {
+  if (messages.length === 0) return 0
+  return estimatePromptTokens({
+    system: [],
+    messages,
+  })
+}
+
+function sliceTailFromUserTurn(messages: PromptMessage[], userTurnIndices: number[], turnPosition: number): PromptMessage[] {
+  if (turnPosition >= userTurnIndices.length) return []
+  const startUserIndex = userTurnIndices[turnPosition]
+  return typeof startUserIndex === 'number' ? messages.slice(startUserIndex) : []
+}
+
+function normalizeKeepStrategy(value: CompactBoundaryKeepStrategy): CompactBoundaryKeepStrategy {
+  if (value.kind === 'keep_last_turns') {
+    return {
+      kind: 'keep_last_turns',
+      keepLastTurns: clampCount(value.keepLastTurns),
+    }
+  }
+
+  return {
+    kind: 'keep_combo',
+    keepLastTurns: clampCount(value.keepLastTurns),
+    keepMinTokens: clampCount(value.keepMinTokens),
+    keepMinUserTurns: clampCount(value.keepMinUserTurns),
+  }
+}
+
+function clampCount(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.floor(value!))
 }
 
 function buildRehydrationSuffix(args: {

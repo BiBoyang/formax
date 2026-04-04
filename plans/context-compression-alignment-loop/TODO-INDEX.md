@@ -36,10 +36,6 @@
 
 ## Slice Group E: Keep Strategy Upgrade
 
-- `CCA-040` 从固定 `keepLastTurns` 升级为组合 keep 策略
-  - 目标：支持 `keepLastTurns + keepMinTokens + keepMinUserTurns`
-  - 验收：compact tail 选择不再只由固定 turn 数驱动
-
 - `CCA-041` 引入最小工作集选择器
   - 目标：tail 选择更接近“继续工作所需最小上下文”
   - 验收：对长会话和短会话都更稳定，不会无意义保留或过早丢失关键上下文
@@ -92,7 +88,7 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-040`
+1. `CCA-041`
 2. `CCA-050`
 3. `CCA-060`
 4. `CCA-070`

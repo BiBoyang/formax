@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import {
+  buildAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
@@ -75,6 +76,46 @@ describe('selectTailForCompaction', () => {
     expect(selectTailForCompaction(history, Number.POSITIVE_INFINITY)).toEqual([])
     expect(selectTailForCompaction(history, 99)).toEqual(history)
   })
+
+  it('expands the tail backward until keep_combo reaches its minimum token floor', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'u1'),
+      txt('assistant', 'a'.repeat(400)),
+      txt('user', 'u2'),
+      txt('assistant', 'b'.repeat(3200)),
+      txt('user', 'u3'),
+      txt('assistant', 'c'.repeat(400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 800,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['u2', 'b'.repeat(3200), 'u3', 'c'.repeat(400)])
+  })
+
+  it('respects keepMinUserTurns even when keepLastTurns is zero', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'u1'),
+      txt('assistant', 'a1'),
+      txt('user', 'u2'),
+      txt('assistant', 'a2'),
+      txt('user', 'u3'),
+      txt('assistant', 'a3'),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 0,
+      keepMinTokens: 0,
+      keepMinUserTurns: 2,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['u2', 'a2', 'u3', 'a3'])
+  })
 })
 
 describe('rebuildHistoryAfterCompaction', () => {
@@ -87,7 +128,7 @@ describe('rebuildHistoryAfterCompaction', () => {
     const next = rebuildHistoryAfterCompaction({
       summary: 'S',
       previousHistory: previous,
-      keepLastTurns: 1,
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
       boundaryMeta: {
         trigger: 'manual',
         preTokens: 321,
@@ -158,6 +199,15 @@ describe('compaction summary helpers', () => {
         { kind: 'recent_files', priority: 'high', status: 'planned' },
         { kind: 'todo_state', priority: 'high', status: 'planned' },
       ],
+    })
+  })
+
+  it('builds a default auto-compact keep strategy with token and user-turn floors', () => {
+    expect(buildAutoCompactKeepStrategy(4)).toEqual({
+      kind: 'keep_combo',
+      keepLastTurns: 4,
+      keepMinTokens: 1200,
+      keepMinUserTurns: 1,
     })
   })
 

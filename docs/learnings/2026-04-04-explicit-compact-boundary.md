@@ -9,6 +9,10 @@
   - `preTokens`
   - `summaryKind`
   - `keepStrategy`
+- `keepStrategy` 不再只能表达固定 `keep_last_turns`。
+  - 当前 auto compact 已开始使用 `keep_combo`
+  - 形态是 `keepLastTurns + keepMinTokens + keepMinUserTurns`
+  - 手动 `/compact` 仍保持 `keep_last_turns`
 - boundary 现在还可以携带一个轻量 `rehydrationPlan`，先声明 compact 后哪些状态需要优先补回：
   - `recent_files`
   - `plan_state`
@@ -42,4 +46,4 @@
 
 ## Follow-ups
 
-- 下一步是 `CCA-006`：继续评估更安全的附加 text block 压缩边界，避免在更复杂的用户内容上过早做高风险 microcompact。
+- 下一步是 `CCA-041`：在 `keep_combo` 起点之上继续演进最小工作集选择器，不只盯着 token 数和 user turn 数，还要更接近“继续工作真正需要的上下文”。

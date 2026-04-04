@@ -34,10 +34,20 @@ const promptMessageSchema = z
             trigger: z.enum(['manual', 'auto']).optional(),
             preTokens: z.number().optional(),
             summaryKind: z.literal('model_summary').optional(),
-            keepStrategy: z.object({
-              kind: z.literal('keep_last_turns'),
-              keepLastTurns: z.number(),
-            }).optional(),
+            keepStrategy: z
+              .union([
+                z.object({
+                  kind: z.literal('keep_last_turns'),
+                  keepLastTurns: z.number(),
+                }),
+                z.object({
+                  kind: z.literal('keep_combo'),
+                  keepLastTurns: z.number(),
+                  keepMinTokens: z.number(),
+                  keepMinUserTurns: z.number(),
+                }),
+              ])
+              .optional(),
             rehydrationPlan: z.object({
               schemaVersion: z.literal(1),
               items: z.array(
