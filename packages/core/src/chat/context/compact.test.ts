@@ -8,7 +8,9 @@ import {
   buildCompactionSummaryUserText,
   continuationMatchesPreservedSegment,
   collectRecentReadFilesForRehydration,
+  countNonToolUserTurns,
   estimateCompactRehydrationCost,
+  findLatestCompactBoundary,
   findLatestCompactBoundaryIndex,
   getContinuationMessagesAfterLatestCompactBoundary,
   isCompactBoundaryMessage,
@@ -503,5 +505,81 @@ describe('compaction summary helpers', () => {
         content: [{ type: 'text', text: '<system-reminder>   </system-reminder>' }] as any,
       }),
     ).toBe(false)
+  })
+})
+
+describe('CompactTriggerReason in boundary messages', () => {
+  it('embeds triggerReason in boundary meta when provided', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold', detail: 'used=5000 limit=4000' },
+      preTokens: 5000,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+    })
+    const meta = boundary.meta?.compactBoundary as any
+    expect(meta?.triggerReason).toEqual({ kind: 'auto_threshold', detail: 'used=5000 limit=4000' })
+  })
+
+  it('omits triggerReason from boundary meta when not provided (backward compat)', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 1000,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+    })
+    const meta = boundary.meta?.compactBoundary as any
+    expect(meta?.triggerReason).toBeUndefined()
+  })
+
+  it('findLatestCompactBoundary returns triggerReason when present', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'HTTP 413' },
+      preTokens: 999,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+    })
+    const history = [boundary, txt('user', 'hi')]
+    const found = findLatestCompactBoundary(history)
+    expect(found?.triggerReason).toEqual({ kind: 'reactive_error', detail: 'HTTP 413' })
+  })
+
+  it('findLatestCompactBoundary handles old boundaries without triggerReason gracefully', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 100,
+      summaryKind: 'session_memory',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+    })
+    const history = [boundary]
+    const found = findLatestCompactBoundary(history)
+    expect(found?.trigger).toBe('auto')
+    expect(found?.triggerReason).toBeUndefined()
+  })
+})
+
+describe('countNonToolUserTurns', () => {
+  it('counts only non-tool user turns', () => {
+    const history = [
+      txt('user', 'hello'),
+      txt('assistant', 'world'),
+      { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 'x', content: [] }] as any },
+      txt('user', 'second real turn'),
+    ]
+    expect(countNonToolUserTurns(history)).toBe(2)
+  })
+
+  it('returns 0 for empty history', () => {
+    expect(countNonToolUserTurns([])).toBe(0)
+  })
+
+  it('skips compaction summary messages', () => {
+    const summary = txt(
+      'user',
+      'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\nsome summary',
+    )
+    const history = [summary, txt('user', 'real turn')]
+    expect(countNonToolUserTurns(history)).toBe(1)
   })
 })

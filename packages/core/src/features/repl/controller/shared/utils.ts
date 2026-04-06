@@ -1,7 +1,9 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { TokenUsage } from '../../../../streaming/types'
-import { isCompactionSummaryUserMessage } from '../../../../chat/context/compact'
+import { countNonToolUserTurns as countNonToolUserTurnsFromCompact } from '../../../../chat/context/compact'
 import { isExactSlashCommand as isExactSlashCommandFromRouting } from '../../../semantics/core/commandRouting'
+
+export { countNonToolUserTurnsFromCompact as countNonToolUserTurns }
 
 export const isExactSlashCommand = isExactSlashCommandFromRouting
 
@@ -61,21 +63,6 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`
 }
 
-export function countNonToolUserTurns(history: ChatHistory): number {
-  let n = 0
-  for (const msg of history) {
-    if (!msg || msg.role !== 'user') continue
-    if (isCompactionSummaryUserMessage(msg)) continue
-    const content = (msg as any).content
-    if (!Array.isArray(content)) {
-      n++
-      continue
-    }
-    const hasToolResult = content.some((b: any) => b?.type === 'tool_result')
-    if (!hasToolResult) n++
-  }
-  return n
-}
 
 export function extractAssistantText(history: ChatHistory): string {
   for (let i = history.length - 1; i >= 0; i--) {

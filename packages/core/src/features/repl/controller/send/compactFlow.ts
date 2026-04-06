@@ -6,6 +6,7 @@ import {
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   resolveHistoryForCompaction,
+  type CompactTriggerReason,
 } from '../../../../chat/context/compact'
 import type { ContextBudgetConfig } from '../../../../chat/context/budget'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
@@ -28,6 +29,7 @@ export type CompactFlowResult = {
 
 export async function runCompactFlow(args: {
   source: 'manual' | 'auto' | 'reactive'
+  triggerReason?: CompactTriggerReason
   instructions: string
   engine: ChatEngine
   previousHistory: ChatHistory
@@ -122,6 +124,7 @@ export async function runCompactFlow(args: {
         rehydration,
         boundaryMeta: {
           trigger: args.source,
+          ...(args.triggerReason ? { triggerReason: args.triggerReason } : {}),
           preTokens: estimatePromptTokens({
             system: args.system,
             messages: args.previousHistory,

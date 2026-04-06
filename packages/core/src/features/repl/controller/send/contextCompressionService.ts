@@ -7,6 +7,7 @@ import {
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   resolveHistoryForCompaction,
+  type CompactTriggerReason,
 } from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
@@ -143,6 +144,7 @@ export function createContextCompressionService(deps: {
 
   const tryRunSessionMemoryCompact = async (args: {
     source: 'auto' | 'reactive'
+    triggerReason?: CompactTriggerReason
     previousHistory: ChatHistory
     keepLastTurns: number
     system: PromptBlock[]
@@ -205,6 +207,7 @@ export function createContextCompressionService(deps: {
         rehydration,
         boundaryMeta: {
           trigger: args.source,
+          ...(args.triggerReason ? { triggerReason: args.triggerReason } : {}),
           preTokens: estimatePromptTokens({
             system: args.system,
             messages: args.previousHistory,
@@ -271,8 +274,13 @@ export function createContextCompressionService(deps: {
 
         if (stats.shouldAutoCompact) {
           try {
+            const autoTriggerReason: CompactTriggerReason = {
+              kind: 'auto_threshold',
+              detail: `used=${stats.usedTokens} limit=${stats.autoCompactLimitTokens}`,
+            }
             const sessionMemoryCompactedHistory = await tryRunSessionMemoryCompact({
               source: 'auto',
+              triggerReason: autoTriggerReason,
               previousHistory: nextHistory,
               keepLastTurns: deps.cfg.context.compactKeepLastTurns,
               system: args.system,
@@ -282,6 +290,7 @@ export function createContextCompressionService(deps: {
               (
                 await runCompactFlow({
                   source: 'auto',
+                  triggerReason: autoTriggerReason,
                   instructions: '',
                   engine: deps.engine,
                   previousHistory: nextHistory,
@@ -378,6 +387,7 @@ export function createContextCompressionService(deps: {
     }> {
       const compactResult = await runCompactFlow({
         source: 'manual',
+        triggerReason: { kind: 'manual' },
         instructions: args.instructions,
         engine: deps.engine,
         previousHistory: args.previousHistory,
@@ -420,6 +430,7 @@ export function createContextCompressionService(deps: {
       previousHistory: ChatHistory
       user: PromptMessage
       system: PromptBlock[]
+      triggerReason?: CompactTriggerReason
     }): Promise<{
       history: ChatHistory
       user: PromptMessage
@@ -427,6 +438,7 @@ export function createContextCompressionService(deps: {
     }> {
       const sessionMemoryCompactedHistory = await tryRunSessionMemoryCompact({
         source: 'reactive',
+        triggerReason: args.triggerReason,
         previousHistory: args.previousHistory,
         keepLastTurns: deps.cfg.context.compactKeepLastTurns,
         system: args.system,
@@ -436,6 +448,7 @@ export function createContextCompressionService(deps: {
         (
           await runCompactFlow({
             source: 'reactive',
+            triggerReason: args.triggerReason,
             instructions: '',
             engine: deps.engine,
             previousHistory: args.previousHistory,

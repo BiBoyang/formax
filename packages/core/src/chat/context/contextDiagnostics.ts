@@ -8,6 +8,7 @@ import { pruneForPromptBudget } from './prune'
 import {
   buildAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
+  countNonToolUserTurns,
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
@@ -66,6 +67,8 @@ export type NextTurnFixedContextDiagnostics = {
   remainingToEffectiveLimit: number | null
   remainingToAutoCompactLimit: number | null
   shouldAutoCompact: boolean | null
+  autoCompactSkipReason: string | null
+  pruneSkipReason: string | null
   topAssembledContributors: ContextContributor[]
 }
 
@@ -103,6 +106,7 @@ const DEFAULT_CONTEXT_DIAGNOSTICS_NOTES = [
   'Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
   'When compact boundaries exist, snapshot/history analysis uses the latest compact-boundary continuation view instead of the full persisted history.',
   'Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
+  'Auto-compact skip reason omits the turn-gap precondition (sendSeq vs lastAutoCompactSeq) — that runtime state is unavailable to diagnostics.',
 ] as const
 
 const TOP_CONTRIBUTOR_LIMIT = 5
@@ -166,6 +170,39 @@ export function analyzeContextDiagnostics(args: {
   }
 }
 
+function deriveAutoCompactSkipReason(args: {
+  enableAutoCompact: boolean | undefined
+  budgetConfig: ContextBudgetConfig | null
+  microCompactedHistory: PromptMessage[]
+  totalTokensBeforePrune: number
+}): string | null {
+  if (!args.enableAutoCompact) return 'auto-compact disabled (enableAutoCompact=false)'
+  if (!args.budgetConfig) return 'contextWindowTokens unknown'
+  if (args.microCompactedHistory.length === 0) return 'history is empty'
+  const nonToolTurns = countNonToolUserTurns(args.microCompactedHistory)
+  if (nonToolTurns < 2) return `fewer than 2 non-tool user turns (got ${nonToolTurns})`
+  // Note: turn-gap precondition (sendSeq vs lastAutoCompactSeq) is runtime state — not available here
+  const stats = computeContextStats({ config: args.budgetConfig, usedTokens: args.totalTokensBeforePrune })
+  if (!stats.shouldAutoCompact) {
+    return `below threshold (used=${stats.usedTokens} limit=${stats.autoCompactLimitTokens})`
+  }
+  return null
+}
+
+function derivePruneSkipReason(args: {
+  budgetConfig: ContextBudgetConfig | null
+  totalTokensBeforePrune: number
+  totalTokensAfterPrune: number
+}): string | null {
+  if (!args.budgetConfig) return 'contextWindowTokens unknown — cannot evaluate prune threshold'
+  const budget = computeContextBudget(args.budgetConfig)
+  if (args.totalTokensBeforePrune <= budget.effectiveLimitTokens) {
+    return `within effective limit (used=${args.totalTokensBeforePrune} limit=${budget.effectiveLimitTokens})`
+  }
+  if (args.totalTokensAfterPrune < args.totalTokensBeforePrune) return null
+  return `pre-prune prompt exceeded effective limit but prune made no reduction (used=${args.totalTokensBeforePrune} limit=${budget.effectiveLimitTokens})`
+}
+
 export function analyzeNextTurnFixedContext(args: {
   system: PromptBlock[]
   messages: PromptMessage[]
@@ -175,6 +212,7 @@ export function analyzeNextTurnFixedContext(args: {
   mode: string
   planPath?: string | null
   keepLastTurns?: number
+  enableAutoCompact?: boolean
 }): NextTurnFixedContextDiagnostics {
   const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const fixedGroups = args.fixedGroups
@@ -195,6 +233,7 @@ export function analyzeNextTurnFixedContext(args: {
       : null
 
   const rawPreparedMessages = fixedUserMessage ? [...microCompactedHistory, fixedUserMessage] : [...microCompactedHistory]
+  const totalTokensBeforePrune = estimatePromptTokens({ system: args.system, messages: rawPreparedMessages })
   const preparedMessages = args.budgetConfig
     ? pruneForPromptBudget({
         system: args.system,
@@ -255,6 +294,17 @@ export function analyzeNextTurnFixedContext(args: {
     remainingToEffectiveLimit: budget ? Math.max(0, budget.effectiveLimitTokens - totalTokens) : null,
     remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
     shouldAutoCompact: stats?.shouldAutoCompact ?? null,
+    autoCompactSkipReason: deriveAutoCompactSkipReason({
+      enableAutoCompact: args.enableAutoCompact,
+      budgetConfig: args.budgetConfig ?? null,
+      microCompactedHistory,
+      totalTokensBeforePrune,
+    }),
+    pruneSkipReason: derivePruneSkipReason({
+      budgetConfig: args.budgetConfig ?? null,
+      totalTokensBeforePrune,
+      totalTokensAfterPrune: totalTokens,
+    }),
     topAssembledContributors: buildTopAssembledContributors({
       system: args.system,
       projectedHistory,
@@ -345,6 +395,7 @@ export function buildContextDiagnosticsPayload(args: {
     mode: args.mode,
     planPath: args.planPath ?? null,
     keepLastTurns: args.cfg.context.compactKeepLastTurns,
+    enableAutoCompact: args.cfg.context.enableAutoCompact,
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
@@ -384,6 +435,8 @@ export function formatContextDiagnosticsReport(args: {
     '',
     'Latest compact boundary',
     `- Trigger: ${args.latestCompactBoundary?.trigger ?? 'none'}`,
+    `- Trigger reason kind: ${args.latestCompactBoundary?.triggerReason?.kind ?? 'none'}`,
+    `- Trigger reason detail: ${args.latestCompactBoundary?.triggerReason?.detail ?? 'none'}`,
     `- Pre-compact tokens: ${formatMaybeInt(args.latestCompactBoundary?.preTokens ?? null)}`,
     `- Summary kind: ${args.latestCompactBoundary?.summaryKind ?? 'none'}`,
     `- Keep strategy: ${formatKeepStrategy(args.latestCompactBoundary?.keepStrategy ?? null)}`,
@@ -439,6 +492,8 @@ export function formatContextDiagnosticsReport(args: {
     `- Remaining to effective limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToEffectiveLimit ?? null)}`,
     `- Remaining to auto-compact limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToAutoCompactLimit ?? null)}`,
     `- Auto-compact would trigger before future user text: ${formatMaybeBool(args.nextTurn?.shouldAutoCompact ?? null)}`,
+    `- Auto-compact skip reason: ${args.nextTurn?.autoCompactSkipReason === null ? 'none (visible preconditions met)' : (args.nextTurn?.autoCompactSkipReason ?? 'unknown')}`,
+    `- Prune skip reason: ${args.nextTurn?.pruneSkipReason === null ? 'none (prune applied)' : (args.nextTurn?.pruneSkipReason ?? 'unknown')}`,
     '',
     'Lifecycle markers before future user text',
     ...formatLifecycleMarkers(args.nextTurn?.lifecycleMarkers ?? []),

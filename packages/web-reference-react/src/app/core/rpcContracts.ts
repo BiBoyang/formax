@@ -82,9 +82,15 @@ export type RpcCompactPreservedSegment = {
   tailFingerprint: string | null
 }
 
+export type RpcCompactTriggerReason = {
+  kind: 'auto_threshold' | 'manual' | 'reactive_error'
+  detail?: string
+}
+
 export type RpcLatestCompactBoundary = {
   schemaVersion: 1
   trigger?: 'manual' | 'auto' | 'reactive'
+  triggerReason?: RpcCompactTriggerReason
   preTokens?: number
   summaryKind?: 'model_summary' | 'session_memory'
   keepStrategy?: RpcCompactBoundaryKeepStrategy
@@ -129,6 +135,8 @@ export type RpcNextTurnFixedContextDiagnostics = {
   remainingToEffectiveLimit: number | null
   remainingToAutoCompactLimit: number | null
   shouldAutoCompact: boolean | null
+  autoCompactSkipReason?: string | null
+  pruneSkipReason?: string | null
   topAssembledContributors: RpcContextContributor[]
 }
 
@@ -358,6 +366,18 @@ function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | nu
   return rows
 }
 
+function parseCompactTriggerReason(value: unknown): RpcCompactTriggerReason | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const kind =
+    record.kind === 'auto_threshold' || record.kind === 'manual' || record.kind === 'reactive_error'
+      ? record.kind
+      : null
+  const detail = typeof record.detail === 'string' && record.detail.trim() ? record.detail : undefined
+  if (!kind) return null
+  return detail ? { kind, detail } : { kind }
+}
+
 function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsSnapshot | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -458,6 +478,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
   if (record.lifecycleMarkers != null && !lifecycleMarkers) return null
   const topAssembledContributors = parseContributors(record.topAssembledContributors)
+  const autoCompactSkipReason = parseOptionalNullableStringField(record, 'autoCompactSkipReason')
+  const pruneSkipReason = parseOptionalNullableStringField(record, 'pruneSkipReason')
   const projectedHistoryTokens = asFiniteNumber(record.projectedHistoryTokens)
   const projectedHistoryDeltaTokens = asFiniteNumber(record.projectedHistoryDeltaTokens)
   const fixedTokens = asFiniteNumber(record.fixedTokens)
@@ -465,6 +487,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   if (
     !microCompactImpact ||
     !topAssembledContributors ||
+    !autoCompactSkipReason ||
+    !pruneSkipReason ||
     projectedHistoryTokens == null ||
     projectedHistoryDeltaTokens == null ||
     fixedTokens == null ||
@@ -487,6 +511,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     remainingToEffectiveLimit: remainingToEffectiveLimit.value,
     remainingToAutoCompactLimit: remainingToAutoCompactLimit.value,
     shouldAutoCompact: shouldAutoCompact.value,
+    ...(autoCompactSkipReason.present ? { autoCompactSkipReason: autoCompactSkipReason.value } : {}),
+    ...(pruneSkipReason.present ? { pruneSkipReason: pruneSkipReason.value } : {}),
     topAssembledContributors,
   }
 }
@@ -500,6 +526,8 @@ function parseLatestCompactBoundary(value: unknown): RpcLatestCompactBoundary | 
   const rehydrationPlan = parseRehydrationPlan(record.rehydrationPlan)
   const rehydrationCost = parseRehydrationCost(record.rehydrationCost)
   const preservedSegment = parsePreservedSegment(record.preservedSegment)
+  const triggerReason = record.triggerReason == null ? undefined : parseCompactTriggerReason(record.triggerReason)
+  if (record.triggerReason != null && !triggerReason) return null
   const trigger =
     record.trigger === 'manual' || record.trigger === 'auto' || record.trigger === 'reactive' ? record.trigger : undefined
   const summaryKind =
@@ -510,6 +538,7 @@ function parseLatestCompactBoundary(value: unknown): RpcLatestCompactBoundary | 
   return {
     schemaVersion: 1,
     ...(trigger ? { trigger } : {}),
+    ...(triggerReason ? { triggerReason } : {}),
     ...(asFiniteNumber(record.preTokens) != null ? { preTokens: asFiniteNumber(record.preTokens)! } : {}),
     ...(summaryKind ? { summaryKind } : {}),
     ...(keepStrategy ? { keepStrategy } : {}),
@@ -548,6 +577,16 @@ function parseRequiredNullableNumber(value: unknown): { value: number | null } |
 function parseRequiredNullableBoolean(value: unknown): { value: boolean | null } | null {
   if (value === null) return { value: null }
   return typeof value === 'boolean' ? { value } : null
+}
+
+function parseOptionalNullableStringField(
+  record: Record<string, unknown>,
+  key: string,
+): { present: boolean; value: string | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
+  const value = record[key]
+  if (value === null) return { present: true, value: null }
+  return typeof value === 'string' ? { present: true, value } : null
 }
 
 function parseKeepStrategy(value: unknown): RpcCompactBoundaryKeepStrategy | null {

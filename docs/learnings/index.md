@@ -50,6 +50,7 @@
 - `docs/learnings/2026-04-05-reactive-compact-mvp.md`
 - `docs/learnings/2026-04-06-per-system-section-diagnostics.md`
 - `docs/learnings/2026-04-06-context-lifecycle-markers.md`
+- `docs/learnings/2026-04-06-compact-prune-trigger-reasons.md`
 
 ## Web Reference Runtime / Performance
 

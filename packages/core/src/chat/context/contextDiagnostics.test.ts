@@ -235,6 +235,7 @@ describe('contextDiagnostics', () => {
       cwd: '/repo',
       mode: 'plan',
       planPath: null,
+      enableAutoCompact: true,
       system: [{ type: 'text', text: 'system instructions' }],
       messages: [
         {
@@ -306,6 +307,8 @@ describe('contextDiagnostics', () => {
     expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
     expect(out.topAssembledContributors.length).toBeGreaterThan(0)
     expect(out.topAssembledContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
+    expect(out.autoCompactSkipReason).toBe('fewer than 2 non-tool user turns (got 0)')
+    expect(out.pruneSkipReason).toContain('within effective limit')
   })
 
   it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {
@@ -471,6 +474,10 @@ describe('contextDiagnostics', () => {
       messages: [
         buildCompactBoundaryMessage({
           trigger: 'auto',
+          triggerReason: {
+            kind: 'auto_threshold',
+            detail: 'used=9000 limit=8500',
+          },
           preTokens: 88,
           summaryKind: 'model_summary',
           keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 4 },
@@ -504,6 +511,10 @@ describe('contextDiagnostics', () => {
     expect(parsed.latestCompactBoundary).toMatchObject({
       schemaVersion: 1,
       trigger: 'auto',
+      triggerReason: {
+        kind: 'auto_threshold',
+        detail: 'used=9000 limit=8500',
+      },
       preTokens: 88,
       summaryKind: 'model_summary',
       keepStrategy: {
@@ -543,6 +554,10 @@ describe('contextDiagnostics', () => {
       'post_prune',
       'post_compact',
     ])
+    expect(typeof parsed.nextTurnFixed.autoCompactSkipReason).toBe('string')
+    expect(parsed.nextTurnFixed.autoCompactSkipReason).toContain('history is empty')
+    expect(typeof parsed.nextTurnFixed.pruneSkipReason).toBe('string')
+    expect(parsed.nextTurnFixed.pruneSkipReason).toContain('within effective limit')
     expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
       compactedBlocks: 0,
       compactedToolNames: [],
@@ -603,5 +618,166 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Rehydration cost: 2 sections / 48 tokens')
     expect(out).toContain('- Preserved segment: continuation=3, preserved_tail=2, head=head-abc, tail=tail-abc')
     expect(out).toContain('- Keep strategy: keep_combo(turns=2, min_tokens=1,200, min_user_turns=1)')
+  })
+})
+
+describe('autoCompactSkipReason and pruneSkipReason', () => {
+  const system: PromptBlock[] = [{ type: 'text', text: 'sys' }]
+
+  function userMsg(text: string): PromptMessage {
+    return { role: 'user', content: [{ type: 'text', text }] as any }
+  }
+
+  function assistantMsg(): PromptMessage {
+    return { role: 'assistant', content: [{ type: 'text', text: 'ok' }] as any }
+  }
+
+  const twoTurnMessages: PromptMessage[] = [
+    userMsg('turn 1'), assistantMsg(),
+    userMsg('turn 2'), assistantMsg(),
+  ]
+
+  const budget = {
+    contextWindowTokens: 10_000,
+    effectiveContextWindowPercent: 0.9,
+    autoCompactLimitPercent: 0.7,
+    baselineTokens: 0,
+  }
+
+  it('returns skip reason when enableAutoCompact is false', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], enableAutoCompact: false, budgetConfig: budget,
+    })
+    expect(out.autoCompactSkipReason).toMatch(/disabled/)
+  })
+
+  it('returns skip reason when budgetConfig is null', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], enableAutoCompact: true, budgetConfig: null,
+    })
+    expect(out.autoCompactSkipReason).toMatch(/contextWindowTokens unknown/)
+  })
+
+  it('returns skip reason when history has fewer than 2 non-tool user turns', () => {
+    const oneUserTurn: PromptMessage[] = [userMsg('only one')]
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: oneUserTurn,
+      fixedGroups: [], enableAutoCompact: true, budgetConfig: budget,
+    })
+    expect(out.autoCompactSkipReason).toMatch(/fewer than 2/)
+  })
+
+  it('returns below-threshold skip reason when tokens are well under the auto-compact limit', () => {
+    // With contextWindow=10000, autoCompactLimit=70% → 7000. twoTurnMessages tokens are tiny.
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], enableAutoCompact: true, budgetConfig: budget,
+    })
+    expect(out.autoCompactSkipReason).toMatch(/below threshold/)
+  })
+
+  it('returns null autoCompactSkipReason when all conditions pass', () => {
+    const largeMessages: PromptMessage[] = [
+      userMsg('turn 1'),
+      { role: 'assistant', content: [{ type: 'text', text: 'A'.repeat(25_000) }] as any },
+      userMsg('turn 2'),
+      { role: 'assistant', content: [{ type: 'text', text: 'B'.repeat(25_000) }] as any },
+    ]
+    // Pre-prune assembled total is above the auto-compact threshold, but prune pulls the final
+    // assembled view back down. Diagnostics should still report that visible auto-compact
+    // preconditions are met, because runtime checks the threshold before prune.
+    const tinyBudget = {
+      contextWindowTokens: 10_000,
+      effectiveContextWindowPercent: 0.95,
+      autoCompactLimitPercent: 0.9,
+      baselineTokens: 1_000,
+    }
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: largeMessages,
+      fixedGroups: [], enableAutoCompact: true, budgetConfig: tinyBudget,
+    })
+    expect(out.autoCompactSkipReason).toBeNull()
+    expect(out.shouldAutoCompact).toBe(false)
+  })
+
+  it('pruneSkipReason is non-null (tokens within limit) under normal budget', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], budgetConfig: budget,
+    })
+    expect(out.pruneSkipReason).toMatch(/within effective limit/)
+  })
+
+  it('pruneSkipReason is null when tokens exceed effective limit', () => {
+    const largeMessages: PromptMessage[] = [
+      userMsg('turn 1'),
+      { role: 'assistant', content: [{ type: 'text', text: 'A'.repeat(25_000) }] as any },
+      userMsg('turn 2'),
+      { role: 'assistant', content: [{ type: 'text', text: 'B'.repeat(25_000) }] as any },
+    ]
+    const tinyBudget = {
+      contextWindowTokens: 10_000,
+      effectiveContextWindowPercent: 0.95,
+      autoCompactLimitPercent: 0.9,
+      baselineTokens: 1_000,
+    }
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: largeMessages,
+      fixedGroups: [], budgetConfig: tinyBudget,
+    })
+    expect(out.pruneSkipReason).toBeNull()
+  })
+
+  it('pruneSkipReason is non-null string when budgetConfig is null', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], budgetConfig: null,
+    })
+    expect(out.pruneSkipReason).toMatch(/contextWindowTokens unknown/)
+  })
+
+  it('text report contains trigger reason kind and detail lines', () => {
+    const report = formatContextDiagnosticsReport({
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'auto',
+        triggerReason: { kind: 'auto_threshold', detail: 'used=5000 limit=4000' },
+      },
+      diagnostics: analyzeContextDiagnostics({ system, messages: [] }),
+      mode: 'normal',
+      model: 'test-model',
+    })
+    expect(report).toContain('- Trigger reason kind: auto_threshold')
+    expect(report).toContain('- Trigger reason detail: used=5000 limit=4000')
+  })
+
+  it('text report shows "none" for trigger reason when no compact boundary', () => {
+    const report = formatContextDiagnosticsReport({
+      latestCompactBoundary: null,
+      diagnostics: analyzeContextDiagnostics({ system, messages: [] }),
+      mode: 'normal',
+      model: 'test-model',
+    })
+    expect(report).toContain('- Trigger reason kind: none')
+    expect(report).toContain('- Trigger reason detail: none')
+  })
+
+  it('text report contains auto-compact skip reason and prune skip reason lines', () => {
+    const nextTurnData = analyzeNextTurnFixedContext({
+      cwd: '/repo', mode: 'normal', system, messages: twoTurnMessages,
+      fixedGroups: [], enableAutoCompact: false, budgetConfig: budget,
+    })
+    const report = formatContextDiagnosticsReport({
+      diagnostics: analyzeContextDiagnostics({ system, messages: twoTurnMessages }),
+      nextTurn: nextTurnData,
+      mode: 'normal',
+      model: 'test-model',
+    })
+    expect(report).toContain('- Auto-compact skip reason:')
+    expect(report).toContain('disabled')
+    expect(report).toContain('- Prune skip reason:')
+    expect(report).toContain('within effective limit')
   })
 })

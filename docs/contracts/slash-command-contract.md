@@ -116,6 +116,8 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 10. 当 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误时，客户端 MUST 将整个 diagnostics payload 视为不可用，而不是继续做 loose partial parsing
 11. snapshot text diagnostics SHOULD 额外展示 `System prompt breakdown`；当前 system prompt 至少会按 `Identity`、heading 前 `Preamble`、以及顶层 `# section` 做 breakdown，避免把 system 只当成单个黑盒 contributor
 12. `nextTurnFixed` diagnostics payload SHOULD 暴露 `lifecycleMarkers`，用于比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异；text diagnostics SHOULD 提供对应的人类可读 lifecycle 小节
+13. `nextTurnFixed` diagnostics payload SHOULD 暴露 `autoCompactSkipReason` 与 `pruneSkipReason`；其中 `autoCompactSkipReason` MUST 基于 pre-prune 的 auto-compact 判断顺序推导，`pruneSkipReason` MUST 基于 pre-prune 与 post-prune 的差异推导，而不是只看最终裁剪后的 assembled total
+14. `latestCompactBoundary` 若存在 `triggerReason`，当前 SHOULD 暴露结构化 `{ kind, detail? }`，至少支持 `auto_threshold`、`manual`、`reactive_error`
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

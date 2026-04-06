@@ -10,6 +10,11 @@ const AUTO_COMPACT_KEEP_MIN_USER_TURNS = 1
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
 
 export type CompactBoundaryTrigger = 'manual' | 'auto' | 'reactive'
+export type CompactTriggerReasonKind = 'auto_threshold' | 'manual' | 'reactive_error'
+export type CompactTriggerReason = {
+  kind: CompactTriggerReasonKind
+  detail?: string
+}
 export type CompactBoundarySummaryKind = 'model_summary' | 'session_memory'
 export type CompactBoundaryKeepStrategy =
   | {
@@ -55,6 +60,7 @@ export type CompactPreservedSegment = {
 export type CompactBoundaryMeta = {
   schemaVersion: 1
   trigger?: CompactBoundaryTrigger
+  triggerReason?: CompactTriggerReason
   preTokens?: number
   summaryKind?: CompactBoundarySummaryKind
   keepStrategy?: CompactBoundaryKeepStrategy
@@ -278,6 +284,7 @@ export function estimateCompactRehydrationCost(rehydration?: {
 
 export function buildCompactBoundaryMessage(args: {
   trigger: CompactBoundaryTrigger
+  triggerReason?: CompactTriggerReason
   preTokens: number
   summaryKind: CompactBoundarySummaryKind
   keepStrategy: CompactBoundaryKeepStrategy
@@ -292,6 +299,7 @@ export function buildCompactBoundaryMessage(args: {
       compactBoundary: {
         schemaVersion: 1,
         trigger: args.trigger,
+        ...(args.triggerReason ? { triggerReason: args.triggerReason } : {}),
         preTokens: Math.max(0, Math.round(args.preTokens)),
         summaryKind: args.summaryKind,
         keepStrategy: args.keepStrategy,
@@ -472,6 +480,7 @@ export function rebuildHistoryAfterCompaction(args: {
   }
   boundaryMeta: {
     trigger: CompactBoundaryTrigger
+    triggerReason?: CompactTriggerReason
     preTokens: number
     summaryKind: CompactBoundarySummaryKind
     keepStrategy: CompactBoundaryKeepStrategy
@@ -626,4 +635,25 @@ function unwrapSystemReminder(text: string): string {
   const match = /^<system-reminder>\s*([\s\S]*?)\s*<\/system-reminder>$/.exec(raw)
   if (!match) return raw
   return String(match[1] || '').trim()
+}
+
+/**
+ * Count user turns that are not tool-result messages and not compaction summary messages.
+ * Exported here (chat/context layer) so diagnostics code can use it without reaching into
+ * features/repl layers.
+ */
+export function countNonToolUserTurns(history: PromptMessage[]): number {
+  let n = 0
+  for (const msg of history) {
+    if (!msg || msg.role !== 'user') continue
+    if (isCompactionSummaryUserMessage(msg)) continue
+    const content = (msg as any).content
+    if (!Array.isArray(content)) {
+      n++
+      continue
+    }
+    const hasToolResult = content.some((b: any) => b?.type === 'tool_result')
+    if (!hasToolResult) n++
+  }
+  return n
 }

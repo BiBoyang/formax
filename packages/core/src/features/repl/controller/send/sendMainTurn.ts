@@ -22,6 +22,7 @@ import type { CompactLifecycleEvent } from './compactFlow'
 import { isAbortLikeError } from '../shared/utils'
 import { createContextCompressionService } from './contextCompressionService'
 import { isReactiveCompactEligibleError } from './reactiveCompact'
+import type { CompactTriggerReason } from '../../../../chat/context/compact'
 
 const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
@@ -233,6 +234,10 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       const abortLike = isAbortLikeError(error)
       if (abortLike) sawAbortLikeError = true
       if (!abortLike && isReactiveCompactEligibleError(error)) {
+        const reactiveTriggerReason: CompactTriggerReason = {
+          kind: 'reactive_error',
+          detail: error instanceof Error ? error.message.slice(0, 200) : 'API error',
+        }
         let reactivePrepared
         try {
           reactivePrepared = await compression.runReactiveCompact({
@@ -240,6 +245,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
             previousHistory: executionHistory,
             user: executionUser,
             system,
+            triggerReason: reactiveTriggerReason,
           })
         } catch (reactiveError) {
           const reactiveAbortLike = isAbortLikeError(reactiveError)

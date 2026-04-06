@@ -6,10 +6,6 @@
 
 ## Slice Group B: Diagnostics Phase 2
 
-- `CCA-012` 增加 compact / prune 触发原因诊断
-  - 目标：告诉我们“为什么本轮触发了 auto-compact / 为什么仍然落到 prune”
-  - 验收：report 或 JSON 中可读出 trigger reason / skipped reason
-
 - `CCA-013` 增加 message/tool contributor drill-down
   - 目标：比当前 top contributors 更精确，至少支持 tool_use 级 label 与 message ordinal 稳定定位
   - 验收：JSON diagnostics 中有更稳定的 contributor identity
@@ -24,4 +20,4 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-012`
+1. `CCA-013`

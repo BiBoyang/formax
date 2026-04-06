@@ -18,6 +18,9 @@
   - system prompt 现在会拆成 identity / preamble / 顶层 `# section` 贡献视图
 - 已完成：`/context` pre/post compact lifecycle markers
   - 已可对比 `snapshot -> post-microcompact -> post-prune -> post-compact` 的估算差异
+- 已完成：compact / prune trigger reason diagnostics
+  - latest boundary 现在可暴露结构化 `triggerReason`
+  - `nextTurnFixed` 现在会解释 `autoCompactSkipReason` 与 `pruneSkipReason`
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
 - 已完成：diagnostics payload 正式客户端消费契约
@@ -128,7 +131,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 3. compact 后恢复仍不完整
 4. keep 策略仍然比较简单
 5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
-6. reactive compact 已有最小 fallback，但还没有 richer diagnostics / trigger reason 可见性
+6. reactive compact 已有最小 fallback；当前 trigger reason 已进入 diagnostics，但还没有 provider-specific shaping
 7. context collapse / cache-aware intermediate layer 已完成技术评估，但当前 runtime 仍是 NO-GO
 8. remote thread restore 还没有 compact 协议对齐
 
@@ -240,7 +243,7 @@ Formax 当前：
   - 仅在主 turn 首次 provider 调用因上下文超限类错误失败时触发
   - 会先尝试 session-memory compact，再 fallback model-summary compact
   - compact 成功后只重试一次，不会无限循环
-  - 仍缺 richer diagnostics / trigger reason / provider-specific shaping
+  - 仍缺 richer diagnostics / provider-specific shaping
 
 ## H. diagnostics / introspection
 
