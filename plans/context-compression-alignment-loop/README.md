@@ -2,7 +2,7 @@
 
 目标：围绕 Claude Code 的上下文压缩体系，持续缩小 Formax 在“分层压缩、协议化 compact、状态恢复、可观测性”上的差距，并保持每个增量都可测试、可 review、可提交。
 
-最后更新时间：2026-04-06
+最后更新时间：2026-04-07
 
 ## 这份计划解决什么问题
 
@@ -60,6 +60,23 @@
   - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
 - 已完成：partial compact go/no-go checklist
   - `plans/context-compression-alignment-loop/CCA-060-partial-compact-go-no-go.md`
+- 已完成：request-time context collapse MVP
+  - `packages/core/src/chat/context/contextCollapse.ts`
+  - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
+- 已完成：collapse impact diagnostics / contributor kind / recap metadata
+  - `packages/core/src/chat/context/contextDiagnostics.ts`
+  - `packages/web-reference-react/src/app/core/rpcContracts.ts`
+- 已完成：runtime-visible collapse state + session persistence `request_collapse_applied`
+  - `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+  - `packages/core/src/features/repl/controller/session/useSessionEventRecorders.ts`
+- 已完成：latest request collapse summary surface
+  - `thread/read`
+  - `thread/messages`
+  - `/context`
+- 已完成：thread-level collapse inspection helper
+  - `packages/core/src/app-server/threadStore.ts`
+- 已完成：persisted collapse state/store 评估
+  - `plans/context-compression-alignment-loop/CCA-090-persisted-collapse-state-evaluation.md`
 
 但从 Claude Code 的能力模型来看，Formax 仍然明显停留在“分层体系的前半段”。
 
@@ -77,6 +94,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 补充阅读：
 
 - 任务依赖图：[CCA-DEPENDENCY-MAP.md](./CCA-DEPENDENCY-MAP.md)
+- 当前差距快照：[CLAUDE-CODE-GAP-SNAPSHOT-2026-04-06.md](./CLAUDE-CODE-GAP-SNAPSHOT-2026-04-06.md)
 
 ## 当前状态定位
 
@@ -135,8 +153,29 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 4. keep 策略仍然比较简单
 5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
 6. reactive compact 已有最小 fallback；当前 trigger reason 已进入 diagnostics，但还没有 provider-specific shaping
-7. context collapse / cache-aware intermediate layer 已完成技术评估，但当前 runtime 仍是 NO-GO
+7. request-time `context collapse` 已落地为 MVP，但仍缺 richer client/runtime consumption
 8. remote thread restore 还没有 compact 协议对齐
+
+## 下一阶段主线（Active）
+
+上一阶段主线已经把 collapse 从“可推导的 prompt 技巧”推进到了：
+
+1. runtime 知道它
+2. session persistence 会记录它
+3. app-server 可以读懂它
+4. `thread/read` / `thread/messages` / `/context` 都能暴露最近一次 collapse 摘要
+5. inspection helper 已经能回答“发生了几次、累计省了多少 token”
+
+这意味着下一阶段不再适合继续堆最小 collapse metadata，而更适合切到“消费层”和“更高价值差距”。
+
+### 当前推荐 Top 3
+
+1. `CCA-100` collapse summary 真正进入 Web / client surface
+   - 目标：不只让 parser 能认字段，而是让至少一个实际 surface 展示并消费 `latestRequestCollapse`
+2. `CCA-110` working-set / keep strategy v2
+   - 目标：继续缩小和 Claude Code 在“最小工作集选择”上的差距
+3. `CCA-111` session memory deeper restore consumption
+   - 目标：让 session memory 不只 refresh sidecar，而是进入更直接的恢复消费链
 
 ## 与 Claude Code 的差异地图
 
