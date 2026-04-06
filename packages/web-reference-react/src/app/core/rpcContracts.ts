@@ -84,6 +84,7 @@ export type RpcLatestCompactBoundary = {
 export type RpcContextDiagnosticsSnapshot = {
   totalTokens: number
   systemTokens: number
+  systemSectionBreakdown?: RpcContextContributor[]
   historyTokens: number
   toolResultTokens: number
   otherHistoryTokens: number
@@ -302,6 +303,8 @@ function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsS
   const microCompactedCountsByToolName = parseCountByToolNameList(record.microCompactedCountsByToolName)
   const topSnapshotContributors = parseContributors(record.topSnapshotContributors)
   if (!toolResultCountsByToolName || !microCompactedCountsByToolName || !topSnapshotContributors) return null
+  const systemSectionBreakdown = record.systemSectionBreakdown == null ? undefined : parseContributors(record.systemSectionBreakdown)
+  if (record.systemSectionBreakdown != null && !systemSectionBreakdown) return null
 
   const totalTokens = asFiniteNumber(record.totalTokens)
   const systemTokens = asFiniteNumber(record.systemTokens)
@@ -351,6 +354,7 @@ function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsS
   return {
     totalTokens,
     systemTokens,
+    ...(systemSectionBreakdown ? { systemSectionBreakdown } : {}),
     historyTokens,
     toolResultTokens,
     otherHistoryTokens,

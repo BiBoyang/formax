@@ -20,6 +20,7 @@ import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 export type ContextDiagnostics = {
   totalTokens: number
   systemTokens: number
+  systemSectionBreakdown: ContextContributor[]
   historyTokens: number
   toolResultTokens: number
   otherHistoryTokens: number
@@ -98,6 +99,7 @@ export function analyzeContextDiagnostics(args: {
 }): ContextDiagnostics {
   const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const toolUsesById = collectToolUsesById(promptMessages)
+  const systemSectionBreakdown = buildSystemSectionContributors(args.system)
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
   const historyTokens = estimatePromptTokens({ system: [], messages: promptMessages })
   const totalTokens = estimatePromptTokens({ system: args.system, messages: promptMessages })
@@ -116,6 +118,7 @@ export function analyzeContextDiagnostics(args: {
   return {
     totalTokens,
     systemTokens,
+    systemSectionBreakdown,
     historyTokens,
     toolResultTokens,
     otherHistoryTokens,
@@ -135,7 +138,7 @@ export function analyzeContextDiagnostics(args: {
     remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
     shouldAutoCompact: stats?.shouldAutoCompact ?? null,
     topSnapshotContributors: buildTopSnapshotContributors({
-      system: args.system,
+      systemSectionBreakdown,
       messages: promptMessages,
       toolUsesById,
     }),
@@ -356,6 +359,9 @@ export function formatContextDiagnosticsReport(args: {
     `- Tool results (approx slice): ${formatInt(diagnostics.toolResultTokens)}`,
     `- Other history (approx slice): ${formatInt(diagnostics.otherHistoryTokens)}`,
     '',
+    'System prompt breakdown',
+    ...formatContributors(diagnostics.systemSectionBreakdown),
+    '',
     'Pressure',
     `- Remaining to effective limit: ${formatMaybeInt(diagnostics.remainingToEffectiveLimit)}`,
     `- Remaining to auto-compact limit: ${formatMaybeInt(diagnostics.remainingToAutoCompactLimit)}`,
@@ -565,15 +571,12 @@ function formatFixedGroups(rows: Array<{ label: string; blockCount: number; toke
 }
 
 function buildTopSnapshotContributors(args: {
-  system: PromptBlock[]
+  systemSectionBreakdown: ContextContributor[]
   messages: PromptMessage[]
   toolUsesById: Map<string, ToolUseMeta>
 }): ContextContributor[] {
   return sortContributors([
-    {
-      label: 'System prompt',
-      tokens: estimatePromptTokens({ system: args.system, messages: [] }),
-    },
+    ...args.systemSectionBreakdown,
     ...buildHistoryContributors({
       messages: args.messages,
       toolUsesById: args.toolUsesById,
@@ -588,10 +591,7 @@ function buildTopAssembledContributors(args: {
   fixedGroups: Array<{ label: string; blocks: PromptBlock[] }>
 }): ContextContributor[] {
   return sortContributors([
-    {
-      label: 'System prompt',
-      tokens: estimatePromptTokens({ system: args.system, messages: [] }),
-    },
+    ...buildSystemSectionContributors(args.system),
     ...buildHistoryContributors({
       messages: args.projectedHistory,
       toolUsesById: args.projectedToolUsesById,
@@ -604,6 +604,96 @@ function buildTopAssembledContributors(args: {
       }),
     })),
   ]).slice(0, TOP_CONTRIBUTOR_LIMIT)
+}
+
+function buildSystemSectionContributors(system: PromptBlock[]): ContextContributor[] {
+  const contributors: ContextContributor[] = []
+  const otherBlocks: PromptBlock[] = []
+  let textBlockOrdinal = 0
+
+  for (const block of system) {
+    const text = readSystemTextBlock(block)
+    if (text) {
+      const sections = splitSystemTextIntoSections(text, textBlockOrdinal)
+      textBlockOrdinal += 1
+      for (const section of sections) {
+        const tokens = estimatePromptTokens({
+          system: [{ type: 'text', text: section.text }],
+          messages: [],
+        })
+        if (tokens <= 0) continue
+        contributors.push({
+          label: section.label,
+          tokens,
+        })
+      }
+      continue
+    }
+    otherBlocks.push(block)
+  }
+
+  if (otherBlocks.length > 0) {
+    const otherTokens = estimatePromptTokens({
+      system: otherBlocks,
+      messages: [],
+    })
+    if (otherTokens > 0) {
+      contributors.push({
+        label: 'System section: Other blocks',
+        tokens: otherTokens,
+      })
+    }
+  }
+
+  return contributors
+}
+
+function readSystemTextBlock(block: PromptBlock): string | null {
+  if (!block || block.type !== 'text') return null
+  return typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : null
+}
+
+function splitSystemTextIntoSections(text: string, textBlockOrdinal: number): Array<{ label: string; text: string }> {
+  const normalized = String(text ?? '').trim()
+  if (!normalized) return []
+
+  const topLevelHeadingPattern = /^# [^\n]+$/gm
+  const headingMatches = Array.from(normalized.matchAll(topLevelHeadingPattern))
+  const sections: Array<{ label: string; text: string }> = []
+
+  if (headingMatches.length === 0) {
+    sections.push({
+      label: textBlockOrdinal === 0 ? 'System section: Identity' : 'System section: Preamble',
+      text: normalized,
+    })
+    return sections
+  }
+
+  const firstHeadingIndex = headingMatches[0]?.index ?? 0
+  if (firstHeadingIndex > 0) {
+    const preamble = normalized.slice(0, firstHeadingIndex).trim()
+    if (preamble) {
+      sections.push({
+        label: 'System section: Preamble',
+        text: preamble,
+      })
+    }
+  }
+
+  for (let i = 0; i < headingMatches.length; i += 1) {
+    const match = headingMatches[i]
+    const start = match.index ?? 0
+    const end = headingMatches[i + 1]?.index ?? normalized.length
+    const sectionText = normalized.slice(start, end).trim()
+    if (!sectionText) continue
+    const heading = match[0].replace(/^# /, '').trim() || 'Preamble'
+    sections.push({
+      label: `System section: ${heading}`,
+      text: sectionText,
+    })
+  }
+
+  return sections
 }
 
 function buildHistoryContributors(args: {

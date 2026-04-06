@@ -2,7 +2,7 @@
 
 目标：围绕 Claude Code 的上下文压缩体系，持续缩小 Formax 在“分层压缩、协议化 compact、状态恢复、可观测性”上的差距，并保持每个增量都可测试、可 review、可提交。
 
-最后更新时间：2026-04-04
+最后更新时间：2026-04-06
 
 ## 这份计划解决什么问题
 
@@ -14,6 +14,8 @@
   - `packages/core/src/chat/context/microCompact.ts`
 - 已完成：`/context` 基础诊断、assembled fixed view、top contributors
   - `packages/core/src/chat/context/contextDiagnostics.ts`
+- 已完成：`/context` per-system-section diagnostics
+  - system prompt 现在会拆成 identity / preamble / 顶层 `# section` 贡献视图
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
 - 已完成：diagnostics payload 正式客户端消费契约
@@ -112,6 +114,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已有 next-turn fixed context 视图
    - 已有 microcompact impact 展示（before/after projected history、estimated tokens saved）
    - 已有 top contributors
+   - 已有 per-system-section breakdown（system 不再只被视为单个黑盒 contributor）
    - 已有 JSON diagnostics
    - 已有 app-server 结构化 payload
 

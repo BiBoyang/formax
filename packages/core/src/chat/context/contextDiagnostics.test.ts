@@ -56,8 +56,13 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactedToolResultCount).toBe(1)
     expect(out.toolResultCountsByToolName).toEqual([{ toolName: 'Read', count: 1 }])
     expect(out.microCompactedCountsByToolName).toEqual([{ toolName: 'Read', count: 1 }])
+    expect(out.systemSectionBreakdown.length).toBe(1)
+    expect(out.systemSectionBreakdown[0]).toEqual({
+      label: 'System section: Identity',
+      tokens: out.systemTokens,
+    })
     expect(out.topSnapshotContributors.length).toBeGreaterThan(0)
-    expect(out.topSnapshotContributors.some((row) => row.label === 'System prompt')).toBe(true)
+    expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Identity')).toBe(true)
     expect(out.topSnapshotContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
     expect(out.totalTokens).toBeGreaterThan(0)
     expect(out.systemTokens).toBeGreaterThan(0)
@@ -143,6 +148,8 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Tool-result tool mix: none')
     expect(out).toContain('- Rehydration cost: none')
     expect(out).toContain('- Preserved segment: none')
+    expect(out).toContain('System prompt breakdown')
+    expect(out).toContain('- System section: Identity: 18')
     expect(out).toContain('Top snapshot contributors')
     expect(out).toContain('Next-turn fixed context (before future user text)')
     expect(out).toContain('- Projected history before microcompact/prune: 22')
@@ -154,6 +161,60 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
     expect(out).toContain('latest compact-boundary continuation view')
+  })
+
+  it('splits system prompt into identity, preamble, and top-level sections', () => {
+    const out = analyzeContextDiagnostics({
+      system: [
+        { type: 'text', text: 'You are Formax.' },
+        {
+          type: 'text',
+          text: '\nLead paragraph before headings.\n\n# System\nalpha\n\n# Doing tasks\nbeta\n\n# Environment\ngamma',
+        },
+      ],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      budgetConfig: null,
+    })
+
+    expect(out.systemSectionBreakdown.map((row) => row.label)).toEqual([
+      'System section: Identity',
+      'System section: Preamble',
+      'System section: System',
+      'System section: Doing tasks',
+      'System section: Environment',
+    ])
+    expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Doing tasks')).toBe(true)
+    expect(out.topSnapshotContributors.some((row) => row.label === 'System prompt')).toBe(false)
+  })
+
+  it('keeps a visible system contributor for non-text system blocks', () => {
+    const out = analyzeContextDiagnostics({
+      system: [
+        { type: 'thinking', thinking: 'internal system scratchpad' } as any,
+        { type: 'text', text: '# System\nvisible section' },
+      ],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      budgetConfig: null,
+    })
+
+    expect(out.systemSectionBreakdown.some((row) => row.label === 'System section: Other blocks')).toBe(true)
+    expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Other blocks')).toBe(true)
+  })
+
+  it('treats the first text-only system block as identity even when non-text blocks precede it', () => {
+    const out = analyzeContextDiagnostics({
+      system: [
+        { type: 'thinking', thinking: 'prelude metadata' } as any,
+        { type: 'text', text: 'You are Formax.' },
+      ],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      budgetConfig: null,
+    })
+
+    expect(out.systemSectionBreakdown.map((row) => row.label)).toEqual([
+      'System section: Identity',
+      'System section: Other blocks',
+    ])
   })
 
   it('analyzes next-turn fixed context projection with group breakdown', () => {
@@ -326,6 +387,7 @@ describe('contextDiagnostics', () => {
     expect(parsed.snapshot).toBeTruthy()
     expect(parsed.nextTurnFixed).toBeTruthy()
     expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
+    expect(parsed.snapshot.systemSectionBreakdown).toBeInstanceOf(Array)
     expect(parsed.nextTurnFixed.projectedHistoryTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
       compactedBlocks: 0,

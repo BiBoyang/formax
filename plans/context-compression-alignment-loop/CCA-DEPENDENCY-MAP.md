@@ -168,11 +168,11 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-010`
+1. `CCA-011`
 
 对应含义：
 
-1. 继续把 diagnostics 从“总量与 top contributors”推进到更细的 system-section 视图
+1. 继续把 diagnostics 从“已有 system-section 视图”推进到 pre/post compact lifecycle 视图
 
 补充说明：
 

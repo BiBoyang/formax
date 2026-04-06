@@ -131,6 +131,8 @@
     - `remainingToAutoCompactLimit`
     - `shouldAutoCompact`
     - `topSnapshotContributors`
+  - `local.diagnostics.snapshot` 当前 MAY 额外暴露：
+    - `systemSectionBreakdown`（`ContextContributor[]`；当前按 `Identity`、heading 前 `Preamble`、以及顶层 `# section` 拆 system prompt）
   - `local.diagnostics.nextTurnFixed` 当前稳定字段 MUST 包含：
     - `fixedGroups`
     - `microCompactImpact`

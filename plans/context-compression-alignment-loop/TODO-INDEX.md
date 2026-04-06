@@ -2,13 +2,9 @@
 
 只保留未完成项。已完成项不回填，历史以 Git commit 为准。
 
-更新时间：2026-04-05
+更新时间：2026-04-06
 
 ## Slice Group B: Diagnostics Phase 2
-
-- `CCA-010` 增加 per-system-section diagnostics
-  - 目标：把 system prompt 拆成更细 section 贡献视图
-  - 验收：`/context` top contributors 不再只把 system 看成单个黑盒块
 
 - `CCA-011` 增加 diagnostics 中的 pre/post compact lifecycle markers
   - 目标：至少能看到 snapshot、post-microcompact、post-prune、post-compact 四个阶段的估算差异
@@ -32,4 +28,4 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-010`
+1. `CCA-011`
