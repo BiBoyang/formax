@@ -3,7 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SessionWriter } from '../../features/repl/sessionSave/index.js'
-import { readPersistedToolMessagesFromSession, readStaleInputsFromSession } from './sessionEventReader.js'
+import {
+  readPersistedToolMessagesFromSession,
+  readRequestCollapseEventsFromSession,
+  readStaleInputsFromSession,
+} from './sessionEventReader.js'
 
 describe('readStaleInputsFromSession', () => {
   it('returns only unresolved app_input_requested records as stale expired inputs', async () => {
@@ -376,5 +380,91 @@ describe('readStaleInputsFromSession', () => {
 
     const toolMessages = await readPersistedToolMessagesFromSession({ filePath })
     expect(toolMessages).toEqual([])
+  })
+
+  it('reads persisted request-time collapse events from session', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const created = await SessionWriter.createNew({ cwd, env })
+    const writer = created.writer
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      keepLastTurns: 2,
+      preservedTailMessageCount: 4,
+      retainedCompactSummary: true,
+      recapFingerprint: 'abcdef0123456789',
+    })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+    })
+    await writer.shutdown()
+
+    const events = await readRequestCollapseEventsFromSession({ filePath: created.filePath })
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      keepLastTurns: 2,
+      preservedTailMessageCount: 4,
+      retainedCompactSummary: true,
+      recapFingerprint: 'abcdef0123456789',
+    })
+    expect(events[1]).toMatchObject({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+    })
+    expect(typeof events[0]?.occurredAtMs).toBe('number')
+  })
+
+  it('ignores malformed request-time collapse events', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-malformed-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify({ type: 'event', name: 'request_collapse_applied', data: { phase: 'initial' } }),
+        JSON.stringify({
+          type: 'event',
+          ts: '2026-04-07T00:00:00.000Z',
+          name: 'request_collapse_applied',
+          data: {
+            phase: 'bad',
+            collapsedHeadMessageCount: 1,
+            estimatedTokensSaved: 2,
+          },
+        }),
+        JSON.stringify({
+          type: 'event',
+          ts: '2026-04-07T00:00:00.000Z',
+          name: 'request_collapse_applied',
+          data: {
+            phase: 'initial',
+            collapsedHeadMessageCount: 1,
+            estimatedTokensSaved: 2,
+            retainedCompactSummary: true,
+          },
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    const events = await readRequestCollapseEventsFromSession({ filePath })
+    expect(events).toEqual([
+      {
+        phase: 'initial',
+        occurredAtMs: Date.parse('2026-04-07T00:00:00.000Z'),
+        collapsedHeadMessageCount: 1,
+        estimatedTokensSaved: 2,
+        retainedCompactSummary: true,
+      },
+    ])
   })
 })
