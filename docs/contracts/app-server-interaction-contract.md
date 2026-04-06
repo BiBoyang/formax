@@ -176,6 +176,7 @@
     - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）
     - `autoCompactSkipReason`
     - `pruneSkipReason`
+    - `workingSetSignals`（解释 auto `keep_combo` 如何根据 recent files / plan/todo / mode state 调整保留策略）
   - `local.diagnostics.nextTurnFixed.microCompactImpact` MUST 暴露：
     - `compactedBlocks`
     - `compactedToolNames`
@@ -197,6 +198,13 @@
       - `recentFileCount`
       - `earlierToolResultBlockCount`
       - `recapFingerprint`
+  - `local.diagnostics.nextTurnFixed.workingSetSignals` 若存在，当前稳定字段 SHOULD 包含：
+    - `recentFileCount`
+    - `hasPlanState`
+    - `hasTodoState`
+    - `modeState`
+    - `keepMinTokensBoost`
+    - `keepMinUserTurnsBoost`
   - `local.diagnostics.latestCompactBoundary` 若非 `null`，当前稳定字段 MUST 至少包含 `schemaVersion`，并 MAY 包含 `trigger`、`triggerReason`、`preTokens`、`summaryKind`、`keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`
   - `local.diagnostics.latestRequestCollapse` 当前 MAY 额外暴露最近一次 persisted / runtime request-time collapse 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `phase`

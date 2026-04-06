@@ -7,6 +7,10 @@ const CONTINUED_SESSION_SUMMARY_PREFIX =
 const RECENT_FILES_REHYDRATION_PREFIX = 'Recent files to keep in working memory:'
 const AUTO_COMPACT_KEEP_MIN_TOKENS = 1200
 const AUTO_COMPACT_KEEP_MIN_USER_TURNS = 1
+const AUTO_COMPACT_RECENT_FILE_TOKEN_BOOST = 200
+const AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST = 250
+const AUTO_COMPACT_TODO_STATE_TOKEN_BOOST = 250
+const AUTO_COMPACT_MODE_STATE_TOKEN_BOOST = 150
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
 
 export type CompactBoundaryTrigger = 'manual' | 'auto' | 'reactive'
@@ -27,6 +31,15 @@ export type CompactBoundaryKeepStrategy =
       keepMinTokens: number
       keepMinUserTurns: number
     }
+
+export type AutoCompactWorkingSetSignals = {
+  recentFileCount: number
+  hasPlanState: boolean
+  hasTodoState: boolean
+  modeState: 'normal' | 'acceptEdits' | 'plan'
+  keepMinTokensBoost: number
+  keepMinUserTurnsBoost: number
+}
 
 export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
 export type CompactRehydrationItemPriority = 'high' | 'medium'
@@ -115,6 +128,64 @@ export function buildAutoCompactKeepStrategy(keepLastTurns: number): CompactBoun
     keepLastTurns: clampCount(keepLastTurns),
     keepMinTokens: AUTO_COMPACT_KEEP_MIN_TOKENS,
     keepMinUserTurns: AUTO_COMPACT_KEEP_MIN_USER_TURNS,
+  }
+}
+
+export function deriveAutoCompactWorkingSetSignals(args: {
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  rehydration?: {
+    recentFiles?: string[]
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
+  }
+}): AutoCompactWorkingSetSignals {
+  const recentFileCount = Math.min(
+    3,
+    Array.isArray(args.rehydration?.recentFiles)
+      ? args.rehydration!.recentFiles.map((value) => String(value || '').trim()).filter(Boolean).length
+      : 0,
+  )
+  const hasPlanState = Boolean(
+    String(args.rehydration?.planPath ?? '').trim() ||
+      String(args.rehydration?.planExcerpt ?? '').trim() ||
+      args.mode === 'plan',
+  )
+  const hasTodoState = Boolean(String(args.rehydration?.todoSummary ?? '').trim())
+  const keepMinTokensBoost =
+    recentFileCount * AUTO_COMPACT_RECENT_FILE_TOKEN_BOOST +
+    (hasPlanState ? AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST : 0) +
+    (hasTodoState ? AUTO_COMPACT_TODO_STATE_TOKEN_BOOST : 0) +
+    (args.mode !== 'normal' ? AUTO_COMPACT_MODE_STATE_TOKEN_BOOST : 0)
+  const keepMinUserTurnsBoost =
+    recentFileCount >= 2 || hasPlanState || hasTodoState ? 1 : 0
+
+  return {
+    recentFileCount,
+    hasPlanState,
+    hasTodoState,
+    modeState: args.mode,
+    keepMinTokensBoost,
+    keepMinUserTurnsBoost,
+  }
+}
+
+export function buildWorkingSetAwareAutoCompactKeepStrategy(args: {
+  keepLastTurns: number
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  rehydration?: {
+    recentFiles?: string[]
+    planPath?: string | null
+    planExcerpt?: string | null
+    todoSummary?: string | null
+  }
+}): CompactBoundaryKeepStrategy {
+  const signals = deriveAutoCompactWorkingSetSignals(args)
+  return {
+    kind: 'keep_combo',
+    keepLastTurns: clampCount(args.keepLastTurns),
+    keepMinTokens: AUTO_COMPACT_KEEP_MIN_TOKENS + signals.keepMinTokensBoost,
+    keepMinUserTurns: AUTO_COMPACT_KEEP_MIN_USER_TURNS + signals.keepMinUserTurnsBoost,
   }
 }
 

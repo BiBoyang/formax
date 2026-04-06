@@ -1,7 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
 import {
-  buildAutoCompactKeepStrategy,
+  buildWorkingSetAwareAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
@@ -194,7 +194,6 @@ export function createContextCompressionService(deps: {
       const summary = buildSessionMemoryCompactionSummary(draft).trim()
       if (!summary) return null
 
-      const keepStrategy = buildAutoCompactKeepStrategy(args.keepLastTurns)
       const compactionScope = resolveHistoryForCompaction({
         previousHistory: args.previousHistory,
         allowPartial: true,
@@ -208,6 +207,11 @@ export function createContextCompressionService(deps: {
       const rehydration = buildSessionMemoryCompactionRehydration({
         draft,
         fallback: fallbackRehydration,
+      })
+      const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
+        keepLastTurns: args.keepLastTurns,
+        mode: deps.mode,
+        rehydration,
       })
       const rehydrationPlan = markCompactRehydrationApplied(
         draft.currentStrategy.rehydrationPlan ??

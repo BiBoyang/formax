@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import {
+  buildWorkingSetAwareAutoCompactKeepStrategy,
   buildAutoCompactKeepStrategy,
   buildCompactPreservedSegmentMeta,
   buildDefaultCompactRehydrationPlan,
@@ -17,6 +18,7 @@ import {
   isCompactionSummaryUserMessage,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
+  deriveAutoCompactWorkingSetSignals,
   resolveHistoryForCompaction,
   selectTailForCompaction,
   stripCompactBoundaryMessages,
@@ -379,6 +381,44 @@ describe('compaction summary helpers', () => {
       keepLastTurns: 4,
       keepMinTokens: 1200,
       keepMinUserTurns: 1,
+    })
+  })
+
+  it('derives working-set signals from recent files, plan state, todo state, and mode', () => {
+    expect(
+      deriveAutoCompactWorkingSetSignals({
+        mode: 'plan',
+        rehydration: {
+          recentFiles: ['/repo/src/auth.ts', '/repo/src/session.ts'],
+          planPath: '/repo/.formax/plan.md',
+          todoSummary: '[1. [in_progress] patch compact flow]',
+        },
+      }),
+    ).toEqual({
+      recentFileCount: 2,
+      hasPlanState: true,
+      hasTodoState: true,
+      modeState: 'plan',
+      keepMinTokensBoost: 1050,
+      keepMinUserTurnsBoost: 1,
+    })
+  })
+
+  it('builds a working-set-aware auto-compact keep strategy', () => {
+    expect(
+      buildWorkingSetAwareAutoCompactKeepStrategy({
+        keepLastTurns: 3,
+        mode: 'acceptEdits',
+        rehydration: {
+          recentFiles: ['/repo/src/auth.ts'],
+          todoSummary: '[1. [in_progress] patch compact flow]',
+        },
+      }),
+    ).toEqual({
+      kind: 'keep_combo',
+      keepLastTurns: 3,
+      keepMinTokens: 1800,
+      keepMinUserTurns: 2,
     })
   })
 

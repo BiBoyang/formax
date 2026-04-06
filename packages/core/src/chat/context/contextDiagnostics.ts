@@ -7,15 +7,17 @@ import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
-  buildAutoCompactKeepStrategy,
+  buildWorkingSetAwareAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   countNonToolUserTurns,
+  deriveAutoCompactWorkingSetSignals,
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   findLatestCompactBoundary,
   getContinuationMessagesAfterLatestCompactBoundary,
   resolveHistoryForCompaction,
+  type AutoCompactWorkingSetSignals,
   type CompactBoundaryMeta,
 } from './compact'
 import type { RuntimeConfig } from '../../config/config'
@@ -61,6 +63,7 @@ export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   microCompactImpact: MicroCompactImpact
   collapseImpact: ContextCollapseImpact
+  workingSetSignals: AutoCompactWorkingSetSignals
   lifecycleMarkers: ContextLifecycleMarker[]
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
@@ -272,6 +275,16 @@ export function analyzeNextTurnFixedContext(args: {
       : null
 
   const rawPreparedMessages = fixedUserMessage ? [...microCompactedHistory, fixedUserMessage] : [...microCompactedHistory]
+  const fallbackRehydration = buildPostCompactRehydration({
+    cwd: args.cwd,
+    mode: normalizeDiagnosticsMode(args.mode),
+    planPath: args.planPath ?? null,
+    previousHistory: promptMessages,
+  })
+  const workingSetSignals = deriveAutoCompactWorkingSetSignals({
+    mode: normalizeDiagnosticsMode(args.mode),
+    rehydration: fallbackRehydration,
+  })
   const totalTokensBeforePrune = estimatePromptTokens({ system: args.system, messages: rawPreparedMessages })
   const preparedMessages = args.budgetConfig
     ? pruneForPromptBudget({
@@ -340,6 +353,7 @@ export function analyzeNextTurnFixedContext(args: {
       projectedHistoryDeltaTokens: projectedHistoryTokensAfterCollapse - projectedHistoryTokens,
       metadata: collapseResult.metadata,
     },
+    workingSetSignals,
     lifecycleMarkers,
     projectedHistoryTokens,
     projectedHistoryDeltaTokens: projectedHistoryTokens - snapshotHistoryTokens,
@@ -558,6 +572,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Estimated tokens saved by collapse: ${formatInt(args.nextTurn?.collapseImpact.estimatedTokensSaved ?? 0)}`,
     `- Collapse collapsed older messages: ${formatInt(args.nextTurn?.collapseImpact.collapsedHeadMessageCount ?? 0)}`,
     `- Collapse recap metadata: ${formatCollapseMeta(args.nextTurn?.collapseImpact.metadata ?? null)}`,
+    `- Working-set signals: ${formatWorkingSetSignals(args.nextTurn?.workingSetSignals ?? null)}`,
     `- Fixed additions total: ${formatMaybeInt(args.nextTurn?.fixedTokens ?? null)}`,
     ...formatFixedGroups(args.nextTurn?.fixedGroups ?? []),
     `- Assembled fixed total: ${formatMaybeInt(args.nextTurn?.totalTokens ?? null)}`,
@@ -858,7 +873,6 @@ function buildPostCompactAssembledMessages(args: {
   planPath: string | null
   keepLastTurns: number
 }): PromptMessage[] {
-  const keepStrategy = buildAutoCompactKeepStrategy(args.keepLastTurns)
   const compactionScope = resolveHistoryForCompaction({
     previousHistory: args.microCompactedHistory,
     allowPartial: true,
@@ -878,6 +892,11 @@ function buildPostCompactAssembledMessages(args: {
   const rehydration = buildSessionMemoryCompactionRehydration({
     draft,
     fallback: fallbackRehydration,
+  })
+  const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
+    keepLastTurns: args.keepLastTurns,
+    mode: args.mode,
+    rehydration,
   })
   const rehydrationPlan = markCompactRehydrationApplied(
     draft.currentStrategy.rehydrationPlan ??
@@ -1274,6 +1293,18 @@ function formatCollapseMeta(value: ContextCollapseMeta | null): string {
     `recent_files=${formatInt(value.recentFileCount)}`,
     `tool_results=${formatInt(value.earlierToolResultBlockCount)}`,
     `fingerprint=${value.recapFingerprint}`,
+  ].join(', ')
+}
+
+function formatWorkingSetSignals(value: AutoCompactWorkingSetSignals | null): string {
+  if (!value) return 'none'
+  return [
+    `recent_files=${formatInt(value.recentFileCount)}`,
+    `plan_state=${value.hasPlanState ? 'yes' : 'no'}`,
+    `todo_state=${value.hasTodoState ? 'yes' : 'no'}`,
+    `mode_state=${value.modeState}`,
+    `keep_tokens_boost=${formatInt(value.keepMinTokensBoost)}`,
+    `keep_user_turns_boost=${formatInt(value.keepMinUserTurnsBoost)}`,
   ].join(', ')
 }
 

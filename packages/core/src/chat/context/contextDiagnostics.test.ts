@@ -779,6 +779,42 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Preserved segment: continuation=3, preserved_tail=2, head=head-abc, tail=tail-abc')
     expect(out).toContain('- Keep strategy: keep_combo(turns=2, min_tokens=1,200, min_user_turns=1)')
   })
+
+  it('includes working-set signals in next-turn diagnostics', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      system: [{ type: 'text', text: 'sys' }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'inspect auth.ts' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'ok' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'auth flow has stale redirect guard' }] as any },
+      ],
+      fixedGroups: [],
+      keepLastTurns: 2,
+      enableAutoCompact: true,
+      budgetConfig: {
+        contextWindowTokens: 10_000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.7,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(out.workingSetSignals).toEqual({
+      recentFileCount: 1,
+      hasPlanState: true,
+      hasTodoState: false,
+      modeState: 'plan',
+      keepMinTokensBoost: 600,
+      keepMinUserTurnsBoost: 1,
+    })
+  })
 })
 
 describe('autoCompactSkipReason and pruneSkipReason', () => {

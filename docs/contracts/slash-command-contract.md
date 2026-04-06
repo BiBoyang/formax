@@ -157,6 +157,14 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `estimatedTokensSaved`
    - `recapFingerprint`（可选）
    text diagnostics SHOULD 同步给出 `Latest request collapse` 小节，避免客户端只能重新推导 collapse 事实
+18. `nextTurnFixed` diagnostics payload 当前 MAY 额外暴露 `workingSetSignals`，用于解释 auto `keep_combo` 为什么会比固定 `keepLastTurns` 更积极地保留 tail；若存在，稳定字段 SHOULD 至少包含：
+   - `recentFileCount`
+   - `hasPlanState`
+   - `hasTodoState`
+   - `modeState`
+   - `keepMinTokensBoost`
+   - `keepMinUserTurnsBoost`
+   text diagnostics SHOULD 同步提供 `Working-set signals` 小节，帮助解释最近文件、plan/todo、以及 mode state 如何影响 auto compact 的保留策略
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

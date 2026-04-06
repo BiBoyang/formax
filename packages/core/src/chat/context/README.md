@@ -140,6 +140,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 diagnostics 也会解释 compact / prune 原因：latest boundary 可暴露结构化 `triggerReason`，`nextTurnFixed` 会额外给出 `autoCompactSkipReason` 与 `pruneSkipReason`，并且两者都按真实运行时顺序推导
 - 当前 diagnostics 也已暴露 request-time collapse impact：`nextTurnFixed.collapseImpact` 会说明 collapse 是否生效、折叠了多少条较老消息，以及估算节省了多少 token
 - `nextTurnFixed.collapseImpact.metadata` 当前也会暴露最小 request-recap metadata：包括 `keepLastTurns`、保留 tail 条数、是否保留 compact summary、保留的 recent prompt/file 计数，以及 `recapFingerprint`
+- 当前 auto compact 的 `keep_combo` 已开始根据 working-set signals 做 v2 调整：除了最近成功 `Read` anchor，还会把 recent files、plan/todo state、以及 mode state 计入 `keepMinTokens` / `keepMinUserTurns` 的动态 boost，并在 `/context` 里通过 `nextTurnFixed.workingSetSignals` / `Working-set signals` 小节解释这些增量
 - `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `request_collapse_applied` 事实，也会额外暴露 `latestRequestCollapse` 摘要，避免 diagnostics 只能靠重新推导 collapse 事实
 - contributor diagnostics 当前会把 request-time collapse 生成的 synthetic recap 单独标成 `kind='collapse_recap'`，避免客户端再把它误识别成普通 user message
 - 当前 contributor diagnostics 已有稳定 identity：`topSnapshotContributors` / `systemSectionBreakdown` / `topAssembledContributors` 不再只有 `label + tokens`，还会带 `kind` / `key`，并按类型补 `ordinal`、`toolUseId`、`toolName`、`systemSectionKey`
@@ -150,7 +151,7 @@ Formax 的“上下文管理”分两条线：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
 - compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`，且当已有 latest boundary 时，会优先对 continuation 作用域做 partial compact）
 - reactive compact：`packages/core/src/features/repl/controller/send/reactiveCompact.ts` + `packages/core/src/features/repl/controller/send/sendMainTurn.ts`（主 turn 首次 provider 调用命中上下文超限类错误时，会做一次受控 compact/retry；优先 session memory，失败再 fallback model summary）
-- history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前最小 working-set anchor 已覆盖最近成功 `Read`，但只允许回卷最近 1 个额外 user turn）
+- history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前 working-set v2 已覆盖最近成功 `Read` anchor，并把 recent files、plan/todo state、mode state 合并进 auto keep strategy）
 
 ### 想改“session memory / rolling memory（P5 起点）”
 

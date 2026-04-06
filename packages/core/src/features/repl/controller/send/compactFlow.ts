@@ -1,6 +1,6 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import {
-  buildAutoCompactKeepStrategy,
+  buildWorkingSetAwareAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
@@ -92,19 +92,23 @@ export async function runCompactFlow(args: {
     }
 
     args.onLifecycle?.({ type: 'compact_succeeded', source: args.source })
-    const keepStrategy =
-      args.source !== 'manual'
-        ? buildAutoCompactKeepStrategy(args.keepLastTurns)
-        : {
-            kind: 'keep_last_turns' as const,
-            keepLastTurns: args.keepLastTurns,
-          }
     const rehydration = buildPostCompactRehydration({
       cwd: args.cwd,
       mode: args.mode,
       planPath: args.getPlanPath(),
       previousHistory: args.previousHistory,
     })
+    const keepStrategy =
+      args.source !== 'manual'
+        ? buildWorkingSetAwareAutoCompactKeepStrategy({
+            keepLastTurns: args.keepLastTurns,
+            mode: args.mode,
+            rehydration,
+          })
+        : {
+            kind: 'keep_last_turns' as const,
+            keepLastTurns: args.keepLastTurns,
+          }
     const rehydrationPlan = markCompactRehydrationApplied(
       buildDefaultCompactRehydrationPlan({
         mode: args.mode,
