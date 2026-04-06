@@ -128,7 +128,16 @@ describe('AppServer', () => {
           }
         },
         async listThreadMessages() {
-          return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
+          return {
+            data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }],
+            nextCursor: null,
+            latestRequestCollapse: {
+              phase: 'reactive_retry',
+              collapsedHeadMessageCount: 2,
+              estimatedTokensSaved: 64,
+              recapFingerprint: 'fedcba9876543210',
+            },
+          }
         },
         async renameThread(params) {
           return {
@@ -196,6 +205,12 @@ describe('AppServer', () => {
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
+    expect((messagesOut[0] as any).result.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
 
     const renameOut = await server.handleMessage(
       request(7, 'thread/rename', { threadId: 't-1', label: 'Renamed in web' }),

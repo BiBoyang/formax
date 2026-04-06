@@ -60,6 +60,8 @@ export type ThreadReadResult = {
   } | null
 }
 
+type LatestRequestCollapseSummary = NonNullable<ThreadReadResult['latestRequestCollapse']>
+
 export type ThreadMessage = {
   id: string
   kind: 'message'
@@ -83,6 +85,7 @@ export type ThreadToolMessage = {
 export type ThreadMessagesResult = {
   data: Array<ThreadMessage | ThreadToolMessage>
   nextCursor: string | null
+  latestRequestCollapse?: LatestRequestCollapseSummary | null
 }
 
 type ThreadTimelineEntry = {
@@ -443,6 +446,18 @@ function extractThreadTimelineFromUi(
   return out
 }
 
+function toLatestRequestCollapseSummary(
+  event: Awaited<ReturnType<typeof readLatestRequestCollapseEventFromSession>>,
+): LatestRequestCollapseSummary | null {
+  if (!event) return null
+  return {
+    phase: event.phase,
+    collapsedHeadMessageCount: event.collapsedHeadMessageCount,
+    estimatedTokensSaved: event.estimatedTokensSaved,
+    ...(event.recapFingerprint ? { recapFingerprint: event.recapFingerprint } : {}),
+  }
+}
+
 export class ThreadStore {
   private readonly cwd: string
   private readonly env?: NodeJS.ProcessEnv
@@ -651,14 +666,7 @@ export class ThreadStore {
     return {
       thread: toThread(summary),
       transcriptPreview,
-      latestRequestCollapse: latestRequestCollapse
-        ? {
-            phase: latestRequestCollapse.phase,
-            collapsedHeadMessageCount: latestRequestCollapse.collapsedHeadMessageCount,
-            estimatedTokensSaved: latestRequestCollapse.estimatedTokensSaved,
-            ...(latestRequestCollapse.recapFingerprint ? { recapFingerprint: latestRequestCollapse.recapFingerprint } : {}),
-          }
-        : null,
+      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapse),
     }
   }
 
@@ -676,11 +684,15 @@ export class ThreadStore {
       return {
         data: [],
         nextCursor: null,
+        latestRequestCollapse: null,
       }
     }
     this.provisionalThreads.delete(params.threadId)
 
-    const replay = await readSessionFile(filePath)
+    const [replay, latestRequestCollapseEvent] = await Promise.all([
+      readSessionFile(filePath),
+      readLatestRequestCollapseEventFromSession({ filePath }),
+    ])
     const toolUseInputById = extractToolUseInputById(
       replay.history as Array<{ role?: unknown; content?: unknown }>,
     )
@@ -791,6 +803,7 @@ export class ThreadStore {
     return {
       data: page,
       nextCursor,
+      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapseEvent),
     }
   }
 

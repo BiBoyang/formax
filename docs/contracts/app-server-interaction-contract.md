@@ -73,12 +73,18 @@
   - `limit` 默认 50，最大 200
   - `cursor` 为非负整数字符串偏移量
   - `cursor` 缺失时默认返回最新一页
-- 返回：`{ data, nextCursor }`（`nextCursor` 指向更早一页）
+- 返回：`{ data, nextCursor, latestRequestCollapse? }`（`nextCursor` 指向更早一页）
   - `data` 包含两类项：
     - `kind: "message"`：`{ id, role: "user" | "assistant", text }`
     - `kind: "tool"`：`{ id, toolUseId?, toolName, status, summary, paramsText?, detailLines? }`
       - `toolName` 为 `toolUseId` 维度粘性字段（sticky），`update/end` 缺省时服务端应补齐。
       - 若 `toolUseId` 缺失（历史/降级数据），不承诺跨记录合并语义；客户端按该条 `id` 作为独立记录处理。
+  - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
+    - `phase`（`initial` 或 `reactive_retry`）
+    - `collapsedHeadMessageCount`
+    - `estimatedTokensSaved`
+    - `recapFingerprint?`
+  - 该字段用于让 thread timeline surface 感知最近一次 request-time collapse 事实；它 MUST NOT 改写现有 `data[]` item 语义
 
 ## 2.5 turn/start
 

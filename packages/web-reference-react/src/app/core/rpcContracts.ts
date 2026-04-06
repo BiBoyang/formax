@@ -203,6 +203,18 @@ export type RpcThreadReplayResult = {
 export type RpcThreadMessagesResult = {
   data: ThreadMessage[]
   nextCursor: string | null
+  latestRequestCollapse?: RpcLatestRequestCollapse | null
+}
+
+export type RpcThreadReadResult = {
+  thread: {
+    id: string
+    cwd: string
+    createdAt: string
+    updatedAt: string
+  }
+  transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -270,6 +282,35 @@ export function parseThreadGroupHideResponse(value: unknown): string[] {
 
 export function parseThreadMessagesResponse(value: unknown): RpcThreadMessagesResult {
   return asThreadMessages(value)
+}
+
+export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | null {
+  const root = asRecord(value)
+  const thread = asRecord(root.thread)
+  const id = typeof thread.id === 'string' && thread.id.trim() ? thread.id : null
+  const cwd = typeof thread.cwd === 'string' && thread.cwd.trim() ? thread.cwd : null
+  const createdAt = typeof thread.createdAt === 'string' && thread.createdAt.trim() ? thread.createdAt : null
+  const updatedAt = typeof thread.updatedAt === 'string' && thread.updatedAt.trim() ? thread.updatedAt : null
+  if (!id || !cwd || !createdAt || !updatedAt) return null
+  const transcriptPreview = Array.isArray(root.transcriptPreview)
+    ? root.transcriptPreview
+        .map((entry) => {
+          const row = asOptionalRecord(entry)
+          if (!row) return null
+          const role = row.role === 'user' || row.role === 'assistant' ? row.role : null
+          const text = typeof row.text === 'string' ? row.text : null
+          if (!role || text == null) return null
+          return { role, text }
+        })
+        .filter((entry): entry is { role: 'user' | 'assistant'; text: string } => Boolean(entry))
+    : []
+  const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
+  if (!latestRequestCollapse) return null
+  return {
+    thread: { id, cwd, createdAt, updatedAt },
+    transcriptPreview,
+    ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
+  }
 }
 
 export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {

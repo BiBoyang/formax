@@ -64,6 +64,7 @@
 - `docs/learnings/2026-04-07-request-collapse-session-event.md`
 - `docs/learnings/2026-04-07-app-server-thread-read-latest-collapse.md`
 - `docs/learnings/2026-04-07-context-diagnostics-latest-request-collapse.md`
+- `docs/learnings/2026-04-07-thread-messages-collapse-summary.md`
 
 ## Web Reference Runtime / Performance
 

@@ -4,6 +4,7 @@ import {
   parseResolvedInputsResponse,
   parseThreadListResponse,
   parseThreadMessagesResponse,
+  parseThreadReadResponse,
   parseThreadReplayResponse,
   parseThreadStartResponse,
   parseTurnStartLikeResponse,
@@ -1000,9 +1001,74 @@ describe('rpcContracts', () => {
     const messages = parseThreadMessagesResponse({
       data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
       nextCursor: 'cursor-1',
+      latestRequestCollapse: {
+        phase: 'initial',
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 64,
+        recapFingerprint: 'fedcba9876543210',
+      },
     })
     expect(messages.data).toHaveLength(1)
     expect(messages.nextCursor).toBe('cursor-1')
+    expect(messages.latestRequestCollapse).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+  })
+
+  it('parses thread/read payload with optional latest request collapse summary', () => {
+    expect(
+      parseThreadReadResponse({
+        thread: {
+          id: 'thread-1',
+          cwd: '/repo',
+          createdAt: '2026-04-07T00:00:00.000Z',
+          updatedAt: '2026-04-07T00:01:00.000Z',
+        },
+        transcriptPreview: [{ role: 'user', text: 'hello' }],
+        latestRequestCollapse: {
+          phase: 'reactive_retry',
+          collapsedHeadMessageCount: 3,
+          estimatedTokensSaved: 120,
+          recapFingerprint: 'abcdef0123456789',
+        },
+      }),
+    ).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-04-07T00:00:00.000Z',
+        updatedAt: '2026-04-07T00:01:00.000Z',
+      },
+      transcriptPreview: [{ role: 'user', text: 'hello' }],
+      latestRequestCollapse: {
+        phase: 'reactive_retry',
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 120,
+        recapFingerprint: 'abcdef0123456789',
+      },
+    })
+  })
+
+  it('rejects malformed explicit latest request collapse in thread/read payload', () => {
+    expect(
+      parseThreadReadResponse({
+        thread: {
+          id: 'thread-1',
+          cwd: '/repo',
+          createdAt: '2026-04-07T00:00:00.000Z',
+          updatedAt: '2026-04-07T00:01:00.000Z',
+        },
+        transcriptPreview: [],
+        latestRequestCollapse: {
+          phase: 'initial',
+          collapsedHeadMessageCount: 3,
+          estimatedTokensSaved: 'bad',
+        },
+      }),
+    ).toBeNull()
   })
 
   it('parses stale resolved inputs via shared parser contract', () => {

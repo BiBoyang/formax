@@ -300,7 +300,7 @@ describe('ThreadStore', () => {
 
     const provisional = await store.startThread({})
     const emptyPage = await store.listThreadMessages({ threadId: provisional.id, limit: 20, cursor: '3' })
-    expect(emptyPage).toEqual({ data: [], nextCursor: null })
+    expect(emptyPage).toEqual({ data: [], nextCursor: null, latestRequestCollapse: null })
 
     const fakeSummary = {
       id: provisional.id,
@@ -375,6 +375,7 @@ describe('ThreadStore', () => {
       expect.arrayContaining([{ id: expect.any(String), kind: 'message', role: 'user', text: 'hello thread' }]),
     )
     expect(messagesOut.nextCursor).toBeNull()
+    expect(messagesOut.latestRequestCollapse).toBeNull()
   })
 
   it('exposes latest request-time collapse summary in thread/read', async () => {
@@ -402,6 +403,31 @@ describe('ThreadStore', () => {
       collapsedHeadMessageCount: 2,
       estimatedTokensSaved: 64,
       recapFingerprint: 'fedcba9876543210',
+    })
+  })
+
+  it('exposes latest request-time collapse summary in thread/messages', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'hello thread' }] },
+    ] as any)
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 140,
+      recapFingerprint: '0123456789abcdef',
+    })
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(out.latestRequestCollapse).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 140,
+      recapFingerprint: '0123456789abcdef',
     })
   })
 

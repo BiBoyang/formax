@@ -74,7 +74,16 @@ export function asThreadSummaries(value: unknown): ThreadSummary[] {
   return Array.isArray(data) ? (data as ThreadSummary[]) : []
 }
 
-export function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextCursor: string | null } {
+export function asThreadMessages(value: unknown): {
+  data: ThreadMessage[]
+  nextCursor: string | null
+  latestRequestCollapse?: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    recapFingerprint?: string
+  } | null
+} {
   if (!value || typeof value !== 'object') return { data: [], nextCursor: null }
   const raw = Array.isArray((value as { data?: unknown }).data) ? ((value as { data: unknown[] }).data ?? []) : []
   const data: ThreadMessage[] = raw
@@ -123,7 +132,46 @@ export function asThreadMessages(value: unknown): { data: ThreadMessage[]; nextC
     .filter((entry): entry is ThreadMessage => Boolean(entry))
   const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
-  return { data, nextCursor }
+  const root = value as Record<string, unknown>
+  const latestRequestCollapseRaw = root.latestRequestCollapse
+  const latestRequestCollapse =
+    latestRequestCollapseRaw && typeof latestRequestCollapseRaw === 'object'
+      ? (() => {
+          const record = latestRequestCollapseRaw as Record<string, unknown>
+          const phase =
+            record.phase === 'initial' || record.phase === 'reactive_retry' ? record.phase : null
+          const collapsedHeadMessageCount =
+            typeof record.collapsedHeadMessageCount === 'number' && Number.isFinite(record.collapsedHeadMessageCount)
+              ? record.collapsedHeadMessageCount
+              : null
+          const estimatedTokensSaved =
+            typeof record.estimatedTokensSaved === 'number' && Number.isFinite(record.estimatedTokensSaved)
+              ? record.estimatedTokensSaved
+              : null
+          const recapFingerprint =
+            record.recapFingerprint === undefined
+              ? undefined
+              : typeof record.recapFingerprint === 'string' && record.recapFingerprint.trim()
+                ? record.recapFingerprint
+                : null
+          if (!phase || collapsedHeadMessageCount == null || estimatedTokensSaved == null || recapFingerprint === null) {
+            return undefined
+          }
+          return {
+            phase,
+            collapsedHeadMessageCount,
+            estimatedTokensSaved,
+            ...(recapFingerprint ? { recapFingerprint } : {}),
+          }
+        })()
+      : latestRequestCollapseRaw === null
+        ? null
+        : undefined
+  return {
+    data,
+    nextCursor,
+    ...(latestRequestCollapseRaw !== undefined ? { latestRequestCollapse: latestRequestCollapse ?? null } : {}),
+  }
 }
 
 export function parseProjectionSegments(value: unknown): TranscriptSegment[] {
