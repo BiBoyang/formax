@@ -4,6 +4,7 @@ import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
+import { collapseRequestHistory } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
   buildAutoCompactKeepStrategy,
@@ -59,6 +60,7 @@ export type NextTurnFixedContextGroup = {
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   microCompactImpact: MicroCompactImpact
+  collapseImpact: ContextCollapseImpact
   lifecycleMarkers: ContextLifecycleMarker[]
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
@@ -70,6 +72,14 @@ export type NextTurnFixedContextDiagnostics = {
   autoCompactSkipReason: string | null
   pruneSkipReason: string | null
   topAssembledContributors: ContextContributor[]
+}
+
+export type ContextCollapseImpact = {
+  collapsed: boolean
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  projectedHistoryTokensAfterCollapse: number
+  projectedHistoryDeltaTokens: number
 }
 
 export type ContextContributor = {
@@ -112,7 +122,7 @@ export type ContextDiagnosticsOutputFormat = 'text' | 'json'
 const DEFAULT_CONTEXT_DIAGNOSTICS_NOTES = [
   'Tool-result and other-history slices are approximate because token estimation is JSON-size based.',
   'When compact boundaries exist, snapshot/history analysis uses the latest compact-boundary continuation view instead of the full persisted history.',
-  'Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
+  'Next-turn fixed context is a non-destructive projection: it includes current microcompact/prune/collapse rules and auto-injected blocks, but does not execute full auto-compact or invent future user text.',
   'Auto-compact skip reason omits the turn-gap precondition (sendSeq vs lastAutoCompactSeq) — that runtime state is unavailable to diagnostics.',
 ] as const
 
@@ -222,6 +232,7 @@ export function analyzeNextTurnFixedContext(args: {
   enableAutoCompact?: boolean
 }): NextTurnFixedContextDiagnostics {
   const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
+  const hasLatestCompactBoundary = findLatestCompactBoundary(args.messages) != null
   const fixedGroups = args.fixedGroups
     .map((group) => ({
       label: group.label,
@@ -251,8 +262,14 @@ export function analyzeNextTurnFixedContext(args: {
 
   const projectedHistory = fixedUserMessage ? preparedMessages.slice(0, -1) : preparedMessages
   const preparedFixedMessage = fixedUserMessage ? (preparedMessages[preparedMessages.length - 1] ?? fixedUserMessage) : null
-  const assembledMessages = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
-  const projectedToolUsesById = collectToolUsesById(projectedHistory)
+  const collapseResult = collapseRequestHistory({
+    messages: projectedHistory,
+    allowBoundarylessContinuation: hasLatestCompactBoundary,
+  })
+  const collapsedProjectedHistory = collapseResult.messages
+  const assembledMessagesBeforeCollapse = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
+  const assembledMessages = preparedFixedMessage ? [...collapsedProjectedHistory, preparedFixedMessage] : collapsedProjectedHistory
+  const projectedToolUsesById = collectToolUsesById(collapsedProjectedHistory)
   const lifecycleMarkers = buildLifecycleMarkers({
     system: args.system,
     snapshotHistory: promptMessages,
@@ -268,6 +285,7 @@ export function analyzeNextTurnFixedContext(args: {
 
   const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
   const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
+  const projectedHistoryTokensAfterCollapse = estimatePromptTokens({ system: [], messages: collapsedProjectedHistory })
   const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: promptMessages })
   const fixedTokens = preparedFixedMessage ? estimatePromptTokens({ system: [], messages: [preparedFixedMessage] }) : 0
   const stats = args.budgetConfig
@@ -293,6 +311,13 @@ export function analyzeNextTurnFixedContext(args: {
       estimatedTokensSaved: microCompactResult.estimatedTokensSaved,
       keptRecentBlocks: microCompactResult.keptRecentBlocks,
     },
+    collapseImpact: {
+      collapsed: collapseResult.collapsed,
+      collapsedHeadMessageCount: collapseResult.collapsedHeadMessageCount,
+      estimatedTokensSaved: collapseResult.estimatedTokensSaved,
+      projectedHistoryTokensAfterCollapse,
+      projectedHistoryDeltaTokens: projectedHistoryTokensAfterCollapse - projectedHistoryTokens,
+    },
     lifecycleMarkers,
     projectedHistoryTokens,
     projectedHistoryDeltaTokens: projectedHistoryTokens - snapshotHistoryTokens,
@@ -310,11 +335,11 @@ export function analyzeNextTurnFixedContext(args: {
     pruneSkipReason: derivePruneSkipReason({
       budgetConfig: args.budgetConfig ?? null,
       totalTokensBeforePrune,
-      totalTokensAfterPrune: totalTokens,
+      totalTokensAfterPrune: estimatePromptTokens({ system: args.system, messages: assembledMessagesBeforeCollapse }),
     }),
     topAssembledContributors: buildTopAssembledContributors({
       system: args.system,
-      projectedHistory,
+      projectedHistory: collapsedProjectedHistory,
       projectedToolUsesById,
       fixedGroups,
     }),
@@ -493,6 +518,11 @@ export function formatContextDiagnosticsReport(args: {
     `- Microcompact compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.compactedBlocks ?? 0)}`,
     `- Microcompact kept recent eligible blocks: ${formatInt(args.nextTurn?.microCompactImpact.keptRecentBlocks ?? 0)}`,
     `- Microcompact compacted tools: ${formatToolNames(args.nextTurn?.microCompactImpact.compactedToolNames ?? [])}`,
+    `- Collapse applied for request projection: ${formatMaybeBool(args.nextTurn ? args.nextTurn.collapseImpact.collapsed : null)}`,
+    `- Projected history after collapse: ${formatMaybeInt(args.nextTurn?.collapseImpact.projectedHistoryTokensAfterCollapse ?? null)}`,
+    `- Projected history delta from collapse: ${formatSignedMaybeInt(args.nextTurn?.collapseImpact.projectedHistoryDeltaTokens ?? null)}`,
+    `- Estimated tokens saved by collapse: ${formatInt(args.nextTurn?.collapseImpact.estimatedTokensSaved ?? 0)}`,
+    `- Collapse collapsed older messages: ${formatInt(args.nextTurn?.collapseImpact.collapsedHeadMessageCount ?? 0)}`,
     `- Fixed additions total: ${formatMaybeInt(args.nextTurn?.fixedTokens ?? null)}`,
     ...formatFixedGroups(args.nextTurn?.fixedGroups ?? []),
     `- Assembled fixed total: ${formatMaybeInt(args.nextTurn?.totalTokens ?? null)}`,

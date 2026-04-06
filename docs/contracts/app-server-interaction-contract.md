@@ -154,6 +154,7 @@
     - `shouldAutoCompact`
     - `topAssembledContributors`
   - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
+    - `collapseImpact`（request-time collapse 是否生效，以及估算节省量）
     - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）
     - `autoCompactSkipReason`
     - `pruneSkipReason`
@@ -162,6 +163,12 @@
     - `compactedToolNames`
     - `estimatedTokensSaved`
     - `keptRecentBlocks`
+  - `local.diagnostics.nextTurnFixed.collapseImpact` 若存在，当前稳定字段 SHOULD 包含：
+    - `collapsed`
+    - `collapsedHeadMessageCount`
+    - `estimatedTokensSaved`
+    - `projectedHistoryTokensAfterCollapse`
+    - `projectedHistoryDeltaTokens`
   - `local.diagnostics.latestCompactBoundary` 若非 `null`，当前稳定字段 MUST 至少包含 `schemaVersion`，并 MAY 包含 `trigger`、`triggerReason`、`preTokens`、`summaryKind`、`keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`
   - 当前 `summaryKind` MAY 为：
     - `model_summary`

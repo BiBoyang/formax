@@ -42,6 +42,14 @@ export type RpcMicroCompactImpact = {
   keptRecentBlocks: number
 }
 
+export type RpcContextCollapseImpact = {
+  collapsed: boolean
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  projectedHistoryTokensAfterCollapse: number
+  projectedHistoryDeltaTokens: number
+}
+
 export type RpcContextLifecycleMarker = {
   stage: 'snapshot' | 'post_microcompact' | 'post_prune' | 'post_compact'
   label: string
@@ -134,6 +142,7 @@ export type RpcContextDiagnosticsSnapshot = {
 export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   microCompactImpact: RpcMicroCompactImpact
+  collapseImpact?: RpcContextCollapseImpact
   lifecycleMarkers?: RpcContextLifecycleMarker[]
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
@@ -411,6 +420,32 @@ function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | nu
   return rows
 }
 
+function parseCollapseImpact(value: unknown): RpcContextCollapseImpact | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const collapsed = typeof record.collapsed === 'boolean' ? record.collapsed : null
+  const collapsedHeadMessageCount = asFiniteNumber(record.collapsedHeadMessageCount)
+  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+  const projectedHistoryTokensAfterCollapse = asFiniteNumber(record.projectedHistoryTokensAfterCollapse)
+  const projectedHistoryDeltaTokens = asFiniteNumber(record.projectedHistoryDeltaTokens)
+  if (
+    collapsed == null ||
+    collapsedHeadMessageCount == null ||
+    estimatedTokensSaved == null ||
+    projectedHistoryTokensAfterCollapse == null ||
+    projectedHistoryDeltaTokens == null
+  ) {
+    return null
+  }
+  return {
+    collapsed,
+    collapsedHeadMessageCount,
+    estimatedTokensSaved,
+    projectedHistoryTokensAfterCollapse,
+    projectedHistoryDeltaTokens,
+  }
+}
+
 function parseCompactTriggerReason(value: unknown): RpcCompactTriggerReason | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -520,6 +555,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     fixedGroups.push({ label, blockCount, tokens })
   }
   const microCompactImpact = parseMicroCompactImpact(record.microCompactImpact)
+  const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
+  if (record.collapseImpact != null && !collapseImpact) return null
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
   if (record.lifecycleMarkers != null && !lifecycleMarkers) return null
   const topAssembledContributors = parseContributors(record.topAssembledContributors)
@@ -548,6 +585,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   return {
     fixedGroups,
     microCompactImpact,
+    ...(collapseImpact ? { collapseImpact } : {}),
     ...(lifecycleMarkers ? { lifecycleMarkers } : {}),
     projectedHistoryTokens,
     projectedHistoryDeltaTokens,

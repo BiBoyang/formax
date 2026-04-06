@@ -42,6 +42,29 @@ describe('collapseRequestHistory', () => {
     expect(out.messages).toEqual(history)
   })
 
+  it('can collapse an already-projected continuation when explicitly allowed', () => {
+    const continuation = [
+      textMessage('user', buildCompactionSummaryUserText('Earlier compact summary')),
+      textMessage('assistant', 'Older analysis '.repeat(1200)),
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', 'line\n'.repeat(800)),
+      textMessage('user', 'Investigate the auth redirect regression in detail.'),
+      textMessage('assistant', 'Recent working-set analysis.'),
+      textMessage('user', 'Patch the failing redirect behavior without touching other flows.'),
+      textMessage('assistant', 'Most recent assistant state.'),
+    ]
+
+    const out = collapseRequestHistory({
+      messages: continuation,
+      allowBoundarylessContinuation: true,
+      minHeadTokens: 1,
+      minSavedTokens: 1,
+    })
+
+    expect(out.collapsed).toBe(true)
+    expect(JSON.stringify(out.messages[0])).toContain(CONTEXT_COLLAPSE_PREFIX)
+  })
+
   it('collapses the older continuation head into a request-only recap', () => {
     const compactSummary = buildCompactionSummaryUserText('Earlier compact summary', {
       recentFiles: ['/repo/src/old.ts'],

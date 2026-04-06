@@ -31,8 +31,10 @@ export function collapseRequestHistory(args: {
   keepStrategy?: CompactBoundaryKeepStrategy
   minHeadTokens?: number
   minSavedTokens?: number
+  allowBoundarylessContinuation?: boolean
 }): ContextCollapseResult {
-  if (findLatestCompactBoundaryIndex(args.messages) < 0) {
+  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.messages)
+  if (latestCompactBoundaryIndex < 0 && !args.allowBoundarylessContinuation) {
     return {
       messages: args.messages,
       collapsed: false,
@@ -41,7 +43,8 @@ export function collapseRequestHistory(args: {
     }
   }
 
-  const continuation = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
+  const continuation =
+    latestCompactBoundaryIndex >= 0 ? getContinuationMessagesAfterLatestCompactBoundary(args.messages) : args.messages
   if (continuation.length < 4) {
     return {
       messages: args.messages,

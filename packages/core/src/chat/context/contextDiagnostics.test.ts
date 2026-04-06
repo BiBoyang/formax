@@ -10,6 +10,7 @@ import type { PromptBlock, PromptMessage } from '../../prompts'
 import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
+  buildCompactionSummaryUserText,
   buildDefaultCompactRehydrationPlan,
   estimateCompactRehydrationCost,
   getContinuationMessagesAfterLatestCompactBoundary,
@@ -182,6 +183,8 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Estimated tokens saved by microcompact: 0')
     expect(out).toContain('- Microcompact compacted blocks: 0')
     expect(out).toContain('- Microcompact compacted tools: none')
+    expect(out).toContain('- Collapse applied for request projection: unknown')
+    expect(out).toContain('- Estimated tokens saved by collapse: 0')
     expect(out).toContain('- Fixed group breakdown: none')
     expect(out).toContain('Lifecycle markers before future user text')
     expect(out).toContain('Top assembled contributors before future user text')
@@ -333,6 +336,13 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
     expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
     expect(out.microCompactImpact.keptRecentBlocks).toBe(3)
+    expect(out.collapseImpact).toEqual({
+      collapsed: false,
+      collapsedHeadMessageCount: 0,
+      estimatedTokensSaved: 0,
+      projectedHistoryTokensAfterCollapse: out.projectedHistoryTokens,
+      projectedHistoryDeltaTokens: 0,
+    })
     expect(out.lifecycleMarkers.map((row) => row.stage)).toEqual([
       'snapshot',
       'post_microcompact',
@@ -357,6 +367,59 @@ describe('contextDiagnostics', () => {
     ).toBe(true)
     expect(out.autoCompactSkipReason).toBe('fewer than 2 non-tool user turns (got 0)')
     expect(out.pruneSkipReason).toContain('within effective limit')
+  })
+
+  it('reports collapse impact from request-time projection without mutating the underlying history view', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      enableAutoCompact: true,
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [
+        buildCompactBoundaryMessage({
+          trigger: 'auto',
+          preTokens: 4096,
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_combo',
+            keepLastTurns: 2,
+            keepMinTokens: 1200,
+            keepMinUserTurns: 1,
+          },
+        }),
+        { role: 'user', content: [{ type: 'text', text: buildCompactionSummaryUserText('Earlier compact summary') }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'Older analysis '.repeat(5000) }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'line\n'.repeat(1600) }] as any,
+        },
+        { role: 'user', content: [{ type: 'text', text: 'Investigate auth redirect regression carefully.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'carry latest working set' }] },
+        { role: 'user', content: [{ type: 'text', text: 'Patch redirect without changing unrelated flows.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'latest assistant state' }] },
+      ],
+      fixedGroups: [],
+      budgetConfig: {
+        contextWindowTokens: 100_000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 12_000,
+      },
+    })
+
+    expect(out.collapseImpact.collapsed).toBe(true)
+    expect(out.collapseImpact.collapsedHeadMessageCount).toBeGreaterThan(0)
+    expect(out.collapseImpact.estimatedTokensSaved).toBeGreaterThan(0)
+    expect(out.collapseImpact.projectedHistoryTokensAfterCollapse).toBeLessThan(out.projectedHistoryTokens)
+    expect(out.collapseImpact.projectedHistoryDeltaTokens).toBeLessThan(0)
+    expect(out.totalTokens).toBeGreaterThan(out.collapseImpact.projectedHistoryTokensAfterCollapse)
+    expect(out.topAssembledContributors.some((row) => row.label.includes('Older continuation collapsed for this'))).toBe(true)
+    expect(out.topAssembledContributors.some((row) => row.label.includes('Older analysis'))).toBe(false)
   })
 
   it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {
@@ -618,6 +681,13 @@ describe('contextDiagnostics', () => {
       compactedToolNames: [],
       estimatedTokensSaved: 0,
       keptRecentBlocks: 0,
+    })
+    expect(parsed.nextTurnFixed.collapseImpact).toEqual({
+      collapsed: false,
+      collapsedHeadMessageCount: 0,
+      estimatedTokensSaved: 0,
+      projectedHistoryTokensAfterCollapse: parsed.nextTurnFixed.projectedHistoryTokens,
+      projectedHistoryDeltaTokens: 0,
     })
     expect(parsed.notes).toBeInstanceOf(Array)
   })

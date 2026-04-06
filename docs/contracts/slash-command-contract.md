@@ -128,6 +128,13 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `toolName`
    - `systemSectionKey`
    这样客户端可以做 drill-down，而不必反解析 `label`
+16. `nextTurnFixed` diagnostics payload 当前 SHOULD 暴露 `collapseImpact`，用于解释 request-time `context collapse` 是否生效；稳定字段至少包含：
+   - `collapsed`
+   - `collapsedHeadMessageCount`
+   - `estimatedTokensSaved`
+   - `projectedHistoryTokensAfterCollapse`
+   - `projectedHistoryDeltaTokens`
+   text diagnostics SHOULD 同步提供 collapse impact 小节，帮助判断 request-only collapse 是否真的降低了下一轮 assembled prompt 体积
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

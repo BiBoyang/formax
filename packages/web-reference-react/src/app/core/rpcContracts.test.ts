@@ -105,6 +105,13 @@ describe('rpcContracts', () => {
                 estimatedTokensSaved: 200,
                 keptRecentBlocks: 2,
               },
+              collapseImpact: {
+                collapsed: true,
+                collapsedHeadMessageCount: 3,
+                estimatedTokensSaved: 120,
+                projectedHistoryTokensAfterCollapse: 55,
+                projectedHistoryDeltaTokens: -20,
+              },
               lifecycleMarkers: [
                 {
                   stage: 'snapshot',
@@ -188,6 +195,13 @@ describe('rpcContracts', () => {
             estimatedTokensSaved: 200,
             keptRecentBlocks: 2,
           },
+          collapseImpact: {
+            collapsed: true,
+            collapsedHeadMessageCount: 3,
+            estimatedTokensSaved: 120,
+            projectedHistoryTokensAfterCollapse: 55,
+            projectedHistoryDeltaTokens: -20,
+          },
           lifecycleMarkers: [
             {
               stage: 'snapshot',
@@ -232,6 +246,70 @@ describe('rpcContracts', () => {
             kind: 'formax.context_diagnostics',
             schemaVersion: 2,
             mode: 'normal',
+          },
+        },
+      }).localDiagnostics,
+    ).toBeNull()
+
+    expect(
+      parseTurnStartLikeResponse({
+        turn: { id: 'turn-1' },
+        local: {
+          stdout: 'hello',
+          diagnostics: {
+            kind: 'formax.context_diagnostics',
+            schemaVersion: 1,
+            mode: 'normal',
+            model: 'claude-3-5-sonnet-latest',
+            latestCompactBoundary: null,
+            snapshot: {
+              totalTokens: 1,
+              systemTokens: 1,
+              historyTokens: 0,
+              toolResultTokens: 0,
+              otherHistoryTokens: 0,
+              messageCount: 1,
+              userMessageCount: 1,
+              assistantMessageCount: 0,
+              toolResultBlockCount: 0,
+              microCompactedToolResultCount: 0,
+              toolResultCountsByToolName: [],
+              microCompactedCountsByToolName: [],
+              contextWindowTokens: null,
+              effectiveLimitTokens: null,
+              autoCompactLimitTokens: null,
+              baselineTokens: null,
+              percentRemaining: null,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topSnapshotContributors: [],
+            },
+            nextTurnFixed: {
+              fixedGroups: [],
+              microCompactImpact: {
+                compactedBlocks: 0,
+                compactedToolNames: [],
+                estimatedTokensSaved: 0,
+                keptRecentBlocks: 0,
+              },
+              collapseImpact: {
+                collapsed: 'bad',
+                collapsedHeadMessageCount: 0,
+                estimatedTokensSaved: 0,
+                projectedHistoryTokensAfterCollapse: 0,
+                projectedHistoryDeltaTokens: 0,
+              },
+              projectedHistoryTokens: 0,
+              projectedHistoryDeltaTokens: 0,
+              fixedTokens: 0,
+              totalTokens: 0,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topAssembledContributors: [],
+            },
+            notes: [],
           },
         },
       }).localDiagnostics,
