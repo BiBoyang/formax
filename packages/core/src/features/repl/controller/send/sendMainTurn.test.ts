@@ -139,6 +139,7 @@ function createHarness(overrides?: Record<string, unknown>): any {
       sendSeqRef: { current: 0 },
       lastAutoCompactSeqRef: { current: 0 },
       onCompactLifecycle: vi.fn(),
+      onRequestCollapse: vi.fn(),
     },
     state: {
       setMessages,
@@ -185,6 +186,12 @@ describe('runMainSendTurn', () => {
     prepareHistoryForTurn.mockImplementation(async ({ history, user, contextWindowTokens }: any) => ({
       history,
       requestHistory: history,
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+      },
       user,
       context:
         contextWindowTokens === undefined
@@ -224,6 +231,22 @@ describe('runMainSendTurn', () => {
     runReactiveCompact.mockResolvedValueOnce({
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
       requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 64,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          preservedTailMessageCount: 3,
+          retainedCompactSummary: true,
+          recentUserPromptCount: 2,
+          recentFileCount: 1,
+          earlierToolResultBlockCount: 4,
+          recapFingerprint: 'abcdef0123456789',
+        },
+      },
       user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
       context: {
         usedTokens: 900,
@@ -266,6 +289,16 @@ describe('runMainSendTurn', () => {
     expect(harness._spies.setError).not.toHaveBeenCalledWith(
       "This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens.",
     )
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      metadata: expect.objectContaining({
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+      }),
+    })
   })
 
   it('surfaces the original provider overflow error when reactive compact itself fails', async () => {
@@ -339,6 +372,22 @@ describe('runMainSendTurn', () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
       requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 96,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          preservedTailMessageCount: 4,
+          retainedCompactSummary: true,
+          recentUserPromptCount: 2,
+          recentFileCount: 1,
+          earlierToolResultBlockCount: 5,
+          recapFingerprint: 'abcdef0123456789',
+        },
+      },
       user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
       context: {
         usedTokens: 1234,
@@ -360,12 +409,28 @@ describe('runMainSendTurn', () => {
         user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
       }),
     )
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 96,
+      metadata: expect.objectContaining({
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+      }),
+    })
   })
 
   it('emits auto-compact notice only when prepare step reports it should be shown', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],
       requestHistory: [],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+      },
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {
         usedTokens: 1234,
@@ -389,6 +454,12 @@ describe('runMainSendTurn', () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],
       requestHistory: [],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+      },
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {
         usedTokens: 1234,

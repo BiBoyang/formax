@@ -7,6 +7,7 @@ import type { ReplMode } from '../../mode'
 import type { PlanSessionManager } from '../../planSession'
 import type { ReminderService } from '../../reminders/ReminderService'
 import type { CompactLifecycleEvent } from './compactFlow'
+import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import type { ReplModeAccess, SendTurnSharedRefs } from './sendTypes'
 
 type MainTurnContextArgs = {
@@ -26,6 +27,12 @@ type MainTurnContextArgs = {
   sendSeqRef: { current: number }
   lastAutoCompactSeqRef: { current: number }
   onCompactLifecycle: ((ev: CompactLifecycleEvent) => void) | undefined
+  onRequestCollapse?: ((event: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    metadata: ContextCollapseMeta | null
+  }) => void) | undefined
   getSessionFilePath?: () => string | null
 }
 
@@ -49,6 +56,12 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+    onRequestCollapse?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      collapsedHeadMessageCount: number
+      estimatedTokensSaved: number
+      metadata: ContextCollapseMeta | null
+    }) => void
     getSessionFilePath?: () => string | null
   }
 } {
@@ -72,6 +85,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       sendSeqRef: args.sendSeqRef,
       lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
       onCompactLifecycle: args.onCompactLifecycle,
+      onRequestCollapse: args.onRequestCollapse,
       getSessionFilePath: args.getSessionFilePath,
     },
   }

@@ -5,14 +5,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import { useSessionEventRecorders } from './useSessionEventRecorders'
 
-const { recordCompactRequestedEventMock, recordLocalCommandInjectionEventMock } = vi.hoisted(() => ({
+const {
+  recordCompactRequestedEventMock,
+  recordLocalCommandInjectionEventMock,
+  recordRequestCollapseEventMock,
+} = vi.hoisted(() => ({
   recordCompactRequestedEventMock: vi.fn(),
   recordLocalCommandInjectionEventMock: vi.fn(),
+  recordRequestCollapseEventMock: vi.fn(),
 }))
 
 vi.mock('./sessionEvents', () => ({
   recordCompactRequestedEvent: recordCompactRequestedEventMock,
   recordLocalCommandInjectionEvent: recordLocalCommandInjectionEventMock,
+  recordRequestCollapseEvent: recordRequestCollapseEventMock,
 }))
 
 type RecorderApi = ReturnType<typeof useSessionEventRecorders>
@@ -119,6 +125,59 @@ describe('useSessionEventRecorders', () => {
       writer,
       source: 'slash_local_async',
       record,
+    })
+
+    app.unmount()
+  })
+
+  it('delegates request-time collapse events to session helpers', async () => {
+    const appendEvent = vi.fn(async () => undefined)
+    const writer = { appendEvent }
+    const writerRef = { current: writer }
+    const apiRef = { current: null as RecorderApi | null }
+
+    const app = render(
+      <Harness
+        apiRef={apiRef}
+        sessionSaveEnabled={true}
+        writerRef={writerRef}
+      />,
+    )
+
+    apiRef.current?.onRequestCollapse({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      metadata: {
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+        preservedTailMessageCount: 4,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 2,
+        recentFileCount: 1,
+        earlierToolResultBlockCount: 5,
+        recapFingerprint: 'abcdef0123456789',
+      },
+    })
+
+    expect(recordRequestCollapseEventMock).toHaveBeenCalledWith({
+      sessionSaveEnabled: true,
+      writer,
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      metadata: {
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+        preservedTailMessageCount: 4,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 2,
+        recentFileCount: 1,
+        earlierToolResultBlockCount: 5,
+        recapFingerprint: 'abcdef0123456789',
+      },
     })
 
     app.unmount()

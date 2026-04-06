@@ -4,7 +4,9 @@ import type { SessionWriter } from '../../sessionSave/writer'
 import {
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
+  recordRequestCollapseEvent,
 } from './sessionEvents'
+import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 
 type CompactLifecycleEvent =
   | { type: 'compact_started'; source: string }
@@ -16,6 +18,12 @@ function useSessionEventRecorders(args: {
   writerRef: { current: SessionWriter | null }
 }): {
   onCompactLifecycle: (event: CompactLifecycleEvent) => void
+  onRequestCollapse: (event: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    metadata: ContextCollapseMeta | null
+  }) => void
   onCompactRequested: () => void
   onSlashLocalAsyncRecordForNextTurn: (record: LocalCommandRecord) => void
   onSlashLocalRecordForNextTurn: (record: LocalCommandRecord) => void
@@ -43,6 +51,25 @@ function useSessionEventRecorders(args: {
     recordCompactRequestedEvent({ sessionSaveEnabled: args.sessionSaveEnabled, writer: args.writerRef.current })
   }, [args.sessionSaveEnabled, args.writerRef])
 
+  const onRequestCollapse = useCallback(
+    (event: {
+      phase: 'initial' | 'reactive_retry'
+      collapsedHeadMessageCount: number
+      estimatedTokensSaved: number
+      metadata: ContextCollapseMeta | null
+    }) => {
+      recordRequestCollapseEvent({
+        sessionSaveEnabled: args.sessionSaveEnabled,
+        writer: args.writerRef.current,
+        phase: event.phase,
+        collapsedHeadMessageCount: event.collapsedHeadMessageCount,
+        estimatedTokensSaved: event.estimatedTokensSaved,
+        metadata: event.metadata,
+      })
+    },
+    [args.sessionSaveEnabled, args.writerRef],
+  )
+
   const onSlashLocalAsyncRecordForNextTurn = useCallback(
     (record: LocalCommandRecord) => {
       recordLocalCommandInjectionEvent({
@@ -69,6 +96,7 @@ function useSessionEventRecorders(args: {
 
   return {
     onCompactLifecycle,
+    onRequestCollapse,
     onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn,
     onSlashLocalRecordForNextTurn,

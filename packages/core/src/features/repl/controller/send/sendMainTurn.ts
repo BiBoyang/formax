@@ -23,6 +23,7 @@ import { isAbortLikeError } from '../shared/utils'
 import { createContextCompressionService } from './contextCompressionService'
 import { isReactiveCompactEligibleError } from './reactiveCompact'
 import type { CompactTriggerReason } from '../../../../chat/context/compact'
+import type { RequestCollapseState } from './contextCompressionService'
 
 const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
@@ -51,6 +52,12 @@ type RunMainSendTurnArgs = {
     sendSeqRef: { current: number }
     lastAutoCompactSeqRef: { current: number }
     onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
+    onRequestCollapse?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      collapsedHeadMessageCount: number
+      estimatedTokensSaved: number
+      metadata: RequestCollapseState['metadata']
+    }) => void
     getSessionFilePath?: () => string | null
   }
   state: SendStateSetters & {
@@ -227,11 +234,22 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         exec,
       })
 
+    const recordRequestCollapse = (phase: 'initial' | 'reactive_retry', collapseState: RequestCollapseState | undefined) => {
+      if (!collapseState?.applied) return
+      args.onRequestCollapse?.({
+        phase,
+        collapsedHeadMessageCount: collapseState.collapsedHeadMessageCount,
+        estimatedTokensSaved: collapseState.estimatedTokensSaved,
+        metadata: collapseState.metadata,
+      })
+    }
+
     let executionHistory = prunedHistory
     let executionRequestHistory = prunedRequestHistory
     let executionUser = prunedUser
     let nextHistory: ChatHistory
     try {
+      recordRequestCollapse('initial', prepared.collapseState)
       nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
     } catch (error) {
       const abortLike = isAbortLikeError(error)
@@ -258,6 +276,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         executionHistory = reactivePrepared.history
         executionRequestHistory = reactivePrepared.requestHistory
         executionUser = reactivePrepared.user
+        recordRequestCollapse('reactive_retry', reactivePrepared.collapseState)
         nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
       } else {
         throw error

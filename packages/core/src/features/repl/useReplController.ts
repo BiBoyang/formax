@@ -229,6 +229,7 @@ export function useReplController(deps: {
 
   const {
     onCompactLifecycle,
+    onRequestCollapse,
     onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn,
     onSlashLocalRecordForNextTurn,
@@ -515,6 +516,7 @@ export function useReplController(deps: {
           nextCanonicalReplaySeq,
           onCanonicalEvent,
           onCompactLifecycle,
+          onRequestCollapse,
           onCompactRequested,
           onSlashLocalAsyncRecordForNextTurn,
           onSlashLocalRecordForNextTurn,
@@ -549,6 +551,7 @@ export function useReplController(deps: {
       nextCanonicalTurnSeq,
       runNewSession,
       onCompactRequested,
+      onRequestCollapse,
       openOverlay,
       onSlashLocalAsyncRecordForNextTurn,
       onSlashLocalRecordForNextTurn,

@@ -2,6 +2,7 @@ import { getClaudeMdInjectionMeta } from '../../injectedBlocks'
 import { getLocalCommandInjectionStats } from './localCommandInjection'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import type { SessionWriter } from '../../sessionSave/writer'
+import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 
 type SessionEventWriter = Pick<SessionWriter, 'appendEvent'> | null
 
@@ -50,4 +51,31 @@ export function recordClaudeMdInjectionEvent(args: {
 
   args.lastSigRef.current = sig
   void args.writer?.appendEvent('claude_md_injection', meta)
+}
+
+export function recordRequestCollapseEvent(args: {
+  sessionSaveEnabled: boolean
+  writer: SessionEventWriter
+  phase: 'initial' | 'reactive_retry'
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  metadata: ContextCollapseMeta | null
+}): void {
+  if (!args.sessionSaveEnabled) return
+  if (!args.metadata) return
+
+  void args.writer?.appendEvent('request_collapse_applied', {
+    phase: args.phase,
+    collapsedHeadMessageCount: args.collapsedHeadMessageCount,
+    estimatedTokensSaved: args.estimatedTokensSaved,
+    schemaVersion: args.metadata.schemaVersion,
+    recapKind: args.metadata.kind,
+    keepLastTurns: args.metadata.keepLastTurns,
+    preservedTailMessageCount: args.metadata.preservedTailMessageCount,
+    retainedCompactSummary: args.metadata.retainedCompactSummary,
+    recentUserPromptCount: args.metadata.recentUserPromptCount,
+    recentFileCount: args.metadata.recentFileCount,
+    earlierToolResultBlockCount: args.metadata.earlierToolResultBlockCount,
+    recapFingerprint: args.metadata.recapFingerprint,
+  })
 }

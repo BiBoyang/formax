@@ -183,6 +183,14 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 3. compact summary 与 preserved tail 若位于最新 boundary 之后，MUST 继续作为恢复后的 active history 一部分保留
 4. 若会话不存在 compact boundary，恢复结果 MUST 退化为“去掉 boundary message 后的完整 persisted history”
 
+`SES-304E`
+当一次真实模型请求使用了 request-time context collapse projection 时，session 持久化当前 SHOULD 追加最小运行时事件 `request_collapse_applied`。  
+该事件：
+1. 当前 MAY 在同一 turn 内出现多次；至少允许区分 `phase = "initial"` 与 `phase = "reactive_retry"`
+2. 当前 SHOULD 至少包含：`collapsedHeadMessageCount`、`estimatedTokensSaved`
+3. 当前 SHOULD 尽量携带最小 request-recap metadata，用于后续 diagnostics / replay tooling / state-store 设计；最小集合 MAY 包含 `keepLastTurns`、`preservedTailMessageCount`、`retainedCompactSummary`、`recapFingerprint`
+4. 当前 MUST 只描述 request-time projection；不得被解释为 persisted history 已被 rewrite
+
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：
 1. `options.dir` 存在时以其为 lookup cwd

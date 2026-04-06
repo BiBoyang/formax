@@ -13,6 +13,7 @@ import type { CanonicalUiMessage } from './sendTypes'
 import { applyProviderErrorToState } from '../shared'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
 import type { CompactLifecycleEvent } from './compactFlow'
+import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import { createMainTurnExecutionContext } from './sendMainTurnContext'
 import { runMainSendTurn } from './sendMainTurn'
 import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
@@ -59,6 +60,12 @@ type RunReplModelSendFlowArgs = {
     newSession: () => void | Promise<void>
     handleEvent: (ev: StreamEvent) => void
     onCompactLifecycle?: (event: CompactLifecycleEvent) => void
+    onRequestCollapse?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      collapsedHeadMessageCount: number
+      estimatedTokensSaved: number
+      metadata: ContextCollapseMeta | null
+    }) => void
     onCompactRequested: () => void
     onSlashLocalAsyncRecordForNextTurn: (record: LocalCommandRecord) => void
     onSlashLocalRecordForNextTurn: (record: LocalCommandRecord) => void
@@ -137,6 +144,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     sendSeqRef: args.turnRefs.sendSeqRef,
     lastAutoCompactSeqRef: args.turnRefs.autoCompactSeqRef,
     onCompactLifecycle: args.callbacks.onCompactLifecycle,
+    onRequestCollapse: args.callbacks.onRequestCollapse,
     getSessionFilePath: args.turnRefs.getSessionFilePath,
   })
   try {

@@ -11,6 +11,7 @@ import type { PlanSessionManager } from '../planSession'
 import type { RuntimeFlags } from '../../../config/runtimeFlags'
 import type { UserInputManager } from '../../../tools/runtime/userInputManager'
 import type { CompactLifecycleEvent } from './send/compactFlow'
+import type { ContextCollapseMeta } from '../../../chat/context/contextCollapse'
 import type { CanonicalEvent } from '../../semantics/core'
 import type { TranscriptProjectionState } from '../../semantics/projection'
 import type { OverlaySpec } from '../../commands/contracts'
@@ -183,6 +184,12 @@ export type SendFlowCallbacks = {
   nextCanonicalReplaySeq: () => number
   onCanonicalEvent: (event: CanonicalEvent) => void
   onCompactLifecycle: (event: CompactLifecycleEvent) => void
+  onRequestCollapse?: (event: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    metadata: ContextCollapseMeta | null
+  }) => void
   onCompactRequested: () => void
   onSlashLocalAsyncRecordForNextTurn: (record: LocalCommandRecord) => void
   onSlashLocalRecordForNextTurn: (record: LocalCommandRecord) => void
@@ -389,6 +396,7 @@ export async function runSendAction(args: {
       newSession: args.callbacks.runNewSession,
       handleEvent: args.callbacks.handleEvent,
       onCompactLifecycle: args.callbacks.onCompactLifecycle,
+      onRequestCollapse: args.callbacks.onRequestCollapse,
       onCompactRequested: args.callbacks.onCompactRequested,
       onSlashLocalAsyncRecordForNextTurn: args.callbacks.onSlashLocalAsyncRecordForNextTurn,
       onSlashLocalRecordForNextTurn: args.callbacks.onSlashLocalRecordForNextTurn,
