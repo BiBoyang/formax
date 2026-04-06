@@ -19,6 +19,7 @@ import {
   buildSessionMemoryCompactionSummary,
   type SessionMemoryDraft,
 } from '../../../../chat/context/sessionMemory'
+import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import type { PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
@@ -34,6 +35,13 @@ export type EstimatedContextState = {
   percentRemaining: number
   source: 'estimate'
 } | null
+
+export type RequestCollapseState = {
+  applied: boolean
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  metadata: ContextCollapseMeta | null
+}
 
 export function createContextCompressionService(deps: {
   cfg: RuntimeConfig
@@ -60,10 +68,23 @@ export function createContextCompressionService(deps: {
     baselineTokens: deps.cfg.context.baselineTokens,
   })
 
-  const collapsePreparedHistory = (messages: ChatHistory): ChatHistory =>
-    collapseRequestHistory({
+  const buildCollapsedRequestProjection = (messages: ChatHistory): {
+    requestHistory: ChatHistory
+    collapseState: RequestCollapseState
+  } => {
+    const collapsed = collapseRequestHistory({
       messages,
-    }).messages
+    })
+    return {
+      requestHistory: collapsed.messages,
+      collapseState: {
+        applied: collapsed.collapsed,
+        collapsedHeadMessageCount: collapsed.collapsedHeadMessageCount,
+        estimatedTokensSaved: collapsed.estimatedTokensSaved,
+        metadata: collapsed.metadata,
+      },
+    }
+  }
 
   const pruneMessages = (args: { system: PromptBlock[]; messages: ChatHistory; contextWindowTokens: number | undefined }) => {
     if (!args.contextWindowTokens) return args.messages
@@ -249,6 +270,7 @@ export function createContextCompressionService(deps: {
     }): Promise<{
       history: ChatHistory
       requestHistory: ChatHistory
+      collapseState: RequestCollapseState
       user: PromptMessage
       context: EstimatedContextState
       autoCompacted: boolean
@@ -339,15 +361,16 @@ export function createContextCompressionService(deps: {
       })
       const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
       const preparedHistory = preparedMessages.slice(0, -1)
-      const collapsedRequestHistory = collapsePreparedHistory(preparedHistory)
+      const collapsedRequestProjection = buildCollapsedRequestProjection(preparedHistory)
 
       return {
         history: preparedHistory,
-        requestHistory: collapsedRequestHistory,
+        requestHistory: collapsedRequestProjection.requestHistory,
+        collapseState: collapsedRequestProjection.collapseState,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...collapsedRequestHistory, preparedUser],
+          messages: [...collapsedRequestProjection.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
         autoCompacted,
@@ -443,6 +466,7 @@ export function createContextCompressionService(deps: {
     }): Promise<{
       history: ChatHistory
       requestHistory: ChatHistory
+      collapseState: RequestCollapseState
       user: PromptMessage
       context: EstimatedContextState
     }> {
@@ -491,15 +515,16 @@ export function createContextCompressionService(deps: {
       })
       const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
       const preparedHistory = preparedMessages.slice(0, -1)
-      const collapsedRequestHistory = collapsePreparedHistory(preparedHistory)
+      const collapsedRequestProjection = buildCollapsedRequestProjection(preparedHistory)
 
       return {
         history: preparedHistory,
-        requestHistory: collapsedRequestHistory,
+        requestHistory: collapsedRequestProjection.requestHistory,
+        collapseState: collapsedRequestProjection.collapseState,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...collapsedRequestHistory, preparedUser],
+          messages: [...collapsedRequestProjection.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
       }

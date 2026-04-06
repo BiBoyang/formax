@@ -121,6 +121,7 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前接线点（只改 `requestHistory`，不改 persisted `history`）
 - 当前边界：
   - 只作用于 request-time projection
+  - `prepareHistoryForTurn()` / `runReactiveCompact()` 当前也会返回最小 `collapseState`，让运行时后续链路能够消费“这轮 request projection 是否做了 collapse”以及对应 metadata，而不必再从 `requestHistory` 反推
   - 不引入 collapse store / archived span metadata
   - 不改变 replay / resume 的 persisted history 语义
   - reactive/manual 路径暂未单独扩展 collapse 策略

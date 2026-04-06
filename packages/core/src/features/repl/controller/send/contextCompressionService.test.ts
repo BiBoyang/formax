@@ -209,6 +209,12 @@ describe('createContextCompressionService', () => {
     expect(out.autoCompacted).toBe(true)
     expect(out.showAutoCompactNotice).toBe(true)
     expect(out.history).toEqual([])
+    expect(out.collapseState).toEqual({
+      applied: false,
+      collapsedHeadMessageCount: 0,
+      estimatedTokensSaved: 0,
+      metadata: null,
+    })
     expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'after-final' }] })
     expect(out.context).toEqual({
       usedTokens: 1234,
@@ -452,6 +458,18 @@ describe('createContextCompressionService', () => {
 
     expect(JSON.stringify(out.history)).toContain('Older analysis')
     expect(JSON.stringify(out.requestHistory)).toContain('Older continuation collapsed for this request only.')
+    expect(out.collapseState).toEqual(
+      expect.objectContaining({
+        applied: true,
+        collapsedHeadMessageCount: expect.any(Number),
+        estimatedTokensSaved: expect.any(Number),
+        metadata: expect.objectContaining({
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+        }),
+      }),
+    )
     expect(out.context).toEqual({
       usedTokens: 700,
       limitTokens: 9000,
@@ -887,6 +905,16 @@ describe('createContextCompressionService', () => {
     expect(JSON.stringify(out.history)).toContain('Older analysis')
     expect(JSON.stringify(out.history)).toContain('Patch redirect without changing unrelated flows.')
     expect(JSON.stringify(out.requestHistory)).toContain('Older continuation collapsed for this request only.')
+    expect(out.collapseState).toEqual(
+      expect.objectContaining({
+        applied: true,
+        metadata: expect.objectContaining({
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+        }),
+      }),
+    )
     expect(JSON.stringify(out.requestHistory)).toContain('Patch redirect without changing unrelated flows.')
     expect(JSON.stringify(out.requestHistory)).not.toContain('persisted pre-boundary turn')
     expect(out.requestHistory[0]?.meta?.compactBoundary).toBeUndefined()
