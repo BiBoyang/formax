@@ -1,6 +1,6 @@
 # Session Persistence Contract（唯一事实源）
 
-最后更新：2026-04-04  
+最后更新：2026-04-06  
 状态：规范性（Normative）
 
 本文档定义 Formax 本地 session 文件、resume 语义、以及 app-server 恢复 stale input 的共享合同。
@@ -160,7 +160,12 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 3. 当前 MAY 在 turn 完成后异步刷新；不得阻塞主 turn 完成路径
 4. 当前 MUST NOT 取代 JSONL session 文件的 replay / resume 权威性
 5. 当前 auto compact MAY 先读取该 sidecar，以 session memory 生成 compaction summary；若 sidecar 不存在、不可读或不可用，MUST 静默回退到 model summary compact
-6. 当前 resume / continue 流程 MAY 忽略该 sidecar；若未来开始消费，必须先更新本合同
+6. 当前 REPL `/resume`、CLI `resumeLast`、SDK `query(..., { resume })` 与 `query(..., { continue: true })` 在基于 session 文件恢复 active history 后，MUST best-effort 刷新该 sidecar
+7. `SES-304B.6` 的刷新输入 MUST 使用 boundary-aware restore 之后的 active history，而不是完整 replay.history 原样
+8. `SES-304B.6` 的 sidecar 刷新 MUST 是 best-effort；刷新失败时不得中断 resume / continue / restore 主流程
+9. sidecar 刷新当前 MAY 使用恢复入口可得的最小上下文：
+   - REPL `/resume` SHOULD 传入当前 REPL mode 与当前 `planPath`
+   - CLI `resumeLast` 与 SDK file-backed resume/continue 当前 MAY 退化为 `mode = normal` 且 `planPath = null`
 
 `SES-304C`
 当 file-backed restore 需要把 persisted history 恢复成“下一轮 active prompt baseline”时，系统 MUST 以最近 compact boundary 之后的 continuation view 为准，而不是直接把完整 replay.history 原样作为 active history。  

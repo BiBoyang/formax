@@ -3,9 +3,11 @@ import {
   findSessionFileBySessionId,
   readSessionFile,
 } from '../../features/repl/sessionSave/reader.js'
+import { persistSessionMemoryFromHistory } from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptMessage } from '../../prompts/index.js'
 import type { QueryOptions } from '../types.js'
+import type { ReplMode } from '../../features/repl/mode.js'
 import {
   asValidationError,
   parseRawSessionReplayOutput,
@@ -31,7 +33,13 @@ function clonePromptHistory(history: PromptMessage[]): PromptMessage[] {
   }))
 }
 
-async function loadReplayFromFile(args: { filePath: string; context: string }): Promise<QueryResumeResolution> {
+async function loadReplayFromFile(args: {
+  filePath: string
+  context: string
+  cwd: string
+  replMode?: ReplMode
+  persistSessionMemoryForRestore?: typeof persistSessionMemoryFromHistory
+}): Promise<QueryResumeResolution> {
   let rawReplay: unknown
   try {
     rawReplay = await readSessionFile(args.filePath)
@@ -41,9 +49,17 @@ async function loadReplayFromFile(args: { filePath: string; context: string }): 
 
   try {
     const replay = parseRawSessionReplayOutput(rawReplay)
+    const history = buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history))
+    await (args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory)({
+      sessionFilePath: args.filePath,
+      cwd: args.cwd,
+      mode: args.replMode ?? 'normal',
+      planPath: null,
+      history,
+    }).catch(() => undefined)
     return {
       sessionId: replay.sessionId,
-      history: buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history)),
+      history,
       sessionFilePath: args.filePath,
     }
   } catch (error) {
@@ -55,6 +71,8 @@ export async function resolveQueryResumeResolution(args: {
   options: QueryOptions
   cwd: string
   env: NodeJS.ProcessEnv
+  replMode?: ReplMode
+  persistSessionMemoryForRestore?: typeof persistSessionMemoryFromHistory
 }): Promise<QueryResumeResolution> {
   const resumeSessionId = parseOptionalSessionId(args.options.resume)
   const requestedSessionId = parseOptionalSessionId(args.options.sessionId)
@@ -91,6 +109,9 @@ export async function resolveQueryResumeResolution(args: {
     const continued = await loadReplayFromFile({
       filePath: latestFilePath,
       context: 'continued',
+      cwd: args.cwd,
+      replMode: args.replMode,
+      persistSessionMemoryForRestore: args.persistSessionMemoryForRestore,
     })
 
     if (
@@ -147,6 +168,9 @@ export async function resolveQueryResumeResolution(args: {
   const resumed = await loadReplayFromFile({
     filePath,
     context: 'resumed',
+    cwd: args.cwd,
+    replMode: args.replMode,
+    persistSessionMemoryForRestore: args.persistSessionMemoryForRestore,
   })
   return {
     sessionId: forkSession ? requestedSessionId : requestedSessionId ?? resumeSessionId,

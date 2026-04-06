@@ -1,6 +1,7 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import { SessionWriter } from '../../sessionSave/writer'
+import type { ReplMode } from '../../mode'
 import { enqueueSessionTransition } from './transitionQueue'
 
 export function queueSessionTransition(args: {
@@ -77,6 +78,9 @@ export async function runResumeSessionAction(args: {
     lastPersistedMsgByIdRef: { current: Map<string, Msg> }
     resetSessionState: () => void
     historyRef: { current: ChatHistory }
+    cwd: string
+    mode: ReplMode
+    planPath: string | null
     replaceTranscript: (nextMessages: Msg[]) => Promise<void>
     openExistingSessionWriter: (filePath: string) => Promise<SessionWriter>
     buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
@@ -90,6 +94,9 @@ export async function runResumeSessionAction(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
+  cwd: string
+  mode: ReplMode
+  planPath: string | null
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   openExistingSessionWriter: (filePath: string) => Promise<SessionWriter>
   buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
@@ -116,6 +123,9 @@ export async function runResumeSessionAction(args: {
           lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
           resetSessionState: args.resetSessionState,
           historyRef: args.historyRef,
+          cwd: args.cwd,
+          mode: args.mode,
+          planPath: args.planPath,
           replaceTranscript: args.replaceTranscript,
           openExistingSessionWriter: args.openExistingSessionWriter,
           buildPersistedSigMap: args.buildPersistedSigMap,

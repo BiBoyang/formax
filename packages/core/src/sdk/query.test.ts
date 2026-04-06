@@ -17,6 +17,7 @@ const { state } = vi.hoisted(() => ({
     readSessionFile: vi.fn(),
     createSessionWriter: vi.fn(),
     openSessionWriter: vi.fn(),
+    persistSessionMemoryForRestore: vi.fn(),
   },
 }))
 
@@ -35,6 +36,10 @@ vi.mock('../features/repl/sessionSave/writer.js', () => ({
     createNew: (args: unknown) => state.createSessionWriter(args),
     openExisting: (args: unknown) => state.openSessionWriter(args),
   },
+}))
+
+vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
+  persistSessionMemoryFromHistory: async (args: unknown) => await state.persistSessionMemoryForRestore(args),
 }))
 
 function createTool(name: string): ToolDefinition {
@@ -132,6 +137,8 @@ describe('sdk query()', () => {
     state.readSessionFile.mockReset()
     state.createSessionWriter.mockReset()
     state.openSessionWriter.mockReset()
+    state.persistSessionMemoryForRestore.mockReset()
+    state.persistSessionMemoryForRestore.mockResolvedValue(undefined)
     state.createSessionWriter.mockImplementation(async (args: any) => ({
       writer: createSessionWriterFixture(),
       meta: { sessionId: String(args?.sessionId ?? 'sdk-session') },
@@ -1731,6 +1738,16 @@ describe('sdk query()', () => {
     })
 
     expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(state.persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/resume-session.jsonl',
+      cwd: process.cwd(),
+      mode: 'normal',
+      planPath: null,
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
+      ],
+    })
   })
 
   it('uses options.sessionId when resume is not provided', async () => {
@@ -2316,6 +2333,16 @@ describe('sdk query()', () => {
     })
 
     expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(state.persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/latest-session.jsonl',
+      cwd: process.cwd(),
+      mode: 'normal',
+      planPath: null,
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'continued summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] },
+      ],
+    })
   })
 
   it('allows continue when sessionId matches latest session', async () => {

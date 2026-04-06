@@ -1183,6 +1183,7 @@ async function* runQuery(
         options,
         cwd,
         env,
+        replMode,
       })
       if (resumeResolution.sessionId !== null) {
         sessionId = resumeResolution.sessionId

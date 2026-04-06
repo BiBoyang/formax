@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { SessionWriter } from '../../sessionSave/writer'
+import type { ReplMode } from '../../mode'
 import {
   renameSessionAction,
   runNewSessionAction,
@@ -23,6 +24,9 @@ function useSessionActions(args: {
   resetSessionState: () => void
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   historyRef: { current: ChatHistory }
+  cwd: string
+  mode: ReplMode
+  getPlanPath: () => string | null
   abort: () => void
   setError: (message: string) => void
   runNewSessionTransition: Parameters<typeof runNewSessionAction>[0]['runNewSessionTransition']
@@ -92,11 +96,14 @@ function useSessionActions(args: {
         sessionWriterRef: args.sessionWriterRef,
         lastPersistedSigByMsgIdRef: args.lastPersistedSigByMsgIdRef,
         lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
-        resetSessionState: args.resetSessionState,
-        historyRef: args.historyRef,
-        replaceTranscript: args.replaceTranscript,
-        openExistingSessionWriter: args.openExistingSessionWriter,
-        buildPersistedSigMap: args.buildPersistedSigMap,
+          resetSessionState: args.resetSessionState,
+          historyRef: args.historyRef,
+          cwd: args.cwd,
+          mode: args.mode,
+          planPath: args.getPlanPath(),
+          replaceTranscript: args.replaceTranscript,
+          openExistingSessionWriter: args.openExistingSessionWriter,
+          buildPersistedSigMap: args.buildPersistedSigMap,
         buildPersistedMsgRefMap: args.buildPersistedMsgRefMap,
         setError: args.setError,
       })
@@ -105,12 +112,14 @@ function useSessionActions(args: {
       args.abort,
       args.closeResumeDialog,
       args.engine,
+      args.cwd,
       args.historyRef,
       args.initialSessionFilePathRef,
       args.isLoading,
       args.lastPersistedMsgByIdRef,
       args.lastPersistedSigByMsgIdRef,
       args.openExistingSessionWriter,
+      args.mode,
       args.replaceTranscript,
       args.runResumeSessionTransition,
       args.resetSessionState,
@@ -119,6 +128,7 @@ function useSessionActions(args: {
       args.sessionTransitionQueueRef,
       args.sessionWriterRef,
       args.readSessionFile,
+      args.getPlanPath,
       args.buildPersistedSigMap,
       args.buildPersistedMsgRefMap,
       args.setError,

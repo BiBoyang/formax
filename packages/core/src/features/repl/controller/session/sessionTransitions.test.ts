@@ -779,4 +779,41 @@ describe('runResumeSessionTransition (save-enabled)', () => {
     expect(newWriter.appendEvent).toHaveBeenCalledWith('resume')
     expect(newWriter.shutdown).not.toHaveBeenCalled()
   })
+
+  it('best-effort refreshes the rolling session memory sidecar from restored history', async () => {
+    const replayHistory: ChatHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'x' }] }] as any
+    const persistSessionMemoryForRestore = vi.fn(async () => undefined)
+
+    await runResumeSessionTransition({
+      filePath: '/tmp/session.jsonl',
+      readSessionFile: async () => ({ messages: [createMsg('m1', 'x')], history: replayHistory }),
+      beginNewSession: () => undefined,
+      sessionSaveEnabled: true,
+      sessionWriterRef: { current: null },
+      lastPersistedSigByMsgIdRef: { current: new Map() },
+      lastPersistedMsgByIdRef: { current: new Map() },
+      resetSessionState: () => undefined,
+      historyRef: { current: [] as any },
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      persistSessionMemoryForRestore,
+      replaceTranscript: async () => undefined,
+      openExistingSessionWriter: async () => ({
+        appendEvent: vi.fn(async () => undefined),
+        shutdown: vi.fn(async () => undefined),
+        appendHistorySnapshot: vi.fn(async () => undefined),
+      }),
+      buildPersistedSigMap: () => new Map(),
+      buildPersistedMsgRefMap: () => new Map(),
+    })
+
+    expect(persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/session.jsonl',
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      history: replayHistory,
+    })
+  })
 })

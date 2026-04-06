@@ -52,6 +52,7 @@
 - `docs/learnings/2026-04-06-context-lifecycle-markers.md`
 - `docs/learnings/2026-04-06-compact-prune-trigger-reasons.md`
 - `docs/learnings/2026-04-06-contributor-identity-drilldown.md`
+- `docs/learnings/2026-04-06-session-memory-restore-refresh.md`
 
 ## Web Reference Runtime / Performance
 

@@ -3,6 +3,8 @@ import type { ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { UserInputManager } from '../../../../tools/runtime/userInputManager'
 import { buildActiveHistoryFromSessionReplay } from '../../../../chat/context/compact'
+import type { ReplMode } from '../../mode'
+import { persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
 import { applyAbortToMessages } from './abortTranscript'
 
 type SessionWriterLike = {
@@ -131,6 +133,16 @@ export async function runResumeSessionTransition(args: {
   openExistingSessionWriter: (filePath: string) => Promise<ResumeSessionWriterLike>
   buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
   buildPersistedMsgRefMap: (messages: Msg[]) => Map<string, Msg>
+  cwd?: string
+  mode?: ReplMode
+  planPath?: string | null
+  persistSessionMemoryForRestore?: (args: {
+    sessionFilePath: string
+    cwd: string
+    mode: ReplMode
+    planPath: string | null
+    history: ChatHistory
+  }) => Promise<void>
 }): Promise<void> {
   const replay = await args.readSessionFile(args.filePath)
   const sanitizedMessages = trimTrailingResumeCommandRows(replay.messages)
@@ -152,6 +164,18 @@ export async function runResumeSessionTransition(args: {
   // Reset transient runtime state, then restore persisted state.
   args.resetSessionState()
   args.historyRef.current = buildActiveHistoryFromSessionReplay(replay.history)
+
+  if (args.sessionSaveEnabled && args.cwd) {
+    const mode = args.mode ?? 'normal'
+    const planPath = args.planPath ?? null
+    await (args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory)({
+      sessionFilePath: args.filePath,
+      cwd: args.cwd,
+      mode,
+      planPath,
+      history: args.historyRef.current,
+    }).catch(() => undefined)
+  }
 
   await args.replaceTranscript(sanitizedMessages)
   args.lastPersistedSigByMsgIdRef.current = args.buildPersistedSigMap(sanitizedMessages)

@@ -50,4 +50,32 @@ describe('resolveInitialSession', () => {
       { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
     ])
   })
+
+  it('best-effort refreshes rolling session memory for resumeLast restores', async () => {
+    findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    readSessionFile.mockResolvedValue({
+      messages: [],
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
+    })
+    const persistSessionMemoryForRestore = vi.fn(async () => undefined)
+
+    const { resolveInitialSession } = await import('./session.js')
+    const resolved = await resolveInitialSession({
+      cwd: '/repo',
+      env: process.env,
+      resumeLast: true,
+      mode: 'acceptEdits',
+      planPath: '/repo/.formax/plan.md',
+      persistSessionMemoryForRestore,
+    })
+
+    expect(resolved?.filePath).toBe('/tmp/latest-session.jsonl')
+    expect(persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/latest-session.jsonl',
+      cwd: '/repo',
+      mode: 'acceptEdits',
+      planPath: '/repo/.formax/plan.md',
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
+    })
+  })
 })
