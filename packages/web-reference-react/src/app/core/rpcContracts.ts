@@ -19,7 +19,7 @@ export type RpcTurnStartLikeResult = {
 }
 
 export type RpcContextContributor = {
-  kind?: 'system_section' | 'message' | 'tool_result' | 'fixed_group'
+  kind?: 'system_section' | 'message' | 'tool_result' | 'fixed_group' | 'collapse_recap'
   key?: string
   label: string
   tokens: number
@@ -298,7 +298,8 @@ function parseContributors(value: unknown): RpcContextContributor[] | null {
       record.kind === 'system_section' ||
       record.kind === 'message' ||
       record.kind === 'tool_result' ||
-      record.kind === 'fixed_group'
+      record.kind === 'fixed_group' ||
+      record.kind === 'collapse_recap'
         ? record.kind
         : null
     const keyPresent = Object.prototype.hasOwnProperty.call(record, 'key')

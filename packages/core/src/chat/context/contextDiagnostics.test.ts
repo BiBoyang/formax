@@ -418,7 +418,16 @@ describe('contextDiagnostics', () => {
     expect(out.collapseImpact.projectedHistoryTokensAfterCollapse).toBeLessThan(out.projectedHistoryTokens)
     expect(out.collapseImpact.projectedHistoryDeltaTokens).toBeLessThan(0)
     expect(out.totalTokens).toBeGreaterThan(out.collapseImpact.projectedHistoryTokensAfterCollapse)
-    expect(out.topAssembledContributors.some((row) => row.label.includes('Older continuation collapsed for this'))).toBe(true)
+    expect(
+      out.topAssembledContributors.some(
+        (row) =>
+          row.kind === 'collapse_recap' &&
+          row.key === 'collapse_recap:user:1' &&
+          row.role === 'user' &&
+          row.ordinal === 1 &&
+          row.label.includes('older continuation summary'),
+      ),
+    ).toBe(true)
     expect(out.topAssembledContributors.some((row) => row.label.includes('Older analysis'))).toBe(false)
   })
 
@@ -689,6 +698,8 @@ describe('contextDiagnostics', () => {
       projectedHistoryTokensAfterCollapse: parsed.nextTurnFixed.projectedHistoryTokens,
       projectedHistoryDeltaTokens: 0,
     })
+    expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('kind')
+    expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('key')
     expect(parsed.notes).toBeInstanceOf(Array)
   })
 

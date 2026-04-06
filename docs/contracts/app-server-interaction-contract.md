@@ -136,6 +136,12 @@
   - `ContextContributor` 当前 SHOULD 稳定暴露：
     - `kind`
     - `key`
+    - 当前 `kind` MAY 为：
+      - `system_section`
+      - `message`
+      - `tool_result`
+      - `fixed_group`
+      - `collapse_recap`（request-time `context collapse` 生成的 synthetic recap contributor；客户端 SHOULD 不要把它当成普通 user message）
     并 MAY 按类型额外携带：
     - `role`
     - `ordinal`

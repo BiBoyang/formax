@@ -37,6 +37,15 @@ const ASSEMBLED_CONTRIBUTOR = {
   toolName: 'Read',
 }
 
+const COLLAPSE_RECAP_CONTRIBUTOR = {
+  kind: 'collapse_recap' as const,
+  key: 'collapse_recap:user:1',
+  label: 'Collapse recap #1: older continuation summary (3 messages)',
+  tokens: 28,
+  role: 'user' as const,
+  ordinal: 1,
+}
+
 describe('rpcContracts', () => {
   it('parses thread/start response and rejects invalid payload', () => {
     expect(parseThreadStartResponse({ thread: { id: 'thread-1', cwd: '/repo' } })).toEqual({
@@ -134,7 +143,7 @@ describe('rpcContracts', () => {
               shouldAutoCompact: false,
               autoCompactSkipReason: 'below threshold (used=85 limit=170000)',
               pruneSkipReason: 'within effective limit (used=85 limit=180000)',
-              topAssembledContributors: [ASSEMBLED_CONTRIBUTOR],
+              topAssembledContributors: [COLLAPSE_RECAP_CONTRIBUTOR, ASSEMBLED_CONTRIBUTOR],
             },
             notes: ['note-1'],
           },
@@ -224,7 +233,7 @@ describe('rpcContracts', () => {
           shouldAutoCompact: false,
           autoCompactSkipReason: 'below threshold (used=85 limit=170000)',
           pruneSkipReason: 'within effective limit (used=85 limit=180000)',
-          topAssembledContributors: [ASSEMBLED_CONTRIBUTOR],
+          topAssembledContributors: [COLLAPSE_RECAP_CONTRIBUTOR, ASSEMBLED_CONTRIBUTOR],
         },
         notes: ['note-1'],
       },
@@ -246,6 +255,63 @@ describe('rpcContracts', () => {
             kind: 'formax.context_diagnostics',
             schemaVersion: 2,
             mode: 'normal',
+          },
+        },
+      }).localDiagnostics,
+    ).toBeNull()
+
+    expect(
+      parseTurnStartLikeResponse({
+        turn: { id: 'turn-1' },
+        local: {
+          stdout: 'hello',
+          diagnostics: {
+            kind: 'formax.context_diagnostics',
+            schemaVersion: 1,
+            mode: 'normal',
+            model: 'claude-3-5-sonnet-latest',
+            latestCompactBoundary: null,
+            snapshot: {
+              totalTokens: 1,
+              systemTokens: 1,
+              historyTokens: 0,
+              toolResultTokens: 0,
+              otherHistoryTokens: 0,
+              messageCount: 1,
+              userMessageCount: 1,
+              assistantMessageCount: 0,
+              toolResultBlockCount: 0,
+              microCompactedToolResultCount: 0,
+              toolResultCountsByToolName: [],
+              microCompactedCountsByToolName: [],
+              contextWindowTokens: null,
+              effectiveLimitTokens: null,
+              autoCompactLimitTokens: null,
+              baselineTokens: null,
+              percentRemaining: null,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topSnapshotContributors: [{ kind: 'collapse-oops', label: 'bad', tokens: 1 }],
+            },
+            nextTurnFixed: {
+              fixedGroups: [],
+              microCompactImpact: {
+                compactedBlocks: 0,
+                compactedToolNames: [],
+                estimatedTokensSaved: 0,
+                keptRecentBlocks: 0,
+              },
+              projectedHistoryTokens: 0,
+              projectedHistoryDeltaTokens: 0,
+              fixedTokens: 0,
+              totalTokens: 0,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topAssembledContributors: [],
+            },
+            notes: [],
           },
         },
       }).localDiagnostics,

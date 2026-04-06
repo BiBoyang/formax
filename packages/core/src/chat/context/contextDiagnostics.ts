@@ -4,7 +4,7 @@ import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
-import { collapseRequestHistory } from './contextCollapse'
+import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
   buildAutoCompactKeepStrategy,
@@ -83,7 +83,7 @@ export type ContextCollapseImpact = {
 }
 
 export type ContextContributor = {
-  kind: 'system_section' | 'message' | 'tool_result' | 'fixed_group'
+  kind: 'system_section' | 'message' | 'tool_result' | 'fixed_group' | 'collapse_recap'
   key: string
   label: string
   tokens: number
@@ -1073,14 +1073,22 @@ function buildHistoryContributors(args: {
 
     const nonToolBlocks = (message.content as any[]).filter((block) => block?.type !== 'tool_result')
     if (nonToolBlocks.length === 0) continue
+    const collapseRecap = message.role === 'user' ? readCollapseRecapMeta(nonToolBlocks) : null
     contributors.push({
-      kind: 'message',
-      key: `message:${message.role}:${Math.max(1, roleOrdinal)}`,
-      label: buildMessageContributorLabel({
-        role: message.role,
-        ordinal: roleOrdinal,
-        blocks: nonToolBlocks,
-      }),
+      kind: collapseRecap ? 'collapse_recap' : 'message',
+      key: collapseRecap
+        ? `collapse_recap:${message.role}:${Math.max(1, roleOrdinal)}`
+        : `message:${message.role}:${Math.max(1, roleOrdinal)}`,
+      label: collapseRecap
+        ? buildCollapseRecapContributorLabel({
+            ordinal: roleOrdinal,
+            collapsedHeadMessageCount: collapseRecap.collapsedHeadMessageCount,
+          })
+        : buildMessageContributorLabel({
+            role: message.role,
+            ordinal: roleOrdinal,
+            blocks: nonToolBlocks,
+          }),
       tokens: estimatePromptTokens({
         system: [],
         messages: [{ ...message, content: nonToolBlocks as any }],
@@ -1091,6 +1099,35 @@ function buildHistoryContributors(args: {
   }
 
   return contributors.filter((row) => row.tokens > 0)
+}
+
+function readCollapseRecapMeta(blocks: any[]): { collapsedHeadMessageCount: number | null } | null {
+  const text = readCollapseRecapText(blocks)
+  if (!text) return null
+  const match = /Earlier messages collapsed:\s*(\d+)/i.exec(text)
+  const collapsedHeadMessageCount = match ? Number.parseInt(match[1] ?? '', 10) : NaN
+  return {
+    collapsedHeadMessageCount: Number.isFinite(collapsedHeadMessageCount) ? collapsedHeadMessageCount : null,
+  }
+}
+
+function readCollapseRecapText(blocks: any[]): string | null {
+  for (const block of blocks) {
+    if (block?.type !== 'text' || typeof block.text !== 'string') continue
+    const text = unwrapSystemReminder(block.text)
+    if (text.startsWith(CONTEXT_COLLAPSE_PREFIX)) return text
+  }
+  return null
+}
+
+function buildCollapseRecapContributorLabel(args: {
+  ordinal: number
+  collapsedHeadMessageCount: number | null
+}): string {
+  if (args.collapsedHeadMessageCount != null) {
+    return `Collapse recap #${Math.max(1, args.ordinal)}: older continuation summary (${args.collapsedHeadMessageCount} messages)`
+  }
+  return `Collapse recap #${Math.max(1, args.ordinal)}: older continuation summary`
 }
 
 function buildToolResultContributorLabel(toolUsesById: Map<string, ToolUseMeta>, block: any): string {
@@ -1118,13 +1155,19 @@ function buildMessageContributorLabel(args: {
 function readBlockPreview(blocks: any[]): string | null {
   for (const block of blocks) {
     if (block?.type === 'text' && typeof block.text === 'string') {
-      return truncateLabel(block.text.trim())
+      return truncateLabel(unwrapSystemReminder(block.text))
     }
     if (block?.type === 'tool_use' && typeof block.name === 'string') {
       return truncateLabel(`tool_use ${block.name}`)
     }
   }
   return null
+}
+
+function unwrapSystemReminder(text: string): string {
+  const raw = String(text || '').trim()
+  const match = /^<system-reminder>\s*([\s\S]*?)\s*<\/system-reminder>$/.exec(raw)
+  return String(match ? match[1] ?? '' : raw).trim()
 }
 
 function summarizeToolUse(meta: ToolUseMeta): string {

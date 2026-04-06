@@ -121,6 +121,12 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 15. `topSnapshotContributors`、`systemSectionBreakdown`、`topAssembledContributors` 中的 `ContextContributor` 当前 SHOULD 暴露稳定 identity 字段，至少包含：
    - `kind`
    - `key`
+   当前 `kind` MAY 为：
+   - `system_section`
+   - `message`
+   - `tool_result`
+   - `fixed_group`
+   - `collapse_recap`（request-time `context collapse` 生成的 recap contributor；客户端 SHOULD 将其视为 synthetic recap，而不是普通 user message）
    并按 contributor 类型 MAY 额外暴露：
    - `role`
    - `ordinal`
