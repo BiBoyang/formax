@@ -1001,6 +1001,13 @@ describe('rpcContracts', () => {
     const messages = parseThreadMessagesResponse({
       data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
       nextCursor: 'cursor-1',
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'auto',
+        triggerReason: { kind: 'auto_threshold' },
+        preTokens: 1024,
+        summaryKind: 'session_memory',
+      },
       latestRequestCollapse: {
         phase: 'initial',
         collapsedHeadMessageCount: 2,
@@ -1010,6 +1017,13 @@ describe('rpcContracts', () => {
     })
     expect(messages.data).toHaveLength(1)
     expect(messages.nextCursor).toBe('cursor-1')
+    expect(messages.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 1024,
+      summaryKind: 'session_memory',
+    })
     expect(messages.latestRequestCollapse).toEqual({
       phase: 'initial',
       collapsedHeadMessageCount: 2,
@@ -1028,6 +1042,12 @@ describe('rpcContracts', () => {
           updatedAt: '2026-04-07T00:01:00.000Z',
         },
         transcriptPreview: [{ role: 'user', text: 'hello' }],
+        latestCompactBoundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          preTokens: 900,
+          summaryKind: 'model_summary',
+        },
         latestRequestCollapse: {
           phase: 'reactive_retry',
           collapsedHeadMessageCount: 3,
@@ -1043,6 +1063,12 @@ describe('rpcContracts', () => {
         updatedAt: '2026-04-07T00:01:00.000Z',
       },
       transcriptPreview: [{ role: 'user', text: 'hello' }],
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'manual',
+        preTokens: 900,
+        summaryKind: 'model_summary',
+      },
       latestRequestCollapse: {
         phase: 'reactive_retry',
         collapsedHeadMessageCount: 3,
@@ -1062,6 +1088,9 @@ describe('rpcContracts', () => {
           updatedAt: '2026-04-07T00:01:00.000Z',
         },
         transcriptPreview: [],
+        latestCompactBoundary: {
+          schemaVersion: 2,
+        },
         latestRequestCollapse: {
           phase: 'initial',
           collapsedHeadMessageCount: 3,

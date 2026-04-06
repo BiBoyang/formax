@@ -300,7 +300,7 @@ describe('ThreadStore', () => {
 
     const provisional = await store.startThread({})
     const emptyPage = await store.listThreadMessages({ threadId: provisional.id, limit: 20, cursor: '3' })
-    expect(emptyPage).toEqual({ data: [], nextCursor: null, latestRequestCollapse: null })
+    expect(emptyPage).toEqual({ data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null })
 
     const fakeSummary = {
       id: provisional.id,
@@ -368,6 +368,7 @@ describe('ThreadStore', () => {
     expect(readOut.transcriptPreview).toEqual(
       expect.arrayContaining([{ role: 'user', text: 'hello thread' }]),
     )
+    expect(readOut.latestCompactBoundary).toBeNull()
     expect(readOut.latestRequestCollapse).toBeNull()
 
     const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
@@ -375,7 +376,51 @@ describe('ThreadStore', () => {
       expect.arrayContaining([{ id: expect.any(String), kind: 'message', role: 'user', text: 'hello thread' }]),
     )
     expect(messagesOut.nextCursor).toBeNull()
+    expect(messagesOut.latestCompactBoundary).toBeNull()
     expect(messagesOut.latestRequestCollapse).toBeNull()
+  })
+
+  it('exposes latest compact boundary summary in thread/read and thread/messages', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'auto',
+            triggerReason: { kind: 'auto_threshold' },
+            preTokens: 2048,
+            summaryKind: 'session_memory',
+          },
+        },
+      },
+      { role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const readOut = await store.readThread(thread.id)
+    expect(readOut.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    })
+
+    const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(messagesOut.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    })
   })
 
   it('exposes latest request-time collapse summary in thread/read', async () => {

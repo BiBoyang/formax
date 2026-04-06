@@ -12,7 +12,7 @@ import {
   resolveSessionMemoryRestoreContext,
 } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
-import { buildActiveHistoryFromSessionReplay } from '../chat/context/compact.js'
+import { buildActiveHistoryFromSessionReplay, findLatestCompactBoundary, type CompactBoundaryMeta } from '../chat/context/compact.js'
 import type { InputResolvedPayload } from './protocol/input.js'
 import type {
   Thread,
@@ -53,6 +53,7 @@ export type ThreadListResult = {
 export type ThreadReadResult = {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  latestCompactBoundary?: CompactBoundaryMeta | null
   latestRequestCollapse?: {
     phase: 'initial' | 'reactive_retry'
     collapsedHeadMessageCount: number
@@ -86,6 +87,7 @@ export type ThreadToolMessage = {
 export type ThreadMessagesResult = {
   data: Array<ThreadMessage | ThreadToolMessage>
   nextCursor: string | null
+  latestCompactBoundary?: CompactBoundaryMeta | null
   latestRequestCollapse?: LatestRequestCollapseSummary | null
 }
 
@@ -661,20 +663,23 @@ export class ThreadStore {
       return {
         thread: toThreadFromProvisional(provisional),
         transcriptPreview: [],
+        latestCompactBoundary: null,
         latestRequestCollapse: null,
       }
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, transcriptPreview, latestRequestCollapse] = await Promise.all([
+    const [summary, transcriptPreview, replay, latestRequestCollapse] = await Promise.all([
       readSessionSummary(filePath),
       readSessionPreview(filePath),
+      readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
     ])
 
     return {
       thread: toThread(summary),
       transcriptPreview,
+      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
       latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapse),
     }
   }
@@ -693,6 +698,7 @@ export class ThreadStore {
       return {
         data: [],
         nextCursor: null,
+        latestCompactBoundary: null,
         latestRequestCollapse: null,
       }
     }
@@ -812,6 +818,7 @@ export class ThreadStore {
     return {
       data: page,
       nextCursor,
+      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
       latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapseEvent),
     }
   }

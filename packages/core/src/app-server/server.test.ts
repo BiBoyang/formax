@@ -119,6 +119,12 @@ describe('AppServer', () => {
           return {
             thread: baseThread,
             transcriptPreview: [{ role: 'user', text: 'hi' }],
+            latestCompactBoundary: {
+              schemaVersion: 1,
+              trigger: 'manual',
+              preTokens: 900,
+              summaryKind: 'model_summary',
+            },
             latestRequestCollapse: {
               phase: 'initial',
               collapsedHeadMessageCount: 3,
@@ -131,6 +137,13 @@ describe('AppServer', () => {
           return {
             data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }],
             nextCursor: null,
+            latestCompactBoundary: {
+              schemaVersion: 1,
+              trigger: 'auto',
+              triggerReason: { kind: 'auto_threshold' },
+              preTokens: 1100,
+              summaryKind: 'session_memory',
+            },
             latestRequestCollapse: {
               phase: 'reactive_retry',
               collapsedHeadMessageCount: 2,
@@ -196,6 +209,12 @@ describe('AppServer', () => {
 
     const readOut = await server.handleMessage(request(5, 'thread/read', { threadId: 't-1' }))
     expect((readOut[0] as any).result.transcriptPreview).toEqual([{ role: 'user', text: 'hi' }])
+    expect((readOut[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'manual',
+      preTokens: 900,
+      summaryKind: 'model_summary',
+    })
     expect((readOut[0] as any).result.latestRequestCollapse).toEqual({
       phase: 'initial',
       collapsedHeadMessageCount: 3,
@@ -205,6 +224,13 @@ describe('AppServer', () => {
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
+    expect((messagesOut[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 1100,
+      summaryKind: 'session_memory',
+    })
     expect((messagesOut[0] as any).result.latestRequestCollapse).toEqual({
       phase: 'reactive_retry',
       collapsedHeadMessageCount: 2,

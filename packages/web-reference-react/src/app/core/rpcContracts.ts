@@ -203,6 +203,7 @@ export type RpcThreadReplayResult = {
 export type RpcThreadMessagesResult = {
   data: ThreadMessage[]
   nextCursor: string | null
+  latestCompactBoundary?: RpcLatestCompactBoundary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
@@ -214,6 +215,7 @@ export type RpcThreadReadResult = {
     updatedAt: string
   }
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  latestCompactBoundary?: RpcLatestCompactBoundary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
@@ -304,11 +306,13 @@ export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | n
         })
         .filter((entry): entry is { role: 'user' | 'assistant'; text: string } => Boolean(entry))
     : []
+  const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
-  if (!latestRequestCollapse) return null
+  if (!latestCompactBoundary || !latestRequestCollapse) return null
   return {
     thread: { id, cwd, createdAt, updatedAt },
     transcriptPreview,
+    ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
   }
 }
@@ -787,6 +791,17 @@ function parseStrictLatestCompactBoundaryField(
   if (value === null) return { value: null }
   const parsed = parseLatestCompactBoundary(value)
   return parsed ? { value: parsed } : null
+}
+
+function parseOptionalNullableLatestCompactBoundaryField(
+  record: Record<string, unknown>,
+  fieldName: string,
+): { present: boolean; value: RpcLatestCompactBoundary | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, fieldName)) return { present: false, value: null }
+  const value = record[fieldName]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseLatestCompactBoundary(value)
+  return parsed ? { present: true, value: parsed } : null
 }
 
 function parseRequiredStringList(value: unknown): { value: string[] } | null {

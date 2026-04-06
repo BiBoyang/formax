@@ -19,10 +19,24 @@ describe('rpcParsers', () => {
         { id: 'bad', kind: 'message', role: 'system', text: 'ignore' },
       ],
       nextCursor: 'cursor-1',
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'auto',
+        triggerReason: { kind: 'auto_threshold' },
+        preTokens: 1200,
+        summaryKind: 'session_memory',
+      },
     })
 
     expect(parsed.nextCursor).toBe('cursor-1')
     expect(parsed.data).toHaveLength(2)
+    expect(parsed.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 1200,
+      summaryKind: 'session_memory',
+    })
     expect(parsed.data[0]).toMatchObject({ kind: 'message', text: 'hello' })
     expect(parsed.data[1]).toMatchObject({
       kind: 'tool',

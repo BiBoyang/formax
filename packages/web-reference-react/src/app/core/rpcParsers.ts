@@ -77,6 +77,13 @@ export function asThreadSummaries(value: unknown): ThreadSummary[] {
 export function asThreadMessages(value: unknown): {
   data: ThreadMessage[]
   nextCursor: string | null
+  latestCompactBoundary?: {
+    schemaVersion: 1
+    trigger?: 'manual' | 'auto' | 'reactive'
+    triggerReason?: { kind: 'auto_threshold' | 'manual' | 'reactive_error'; detail?: string }
+    preTokens?: number
+    summaryKind?: 'model_summary' | 'session_memory'
+  } | null
   latestRequestCollapse?: {
     phase: 'initial' | 'reactive_retry'
     collapsedHeadMessageCount: number
@@ -133,6 +140,54 @@ export function asThreadMessages(value: unknown): {
   const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
   const root = value as Record<string, unknown>
+  const latestCompactBoundaryRaw = root.latestCompactBoundary
+  const latestCompactBoundary =
+    latestCompactBoundaryRaw && typeof latestCompactBoundaryRaw === 'object'
+      ? (() => {
+          const record = latestCompactBoundaryRaw as Record<string, unknown>
+          if (record.schemaVersion !== 1) return undefined
+          const trigger =
+            record.trigger === 'manual' || record.trigger === 'auto' || record.trigger === 'reactive'
+              ? record.trigger
+              : undefined
+          const triggerReason =
+            record.triggerReason && typeof record.triggerReason === 'object'
+              ? (() => {
+                  const raw = record.triggerReason as Record<string, unknown>
+                  const kind =
+                    raw.kind === 'auto_threshold' || raw.kind === 'manual' || raw.kind === 'reactive_error'
+                      ? raw.kind
+                      : null
+                  const detail =
+                    raw.detail === undefined
+                      ? undefined
+                      : typeof raw.detail === 'string' && raw.detail.trim()
+                        ? raw.detail
+                        : null
+                  if (!kind || detail === null) return undefined
+                  return detail ? { kind, detail } : { kind }
+                })()
+              : record.triggerReason === undefined
+                ? undefined
+                : null
+          const preTokens =
+            typeof record.preTokens === 'number' && Number.isFinite(record.preTokens) ? record.preTokens : undefined
+          const summaryKind =
+            record.summaryKind === 'model_summary' || record.summaryKind === 'session_memory'
+              ? record.summaryKind
+              : undefined
+          if (record.triggerReason !== undefined && !triggerReason) return undefined
+          return {
+            schemaVersion: 1 as const,
+            ...(trigger ? { trigger } : {}),
+            ...(triggerReason ? { triggerReason } : {}),
+            ...(preTokens !== undefined ? { preTokens } : {}),
+            ...(summaryKind ? { summaryKind } : {}),
+          }
+        })()
+      : latestCompactBoundaryRaw === null
+        ? null
+        : undefined
   const latestRequestCollapseRaw = root.latestRequestCollapse
   const latestRequestCollapse =
     latestRequestCollapseRaw && typeof latestRequestCollapseRaw === 'object'
@@ -170,6 +225,7 @@ export function asThreadMessages(value: unknown): {
   return {
     data,
     nextCursor,
+    ...(latestCompactBoundaryRaw !== undefined ? { latestCompactBoundary: latestCompactBoundary ?? null } : {}),
     ...(latestRequestCollapseRaw !== undefined ? { latestRequestCollapse: latestRequestCollapse ?? null } : {}),
   }
 }
