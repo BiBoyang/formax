@@ -61,6 +61,14 @@
 
 - Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 - Tool-call timeout for review: `timeout_ms >= 1200000`
+- Review output artifact path (preferred): `.tmp/codex-review-result/`
+- Preferred local wrapper when running review manually or from agents:
+  - `mkdir -p .tmp/codex-review-result`
+  - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium" > .tmp/codex-review-result/review-latest.txt 2>&1`
+  - Then inspect the summary instead of streaming the whole raw output into the active context:
+    - `tail -n 80 .tmp/codex-review-result/review-latest.txt`
+    - or `rg -n "Review comment:|I did not find|I did not identify|actionable" .tmp/codex-review-result/review-latest.txt`
+- Goal: keep mandatory review behavior unchanged while reducing noisy stdout/stderr in the active agent context.
 - Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 
 ## Refactor Guardrails (Important)
