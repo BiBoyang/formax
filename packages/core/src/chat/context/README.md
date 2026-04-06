@@ -139,7 +139,8 @@ Formax 的“上下文管理”分两条线：
   - 这是 **session-scoped working memory draft**，不是现有按 cwd 的 `MEMORY.md` 替代品
   - 当前已经接进 turn completion 的后台刷新，也已接进 auto compact fallback chain
   - REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 已会把 persisted history 恢复成 boundary-first continuation view
-  - rolling session memory sidecar 现在也会在 REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 成功恢复 active history 后做 best-effort 刷新，这样下一轮能立刻复用 memory-first auto compact
+  - app-server `thread/resume` 也已开始沿用同一条 restore-side sidecar refresh 语义
+  - rolling session memory sidecar 现在会在 REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue`、app-server `thread/resume` 成功恢复 active history 后做 best-effort 刷新，这样下一轮能立刻复用 memory-first auto compact
   - 当前恢复链不会因为 sidecar 刷新失败而中断；JSONL replay 仍然是唯一权威历史来源
 
 ---

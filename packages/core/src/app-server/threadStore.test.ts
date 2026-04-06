@@ -374,6 +374,37 @@ describe('ThreadStore', () => {
     expect(messagesOut.nextCursor).toBeNull()
   })
 
+  it('best-effort refreshes rolling session memory on persisted thread resume', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const persistSpy = vi.fn(async () => undefined)
+    const storeWithPersist = new ThreadStore({
+      cwd,
+      env,
+      persistSessionMemoryForRestore: persistSpy,
+    })
+
+    const resumed = await storeWithPersist.resumeThread(thread.id)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(resumed.thread.id).toBe(thread.id)
+    expect(persistSpy).toHaveBeenCalledWith({
+      sessionFilePath: filePath,
+      cwd,
+      mode: 'normal',
+      planPath: null,
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] }],
+    })
+
+  })
+
   it('supports pagination in thread/list', async () => {
     const { store } = await createStore()
     await store.startThread({})

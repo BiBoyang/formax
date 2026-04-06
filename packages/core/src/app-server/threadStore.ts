@@ -7,7 +7,9 @@ import {
   SessionWriter,
   type SessionSummary,
 } from '../features/repl/sessionSave/index.js'
+import { persistSessionMemoryFromHistory } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
+import { buildActiveHistoryFromSessionReplay } from '../chat/context/compact.js'
 import type { InputResolvedPayload } from './protocol/input.js'
 import type {
   Thread,
@@ -31,6 +33,7 @@ export type ThreadStoreOptions = {
   homedir?: string
   archiveStore?: ThreadArchiveStore
   groupVisibilityStore?: ThreadGroupVisibilityStore
+  persistSessionMemoryForRestore?: typeof persistSessionMemoryFromHistory
 }
 
 export type ThreadListResult = {
@@ -434,6 +437,7 @@ export class ThreadStore {
   private readonly homedir?: string
   private readonly archiveStore: ThreadArchiveStore
   private readonly groupVisibilityStore: ThreadGroupVisibilityStore
+  private readonly persistSessionMemoryForRestore: typeof persistSessionMemoryFromHistory
   private readonly provisionalThreads = new Map<string, ProvisionalThread>()
 
   constructor(args: ThreadStoreOptions = {}) {
@@ -443,6 +447,7 @@ export class ThreadStore {
     this.homedir = args.homedir
     this.archiveStore = args.archiveStore ?? new FileThreadArchiveStore()
     this.groupVisibilityStore = args.groupVisibilityStore ?? new FileThreadGroupVisibilityStore()
+    this.persistSessionMemoryForRestore = args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory
   }
 
   async startThread(params: ThreadStartParams): Promise<Thread> {
@@ -522,6 +527,19 @@ export class ThreadStore {
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
     ])
+
+    void readSessionFile(filePath)
+      .then(async (replay) => {
+        await this.persistSessionMemoryForRestore({
+          sessionFilePath: filePath,
+          cwd: replay.meta.cwd,
+          mode: 'normal',
+          planPath: null,
+          history: buildActiveHistoryFromSessionReplay(replay.history),
+        })
+      })
+      .catch(() => undefined)
+
     return {
       thread: toThread(summary),
       staleInputs,
