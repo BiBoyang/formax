@@ -24,7 +24,7 @@ import type {
 } from './protocol.js'
 import {
   readPersistedToolMessagesFromSession,
-  readRequestCollapseEventsFromSession,
+  readLatestRequestCollapseEventFromSession,
   readStaleInputsFromSession,
 } from './store/sessionEventReader.js'
 import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
@@ -642,12 +642,11 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, transcriptPreview, persistedCollapseEvents] = await Promise.all([
+    const [summary, transcriptPreview, latestRequestCollapse] = await Promise.all([
       readSessionSummary(filePath),
       readSessionPreview(filePath),
-      readRequestCollapseEventsFromSession({ filePath }),
+      readLatestRequestCollapseEventFromSession({ filePath }),
     ])
-    const latestRequestCollapse = persistedCollapseEvents.length > 0 ? persistedCollapseEvents[persistedCollapseEvents.length - 1] : null
 
     return {
       thread: toThread(summary),

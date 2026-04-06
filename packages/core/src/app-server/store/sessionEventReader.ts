@@ -209,3 +209,10 @@ export async function readRequestCollapseEventsFromSession(args: {
 
   return events
 }
+
+export async function readLatestRequestCollapseEventFromSession(args: {
+  filePath: string
+}): Promise<PersistedRequestCollapseEvent | null> {
+  const events = await readRequestCollapseEventsFromSession(args)
+  return events.length > 0 ? events[events.length - 1]! : null
+}

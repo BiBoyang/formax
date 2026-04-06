@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SessionWriter } from '../../features/repl/sessionSave/index.js'
 import {
+  readLatestRequestCollapseEventFromSession,
   readPersistedToolMessagesFromSession,
   readRequestCollapseEventsFromSession,
   readStaleInputsFromSession,
@@ -422,6 +423,48 @@ describe('readStaleInputsFromSession', () => {
       estimatedTokensSaved: 64,
     })
     expect(typeof events[0]?.occurredAtMs).toBe('number')
+  })
+
+  it('reads latest persisted request-time collapse event from session', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-latest-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-latest-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const created = await SessionWriter.createNew({ cwd, env })
+    const writer = created.writer
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'abcdef0123456789',
+    })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+    await writer.shutdown()
+
+    const event = await readLatestRequestCollapseEventFromSession({ filePath: created.filePath })
+    expect(event).toMatchObject({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+  })
+
+  it('returns null when no persisted request-time collapse event exists', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-none-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-none-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const created = await SessionWriter.createNew({ cwd, env })
+    await created.writer.shutdown()
+
+    const event = await readLatestRequestCollapseEventFromSession({ filePath: created.filePath })
+    expect(event).toBeNull()
   })
 
   it('ignores malformed request-time collapse events', async () => {
