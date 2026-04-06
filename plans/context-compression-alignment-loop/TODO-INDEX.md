@@ -6,10 +6,6 @@
 
 ## Slice Group B: Diagnostics Phase 2
 
-- `CCA-011` 增加 diagnostics 中的 pre/post compact lifecycle markers
-  - 目标：至少能看到 snapshot、post-microcompact、post-prune、post-compact 四个阶段的估算差异
-  - 验收：JSON diagnostics 可比较这些阶段的 token 变化
-
 - `CCA-012` 增加 compact / prune 触发原因诊断
   - 目标：告诉我们“为什么本轮触发了 auto-compact / 为什么仍然落到 prune”
   - 验收：report 或 JSON 中可读出 trigger reason / skipped reason
@@ -28,4 +24,4 @@
 
 ## 当前推荐执行顺序
 
-1. `CCA-011`
+1. `CCA-012`

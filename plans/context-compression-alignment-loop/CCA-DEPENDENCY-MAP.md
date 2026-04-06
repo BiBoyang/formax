@@ -168,11 +168,11 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-011`
+1. `CCA-012`
 
 对应含义：
 
-1. 继续把 diagnostics 从“已有 system-section 视图”推进到 pre/post compact lifecycle 视图
+1. 继续把 diagnostics 从“已有 lifecycle 视图”推进到 compact / prune 触发原因解释
 
 补充说明：
 

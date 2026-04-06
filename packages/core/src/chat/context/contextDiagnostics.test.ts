@@ -7,7 +7,19 @@ import {
   resolveContextDiagnosticsOutputFormat,
 } from './contextDiagnostics'
 import type { PromptBlock, PromptMessage } from '../../prompts'
-import { buildCompactBoundaryMessage } from './compact'
+import {
+  buildAutoCompactKeepStrategy,
+  buildCompactBoundaryMessage,
+  buildDefaultCompactRehydrationPlan,
+  estimateCompactRehydrationCost,
+  getContinuationMessagesAfterLatestCompactBoundary,
+  markCompactRehydrationApplied,
+  rebuildHistoryAfterCompaction,
+  resolveHistoryForCompaction,
+} from './compact'
+import { estimatePromptTokens } from './estimate'
+import { buildPostCompactRehydration } from './postCompactRehydration'
+import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 
 describe('contextDiagnostics', () => {
   it('analyzes prompt slices, counts tool results, and detects microcompacted stubs', () => {
@@ -158,6 +170,7 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Microcompact compacted blocks: 0')
     expect(out).toContain('- Microcompact compacted tools: none')
     expect(out).toContain('- Fixed group breakdown: none')
+    expect(out).toContain('Lifecycle markers before future user text')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
     expect(out).toContain('latest compact-boundary continuation view')
@@ -219,6 +232,9 @@ describe('contextDiagnostics', () => {
 
   it('analyzes next-turn fixed context projection with group breakdown', () => {
     const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: null,
       system: [{ type: 'text', text: 'system instructions' }],
       messages: [
         {
@@ -277,12 +293,143 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
     expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
     expect(out.microCompactImpact.keptRecentBlocks).toBe(3)
+    expect(out.lifecycleMarkers.map((row) => row.stage)).toEqual([
+      'snapshot',
+      'post_microcompact',
+      'post_prune',
+      'post_compact',
+    ])
+    expect(out.lifecycleMarkers[0]?.deltaFromSnapshot).toBe(0)
     expect(out.fixedTokens).toBeGreaterThan(0)
     expect(out.projectedHistoryTokens).toBeGreaterThan(0)
     expect(out.totalTokens).toBeGreaterThan(out.fixedTokens)
     expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
     expect(out.topAssembledContributors.length).toBeGreaterThan(0)
     expect(out.topAssembledContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
+  })
+
+  it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {
+    const system = [{ type: 'text', text: 'system instructions' }] as PromptBlock[]
+    const messages = [
+      buildCompactBoundaryMessage({
+        trigger: 'auto',
+        preTokens: 88,
+        summaryKind: 'model_summary',
+        keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [{ kind: 'recent_files', priority: 'high', status: 'planned' }],
+        },
+        rehydrationCost: {
+          sectionCount: 1,
+          estimatedTokens: 16,
+        },
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 2,
+          preservedTailMessageCount: 1,
+          summaryFingerprint: 'summary-fingerprint',
+          headFingerprint: 'head-fingerprint',
+          tailFingerprint: 'tail-fingerprint',
+        },
+      }),
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Older compact summary' }],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Latest user ask' }],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Latest assistant answer' }],
+      },
+    ] as PromptMessage[]
+
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      system,
+      messages,
+      fixedGroups: [],
+      budgetConfig: {
+        contextWindowTokens: 100_000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 12_000,
+      },
+    })
+
+    const postCompact = out.lifecycleMarkers.find((row) => row.stage === 'post_compact')
+    expect(postCompact).toBeDefined()
+
+    const keepStrategy = buildAutoCompactKeepStrategy(4)
+    const compactionScope = resolveHistoryForCompaction({
+      previousHistory: messages,
+      allowPartial: true,
+    })
+    const draft = buildSessionMemoryDraft({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      previousHistory: compactionScope.history,
+    })
+    const fallbackRehydration = buildPostCompactRehydration({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      previousHistory: compactionScope.history,
+    })
+    const rehydration = buildSessionMemoryCompactionRehydration({
+      draft,
+      fallback: fallbackRehydration,
+    })
+    const rehydrationPlan = markCompactRehydrationApplied(
+      draft.currentStrategy.rehydrationPlan ??
+        buildDefaultCompactRehydrationPlan({
+          mode: 'normal',
+          planPath: null,
+          hasTodoState: Boolean(rehydration.todoSummary),
+        }),
+      [
+        ...(rehydration.recentFiles.length > 0 ? (['recent_files'] as const) : []),
+        ...(rehydration.modeText ? (['mode_state'] as const) : []),
+        ...(rehydration.planPath || rehydration.planExcerpt ? (['plan_state'] as const) : []),
+        ...(rehydration.todoSummary ? (['todo_state'] as const) : []),
+      ],
+    )
+    const compactedHistory = rebuildHistoryAfterCompaction({
+      summary: buildSessionMemoryCompactionSummary(draft).trim() || 'Session memory recap unavailable.',
+      previousHistory: compactionScope.history,
+      tailSourceHistory: compactionScope.tailSourceHistory,
+      keepStrategy,
+      rehydration,
+      boundaryMeta: {
+        trigger: 'auto',
+        preTokens: estimatePromptTokens({
+          system,
+          messages,
+        }),
+        summaryKind: 'session_memory',
+        keepStrategy,
+        rehydrationPlan,
+        rehydrationCost: estimateCompactRehydrationCost(rehydration),
+      },
+    })
+
+    const rawCompactedTokens = estimatePromptTokens({ system: [], messages: compactedHistory })
+    const continuationTokens = estimatePromptTokens({
+      system: [],
+      messages: getContinuationMessagesAfterLatestCompactBoundary(compactedHistory),
+    })
+
+    expect(compactedHistory.length).toBeGreaterThan(
+      getContinuationMessagesAfterLatestCompactBoundary(compactedHistory).length,
+    )
+    expect(rawCompactedTokens).toBeGreaterThanOrEqual(continuationTokens)
+    expect(postCompact?.historyTokens).toBe(continuationTokens)
   })
 
   it('builds JSON diagnostics output from the same structured payload', () => {
@@ -389,6 +536,13 @@ describe('contextDiagnostics', () => {
     expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.snapshot.systemSectionBreakdown).toBeInstanceOf(Array)
     expect(parsed.nextTurnFixed.projectedHistoryTokens).toBeGreaterThanOrEqual(0)
+    expect(parsed.nextTurnFixed.lifecycleMarkers).toBeInstanceOf(Array)
+    expect(parsed.nextTurnFixed.lifecycleMarkers.map((row: any) => row.stage)).toEqual([
+      'snapshot',
+      'post_microcompact',
+      'post_prune',
+      'post_compact',
+    ])
     expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
       compactedBlocks: 0,
       compactedToolNames: [],

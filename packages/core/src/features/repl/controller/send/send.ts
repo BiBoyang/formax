@@ -297,6 +297,7 @@ export function maybeBuildContextSlashEffect(args: {
             runtimeFlags: args.runtimeFlags,
             allowedSubagents: args.allowedSubagents,
             mode: args.mode,
+            planPath: args.getPlanPath(),
             messages: args.historyRef.current,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
@@ -312,6 +313,7 @@ export function maybeBuildContextSlashEffect(args: {
             runtimeFlags: args.runtimeFlags,
             allowedSubagents: args.allowedSubagents,
             mode: args.mode,
+            planPath: args.getPlanPath(),
             messages: args.historyRef.current,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },

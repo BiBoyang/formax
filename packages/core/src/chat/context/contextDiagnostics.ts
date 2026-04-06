@@ -6,8 +6,14 @@ import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
 import { pruneForPromptBudget } from './prune'
 import {
+  buildAutoCompactKeepStrategy,
+  buildDefaultCompactRehydrationPlan,
+  estimateCompactRehydrationCost,
+  markCompactRehydrationApplied,
+  rebuildHistoryAfterCompaction,
   findLatestCompactBoundary,
   getContinuationMessagesAfterLatestCompactBoundary,
+  resolveHistoryForCompaction,
   type CompactBoundaryMeta,
 } from './compact'
 import type { RuntimeConfig } from '../../config/config'
@@ -15,6 +21,8 @@ import type { RuntimeFlags } from '../../config/runtimeFlags'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import { buildSystemPrompt } from '../../prompts'
 import { resolveSystemPromptVariant } from '../../prompts/system'
+import { buildPostCompactRehydration } from './postCompactRehydration'
+import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 export type ContextDiagnostics = {
@@ -50,6 +58,7 @@ export type NextTurnFixedContextGroup = {
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   microCompactImpact: MicroCompactImpact
+  lifecycleMarkers: ContextLifecycleMarker[]
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
   fixedTokens: number
@@ -63,6 +72,18 @@ export type NextTurnFixedContextDiagnostics = {
 export type ContextContributor = {
   label: string
   tokens: number
+}
+
+export type ContextLifecycleMarker = {
+  stage: 'snapshot' | 'post_microcompact' | 'post_prune' | 'post_compact'
+  label: string
+  totalTokens: number
+  historyTokens: number
+  fixedTokens: number
+  deltaFromSnapshot: number
+  remainingToEffectiveLimit: number | null
+  remainingToAutoCompactLimit: number | null
+  shouldAutoCompact: boolean | null
 }
 
 export type ContextDiagnosticsPayload = {
@@ -150,6 +171,10 @@ export function analyzeNextTurnFixedContext(args: {
   messages: PromptMessage[]
   fixedGroups: NextTurnFixedContextGroup[]
   budgetConfig?: ContextBudgetConfig | null
+  cwd: string
+  mode: string
+  planPath?: string | null
+  keepLastTurns?: number
 }): NextTurnFixedContextDiagnostics {
   const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const fixedGroups = args.fixedGroups
@@ -182,6 +207,18 @@ export function analyzeNextTurnFixedContext(args: {
   const preparedFixedMessage = fixedUserMessage ? (preparedMessages[preparedMessages.length - 1] ?? fixedUserMessage) : null
   const assembledMessages = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
   const projectedToolUsesById = collectToolUsesById(projectedHistory)
+  const lifecycleMarkers = buildLifecycleMarkers({
+    system: args.system,
+    snapshotHistory: promptMessages,
+    microCompactedHistory,
+    postPruneMessages: preparedMessages,
+    preparedFixedMessage,
+    budgetConfig: args.budgetConfig ?? null,
+    cwd: args.cwd,
+    mode: normalizeDiagnosticsMode(args.mode),
+    planPath: args.planPath ?? null,
+    keepLastTurns: args.keepLastTurns ?? 4,
+  })
 
   const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
   const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
@@ -210,6 +247,7 @@ export function analyzeNextTurnFixedContext(args: {
       estimatedTokensSaved: microCompactResult.estimatedTokensSaved,
       keptRecentBlocks: microCompactResult.keptRecentBlocks,
     },
+    lifecycleMarkers,
     projectedHistoryTokens,
     projectedHistoryDeltaTokens: projectedHistoryTokens - snapshotHistoryTokens,
     fixedTokens,
@@ -232,6 +270,7 @@ export function buildContextDiagnosticsReport(args: {
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
+  planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
 }): string {
@@ -252,6 +291,7 @@ export function buildContextDiagnosticsJson(args: {
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
+  planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
 }): string {
@@ -264,6 +304,7 @@ export function buildContextDiagnosticsPayload(args: {
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
+  planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
 }): ContextDiagnosticsPayload {
@@ -300,6 +341,10 @@ export function buildContextDiagnosticsPayload(args: {
     system,
     messages: args.messages,
     fixedGroups: args.nextTurnFixedGroups ?? [],
+    cwd: args.cwd,
+    mode: args.mode,
+    planPath: args.planPath ?? null,
+    keepLastTurns: args.cfg.context.compactKeepLastTurns,
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
@@ -394,6 +439,9 @@ export function formatContextDiagnosticsReport(args: {
     `- Remaining to effective limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToEffectiveLimit ?? null)}`,
     `- Remaining to auto-compact limit before future user text: ${formatMaybeInt(args.nextTurn?.remainingToAutoCompactLimit ?? null)}`,
     `- Auto-compact would trigger before future user text: ${formatMaybeBool(args.nextTurn?.shouldAutoCompact ?? null)}`,
+    '',
+    'Lifecycle markers before future user text',
+    ...formatLifecycleMarkers(args.nextTurn?.lifecycleMarkers ?? []),
     '',
     'Top assembled contributors before future user text',
     ...formatContributors(args.nextTurn?.topAssembledContributors ?? []),
@@ -568,6 +616,191 @@ function formatSignedMaybeInt(value: number | null): string {
 function formatFixedGroups(rows: Array<{ label: string; blockCount: number; tokens: number }>): string[] {
   if (rows.length === 0) return ['- Fixed group breakdown: none']
   return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)} (${formatInt(row.blockCount)} blocks)`)
+}
+
+function formatLifecycleMarkers(rows: ContextLifecycleMarker[]): string[] {
+  if (rows.length === 0) return ['- Lifecycle markers: none']
+  return rows.map(
+    (row) =>
+      `- ${row.label}: total=${formatInt(row.totalTokens)}, history=${formatInt(row.historyTokens)}, fixed=${formatInt(row.fixedTokens)}, delta=${formatSignedMaybeInt(row.deltaFromSnapshot)}, remaining_effective=${formatMaybeInt(row.remainingToEffectiveLimit)}, remaining_auto=${formatMaybeInt(row.remainingToAutoCompactLimit)}, auto=${formatMaybeBool(row.shouldAutoCompact)}`,
+  )
+}
+
+function buildLifecycleMarkers(args: {
+  system: PromptBlock[]
+  snapshotHistory: PromptMessage[]
+  microCompactedHistory: PromptMessage[]
+  postPruneMessages: PromptMessage[]
+  preparedFixedMessage: PromptMessage | null
+  budgetConfig: ContextBudgetConfig | null
+  cwd: string
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  planPath: string | null
+  keepLastTurns: number
+}): ContextLifecycleMarker[] {
+  const snapshotAssembled = args.preparedFixedMessage
+    ? [...args.snapshotHistory, args.preparedFixedMessage]
+    : [...args.snapshotHistory]
+  const postMicrocompactAssembled = args.preparedFixedMessage
+    ? [...args.microCompactedHistory, args.preparedFixedMessage]
+    : [...args.microCompactedHistory]
+  const postPruneAssembled = [...args.postPruneMessages]
+  const postCompactAssembled = buildPostCompactAssembledMessages(args)
+  const snapshotTotalTokens = estimatePromptTokens({ system: args.system, messages: snapshotAssembled })
+
+  return [
+    buildLifecycleMarker({
+      stage: 'snapshot',
+      label: 'snapshot',
+      system: args.system,
+      messages: snapshotAssembled,
+      fixedMessage: args.preparedFixedMessage,
+      budgetConfig: args.budgetConfig,
+      snapshotTotalTokens,
+    }),
+    buildLifecycleMarker({
+      stage: 'post_microcompact',
+      label: 'post-microcompact',
+      system: args.system,
+      messages: postMicrocompactAssembled,
+      fixedMessage: args.preparedFixedMessage,
+      budgetConfig: args.budgetConfig,
+      snapshotTotalTokens,
+    }),
+    buildLifecycleMarker({
+      stage: 'post_prune',
+      label: 'post-prune',
+      system: args.system,
+      messages: postPruneAssembled,
+      fixedMessage: args.preparedFixedMessage,
+      budgetConfig: args.budgetConfig,
+      snapshotTotalTokens,
+    }),
+    buildLifecycleMarker({
+      stage: 'post_compact',
+      label: 'post-compact',
+      system: args.system,
+      messages: postCompactAssembled,
+      fixedMessage: args.preparedFixedMessage,
+      budgetConfig: args.budgetConfig,
+      snapshotTotalTokens,
+    }),
+  ]
+}
+
+function buildLifecycleMarker(args: {
+  stage: ContextLifecycleMarker['stage']
+  label: string
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  fixedMessage: PromptMessage | null
+  budgetConfig: ContextBudgetConfig | null
+  snapshotTotalTokens: number
+}): ContextLifecycleMarker {
+  const totalTokens = estimatePromptTokens({ system: args.system, messages: args.messages })
+  const fixedTokens = args.fixedMessage ? estimatePromptTokens({ system: [], messages: [args.fixedMessage] }) : 0
+  const historyTokens = Math.max(0, estimatePromptTokens({ system: [], messages: args.messages }) - fixedTokens)
+  const budget = args.budgetConfig ? computeContextBudget(args.budgetConfig) : null
+  const stats = args.budgetConfig
+    ? computeContextStats({
+        config: args.budgetConfig,
+        usedTokens: totalTokens,
+      })
+    : null
+
+  return {
+    stage: args.stage,
+    label: args.label,
+    totalTokens,
+    historyTokens,
+    fixedTokens,
+    deltaFromSnapshot: totalTokens - args.snapshotTotalTokens,
+    remainingToEffectiveLimit: budget ? Math.max(0, budget.effectiveLimitTokens - totalTokens) : null,
+    remainingToAutoCompactLimit: budget ? Math.max(0, budget.autoCompactLimitTokens - totalTokens) : null,
+    shouldAutoCompact: stats?.shouldAutoCompact ?? null,
+  }
+}
+
+function buildPostCompactAssembledMessages(args: {
+  system: PromptBlock[]
+  microCompactedHistory: PromptMessage[]
+  preparedFixedMessage: PromptMessage | null
+  budgetConfig: ContextBudgetConfig | null
+  cwd: string
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  planPath: string | null
+  keepLastTurns: number
+}): PromptMessage[] {
+  const keepStrategy = buildAutoCompactKeepStrategy(args.keepLastTurns)
+  const compactionScope = resolveHistoryForCompaction({
+    previousHistory: args.microCompactedHistory,
+    allowPartial: true,
+  })
+  const draft = buildSessionMemoryDraft({
+    cwd: args.cwd,
+    mode: args.mode,
+    planPath: args.planPath,
+    previousHistory: compactionScope.history,
+  })
+  const fallbackRehydration = buildPostCompactRehydration({
+    cwd: args.cwd,
+    mode: args.mode,
+    planPath: args.planPath,
+    previousHistory: compactionScope.history,
+  })
+  const rehydration = buildSessionMemoryCompactionRehydration({
+    draft,
+    fallback: fallbackRehydration,
+  })
+  const rehydrationPlan = markCompactRehydrationApplied(
+    draft.currentStrategy.rehydrationPlan ??
+      buildDefaultCompactRehydrationPlan({
+        mode: args.mode,
+        planPath: args.planPath,
+        hasTodoState: Boolean(rehydration.todoSummary),
+      }),
+    [
+      ...(rehydration.recentFiles.length > 0 ? (['recent_files'] as const) : []),
+      ...(rehydration.modeText ? (['mode_state'] as const) : []),
+      ...(rehydration.planPath || rehydration.planExcerpt ? (['plan_state'] as const) : []),
+      ...(rehydration.todoSummary ? (['todo_state'] as const) : []),
+    ],
+  )
+  const summary = buildSessionMemoryCompactionSummary(draft).trim() || 'Session memory recap unavailable.'
+  const compactedHistory = rebuildHistoryAfterCompaction({
+    summary,
+    previousHistory: compactionScope.history,
+    tailSourceHistory: compactionScope.tailSourceHistory,
+    keepStrategy,
+    rehydration,
+    boundaryMeta: {
+      trigger: 'auto',
+      preTokens: estimatePromptTokens({
+        system: args.system,
+        messages: args.microCompactedHistory,
+      }),
+      summaryKind: 'session_memory',
+      keepStrategy,
+      rehydrationPlan,
+      rehydrationCost: estimateCompactRehydrationCost(rehydration),
+    },
+  })
+  const compactedContinuation = getContinuationMessagesAfterLatestCompactBoundary(compactedHistory)
+  const assembledMessages = args.preparedFixedMessage
+    ? [...compactedContinuation, args.preparedFixedMessage]
+    : compactedContinuation
+
+  if (!args.budgetConfig) return assembledMessages
+  return pruneForPromptBudget({
+    system: args.system,
+    messages: assembledMessages,
+    ...args.budgetConfig,
+  }).messages
+}
+
+function normalizeDiagnosticsMode(mode: string): 'normal' | 'acceptEdits' | 'plan' {
+  if (mode === 'acceptEdits' || mode === 'plan') return mode
+  return 'normal'
 }
 
 function buildTopSnapshotContributors(args: {

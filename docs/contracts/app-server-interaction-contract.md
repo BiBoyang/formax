@@ -144,6 +144,8 @@
     - `remainingToAutoCompactLimit`
     - `shouldAutoCompact`
     - `topAssembledContributors`
+  - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
+    - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）
   - `local.diagnostics.nextTurnFixed.microCompactImpact` MUST 暴露：
     - `compactedBlocks`
     - `compactedToolNames`

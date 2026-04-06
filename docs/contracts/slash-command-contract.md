@@ -115,6 +115,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 9. diagnostics payload MUST 暴露 `latestCompactBoundary`；若该值非 `null`，至少要稳定提供 `schemaVersion`，并 SHOULD 暴露 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
 10. 当 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误时，客户端 MUST 将整个 diagnostics payload 视为不可用，而不是继续做 loose partial parsing
 11. snapshot text diagnostics SHOULD 额外展示 `System prompt breakdown`；当前 system prompt 至少会按 `Identity`、heading 前 `Preamble`、以及顶层 `# section` 做 breakdown，避免把 system 只当成单个黑盒 contributor
+12. `nextTurnFixed` diagnostics payload SHOULD 暴露 `lifecycleMarkers`，用于比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异；text diagnostics SHOULD 提供对应的人类可读 lifecycle 小节
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

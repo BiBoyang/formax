@@ -35,6 +35,18 @@ export type RpcMicroCompactImpact = {
   keptRecentBlocks: number
 }
 
+export type RpcContextLifecycleMarker = {
+  stage: 'snapshot' | 'post_microcompact' | 'post_prune' | 'post_compact'
+  label: string
+  totalTokens: number
+  historyTokens: number
+  fixedTokens: number
+  deltaFromSnapshot: number
+  remainingToEffectiveLimit: number | null
+  remainingToAutoCompactLimit: number | null
+  shouldAutoCompact: boolean | null
+}
+
 export type RpcCompactBoundaryKeepStrategy =
   | {
       kind: 'keep_last_turns'
@@ -109,6 +121,7 @@ export type RpcContextDiagnosticsSnapshot = {
 export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   microCompactImpact: RpcMicroCompactImpact
+  lifecycleMarkers?: RpcContextLifecycleMarker[]
   projectedHistoryTokens: number
   projectedHistoryDeltaTokens: number
   fixedTokens: number
@@ -296,6 +309,55 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
   }
 }
 
+function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: RpcContextLifecycleMarker[] = []
+  for (const row of value) {
+    const record = asOptionalRecord(row)
+    if (!record) return null
+    const stage =
+      record.stage === 'snapshot' ||
+      record.stage === 'post_microcompact' ||
+      record.stage === 'post_prune' ||
+      record.stage === 'post_compact'
+        ? record.stage
+        : null
+    const label = typeof record.label === 'string' && record.label.trim() ? record.label : null
+    const totalTokens = asFiniteNumber(record.totalTokens)
+    const historyTokens = asFiniteNumber(record.historyTokens)
+    const fixedTokens = asFiniteNumber(record.fixedTokens)
+    const deltaFromSnapshot = asFiniteNumber(record.deltaFromSnapshot)
+    const remainingToEffectiveLimit = parseRequiredNullableNumber(record.remainingToEffectiveLimit)
+    const remainingToAutoCompactLimit = parseRequiredNullableNumber(record.remainingToAutoCompactLimit)
+    const shouldAutoCompact = parseRequiredNullableBoolean(record.shouldAutoCompact)
+    if (
+      !stage ||
+      !label ||
+      totalTokens == null ||
+      historyTokens == null ||
+      fixedTokens == null ||
+      deltaFromSnapshot == null ||
+      !remainingToEffectiveLimit ||
+      !remainingToAutoCompactLimit ||
+      !shouldAutoCompact
+    ) {
+      return null
+    }
+    rows.push({
+      stage,
+      label,
+      totalTokens,
+      historyTokens,
+      fixedTokens,
+      deltaFromSnapshot,
+      remainingToEffectiveLimit: remainingToEffectiveLimit.value,
+      remainingToAutoCompactLimit: remainingToAutoCompactLimit.value,
+      shouldAutoCompact: shouldAutoCompact.value,
+    })
+  }
+  return rows
+}
+
 function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsSnapshot | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -393,6 +455,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     fixedGroups.push({ label, blockCount, tokens })
   }
   const microCompactImpact = parseMicroCompactImpact(record.microCompactImpact)
+  const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
+  if (record.lifecycleMarkers != null && !lifecycleMarkers) return null
   const topAssembledContributors = parseContributors(record.topAssembledContributors)
   const projectedHistoryTokens = asFiniteNumber(record.projectedHistoryTokens)
   const projectedHistoryDeltaTokens = asFiniteNumber(record.projectedHistoryDeltaTokens)
@@ -415,6 +479,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   return {
     fixedGroups,
     microCompactImpact,
+    ...(lifecycleMarkers ? { lifecycleMarkers } : {}),
     projectedHistoryTokens,
     projectedHistoryDeltaTokens,
     fixedTokens,

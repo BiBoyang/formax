@@ -115,6 +115,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 `/context` snapshot 与主路径 prompt 估算已统一基于“最近 compact boundary 后 continuation view”；如果没有 boundary，才退化为全 persisted history
 - 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
 - 当前 system prompt diagnostics 已支持 per-system-section breakdown：会把 system 拆成 `Identity`、heading 前 `Preamble`、以及顶层 `# section`，`top contributors` 不再只把 system 当作单个黑盒 contributor
+- 当前 `nextTurnFixed` diagnostics 已支持 lifecycle markers：会以非破坏性投影方式比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异
 
 ### 想改“/compact（P4）”
 

@@ -49,6 +49,7 @@
 - `docs/learnings/2026-04-05-context-collapse-mvp.md`
 - `docs/learnings/2026-04-05-reactive-compact-mvp.md`
 - `docs/learnings/2026-04-06-per-system-section-diagnostics.md`
+- `docs/learnings/2026-04-06-context-lifecycle-markers.md`
 
 ## Web Reference Runtime / Performance
 

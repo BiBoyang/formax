@@ -16,6 +16,8 @@
   - `packages/core/src/chat/context/contextDiagnostics.ts`
 - 已完成：`/context` per-system-section diagnostics
   - system prompt 现在会拆成 identity / preamble / 顶层 `# section` 贡献视图
+- 已完成：`/context` pre/post compact lifecycle markers
+  - 已可对比 `snapshot -> post-microcompact -> post-prune -> post-compact` 的估算差异
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
 - 已完成：diagnostics payload 正式客户端消费契约
@@ -115,6 +117,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已有 microcompact impact 展示（before/after projected history、estimated tokens saved）
    - 已有 top contributors
    - 已有 per-system-section breakdown（system 不再只被视为单个黑盒 contributor）
+   - 已有 next-turn lifecycle markers（snapshot / post-microcompact / post-prune / post-compact）
    - 已有 JSON diagnostics
    - 已有 app-server 结构化 payload
 

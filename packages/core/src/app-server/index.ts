@@ -268,6 +268,7 @@ export async function runAppServer(args?: {
         runtimeFlags: runtime.runtimeFlags,
         allowedSubagents: runtime.allowedSubagents,
         mode,
+        planPath: null,
         messages: replay?.history ?? [],
         nextTurnFixedGroups: [
           { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
