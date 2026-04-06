@@ -1,7 +1,7 @@
 import type { ChatHistory } from '../../../chat/engine'
-import { buildSessionMemoryDraft } from '../../../chat/context/sessionMemory'
+import { buildSessionMemoryDraft, extractSessionMemoryRestoreState } from '../../../chat/context/sessionMemory'
 import type { ReplMode } from '../mode'
-import { writeSessionMemoryFile } from './sessionMemorySidecar'
+import { readSessionMemoryFile, writeSessionMemoryFile } from './sessionMemorySidecar'
 
 const sessionMemoryWriteQueue = new Map<string, Promise<void>>()
 
@@ -20,6 +20,39 @@ export async function waitForSessionMemoryWriteFlush(sessionFilePath: string): P
     await pending
   } catch {
     // Best-effort: callers should fall back if the sidecar remains unavailable.
+  }
+}
+
+export async function resolveSessionMemoryRestoreContext(args: {
+  sessionFilePath: string
+  fallbackMode: ReplMode
+  fallbackPlanPath: string | null
+  readSessionMemoryFileImpl?: (sessionFilePath: string) => Promise<unknown>
+}): Promise<{
+  mode: ReplMode
+  planPath: string | null
+}> {
+  let nextMode: ReplMode = args.fallbackMode
+  let nextPlanPath = normalizePlanPath(args.fallbackPlanPath)
+
+  try {
+    const rawDraft = await (args.readSessionMemoryFileImpl ?? readSessionMemoryFile)(args.sessionFilePath)
+    const restoreState = extractSessionMemoryRestoreState(rawDraft)
+    if (restoreState) {
+      if (nextMode === 'normal') {
+        nextMode = restoreState.mode
+      }
+      if (nextPlanPath === null) {
+        nextPlanPath = normalizePlanPath(restoreState.planPath)
+      }
+    }
+  } catch {
+    // Best-effort: fall back to the caller-provided context.
+  }
+
+  return {
+    mode: nextMode,
+    planPath: nextPlanPath,
   }
 }
 
@@ -51,4 +84,8 @@ export async function persistSessionMemoryFromHistory(
       sessionMemoryWriteQueue.delete(args.sessionFilePath)
     }
   }
+}
+
+function normalizePlanPath(value: string | null | undefined): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }

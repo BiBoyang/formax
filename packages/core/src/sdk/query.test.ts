@@ -18,6 +18,7 @@ const { state } = vi.hoisted(() => ({
     createSessionWriter: vi.fn(),
     openSessionWriter: vi.fn(),
     persistSessionMemoryForRestore: vi.fn(),
+    readSessionMemoryFile: vi.fn(),
   },
 }))
 
@@ -40,6 +41,28 @@ vi.mock('../features/repl/sessionSave/writer.js', () => ({
 
 vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
   persistSessionMemoryFromHistory: async (args: unknown) => await state.persistSessionMemoryForRestore(args),
+  resolveSessionMemoryRestoreContext: async (args: {
+    sessionFilePath: string
+    fallbackMode: 'normal' | 'acceptEdits' | 'plan'
+    fallbackPlanPath: string | null
+  }) => {
+    const raw = await state.readSessionMemoryFile(args.sessionFilePath)
+    const activeTask =
+      raw && typeof raw === 'object' && raw !== null && 'activeTask' in raw && typeof raw.activeTask === 'object'
+        ? (raw.activeTask as Record<string, unknown>)
+        : null
+    const mode =
+      args.fallbackMode === 'normal' &&
+      (activeTask?.mode === 'normal' || activeTask?.mode === 'acceptEdits' || activeTask?.mode === 'plan')
+        ? (activeTask.mode as 'normal' | 'acceptEdits' | 'plan')
+        : args.fallbackMode
+    const planPath =
+      args.fallbackPlanPath ??
+      (typeof activeTask?.planPath === 'string' && activeTask.planPath.trim().length > 0
+        ? activeTask.planPath.trim()
+        : null)
+    return { mode, planPath }
+  },
 }))
 
 function createTool(name: string): ToolDefinition {
@@ -139,6 +162,8 @@ describe('sdk query()', () => {
     state.openSessionWriter.mockReset()
     state.persistSessionMemoryForRestore.mockReset()
     state.persistSessionMemoryForRestore.mockResolvedValue(undefined)
+    state.readSessionMemoryFile.mockReset()
+    state.readSessionMemoryFile.mockResolvedValue(null)
     state.createSessionWriter.mockImplementation(async (args: any) => ({
       writer: createSessionWriterFixture(),
       meta: { sessionId: String(args?.sessionId ?? 'sdk-session') },
@@ -1750,6 +1775,35 @@ describe('sdk query()', () => {
     })
   })
 
+  it('reuses sidecar mode and planPath when restoring options.resume with default context', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => [...turnArgs.history, turnArgs.user])
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] }],
+    })
+    state.readSessionMemoryFile.mockResolvedValue({
+      activeTask: {
+        mode: 'plan',
+        planPath: '/repo/.formax/resume-plan.md',
+      },
+    })
+
+    await collectMessages({
+      prompt: 'resume prompt',
+      options: { resume: 'session-abc' },
+    })
+
+    expect(state.persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/resume-session.jsonl',
+      cwd: process.cwd(),
+      mode: 'plan',
+      planPath: '/repo/.formax/resume-plan.md',
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] }],
+    })
+  })
+
   it('uses options.sessionId when resume is not provided', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
@@ -2377,6 +2431,37 @@ describe('sdk query()', () => {
       expect(result.subtype).toBe('success')
       expect(result.session_id).toBe('continued-session-id')
     }
+  })
+
+  it('reuses sidecar mode and planPath when restoring options.continue with default context', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => [...turnArgs.history, turnArgs.user])
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] }],
+    })
+    state.readSessionMemoryFile.mockResolvedValue({
+      activeTask: {
+        mode: 'acceptEdits',
+        planPath: '/repo/.formax/continue-plan.md',
+      },
+    })
+
+    await collectMessages({
+      prompt: 'continue prompt',
+      options: {
+        continue: true,
+      },
+    })
+
+    expect(state.persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/latest-session.jsonl',
+      cwd: process.cwd(),
+      mode: 'acceptEdits',
+      planPath: '/repo/.formax/continue-plan.md',
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] }],
+    })
   })
 
   it('returns conflict when continue sessionId differs from latest without forkSession', async () => {

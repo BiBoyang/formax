@@ -165,7 +165,8 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 8. `SES-304B.6` 的 sidecar 刷新 MUST 是 best-effort；刷新失败时不得中断 resume / continue / restore 主流程
 9. sidecar 刷新当前 MAY 使用恢复入口可得的最小上下文：
    - REPL `/resume` SHOULD 传入当前 REPL mode 与当前 `planPath`
-   - CLI `resumeLast`、SDK file-backed resume/continue 与 app-server `thread/resume` 当前 MAY 退化为 `mode = normal` 且 `planPath = null`
+   - CLI `resumeLast`、SDK file-backed resume/continue 与 app-server `thread/resume` 当前 SHOULD 优先沿用已有 session memory sidecar 里的 `mode` / `planPath`
+   - 若不存在可用 sidecar，上述入口 MAY 退化为 `mode = normal` 且 `planPath = null`
 
 `SES-304C`
 当 file-backed restore 需要把 persisted history 恢复成“下一轮 active prompt baseline”时，系统 MUST 以最近 compact boundary 之后的 continuation view 为准，而不是直接把完整 replay.history 原样作为 active history。  

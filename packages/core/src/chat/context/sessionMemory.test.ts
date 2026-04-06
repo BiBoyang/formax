@@ -10,6 +10,7 @@ import {
   buildSessionMemoryCompactionSummary,
   buildSessionMemoryDraft,
   estimateSessionMemoryCompactionRehydrationCost,
+  extractSessionMemoryRestoreState,
   mergeSessionMemoryDraft,
   type SessionMemoryDraft,
 } from './sessionMemory'
@@ -306,6 +307,33 @@ describe('mergeSessionMemoryDraft', () => {
       keepStrategy: null,
       rehydrationPlan: null,
     })
+  })
+})
+
+describe('extractSessionMemoryRestoreState', () => {
+  it('reads mode and planPath from a valid session memory draft shape', () => {
+    expect(
+      extractSessionMemoryRestoreState({
+        activeTask: {
+          mode: 'plan',
+          planPath: ' /repo/.formax/plan.md ',
+        },
+      }),
+    ).toEqual({
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+    })
+  })
+
+  it('rejects invalid mode shapes', () => {
+    expect(
+      extractSessionMemoryRestoreState({
+        activeTask: {
+          mode: 'weird',
+          planPath: '/repo/.formax/plan.md',
+        },
+      }),
+    ).toBeNull()
   })
 })
 

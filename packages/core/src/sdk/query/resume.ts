@@ -3,7 +3,10 @@ import {
   findSessionFileBySessionId,
   readSessionFile,
 } from '../../features/repl/sessionSave/reader.js'
-import { persistSessionMemoryFromHistory } from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
+import {
+  persistSessionMemoryFromHistory,
+  resolveSessionMemoryRestoreContext,
+} from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptMessage } from '../../prompts/index.js'
 import type { QueryOptions } from '../types.js'
@@ -50,11 +53,16 @@ async function loadReplayFromFile(args: {
   try {
     const replay = parseRawSessionReplayOutput(rawReplay)
     const history = buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history))
+    const restoreContext = await resolveSessionMemoryRestoreContext({
+      sessionFilePath: args.filePath,
+      fallbackMode: args.replMode ?? 'normal',
+      fallbackPlanPath: null,
+    })
     await (args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory)({
       sessionFilePath: args.filePath,
       cwd: args.cwd,
-      mode: args.replMode ?? 'normal',
-      planPath: null,
+      mode: restoreContext.mode,
+      planPath: restoreContext.planPath,
       history,
     }).catch(() => undefined)
     return {

@@ -50,6 +50,23 @@ export type SessionMemoryDraftPatch = {
   currentStrategy?: Partial<SessionMemoryDraft['currentStrategy']>
 }
 
+export function extractSessionMemoryRestoreState(value: unknown): {
+  mode: SessionMemoryDraft['activeTask']['mode']
+  planPath: string | null
+} | null {
+  if (!isRecord(value)) return null
+  const activeTask = value.activeTask
+  if (!isRecord(activeTask)) return null
+
+  const mode = activeTask.mode
+  if (mode !== 'normal' && mode !== 'acceptEdits' && mode !== 'plan') return null
+
+  return {
+    mode,
+    planPath: readNullableString(activeTask.planPath, null),
+  }
+}
+
 export function buildSessionMemoryDraft(args: {
   cwd: string
   mode: 'normal' | 'acceptEdits' | 'plan'
@@ -343,6 +360,10 @@ function readNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 function readNullableString(value: unknown, fallback: string | null): string | null {

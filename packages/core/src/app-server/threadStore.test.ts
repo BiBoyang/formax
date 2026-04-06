@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import * as sessionSave from '../features/repl/sessionSave/index.js'
 import { findSessionFileBySessionId, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { writeSessionMemoryFile } from '../features/repl/sessionSave/sessionMemorySidecar.js'
 import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
 async function createStore() {
@@ -392,17 +393,73 @@ describe('ThreadStore', () => {
     })
 
     const resumed = await storeWithPersist.resumeThread(thread.id)
-    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(resumed.thread.id).toBe(thread.id)
-    expect(persistSpy).toHaveBeenCalledWith({
-      sessionFilePath: filePath,
-      cwd,
-      mode: 'normal',
-      planPath: null,
-      history: [{ role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] }],
+    await vi.waitFor(() => {
+      expect(persistSpy).toHaveBeenCalledWith({
+        sessionFilePath: filePath,
+        cwd,
+        mode: 'normal',
+        planPath: null,
+        history: [{ role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] }],
+      })
     })
 
+  })
+
+  it('reuses sidecar mode and planPath when persisted thread resume falls back to default context', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] },
+    ] as any)
+    await writer.shutdown()
+    await writeSessionMemoryFile({
+      sessionFilePath: filePath,
+      draft: {
+        schemaVersion: 1,
+        durableFacts: {
+          workspaceRoot: cwd,
+          projectMemoryPath: path.join(cwd, '.formax-memory', 'MEMORY.md'),
+        },
+        activeTask: {
+          mode: 'plan',
+          recentFiles: [],
+          recentUserPrompts: [],
+          planPath: path.join(cwd, '.formax', 'resume-plan.md'),
+          planExcerpt: null,
+          todoSummary: null,
+        },
+        currentStrategy: {
+          lastCompactTrigger: null,
+          summaryKind: null,
+          keepStrategy: null,
+          rehydrationPlan: null,
+        },
+      },
+    })
+
+    const persistSpy = vi.fn(async () => undefined)
+    const storeWithPersist = new ThreadStore({
+      cwd,
+      env,
+      persistSessionMemoryForRestore: persistSpy,
+    })
+
+    const resumed = await storeWithPersist.resumeThread(thread.id)
+
+    expect(resumed.thread.id).toBe(thread.id)
+    await vi.waitFor(() => {
+      expect(persistSpy).toHaveBeenCalledWith({
+        sessionFilePath: filePath,
+        cwd,
+        mode: 'plan',
+        planPath: path.join(cwd, '.formax', 'resume-plan.md'),
+        history: [{ role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] }],
+      })
+    })
   })
 
   it('supports pagination in thread/list', async () => {

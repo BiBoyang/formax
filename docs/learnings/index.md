@@ -54,6 +54,7 @@
 - `docs/learnings/2026-04-06-contributor-identity-drilldown.md`
 - `docs/learnings/2026-04-06-session-memory-restore-refresh.md`
 - `docs/learnings/2026-04-06-app-server-session-memory-resume-refresh.md`
+- `docs/learnings/2026-04-06-session-memory-restore-context-reuse.md`
 
 ## Web Reference Runtime / Performance
 

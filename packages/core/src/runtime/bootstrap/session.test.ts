@@ -2,15 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const findLatestSessionFile = vi.fn()
 const readSessionFile = vi.fn()
+const readSessionMemoryFile = vi.fn()
 
 vi.mock('../../features/repl/sessionSave/index.js', () => ({
   findLatestSessionFile,
   readSessionFile,
 }))
 
+vi.mock('../../features/repl/sessionSave/sessionMemorySidecar.js', () => ({
+  readSessionMemoryFile: (sessionFilePath: string) => readSessionMemoryFile(sessionFilePath),
+  writeSessionMemoryFile: vi.fn(),
+}))
+
 describe('resolveInitialSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    readSessionMemoryFile.mockResolvedValue(null)
   })
 
   it('returns continuation history after the latest compact boundary', async () => {
@@ -75,6 +82,37 @@ describe('resolveInitialSession', () => {
       cwd: '/repo',
       mode: 'acceptEdits',
       planPath: '/repo/.formax/plan.md',
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
+    })
+  })
+
+  it('reuses sidecar mode and planPath when resumeLast restore falls back to default context', async () => {
+    findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    readSessionFile.mockResolvedValue({
+      messages: [],
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
+    })
+    readSessionMemoryFile.mockResolvedValue({
+      activeTask: {
+        mode: 'plan',
+        planPath: '/repo/.formax/rolling-plan.md',
+      },
+    })
+    const persistSessionMemoryForRestore = vi.fn(async () => undefined)
+
+    const { resolveInitialSession } = await import('./session.js')
+    await resolveInitialSession({
+      cwd: '/repo',
+      env: process.env,
+      resumeLast: true,
+      persistSessionMemoryForRestore,
+    })
+
+    expect(persistSessionMemoryForRestore).toHaveBeenCalledWith({
+      sessionFilePath: '/tmp/latest-session.jsonl',
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/rolling-plan.md',
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
     })
   })

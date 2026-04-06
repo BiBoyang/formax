@@ -7,7 +7,10 @@ import {
   SessionWriter,
   type SessionSummary,
 } from '../features/repl/sessionSave/index.js'
-import { persistSessionMemoryFromHistory } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
+import {
+  persistSessionMemoryFromHistory,
+  resolveSessionMemoryRestoreContext,
+} from '../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { buildActiveHistoryFromSessionReplay } from '../chat/context/compact.js'
 import type { InputResolvedPayload } from './protocol/input.js'
@@ -530,11 +533,16 @@ export class ThreadStore {
 
     void readSessionFile(filePath)
       .then(async (replay) => {
+        const restoreContext = await resolveSessionMemoryRestoreContext({
+          sessionFilePath: filePath,
+          fallbackMode: 'normal',
+          fallbackPlanPath: null,
+        })
         await this.persistSessionMemoryForRestore({
           sessionFilePath: filePath,
           cwd: replay.meta.cwd,
-          mode: 'normal',
-          planPath: null,
+          mode: restoreContext.mode,
+          planPath: restoreContext.planPath,
           history: buildActiveHistoryFromSessionReplay(replay.history),
         })
       })
