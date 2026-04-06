@@ -7,7 +7,7 @@ import {
 } from '../core/rpcContracts'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey } from '../core/threadCache'
-import type { TranscriptItem } from '../../types'
+import type { RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 
 export type ThreadDataOpsContext = {
@@ -20,6 +20,7 @@ export type ThreadDataOpsContext = {
   historyLoadingRef: { current: Record<string, boolean> }
   historyCursorByThreadIdRef: { current: Record<string, string | null> }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
+  latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
   stateLogsRef: { current: TranscriptItem[] }
   seenStaleInputIdRef: { current: Set<string> }
@@ -38,6 +39,11 @@ export type ThreadDataOpsContext = {
       prev: Record<string, ThreadTranscriptSource>,
     ) => Record<string, ThreadTranscriptSource>,
   ) => void
+  setLatestRequestCollapseByThreadId: (
+    updater: (
+      prev: Record<string, RequestCollapseSummary | null>,
+    ) => Record<string, RequestCollapseSummary | null>,
+  ) => void
   setLogsByThreadId: (
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
   ) => void
@@ -45,6 +51,44 @@ export type ThreadDataOpsContext = {
 }
 
 export function createThreadDataOps(ctx: ThreadDataOpsContext) {
+  const areLatestRequestCollapseEqual = (
+    left: RequestCollapseSummary | null | undefined,
+    right: RequestCollapseSummary | null | undefined,
+  ) => {
+    if (!left && !right) return true
+    if (!left || !right) return false
+    return (
+      left.phase === right.phase &&
+      left.collapsedHeadMessageCount === right.collapsedHeadMessageCount &&
+      left.estimatedTokensSaved === right.estimatedTokensSaved &&
+      (left.recapFingerprint ?? null) === (right.recapFingerprint ?? null)
+    )
+  }
+
+  const setThreadLatestRequestCollapse = (
+    threadId: string,
+    collapse: RequestCollapseSummary | null | undefined,
+  ) => {
+    if (collapse === undefined) {
+      return
+    }
+    const nextCollapse = collapse
+    if (
+      areLatestRequestCollapseEqual(
+        ctx.latestRequestCollapseByThreadIdRef.current[threadId] ?? null,
+        nextCollapse,
+      )
+    ) {
+      return
+    }
+    ctx.latestRequestCollapseByThreadIdRef.current = withRecordValue(
+      ctx.latestRequestCollapseByThreadIdRef.current,
+      threadId,
+      nextCollapse,
+    )
+    ctx.setLatestRequestCollapseByThreadId((prev) => withRecordValue(prev, threadId, nextCollapse))
+  }
+
   const refreshThreads = async () => {
     const result = await ctx.request('thread/list', { limit: 50 })
     ctx.dispatch({ type: 'set_threads', threads: parseThreadListResponse(result) })
@@ -134,6 +178,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs })
       ctx.setLogsByThreadId((prev) => withRecordValue(prev, threadId, logs))
+      setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
       setThreadTranscriptSource(threadId, 'history')
       return true
@@ -192,6 +237,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           ctx.stateLogsRef.current
         return withRecordValue(prev, threadId, [...prepended, ...current])
       })
+      setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
     } finally {
       endThreadHistoryRequest(threadId, seq)

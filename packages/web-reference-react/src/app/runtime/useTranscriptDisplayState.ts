@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import type { ThreadSummary, TranscriptItem } from '../../types'
+import type { RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { selectActiveTranscriptLogs, type TranscriptDisplayPolicy } from '../core/logSelectors'
 import { createTranscriptSelectorStore } from '../core/transcriptSelectorStore'
@@ -13,6 +13,7 @@ type UseTranscriptDisplayStateArgs = {
   historyCursorByThreadId: Record<string, string | null>
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
   displayPolicy?: TranscriptDisplayPolicy
 }
 
@@ -21,6 +22,7 @@ type TranscriptDisplayState = {
   activeLogs: TranscriptItem[]
   activeThread: ThreadSummary | undefined
   activeThreadTitle: string
+  activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   historyMore: boolean
 }
 
@@ -33,6 +35,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
+    latestRequestCollapseByThreadId,
     displayPolicy = 'debug',
   } = args
 
@@ -60,12 +63,20 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     [activeThreadId, threadById],
   )
   const activeThreadTitle = useMemo(() => selectThreadTitle(activeThread), [activeThread])
+  const activeThreadLatestRequestCollapse = useMemo(
+    () =>
+      activeThreadId && activeTranscriptSource === 'history'
+        ? latestRequestCollapseByThreadId[activeThreadId] ?? null
+        : null,
+    [activeThreadId, activeTranscriptSource, latestRequestCollapseByThreadId],
+  )
 
   return {
     activeHistoryLoading,
     activeLogs,
     activeThread,
     activeThreadTitle,
+    activeThreadLatestRequestCollapse,
     historyMore,
   }
 }

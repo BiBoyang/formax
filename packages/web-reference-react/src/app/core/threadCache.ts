@@ -1,16 +1,18 @@
-import type { TranscriptItem } from '../../types'
+import type { RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from './replayMachine'
 
 export type ThreadCacheState = {
   logsByThreadId: Record<string, TranscriptItem[]>
   historyCursorByThreadId: Record<string, string | null>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
 }
 
 export const INITIAL_THREAD_CACHE_STATE: ThreadCacheState = {
   logsByThreadId: {},
   historyCursorByThreadId: {},
   transcriptSourceByThreadId: {},
+  latestRequestCollapseByThreadId: {},
 }
 
 export function withThreadCacheSlice<K extends keyof ThreadCacheState>(

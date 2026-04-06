@@ -8,7 +8,7 @@ import { useRef, useEffect } from 'react'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import type { RpcClient } from '../../rpcClient'
 import { SEEN_EVENT_CAP } from '../core/constants'
-import type { ThreadSummary } from '../../types'
+import type { RequestCollapseSummary, ThreadSummary } from '../../types'
 import type { TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -123,6 +123,7 @@ export function useHistoryRefs(historyCursorByThreadId: Record<string, string | 
 export interface ThreadCacheRefs {
   logsByThreadIdRef: React.RefObject<Record<string, TranscriptItem[]>>
   transcriptSourceByThreadRef: React.RefObject<Record<string, ThreadTranscriptSource>>
+  latestRequestCollapseByThreadIdRef: React.RefObject<Record<string, RequestCollapseSummary | null>>
 }
 
 /**
@@ -132,20 +133,24 @@ export interface ThreadCacheRefs {
  */
 export function useThreadCacheRefs(
   logsByThreadId: Record<string, TranscriptItem[]>,
-  transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>,
+  latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>,
 ): ThreadCacheRefs {
   const logsByThreadIdRef = useRef(logsByThreadId)
   const transcriptSourceByThreadRef = useRef(transcriptSourceByThreadId)
+  const latestRequestCollapseByThreadIdRef = useRef(latestRequestCollapseByThreadId)
 
   // Keep cache refs synchronized together to avoid redundant effect scheduling.
   useEffect(() => {
     logsByThreadIdRef.current = logsByThreadId
     transcriptSourceByThreadRef.current = transcriptSourceByThreadId
-  }, [logsByThreadId, transcriptSourceByThreadId])
+    latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThreadId
+  }, [logsByThreadId, transcriptSourceByThreadId, latestRequestCollapseByThreadId])
 
   return {
     logsByThreadIdRef,
     transcriptSourceByThreadRef,
+    latestRequestCollapseByThreadIdRef,
   }
 }
 

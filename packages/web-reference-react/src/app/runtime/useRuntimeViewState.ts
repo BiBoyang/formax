@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import type { ReplMode } from '../../semantics'
-import type { TranscriptItem } from '../../types'
+import type { RequestCollapseSummary, TranscriptItem } from '../../types'
 import {
   INITIAL_THREAD_CACHE_STATE,
   withThreadCacheSlice,
@@ -37,6 +37,7 @@ export type RuntimeViewState = {
   historyCursorByThreadId: Record<string, string | null>
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
   setDiffSnapshot: (value: DiffSnapshot | null) => void
   setHistoryLoadingByThreadId: (
     updater: (
@@ -67,6 +68,11 @@ export type RuntimeViewState = {
     updater: (
       prev: Record<string, ThreadTranscriptSource>,
     ) => Record<string, ThreadTranscriptSource>,
+  ) => void
+  setLatestRequestCollapseByThreadId: (
+    updater: (
+      prev: Record<string, RequestCollapseSummary | null>,
+    ) => Record<string, RequestCollapseSummary | null>,
   ) => void
 }
 
@@ -160,6 +166,23 @@ export function useRuntimeViewState(): RuntimeViewState {
     [],
   )
 
+  const setLatestRequestCollapseByThreadId = useCallback(
+    (
+      updater: (
+        prev: Record<string, RequestCollapseSummary | null>,
+      ) => Record<string, RequestCollapseSummary | null>,
+    ) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(
+          prev,
+          'latestRequestCollapseByThreadId',
+          updater(prev.latestRequestCollapseByThreadId),
+        ),
+      )
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!noticeMessage) return
     const timer = window.setTimeout(() => {
@@ -185,6 +208,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     historyCursorByThreadId: threadCache.historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId: threadCache.transcriptSourceByThreadId,
+    latestRequestCollapseByThreadId: threadCache.latestRequestCollapseByThreadId,
     setDiffSnapshot,
     setHistoryLoadingByThreadId,
     setInputTextStable,
@@ -200,5 +224,6 @@ export function useRuntimeViewState(): RuntimeViewState {
     setLogsByThreadId,
     setHistoryCursorByThreadId,
     setTranscriptSourceByThreadId,
+    setLatestRequestCollapseByThreadId,
   }
 }

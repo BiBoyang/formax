@@ -37,6 +37,13 @@ export type ThreadSummary = {
   archivedAt?: string | null
 }
 
+export type RequestCollapseSummary = {
+  phase: 'initial' | 'reactive_retry'
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  recapFingerprint?: string
+}
+
 export type ThreadHistoryMessage = {
   id: string
   kind: 'message'

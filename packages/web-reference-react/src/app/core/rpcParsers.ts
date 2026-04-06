@@ -138,7 +138,7 @@ export function asThreadMessages(value: unknown): {
     latestRequestCollapseRaw && typeof latestRequestCollapseRaw === 'object'
       ? (() => {
           const record = latestRequestCollapseRaw as Record<string, unknown>
-          const phase =
+          const phase: 'initial' | 'reactive_retry' | null =
             record.phase === 'initial' || record.phase === 'reactive_retry' ? record.phase : null
           const collapsedHeadMessageCount =
             typeof record.collapsedHeadMessageCount === 'number' && Number.isFinite(record.collapsedHeadMessageCount)

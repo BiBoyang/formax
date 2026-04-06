@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadDataOps, type ThreadDataOpsContext } from './threadDataOps'
+import type { RequestCollapseSummary } from '../../types'
 
 vi.mock('../../eventAdapters', () => ({
   mapThreadHistoryToCanonicalLogs: vi.fn(() => [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }]),
@@ -15,9 +16,13 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
   let historyLoadingByThread: Record<string, boolean> = {}
   let historyCursorByThread: Record<string, string | null> = {}
   let transcriptSourceByThread: Record<string, 'history' | 'replay'> = {}
+  let latestRequestCollapseByThread: Record<string, RequestCollapseSummary | null> = {}
   let logsByThread: Record<string, any[]> = {}
   const historyCursorByThreadIdRef = { current: {} as Record<string, string | null> }
   const logsByThreadIdRef = { current: {} as Record<string, any[]> }
+  const latestRequestCollapseByThreadIdRef = {
+    current: {} as Record<string, RequestCollapseSummary | null>,
+  }
 
   return {
     request: vi.fn(),
@@ -29,6 +34,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     historyLoadingRef: { current: {} },
     historyCursorByThreadIdRef,
     transcriptSourceByThreadRef: { current: {} },
+    latestRequestCollapseByThreadIdRef,
     logsByThreadIdRef,
     stateLogsRef: { current: [] },
     seenStaleInputIdRef: { current: new Set<string>() },
@@ -44,6 +50,11 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     setTranscriptSourceByThreadId: vi.fn((updater) => {
       transcriptSourceByThread = updater(transcriptSourceByThread)
       return transcriptSourceByThread
+    }),
+    setLatestRequestCollapseByThreadId: vi.fn((updater) => {
+      latestRequestCollapseByThread = updater(latestRequestCollapseByThread)
+      latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThread
+      return latestRequestCollapseByThread
     }),
     setLogsByThreadId: vi.fn((updater) => {
       logsByThread = updater(logsByThread)
@@ -99,6 +110,58 @@ describe('threadDataOps', () => {
     expect(ctx.request).toHaveBeenCalledWith('thread/messages', { threadId: 'thread-1', limit: 50 })
     expect(ctx.setTranscriptSourceByThreadId).toHaveBeenCalled()
     expect(ctx.transcriptSourceByThreadRef.current['thread-1']).toBe('history')
+  })
+
+  it('caches latest request collapse from thread history responses', async () => {
+    const requestCollapse = {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 41,
+      recapFingerprint: 'fp-123',
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+      latestRequestCollapse: requestCollapse,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.setLatestRequestCollapseByThreadId).toHaveBeenCalled()
+    expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(requestCollapse)
+  })
+
+  it('preserves cached latest request collapse when response omits the field', async () => {
+    const requestCollapse = {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 41,
+      recapFingerprint: 'fp-123',
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      latestRequestCollapseByThreadIdRef: {
+        current: { 'thread-1': requestCollapse },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.setLatestRequestCollapseByThreadId).not.toHaveBeenCalled()
+    expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(requestCollapse)
   })
 
   it('loads earlier history from refs when transcript source is history', async () => {

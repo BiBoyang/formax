@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import type { RequestCollapseSummary } from '../../types'
 import type { ThreadSummary, TranscriptItem } from '../../types'
 import { useTranscriptDisplayState } from './useTranscriptDisplayState'
 
@@ -32,6 +33,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: { 'thread-1': true },
         transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestRequestCollapseByThreadId: {},
         displayPolicy: 'debug',
       }),
     )
@@ -58,6 +60,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        latestRequestCollapseByThreadId: {},
         displayPolicy: 'debug',
       }),
     )
@@ -83,10 +86,58 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: {},
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: {},
+        latestRequestCollapseByThreadId: {},
         displayPolicy: 'chat',
       }),
     )
 
     expect(result.current.activeLogs).toEqual([{ id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' }])
+  })
+
+  it('selects the active thread latest request collapse summary', () => {
+    const latestRequestCollapse: RequestCollapseSummary = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 27,
+      recapFingerprint: 'fp-retry',
+    }
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs: [],
+        logsByThreadId: {},
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      }),
+    )
+
+    expect(result.current.activeThreadLatestRequestCollapse).toEqual(latestRequestCollapse)
+  })
+
+  it('hides cached latest request collapse summary when active transcript source is replay', () => {
+    const latestRequestCollapse: RequestCollapseSummary = {
+      phase: 'initial',
+      collapsedHeadMessageCount: 1,
+      estimatedTokensSaved: 12,
+    }
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs: [],
+        logsByThreadId: {},
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      }),
+    )
+
+    expect(result.current.activeThreadLatestRequestCollapse).toBe(null)
   })
 })

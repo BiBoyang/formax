@@ -12,7 +12,7 @@ import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
-import type { PendingInput, ThreadSummary, TranscriptItem } from '../../types'
+import type { PendingInput, RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
@@ -53,6 +53,7 @@ export type AppShellProps = {
   isSettingsOpen: boolean
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>
   activeThreadTitle: string
+  activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   activeTurnId: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   activeThread: ThreadSummary | undefined
@@ -453,6 +454,7 @@ export function AppShell(props: AppShellProps) {
                 isDesktopClient={isDesktopClient}
                 isSidebarOpen={props.isSidebarOpen}
                 activeThreadTitle={props.activeThreadTitle}
+                activeThreadLatestRequestCollapse={props.activeThreadLatestRequestCollapse}
                 activeWorkspaceLabel={activeWorkspaceLabel}
                 showDevLoadAllButton={showDevLoadAllButton}
                 devLoadAllDisabled={devLoadAllDisabled}

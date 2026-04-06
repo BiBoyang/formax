@@ -79,6 +79,7 @@ describe('useRuntimeRefs', () => {
     type CacheProps = {
       logsByThreadId: Record<string, TranscriptItem[]>
       transcriptSourceByThreadId: Record<string, 'history' | 'replay'>
+      latestRequestCollapseByThreadId: Record<string, { phase: 'initial' | 'reactive_retry'; collapsedHeadMessageCount: number; estimatedTokensSaved: number } | null>
     }
     const initialLogsByThread = {
       'thread-1': [createLog('log-1', 'first')],
@@ -89,10 +90,16 @@ describe('useRuntimeRefs', () => {
     const initialProps: CacheProps = {
       logsByThreadId: initialLogsByThread,
       transcriptSourceByThreadId: initialSources,
+      latestRequestCollapseByThreadId: { 'thread-1': null },
     }
 
     const { result, rerender } = renderHook(
-      (props: CacheProps) => useThreadCacheRefs(props.logsByThreadId, props.transcriptSourceByThreadId),
+      (props: CacheProps) =>
+        useThreadCacheRefs(
+          props.logsByThreadId,
+          props.transcriptSourceByThreadId,
+          props.latestRequestCollapseByThreadId,
+        ),
       {
         initialProps,
       },
@@ -107,6 +114,13 @@ describe('useRuntimeRefs', () => {
     const nextProps: CacheProps = {
       logsByThreadId: nextLogsByThread,
       transcriptSourceByThreadId: nextSources,
+      latestRequestCollapseByThreadId: {
+        'thread-2': {
+          phase: 'initial',
+          collapsedHeadMessageCount: 2,
+          estimatedTokensSaved: 18,
+        },
+      },
     }
 
     rerender(nextProps)
@@ -114,6 +128,7 @@ describe('useRuntimeRefs', () => {
     await waitFor(() => {
       expect(result.current.logsByThreadIdRef.current).toBe(nextLogsByThread)
       expect(result.current.transcriptSourceByThreadRef.current).toBe(nextSources)
+      expect(result.current.latestRequestCollapseByThreadIdRef.current).toBe(nextProps.latestRequestCollapseByThreadId)
     })
   })
 })
