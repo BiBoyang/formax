@@ -371,6 +371,12 @@ AskUserQuestion payload：
 {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  latestRequestCollapse?: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    recapFingerprint?: string
+  } | null
 }
 ```
 

@@ -58,7 +58,13 @@
 ## 2.4 thread/read
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, transcriptPreview }`
+- 返回：`{ thread, transcriptPreview, latestRequestCollapse? }`
+  - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
+    - `phase`（`initial` 或 `reactive_retry`）
+    - `collapsedHeadMessageCount`
+    - `estimatedTokensSaved`
+    - `recapFingerprint?`
+  - 该字段仅描述最近一次 request-time collapse 事实；MUST NOT 被解释为 persisted history 已被 rewrite
 
 ## 2.4.1 thread/messages
 

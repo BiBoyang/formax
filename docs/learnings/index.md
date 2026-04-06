@@ -62,6 +62,7 @@
 - `docs/learnings/2026-04-06-collapse-recap-metadata.md`
 - `docs/learnings/2026-04-07-runtime-collapse-state-plumbing.md`
 - `docs/learnings/2026-04-07-request-collapse-session-event.md`
+- `docs/learnings/2026-04-07-app-server-thread-read-latest-collapse.md`
 
 ## Web Reference Runtime / Performance
 

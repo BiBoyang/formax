@@ -116,7 +116,16 @@ describe('AppServer', () => {
           return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
         },
         async readThread() {
-          return { thread: baseThread, transcriptPreview: [{ role: 'user', text: 'hi' }] }
+          return {
+            thread: baseThread,
+            transcriptPreview: [{ role: 'user', text: 'hi' }],
+            latestRequestCollapse: {
+              phase: 'initial',
+              collapsedHeadMessageCount: 3,
+              estimatedTokensSaved: 120,
+              recapFingerprint: 'abcdef0123456789',
+            },
+          }
         },
         async listThreadMessages() {
           return { data: [{ id: '0', kind: 'message', role: 'user', text: 'hi' }], nextCursor: null }
@@ -178,6 +187,12 @@ describe('AppServer', () => {
 
     const readOut = await server.handleMessage(request(5, 'thread/read', { threadId: 't-1' }))
     expect((readOut[0] as any).result.transcriptPreview).toEqual([{ role: 'user', text: 'hi' }])
+    expect((readOut[0] as any).result.latestRequestCollapse).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'abcdef0123456789',
+    })
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])

@@ -343,6 +343,7 @@ describe('ThreadStore', () => {
     const readBeforePersist = await store.readThread(thread.id)
     expect(readBeforePersist.thread.id).toBe(thread.id)
     expect(readBeforePersist.transcriptPreview).toEqual([])
+    expect(readBeforePersist.latestRequestCollapse).toBeNull()
 
     const messagesBeforePersist = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
     expect(messagesBeforePersist.data).toEqual([])
@@ -367,12 +368,41 @@ describe('ThreadStore', () => {
     expect(readOut.transcriptPreview).toEqual(
       expect.arrayContaining([{ role: 'user', text: 'hello thread' }]),
     )
+    expect(readOut.latestRequestCollapse).toBeNull()
 
     const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
     expect(messagesOut.data).toEqual(
       expect.arrayContaining([{ id: expect.any(String), kind: 'message', role: 'user', text: 'hello thread' }]),
     )
     expect(messagesOut.nextCursor).toBeNull()
+  })
+
+  it('exposes latest request-time collapse summary in thread/read', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'abcdef0123456789',
+    })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+    await writer.shutdown()
+
+    const readOut = await store.readThread(thread.id)
+    expect(readOut.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
   })
 
   it('best-effort refreshes rolling session memory on persisted thread resume', async () => {

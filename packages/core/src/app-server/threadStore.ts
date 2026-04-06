@@ -22,7 +22,11 @@ import type {
   ThreadStartParams,
   ThreadSummary,
 } from './protocol.js'
-import { readPersistedToolMessagesFromSession, readStaleInputsFromSession } from './store/sessionEventReader.js'
+import {
+  readPersistedToolMessagesFromSession,
+  readRequestCollapseEventsFromSession,
+  readStaleInputsFromSession,
+} from './store/sessionEventReader.js'
 import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
 import {
   FileThreadGroupVisibilityStore,
@@ -48,6 +52,12 @@ export type ThreadListResult = {
 export type ThreadReadResult = {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  latestRequestCollapse?: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    recapFingerprint?: string
+  } | null
 }
 
 export type ThreadMessage = {
@@ -627,18 +637,29 @@ export class ThreadStore {
       return {
         thread: toThreadFromProvisional(provisional),
         transcriptPreview: [],
+        latestRequestCollapse: null,
       }
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, transcriptPreview] = await Promise.all([
+    const [summary, transcriptPreview, persistedCollapseEvents] = await Promise.all([
       readSessionSummary(filePath),
       readSessionPreview(filePath),
+      readRequestCollapseEventsFromSession({ filePath }),
     ])
+    const latestRequestCollapse = persistedCollapseEvents.length > 0 ? persistedCollapseEvents[persistedCollapseEvents.length - 1] : null
 
     return {
       thread: toThread(summary),
       transcriptPreview,
+      latestRequestCollapse: latestRequestCollapse
+        ? {
+            phase: latestRequestCollapse.phase,
+            collapsedHeadMessageCount: latestRequestCollapse.collapsedHeadMessageCount,
+            estimatedTokensSaved: latestRequestCollapse.estimatedTokensSaved,
+            ...(latestRequestCollapse.recapFingerprint ? { recapFingerprint: latestRequestCollapse.recapFingerprint } : {}),
+          }
+        : null,
     }
   }
 
