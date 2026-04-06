@@ -198,6 +198,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     }
     args.setContext(prepared.context)
     const prunedHistory = prepared.history
+    const prunedRequestHistory = prepared.requestHistory
     const prunedUser = prepared.user
 
     const exec = {
@@ -209,9 +210,10 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     }
     const resolveToolsForCall = toolExposure.resolveToolsForCall
     const toolsForTurn = toolExposure.toolsForTurn
-    const runTurnWith = async (history: ChatHistory, user: typeof prunedUser) =>
+    const runTurnWith = async (history: ChatHistory, requestHistory: ChatHistory, user: typeof prunedUser) =>
       args.engine.runTurn({
         history,
+        requestHistory,
         user,
         system,
         tools: toolsForTurn,
@@ -226,10 +228,11 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       })
 
     let executionHistory = prunedHistory
+    let executionRequestHistory = prunedRequestHistory
     let executionUser = prunedUser
     let nextHistory: ChatHistory
     try {
-      nextHistory = await runTurnWith(executionHistory, executionUser)
+      nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
     } catch (error) {
       const abortLike = isAbortLikeError(error)
       if (abortLike) sawAbortLikeError = true
@@ -253,8 +256,9 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           throw reactiveAbortLike ? reactiveError : error
         }
         executionHistory = reactivePrepared.history
+        executionRequestHistory = reactivePrepared.requestHistory
         executionUser = reactivePrepared.user
-        nextHistory = await runTurnWith(executionHistory, executionUser)
+        nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
       } else {
         throw error
       }

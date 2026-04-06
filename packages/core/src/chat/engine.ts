@@ -19,6 +19,7 @@ export interface ChatEngine {
   beginNewSession?: (args?: { source?: 'startup' | 'clear' | 'resume' }) => void
   runTurn(args: {
     history: ChatHistory
+    requestHistory?: ChatHistory
     user: PromptMessage
     system: PromptBlock[]
     tools: ToolDefinition[]
@@ -45,7 +46,7 @@ export interface ChatEngine {
         | 'toolExposureSessionKey'
       >
     >
-}): Promise<ChatHistory>
+    }): Promise<ChatHistory>
 }
 
 function isToolUseBlock(
@@ -81,6 +82,7 @@ export function createChatEngine(deps: {
     },
     async runTurn({
       history,
+      requestHistory,
       user,
       system,
       tools,
@@ -94,6 +96,7 @@ export function createChatEngine(deps: {
       exec,
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
+      const requestLoopMessages: ChatHistory = [...(requestHistory ?? history), user]
       const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
       let pendingUserPromptSubmitText: string[] | null = null
       const audit = deps.audit
@@ -265,13 +268,13 @@ export function createChatEngine(deps: {
           const promptBaseMessages = promptBudget?.contextWindowTokens
             ? pruneForPromptBudget({
                 system: systemForThisCall,
-                messages: getContinuationMessagesAfterLatestCompactBoundary(loopMessages),
+                messages: getContinuationMessagesAfterLatestCompactBoundary(requestLoopMessages),
                 contextWindowTokens: promptBudget.contextWindowTokens,
                 effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
                 autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
                 baselineTokens: promptBudget.baselineTokens,
               }).messages
-            : getContinuationMessagesAfterLatestCompactBoundary(loopMessages)
+            : getContinuationMessagesAfterLatestCompactBoundary(requestLoopMessages)
 
           const injectedMessages = buildMessagesWithPostToolUseText(promptBaseMessages, pendingPostToolUseTextByToolUseId)
           const preCallExtra =
@@ -327,6 +330,15 @@ export function createChatEngine(deps: {
                 },
               ],
             })
+            requestLoopMessages.push({
+              role: 'assistant',
+              content: [
+                {
+                  type: 'text',
+                  text: dryRunNotice,
+                },
+              ],
+            })
             break
           }
 
@@ -345,6 +357,7 @@ export function createChatEngine(deps: {
           const toolUseBlocks = assistantBlocks.filter(isToolUseBlock)
 
           loopMessages.push({ role: 'assistant', content: assistantBlocks })
+          requestLoopMessages.push({ role: 'assistant', content: assistantBlocks })
 
           if (toolUseBlocks.length === 0 || stopReason !== 'tool_use') {
             break
@@ -357,6 +370,12 @@ export function createChatEngine(deps: {
           }
 
           loopMessages.push(
+            ...toolResults.map((r) => ({
+              role: 'user' as const,
+              content: buildToolResultMessageBlocks(r),
+            })),
+          )
+          requestLoopMessages.push(
             ...toolResults.map((r) => ({
               role: 'user' as const,
               content: buildToolResultMessageBlocks(r),

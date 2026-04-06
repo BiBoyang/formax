@@ -107,6 +107,53 @@ describe('ChatEngine', () => {
     expect((capturedMessages[2]!.content[0] as any).text).toBe('continue')
   })
 
+  it('uses requestHistory for the model call while preserving persisted history in the returned loop', async () => {
+    let capturedMessages: PromptMessage[] = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        capturedMessages = args.messages as PromptMessage[]
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    const persistedHistory: PromptMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'older persisted user' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'older persisted assistant' }] },
+      { role: 'user', content: [{ type: 'text', text: 'latest persisted summary' }] },
+    ]
+    const requestHistory: PromptMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'collapsed recap' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'recent working set' }] },
+    ]
+
+    const out = await engine.runTurn({
+      history: persistedHistory,
+      requestHistory,
+      user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      system: [],
+      tools: [],
+      onEvent: () => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(capturedMessages.map((message) => (message.content[0] as any)?.text)).toEqual([
+      'collapsed recap',
+      'recent working set',
+      'continue',
+    ])
+    expect(out.slice(0, persistedHistory.length)).toEqual(persistedHistory)
+    expect((out[persistedHistory.length]!.content[0] as any).text).toBe('continue')
+    expect((out[persistedHistory.length + 1]!.content[0] as any).text).toBe('done')
+  })
+
   it('captures request payload and skips network when request dry-run is enabled', async () => {
     const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-'))
     let streamCalls = 0

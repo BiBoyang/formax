@@ -242,6 +242,7 @@ export function createContextCompressionService(deps: {
       system: PromptBlock[]
     }): Promise<{
       history: ChatHistory
+      requestHistory: ChatHistory
       user: PromptMessage
       context: EstimatedContextState
       autoCompacted: boolean
@@ -335,6 +336,7 @@ export function createContextCompressionService(deps: {
 
       return {
         history: preparedHistory,
+        requestHistory: preparedHistory,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
@@ -433,6 +435,7 @@ export function createContextCompressionService(deps: {
       triggerReason?: CompactTriggerReason
     }): Promise<{
       history: ChatHistory
+      requestHistory: ChatHistory
       user: PromptMessage
       context: EstimatedContextState
     }> {
@@ -484,6 +487,7 @@ export function createContextCompressionService(deps: {
 
       return {
         history: preparedHistory,
+        requestHistory: preparedHistory,
         user: preparedUser,
         context: estimateContext({
           system: args.system,

@@ -184,6 +184,7 @@ describe('runMainSendTurn', () => {
     )
     prepareHistoryForTurn.mockImplementation(async ({ history, user, contextWindowTokens }: any) => ({
       history,
+      requestHistory: history,
       user,
       context:
         contextWindowTokens === undefined
@@ -222,6 +223,7 @@ describe('runMainSendTurn', () => {
   it('reactively compacts and retries once when the provider rejects for context overflow', async () => {
     runReactiveCompact.mockResolvedValueOnce({
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
       user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
       context: {
         usedTokens: 900,
@@ -257,6 +259,7 @@ describe('runMainSendTurn', () => {
     expect(harness._spies.engine.runTurn.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({
         history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+        requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
         user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
       }),
     )
@@ -332,9 +335,37 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('passes prepared requestHistory separately from persisted history into engine.runTurn', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      context: {
+        usedTokens: 1234,
+        limitTokens: 9000,
+        percentRemaining: 86,
+        source: 'estimate',
+      },
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+
+    await runMainSendTurn(harness as any)
+
+    expect(harness._spies.engine.runTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
+        requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
+        user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      }),
+    )
+  })
+
   it('emits auto-compact notice only when prepare step reports it should be shown', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],
+      requestHistory: [],
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {
         usedTokens: 1234,
@@ -357,6 +388,7 @@ describe('runMainSendTurn', () => {
 
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],
+      requestHistory: [],
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {
         usedTokens: 1234,
