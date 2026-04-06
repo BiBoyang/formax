@@ -1,6 +1,6 @@
 # CCA Dependency Map
 
-更新时间：2026-04-04
+更新时间：2026-04-05
 状态：Active
 
 ## 这份图解决什么问题
@@ -168,11 +168,17 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-063`
+1. `CCA-010`
 
 对应含义：
 
-1. 继续评估 context collapse / cache-aware 中间层是否值得引入
+1. 继续把 diagnostics 从“总量与 top contributors”推进到更细的 system-section 视图
+
+补充说明：
+
+- `CCA-063` 已经完成技术评估
+- 当前结论是 runtime `NO-GO`
+- 原因不是“价值不够”，而是当前 `ChatEngine.runTurn()` / `historyRef` 写回模型还不能安全承载 read-time collapse projection
 
 ---
 

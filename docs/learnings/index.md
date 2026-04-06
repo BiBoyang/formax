@@ -46,6 +46,7 @@
 - `docs/learnings/2026-04-04-session-memory-draft-schema.md`
 - `docs/learnings/2026-04-05-partial-compact-mvp.md`
 - `docs/learnings/2026-04-05-context-diagnostics-payload-contract.md`
+- `docs/learnings/2026-04-05-context-collapse-mvp.md`
 - `docs/learnings/2026-04-05-reactive-compact-mvp.md`
 
 ## Web Reference Runtime / Performance

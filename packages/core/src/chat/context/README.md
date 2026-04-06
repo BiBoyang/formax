@@ -1,6 +1,6 @@
 # packages/core/src/chat/context
 
-Last verified: 2026-04-04
+Last verified: 2026-04-06
 
 Formax 的“上下文管理”分两条线：
 

@@ -123,7 +123,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 4. keep 策略仍然比较简单
 5. rolling session memory 已进入 auto compact fallback chain，但仍未进入 memory-first resume / thread restore
 6. reactive compact 已有最小 fallback，但还没有 richer diagnostics / trigger reason 可见性
-7. 没有 context collapse / cache-aware intermediate layer
+7. context collapse / cache-aware intermediate layer 已完成技术评估，但当前 runtime 仍是 NO-GO
 8. remote thread restore 还没有 compact 协议对齐
 
 ## 与 Claude Code 的差异地图
@@ -134,11 +134,14 @@ Claude Code：
 - query 前会做多级减压：boundary 视图、tool-result budget、microcompact、collapse、auto/full compact。
 
 Formax 当前：
-- 已有 `microcompact + prune + compact` 三层雏形。
-- 仍缺中间层能力：
+- 已有 `microcompact + prune + compact` 三层主链。
+- `CCA-063` 已完成技术评估，但当前结论是：
+  - 以现有 `ChatEngine.runTurn()` / `historyRef` 写回模型来看，context collapse 一旦接进主链，就会退化成 persisted history 改写
+  - 所以当前 runtime 仍维持 NO-GO，不进入主请求路径
+- 仍缺更成熟的中间层能力：
   - 更细粒度的结果预算替换
-  - context collapse / cached collapse 类能力
-  - reactive compact
+  - cached collapse / collapse store
+  - richer collapse diagnostics
 
 ## B. `microcompact` 能力深度
 
