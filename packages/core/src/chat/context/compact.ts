@@ -626,7 +626,7 @@ function buildRehydrationSections(args: {
   return sections
 }
 
-function sanitizeReminderText(value: string): string {
+export function sanitizeReminderText(value: string): string {
   return String(value || '').replace(/<\/?system-reminder>/gi, '[system-reminder]')
 }
 

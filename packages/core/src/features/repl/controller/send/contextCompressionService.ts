@@ -10,6 +10,7 @@ import {
   type CompactTriggerReason,
 } from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
+import { collapseRequestHistory } from '../../../../chat/context/contextCollapse'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
 import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
@@ -58,6 +59,11 @@ export function createContextCompressionService(deps: {
     autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
     baselineTokens: deps.cfg.context.baselineTokens,
   })
+
+  const collapsePreparedHistory = (messages: ChatHistory): ChatHistory =>
+    collapseRequestHistory({
+      messages,
+    }).messages
 
   const pruneMessages = (args: { system: PromptBlock[]; messages: ChatHistory; contextWindowTokens: number | undefined }) => {
     if (!args.contextWindowTokens) return args.messages
@@ -333,14 +339,15 @@ export function createContextCompressionService(deps: {
       })
       const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
       const preparedHistory = preparedMessages.slice(0, -1)
+      const collapsedRequestHistory = collapsePreparedHistory(preparedHistory)
 
       return {
         history: preparedHistory,
-        requestHistory: preparedHistory,
+        requestHistory: collapsedRequestHistory,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...preparedHistory, preparedUser],
+          messages: [...collapsedRequestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
         autoCompacted,
@@ -484,14 +491,15 @@ export function createContextCompressionService(deps: {
       })
       const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
       const preparedHistory = preparedMessages.slice(0, -1)
+      const collapsedRequestHistory = collapsePreparedHistory(preparedHistory)
 
       return {
         history: preparedHistory,
-        requestHistory: preparedHistory,
+        requestHistory: collapsedRequestHistory,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...preparedHistory, preparedUser],
+          messages: [...collapsedRequestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
       }

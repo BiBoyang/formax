@@ -76,6 +76,7 @@ Formax 的“上下文管理”分两条线：
   - `history`：会进入持久 loop / 下轮 baseline 的历史
   - `requestHistory`：仅用于“本轮发给模型”的请求投影视图
   - 这层分离是后续安全接入 context collapse MVP 的关键前置条件之一
+  - 当前 `context collapse MVP` 已开始接入这条 request-only 分支：它只会把较早 continuation 折叠成 deterministic recap，用于本轮 prompt；不会改写 persisted `history`
 
 ### injected blocks（ephemeral）
 
@@ -112,6 +113,17 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要）
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
+
+### 想改“request-time context collapse（P2.5 / MVP）”
+
+- `packages/core/src/chat/context/contextCollapse.ts`：`collapseRequestHistory()`（当前是保守 MVP，只在已有 latest compact boundary 时尝试把 continuation 头部折叠成 request-only recap）
+- `packages/core/src/chat/context/contextCollapse.test.ts`：单测覆盖（无 boundary 不生效、collapse recap 生成、最小节省阈值）
+- `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前接线点（只改 `requestHistory`，不改 persisted `history`）
+- 当前边界：
+  - 只作用于 request-time projection
+  - 不引入 collapse store / archived span metadata
+  - 不改变 replay / resume 的 persisted history 语义
+  - reactive/manual 路径暂未单独扩展 collapse 策略
 
 ### 想改“上下文诊断 / /context”
 

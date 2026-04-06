@@ -6,6 +6,7 @@ import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import { runCompactFlow } from './compactFlow'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { countNonToolUserTurns } from '../shared/utils'
+import { buildCompactBoundaryMessage, buildCompactionSummaryUserText } from '../../../../chat/context/compact'
 
 vi.mock('../../../../chat/context/budget', () => ({
   computeContextStats: vi.fn(),
@@ -393,6 +394,72 @@ describe('createContextCompressionService', () => {
     expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'reactive-user' }] })
   })
 
+  it('applies the same request-time collapse on reactive retry preparation', async () => {
+    vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      if (serialized.includes('Older continuation collapsed for this request only.')) return 700
+      if (serialized.includes('Older analysis Older analysis')) return 3200
+      return 2400
+    })
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 9000,
+      autoCompactLimitTokens: 8500,
+      percentRemaining: 74,
+      shouldAutoCompact: false,
+    }))
+    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
+      messages,
+      pruned: false,
+    }))
+    vi.mocked(runCompactFlow).mockResolvedValue({
+      compactedHistory: [
+        buildCompactBoundaryMessage({
+          trigger: 'reactive',
+          preTokens: 4096,
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_combo',
+            keepLastTurns: 2,
+            keepMinTokens: 1200,
+            keepMinUserTurns: 1,
+          },
+        }),
+        { role: 'user', content: [{ type: 'text', text: buildCompactionSummaryUserText('Earlier compact summary') }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'Older analysis '.repeat(300) }] },
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+        userToolResult('read-1', 'line\n'.repeat(800)),
+        { role: 'user', content: [{ type: 'text', text: 'Investigate auth redirect regression carefully.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'carry latest working set' }] },
+        { role: 'user', content: [{ type: 'text', text: 'Patch redirect without changing unrelated flows.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'latest assistant state' }] },
+      ],
+      summary: 'summary',
+    } as any)
+
+    const { service } = createService({
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
+    })
+    const out = await service.runReactiveCompact({
+      contextWindowTokens: 100_000,
+      previousHistory: [{ role: 'user', content: [{ type: 'text', text: 'h1' }] }],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+      triggerReason: { kind: 'reactive_error', detail: 'context limit' },
+    })
+
+    expect(JSON.stringify(out.history)).toContain('Older analysis')
+    expect(JSON.stringify(out.requestHistory)).toContain('Older continuation collapsed for this request only.')
+    expect(out.context).toEqual({
+      usedTokens: 700,
+      limitTokens: 9000,
+      percentRemaining: 74,
+      source: 'estimate',
+    })
+  })
+
   it('falls back to model-summary auto-compact when session memory is unavailable', async () => {
     vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
 
@@ -764,5 +831,70 @@ describe('createContextCompressionService', () => {
       ],
     })
     expect((out.history[7] as any).content[0].content).toBe('d'.repeat(4000))
+  })
+
+  it('builds a collapsed requestHistory while leaving persisted history unchanged', async () => {
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 9000,
+      autoCompactLimitTokens: 8500,
+      percentRemaining: 74,
+      shouldAutoCompact: false,
+    }))
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      if (serialized.includes('Older continuation collapsed for this request only.')) return 700
+      if (serialized.includes('Older analysis Older analysis')) return 3200
+      return 2400
+    })
+
+    const compactSummary = buildCompactionSummaryUserText('Earlier compact summary', {
+      recentFiles: ['/repo/src/old.ts'],
+    })
+
+    const { service } = createService()
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'persisted pre-boundary turn' }] },
+        buildCompactBoundaryMessage({
+          trigger: 'auto',
+          preTokens: 4096,
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_combo',
+            keepLastTurns: 2,
+            keepMinTokens: 1200,
+            keepMinUserTurns: 1,
+          },
+        }),
+        { role: 'user', content: [{ type: 'text', text: compactSummary }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'Older analysis '.repeat(300) }] },
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+        userToolResult('read-1', 'line\n'.repeat(800)),
+        { role: 'user', content: [{ type: 'text', text: 'Investigate auth redirect regression carefully.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'carry latest working set' }] },
+        { role: 'user', content: [{ type: 'text', text: 'Patch redirect without changing unrelated flows.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'latest assistant state' }] },
+      ] as any,
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(JSON.stringify(out.history)).toContain('Older analysis')
+    expect(JSON.stringify(out.history)).toContain('Patch redirect without changing unrelated flows.')
+    expect(JSON.stringify(out.requestHistory)).toContain('Older continuation collapsed for this request only.')
+    expect(JSON.stringify(out.requestHistory)).toContain('Patch redirect without changing unrelated flows.')
+    expect(JSON.stringify(out.requestHistory)).not.toContain('persisted pre-boundary turn')
+    expect(out.requestHistory[0]?.meta?.compactBoundary).toBeUndefined()
+    expect(out.context).toEqual({
+      usedTokens: 700,
+      limitTokens: 9000,
+      percentRemaining: 74,
+      source: 'estimate',
+    })
   })
 })

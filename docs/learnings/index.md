@@ -56,6 +56,7 @@
 - `docs/learnings/2026-04-06-app-server-session-memory-resume-refresh.md`
 - `docs/learnings/2026-04-06-session-memory-restore-context-reuse.md`
 - `docs/learnings/2026-04-06-request-history-projection-seed.md`
+- `docs/learnings/2026-04-06-request-time-context-collapse-mvp.md`
 
 ## Web Reference Runtime / Performance
 
