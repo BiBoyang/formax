@@ -70,12 +70,25 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactedCountsByToolName).toEqual([{ toolName: 'Read', count: 1 }])
     expect(out.systemSectionBreakdown.length).toBe(1)
     expect(out.systemSectionBreakdown[0]).toEqual({
+      kind: 'system_section',
+      key: 'system_section:identity',
       label: 'System section: Identity',
       tokens: out.systemTokens,
+      systemSectionKey: 'identity',
     })
     expect(out.topSnapshotContributors.length).toBeGreaterThan(0)
     expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Identity')).toBe(true)
     expect(out.topSnapshotContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
+    expect(
+      out.topSnapshotContributors.some(
+        (row) =>
+          row.kind === 'tool_result' &&
+          row.toolUseId === 'read-1' &&
+          row.toolName === 'Read' &&
+          row.ordinal === 1 &&
+          row.role === 'user',
+      ),
+    ).toBe(true)
     expect(out.totalTokens).toBeGreaterThan(0)
     expect(out.systemTokens).toBeGreaterThan(0)
     expect(out.historyTokens).toBeGreaterThan(0)
@@ -196,6 +209,13 @@ describe('contextDiagnostics', () => {
       'System section: Doing tasks',
       'System section: Environment',
     ])
+    expect(out.systemSectionBreakdown.map((row) => row.systemSectionKey)).toEqual([
+      'identity',
+      'preamble:1',
+      'section:1:system:1',
+      'section:1:doing_tasks:1',
+      'section:1:environment:1',
+    ])
     expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Doing tasks')).toBe(true)
     expect(out.topSnapshotContributors.some((row) => row.label === 'System prompt')).toBe(false)
   })
@@ -212,6 +232,25 @@ describe('contextDiagnostics', () => {
 
     expect(out.systemSectionBreakdown.some((row) => row.label === 'System section: Other blocks')).toBe(true)
     expect(out.topSnapshotContributors.some((row) => row.label === 'System section: Other blocks')).toBe(true)
+  })
+
+  it('disambiguates repeated top-level system headings with distinct section keys', () => {
+    const out = analyzeContextDiagnostics({
+      system: [
+        {
+          type: 'text',
+          text: 'You are Formax.\n\n# Constraints\nalpha\n\n# Constraints\nbeta',
+        },
+      ],
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      budgetConfig: null,
+    })
+
+    expect(out.systemSectionBreakdown.map((row) => row.systemSectionKey)).toEqual([
+      'preamble:0',
+      'section:0:constraints:1',
+      'section:0:constraints:2',
+    ])
   })
 
   it('treats the first text-only system block as identity even when non-text blocks precede it', () => {
@@ -307,6 +346,15 @@ describe('contextDiagnostics', () => {
     expect(out.remainingToEffectiveLimit).toBeLessThan(95_000)
     expect(out.topAssembledContributors.length).toBeGreaterThan(0)
     expect(out.topAssembledContributors.some((row) => row.label.includes('Tool result: Read /repo/a.ts'))).toBe(true)
+    expect(
+      out.topAssembledContributors.some(
+        (row) =>
+          row.kind === 'tool_result' &&
+          row.toolUseId === 'read-1' &&
+          row.toolName === 'Read' &&
+          row.ordinal === 1,
+      ),
+    ).toBe(true)
     expect(out.autoCompactSkipReason).toBe('fewer than 2 non-tool user turns (got 0)')
     expect(out.pruneSkipReason).toContain('within effective limit')
   })
@@ -546,6 +594,11 @@ describe('contextDiagnostics', () => {
     expect(parsed.nextTurnFixed).toBeTruthy()
     expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.snapshot.systemSectionBreakdown).toBeInstanceOf(Array)
+    expect(parsed.snapshot.systemSectionBreakdown[0]).toMatchObject({
+      kind: 'system_section',
+      key: 'system_section:identity',
+      systemSectionKey: 'identity',
+    })
     expect(parsed.nextTurnFixed.projectedHistoryTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.nextTurnFixed.lifecycleMarkers).toBeInstanceOf(Array)
     expect(parsed.nextTurnFixed.lifecycleMarkers.map((row: any) => row.stage)).toEqual([
@@ -558,6 +611,8 @@ describe('contextDiagnostics', () => {
     expect(parsed.nextTurnFixed.autoCompactSkipReason).toContain('history is empty')
     expect(typeof parsed.nextTurnFixed.pruneSkipReason).toBe('string')
     expect(parsed.nextTurnFixed.pruneSkipReason).toContain('within effective limit')
+    expect(parsed.snapshot.topSnapshotContributors[0]).toHaveProperty('kind')
+    expect(parsed.snapshot.topSnapshotContributors[0]).toHaveProperty('key')
     expect(parsed.nextTurnFixed.microCompactImpact).toEqual({
       compactedBlocks: 0,
       compactedToolNames: [],

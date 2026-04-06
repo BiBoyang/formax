@@ -73,8 +73,15 @@ export type NextTurnFixedContextDiagnostics = {
 }
 
 export type ContextContributor = {
+  kind: 'system_section' | 'message' | 'tool_result' | 'fixed_group'
+  key: string
   label: string
   tokens: number
+  role?: PromptMessage['role']
+  ordinal?: number
+  toolUseId?: string
+  toolName?: string
+  systemSectionKey?: string
 }
 
 export type ContextLifecycleMarker = {
@@ -884,7 +891,9 @@ function buildTopAssembledContributors(args: {
       messages: args.projectedHistory,
       toolUsesById: args.projectedToolUsesById,
     }),
-    ...args.fixedGroups.map((group) => ({
+    ...args.fixedGroups.map((group, index) => ({
+      kind: 'fixed_group' as const,
+      key: `fixed_group:${index}:${sanitizeContributorKey(group.label)}`,
       label: `Fixed: ${group.label}`,
       tokens: estimatePromptTokens({
         system: [],
@@ -911,8 +920,11 @@ function buildSystemSectionContributors(system: PromptBlock[]): ContextContribut
         })
         if (tokens <= 0) continue
         contributors.push({
+          kind: 'system_section',
+          key: `system_section:${section.key}`,
           label: section.label,
           tokens,
+          systemSectionKey: section.key,
         })
       }
       continue
@@ -927,8 +939,11 @@ function buildSystemSectionContributors(system: PromptBlock[]): ContextContribut
     })
     if (otherTokens > 0) {
       contributors.push({
+        kind: 'system_section',
+        key: 'system_section:other_blocks',
         label: 'System section: Other blocks',
         tokens: otherTokens,
+        systemSectionKey: 'other_blocks',
       })
     }
   }
@@ -941,16 +956,18 @@ function readSystemTextBlock(block: PromptBlock): string | null {
   return typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : null
 }
 
-function splitSystemTextIntoSections(text: string, textBlockOrdinal: number): Array<{ label: string; text: string }> {
+function splitSystemTextIntoSections(text: string, textBlockOrdinal: number): Array<{ key: string; label: string; text: string }> {
   const normalized = String(text ?? '').trim()
   if (!normalized) return []
 
   const topLevelHeadingPattern = /^# [^\n]+$/gm
   const headingMatches = Array.from(normalized.matchAll(topLevelHeadingPattern))
-  const sections: Array<{ label: string; text: string }> = []
+  const sections: Array<{ key: string; label: string; text: string }> = []
+  const headingOccurrenceMap = new Map<string, number>()
 
   if (headingMatches.length === 0) {
     sections.push({
+      key: textBlockOrdinal === 0 ? 'identity' : `preamble:${textBlockOrdinal}`,
       label: textBlockOrdinal === 0 ? 'System section: Identity' : 'System section: Preamble',
       text: normalized,
     })
@@ -962,6 +979,7 @@ function splitSystemTextIntoSections(text: string, textBlockOrdinal: number): Ar
     const preamble = normalized.slice(0, firstHeadingIndex).trim()
     if (preamble) {
       sections.push({
+        key: `preamble:${textBlockOrdinal}`,
         label: 'System section: Preamble',
         text: preamble,
       })
@@ -975,7 +993,11 @@ function splitSystemTextIntoSections(text: string, textBlockOrdinal: number): Ar
     const sectionText = normalized.slice(start, end).trim()
     if (!sectionText) continue
     const heading = match[0].replace(/^# /, '').trim() || 'Preamble'
+    const headingSlug = sanitizeContributorKey(heading || 'Preamble')
+    const occurrence = (headingOccurrenceMap.get(headingSlug) ?? 0) + 1
+    headingOccurrenceMap.set(headingSlug, occurrence)
     sections.push({
+      key: `section:${textBlockOrdinal}:${headingSlug}:${occurrence}`,
       label: `System section: ${heading}`,
       text: sectionText,
     })
@@ -1000,20 +1022,30 @@ function buildHistoryContributors(args: {
 
     const roleOrdinal = message.role === 'assistant' ? assistantOrdinal : message.role === 'user' ? userOrdinal : 0
 
-    for (const block of message.content as any[]) {
+    for (const [blockIndex, block] of (message.content as any[]).entries()) {
       if (block?.type !== 'tool_result') continue
+      const toolUseId = typeof block?.tool_use_id === 'string' ? block.tool_use_id : undefined
+      const toolName = readToolNameForResult(args.toolUsesById, block)
       contributors.push({
+        kind: 'tool_result',
+        key: toolUseId ? `tool_result:${toolUseId}:${blockIndex}` : `tool_result:unknown:${roleOrdinal}:${blockIndex}`,
         label: buildToolResultContributorLabel(args.toolUsesById, block),
         tokens: estimatePromptTokens({
           system: [],
           messages: [{ ...message, content: [block] as any }],
         }),
+        role: message.role,
+        ordinal: roleOrdinal,
+        ...(toolUseId ? { toolUseId } : {}),
+        ...(toolName ? { toolName } : {}),
       })
     }
 
     const nonToolBlocks = (message.content as any[]).filter((block) => block?.type !== 'tool_result')
     if (nonToolBlocks.length === 0) continue
     contributors.push({
+      kind: 'message',
+      key: `message:${message.role}:${Math.max(1, roleOrdinal)}`,
       label: buildMessageContributorLabel({
         role: message.role,
         ordinal: roleOrdinal,
@@ -1023,6 +1055,8 @@ function buildHistoryContributors(args: {
         system: [],
         messages: [{ ...message, content: nonToolBlocks as any }],
       }),
+      role: message.role,
+      ordinal: roleOrdinal,
     })
   }
 
@@ -1102,10 +1136,19 @@ function truncateLabel(value: string, maxLength = 56): string {
   return `${normalized.slice(0, Math.max(0, maxLength - 1))}…`
 }
 
+function sanitizeContributorKey(value: string): string {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return normalized || 'unknown'
+}
+
 function sortContributors(rows: ContextContributor[]): ContextContributor[] {
   return rows
     .filter((row) => row.tokens > 0)
-    .sort((a, b) => b.tokens - a.tokens || a.label.localeCompare(b.label))
+    .sort((a, b) => b.tokens - a.tokens || a.key.localeCompare(b.key) || a.label.localeCompare(b.label))
 }
 
 function formatContributors(rows: ContextContributor[]): string[] {

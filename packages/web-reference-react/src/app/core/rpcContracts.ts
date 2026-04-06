@@ -19,8 +19,15 @@ export type RpcTurnStartLikeResult = {
 }
 
 export type RpcContextContributor = {
+  kind?: 'system_section' | 'message' | 'tool_result' | 'fixed_group'
+  key?: string
   label: string
   tokens: number
+  role?: 'user' | 'assistant'
+  ordinal?: number
+  toolUseId?: string
+  toolName?: string
+  systemSectionKey?: string
 }
 
 export type RpcCountByToolName = {
@@ -277,10 +284,48 @@ function parseContributors(value: unknown): RpcContextContributor[] | null {
   for (const row of value) {
     const record = asOptionalRecord(row)
     if (!record) return null
+    const kindPresent = Object.prototype.hasOwnProperty.call(record, 'kind')
+    const kind =
+      record.kind === 'system_section' ||
+      record.kind === 'message' ||
+      record.kind === 'tool_result' ||
+      record.kind === 'fixed_group'
+        ? record.kind
+        : null
+    const keyPresent = Object.prototype.hasOwnProperty.call(record, 'key')
+    const key = typeof record.key === 'string' && record.key.trim() ? record.key : null
     const label = typeof record.label === 'string' && record.label.trim() ? record.label : null
     const tokens = asFiniteNumber(record.tokens)
+    if ((kindPresent && !kind) || (keyPresent && !key)) return null
     if (!label || tokens == null) return null
-    rows.push({ label, tokens })
+
+    const role =
+      record.role === undefined ? undefined : record.role === 'user' || record.role === 'assistant' ? record.role : null
+    const ordinal = record.ordinal === undefined ? undefined : asFiniteNumber(record.ordinal)
+    const toolUseId = record.toolUseId === undefined ? undefined : typeof record.toolUseId === 'string' && record.toolUseId.trim() ? record.toolUseId : null
+    const toolName = record.toolName === undefined ? undefined : typeof record.toolName === 'string' && record.toolName.trim() ? record.toolName : null
+    const systemSectionKey =
+      record.systemSectionKey === undefined
+        ? undefined
+        : typeof record.systemSectionKey === 'string' && record.systemSectionKey.trim()
+          ? record.systemSectionKey
+          : null
+
+    if (role === null || ordinal === null || toolUseId === null || toolName === null || systemSectionKey === null) {
+      return null
+    }
+
+    rows.push({
+      label,
+      tokens,
+      ...(kind ? { kind } : {}),
+      ...(key ? { key } : {}),
+      ...(role !== undefined ? { role } : {}),
+      ...(ordinal !== undefined ? { ordinal } : {}),
+      ...(toolUseId !== undefined ? { toolUseId } : {}),
+      ...(toolName !== undefined ? { toolName } : {}),
+      ...(systemSectionKey !== undefined ? { systemSectionKey } : {}),
+    })
   }
   return rows
 }

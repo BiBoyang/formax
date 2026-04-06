@@ -21,6 +21,9 @@
 - 已完成：compact / prune trigger reason diagnostics
   - latest boundary 现在可暴露结构化 `triggerReason`
   - `nextTurnFixed` 现在会解释 `autoCompactSkipReason` 与 `pruneSkipReason`
+- 已完成：message/tool contributor drill-down
+  - contributor payload 现在会稳定暴露 `kind` / `key`
+  - message/tool/system contributor 现在可按 `ordinal`、`toolUseId`、`toolName`、`systemSectionKey` 做结构化定位
 - 已完成：`/context --json`
 - 已完成：app-server `local.diagnostics` 结构化 payload
 - 已完成：diagnostics payload 正式客户端消费契约

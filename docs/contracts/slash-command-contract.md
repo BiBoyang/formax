@@ -118,6 +118,16 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 12. `nextTurnFixed` diagnostics payload SHOULD 暴露 `lifecycleMarkers`，用于比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异；text diagnostics SHOULD 提供对应的人类可读 lifecycle 小节
 13. `nextTurnFixed` diagnostics payload SHOULD 暴露 `autoCompactSkipReason` 与 `pruneSkipReason`；其中 `autoCompactSkipReason` MUST 基于 pre-prune 的 auto-compact 判断顺序推导，`pruneSkipReason` MUST 基于 pre-prune 与 post-prune 的差异推导，而不是只看最终裁剪后的 assembled total
 14. `latestCompactBoundary` 若存在 `triggerReason`，当前 SHOULD 暴露结构化 `{ kind, detail? }`，至少支持 `auto_threshold`、`manual`、`reactive_error`
+15. `topSnapshotContributors`、`systemSectionBreakdown`、`topAssembledContributors` 中的 `ContextContributor` 当前 SHOULD 暴露稳定 identity 字段，至少包含：
+   - `kind`
+   - `key`
+   并按 contributor 类型 MAY 额外暴露：
+   - `role`
+   - `ordinal`
+   - `toolUseId`
+   - `toolName`
+   - `systemSectionKey`
+   这样客户端可以做 drill-down，而不必反解析 `label`
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

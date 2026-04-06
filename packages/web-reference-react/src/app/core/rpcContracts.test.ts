@@ -9,6 +9,34 @@ import {
   parseTurnStartLikeResponse,
 } from './rpcContracts'
 
+const SYSTEM_CONTRIBUTOR = {
+  kind: 'system_section' as const,
+  key: 'system_section:system',
+  label: 'System section: System',
+  tokens: 12,
+  systemSectionKey: 'system',
+}
+
+const SNAPSHOT_CONTRIBUTOR = {
+  kind: 'message' as const,
+  key: 'message:user:1',
+  label: 'User message #1: "hello"',
+  tokens: 20,
+  role: 'user' as const,
+  ordinal: 1,
+}
+
+const ASSEMBLED_CONTRIBUTOR = {
+  kind: 'tool_result' as const,
+  key: 'tool_result:read-1:0',
+  label: 'Tool result: Read /repo/a.ts',
+  tokens: 75,
+  role: 'user' as const,
+  ordinal: 1,
+  toolUseId: 'read-1',
+  toolName: 'Read',
+}
+
 describe('rpcContracts', () => {
   it('parses thread/start response and rejects invalid payload', () => {
     expect(parseThreadStartResponse({ thread: { id: 'thread-1', cwd: '/repo' } })).toEqual({
@@ -48,7 +76,7 @@ describe('rpcContracts', () => {
             snapshot: {
               totalTokens: 100,
               systemTokens: 20,
-              systemSectionBreakdown: [{ label: 'System section: System', tokens: 12 }],
+              systemSectionBreakdown: [SYSTEM_CONTRIBUTOR],
               historyTokens: 80,
               toolResultTokens: 30,
               otherHistoryTokens: 50,
@@ -67,7 +95,7 @@ describe('rpcContracts', () => {
               remainingToEffectiveLimit: 179900,
               remainingToAutoCompactLimit: 169900,
               shouldAutoCompact: false,
-              topSnapshotContributors: [{ label: 'system', tokens: 20 }],
+              topSnapshotContributors: [SNAPSHOT_CONTRIBUTOR],
             },
             nextTurnFixed: {
               fixedGroups: [{ label: 'reminders', blockCount: 1, tokens: 10 }],
@@ -99,7 +127,7 @@ describe('rpcContracts', () => {
               shouldAutoCompact: false,
               autoCompactSkipReason: 'below threshold (used=85 limit=170000)',
               pruneSkipReason: 'within effective limit (used=85 limit=180000)',
-              topAssembledContributors: [{ label: 'history', tokens: 75 }],
+              topAssembledContributors: [ASSEMBLED_CONTRIBUTOR],
             },
             notes: ['note-1'],
           },
@@ -131,7 +159,7 @@ describe('rpcContracts', () => {
         snapshot: {
           totalTokens: 100,
           systemTokens: 20,
-          systemSectionBreakdown: [{ label: 'System section: System', tokens: 12 }],
+          systemSectionBreakdown: [SYSTEM_CONTRIBUTOR],
           historyTokens: 80,
           toolResultTokens: 30,
           otherHistoryTokens: 50,
@@ -150,7 +178,7 @@ describe('rpcContracts', () => {
           remainingToEffectiveLimit: 179900,
           remainingToAutoCompactLimit: 169900,
           shouldAutoCompact: false,
-          topSnapshotContributors: [{ label: 'system', tokens: 20 }],
+          topSnapshotContributors: [SNAPSHOT_CONTRIBUTOR],
         },
         nextTurnFixed: {
           fixedGroups: [{ label: 'reminders', blockCount: 1, tokens: 10 }],
@@ -182,7 +210,7 @@ describe('rpcContracts', () => {
           shouldAutoCompact: false,
           autoCompactSkipReason: 'below threshold (used=85 limit=170000)',
           pruneSkipReason: 'within effective limit (used=85 limit=180000)',
-          topAssembledContributors: [{ label: 'history', tokens: 75 }],
+          topAssembledContributors: [ASSEMBLED_CONTRIBUTOR],
         },
         notes: ['note-1'],
       },
@@ -491,6 +519,128 @@ describe('rpcContracts', () => {
               remainingToAutoCompactLimit: null,
               shouldAutoCompact: null,
               topSnapshotContributors: [],
+            },
+            nextTurnFixed: {
+              fixedGroups: [],
+              microCompactImpact: {
+                compactedBlocks: 0,
+                compactedToolNames: [],
+                estimatedTokensSaved: 0,
+                keptRecentBlocks: 0,
+              },
+              projectedHistoryTokens: 0,
+              projectedHistoryDeltaTokens: 0,
+              fixedTokens: 0,
+              totalTokens: 0,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topAssembledContributors: [],
+            },
+            notes: [],
+          },
+        },
+      }).localDiagnostics,
+    ).toBeNull()
+  })
+
+  it('keeps diagnostics backward-compatible when contributor identity fields are absent', () => {
+    expect(
+      parseTurnStartLikeResponse({
+        turn: { id: 'turn-1' },
+        local: {
+          stdout: 'hello',
+          diagnostics: {
+            kind: 'formax.context_diagnostics',
+            schemaVersion: 1,
+            mode: 'normal',
+            model: 'claude-3-5-sonnet-latest',
+            latestCompactBoundary: null,
+            snapshot: {
+              totalTokens: 1,
+              systemTokens: 1,
+              historyTokens: 0,
+              toolResultTokens: 0,
+              otherHistoryTokens: 0,
+              messageCount: 1,
+              userMessageCount: 1,
+              assistantMessageCount: 0,
+              toolResultBlockCount: 0,
+              microCompactedToolResultCount: 0,
+              toolResultCountsByToolName: [],
+              microCompactedCountsByToolName: [],
+              contextWindowTokens: null,
+              effectiveLimitTokens: null,
+              autoCompactLimitTokens: null,
+              baselineTokens: null,
+              percentRemaining: null,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topSnapshotContributors: [{ label: 'bad', tokens: 1 }],
+            },
+            nextTurnFixed: {
+              fixedGroups: [],
+              microCompactImpact: {
+                compactedBlocks: 0,
+                compactedToolNames: [],
+                estimatedTokensSaved: 0,
+                keptRecentBlocks: 0,
+              },
+              projectedHistoryTokens: 0,
+              projectedHistoryDeltaTokens: 0,
+              fixedTokens: 0,
+              totalTokens: 0,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topAssembledContributors: [],
+            },
+            notes: [],
+          },
+        },
+      }).localDiagnostics,
+    ).toMatchObject({
+      snapshot: {
+        topSnapshotContributors: [{ label: 'bad', tokens: 1 }],
+      },
+    })
+  })
+
+  it('rejects malformed contributor identity fields when they are explicitly present', () => {
+    expect(
+      parseTurnStartLikeResponse({
+        turn: { id: 'turn-1' },
+        local: {
+          stdout: 'hello',
+          diagnostics: {
+            kind: 'formax.context_diagnostics',
+            schemaVersion: 1,
+            mode: 'normal',
+            model: 'claude-3-5-sonnet-latest',
+            latestCompactBoundary: null,
+            snapshot: {
+              totalTokens: 1,
+              systemTokens: 1,
+              historyTokens: 0,
+              toolResultTokens: 0,
+              otherHistoryTokens: 0,
+              messageCount: 1,
+              userMessageCount: 1,
+              assistantMessageCount: 0,
+              toolResultBlockCount: 0,
+              microCompactedToolResultCount: 0,
+              toolResultCountsByToolName: [],
+              microCompactedCountsByToolName: [],
+              contextWindowTokens: null,
+              effectiveLimitTokens: null,
+              autoCompactLimitTokens: null,
+              baselineTokens: null,
+              percentRemaining: null,
+              remainingToEffectiveLimit: null,
+              remainingToAutoCompactLimit: null,
+              shouldAutoCompact: null,
+              topSnapshotContributors: [{ kind: 'bad-kind', label: 'bad', tokens: 1 }],
             },
             nextTurnFixed: {
               fixedGroups: [],
