@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
+import type { PromptBlock } from '../../../../prompts'
 import type { SessionWriter } from '../../sessionSave/writer'
 import type { ReplMode } from '../../mode'
 import {
@@ -24,6 +25,7 @@ function useSessionActions(args: {
   resetSessionState: () => void
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   historyRef: { current: ChatHistory }
+  pendingInjectedBlocksRef?: { current: PromptBlock[] }
   cwd: string
   mode: ReplMode
   getPlanPath: () => string | null
@@ -96,9 +98,10 @@ function useSessionActions(args: {
         sessionWriterRef: args.sessionWriterRef,
         lastPersistedSigByMsgIdRef: args.lastPersistedSigByMsgIdRef,
         lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
-          resetSessionState: args.resetSessionState,
-          historyRef: args.historyRef,
-          cwd: args.cwd,
+        resetSessionState: args.resetSessionState,
+        historyRef: args.historyRef,
+        pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
+        cwd: args.cwd,
           mode: args.mode,
           planPath: args.getPlanPath(),
           replaceTranscript: args.replaceTranscript,
@@ -114,6 +117,7 @@ function useSessionActions(args: {
       args.engine,
       args.cwd,
       args.historyRef,
+      args.pendingInjectedBlocksRef,
       args.initialSessionFilePathRef,
       args.isLoading,
       args.lastPersistedMsgByIdRef,

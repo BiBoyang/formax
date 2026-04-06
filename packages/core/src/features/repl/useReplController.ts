@@ -4,6 +4,7 @@ import type { ChatEngine, ChatHistory } from '../../chat/engine'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../config/config'
 import type { Msg } from '../../shared/toolMessageTypes'
+import type { PromptBlock } from '../../prompts'
 import type { ReplMode } from './mode'
 import type { SlashCommandRegistry } from '../commands/registry'
 import type { PlanSessionManager } from './planSession'
@@ -111,7 +112,7 @@ export function useReplController(deps: {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   onClearTerminal?: () => void | Promise<void>
-  initialSession?: { filePath?: string; messages?: Msg[]; history?: ChatHistory }
+  initialSession?: { filePath?: string; messages?: Msg[]; history?: ChatHistory; nextTurnInjectedBlocks?: PromptBlock[] }
   allowedSubagents?: SubAgentListItem[]
   reloadSubagents?: () => Promise<SubAgentListItem[]>
   mode: ReplMode
@@ -169,7 +170,7 @@ export function useReplController(deps: {
   const toolRuntimeRefs = useToolRuntimeRefs()
   const canonicalRefs = useCanonicalRefs(CANONICAL_THREAD_ID)
   const modeRefs = useModeRefs(deps.mode)
-  const turnFlowRefs = useTurnFlowRefs()
+  const turnFlowRefs = useTurnFlowRefs(deps.initialSession?.nextTurnInjectedBlocks ?? [])
   const runtimeStateRefs = useRuntimeStateRefs()
   const deferredToolExposureSessionKeyRef = useRef<string>(randomUUID())
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
@@ -452,6 +453,7 @@ export function useReplController(deps: {
     resetSessionState,
     replaceTranscript,
     historyRef,
+    pendingInjectedBlocksRef: turnFlowRefs.pendingInjectedBlocksRef,
     cwd: runtimeCwd,
     mode: deps.mode,
     getPlanPath: () => deps.planSession?.getPlanPath() ?? null,

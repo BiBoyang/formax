@@ -4,7 +4,8 @@ import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { UserInputManager } from '../../../../tools/runtime/userInputManager'
 import { buildActiveHistoryFromSessionReplay } from '../../../../chat/context/compact'
 import type { ReplMode } from '../../mode'
-import { persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
+import { buildSessionMemoryRestoreInjectedBlocks, persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
+import type { PromptBlock } from '../../../../prompts'
 import { applyAbortToMessages } from './abortTranscript'
 
 type SessionWriterLike = {
@@ -129,6 +130,8 @@ export async function runResumeSessionTransition(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
+  pendingInjectedBlocksRef?: { current: PromptBlock[] }
+  buildRestoreInjectedBlocks?: (args: { sessionFilePath: string }) => Promise<PromptBlock[]>
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
   openExistingSessionWriter: (filePath: string) => Promise<ResumeSessionWriterLike>
   buildPersistedSigMap: (messages: Msg[]) => Map<string, string>
@@ -175,6 +178,12 @@ export async function runResumeSessionTransition(args: {
       planPath,
       history: args.historyRef.current,
     }).catch(() => undefined)
+  }
+
+  if (args.pendingInjectedBlocksRef) {
+    args.pendingInjectedBlocksRef.current = await (args.buildRestoreInjectedBlocks ?? buildSessionMemoryRestoreInjectedBlocks)({
+      sessionFilePath: args.filePath,
+    })
   }
 
   await args.replaceTranscript(sanitizedMessages)

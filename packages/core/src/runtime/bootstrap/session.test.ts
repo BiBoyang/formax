@@ -116,4 +116,45 @@ describe('resolveInitialSession', () => {
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
     })
   })
+
+  it('seeds next-turn injected blocks from session memory on resumeLast restore', async () => {
+    findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    readSessionFile.mockResolvedValue({
+      messages: [],
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] }],
+    })
+    readSessionMemoryFile.mockResolvedValue({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/main.ts'],
+        recentUserPrompts: ['Finish restore flow'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Keep restore behavior aligned',
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'session_memory',
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    })
+
+    const { resolveInitialSession } = await import('./session.js')
+    const resolved = await resolveInitialSession({
+      cwd: '/repo',
+      env: process.env,
+      resumeLast: true,
+    })
+
+    expect(resolved?.nextTurnInjectedBlocks).toHaveLength(1)
+    expect(String((resolved?.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
+      'Restored session memory for the next turn only:',
+    )
+  })
 })

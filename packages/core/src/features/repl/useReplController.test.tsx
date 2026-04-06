@@ -327,7 +327,7 @@ function Harness(args: {
   mode?: 'normal' | 'plan'
   onModeChange?: (mode: 'normal' | 'plan') => void
   commandRegistry?: SlashCommandRegistry
-  initialSession?: { filePath?: string; messages?: any[]; history?: any[] }
+  initialSession?: { filePath?: string; messages?: any[]; history?: any[]; nextTurnInjectedBlocks?: any[] }
   onController: (c: ReturnType<typeof useReplController>) => void
 }): React.ReactNode {
   const controller = useReplController({
@@ -1331,6 +1331,51 @@ describe('useReplController', () => {
       else delete process.env.FORMAX_CONFIG_DIR
       await fsp.rm(tmpConfigDir, { recursive: true, force: true })
     }
+  })
+
+  it('injects initial-session restore reminder only into the first restored turn', async () => {
+    const calls: Array<{ history: unknown[]; user: { role: string; content: PromptBlock[] } }> = []
+
+    const engine: ChatEngine = {
+      async runTurn({ history, user }) {
+        calls.push({ history, user })
+        return [
+          ...history,
+          user,
+          { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+        ] as any
+      },
+    }
+
+    let controller!: ReturnType<typeof useReplController>
+    renderTracked(
+      <Harness
+        engine={engine}
+        initialSession={{
+          filePath: '/tmp/session.jsonl',
+          messages: [],
+          history: [],
+          nextTurnInjectedBlocks: [
+            {
+              type: 'text',
+              text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
+            },
+          ],
+        }}
+        onController={(c) => (controller = c)}
+      />,
+    )
+
+    await waitFor(() => Boolean(controller))
+
+    await controller.actions.send('hello after restore')
+    await tick()
+    await controller.actions.send('next turn')
+    await tick()
+
+    expect(calls).toHaveLength(2)
+    expect(JSON.stringify(calls[0]?.user?.content ?? [])).toContain('Restored session memory for the next turn only:')
+    expect(JSON.stringify(calls[1]?.user?.content ?? [])).not.toContain('Restored session memory for the next turn only:')
   })
 
 	  it('stream mode: creates a streaming assistant message and appends deltas incrementally', async () => {

@@ -816,4 +816,37 @@ describe('runResumeSessionTransition (save-enabled)', () => {
       history: replayHistory,
     })
   })
+
+  it('seeds next-turn injected blocks from session memory on resume', async () => {
+    const replayHistory: ChatHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'x' }] }] as any
+    const pendingInjectedBlocksRef = { current: [] as any[] }
+
+    await runResumeSessionTransition({
+      filePath: '/tmp/session.jsonl',
+      readSessionFile: async () => ({ messages: [createMsg('m1', 'x')], history: replayHistory }),
+      beginNewSession: () => undefined,
+      sessionSaveEnabled: false,
+      sessionWriterRef: { current: null },
+      lastPersistedSigByMsgIdRef: { current: new Map() },
+      lastPersistedMsgByIdRef: { current: new Map() },
+      resetSessionState: () => undefined,
+      historyRef: { current: [] as any },
+      pendingInjectedBlocksRef,
+      buildRestoreInjectedBlocks: async () => [
+        { type: 'text', text: '<system-reminder>\nRestored session memory for the next turn only:\n</system-reminder>' } as any,
+      ],
+      replaceTranscript: async () => undefined,
+      openExistingSessionWriter: async () => ({
+        appendEvent: vi.fn(async () => undefined),
+        shutdown: vi.fn(async () => undefined),
+        appendHistorySnapshot: vi.fn(async () => undefined),
+      }),
+      buildPersistedSigMap: () => new Map(),
+      buildPersistedMsgRefMap: () => new Map(),
+    })
+
+    expect(String((pendingInjectedBlocksRef.current[0] as any)?.text ?? '')).toContain(
+      'Restored session memory for the next turn only:',
+    )
+  })
 })

@@ -53,6 +53,7 @@ import { isInternalToolName } from '../tools/internalTools'
 import type { SubAgentListItem } from '../features/subagents/types.js'
 import { SubagentPresentationProvider } from '../shared/subagentPresentationContext'
 import { normalizeSubagentLookupKey, resolveSubagentColor } from '../shared/subagentPresentation'
+import type { PromptBlock } from '../prompts'
 
 type Props = {
   onExit?: () => void
@@ -60,7 +61,7 @@ type Props = {
   engine: ChatEngine
   tools: ToolDefinition[]
   cfg: RuntimeConfig
-  initialSession?: { filePath: string; messages: Msg[]; history: ChatHistory } | null
+  initialSession?: { filePath: string; messages: Msg[]; history: ChatHistory; nextTurnInjectedBlocks?: PromptBlock[] } | null
   allowedSubagents?: SubAgentListItem[]
   reloadSubagents?: () => Promise<SubAgentListItem[]>
   toolRegistry?: ToolRegistry

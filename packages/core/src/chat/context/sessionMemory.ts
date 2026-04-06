@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath'
+import { makeSystemReminderBlock } from '../../prompts/authoring'
+import type { PromptBlock } from '../../prompts'
 import type { PromptMessage } from '../../prompts'
 import type {
   CompactBoundaryKeepStrategy,
@@ -8,7 +10,12 @@ import type {
   CompactBoundaryTrigger,
   CompactRehydrationPlan,
 } from './compact'
-import { estimateCompactRehydrationCost, findLatestCompactBoundary, isCompactionSummaryUserMessage } from './compact'
+import {
+  estimateCompactRehydrationCost,
+  findLatestCompactBoundary,
+  isCompactionSummaryUserMessage,
+  sanitizeReminderText,
+} from './compact'
 import { buildPostCompactRehydration } from './postCompactRehydration'
 
 const SESSION_MEMORY_RECENT_FILES_LIMIT = 5
@@ -213,6 +220,16 @@ export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): 
   }
 
   return lines.join('\n').trim()
+}
+
+export function buildSessionMemoryRestoreReminderBlock(draft: SessionMemoryDraft): PromptBlock | null {
+  const summary = buildSessionMemoryCompactionSummary(draft).trim()
+  if (!summary) return null
+  const body = sanitizeReminderText(summary).replace(
+    /^Session memory recap:/,
+    'Restored session memory for the next turn only:',
+  )
+  return makeSystemReminderBlock(body)
 }
 
 export function buildSessionMemoryCompactionRehydration(args: {

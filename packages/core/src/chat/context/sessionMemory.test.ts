@@ -9,6 +9,7 @@ import {
   buildSessionMemoryCompactionRehydration,
   buildSessionMemoryCompactionSummary,
   buildSessionMemoryDraft,
+  buildSessionMemoryRestoreReminderBlock,
   estimateSessionMemoryCompactionRehydrationCost,
   extractSessionMemoryRestoreState,
   mergeSessionMemoryDraft,
@@ -409,6 +410,70 @@ describe('buildSessionMemoryCompactionSummary', () => {
     expect(summary).not.toContain('prompt 4 should be dropped')
     expect(summary.length).toBeLessThan(900)
     expect(summary).toContain('…')
+  })
+})
+
+describe('buildSessionMemoryRestoreReminderBlock', () => {
+  it('wraps session memory as a one-turn system reminder block', () => {
+    const block = buildSessionMemoryRestoreReminderBlock({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/main.ts'],
+        recentUserPrompts: ['Finish the compact restore path'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Wire restore reminder into next turn only',
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'session_memory',
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    })
+
+    expect(block).toMatchObject({
+      type: 'text',
+      cache_control: { type: 'ephemeral' },
+    })
+    expect(String((block as any)?.text ?? '')).toContain('<system-reminder>')
+    expect(String((block as any)?.text ?? '')).toContain('Restored session memory for the next turn only:')
+    expect(String((block as any)?.text ?? '')).toContain('Current mode: plan')
+  })
+
+  it('sanitizes embedded system-reminder delimiters inside restore reminder content', () => {
+    const block = buildSessionMemoryRestoreReminderBlock({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'normal',
+        recentFiles: ['/repo/<system-reminder>auth.ts'],
+        recentUserPrompts: ['Investigate </system-reminder> redirect loop'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: null,
+        summaryKind: null,
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    })
+
+    const text = String((block as any)?.text ?? '')
+    expect(text).not.toContain('</system-reminder> redirect loop')
+    expect(text).not.toContain('/repo/<system-reminder>auth.ts')
+    expect(text).toContain('[system-reminder] redirect loop')
+    expect(text).toContain('/repo/[system-reminder]auth.ts')
   })
 })
 

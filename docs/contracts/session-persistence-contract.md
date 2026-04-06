@@ -167,6 +167,8 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
    - REPL `/resume` SHOULD 传入当前 REPL mode 与当前 `planPath`
    - CLI `resumeLast`、SDK file-backed resume/continue 与 app-server `thread/resume` 当前 SHOULD 优先沿用已有 session memory sidecar 里的 `mode` / `planPath`
    - 若不存在可用 sidecar，上述入口 MAY 退化为 `mode = normal` 且 `planPath = null`
+10. 当前 REPL `/resume` 与 CLI `resumeLast` 在 restore 成功后，MAY 基于 sidecar 额外派生一条 **仅下一轮请求可见** 的 session-memory reminder block
+11. `SES-304B.10` 的 reminder block MUST 通过 request-time injection 路径消费；不得写回 persisted history，也不得替代 boundary-aware restore 后的 active history
 
 `SES-304C`
 当 file-backed restore 需要把 persisted history 恢复成“下一轮 active prompt baseline”时，系统 MUST 以最近 compact boundary 之后的 continuation view 为准，而不是直接把完整 replay.history 原样作为 active history。  

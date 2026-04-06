@@ -96,3 +96,4 @@
 - `docs/learnings/2026-03-05-web-transcript-rpc-error-details-cache-safety.md`
 - `docs/learnings/2026-03-05-web-useappruntime-composition-root-slimming-q.md`
 - `docs/learnings/2026-03-05-web-useappruntime-domain-handler-stability-n.md`
+- `docs/learnings/2026-04-07-session-memory-restore-reminder.md`

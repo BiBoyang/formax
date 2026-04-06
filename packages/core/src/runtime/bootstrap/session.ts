@@ -1,9 +1,11 @@
 import { findLatestSessionFile, readSessionFile } from '../../features/repl/sessionSave/index.js'
 import {
+  buildSessionMemoryRestoreInjectedBlocks,
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreContext,
 } from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
+import type { PromptBlock } from '../../prompts/index.js'
 
 export async function resolveInitialSession(args: {
   cwd: string
@@ -17,6 +19,7 @@ export async function resolveInitialSession(args: {
       filePath: string
       messages: Awaited<ReturnType<typeof readSessionFile>>['messages']
       history: Awaited<ReturnType<typeof readSessionFile>>['history']
+      nextTurnInjectedBlocks?: PromptBlock[]
     }
   | null
 > {
@@ -39,10 +42,14 @@ export async function resolveInitialSession(args: {
       planPath: restoreContext.planPath,
       history,
     }).catch(() => undefined)
+    const nextTurnInjectedBlocks = await buildSessionMemoryRestoreInjectedBlocks({
+      sessionFilePath: filePath,
+    })
     return {
       filePath,
       messages: replay.messages,
       history,
+      ...(nextTurnInjectedBlocks.length > 0 ? { nextTurnInjectedBlocks } : {}),
     }
   } catch {
     return null

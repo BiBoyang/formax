@@ -1,6 +1,12 @@
 import type { ChatHistory } from '../../../chat/engine'
-import { buildSessionMemoryDraft, extractSessionMemoryRestoreState } from '../../../chat/context/sessionMemory'
+import {
+  buildSessionMemoryDraft,
+  buildSessionMemoryRestoreReminderBlock,
+  extractSessionMemoryRestoreState,
+  type SessionMemoryDraft,
+} from '../../../chat/context/sessionMemory'
 import type { ReplMode } from '../mode'
+import type { PromptBlock } from '../../../prompts'
 import { readSessionMemoryFile, writeSessionMemoryFile } from './sessionMemorySidecar'
 
 const sessionMemoryWriteQueue = new Map<string, Promise<void>>()
@@ -56,6 +62,20 @@ export async function resolveSessionMemoryRestoreContext(args: {
   }
 }
 
+export async function buildSessionMemoryRestoreInjectedBlocks(args: {
+  sessionFilePath: string
+  readSessionMemoryFileImpl?: (sessionFilePath: string) => Promise<unknown>
+}): Promise<PromptBlock[]> {
+  try {
+    const rawDraft = await (args.readSessionMemoryFileImpl ?? readSessionMemoryFile)(args.sessionFilePath)
+    if (!isSessionMemoryDraft(rawDraft)) return []
+    const reminderBlock = buildSessionMemoryRestoreReminderBlock(rawDraft)
+    return reminderBlock ? [reminderBlock] : []
+  } catch {
+    return []
+  }
+}
+
 export async function persistSessionMemoryFromHistory(
   args: PersistSessionMemoryFromHistoryArgs,
 ): Promise<void> {
@@ -88,4 +108,10 @@ export async function persistSessionMemoryFromHistory(
 
 function normalizePlanPath(value: string | null | undefined): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function isSessionMemoryDraft(value: unknown): value is SessionMemoryDraft {
+  if (!value || typeof value !== 'object') return false
+  const schemaVersion = (value as { schemaVersion?: unknown }).schemaVersion
+  return schemaVersion === 1
 }

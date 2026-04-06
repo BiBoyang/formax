@@ -6,6 +6,7 @@ import { writeSetupFiles } from '../adapters/setup/writeSetupFiles.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { SetupProviderOption } from '../core/setup/types.js'
 import type { RuntimeConfig } from '../config/config.js'
+import type { PromptBlock } from '../prompts/index.js'
 import { InputScopeProvider } from '../features/repl/inputScopeContext.js'
 import { REPL } from '../screens/REPL.js'
 import { TranscriptPerfScreen } from '../screens/perf/TranscriptPerfScreen.js'
@@ -46,6 +47,7 @@ export type LegacyReplRenderArgs = {
     filePath: string
     messages: Msg[]
     history: ChatHistory
+    nextTurnInjectedBlocks?: PromptBlock[]
   } | null
   allowedSubagents: SubAgentListItem[]
   reloadSubagents: () => Promise<SubAgentListItem[]>

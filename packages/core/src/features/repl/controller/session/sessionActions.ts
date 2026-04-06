@@ -1,5 +1,6 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
+import type { PromptBlock } from '../../../../prompts'
 import { SessionWriter } from '../../sessionSave/writer'
 import type { ReplMode } from '../../mode'
 import { enqueueSessionTransition } from './transitionQueue'
@@ -78,6 +79,7 @@ export async function runResumeSessionAction(args: {
     lastPersistedMsgByIdRef: { current: Map<string, Msg> }
     resetSessionState: () => void
     historyRef: { current: ChatHistory }
+    pendingInjectedBlocksRef?: { current: PromptBlock[] }
     cwd: string
     mode: ReplMode
     planPath: string | null
@@ -94,6 +96,7 @@ export async function runResumeSessionAction(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
+  pendingInjectedBlocksRef?: { current: PromptBlock[] }
   cwd: string
   mode: ReplMode
   planPath: string | null
@@ -123,6 +126,7 @@ export async function runResumeSessionAction(args: {
           lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
           resetSessionState: args.resetSessionState,
           historyRef: args.historyRef,
+          pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
           cwd: args.cwd,
           mode: args.mode,
           planPath: args.planPath,

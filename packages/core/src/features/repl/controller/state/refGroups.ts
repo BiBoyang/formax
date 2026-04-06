@@ -65,7 +65,7 @@ function useTurnStreamingRefs(initialHistory: ChatHistory): {
   }
 }
 
-function useTurnFlowRefs(): {
+function useTurnFlowRefs(initialPendingInjectedBlocks: PromptBlock[] = []): {
   pendingExitPlanReminderRef: MutableRefObject<boolean>
   reminderServiceRef: MutableRefObject<ReminderService | null>
   contextBudgetConfigRef: MutableRefObject<ContextBudgetConfig | null>
@@ -75,7 +75,7 @@ function useTurnFlowRefs(): {
     pendingExitPlanReminderRef: useRef(false),
     reminderServiceRef: useRef<ReminderService | null>(null),
     contextBudgetConfigRef: useRef<ContextBudgetConfig | null>(null),
-    pendingInjectedBlocksRef: useRef<PromptBlock[]>([]),
+    pendingInjectedBlocksRef: useRef<PromptBlock[]>([...initialPendingInjectedBlocks]),
   }
 }
 
