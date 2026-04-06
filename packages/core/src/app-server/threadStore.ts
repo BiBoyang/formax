@@ -23,6 +23,7 @@ import type {
   ThreadSummary,
 } from './protocol.js'
 import {
+  inspectRequestCollapseEventsFromSession,
   readPersistedToolMessagesFromSession,
   readLatestRequestCollapseEventFromSession,
   readStaleInputsFromSession,
@@ -86,6 +87,14 @@ export type ThreadMessagesResult = {
   data: Array<ThreadMessage | ThreadToolMessage>
   nextCursor: string | null
   latestRequestCollapse?: LatestRequestCollapseSummary | null
+}
+
+export type ThreadRequestCollapseInspectionResult = {
+  totalCount: number
+  initialCount: number
+  reactiveRetryCount: number
+  totalEstimatedTokensSaved: number
+  latest: LatestRequestCollapseSummary | null
 }
 
 type ThreadTimelineEntry = {
@@ -804,6 +813,44 @@ export class ThreadStore {
       data: page,
       nextCursor,
       latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapseEvent),
+    }
+  }
+
+  async inspectThreadRequestCollapse(threadId: string): Promise<ThreadRequestCollapseInspectionResult> {
+    const filePath = await this.archiveStore.locateThreadFile({
+      cwd: this.cwd,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+      sessionId: threadId,
+    })
+    if (!filePath && this.provisionalThreads.has(threadId)) {
+      return {
+        totalCount: 0,
+        initialCount: 0,
+        reactiveRetryCount: 0,
+        totalEstimatedTokensSaved: 0,
+        latest: null,
+      }
+    }
+
+    if (!filePath) {
+      return {
+        totalCount: 0,
+        initialCount: 0,
+        reactiveRetryCount: 0,
+        totalEstimatedTokensSaved: 0,
+        latest: null,
+      }
+    }
+
+    const inspection = await inspectRequestCollapseEventsFromSession({ filePath })
+    return {
+      totalCount: inspection.totalCount,
+      initialCount: inspection.initialCount,
+      reactiveRetryCount: inspection.reactiveRetryCount,
+      totalEstimatedTokensSaved: inspection.totalEstimatedTokensSaved,
+      latest: toLatestRequestCollapseSummary(inspection.latest),
     }
   }
 

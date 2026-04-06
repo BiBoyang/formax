@@ -431,6 +431,53 @@ describe('ThreadStore', () => {
     })
   })
 
+  it('inspects persisted request-time collapse events for a thread', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 140,
+      recapFingerprint: '0123456789abcdef',
+    })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+    await writer.shutdown()
+
+    const inspection = await store.inspectThreadRequestCollapse(thread.id)
+    expect(inspection).toEqual({
+      totalCount: 2,
+      initialCount: 1,
+      reactiveRetryCount: 1,
+      totalEstimatedTokensSaved: 204,
+      latest: {
+        phase: 'reactive_retry',
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 64,
+        recapFingerprint: 'fedcba9876543210',
+      },
+    })
+  })
+
+  it('returns empty request-time collapse inspection for provisional threads without a file', async () => {
+    const { store } = await createStore()
+    const thread = await store.startThread({})
+    const inspection = await store.inspectThreadRequestCollapse(thread.id)
+    expect(inspection).toEqual({
+      totalCount: 0,
+      initialCount: 0,
+      reactiveRetryCount: 0,
+      totalEstimatedTokensSaved: 0,
+      latest: null,
+    })
+  })
+
   it('best-effort refreshes rolling session memory on persisted thread resume', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
