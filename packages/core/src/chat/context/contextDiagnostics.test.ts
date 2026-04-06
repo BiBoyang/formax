@@ -633,6 +633,12 @@ describe('contextDiagnostics', () => {
           },
         }),
       ],
+      latestRequestCollapse: {
+        phase: 'reactive_retry',
+        collapsedHeadMessageCount: 4,
+        estimatedTokensSaved: 180,
+        recapFingerprint: 'feedfacecafebeef',
+      },
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
     })
 
@@ -663,6 +669,12 @@ describe('contextDiagnostics', () => {
         sectionCount: 2,
         estimatedTokens: 64,
       },
+    })
+    expect(parsed.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 180,
+      recapFingerprint: 'feedfacecafebeef',
     })
     expect(parsed.latestCompactBoundary.preservedSegment).toEqual({
       schemaVersion: 1,
@@ -927,5 +939,24 @@ describe('autoCompactSkipReason and pruneSkipReason', () => {
     expect(report).toContain('disabled')
     expect(report).toContain('- Prune skip reason:')
     expect(report).toContain('within effective limit')
+  })
+
+  it('text report contains latest request collapse summary when present', () => {
+    const report = formatContextDiagnosticsReport({
+      latestRequestCollapse: {
+        phase: 'initial',
+        collapsedHeadMessageCount: 5,
+        estimatedTokensSaved: 210,
+        recapFingerprint: 'abcdeffedcba1234',
+      },
+      diagnostics: analyzeContextDiagnostics({ system, messages: [] }),
+      mode: 'normal',
+      model: 'test-model',
+    })
+    expect(report).toContain('Latest request collapse')
+    expect(report).toContain('- Phase: initial')
+    expect(report).toContain('- Collapsed older messages: 5')
+    expect(report).toContain('- Estimated tokens saved: 210')
+    expect(report).toContain('- Recap fingerprint: abcdeffedcba1234')
   })
 })

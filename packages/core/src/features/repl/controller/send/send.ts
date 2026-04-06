@@ -29,6 +29,7 @@ import { makeMessageId } from '../shared/ids'
 import type { CompactLifecycleEvent } from './compactFlow'
 import { createContextCompressionService } from './contextCompressionService'
 import { formatErrorSubline } from '../shared/errorSubline'
+import { readLatestRequestCollapseEventFromSessionSync } from '../../sessionSave/requestCollapseEvents'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
@@ -252,6 +253,7 @@ export function maybeBuildContextSlashEffect(args: {
   mode: ReplMode
   getPlanPath: () => string | null
   historyRef: { current: ChatHistory }
+  getSessionFilePath?: () => string | null
   pendingInjectedBlocksRef: { current: PromptBlock[] }
   reminderServiceRef?: { current: ReminderService | null }
   includeExitPlanReminder?: boolean
@@ -286,6 +288,10 @@ export function maybeBuildContextSlashEffect(args: {
   })
   const outputStyleBlocks = buildOutputStyleInjectedBlocks(args.cfg.ui.outputStyle)
   const pendingInjectedBlocks = [...args.pendingInjectedBlocksRef.current]
+  const sessionFilePath = args.getSessionFilePath?.() ?? null
+  const latestRequestCollapse = sessionFilePath
+    ? readLatestRequestCollapseEventFromSessionSync({ filePath: sessionFilePath })
+    : null
 
   return {
     kind: 'local',
@@ -299,6 +305,7 @@ export function maybeBuildContextSlashEffect(args: {
             mode: args.mode,
             planPath: args.getPlanPath(),
             messages: args.historyRef.current,
+            latestRequestCollapse,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
               { label: 'Reminder blocks', blocks: reminderBlocks },
@@ -315,6 +322,7 @@ export function maybeBuildContextSlashEffect(args: {
             mode: args.mode,
             planPath: args.getPlanPath(),
             messages: args.historyRef.current,
+            latestRequestCollapse,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
               { label: 'Reminder blocks', blocks: reminderBlocks },

@@ -74,6 +74,13 @@ export type NextTurnFixedContextDiagnostics = {
   topAssembledContributors: ContextContributor[]
 }
 
+export type ContextLatestRequestCollapse = {
+  phase: 'initial' | 'reactive_retry'
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  recapFingerprint?: string
+}
+
 export type ContextCollapseImpact = {
   collapsed: boolean
   collapsedHeadMessageCount: number
@@ -113,9 +120,22 @@ export type ContextDiagnosticsPayload = {
   mode: string
   model: string
   latestCompactBoundary: CompactBoundaryMeta | null
+  latestRequestCollapse?: ContextLatestRequestCollapse | null
   snapshot: ContextDiagnostics
   nextTurnFixed: NextTurnFixedContextDiagnostics
   notes: string[]
+}
+
+function normalizeLatestRequestCollapse(
+  value: ContextLatestRequestCollapse | null | undefined,
+): ContextLatestRequestCollapse | null {
+  if (!value) return null
+  return {
+    phase: value.phase,
+    collapsedHeadMessageCount: value.collapsedHeadMessageCount,
+    estimatedTokensSaved: value.estimatedTokensSaved,
+    ...(value.recapFingerprint ? { recapFingerprint: value.recapFingerprint } : {}),
+  }
 }
 
 export type ContextDiagnosticsOutputFormat = 'text' | 'json'
@@ -357,10 +377,12 @@ export function buildContextDiagnosticsReport(args: {
   planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
+  latestRequestCollapse?: ContextLatestRequestCollapse | null
 }): string {
   const payload = buildContextDiagnosticsPayload(args)
   return formatContextDiagnosticsReport({
     latestCompactBoundary: payload.latestCompactBoundary,
+    latestRequestCollapse: payload.latestRequestCollapse,
     diagnostics: payload.snapshot,
     nextTurn: payload.nextTurnFixed,
     mode: payload.mode,
@@ -378,6 +400,7 @@ export function buildContextDiagnosticsJson(args: {
   planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
+  latestRequestCollapse?: ContextLatestRequestCollapse | null
 }): string {
   return JSON.stringify(buildContextDiagnosticsPayload(args), null, 2)
 }
@@ -391,6 +414,7 @@ export function buildContextDiagnosticsPayload(args: {
   planPath?: string | null
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
+  latestRequestCollapse?: ContextLatestRequestCollapse | null
 }): ContextDiagnosticsPayload {
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
@@ -446,6 +470,7 @@ export function buildContextDiagnosticsPayload(args: {
     mode: args.mode,
     model: args.cfg.llm.model,
     latestCompactBoundary: findLatestCompactBoundary(args.messages),
+    latestRequestCollapse: normalizeLatestRequestCollapse(args.latestRequestCollapse),
     snapshot: diagnostics,
     nextTurnFixed: nextTurn,
     notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],
@@ -454,6 +479,7 @@ export function buildContextDiagnosticsPayload(args: {
 
 export function formatContextDiagnosticsReport(args: {
   latestCompactBoundary?: CompactBoundaryMeta | null
+  latestRequestCollapse?: ContextLatestRequestCollapse | null
   diagnostics: ContextDiagnostics
   nextTurn?: NextTurnFixedContextDiagnostics | null
   mode: string
@@ -477,6 +503,12 @@ export function formatContextDiagnosticsReport(args: {
     `- Rehydration plan: ${formatRehydrationPlan(args.latestCompactBoundary?.rehydrationPlan ?? null)}`,
     `- Rehydration cost: ${formatRehydrationCost(args.latestCompactBoundary?.rehydrationCost ?? null)}`,
     `- Preserved segment: ${formatPreservedSegment(args.latestCompactBoundary?.preservedSegment ?? null)}`,
+    '',
+    'Latest request collapse',
+    `- Phase: ${args.latestRequestCollapse?.phase ?? 'none'}`,
+    `- Collapsed older messages: ${formatMaybeInt(args.latestRequestCollapse?.collapsedHeadMessageCount ?? null)}`,
+    `- Estimated tokens saved: ${formatMaybeInt(args.latestRequestCollapse?.estimatedTokensSaved ?? null)}`,
+    `- Recap fingerprint: ${args.latestRequestCollapse?.recapFingerprint ?? 'none'}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,

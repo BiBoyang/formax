@@ -496,6 +496,7 @@ export function useReplController(deps: {
           sendSeqRef: runtimeStateRefs.sendSeqRef,
           autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
           reminderServiceRef: turnFlowRefs.reminderServiceRef,
+          getSessionFilePath: () => sessionWriterRef.current?.filePath ?? initialSessionFilePathRef.current ?? null,
           canonicalTurnIdRef: canonicalRefs.turnIdRef,
           claudeMdMetaSigRef: runtimeStateRefs.claudeMdMetaSigRef,
         },
@@ -563,6 +564,7 @@ export function useReplController(deps: {
       setReplMode,
       onCompactLifecycle,
       ensureSessionWriter,
+      initialSessionFilePathRef,
     ],
   )
 

@@ -26,6 +26,7 @@ export async function resolvePreMainSendRouting(args: {
   tools: ToolDefinition[]
   mode: ReplMode
   getPlanPath: () => string | null
+  getSessionFilePath?: () => string | null
   commandRegistry?: SlashCommandRegistry
   openOverlay: (spec: OverlaySpec) => void
   closeOverlay: () => void
@@ -103,6 +104,7 @@ export async function resolvePreMainSendRouting(args: {
       tools: args.tools,
       mode: args.mode,
       getPlanPath: args.getPlanPath,
+      getSessionFilePath: args.getSessionFilePath,
       historyRef: args.historyRef,
       pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
       reminderServiceRef: args.reminderServiceRef,

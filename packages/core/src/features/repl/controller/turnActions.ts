@@ -163,6 +163,7 @@ export type SendFlowRefs = {
   sendSeqRef: { current: number }
   autoCompactSeqRef: { current: number }
   reminderServiceRef: { current: ReminderService | null }
+  getSessionFilePath?: () => string | null
   canonicalTurnIdRef: { current: string | null }
   claudeMdMetaSigRef: { current: string | null }
 }

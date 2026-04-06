@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
@@ -450,6 +453,38 @@ describe('resolvePreMainSendRouting', () => {
     const messages = getMessages()
     expect(messages[0]).toMatchObject({ role: 'user', content: '/context --json' })
     expect(messages.some((msg) => String(msg.content).includes('"kind": "formax.context_diagnostics"'))).toBe(true)
+  })
+
+  it('reads latest persisted request collapse fact for local /context diagnostics', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-review-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      sessionFilePath,
+      [
+        JSON.stringify({ type: 'event', ts: '2026-04-07T10:00:00.000Z', name: 'request_collapse_applied', data: {
+          phase: 'initial',
+          collapsedHeadMessageCount: 3,
+          estimatedTokensSaved: 120,
+          recapFingerprint: 'abcdef0123456789',
+        } }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    const { args } = createRoutingHarness({
+      text: '/context --json',
+      getSessionFilePath: () => sessionFilePath,
+    })
+
+    const result = await resolvePreMainSendRouting(args)
+    const stdout = (result.slashEffect as any).stdout as string
+    const parsed = JSON.parse(stdout)
+    expect(parsed.latestRequestCollapse).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'abcdef0123456789',
+    })
   })
 
   it('falls through to main turn when input is not a slash command', async () => {

@@ -94,6 +94,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     mode: args.deps.mode,
     ...replModeAccess,
     getPlanPath: () => args.deps.planSession?.getPlanPath() ?? null,
+    getSessionFilePath: args.turnRefs.getSessionFilePath,
     ...sendTurnSharedRefs,
     commandRegistry: args.deps.commandRegistry,
     openOverlay: args.callbacks.openOverlay,

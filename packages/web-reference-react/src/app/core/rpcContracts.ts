@@ -175,9 +175,17 @@ export type RpcContextDiagnosticsPayload = {
   mode: string
   model: string
   latestCompactBoundary: RpcLatestCompactBoundary | null
+  latestRequestCollapse?: RpcLatestRequestCollapse | null
   snapshot: RpcContextDiagnosticsSnapshot
   nextTurnFixed: RpcNextTurnFixedContextDiagnostics
   notes: string[]
+}
+
+export type RpcLatestRequestCollapse = {
+  phase: 'initial' | 'reactive_retry'
+  collapsedHeadMessageCount: number
+  estimatedTokensSaved: number
+  recapFingerprint?: string
 }
 
 export type RpcInputSubmitResult = {
@@ -277,18 +285,54 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
   const snapshot = parseContextDiagnosticsSnapshot(record.snapshot)
   const nextTurnFixed = parseNextTurnFixedContextDiagnostics(record.nextTurnFixed)
   const latestCompactBoundary = parseStrictLatestCompactBoundaryField(record)
+  const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(record, 'latestRequestCollapse')
   const notes = parseRequiredStringList(record.notes)
-  if (!mode || !model || !snapshot || !nextTurnFixed || !latestCompactBoundary || !notes) return null
+  if (!mode || !model || !snapshot || !nextTurnFixed || !latestCompactBoundary || !latestRequestCollapse || !notes) return null
   return {
     kind: 'formax.context_diagnostics',
     schemaVersion: 1,
     mode,
     model,
     latestCompactBoundary: latestCompactBoundary.value,
+    ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
     snapshot,
     nextTurnFixed,
     notes: notes.value,
   }
+}
+
+function parseLatestRequestCollapse(value: unknown): RpcLatestRequestCollapse | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const phase = record.phase === 'initial' || record.phase === 'reactive_retry' ? record.phase : null
+  const collapsedHeadMessageCount = asFiniteNumber(record.collapsedHeadMessageCount)
+  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+  const recapFingerprint =
+    record.recapFingerprint === undefined
+      ? undefined
+      : typeof record.recapFingerprint === 'string' && record.recapFingerprint.trim()
+        ? record.recapFingerprint
+        : null
+  if (!phase || collapsedHeadMessageCount == null || estimatedTokensSaved == null || recapFingerprint === null) {
+    return null
+  }
+  return {
+    phase,
+    collapsedHeadMessageCount,
+    estimatedTokensSaved,
+    ...(recapFingerprint ? { recapFingerprint } : {}),
+  }
+}
+
+function parseOptionalNullableLatestRequestCollapseField(
+  record: Record<string, unknown>,
+  key: string,
+): { present: boolean; value: RpcLatestRequestCollapse | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
+  const value = record[key]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseLatestRequestCollapse(value)
+  return parsed ? { present: true, value: parsed } : null
 }
 
 function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {

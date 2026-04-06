@@ -5,6 +5,7 @@ import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.
 import { createRuntime } from '../runtime/createRuntime.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import { AppServer } from './server.js'
+import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
 import {
   classifyRpcMessage,
   JSON_RPC_ERRORS,
@@ -262,6 +263,10 @@ export async function runAppServer(args?: {
         includeExitPlanReminder,
       })
 
+      const latestRequestCollapse = sessionFilePath
+        ? await readLatestRequestCollapseEventFromSession({ filePath: sessionFilePath })
+        : null
+
       const diagnostics = buildContextDiagnosticsPayload({
         cwd: dispatchCwd,
         cfg: runtime.cfg,
@@ -270,6 +275,7 @@ export async function runAppServer(args?: {
         mode,
         planPath: null,
         messages: replay?.history ?? [],
+        latestRequestCollapse,
         nextTurnFixedGroups: [
           { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
           { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
@@ -281,6 +287,7 @@ export async function runAppServer(args?: {
           format === 'json'
             ? JSON.stringify(diagnostics, null, 2)
             : formatContextDiagnosticsReport({
+                latestRequestCollapse: diagnostics.latestRequestCollapse,
                 diagnostics: diagnostics.snapshot,
                 nextTurn: diagnostics.nextTurnFixed,
                 mode: diagnostics.mode,

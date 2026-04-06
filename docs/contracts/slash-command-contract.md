@@ -151,6 +151,12 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `earlierToolResultBlockCount`
    - `recapFingerprint`
    text diagnostics SHOULD 同步提供 collapse impact 小节，帮助判断 request-only collapse 是否真的降低了下一轮 assembled prompt 体积
+17. diagnostics payload 当前 MAY 额外暴露 `latestRequestCollapse`，用于优先复用 runtime / persisted session 已记录的最近一次 request-time collapse 事实；若存在，稳定字段 SHOULD 至少包含：
+   - `phase`
+   - `collapsedHeadMessageCount`
+   - `estimatedTokensSaved`
+   - `recapFingerprint`（可选）
+   text diagnostics SHOULD 同步给出 `Latest request collapse` 小节，避免客户端只能重新推导 collapse 事实
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

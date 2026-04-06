@@ -6,6 +6,13 @@ import {
   createPersistedToolEventAggregator,
   type PersistedToolMessage,
 } from '../../features/repl/sessionSave/persistedToolEvents.js'
+import {
+  readLatestRequestCollapseEventFromSession as readLatestRequestCollapseEventFromSharedSession,
+  readRequestCollapseEventsFromSession as readRequestCollapseEventsFromSharedSession,
+  inspectRequestCollapseEventsFromSession as inspectRequestCollapseEventsFromSharedSession,
+  type PersistedRequestCollapseEvent,
+  type PersistedRequestCollapseInspection,
+} from '../../features/repl/sessionSave/requestCollapseEvents.js'
 
 type PendingInput = {
   inputId: string
@@ -15,17 +22,6 @@ type PendingInput = {
   kind: InputKind
   createdAt: string
   expiresAt: string
-}
-
-export type PersistedRequestCollapseEvent = {
-  phase: 'initial' | 'reactive_retry'
-  occurredAtMs: number
-  collapsedHeadMessageCount: number
-  estimatedTokensSaved: number
-  keepLastTurns?: number
-  preservedTailMessageCount?: number
-  retainedCompactSummary?: boolean
-  recapFingerprint?: string
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -55,38 +51,6 @@ function parsePendingInput(data: unknown): PendingInput | null {
 function parseResolvedInputId(data: unknown): string | null {
   if (!isObject(data)) return null
   return coerceNonEmptyString(data.inputId)
-}
-
-function parsePositiveInt(value: unknown): number | null {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
-}
-
-function parseBool(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function parseRequestCollapseEvent(ts: unknown, data: unknown): PersistedRequestCollapseEvent | null {
-  if (!isObject(data)) return null
-  const phase = coerceNonEmptyString(data.phase)
-  if (phase !== 'initial' && phase !== 'reactive_retry') return null
-  const collapsedHeadMessageCount = parsePositiveInt(data.collapsedHeadMessageCount)
-  const estimatedTokensSaved = parsePositiveInt(data.estimatedTokensSaved)
-  if (collapsedHeadMessageCount == null || estimatedTokensSaved == null) return null
-  const occurredAtMs = parseOccurredAtMs(ts)
-  return {
-    phase,
-    occurredAtMs,
-    collapsedHeadMessageCount,
-    estimatedTokensSaved,
-    ...(parsePositiveInt(data.keepLastTurns) != null ? { keepLastTurns: parsePositiveInt(data.keepLastTurns)! } : {}),
-    ...(parsePositiveInt(data.preservedTailMessageCount) != null
-      ? { preservedTailMessageCount: parsePositiveInt(data.preservedTailMessageCount)! }
-      : {}),
-    ...(parseBool(data.retainedCompactSummary) !== undefined
-      ? { retainedCompactSummary: parseBool(data.retainedCompactSummary) }
-      : {}),
-    ...(coerceNonEmptyString(data.recapFingerprint) ? { recapFingerprint: coerceNonEmptyString(data.recapFingerprint)! } : {}),
-  }
 }
 
 function parseOccurredAtMs(value: unknown): number {
@@ -183,36 +147,17 @@ export async function readPersistedToolMessagesFromSession(args: { filePath: str
 export async function readRequestCollapseEventsFromSession(args: {
   filePath: string
 }): Promise<PersistedRequestCollapseEvent[]> {
-  const events: PersistedRequestCollapseEvent[] = []
-
-  const rl = readline.createInterface({
-    input: fs.createReadStream(args.filePath, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  })
-
-  for await (const line of rl) {
-    const trimmed = String(line).trimEnd()
-    if (!trimmed) continue
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(trimmed)
-    } catch {
-      continue
-    }
-    if (!isObject(parsed)) continue
-    if (parsed.type !== 'event') continue
-    if (coerceNonEmptyString(parsed.name) !== 'request_collapse_applied') continue
-    const event = parseRequestCollapseEvent(parsed.ts, parsed.data)
-    if (!event) continue
-    events.push(event)
-  }
-
-  return events
+  return readRequestCollapseEventsFromSharedSession(args)
 }
 
 export async function readLatestRequestCollapseEventFromSession(args: {
   filePath: string
 }): Promise<PersistedRequestCollapseEvent | null> {
-  const events = await readRequestCollapseEventsFromSession(args)
-  return events.length > 0 ? events[events.length - 1]! : null
+  return readLatestRequestCollapseEventFromSharedSession(args)
+}
+
+export async function inspectRequestCollapseEventsFromSession(args: {
+  filePath: string
+}): Promise<PersistedRequestCollapseInspection> {
+  return inspectRequestCollapseEventsFromSharedSession(args)
 }
