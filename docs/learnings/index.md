@@ -59,6 +59,7 @@
 - `docs/learnings/2026-04-06-request-time-context-collapse-mvp.md`
 - `docs/learnings/2026-04-06-context-collapse-impact-diagnostics.md`
 - `docs/learnings/2026-04-06-collapse-recap-contributor-kind.md`
+- `docs/learnings/2026-04-06-collapse-recap-metadata.md`
 
 ## Web Reference Runtime / Performance
 

@@ -140,6 +140,16 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `estimatedTokensSaved`
    - `projectedHistoryTokensAfterCollapse`
    - `projectedHistoryDeltaTokens`
+   当前若存在 `metadata`，其稳定字段 SHOULD 至少包含：
+   - `schemaVersion`
+   - `kind`（当前为 `request_recap`）
+   - `keepLastTurns`
+   - `preservedTailMessageCount`
+   - `retainedCompactSummary`
+   - `recentUserPromptCount`
+   - `recentFileCount`
+   - `earlierToolResultBlockCount`
+   - `recapFingerprint`
    text diagnostics SHOULD 同步提供 collapse impact 小节，帮助判断 request-only collapse 是否真的降低了下一轮 assembled prompt 体积
 当前 `summaryKind` MAY 为：
  - `model_summary`

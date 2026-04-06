@@ -48,6 +48,19 @@ export type RpcContextCollapseImpact = {
   estimatedTokensSaved: number
   projectedHistoryTokensAfterCollapse: number
   projectedHistoryDeltaTokens: number
+  metadata?: RpcContextCollapseMeta | null
+}
+
+export type RpcContextCollapseMeta = {
+  schemaVersion: 1
+  kind: 'request_recap'
+  keepLastTurns: number
+  preservedTailMessageCount: number
+  retainedCompactSummary: boolean
+  recentUserPromptCount: number
+  recentFileCount: number
+  earlierToolResultBlockCount: number
+  recapFingerprint: string
 }
 
 export type RpcContextLifecycleMarker = {
@@ -429,12 +442,14 @@ function parseCollapseImpact(value: unknown): RpcContextCollapseImpact | null {
   const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
   const projectedHistoryTokensAfterCollapse = asFiniteNumber(record.projectedHistoryTokensAfterCollapse)
   const projectedHistoryDeltaTokens = asFiniteNumber(record.projectedHistoryDeltaTokens)
+  const metadataField = parseOptionalNullableCollapseMeta(record)
   if (
     collapsed == null ||
     collapsedHeadMessageCount == null ||
     estimatedTokensSaved == null ||
     projectedHistoryTokensAfterCollapse == null ||
-    projectedHistoryDeltaTokens == null
+    projectedHistoryDeltaTokens == null ||
+    !metadataField
   ) {
     return null
   }
@@ -444,6 +459,53 @@ function parseCollapseImpact(value: unknown): RpcContextCollapseImpact | null {
     estimatedTokensSaved,
     projectedHistoryTokensAfterCollapse,
     projectedHistoryDeltaTokens,
+    ...(metadataField.present ? { metadata: metadataField.value } : {}),
+  }
+}
+
+function parseOptionalNullableCollapseMeta(
+  record: Record<string, unknown>,
+): { present: boolean; value: RpcContextCollapseMeta | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, 'metadata')) return { present: false, value: null }
+  if (record.metadata == null) return { present: true, value: null }
+  const parsed = parseCollapseMeta(record.metadata)
+  if (!parsed) return null
+  return { present: true, value: parsed }
+}
+
+function parseCollapseMeta(value: unknown): RpcContextCollapseMeta | null {
+  const record = asOptionalRecord(value)
+  if (!record || record.schemaVersion !== 1 || record.kind !== 'request_recap') return null
+  const keepLastTurns = asFiniteNumber(record.keepLastTurns)
+  const preservedTailMessageCount = asFiniteNumber(record.preservedTailMessageCount)
+  const retainedCompactSummary =
+    typeof record.retainedCompactSummary === 'boolean' ? record.retainedCompactSummary : null
+  const recentUserPromptCount = asFiniteNumber(record.recentUserPromptCount)
+  const recentFileCount = asFiniteNumber(record.recentFileCount)
+  const earlierToolResultBlockCount = asFiniteNumber(record.earlierToolResultBlockCount)
+  const recapFingerprint =
+    typeof record.recapFingerprint === 'string' && record.recapFingerprint.trim() ? record.recapFingerprint : null
+  if (
+    keepLastTurns == null ||
+    preservedTailMessageCount == null ||
+    retainedCompactSummary == null ||
+    recentUserPromptCount == null ||
+    recentFileCount == null ||
+    earlierToolResultBlockCount == null ||
+    !recapFingerprint
+  ) {
+    return null
+  }
+  return {
+    schemaVersion: 1,
+    kind: 'request_recap',
+    keepLastTurns,
+    preservedTailMessageCount,
+    retainedCompactSummary,
+    recentUserPromptCount,
+    recentFileCount,
+    earlierToolResultBlockCount,
+    recapFingerprint,
   }
 }
 

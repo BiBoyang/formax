@@ -185,6 +185,7 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Microcompact compacted tools: none')
     expect(out).toContain('- Collapse applied for request projection: unknown')
     expect(out).toContain('- Estimated tokens saved by collapse: 0')
+    expect(out).toContain('- Collapse recap metadata: none')
     expect(out).toContain('- Fixed group breakdown: none')
     expect(out).toContain('Lifecycle markers before future user text')
     expect(out).toContain('Top assembled contributors before future user text')
@@ -342,6 +343,7 @@ describe('contextDiagnostics', () => {
       estimatedTokensSaved: 0,
       projectedHistoryTokensAfterCollapse: out.projectedHistoryTokens,
       projectedHistoryDeltaTokens: 0,
+      metadata: null,
     })
     expect(out.lifecycleMarkers.map((row) => row.stage)).toEqual([
       'snapshot',
@@ -417,6 +419,15 @@ describe('contextDiagnostics', () => {
     expect(out.collapseImpact.estimatedTokensSaved).toBeGreaterThan(0)
     expect(out.collapseImpact.projectedHistoryTokensAfterCollapse).toBeLessThan(out.projectedHistoryTokens)
     expect(out.collapseImpact.projectedHistoryDeltaTokens).toBeLessThan(0)
+    expect(out.collapseImpact.metadata).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+        retainedCompactSummary: true,
+      }),
+    )
+    expect(out.collapseImpact.metadata?.recapFingerprint).toMatch(/^[a-f0-9]{16}$/)
     expect(out.totalTokens).toBeGreaterThan(out.collapseImpact.projectedHistoryTokensAfterCollapse)
     expect(
       out.topAssembledContributors.some(
@@ -697,6 +708,7 @@ describe('contextDiagnostics', () => {
       estimatedTokensSaved: 0,
       projectedHistoryTokensAfterCollapse: parsed.nextTurnFixed.projectedHistoryTokens,
       projectedHistoryDeltaTokens: 0,
+      metadata: null,
     })
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('kind')
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('key')

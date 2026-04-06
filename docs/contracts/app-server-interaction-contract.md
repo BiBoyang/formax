@@ -175,6 +175,16 @@
     - `estimatedTokensSaved`
     - `projectedHistoryTokensAfterCollapse`
     - `projectedHistoryDeltaTokens`
+    - 若存在 `metadata`，当前稳定字段 SHOULD 至少包含：
+      - `schemaVersion`
+      - `kind`（当前为 `request_recap`）
+      - `keepLastTurns`
+      - `preservedTailMessageCount`
+      - `retainedCompactSummary`
+      - `recentUserPromptCount`
+      - `recentFileCount`
+      - `earlierToolResultBlockCount`
+      - `recapFingerprint`
   - `local.diagnostics.latestCompactBoundary` 若非 `null`，当前稳定字段 MUST 至少包含 `schemaVersion`，并 MAY 包含 `trigger`、`triggerReason`、`preTokens`、`summaryKind`、`keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`
   - 当前 `summaryKind` MAY 为：
     - `model_summary`

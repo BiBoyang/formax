@@ -40,6 +40,7 @@ describe('collapseRequestHistory', () => {
 
     expect(out.collapsed).toBe(false)
     expect(out.messages).toEqual(history)
+    expect(out.metadata).toBeNull()
   })
 
   it('can collapse an already-projected continuation when explicitly allowed', () => {
@@ -63,6 +64,18 @@ describe('collapseRequestHistory', () => {
 
     expect(out.collapsed).toBe(true)
     expect(JSON.stringify(out.messages[0])).toContain(CONTEXT_COLLAPSE_PREFIX)
+    expect(out.metadata).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+        preservedTailMessageCount: 4,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 0,
+        recentFileCount: 1,
+        earlierToolResultBlockCount: 1,
+      }),
+    )
   })
 
   it('collapses the older continuation head into a request-only recap', () => {
@@ -119,6 +132,19 @@ describe('collapseRequestHistory', () => {
     expect(JSON.stringify(out.messages)).toContain('Patch the failing redirect behavior without touching other flows.')
     expect(JSON.stringify(out.messages)).not.toContain('persisted turn before boundary')
     expect(out.messages[0]?.meta?.compactBoundary).toBeUndefined()
+    expect(out.metadata).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 1,
+        preservedTailMessageCount: 2,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 1,
+        recentFileCount: 1,
+        earlierToolResultBlockCount: 1,
+      }),
+    )
+    expect(out.metadata?.recapFingerprint).toMatch(/^[a-f0-9]{16}$/)
   })
 
   it('skips collapse when the recap would not save enough tokens', () => {
@@ -144,6 +170,7 @@ describe('collapseRequestHistory', () => {
 
     expect(out.collapsed).toBe(false)
     expect(out.messages).toEqual(history)
+    expect(out.metadata).toBeNull()
   })
 
   it('sanitizes embedded system-reminder delimiters inside collapse recap fields', () => {

@@ -136,6 +136,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 `nextTurnFixed` diagnostics 已支持 lifecycle markers：会以非破坏性投影方式比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异
 - 当前 diagnostics 也会解释 compact / prune 原因：latest boundary 可暴露结构化 `triggerReason`，`nextTurnFixed` 会额外给出 `autoCompactSkipReason` 与 `pruneSkipReason`，并且两者都按真实运行时顺序推导
 - 当前 diagnostics 也已暴露 request-time collapse impact：`nextTurnFixed.collapseImpact` 会说明 collapse 是否生效、折叠了多少条较老消息，以及估算节省了多少 token
+- `nextTurnFixed.collapseImpact.metadata` 当前也会暴露最小 request-recap metadata：包括 `keepLastTurns`、保留 tail 条数、是否保留 compact summary、保留的 recent prompt/file 计数，以及 `recapFingerprint`
 - contributor diagnostics 当前会把 request-time collapse 生成的 synthetic recap 单独标成 `kind='collapse_recap'`，避免客户端再把它误识别成普通 user message
 - 当前 contributor diagnostics 已有稳定 identity：`topSnapshotContributors` / `systemSectionBreakdown` / `topAssembledContributors` 不再只有 `label + tokens`，还会带 `kind` / `key`，并按类型补 `ordinal`、`toolUseId`、`toolName`、`systemSectionKey`
 

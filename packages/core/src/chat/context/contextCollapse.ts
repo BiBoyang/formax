@@ -3,6 +3,7 @@ import { estimatePromptTokens } from './estimate'
 import {
   collectRecentReadFilesForRehydration,
   findLatestCompactBoundaryIndex,
+  fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
   isCompactionSummaryUserMessage,
   sanitizeReminderText,
@@ -24,6 +25,19 @@ export type ContextCollapseResult = {
   collapsed: boolean
   collapsedHeadMessageCount: number
   estimatedTokensSaved: number
+  metadata: ContextCollapseMeta | null
+}
+
+export type ContextCollapseMeta = {
+  schemaVersion: 1
+  kind: 'request_recap'
+  keepLastTurns: number
+  preservedTailMessageCount: number
+  retainedCompactSummary: boolean
+  recentUserPromptCount: number
+  recentFileCount: number
+  earlierToolResultBlockCount: number
+  recapFingerprint: string
 }
 
 export function collapseRequestHistory(args: {
@@ -40,6 +54,7 @@ export function collapseRequestHistory(args: {
       collapsed: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
+      metadata: null,
     }
   }
 
@@ -51,6 +66,7 @@ export function collapseRequestHistory(args: {
       collapsed: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
+      metadata: null,
     }
   }
 
@@ -62,6 +78,7 @@ export function collapseRequestHistory(args: {
       collapsed: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
+      metadata: null,
     }
   }
 
@@ -73,10 +90,13 @@ export function collapseRequestHistory(args: {
       collapsed: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
+      metadata: null,
     }
   }
 
-  const recapMessage = buildContextCollapseRecapMessage(collapsedHead)
+  const toolResultBlocks = countToolResultBlocks(collapsedHead)
+  const recapParts = buildContextCollapseRecapMessage(collapsedHead)
+  const recapMessage = recapParts.message
   const recapTokens = estimatePromptTokens({ system: [], messages: [recapMessage] })
   const estimatedTokensSaved = Math.max(0, headTokens - recapTokens)
   if (estimatedTokensSaved < (args.minSavedTokens ?? DEFAULT_MIN_SAVED_TOKENS)) {
@@ -85,6 +105,7 @@ export function collapseRequestHistory(args: {
       collapsed: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
+      metadata: null,
     }
   }
 
@@ -93,10 +114,26 @@ export function collapseRequestHistory(args: {
     collapsed: true,
     collapsedHeadMessageCount: collapsedHead.length,
     estimatedTokensSaved,
+    metadata: {
+      schemaVersion: 1,
+      kind: 'request_recap',
+      keepLastTurns,
+      preservedTailMessageCount: preservedTail.length,
+      retainedCompactSummary: recapParts.retainedCompactSummary,
+      recentUserPromptCount: recapParts.recentUserPromptCount,
+      recentFileCount: recapParts.recentFileCount,
+      earlierToolResultBlockCount: toolResultBlocks,
+      recapFingerprint: fingerprintPromptMessage(recapMessage),
+    },
   }
 }
 
-function buildContextCollapseRecapMessage(messages: PromptMessage[]): PromptMessage {
+function buildContextCollapseRecapMessage(messages: PromptMessage[]): {
+  message: PromptMessage
+  retainedCompactSummary: boolean
+  recentUserPromptCount: number
+  recentFileCount: number
+} {
   const compactSummaryExcerpt = extractCompactionSummaryExcerpt(messages)
   const recentUserPrompts = collectRecentUserPrompts(messages, DEFAULT_RECENT_USER_PROMPTS)
   const recentFiles = collectRecentReadFilesForRehydration(messages, DEFAULT_RECENT_FILES)
@@ -127,13 +164,18 @@ function buildContextCollapseRecapMessage(messages: PromptMessage[]): PromptMess
   }
 
   return {
-    role: 'user',
-    content: [
-      {
-        type: 'text',
-        text: `<system-reminder>\n${lines.join('\n')}\n</system-reminder>`,
-      },
-    ] as any,
+    message: {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `<system-reminder>\n${lines.join('\n')}\n</system-reminder>`,
+        },
+      ] as any,
+    },
+    retainedCompactSummary: Boolean(compactSummaryExcerpt),
+    recentUserPromptCount: recentUserPrompts.length,
+    recentFileCount: recentFiles.length,
   }
 }
 

@@ -4,7 +4,7 @@ import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { microCompactHistory, type MicroCompactImpact } from './microCompact'
-import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX } from './contextCollapse'
+import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
   buildAutoCompactKeepStrategy,
@@ -80,6 +80,7 @@ export type ContextCollapseImpact = {
   estimatedTokensSaved: number
   projectedHistoryTokensAfterCollapse: number
   projectedHistoryDeltaTokens: number
+  metadata: ContextCollapseMeta | null
 }
 
 export type ContextContributor = {
@@ -317,6 +318,7 @@ export function analyzeNextTurnFixedContext(args: {
       estimatedTokensSaved: collapseResult.estimatedTokensSaved,
       projectedHistoryTokensAfterCollapse,
       projectedHistoryDeltaTokens: projectedHistoryTokensAfterCollapse - projectedHistoryTokens,
+      metadata: collapseResult.metadata,
     },
     lifecycleMarkers,
     projectedHistoryTokens,
@@ -523,6 +525,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Projected history delta from collapse: ${formatSignedMaybeInt(args.nextTurn?.collapseImpact.projectedHistoryDeltaTokens ?? null)}`,
     `- Estimated tokens saved by collapse: ${formatInt(args.nextTurn?.collapseImpact.estimatedTokensSaved ?? 0)}`,
     `- Collapse collapsed older messages: ${formatInt(args.nextTurn?.collapseImpact.collapsedHeadMessageCount ?? 0)}`,
+    `- Collapse recap metadata: ${formatCollapseMeta(args.nextTurn?.collapseImpact.metadata ?? null)}`,
     `- Fixed additions total: ${formatMaybeInt(args.nextTurn?.fixedTokens ?? null)}`,
     ...formatFixedGroups(args.nextTurn?.fixedGroups ?? []),
     `- Assembled fixed total: ${formatMaybeInt(args.nextTurn?.totalTokens ?? null)}`,
@@ -1227,6 +1230,19 @@ function sortContributors(rows: ContextContributor[]): ContextContributor[] {
 function formatContributors(rows: ContextContributor[]): string[] {
   if (rows.length === 0) return ['- Top contributors: none']
   return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)}`)
+}
+
+function formatCollapseMeta(value: ContextCollapseMeta | null): string {
+  if (!value) return 'none'
+  return [
+    `keep_last_turns=${formatInt(value.keepLastTurns)}`,
+    `preserved_tail=${formatInt(value.preservedTailMessageCount)}`,
+    `compact_summary=${value.retainedCompactSummary ? 'yes' : 'no'}`,
+    `recent_prompts=${formatInt(value.recentUserPromptCount)}`,
+    `recent_files=${formatInt(value.recentFileCount)}`,
+    `tool_results=${formatInt(value.earlierToolResultBlockCount)}`,
+    `fingerprint=${value.recapFingerprint}`,
+  ].join(', ')
 }
 
 function formatNotes(notes: readonly string[]): string[] {

@@ -120,6 +120,17 @@ describe('rpcContracts', () => {
                 estimatedTokensSaved: 120,
                 projectedHistoryTokensAfterCollapse: 55,
                 projectedHistoryDeltaTokens: -20,
+                metadata: {
+                  schemaVersion: 1,
+                  kind: 'request_recap',
+                  keepLastTurns: 2,
+                  preservedTailMessageCount: 3,
+                  retainedCompactSummary: true,
+                  recentUserPromptCount: 2,
+                  recentFileCount: 1,
+                  earlierToolResultBlockCount: 1,
+                  recapFingerprint: 'abcd1234efef5678',
+                },
               },
               lifecycleMarkers: [
                 {
@@ -210,6 +221,17 @@ describe('rpcContracts', () => {
             estimatedTokensSaved: 120,
             projectedHistoryTokensAfterCollapse: 55,
             projectedHistoryDeltaTokens: -20,
+            metadata: {
+              schemaVersion: 1,
+              kind: 'request_recap',
+              keepLastTurns: 2,
+              preservedTailMessageCount: 3,
+              retainedCompactSummary: true,
+              recentUserPromptCount: 2,
+              recentFileCount: 1,
+              earlierToolResultBlockCount: 1,
+              recapFingerprint: 'abcd1234efef5678',
+            },
           },
           lifecycleMarkers: [
             {

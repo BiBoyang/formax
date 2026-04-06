@@ -509,7 +509,7 @@ export function rebuildHistoryAfterCompaction(args: {
   ]
 }
 
-function fingerprintPromptMessage(message: PromptMessage): string {
+export function fingerprintPromptMessage(message: PromptMessage): string {
   const normalized = JSON.stringify({
     role: message.role,
     content: Array.isArray(message.content) ? message.content : [],
