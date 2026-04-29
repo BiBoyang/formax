@@ -32,6 +32,18 @@ function parseHost(baseUrl: string): string {
   }
 }
 
+function deriveHostStem(host: string): string | null {
+  const normalized = String(host || '').trim().toLowerCase().split(':')[0] || ''
+  if (!normalized) return null
+  const labels = normalized.split('.').filter(Boolean)
+  if (labels.length === 0) return null
+  const ignoredPrefixes = new Set(['www', 'api', 'gateway', 'open', 'proxy'])
+  let idx = 0
+  while (idx < labels.length - 1 && ignoredPrefixes.has(labels[idx]!)) idx += 1
+  const stem = labels[idx] || ''
+  return /^[a-z0-9-]+$/.test(stem) ? stem : null
+}
+
 export function resolveCatalogProviderKeys(args: { provider: ProviderId; baseUrl: string }): string[] {
   const host = parseHost(args.baseUrl)
   const keys: string[] = []
@@ -59,6 +71,7 @@ export function resolveCatalogProviderKeys(args: { provider: ProviderId; baseUrl
   }
   if (host.includes('anthropic.com')) push('anthropic')
   if (host.includes('openai.com')) push('openai')
+  if (host.includes('deepseek.com')) push('deepseek')
 
   if (args.provider === 'openai') {
     push('openai')
@@ -72,6 +85,9 @@ export function resolveCatalogProviderKeys(args: { provider: ProviderId; baseUrl
       push('minimax')
     }
   }
+
+  const hostStem = deriveHostStem(host)
+  if (keys.length === 0 && hostStem) push(hostStem)
 
   return keys
 }
@@ -125,6 +141,23 @@ export async function getModelContextWindowsFromCatalog(args: {
       }
     }
   }
+
+  // Fallback for provider-key misses: search remaining model IDs across all
+  // catalog providers to avoid strict host-key coupling.
+  const missing = modelIds.filter((modelId) => out[modelId] === undefined)
+  if (missing.length > 0) {
+    for (const modelId of missing) {
+      for (const providerInfo of Object.values(catalog)) {
+        const candidate = providerInfo?.models?.[modelId]?.limit?.context
+        const context = toPositiveInt(candidate)
+        if (context) {
+          out[modelId] = context
+          break
+        }
+      }
+    }
+  }
+
   return out
 }
 

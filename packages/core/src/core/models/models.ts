@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { extractContextWindowTokens } from './contextWindow.js'
 
@@ -131,6 +130,28 @@ function buildOpenAIDefaultModel(model: string): ModelInfo {
   }
 }
 
+function extractModelsArray(data: unknown): any[] {
+  return Array.isArray((data as any)?.data)
+    ? (data as any).data
+    : Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.models)
+        ? (data as any).models
+        : []
+}
+
+function mapRawModelsToAnthropicInfo(modelsData: any[]): ModelInfo[] {
+  return modelsData.map((model: any) => ({
+    model: model.modelName || model.id || model.name || model.model || 'unknown',
+    provider: 'anthropic',
+    max_tokens: model.max_tokens || model.context_length || 8192,
+    contextWindowTokens: extractContextWindowTokens(model) ?? model.max_tokens,
+    supports_reasoning_effort: false,
+    supports_vision: Boolean(model.supports_vision ?? true),
+    supports_function_calling: model.supports_function_calling ?? true,
+  }))
+}
+
 /**
  * Fetch available models from Anthropic API
  */
@@ -157,24 +178,10 @@ export async function fetchAnthropicModels(
 
     if (response.ok) {
       const data = await response.json()
-      const modelsData = Array.isArray((data as any)?.data)
-        ? (data as any).data
-        : Array.isArray(data)
-          ? data
-          : Array.isArray((data as any)?.models)
-            ? (data as any).models
-            : []
+      const modelsData = extractModelsArray(data)
 
       if (Array.isArray(modelsData) && modelsData.length > 0) {
-        return modelsData.map((model: any) => ({
-          model: model.modelName || model.id || model.name || model.model || 'unknown',
-          provider: 'anthropic',
-          max_tokens: model.max_tokens || model.context_length || 8192,
-          contextWindowTokens: extractContextWindowTokens(model) ?? model.max_tokens,
-          supports_reasoning_effort: false,
-          supports_vision: Boolean(model.supports_vision ?? true),
-          supports_function_calling: model.supports_function_calling ?? true,
-        }))
+        return mapRawModelsToAnthropicInfo(modelsData)
       }
     }
   } catch (error) {
@@ -182,15 +189,68 @@ export async function fetchAnthropicModels(
     // Fall back to default list below
   }
 
+  // Some Anthropic-compatible vendors (e.g. DeepSeek) expose model listing on the
+  // OpenAI-style root instead of Anthropic /v1/models.
+  if (/\/anthropic$/i.test(apiBase)) {
+    const openAiStyleBase = apiBase.replace(/\/anthropic$/i, '')
+    const modelUrls = /\/v\d+$/i.test(openAiStyleBase)
+      ? [`${openAiStyleBase}/models`]
+      : [`${openAiStyleBase}/models`, `${openAiStyleBase}/v1/models`]
+    for (const url of modelUrls) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        if (!response.ok) continue
+        const data = await response.json()
+        const modelsData = extractModelsArray(data)
+        if (Array.isArray(modelsData) && modelsData.length > 0) {
+          return mapRawModelsToAnthropicInfo(modelsData)
+        }
+      } catch {
+        // Try next URL candidate.
+      }
+    }
+  }
+
   try {
-    const anthropic = new Anthropic({
-      apiKey: apiKey,
-      baseURL: apiBase,
+    // Anthropic-compatible endpoints may not expose /v1/models.
+    // Validate auth/connectivity via a minimal /v1/messages call and then use fallback models.
+    const checkResponse = await fetch(`${apiBase}/v1/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-latest',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'test' }],
+      }),
     })
+
+    if (!checkResponse.ok) {
+      if (checkResponse.status === 401) {
+        throw new Error('Invalid API key. Please check your API key and try again.')
+      }
+      if (checkResponse.status === 403) {
+        throw new Error('API key does not have permission to access models.')
+      }
+      if (checkResponse.status === 429) {
+        throw new Error('Too many requests. Please wait a moment and try again.')
+      }
+      if (checkResponse.status >= 500) {
+        throw new Error('API service is temporarily unavailable. Please try again later.')
+      }
+      throw new Error(
+        `Unable to validate Anthropic-compatible endpoint (${checkResponse.status}).`,
+      )
+    }
 
     // Anthropic doesn't have a models.list() endpoint, so we return common models
     // These are the standard Claude models available with metadata
-    const commonModels: ModelInfo[] = [
+    return [
       {
         model: 'claude-3-5-sonnet-latest',
         provider: 'anthropic',
@@ -237,28 +297,6 @@ export async function fetchAnthropicModels(
         supports_function_calling: true,
       },
     ]
-
-    // Test the API key by making a simple request using the provided base URL
-    try {
-      await anthropic.messages.create({
-        model: commonModels[0].model,
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'test' }],
-      })
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('401') || error.message.includes('authentication')) {
-          throw new Error('Invalid API key. Please check your API key and try again.')
-        }
-        if (error.message.includes('403')) {
-          throw new Error('API key does not have permission to access models.')
-        }
-        throw new Error(`API error: ${error.message}`)
-      }
-      throw error
-    }
-
-    return commonModels
   } catch (error) {
     if (error instanceof Error) {
       if (error.message.includes('fetch') || error.message.includes('network')) {

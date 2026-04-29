@@ -14,6 +14,7 @@ const mockedFetchAnthropicModels = fetchAnthropicModels as unknown as ReturnType
 const mockedFetchCustomModels = fetchCustomModels as unknown as ReturnType<typeof vi.fn>
 const mockedGetModelContextWindowsFromCatalog = getModelContextWindowsFromCatalog as unknown as ReturnType<typeof vi.fn>
 const mockedResolveCatalogProviderKeys = resolveCatalogProviderKeys as unknown as ReturnType<typeof vi.fn>
+const originalFetch = globalThis.fetch
 
 describe('testSetupConnection', () => {
   beforeEach(() => {
@@ -23,6 +24,7 @@ describe('testSetupConnection', () => {
     mockedResolveCatalogProviderKeys.mockReset()
     mockedGetModelContextWindowsFromCatalog.mockResolvedValue({})
     mockedResolveCatalogProviderKeys.mockReturnValue([])
+    globalThis.fetch = originalFetch
   })
 
   it('returns models for anthropic', async () => {
@@ -97,6 +99,37 @@ describe('testSetupConnection', () => {
       models: ['glm-5'],
       modelContextWindows: { 'glm-5': 204800 },
     })
+  })
+
+  it('probes model detail endpoints for missing anthropic-compatible context windows before catalog fallback', async () => {
+    mockedFetchAnthropicModels.mockResolvedValueOnce([{ model: 'deepseek-v4-flash', provider: 'anthropic' }] as any)
+    mockedResolveCatalogProviderKeys.mockReturnValueOnce(['deepseek'])
+    mockedGetModelContextWindowsFromCatalog.mockResolvedValueOnce({})
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url) === 'https://api.deepseek.com/v1/models/deepseek-v4-flash') {
+        return new Response(
+          JSON.stringify({
+            id: 'deepseek-v4-flash',
+            limit: { context: 1_000_000 },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response('nope', { status: 404 })
+    }) as any
+
+    const res = await testSetupConnection({
+      provider: 'anthropic',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'sk',
+    })
+
+    expect(res).toEqual({
+      ok: true,
+      models: ['deepseek-v4-flash'],
+      modelContextWindows: { 'deepseek-v4-flash': 1_000_000 },
+    })
+    expect(mockedGetModelContextWindowsFromCatalog).not.toHaveBeenCalled()
   })
 
   it('uses token_limits.context_window from /v1/models rows before catalog/default fallback', async () => {

@@ -50,6 +50,21 @@ describe('resolveCatalogProviderKeys', () => {
     expect(resolveCatalogProviderKeys({ provider: 'openai', baseUrl: 'https://api.openai.com/v1' })).toEqual([
       'openai',
     ])
+    expect(resolveCatalogProviderKeys({ provider: 'anthropic', baseUrl: 'https://api.deepseek.com/anthropic' })).toEqual([
+      'deepseek',
+    ])
+  })
+
+  it('derives provider key from host stem for generic domains', () => {
+    expect(resolveCatalogProviderKeys({ provider: 'custom' as any, baseUrl: 'https://www.deepseek.com/v1' })).toEqual([
+      'deepseek',
+    ])
+    expect(resolveCatalogProviderKeys({ provider: 'custom' as any, baseUrl: 'https://api.foo.example.com/v1' })).toEqual([
+      'foo',
+    ])
+    expect(resolveCatalogProviderKeys({ provider: 'custom' as any, baseUrl: 'https://gateway.vendorx.example.net/anthropic' })).toEqual([
+      'vendorx',
+    ])
   })
 
   it('returns empty keys for invalid base url with non-openai provider', () => {
@@ -95,6 +110,32 @@ describe('getModelContextWindowsFromCatalog', () => {
 
     expect(out).toEqual({ 'glm-5': 204800, 'glm-4': 128000 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to global model-id lookup when provider keys miss', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        deepseek: {
+          models: {
+            'deepseek-v4-flash': { limit: { context: 1_000_000 } },
+          },
+        },
+        anthropic: {
+          models: {
+            'claude-3-5-sonnet-latest': { limit: { context: 200000 } },
+          },
+        },
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const out = await getModelContextWindowsFromCatalog({
+      providerKeys: ['anthropic'],
+      modelIds: ['deepseek-v4-flash'],
+    })
+
+    expect(out).toEqual({ 'deepseek-v4-flash': 1_000_000 })
   })
 
   it('caches catalog responses in-memory', async () => {

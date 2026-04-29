@@ -144,6 +144,7 @@ describe('useReplStreaming coverage branches', () => {
     await tick()
     await tick()
     expect(harness.contextRef.current?.source).toBe('usage')
+    expect(harness.contextRef.current?.percentRemaining).toBe(100)
 
     harness.emit({ type: 'tool_end', id: 'task-1', result: { tool_use_id: 'task-1', content: 'ok' } })
     await tick()

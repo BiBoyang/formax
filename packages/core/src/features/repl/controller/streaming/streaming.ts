@@ -309,7 +309,12 @@ export function useReplStreaming(args: {
           if (!cfg) return
 
           const usedTokens = sumInputTokens(ev.usage)
-          const stats = computeContextStats({ config: cfg, usedTokens })
+          // Usage events come from provider-reported counters, so do not apply
+          // baseline reserve when computing the live "free %" meter.
+          const stats = computeContextStats({
+            config: { ...cfg, baselineTokens: 0 },
+            usedTokens,
+          })
           args.setContext({
             usedTokens: stats.usedTokens,
             limitTokens: stats.effectiveLimitTokens,

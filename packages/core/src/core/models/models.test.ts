@@ -8,15 +8,8 @@ import {
   inferModelReasoningEffortSupport,
 } from './models'
 
-const { anthropicMessagesCreate, openaiModelsList } = vi.hoisted(() => ({
-  anthropicMessagesCreate: vi.fn(),
+const { openaiModelsList } = vi.hoisted(() => ({
   openaiModelsList: vi.fn(),
-}))
-
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class Anthropic {
-    messages = { create: anthropicMessagesCreate }
-  },
 }))
 
 vi.mock('openai', () => ({
@@ -29,7 +22,6 @@ const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
-  anthropicMessagesCreate.mockReset()
   openaiModelsList.mockReset()
   vi.restoreAllMocks()
 })
@@ -144,7 +136,6 @@ describe('fetchAnthropicModels', () => {
         supports_function_calling: false,
       },
     ])
-    expect(anthropicMessagesCreate).toHaveBeenCalledTimes(0)
   })
 
   it('parses token_limits.context_window from /v1/models responses', async () => {
@@ -177,7 +168,6 @@ describe('fetchAnthropicModels', () => {
         supports_function_calling: true,
       },
     ])
-    expect(anthropicMessagesCreate).toHaveBeenCalledTimes(0)
   })
 
   it('parses alternative response shapes (array and {models:[...]})', async () => {
@@ -213,94 +203,112 @@ describe('fetchAnthropicModels', () => {
         supports_function_calling: true,
       },
     ])
-    expect(anthropicMessagesCreate).toHaveBeenCalledTimes(0)
   })
 
-  it('falls back to common models when /v1/models fetch fails, using the SDK only as a key check', async () => {
+  it('falls back to common models when /v1/models fetch fails, using /v1/messages as a key check', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      return new Response(JSON.stringify({ id: 'ok' }), { status: 200 })
     }) as any
-
-    anthropicMessagesCreate.mockResolvedValueOnce({} as any)
 
     const models = await fetchAnthropicModels('k', 'https://example.com/v1')
     expect(models.length).toBeGreaterThan(0)
     expect(models.every((m) => m.provider === 'anthropic')).toBe(true)
     expect(models.some((m) => m.model.includes('claude'))).toBe(true)
-    expect(anthropicMessagesCreate).toHaveBeenCalledTimes(1)
   })
 
   it('falls back when /v1/models responds with non-OK status', async () => {
-    globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as any
-    anthropicMessagesCreate.mockResolvedValueOnce({} as any)
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) return new Response('nope', { status: 500 })
+      return new Response(JSON.stringify({ id: 'ok' }), { status: 200 })
+    }) as any
     const models = await fetchAnthropicModels('k', 'https://example.com')
     expect(models.length).toBeGreaterThan(0)
     expect(models.every((m) => m.provider === 'anthropic')).toBe(true)
   })
 
   it('falls back when /v1/models returns an OK response with no models array', async () => {
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ nope: true }), { status: 200 })) as any
-    anthropicMessagesCreate.mockResolvedValueOnce({} as any)
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ nope: true }), { status: 200 })
+      return new Response(JSON.stringify({ id: 'ok' }), { status: 200 })
+    }) as any
     const models = await fetchAnthropicModels('k', 'https://example.com')
     expect(models.length).toBeGreaterThan(0)
     expect(models[0]?.provider).toBe('anthropic')
   })
 
-  it('maps SDK 401/authentication errors to an invalid-key message', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+  it('loads models from OpenAI-style endpoint when anthropic base ends with /anthropic', async () => {
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url) === 'https://api.deepseek.com/anthropic/v1/models') {
+        return new Response(JSON.stringify({ nope: true }), { status: 200 })
+      }
+      if (String(url) === 'https://api.deepseek.com/models') {
+        return new Response(
+          JSON.stringify({
+            data: [{ id: 'deepseek-v4-pro' }, { id: 'deepseek-v4-flash' }],
+          }),
+          { status: 200 },
+        )
+      }
+      throw new Error(`Unexpected URL: ${String(url)}`)
     }) as any
 
-    anthropicMessagesCreate.mockRejectedValueOnce(new Error('401 authentication'))
+    const models = await fetchAnthropicModels('k', 'https://api.deepseek.com/anthropic')
+    expect(models.map((m) => m.model)).toEqual(['deepseek-v4-pro', 'deepseek-v4-flash'])
+  })
+
+  it('maps /v1/messages 401 errors to an invalid-key message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      return new Response('unauthorized', { status: 401 })
+    }) as any
 
     await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Invalid API key/i)
   })
 
-  it('maps SDK 403 errors to a permission message', async () => {
+  it('maps /v1/messages 403 errors to a permission message', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      return new Response('forbidden', { status: 403 })
     }) as any
-
-    anthropicMessagesCreate.mockRejectedValueOnce(new Error('403'))
 
     await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/permission/i)
   })
 
-  it('maps network-like SDK errors to a connection message', async () => {
+  it('maps network-like message-check errors to a connection message', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      throw new Error('fetch failed')
     }) as any
-
-    anthropicMessagesCreate.mockRejectedValueOnce(new Error('fetch failed'))
 
     await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Unable to connect/i)
   })
 
-  it('wraps other SDK errors as API error messages', async () => {
+  it('maps /v1/messages 5xx to a service unavailable message', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      return new Response('bad gateway', { status: 503 })
     }) as any
 
-    anthropicMessagesCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/API error: boom/)
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/temporarily unavailable/i)
   })
 
-  it('uses a generic error when the SDK throws a non-Error value', async () => {
+  it('maps other /v1/messages status codes to an endpoint-validation error', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    globalThis.fetch = vi.fn(async () => {
-      throw new Error('network')
+    globalThis.fetch = vi.fn(async (url: any) => {
+      if (String(url).endsWith('/v1/models')) throw new Error('network')
+      return new Response('bad request', { status: 400 })
     }) as any
 
-    anthropicMessagesCreate.mockRejectedValueOnce('nope' as any)
-
-    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(/Failed to fetch Anthropic models/)
+    await expect(fetchAnthropicModels('k', 'https://example.com')).rejects.toThrow(
+      /Unable to validate Anthropic-compatible endpoint \(400\)/i,
+    )
   })
 
   it('falls back to "unknown" model id when anthropic model fields are absent', async () => {
