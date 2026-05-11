@@ -170,4 +170,38 @@ describe('useTranscriptDisplayState', () => {
 
     expect(result.current.activeThreadLatestCompactBoundary).toEqual(latestCompactBoundary)
   })
+
+  it('keeps latest compact boundary visible when active transcript source is replay', () => {
+    const latestCompactBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+      preTokens: 3072,
+      summaryKind: 'model_summary',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 4,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs: [],
+        logsByThreadId: {},
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
+        latestRequestCollapseByThreadId: {},
+      }),
+    )
+
+    expect(result.current.activeThreadLatestCompactBoundary).toEqual(latestCompactBoundary)
+  })
 })

@@ -208,7 +208,8 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-153` 已完成，post-`CCA-153` mainline re-rank 也已完成
    - `CCA-160` 已完成
    - `CCA-161` 已完成
-   - 当前主线已切到 `CCA-162` compact protocol replay / inspection parity
+   - `CCA-162` 已完成：`thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，Web replay runtime 会消费它并在 replay source 下继续显示 compact header
+   - 当前主线已切到 `CCA-163` time-aware microcompact v4
 
 刚完成的上一轮主线：
 

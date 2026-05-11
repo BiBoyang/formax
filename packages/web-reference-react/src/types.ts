@@ -53,6 +53,37 @@ export type CompactBoundarySummary = {
   }
   preTokens?: number
   summaryKind?: 'model_summary' | 'session_memory'
+  keepStrategy?:
+    | {
+        kind: 'keep_last_turns'
+        keepLastTurns: number
+      }
+    | {
+        kind: 'keep_combo'
+        keepLastTurns: number
+        keepMinTokens: number
+        keepMinUserTurns: number
+      }
+  rehydrationPlan?: {
+    schemaVersion: 1
+    items: Array<{
+      kind: 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
+      priority: 'high' | 'medium'
+      status: 'planned' | 'applied'
+    }>
+  }
+  rehydrationCost?: {
+    sectionCount: number
+    estimatedTokens: number
+  }
+  preservedSegment?: {
+    schemaVersion: 1
+    continuationMessageCount: number
+    preservedTailMessageCount: number
+    summaryFingerprint: string
+    headFingerprint: string | null
+    tailFingerprint: string | null
+  }
 }
 
 export type SessionMemoryRestoreSummary = {

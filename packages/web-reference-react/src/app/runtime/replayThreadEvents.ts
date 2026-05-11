@@ -3,6 +3,7 @@ import type { AppAction } from '../../store'
 import type { RpcThreadReplayResult } from '../core/rpcContracts'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
+import type { CompactBoundarySummary } from '../../types'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
@@ -54,6 +55,7 @@ export type ReplayThreadEventsContext = {
   logsByThreadIdRef: { current: Record<string, unknown[]> }
   stateLogsRef: { current: unknown[] }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
+  cacheLatestCompactBoundary: (threadId: string, boundary: CompactBoundarySummary | null | undefined) => void
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string, mode: ReplMode) => void
@@ -209,6 +211,7 @@ export async function replayThreadEvents(
     }
 
     const baselineReplay = await fetchReplayBaseline()
+    ctx.cacheLatestCompactBoundary(threadId, baselineReplay.latestCompactBoundary)
     if (baselineReplay.state) {
       maybeLogInvariantIssues(baselineReplay.state)
       observeCanonicalProtocolAnomalies(baselineReplay.state)
@@ -239,6 +242,7 @@ export async function replayThreadEvents(
     pageCount += 1
     const replay = await fetchReplayPage(after)
     latestCursor = replay.latestCursor
+    ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
     if (replay.state) {
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)

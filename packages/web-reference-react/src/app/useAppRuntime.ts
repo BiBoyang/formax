@@ -329,6 +329,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     logsByThreadIdRef,
     stateLogsRef,
     transcriptSourceByThreadRef,
+    latestCompactBoundaryByThreadIdRef,
+    setLatestCompactBoundaryByThreadId,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,

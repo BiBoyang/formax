@@ -1403,6 +1403,21 @@ describe('rpcContracts', () => {
       nextCursor: 8,
       latestCursor: 9,
       hasGap: false,
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'auto',
+        triggerReason: { kind: 'auto_threshold' },
+        preTokens: 2048,
+        summaryKind: 'session_memory',
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 4,
+          preservedTailMessageCount: 2,
+          summaryFingerprint: 'summary-fp',
+          headFingerprint: 'head-fp',
+          tailFingerprint: 'tail-fp',
+        },
+      },
       pendingSessionMemoryRestore: {
         schemaVersion: 1,
         mode: 'plan',
@@ -1418,6 +1433,21 @@ describe('rpcContracts', () => {
     expect(replay.nextCursor).toBe(8)
     expect(replay.latestCursor).toBe(9)
     expect(replay.hasGap).toBe(false)
+    expect(replay.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 4,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    })
     expect(replay.pendingSessionMemoryRestore).toEqual({
       schemaVersion: 1,
       mode: 'plan',

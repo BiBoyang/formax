@@ -168,8 +168,7 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-162` compact protocol replay / inspection parity
-2. `CCA-163` time-aware microcompact v4
+1. `CCA-163` time-aware microcompact v4
 
 对应含义：
 
@@ -177,7 +176,7 @@ flowchart TD
 2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
 3. `CCA-151` 与 `CCA-161` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface
 4. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-5. post-`CCA-153` mainline re-rank 已完成，当前新的主线已切到 replay / inspection parity
+5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 也已收口，当前新的主线已切到 time-aware microcompact
 
 ## 新主线为什么这样排
 

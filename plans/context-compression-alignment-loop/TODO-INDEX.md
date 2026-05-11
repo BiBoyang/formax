@@ -11,8 +11,7 @@
 
 ## 当前推荐顺序
 
-1. `CCA-162` compact protocol replay / inspection parity
-2. `CCA-163` time-aware microcompact v4
+1. `CCA-163` time-aware microcompact v4
 
 ## 说明
 
@@ -29,7 +28,7 @@
 - post-`CCA-153` mainline re-rank 已完成。
 - `CCA-160` 已完成，working-set selector 已从 filesystem-cluster-aware 推进到 task-minimal v5：当前会把 recent task planning/todo state 与 `task_execution_cluster`（例如 `Read + Edit + TodoWrite`）一起纳入 keep strategy，并把 `taskStateKinds` / `selectionReasons` 暴露到 diagnostics。
 - `CCA-161` 已完成，session-memory restore utility 现在会通过 canonical restore-artifacts 路径生成结构化 `pendingSessionMemoryRestore` 摘要，并让 `thread/resume` / `thread/replay` 在 next-turn-only pending 窗口内共用这份 utility surface。
+- `CCA-162` 已完成，`thread/replay` 现在会直接返回 canonical `latestCompactBoundary`，Web replay runtime 也会消费这份 compact protocol fact，并在 replay source 下继续显示 compact header。
 - 当前重点已经从“继续打磨压缩 plumbing / surface”转向：
-  - replay / inspection parity
   - time-aware microcompact 作为后置增强
 - 仍然不建议直接进入完整 collapse store / archived span 设计。

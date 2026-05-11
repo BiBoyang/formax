@@ -68,7 +68,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
   const activeThreadTitle = useMemo(() => selectThreadTitle(activeThread), [activeThread])
   const activeThreadLatestCompactBoundary = useMemo(
     () =>
-      activeThreadId && activeTranscriptSource === 'history'
+      activeThreadId && (activeTranscriptSource === 'history' || activeTranscriptSource === 'replay')
         ? latestCompactBoundaryByThreadId[activeThreadId] ?? null
         : null,
     [activeThreadId, activeTranscriptSource, latestCompactBoundaryByThreadId],

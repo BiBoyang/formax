@@ -122,6 +122,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     logsByThreadIdRef: { current: { [TEST_THREAD_ID]: [{ id: 'cached-log' }] } },
     stateLogsRef: { current: [{ id: 'active-log' }] },
     transcriptSourceByThreadRef: { current: { [TEST_THREAD_ID]: 'history' } },
+    cacheLatestCompactBoundary: vi.fn(),
     dispatch: vi.fn(),
     setMode: vi.fn(),
     cacheThreadMode: vi.fn(),
@@ -145,6 +146,39 @@ function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
     ...overrides,
   } as ReplayPage
 }
+
+it('caches latest compact boundary from replay responses', async () => {
+  const latestCompactBoundary = {
+    schemaVersion: 1 as const,
+    trigger: 'auto' as const,
+    triggerReason: { kind: 'auto_threshold' as const },
+    preTokens: 1536,
+    summaryKind: 'session_memory' as const,
+    preservedSegment: {
+      schemaVersion: 1 as const,
+      continuationMessageCount: 3,
+      preservedTailMessageCount: 2,
+      summaryFingerprint: 'summary-fp',
+      headFingerprint: 'head-fp',
+      tailFingerprint: 'tail-fp',
+    },
+  }
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      nextCursor: 10,
+      latestCursor: 10,
+      latestCompactBoundary,
+      state: createReplayState(),
+    }),
+  )
+  const cacheLatestCompactBoundary = vi.fn()
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+})
 
 function createReplayTurnEvent(replaySeq: number, method: ReplayTurnEventMethod = 'turn/started'): ReplayTurnEventPayload {
   return {

@@ -114,6 +114,7 @@
 - [2026-05-11 - Web right rail collapse summary](./2026-05-11-web-right-rail-collapse-summary.md)
 - [2026-05-11 - Working-set selector v3](./2026-05-11-working-set-selector-v3.md)
 - [2026-05-12 - App-server session-memory restore consumption v4](./2026-05-12-app-server-session-memory-restore-consumption-v4.md)
+- [2026-05-12 - Compact protocol replay / inspection parity](./2026-05-12-compact-protocol-replay-parity.md)
 - [2026-05-12 - Compact protocol restore alignment](./2026-05-12-compact-protocol-restore-alignment.md)
 - [2026-05-12 - Middle-layer canonical-owner convergence](./2026-05-12-middle-layer-canonical-owner-convergence.md)
 - [2026-05-12 - Session-memory restore utility v5](./2026-05-12-session-memory-restore-utility-v5.md)

@@ -119,7 +119,10 @@
 ## 2.4.2 thread/replay
 
 - 入参：`{ threadId: string, after?: number, limit?: number }`
-- 返回：`{ data, nextCursor, latestCursor, hasGap, state, pendingSessionMemoryRestore? }`
+- 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, pendingSessionMemoryRestore? }`
+  - `latestCompactBoundary` 当前为可选 compact protocol 摘要。
+  - 若存在，它 MUST 与同一 thread 的 canonical replay-backed compact boundary 对齐，并与 `thread/read` / `thread/messages` / `thread/resume` 共用同一 compact protocol 来源。
+  - 该字段 SHOULD 继续沿用已有 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得为 replay / inspection surface 重新组装第二套 compact summary。
   - `pendingSessionMemoryRestore` 当前为可选 next-turn-only restore utility 摘要。
   - 若存在，它 MUST 与同一 thread 最近一次 `thread/resume` 缓存的 pending restore artifact 对齐，并在下一次成功的 `turn/start` / turn-dispatch 消费后消失。
   - 该字段 MUST NOT 被解释为新的 persisted authority；它只描述当前 server-side pending restore utility 窗口。

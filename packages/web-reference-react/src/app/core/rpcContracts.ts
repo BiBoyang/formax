@@ -306,6 +306,7 @@ export type RpcThreadReplayResult = {
   latestCursor: number
   hasGap: boolean
   state: ReplayStateSnapshot | null
+  latestCompactBoundary?: RpcLatestCompactBoundary | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
 
@@ -386,7 +387,14 @@ export function parseInputSubmitResponse(value: unknown): RpcInputSubmitResult {
 }
 
 export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult {
-  return asThreadReplay(value)
+  const replay = asThreadReplay(value)
+  const root = asRecord(value)
+  const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  if (!latestCompactBoundary) return replay
+  return {
+    ...replay,
+    ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+  }
 }
 
 export function parseThreadListResponse(value: unknown): ThreadSummary[] {

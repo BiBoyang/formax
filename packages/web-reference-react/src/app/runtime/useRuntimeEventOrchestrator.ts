@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import type { RpcNotification } from '../../types'
+import type { CompactBoundarySummary, RpcNotification } from '../../types'
 import {
   createInitialThreadRuntimeState,
   isReplMode,
@@ -20,6 +20,7 @@ import {
   type ThreadArchivedHandlerDeps,
 } from './notifications/handleThreadArchived'
 import { withDevPerformanceSync } from '../core/devPerformance'
+import { withRecordValue } from '../core/threadCache'
 
 export type UseRuntimeEventOrchestratorArgs = {
   devPerfEnabled: boolean
@@ -43,6 +44,10 @@ export type UseRuntimeEventOrchestratorArgs = {
   logsByThreadIdRef: ReplayThreadEventsContext['logsByThreadIdRef']
   stateLogsRef: ReplayThreadEventsContext['stateLogsRef']
   transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef']
+  latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
+  setLatestCompactBoundaryByThreadId: (
+    updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>,
+  ) => void
   setThreadTranscriptSource: ReplayThreadEventsContext['setThreadTranscriptSource']
   clearThreadHistoryCursor: ReplayThreadEventsContext['clearThreadHistoryCursor']
   syncPendingInputsFromReplayState: ReplayThreadEventsContext['syncPendingInputsFromReplayState']
@@ -81,12 +86,63 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     logsByThreadIdRef,
     stateLogsRef,
     transcriptSourceByThreadRef,
+    latestCompactBoundaryByThreadIdRef,
+    setLatestCompactBoundaryByThreadId,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,
     loadThreadHistory,
     archivedHandlerDeps,
   } = args
+
+  const areLatestCompactBoundaryEqual = useCallback(
+    (
+      left: CompactBoundarySummary | null | undefined,
+      right: CompactBoundarySummary | null | undefined,
+    ): boolean => {
+      if (!left && !right) return true
+      if (!left || !right) return false
+      const leftKeepMinTokens = left.keepStrategy?.kind === 'keep_combo' ? left.keepStrategy.keepMinTokens : null
+      const rightKeepMinTokens = right.keepStrategy?.kind === 'keep_combo' ? right.keepStrategy.keepMinTokens : null
+      const leftKeepMinUserTurns = left.keepStrategy?.kind === 'keep_combo' ? left.keepStrategy.keepMinUserTurns : null
+      const rightKeepMinUserTurns = right.keepStrategy?.kind === 'keep_combo' ? right.keepStrategy.keepMinUserTurns : null
+      return (
+        left.schemaVersion === right.schemaVersion &&
+        (left.trigger ?? null) === (right.trigger ?? null) &&
+        (left.triggerReason?.kind ?? null) === (right.triggerReason?.kind ?? null) &&
+        (left.triggerReason?.detail ?? null) === (right.triggerReason?.detail ?? null) &&
+        (left.preTokens ?? null) === (right.preTokens ?? null) &&
+        (left.summaryKind ?? null) === (right.summaryKind ?? null) &&
+        (left.keepStrategy?.kind ?? null) === (right.keepStrategy?.kind ?? null) &&
+        (left.keepStrategy?.keepLastTurns ?? null) === (right.keepStrategy?.keepLastTurns ?? null) &&
+        leftKeepMinTokens === rightKeepMinTokens &&
+        leftKeepMinUserTurns === rightKeepMinUserTurns &&
+        (left.rehydrationCost?.sectionCount ?? null) === (right.rehydrationCost?.sectionCount ?? null) &&
+        (left.rehydrationCost?.estimatedTokens ?? null) === (right.rehydrationCost?.estimatedTokens ?? null) &&
+        JSON.stringify(left.rehydrationPlan?.items ?? null) === JSON.stringify(right.rehydrationPlan?.items ?? null) &&
+        (left.preservedSegment?.continuationMessageCount ?? null) ===
+          (right.preservedSegment?.continuationMessageCount ?? null) &&
+        (left.preservedSegment?.preservedTailMessageCount ?? null) ===
+          (right.preservedSegment?.preservedTailMessageCount ?? null) &&
+        (left.preservedSegment?.summaryFingerprint ?? null) ===
+          (right.preservedSegment?.summaryFingerprint ?? null) &&
+        (left.preservedSegment?.headFingerprint ?? null) === (right.preservedSegment?.headFingerprint ?? null) &&
+        (left.preservedSegment?.tailFingerprint ?? null) === (right.preservedSegment?.tailFingerprint ?? null)
+      )
+    },
+    [],
+  )
+
+  const cacheLatestCompactBoundary = useCallback(
+    (threadId: string, boundary: CompactBoundarySummary | null | undefined): void => {
+      if (boundary === undefined) return
+      const current = latestCompactBoundaryByThreadIdRef.current[threadId] ?? null
+      if (areLatestCompactBoundaryEqual(current, boundary)) return
+      latestCompactBoundaryByThreadIdRef.current = withRecordValue(latestCompactBoundaryByThreadIdRef.current, threadId, boundary)
+      setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, boundary))
+    },
+    [areLatestCompactBoundaryEqual, latestCompactBoundaryByThreadIdRef, setLatestCompactBoundaryByThreadId],
+  )
 
   const handleThreadArchivedNotification = useMemo(
     () =>
@@ -179,6 +235,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         logsByThreadIdRef,
         stateLogsRef,
         transcriptSourceByThreadRef,
+        cacheLatestCompactBoundary,
         dispatch,
         setMode,
         cacheThreadMode,
@@ -194,15 +251,18 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       activeThreadIdRef,
       cacheThreadMode,
       clearThreadHistoryCursor,
+      cacheLatestCompactBoundary,
       dispatch,
       handleNotification,
       loadThreadHistory,
+      latestCompactBoundaryByThreadIdRef,
       log,
       logsByThreadIdRef,
       replayAnomalyCountSeenByThreadRef,
       replayCursorByThreadRef,
       request,
       runtimeStateByThreadRef,
+      setLatestCompactBoundaryByThreadId,
       setMode,
       setThreadTranscriptSource,
       stateLogsRef,

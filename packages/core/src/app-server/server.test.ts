@@ -239,6 +239,14 @@ describe('AppServer', () => {
       recapFingerprint: 'abcdef0123456789',
     })
 
+    const replayOut = await server.handleMessage(request(6, 'thread/replay', { threadId: 't-1' }))
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'manual',
+      preTokens: 900,
+      summaryKind: 'model_summary',
+    })
+
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
     expect((messagesOut[0] as any).result.latestCompactBoundary).toEqual({
@@ -256,7 +264,7 @@ describe('AppServer', () => {
     })
 
     const renameOut = await server.handleMessage(
-      request(7, 'thread/rename', { threadId: 't-1', label: 'Renamed in web' }),
+      request(8, 'thread/rename', { threadId: 't-1', label: 'Renamed in web' }),
     )
     expect((renameOut[0] as any).result.thread.id).toBe('t-1')
     expect((renameOut[0] as any).result.thread.label).toBe('Renamed in web')
@@ -282,6 +290,66 @@ describe('AppServer', () => {
     const unarchiveOut = await server.handleMessage(request(10, 'thread/unarchive', { threadId: 't-1' }))
     expect((unarchiveOut[0] as any).result.thread.id).toBe('t-1')
     expect((unarchiveOut[0] as any).result.thread.archivedAt).toBeNull()
+  })
+
+  it('reuses cached latest compact boundary across replay page requests', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: {
+              schemaVersion: 1,
+              trigger: 'auto',
+              preTokens: 1200,
+              summaryKind: 'session_memory',
+            },
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+
+    const baseline = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((baseline[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 1200,
+      summaryKind: 'session_memory',
+    })
+
+    const page = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1', after: 0, limit: 10 }))
+    expect((page[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 1200,
+      summaryKind: 'session_memory',
+    })
+    expect(readThreadCount).toBe(1)
   })
 
   it('maps thread store errors on start/resume/read to rpc errors', async () => {

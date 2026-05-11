@@ -476,6 +476,38 @@ AskUserQuestion payload：
   nextCursor: number
   latestCursor: number
   hasGap: boolean
+  latestCompactBoundary: {
+    schemaVersion: 1
+    trigger?: 'manual' | 'auto' | 'reactive'
+    triggerReason?: { kind: 'auto_threshold' | 'manual' | 'reactive_error'; detail?: string }
+    preTokens?: number
+    summaryKind?: 'model_summary' | 'session_memory'
+    keepStrategy?: {
+      kind: 'fixed_tail' | 'filesystem_cluster'
+      preservedMessageCount: number
+      preservedRecentReadCount?: number
+    }
+    rehydrationPlan?: {
+      schemaVersion: 1
+      items: Array<{
+        kind: 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
+        priority: 'high' | 'medium'
+        status: 'planned' | 'applied'
+      }>
+    }
+    rehydrationCost?: {
+      sectionCount: number
+      estimatedTokens: number
+    }
+    preservedSegment?: {
+      schemaVersion: 1
+      continuationMessageCount: number
+      preservedTailMessageCount: number
+      summaryFingerprint: string
+      headFingerprint: string | null
+      tailFingerprint: string | null
+    }
+  } | null
   pendingSessionMemoryRestore: {
     schemaVersion: 1
     mode: 'normal' | 'acceptEdits' | 'plan'
@@ -533,6 +565,8 @@ AskUserQuestion payload：
 
 - `hasGap = true` 表示 `after` 指向的游标与服务端可重放窗口不连续（例如事件被裁剪）；客户端应丢弃本地增量缓存并改走 `thread/messages` 全量重建，再使用新的 `latestCursor` 继续增量同步。
 - `hasGap = false` 且 `data` 为空，表示当前仅“无新增事件”，不是错误。
+- `latestCompactBoundary` 现在也会进入 `thread/replay`，这样 replay / inspection path 不需要先走 `thread/read` 或 `thread/resume` 才能拿到最近一次 compact protocol fact。
+- 该字段继续使用 canonical replay-backed compact boundary 来源，不允许为 replay surface 重新推导第二套 compact summary。
 - `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
 - `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
 - `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。
