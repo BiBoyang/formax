@@ -2,7 +2,7 @@
 
 目标：围绕 Claude Code 的上下文压缩体系，持续缩小 Formax 在“分层压缩、协议化 compact、状态恢复、可观测性”上的差距，并保持每个增量都可测试、可 review、可提交。
 
-最后更新时间：2026-04-07
+最后更新时间：2026-04-08
 
 ## 这份计划解决什么问题
 
@@ -75,6 +75,17 @@
   - `/context`
 - 已完成：thread-level collapse inspection helper
   - `packages/core/src/app-server/threadStore.ts`
+- 已完成：collapse summary 真实进入 Web / client surface
+  - `packages/web-reference-react/src/app/ui/AppShellHeader.tsx`
+- 已完成：working-set / keep strategy v2
+  - `packages/core/src/chat/context/compact.ts`
+  - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
+- 已完成：session memory deeper restore consumption
+  - `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
+  - `packages/core/src/runtime/bootstrap/session.ts`
+- 已完成：remote / cross-surface compact restore parity
+  - `packages/core/src/app-server/threadStore.ts`
+  - `packages/web-reference-react/src/app/core/rpcContracts.ts`
 - 已完成：persisted collapse state/store 评估
   - `plans/context-compression-alignment-loop/CCA-090-persisted-collapse-state-evaluation.md`
 
@@ -170,12 +181,12 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 
 ### 当前推荐 Top 3
 
-1. `CCA-100` collapse summary 真正进入 Web / client surface
-   - 目标：不只让 parser 能认字段，而是让至少一个实际 surface 展示并消费 `latestRequestCollapse`
-2. `CCA-110` working-set / keep strategy v2
-   - 目标：继续缩小和 Claude Code 在“最小工作集选择”上的差距
-3. `CCA-111` session memory deeper restore consumption
-   - 目标：让 session memory 不只 refresh sidecar，而是进入更直接的恢复消费链
+1. `CCA-120` richer assembled-payload diagnostics ledger
+   - 目标：让 `/context` 更贴近最终 assembled API payload，而不只是分阶段估算
+2. `CCA-121` microcompact strategy v2
+   - 目标：继续补中间层减压能力，扩大 `microcompact` 的策略成熟度与收益稳定性
+3. `CCA-122` reactive compact shaping v2
+   - 目标：让 reactive compact 从“最小 fallback”继续走向更成熟的恢复策略层
 
 ## 与 Claude Code 的差异地图
 

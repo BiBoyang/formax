@@ -1,6 +1,6 @@
 # CCA Dependency Map
 
-更新时间：2026-04-05
+更新时间：2026-04-08
 状态：Active
 
 ## 这份图解决什么问题
@@ -168,17 +168,16 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-012`
+1. `CCA-120` richer assembled-payload diagnostics ledger
+2. `CCA-121` microcompact strategy v2
+3. `CCA-122` reactive compact shaping v2
+4. `CCA-123` richer collapse client consumption / parity
 
 对应含义：
 
-1. 继续把 diagnostics 从“已有 lifecycle 视图”推进到 compact / prune 触发原因解释
-
-补充说明：
-
-- `CCA-063` 已经完成技术评估
-- 当前结论是 runtime `NO-GO`
-- 原因不是“价值不够”，而是当前 `ChatEngine.runTurn()` / `historyRef` 写回模型还不能安全承载 read-time collapse projection
+1. 先把已经完成的 collapse / compact / session-memory / working-set 能力，继续沉淀成更贴近最终 payload 的可观测账本
+2. 再继续补中间层减压与 reactive compact 的成熟度
+3. collapse 这条线继续优先做消费层，不急着重启完整 persisted store
 
 ---
 

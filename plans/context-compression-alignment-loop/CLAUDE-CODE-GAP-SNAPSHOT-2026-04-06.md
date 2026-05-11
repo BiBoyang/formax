@@ -1,4 +1,4 @@
-# Claude Code Gap Snapshot (2026-04-06)
+# Claude Code Gap Snapshot (2026-04-08)
 
 目标：基于当前 Formax 已落地实现，重新评估它与 Claude Code 在“上下文压缩 / 上下文治理”上的差距。
 
@@ -10,7 +10,7 @@
 
 如果把 Claude Code 在上下文压缩这块的成熟度看作 `100`，那么当前 Formax 大约已经走到：
 
-- **76 ~ 82 / 100**
+- **80 ~ 85 / 100**
 
 更准确地说：
 
@@ -179,6 +179,8 @@ Claude Code 的 compact 强，不只是摘要 prompt，而是 compact 后仍能�
 6. session persistence `request_collapse_applied`
 7. latest / inspection helpers
 8. `thread/read` / `thread/messages` / `/context` 都能暴露最近一次 collapse 摘要
+9. Web header 已经真实显示最近一次 request collapse
+10. thread surfaces 现在也会暴露 `latestCompactBoundary`
 
 这意味着：
 
@@ -316,25 +318,24 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ---
 
-## 3.6 session memory 仍未进入更深的 restore 消费
+## 3.6 session memory 仍然缺少更宽的 restore consumption
 
 当前 Formax 的 session memory 已经接进：
 
 - turn completion sidecar 刷新
 - auto compact fallback chain
-
-但还没接进：
-
-- memory-first resume
-- memory-first continue
-- thread restore
+- restore 后 sidecar refresh
+- REPL / CLI 的 one-turn restore reminder injection
 
 这意味着：
 
-> Formax 的 session memory 已经明显进入了 compact 链与 restore refresh，  
-> 但还没完全进“更深的会话恢复消费链”。
+> session memory 已经不只是“被刷新”，而是开始进入 restore 消费链。
 
-这是和 Claude Code 的一个真实差距。
+但和 Claude Code 相比仍然缺：
+
+- 更宽的 cross-surface restore consumption
+- richer thread / remote 恢复协同
+- 更成熟的长期 working-memory surface
 
 ---
 
@@ -378,15 +379,15 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ### P0：最值得继续补
 
-1. **session memory 进入 resume / continue / restore**
-2. **compact 协议继续往 remote / restore / cross-surface 贯通**
-3. **working-set / keep strategy 再升级**
+1. **更接近真实最终 payload 的 diagnostics ledger**
+2. **更成熟的 `microcompact`**
+3. **更强的 reactive compact shaping**
 
-### P1：中层能力继续补
+### P1：继续补齐剩余体系差距
 
-4. **更成熟的 `microcompact`**
-5. **更强的 reactive compact**
-6. **更接近真实最终 payload 的 diagnostics**
+4. **更丰富的 collapse client consumption / parity**
+5. **更宽的 session-memory restore consumption**
+6. **更深的 compact protocol ecosystem**
 
 ### P2：谨慎推进，不要硬上
 
