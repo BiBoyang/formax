@@ -22,11 +22,11 @@ import {
   countNonToolUserTurns,
   deriveAutoCompactWorkingSetSignals,
   estimateCompactRehydrationCost,
-  findLatestWorkingSetAnchor,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   findLatestCompactBoundary,
   getContinuationMessagesAfterLatestCompactBoundary,
+  resolveWorkingSetSignalAnchor,
   resolveHistoryForCompaction,
   type AutoCompactWorkingSetSignals,
   type CompactBoundaryMeta,
@@ -371,30 +371,11 @@ export function analyzeNextTurnFixedContext(args: {
     mode: normalizeDiagnosticsMode(args.mode),
     rehydration: fallbackRehydration,
   })
-  const workingSetAnchor = (() => {
-    const userTurnIndices = promptMessages.reduce<number[]>((out, message, index) => {
-      if (message?.role !== 'user' || !Array.isArray(message.content)) return out
-      if ((message.content as any[]).some((block) => block?.type === 'tool_result')) return out
-      out.push(index)
-      return out
-    }, [])
-    const anchor = findLatestWorkingSetAnchor(promptMessages, userTurnIndices)
-    if (!anchor) return null
-    const keepLastTurns = Math.max(0, Math.floor(args.keepLastTurns ?? 4))
-    const keepMinUserTurns = Math.max(1, 1 + baseWorkingSetSignals.keepMinUserTurnsBoost)
-    const baselineStartTurnPosition = Math.max(0, userTurnIndices.length - Math.max(keepLastTurns, keepMinUserTurns))
-    const anchorBacktrackTurns =
-      anchor.turnPosition < baselineStartTurnPosition &&
-      baselineStartTurnPosition - anchor.turnPosition <= anchor.maxBacktrackTurns
-        ? baselineStartTurnPosition - anchor.turnPosition
-        : 0
-    return {
-      kind: anchor.kind,
-      toolNames: anchor.toolNames,
-      backtrackTurns: anchorBacktrackTurns,
-      maxBacktrackTurns: anchor.maxBacktrackTurns,
-    }
-  })()
+  const workingSetAnchor = resolveWorkingSetSignalAnchor({
+    messages: promptMessages,
+    keepLastTurns: Math.max(0, Math.floor(args.keepLastTurns ?? 4)),
+    keepMinUserTurns: Math.max(1, 1 + baseWorkingSetSignals.keepMinUserTurnsBoost),
+  })
   const workingSetSignals = deriveAutoCompactWorkingSetSignals({
     mode: normalizeDiagnosticsMode(args.mode),
     rehydration: fallbackRehydration,
@@ -1227,6 +1208,7 @@ function buildPostCompactAssembledMessages(args: {
   const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
     keepLastTurns: args.keepLastTurns,
     mode: args.mode,
+    history: compactionScope.tailSourceHistory,
     rehydration,
   })
   const rehydrationPlan = markCompactRehydrationApplied(
@@ -1636,10 +1618,12 @@ function formatWorkingSetSignals(value: AutoCompactWorkingSetSignals | null): st
     `mode_state=${value.modeState}`,
     `keep_tokens_boost=${formatInt(value.keepMinTokensBoost)}`,
     `keep_user_turns_boost=${formatInt(value.keepMinUserTurnsBoost)}`,
+    `task_state_kinds=${value.taskStateKinds.length > 0 ? value.taskStateKinds.join('+') : 'none'}`,
     `anchor_kind=${value.anchorKind}`,
     `anchor_tools=${value.anchorToolNames.length > 0 ? value.anchorToolNames.join('+') : 'none'}`,
     `anchor_backtrack_turns=${formatInt(value.anchorBacktrackTurns)}`,
     `anchor_max_backtrack_turns=${formatInt(value.anchorMaxBacktrackTurns)}`,
+    `selection_reasons=${value.selectionReasons.length > 0 ? value.selectionReasons.join('|') : 'none'}`,
   ].join(', ')
 }
 

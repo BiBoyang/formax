@@ -192,15 +192,19 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 4. `CCA-150`
    - 已完成：working-set / keep strategy v4 第一刀
    - 结果：filesystem task cluster 已不再只允许固定 1-turn rewind，diagnostics 也会显式暴露 `anchorMaxBacktrackTurns`
-5. `CCA-151`
+5. `CCA-160`
+   - 已完成：task-minimal working-set selector v5
+   - 结果：working-set selector 现在会把 recent task planning/todo state 与 `task_execution_cluster` 一起纳入 keep strategy，并通过 `taskStateKinds` / `selectionReasons` 解释为什么当前 tail 被保留
+6. `CCA-151`
    - 已完成：session-memory restore consumption v4
    - 结果：app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为服务端缓存的 next-turn-only injected blocks 消费一次
-6. `CCA-152`
+7. `CCA-152`
    - 已完成：middle-layer canonical-owner convergence
    - 结果：`contextCompressionService` 的 post-compact/manual/reactive/finalize 路径现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history
-7. 下一步
+8. 下一步
    - `CCA-153` 已完成，post-`CCA-153` mainline re-rank 也已完成
-   - 当前主线已切到 `CCA-160` task-minimal working-set selector v5
+   - `CCA-160` 已完成
+   - 当前主线已切到 `CCA-161` session-memory restore utility v5
 
 刚完成的上一轮主线：
 
@@ -260,7 +264,7 @@ Formax 当前：
 - `CCA-153` 已完成
 - post-`CCA-153` mainline re-rank 已完成
 - 当前主线已经切到：
-  - `CCA-160` task-minimal working-set selector v5
+  - `CCA-161` session-memory restore utility v5
 
 ## B. `microcompact` 能力深度
 
@@ -324,7 +328,7 @@ Claude Code：
 Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
-  - 当前 working-set anchor 已覆盖 filesystem cluster，并开始按 anchor kind 区分回卷窗口；但仍未达到真正 task-minimal 的 working-set 识别
+  - 当前 working-set selector 已达到 task-minimal v5 第一版：除了 filesystem cluster，当前也会把 `task_execution_cluster` 与 recent planning/todo state 一起纳入 keep strategy；但 session-memory restore utility 与 replay/inspection parity 仍然落后
   - manual compact 还没有组合 keep 策略
   - 还没有更广义的“任务最小工作集”选择
 

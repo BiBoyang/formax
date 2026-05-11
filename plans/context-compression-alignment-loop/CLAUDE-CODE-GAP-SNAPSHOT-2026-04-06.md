@@ -201,7 +201,7 @@ Claude Code 的真正强项之一，不只是 reducer 多，而是它更接近�
 
 当前 Formax 已经有：
 
-- working-set selector v4
+- working-set selector v5
 - session-memory restore consumption v4
 - canonical owner convergence
 - compact protocol remote / restore alignment

@@ -168,21 +168,20 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-160` task-minimal working-set selector v5
-2. `CCA-161` session-memory restore utility v5
-3. `CCA-162` compact protocol replay / inspection parity
-4. `CCA-163` time-aware microcompact v4
+1. `CCA-161` session-memory restore utility v5
+2. `CCA-162` compact protocol replay / inspection parity
+3. `CCA-163` time-aware microcompact v4
 
 对应含义：
 
 1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
-2. `CCA-150` 已完成，working-set selector 已开始按 anchor kind 区分 backtrack window
+2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
 3. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-4. post-`CCA-153` mainline re-rank 已完成，当前新的主线应切到 task-minimal working context
+4. post-`CCA-153` mainline re-rank 已完成，当前新的主线应切到 session-memory restore utility
 
 ## 新主线为什么这样排
 
-### `CCA-160` 为什么排第一
+### `CCA-160` 为什么先做
 
 `CCA-150` 已经解决了“filesystem exploration 不该被过早丢掉”，但还没有真正解决：
 
@@ -193,6 +192,12 @@ flowchart TD
 如果不先做 `CCA-160`，后面的 session-memory utility 与 replay parity 都会继续建立在“working-set 还不够 task-minimal”的基础上，边际收益会被压低。
 
 ### `CCA-161` 为什么排第二
+
+`CCA-160` 已完成后，当前剩余差距已经从“working-set 还不够 task-minimal”收敛成：
+
+1. restore 后的 session-memory 还不够实用
+2. compact protocol 在 replay / inspection 面还不够深
+3. time-aware microcompact 仍然是后置增强项
 
 `CCA-151` 已经把 restore reminder 注入做到了 app-server surface。  
 但 session-memory 目前还更像：

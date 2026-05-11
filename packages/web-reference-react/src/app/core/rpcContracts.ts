@@ -218,6 +218,7 @@ export type RpcNextTurnFixedContextDiagnostics = {
   assembledLedger?: RpcAssembledLedgerRow[]
   strategyCoordination?: RpcContextStrategyCoordinationFact[]
   strategyControlPlane?: RpcContextStrategyControlPlane
+  workingSetSignals?: RpcWorkingSetSignals
   toolResultBudgetImpact?: RpcToolResultBudgetImpact
   microCompactImpact: RpcMicroCompactImpact
   snipImpact?: RpcSnipImpact
@@ -233,6 +234,21 @@ export type RpcNextTurnFixedContextDiagnostics = {
   autoCompactSkipReason?: string | null
   pruneSkipReason?: string | null
   topAssembledContributors: RpcContextContributor[]
+}
+
+export type RpcWorkingSetSignals = {
+  recentFileCount: number
+  hasPlanState: boolean
+  hasTodoState: boolean
+  modeState: 'normal' | 'acceptEdits' | 'plan'
+  keepMinTokensBoost: number
+  keepMinUserTurnsBoost: number
+  taskStateKinds?: Array<'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'>
+  selectionReasons?: string[]
+  anchorKind: 'none' | 'read' | 'filesystem_cluster' | 'task_execution_cluster'
+  anchorToolNames: string[]
+  anchorBacktrackTurns: number
+  anchorMaxBacktrackTurns: number
 }
 
 export type RpcContextDiagnosticsPayload = {
@@ -1089,6 +1105,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   const strategyControlPlane =
     record.strategyControlPlane == null ? undefined : parseStrategyControlPlane(record.strategyControlPlane)
   if (record.strategyControlPlane != null && !strategyControlPlane) return null
+  const workingSetSignals = record.workingSetSignals == null ? undefined : parseWorkingSetSignals(record.workingSetSignals)
+  if (record.workingSetSignals != null && !workingSetSignals) return null
   const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
   if (record.collapseImpact != null && !collapseImpact) return null
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
@@ -1121,6 +1139,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     ...(assembledLedger ? { assembledLedger } : {}),
     ...(strategyCoordination ? { strategyCoordination } : {}),
     ...(strategyControlPlane ? { strategyControlPlane } : {}),
+    ...(workingSetSignals ? { workingSetSignals } : {}),
     ...(toolResultBudgetImpact ? { toolResultBudgetImpact } : {}),
     microCompactImpact,
     ...(snipImpact ? { snipImpact } : {}),
@@ -1137,6 +1156,76 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     ...(pruneSkipReason.present ? { pruneSkipReason: pruneSkipReason.value } : {}),
     topAssembledContributors,
   }
+}
+
+function parseWorkingSetSignals(value: unknown): RpcWorkingSetSignals | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const recentFileCount = asFiniteNumber(record.recentFileCount)
+  const hasPlanState = typeof record.hasPlanState === 'boolean' ? record.hasPlanState : null
+  const hasTodoState = typeof record.hasTodoState === 'boolean' ? record.hasTodoState : null
+  const modeState =
+    record.modeState === 'normal' || record.modeState === 'acceptEdits' || record.modeState === 'plan'
+      ? record.modeState
+      : null
+  const keepMinTokensBoost = asFiniteNumber(record.keepMinTokensBoost)
+  const keepMinUserTurnsBoost = asFiniteNumber(record.keepMinUserTurnsBoost)
+  const taskStateKinds = record.taskStateKinds == null ? undefined : parseWorkingSetTaskStateKinds(record.taskStateKinds)
+  if (record.taskStateKinds != null && !taskStateKinds) return null
+  const selectionReasons = parseOptionalStringList(record.selectionReasons)
+  if (record.selectionReasons !== undefined && !selectionReasons) return null
+  const anchorKind =
+    record.anchorKind === 'none' ||
+    record.anchorKind === 'read' ||
+    record.anchorKind === 'filesystem_cluster' ||
+    record.anchorKind === 'task_execution_cluster'
+      ? record.anchorKind
+      : null
+  const anchorToolNames = parseRequiredStringList(record.anchorToolNames)
+  const anchorBacktrackTurns = asFiniteNumber(record.anchorBacktrackTurns)
+  const anchorMaxBacktrackTurns = asFiniteNumber(record.anchorMaxBacktrackTurns)
+  if (
+    recentFileCount == null ||
+    hasPlanState == null ||
+    hasTodoState == null ||
+    !modeState ||
+    keepMinTokensBoost == null ||
+    keepMinUserTurnsBoost == null ||
+    !anchorKind ||
+    !anchorToolNames ||
+    anchorBacktrackTurns == null ||
+    anchorMaxBacktrackTurns == null
+  ) {
+    return null
+  }
+  return {
+    recentFileCount,
+    hasPlanState,
+    hasTodoState,
+    modeState,
+    keepMinTokensBoost,
+    keepMinUserTurnsBoost,
+    ...(taskStateKinds ? { taskStateKinds } : {}),
+    ...(selectionReasons ? { selectionReasons: selectionReasons.value } : {}),
+    anchorKind,
+    anchorToolNames: anchorToolNames.value,
+    anchorBacktrackTurns,
+    anchorMaxBacktrackTurns,
+  }
+}
+
+function parseWorkingSetTaskStateKinds(
+  value: unknown,
+): Array<'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'> | null {
+  if (!Array.isArray(value)) return null
+  const out: Array<'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'> = []
+  for (const item of value) {
+    if (item !== 'recent_files' && item !== 'plan_state' && item !== 'todo_state' && item !== 'mode_state') {
+      return null
+    }
+    out.push(item)
+  }
+  return out
 }
 
 function parseAssembledLedger(value: unknown): RpcAssembledLedgerRow[] | null {

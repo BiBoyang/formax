@@ -56,6 +56,20 @@ function globToolUse(id: string, pattern: string): PromptMessage {
   }
 }
 
+function editToolUse(id: string, filePath: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Edit', input: { file_path: filePath, old_string: 'a', new_string: 'b' } }] as any,
+  }
+}
+
+function todoWriteToolUse(id: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'TodoWrite', input: { todos: [{ content: 'patch compact flow', status: 'in_progress' }] } }] as any,
+  }
+}
+
 function toolResult(id: string): PromptMessage {
   return {
     role: 'user',
@@ -279,6 +293,51 @@ describe('selectTailForCompaction', () => {
     })
 
     expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['write release notes', 'y'.repeat(2400)])
+  })
+
+  it('treats recent edit/todo turns as a task-execution working-set anchor for keep_combo', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'inspect auth routes and patch the redirect copy'),
+      readToolUse('read-1', '/repo/src/auth.ts'),
+      toolResult('read-1'),
+      editToolUse('edit-1', '/repo/src/auth.ts'),
+      toolResult('edit-1'),
+      todoWriteToolUse('todo-1'),
+      toolResult('todo-1'),
+      txt('assistant', 'Updated auth.ts and marked the todo in progress.'),
+      txt('user', 'rename the CTA copy'),
+      txt('assistant', 'assistant note'),
+      txt('user', 'rewrite the empty state'),
+      txt('assistant', 'assistant note 2'),
+      txt('user', 'write release notes'),
+      txt('assistant', 'z'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(
+      tail.map((m) => (m.content as any[])[0]?.text ?? (m.content as any[])[0]?.name ?? (m.content as any[])[0]?.type),
+    ).toEqual([
+      'inspect auth routes and patch the redirect copy',
+      'Read',
+      'tool_result',
+      'Edit',
+      'tool_result',
+      'TodoWrite',
+      'tool_result',
+      'Updated auth.ts and marked the todo in progress.',
+      'rename the CTA copy',
+      'assistant note',
+      'rewrite the empty state',
+      'assistant note 2',
+      'write release notes',
+      'z'.repeat(2400),
+    ])
   })
 })
 
@@ -507,6 +566,8 @@ describe('compaction summary helpers', () => {
       modeState: 'plan',
       keepMinTokensBoost: 1050,
       keepMinUserTurnsBoost: 1,
+      taskStateKinds: ['recent_files', 'plan_state', 'todo_state', 'mode_state'],
+      selectionReasons: ['recent_files', 'plan_state', 'todo_state', 'mode_state', 'task_state_combo', 'mode:plan'],
       anchorKind: 'none',
       anchorToolNames: [],
       anchorBacktrackTurns: 0,
@@ -519,6 +580,14 @@ describe('compaction summary helpers', () => {
       buildWorkingSetAwareAutoCompactKeepStrategy({
         keepLastTurns: 3,
         mode: 'acceptEdits',
+        history: [
+          txt('user', 'patch auth flow'),
+          readToolUse('read-1', '/repo/src/auth.ts'),
+          toolResult('read-1'),
+          editToolUse('edit-1', '/repo/src/auth.ts'),
+          toolResult('edit-1'),
+          txt('assistant', 'patched auth flow'),
+        ],
         rehydration: {
           recentFiles: ['/repo/src/auth.ts'],
           todoSummary: '[1. [in_progress] patch compact flow]',
@@ -527,7 +596,44 @@ describe('compaction summary helpers', () => {
     ).toEqual({
       kind: 'keep_combo',
       keepLastTurns: 3,
-      keepMinTokens: 1800,
+      keepMinTokens: 2050,
+      keepMinUserTurns: 3,
+    })
+  })
+
+  it('does not apply task-execution boosts from stale execution clusters', () => {
+    expect(
+      buildWorkingSetAwareAutoCompactKeepStrategy({
+        keepLastTurns: 1,
+        mode: 'plan',
+        history: [
+          txt('user', 'patch auth flow'),
+          readToolUse('read-1', '/repo/src/auth.ts'),
+          toolResult('read-1'),
+          editToolUse('edit-1', '/repo/src/auth.ts'),
+          toolResult('edit-1'),
+          txt('assistant', 'patched auth flow'),
+          txt('user', 'rename CTA'),
+          txt('assistant', 'assistant note'),
+          txt('user', 'rewrite empty state'),
+          txt('assistant', 'assistant note 2'),
+          txt('user', 'write release notes'),
+          txt('assistant', 'assistant note 3'),
+          txt('user', 'final polish'),
+          txt('assistant', 'assistant note 4'),
+          txt('user', 'ship release'),
+          txt('assistant', 'assistant note 5'),
+        ],
+        rehydration: {
+          recentFiles: ['/repo/src/auth.ts'],
+          planPath: '/repo/.formax/plan.md',
+          todoSummary: '[1. [in_progress] patch compact flow]',
+        },
+      }),
+    ).toEqual({
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 2050,
       keepMinUserTurns: 2,
     })
   })

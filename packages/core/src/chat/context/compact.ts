@@ -11,9 +11,16 @@ const AUTO_COMPACT_RECENT_FILE_TOKEN_BOOST = 200
 const AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_TODO_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_MODE_STATE_TOKEN_BOOST = 150
+const AUTO_COMPACT_TASK_EXECUTION_CLUSTER_TOKEN_BOOST = 250
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
 const FILESYSTEM_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS = 2
-const WORKING_SET_ANCHOR_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
+const TASK_EXECUTION_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS = 3
+const WORKING_SET_FILESYSTEM_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
+const WORKING_SET_EXECUTION_TOOL_NAMES = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'TodoWrite'])
+const WORKING_SET_ANCHOR_TOOL_NAMES = new Set([
+  ...WORKING_SET_FILESYSTEM_TOOL_NAMES,
+  ...WORKING_SET_EXECUTION_TOOL_NAMES,
+])
 
 export type CompactBoundaryTrigger = 'manual' | 'auto' | 'reactive'
 export type CompactTriggerReasonKind = 'auto_threshold' | 'manual' | 'reactive_error'
@@ -41,16 +48,25 @@ export type AutoCompactWorkingSetSignals = {
   modeState: 'normal' | 'acceptEdits' | 'plan'
   keepMinTokensBoost: number
   keepMinUserTurnsBoost: number
-  anchorKind: 'none' | 'read' | 'filesystem_cluster'
+  taskStateKinds: CompactRehydrationItemKind[]
+  selectionReasons: string[]
+  anchorKind: 'none' | 'read' | 'filesystem_cluster' | 'task_execution_cluster'
   anchorToolNames: string[]
   anchorBacktrackTurns: number
   anchorMaxBacktrackTurns: number
 }
 
 export type WorkingSetAnchorInfo = {
-  kind: 'read' | 'filesystem_cluster'
+  kind: 'read' | 'filesystem_cluster' | 'task_execution_cluster'
   toolNames: string[]
   turnPosition: number
+  maxBacktrackTurns: number
+}
+
+export type WorkingSetSignalAnchor = {
+  kind: WorkingSetAnchorInfo['kind']
+  toolNames: string[]
+  backtrackTurns: number
   maxBacktrackTurns: number
 }
 
@@ -152,12 +168,7 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     planExcerpt?: string | null
     todoSummary?: string | null
   }
-  workingSetAnchor?: {
-    kind: WorkingSetAnchorInfo['kind']
-    toolNames: string[]
-    backtrackTurns: number
-    maxBacktrackTurns: number
-  } | null
+  workingSetAnchor?: WorkingSetSignalAnchor | null
 }): AutoCompactWorkingSetSignals {
   const recentFileCount = Math.min(
     3,
@@ -171,13 +182,26 @@ export function deriveAutoCompactWorkingSetSignals(args: {
       args.mode === 'plan',
   )
   const hasTodoState = Boolean(String(args.rehydration?.todoSummary ?? '').trim())
+  const taskStateKinds: CompactRehydrationItemKind[] = [
+    ...(recentFileCount > 0 ? (['recent_files'] as const) : []),
+    ...(hasPlanState ? (['plan_state'] as const) : []),
+    ...(hasTodoState ? (['todo_state'] as const) : []),
+    ...(args.mode !== 'normal' ? (['mode_state'] as const) : []),
+  ]
   const keepMinTokensBoost =
     recentFileCount * AUTO_COMPACT_RECENT_FILE_TOKEN_BOOST +
     (hasPlanState ? AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST : 0) +
     (hasTodoState ? AUTO_COMPACT_TODO_STATE_TOKEN_BOOST : 0) +
-    (args.mode !== 'normal' ? AUTO_COMPACT_MODE_STATE_TOKEN_BOOST : 0)
+    (args.mode !== 'normal' ? AUTO_COMPACT_MODE_STATE_TOKEN_BOOST : 0) +
+    (args.workingSetAnchor?.kind === 'task_execution_cluster' ? AUTO_COMPACT_TASK_EXECUTION_CLUSTER_TOKEN_BOOST : 0)
   const keepMinUserTurnsBoost =
-    recentFileCount >= 2 || hasPlanState || hasTodoState ? 1 : 0
+    (recentFileCount >= 2 || hasPlanState || hasTodoState ? 1 : 0) +
+    (args.workingSetAnchor?.kind === 'task_execution_cluster' && taskStateKinds.length > 0 ? 1 : 0)
+  const selectionReasons = buildWorkingSetSelectionReasons({
+    mode: args.mode,
+    taskStateKinds,
+    workingSetAnchor: args.workingSetAnchor ?? null,
+  })
 
   return {
     recentFileCount,
@@ -186,6 +210,8 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     modeState: args.mode,
     keepMinTokensBoost,
     keepMinUserTurnsBoost,
+    taskStateKinds,
+    selectionReasons,
     anchorKind: args.workingSetAnchor?.kind ?? 'none',
     anchorToolNames: args.workingSetAnchor?.toolNames ?? [],
     anchorBacktrackTurns: args.workingSetAnchor?.backtrackTurns ?? 0,
@@ -196,6 +222,7 @@ export function deriveAutoCompactWorkingSetSignals(args: {
 export function buildWorkingSetAwareAutoCompactKeepStrategy(args: {
   keepLastTurns: number
   mode: 'normal' | 'acceptEdits' | 'plan'
+  history?: PromptMessage[]
   rehydration?: {
     recentFiles?: string[]
     planPath?: string | null
@@ -203,10 +230,26 @@ export function buildWorkingSetAwareAutoCompactKeepStrategy(args: {
     todoSummary?: string | null
   }
 }): CompactBoundaryKeepStrategy {
-  const signals = deriveAutoCompactWorkingSetSignals(args)
+  const keepLastTurns = clampCount(args.keepLastTurns)
+  const baseSignals = deriveAutoCompactWorkingSetSignals({
+    mode: args.mode,
+    rehydration: args.rehydration,
+  })
+  const historyAnchor = Array.isArray(args.history)
+    ? resolveWorkingSetSignalAnchor({
+        messages: args.history,
+        keepLastTurns,
+        keepMinUserTurns: AUTO_COMPACT_KEEP_MIN_USER_TURNS + baseSignals.keepMinUserTurnsBoost,
+      })
+    : null
+  const signals = deriveAutoCompactWorkingSetSignals({
+    mode: args.mode,
+    rehydration: args.rehydration,
+    workingSetAnchor: historyAnchor,
+  })
   return {
     kind: 'keep_combo',
-    keepLastTurns: clampCount(args.keepLastTurns),
+    keepLastTurns,
     keepMinTokens: AUTO_COMPACT_KEEP_MIN_TOKENS + signals.keepMinTokensBoost,
     keepMinUserTurns: AUTO_COMPACT_KEEP_MIN_USER_TURNS + signals.keepMinUserTurnsBoost,
   }
@@ -653,19 +696,67 @@ export function findLatestWorkingSetAnchor(
     if (turnPosition == null) return null
     const toolNames = collectWorkingSetAnchorToolNames(messages, userTurnIndices, turnPosition, successfulToolResultIds)
     if (toolNames.length === 0) return null
+    const hasFilesystemTool = toolNames.some((toolName) => WORKING_SET_FILESYSTEM_TOOL_NAMES.has(toolName))
+    const hasExecutionTool = toolNames.some((toolName) => WORKING_SET_EXECUTION_TOOL_NAMES.has(toolName))
+    const kind =
+      hasExecutionTool
+        ? 'task_execution_cluster'
+        : toolNames.length === 1 && toolNames[0] === 'Read'
+          ? 'read'
+          : 'filesystem_cluster'
 
     return {
-      kind: toolNames.length === 1 && toolNames[0] === 'Read' ? 'read' : 'filesystem_cluster',
+      kind,
       toolNames,
       turnPosition,
-      maxBacktrackTurns:
-        toolNames.length === 1 && toolNames[0] === 'Read'
+      maxBacktrackTurns: hasExecutionTool
+        ? TASK_EXECUTION_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS
+        : toolNames.length === 1 && toolNames[0] === 'Read'
           ? READ_WORKING_SET_MAX_BACKTRACK_TURNS
-          : FILESYSTEM_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS,
+          : hasFilesystemTool
+            ? FILESYSTEM_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS
+            : READ_WORKING_SET_MAX_BACKTRACK_TURNS,
     }
   }
 
   return null
+}
+
+function resolveLatestWorkingSetAnchor(messages: PromptMessage[]): WorkingSetAnchorInfo | null {
+  return findLatestWorkingSetAnchor(messages, findLastNonToolUserIndices(messages))
+}
+
+export function resolveWorkingSetSignalAnchor(args: {
+  messages: PromptMessage[]
+  keepLastTurns: number
+  keepMinUserTurns: number
+}): WorkingSetSignalAnchor | null {
+  const userTurnIndices = findLastNonToolUserIndices(args.messages)
+  if (userTurnIndices.length === 0) return null
+  const anchor = findLatestWorkingSetAnchor(args.messages, userTurnIndices)
+  if (!anchor) return null
+
+  const baselineStartTurnPosition = Math.max(
+    0,
+    userTurnIndices.length - Math.max(clampCount(args.keepLastTurns), clampCount(args.keepMinUserTurns)),
+  )
+  if (anchor.turnPosition >= baselineStartTurnPosition) {
+    return {
+      kind: anchor.kind,
+      toolNames: anchor.toolNames,
+      backtrackTurns: 0,
+      maxBacktrackTurns: anchor.maxBacktrackTurns,
+    }
+  }
+
+  const backtrackTurns = baselineStartTurnPosition - anchor.turnPosition
+  if (backtrackTurns > anchor.maxBacktrackTurns) return null
+  return {
+    kind: anchor.kind,
+    toolNames: anchor.toolNames,
+    backtrackTurns,
+    maxBacktrackTurns: anchor.maxBacktrackTurns,
+  }
 }
 
 function collectWorkingSetAnchorToolNames(
@@ -692,6 +783,37 @@ function collectWorkingSetAnchorToolNames(
   }
 
   return Array.from(names).sort()
+}
+
+function buildWorkingSetSelectionReasons(args: {
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  taskStateKinds: CompactRehydrationItemKind[]
+  workingSetAnchor: {
+    kind: WorkingSetAnchorInfo['kind']
+    toolNames: string[]
+    backtrackTurns: number
+    maxBacktrackTurns: number
+  } | null
+}): string[] {
+  const reasons = new Set<string>(args.taskStateKinds)
+  if (args.workingSetAnchor) {
+    reasons.add(
+      `anchor:${args.workingSetAnchor.kind}:${args.workingSetAnchor.toolNames.length > 0 ? args.workingSetAnchor.toolNames.join('+') : 'none'}`,
+    )
+    if (args.workingSetAnchor.backtrackTurns > 0) {
+      reasons.add('anchor_backtrack_applied')
+    }
+    if (args.workingSetAnchor.kind === 'task_execution_cluster' && args.taskStateKinds.length > 0) {
+      reasons.add('task_execution_cluster_boost')
+    }
+  }
+  if (args.taskStateKinds.includes('plan_state') && args.taskStateKinds.includes('todo_state')) {
+    reasons.add('task_state_combo')
+  }
+  if (args.mode !== 'normal') {
+    reasons.add(`mode:${args.mode}`)
+  }
+  return Array.from(reasons)
 }
 
 function findUserTurnPositionAtOrBeforeIndex(userTurnIndices: number[], messageIndex: number): number | null {

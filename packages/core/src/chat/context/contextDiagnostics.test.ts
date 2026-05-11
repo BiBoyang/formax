@@ -1020,6 +1020,8 @@ describe('contextDiagnostics', () => {
       modeState: 'plan',
       keepMinTokensBoost: 600,
       keepMinUserTurnsBoost: 1,
+      taskStateKinds: ['recent_files', 'plan_state', 'mode_state'],
+      selectionReasons: ['recent_files', 'plan_state', 'mode_state', 'anchor:read:Read', 'mode:plan'],
       anchorKind: 'read',
       anchorToolNames: ['Read'],
       anchorBacktrackTurns: 0,
@@ -1063,6 +1065,7 @@ describe('contextDiagnostics', () => {
     expect(out.workingSetSignals.anchorToolNames).toEqual(['Glob', 'Grep'])
     expect(out.workingSetSignals.anchorBacktrackTurns).toBe(1)
     expect(out.workingSetSignals.anchorMaxBacktrackTurns).toBe(2)
+    expect(out.workingSetSignals.selectionReasons).toContain('anchor:filesystem_cluster:Glob+Grep')
   })
 
   it('does not overstate anchor backtrack when keepMinUserTurns boost already expands the baseline', () => {
@@ -1136,6 +1139,61 @@ describe('contextDiagnostics', () => {
     expect(out.workingSetSignals.anchorToolNames).toEqual(['Glob', 'Grep'])
     expect(out.workingSetSignals.anchorBacktrackTurns).toBe(2)
     expect(out.workingSetSignals.anchorMaxBacktrackTurns).toBe(2)
+  })
+
+  it('reports task-execution-cluster working-set anchor details in next-turn diagnostics', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      system: [{ type: 'text', text: 'sys' }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'inspect auth.ts and patch redirect handling' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'ok' }] as any },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'edit-1', name: 'Edit', input: { file_path: '/repo/src/auth.ts', old_string: 'a', new_string: 'b' } },
+          ] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'edit-1', content: 'ok' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'todo-1', name: 'TodoWrite', input: { todos: [{ content: 'patch redirect', status: 'in_progress' }] } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'todo-1', content: 'ok' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'patched redirect logic' }] as any },
+        { role: 'user', content: [{ type: 'text', text: 'rename the CTA' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'assistant note' }] as any },
+        { role: 'user', content: [{ type: 'text', text: 'rewrite the empty state' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'assistant note 2' }] as any },
+        { role: 'user', content: [{ type: 'text', text: 'write release notes' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(2400) }] as any },
+      ],
+      fixedGroups: [],
+      keepLastTurns: 1,
+      enableAutoCompact: true,
+      budgetConfig: {
+        contextWindowTokens: 10_000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.7,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(out.workingSetSignals.anchorKind).toBe('task_execution_cluster')
+    expect(out.workingSetSignals.anchorToolNames).toEqual(['Edit', 'Read', 'TodoWrite'])
+    expect(out.workingSetSignals.anchorBacktrackTurns).toBe(2)
+    expect(out.workingSetSignals.anchorMaxBacktrackTurns).toBe(3)
+    expect(out.workingSetSignals.keepMinUserTurnsBoost).toBe(2)
+    expect(out.workingSetSignals.keepMinTokensBoost).toBe(850)
+    expect(out.workingSetSignals.taskStateKinds).toEqual(['recent_files', 'plan_state', 'mode_state'])
+    expect(out.workingSetSignals.selectionReasons).toContain('anchor:task_execution_cluster:Edit+Read+TodoWrite')
+    expect(out.workingSetSignals.selectionReasons).toContain('task_execution_cluster_boost')
   })
 })
 

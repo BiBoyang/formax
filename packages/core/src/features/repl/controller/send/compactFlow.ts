@@ -103,6 +103,7 @@ export async function runCompactFlow(args: {
         ? buildWorkingSetAwareAutoCompactKeepStrategy({
             keepLastTurns: args.keepLastTurns,
             mode: args.mode,
+            history: compactionScope.tailSourceHistory,
             rehydration,
           })
         : {

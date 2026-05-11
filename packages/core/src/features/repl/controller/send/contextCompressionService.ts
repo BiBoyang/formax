@@ -189,6 +189,7 @@ export function createContextCompressionService(deps: {
       const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
         keepLastTurns: args.keepLastTurns,
         mode: deps.mode,
+        history: compactionScope.tailSourceHistory,
         rehydration,
       })
       const rehydrationPlan = markCompactRehydrationApplied(
