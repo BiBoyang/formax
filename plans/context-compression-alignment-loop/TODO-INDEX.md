@@ -11,7 +11,10 @@
 
 ## 当前推荐顺序
 
-1. `CCA-143` snip layer v1（待 `CCA-140 ~ 142` 收口后再开）
+1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
+2. `CCA-145` strategy coordination facts v1
+3. `CCA-146` middle-layer control-plane diagnostics v1
+4. `CCA-143` snip boundary + MVP v1
 
 ## 说明
 
@@ -23,5 +26,9 @@
 - 当前重点已经从“继续打磨 collapse 的最小消费面”转向：
   - 把 query-time 减压步骤收敛成真正独立的中间层策略栈
   - 已补 tool-result budget replacement 与 cache-aware microcompact
-  - 下一步再决定是否开启 `CCA-143` snip layer，或转向更高收益的 restore/replay 主线
+  - 当前剩余的核心结构性差距已经切到：
+    - stage contract / execution-order contract
+    - strategy coordination facts
+    - control-plane diagnostics
+  - `snip` 仍然值得做，但应后置到 stack coordination 更明确之后
 - 仍然不建议直接进入完整 collapse store / archived span 设计。

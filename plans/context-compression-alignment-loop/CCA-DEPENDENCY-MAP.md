@@ -168,15 +168,15 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-140` middle-layer strategy stack scaffolding
-2. `CCA-141` tool-result budget replacement v1
-3. `CCA-142` cache-aware microcompact v3
-4. `CCA-143` snip layer v1（待前 3 项收口后再开）
+1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
+2. `CCA-145` strategy coordination facts v1
+3. `CCA-146` middle-layer control-plane diagnostics v1
+4. `CCA-143` snip boundary + MVP v1
 
 对应含义：
 
 1. `CCA-132` 已完成；post-132 重排已经完成
-2. 当前最大结构性差距已经切换到“独立中间层策略栈”，而不是继续围绕 collapse surface 打补丁
+2. 当前最大结构性差距已经切换到“独立中间层策略栈的协调与控制面成熟度”，而不是继续围绕 collapse surface 打补丁
 
 ## 新主线为什么这样排
 
@@ -199,38 +199,38 @@ flowchart TD
 
 只有这些有了承载，`CCA-141` 才不会变成又一段 ad hoc 逻辑。
 
-### `CCA-141` 先于 `CCA-142`
+### 为什么 `CCA-144` 先于 `CCA-145`
 
-`CCA-142` 的目标是把 `microcompact` 推进到 cache-aware / time-aware 路径。
+`CCA-145` 的目标是统一 coordination facts。
 
-如果没有先做 `CCA-141`，我们还是会把所有 query-time 压缩压力都堆给 `microcompact`，结果会是：
+如果没有先做 `CCA-144`，这些 facts 仍然会建立在隐含 stage semantics 上，结果会是：
 
-1. `microcompact` 继续承担 tool-result budget 管理
-2. `microcompact` 继续承担部分 collapse 前的局部减压
-3. 中间层的职责边界继续模糊
+1. `prune` 是否 terminal fallback 依然说不清
+2. `toolResultBudget` 与 `collapse` 的顺序仍然只是代码事实
+3. future `snip` 的位置仍然没有 contract 可依
 
 所以顺序上更合理的是：
 
-1. 先让 tool-result budget 成为独立层
-2. 再把 `microcompact` 推进到更成熟的 cached/time-aware 路径
+1. 先定义 stage contract / execution-order contract
+2. 再统一 coordination facts
 
 当前状态：
 
 - `CCA-140` 已完成
 - `CCA-141` 已完成
 - `CCA-142` 已完成
-- 当前 backlog 入口是 `CCA-143`
+- 当前 backlog 入口是 `CCA-144`
 
-### `CCA-143` 为什么放后
+### 为什么 `CCA-146` 先于 `CCA-143`
 
-`snip` 是另一条很有价值的中间层，但它比 `CCA-141` 更容易和 `microcompact` / `collapse` 形成职责重叠。
+`CCA-143` 的问题已经不只是“写一个新策略”，而是先要回答它和 `microcompact` / `toolResultBudget` / `collapse` 的边界。
 
 所以更稳的顺序是：
 
-1. 先把策略栈立起来
-2. 先补 budget replacement
-3. 先补 cache-aware microcompact
-4. 再决定 `snip` 的第一版边界
+1. 先把 stage contract 明确
+2. 先把 coordination facts 做稳
+3. 先把 control-plane diagnostics 建立起来
+4. 再决定 `snip` 的第一版边界与 MVP
 
 ---
 

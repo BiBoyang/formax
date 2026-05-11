@@ -224,17 +224,24 @@ Claude Code 的真正强项之一，是它在 `microcompact` 和 full compact �
 
 ### 这条差距现在的实现结论
 
-当前最合理的下一阶段主线，不是直接进入 persisted collapse store，而是先把这条差距拆成一组更稳的增量：
+`CCA-140 ~ 142` 已经把这条差距推进到了一个新阶段：
 
-1. `CCA-140` middle-layer strategy stack scaffolding
-2. `CCA-141` tool-result budget replacement v1
-3. `CCA-142` cache-aware microcompact v3
+1. `CCA-140` middle-layer strategy stack scaffolding 已完成
+2. `CCA-141` tool-result budget replacement v1 已完成
+3. `CCA-142` cache-aware microcompact v3 已完成
+
+所以当前最合理的下一阶段主线，不再是继续优先加新的压缩技巧，而是先把 stack 本身的协调与控制面补成熟：
+
+1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
+2. `CCA-145` strategy coordination facts v1
+3. `CCA-146` middle-layer control-plane diagnostics v1
+4. `CCA-143` snip boundary + MVP v1
 
 原因是：
 
-- 当前 Formax 已经有 `microcompact` / `collapse` / `prune`
-- 真正缺的是它们背后的统一策略承载层
-- 如果没有这层承载，后面的 budget replacement / cached microcompact / snip 很容易继续长成 send-path 特殊分支，而不是中间层体系
+- 当前 Formax 已经有 `microcompact` / `collapse` / `prune` / tool-result budget
+- 真正剩下的核心结构性差距，是 stage semantics、execution order、coordination facts 仍然不够明确
+- 如果不先补这层，`snip` 或 time-aware `microcompact` 很容易再次长成 send-path 特殊分支，而不是更成熟的中间层体系
 
 ---
 

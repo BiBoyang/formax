@@ -210,24 +210,33 @@ Formax 当前：
 
 ### 下一阶段切法
 
-这条差距不适合用“大重构”处理，而应该拆成：
+`CCA-140 ~ 142` 完成后，这条结构性差距已经不再主要表现为“缺新的压缩技巧”，而是：
 
-1. `CCA-140` middle-layer strategy stack scaffolding
-2. `CCA-141` tool-result budget replacement v1
-3. `CCA-142` cache-aware microcompact v3
+1. stage semantics 仍然隐含在代码里
+2. `prune` / `toolResultBudget` / `collapse` 的阶段角色仍然不够明确
+3. coordination facts 还不够厚
+4. control-plane diagnostics 还不够像一个真正的 stack surface
 
-这三刀的关系是：
+所以当前更合理的 14x 主线应当切成：
 
-- `CCA-140` 负责把现有的 `microcompact` / `collapse` / `prune` 从“发送链步骤”收敛成统一 strategy stack
-- `CCA-141` 负责补第一条真正独立的新中间层策略
-- `CCA-142` 才是在统一承载下继续推进 `microcompact` 成熟度
+1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
+2. `CCA-145` strategy coordination facts v1
+3. `CCA-146` middle-layer control-plane diagnostics v1
+4. `CCA-143` snip boundary + MVP v1
+
+这几刀的关系是：
+
+- `CCA-144` 先把现有 stack 的阶段语义与 terminal fallback 讲清楚
+- `CCA-145` 再统一 stage coordination facts
+- `CCA-146` 再把这些 facts 做成真正可消费的 control-plane diagnostics
+- `CCA-143` 最后再开，避免在边界未清楚时把 `snip` 也做成新的 ad hoc 分支
 
 当前状态：
 
 - `CCA-140` 已完成
 - `CCA-141` 已完成
 - `CCA-142` 已完成
-- 下一条 backlog 主线是 `CCA-143` snip layer v1
+- 当前 backlog 入口是 `CCA-144`
 
 ## B. `microcompact` 能力深度
 
