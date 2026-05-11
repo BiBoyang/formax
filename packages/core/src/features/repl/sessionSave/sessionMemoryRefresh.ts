@@ -62,18 +62,61 @@ export async function resolveSessionMemoryRestoreContext(args: {
   }
 }
 
+export type SessionMemoryRestoreArtifacts = {
+  mode: ReplMode
+  planPath: string | null
+  nextTurnInjectedBlocks: PromptBlock[]
+}
+
+export async function resolveSessionMemoryRestoreArtifacts(args: {
+  sessionFilePath: string
+  fallbackMode: ReplMode
+  fallbackPlanPath: string | null
+  readSessionMemoryFileImpl?: (sessionFilePath: string) => Promise<unknown>
+}): Promise<SessionMemoryRestoreArtifacts> {
+  let nextMode: ReplMode = args.fallbackMode
+  let nextPlanPath = normalizePlanPath(args.fallbackPlanPath)
+
+  try {
+    const rawDraft = await (args.readSessionMemoryFileImpl ?? readSessionMemoryFile)(args.sessionFilePath)
+    const restoreState = extractSessionMemoryRestoreState(rawDraft)
+    if (restoreState) {
+      if (nextMode === 'normal') {
+        nextMode = restoreState.mode
+      }
+      if (nextPlanPath === null) {
+        nextPlanPath = normalizePlanPath(restoreState.planPath)
+      }
+    }
+
+    const reminderBlock = isSessionMemoryDraft(rawDraft) ? buildSessionMemoryRestoreReminderBlock(rawDraft) : null
+    const nextTurnInjectedBlocks = reminderBlock ? [reminderBlock] : []
+
+    return {
+      mode: nextMode,
+      planPath: nextPlanPath,
+      nextTurnInjectedBlocks,
+    }
+  } catch {
+    return {
+      mode: nextMode,
+      planPath: nextPlanPath,
+      nextTurnInjectedBlocks: [],
+    }
+  }
+}
+
 export async function buildSessionMemoryRestoreInjectedBlocks(args: {
   sessionFilePath: string
   readSessionMemoryFileImpl?: (sessionFilePath: string) => Promise<unknown>
 }): Promise<PromptBlock[]> {
-  try {
-    const rawDraft = await (args.readSessionMemoryFileImpl ?? readSessionMemoryFile)(args.sessionFilePath)
-    if (!isSessionMemoryDraft(rawDraft)) return []
-    const reminderBlock = buildSessionMemoryRestoreReminderBlock(rawDraft)
-    return reminderBlock ? [reminderBlock] : []
-  } catch {
-    return []
-  }
+  const artifacts = await resolveSessionMemoryRestoreArtifacts({
+    sessionFilePath: args.sessionFilePath,
+    fallbackMode: 'normal',
+    fallbackPlanPath: null,
+    readSessionMemoryFileImpl: args.readSessionMemoryFileImpl,
+  })
+  return artifacts.nextTurnInjectedBlocks
 }
 
 export async function persistSessionMemoryFromHistory(

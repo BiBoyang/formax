@@ -1,8 +1,7 @@
 import { findLatestSessionFile, readSessionFile } from '../../features/repl/sessionSave/index.js'
 import {
-  buildSessionMemoryRestoreInjectedBlocks,
   persistSessionMemoryFromHistory,
-  resolveSessionMemoryRestoreContext,
+  resolveSessionMemoryRestoreArtifacts,
 } from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptBlock } from '../../prompts/index.js'
@@ -30,7 +29,7 @@ export async function resolveInitialSession(args: {
     if (!filePath) return null
     const replay = await readSessionFile(filePath)
     const history = buildActiveHistoryFromSessionReplay(replay.history)
-    const restoreContext = await resolveSessionMemoryRestoreContext({
+    const restoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
       sessionFilePath: filePath,
       fallbackMode: args.mode ?? 'normal',
       fallbackPlanPath: args.planPath ?? null,
@@ -38,18 +37,17 @@ export async function resolveInitialSession(args: {
     await (args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory)({
       sessionFilePath: filePath,
       cwd: args.cwd,
-      mode: restoreContext.mode,
-      planPath: restoreContext.planPath,
+      mode: restoreArtifacts.mode,
+      planPath: restoreArtifacts.planPath,
       history,
     }).catch(() => undefined)
-    const nextTurnInjectedBlocks = await buildSessionMemoryRestoreInjectedBlocks({
-      sessionFilePath: filePath,
-    })
     return {
       filePath,
       messages: replay.messages,
       history,
-      ...(nextTurnInjectedBlocks.length > 0 ? { nextTurnInjectedBlocks } : {}),
+      ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
+        ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
+        : {}),
     }
   } catch {
     return null

@@ -41,6 +41,32 @@ vi.mock('../features/repl/sessionSave/writer.js', () => ({
 
 vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
   persistSessionMemoryFromHistory: async (args: unknown) => await state.persistSessionMemoryForRestore(args),
+  resolveSessionMemoryRestoreArtifacts: async (args: {
+    sessionFilePath: string
+    fallbackMode: 'normal' | 'acceptEdits' | 'plan'
+    fallbackPlanPath: string | null
+  }) => {
+    const raw = await state.readSessionMemoryFile(args.sessionFilePath)
+    const activeTask =
+      raw && typeof raw === 'object' && raw !== null && 'activeTask' in raw && typeof raw.activeTask === 'object'
+        ? (raw.activeTask as Record<string, unknown>)
+        : null
+    const mode =
+      args.fallbackMode === 'normal' &&
+      (activeTask?.mode === 'normal' || activeTask?.mode === 'acceptEdits' || activeTask?.mode === 'plan')
+        ? (activeTask.mode as 'normal' | 'acceptEdits' | 'plan')
+        : args.fallbackMode
+    const planPath =
+      args.fallbackPlanPath ??
+      (typeof activeTask?.planPath === 'string' && activeTask.planPath.trim().length > 0
+        ? activeTask.planPath.trim()
+        : null)
+    const nextTurnInjectedBlocks =
+      raw && typeof raw === 'object' && raw !== null && (raw as { schemaVersion?: unknown }).schemaVersion === 1
+        ? [{ type: 'text', text: 'Restored session memory for the next turn only:\n- mocked restore state' }]
+        : []
+    return { mode, planPath, nextTurnInjectedBlocks }
+  },
   resolveSessionMemoryRestoreContext: async (args: {
     sessionFilePath: string
     fallbackMode: 'normal' | 'acceptEdits' | 'plan'
@@ -62,6 +88,12 @@ vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
         ? activeTask.planPath.trim()
         : null)
     return { mode, planPath }
+  },
+  buildSessionMemoryRestoreInjectedBlocks: async (args: { sessionFilePath: string }) => {
+    const raw = await state.readSessionMemoryFile(args.sessionFilePath)
+    return raw && typeof raw === 'object' && raw !== null && (raw as { schemaVersion?: unknown }).schemaVersion === 1
+      ? [{ type: 'text', text: 'Restored session memory for the next turn only:\n- mocked restore state' }]
+      : []
   },
 }))
 
@@ -1804,6 +1836,37 @@ describe('sdk query()', () => {
     })
   })
 
+  it('injects one-turn session memory reminder blocks for options.resume', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.user?.content).toHaveLength(2)
+      expect(turnArgs.user?.content?.[0]?.type).toBe('text')
+      expect(turnArgs.user?.content?.[0]?.text).toContain('Restored session memory for the next turn only:')
+      expect(turnArgs.user?.content?.[1]?.type).toBe('text')
+      expect(turnArgs.user?.content?.[1]?.text).toBe('resume prompt')
+      return [...turnArgs.history, turnArgs.user]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findSessionFileBySessionId.mockResolvedValue('/tmp/resume-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-abc', cwd: '/repo' },
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] }],
+    })
+    state.readSessionMemoryFile.mockResolvedValue({
+      schemaVersion: 1,
+      activeTask: {
+        mode: 'plan',
+        planPath: '/repo/.formax/resume-plan.md',
+      },
+    })
+
+    await collectMessages({
+      prompt: 'resume prompt',
+      options: { resume: 'session-abc' },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+  })
+
   it('uses options.sessionId when resume is not provided', async () => {
     const runtime = createRuntimeFixture()
     state.createRuntime.mockResolvedValue(runtime)
@@ -2462,6 +2525,38 @@ describe('sdk query()', () => {
       planPath: '/repo/.formax/continue-plan.md',
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] }],
     })
+  })
+
+  it('injects one-turn session memory reminder blocks for options.continue', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.user?.content).toHaveLength(2)
+      expect(turnArgs.user?.content?.[0]?.type).toBe('text')
+      expect(turnArgs.user?.content?.[0]?.text).toContain('Restored session memory for the next turn only:')
+      expect(turnArgs.user?.content?.[1]?.text).toBe('continue prompt')
+      return [...turnArgs.history, turnArgs.user]
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture({ runTurn }))
+    state.findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'continued-session-id', cwd: '/repo' },
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'continued preserved assistant' }] }],
+    })
+    state.readSessionMemoryFile.mockResolvedValue({
+      schemaVersion: 1,
+      activeTask: {
+        mode: 'acceptEdits',
+        planPath: '/repo/.formax/continue-plan.md',
+      },
+    })
+
+    await collectMessages({
+      prompt: 'continue prompt',
+      options: {
+        continue: true,
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
   })
 
   it('returns conflict when continue sessionId differs from latest without forkSession', async () => {

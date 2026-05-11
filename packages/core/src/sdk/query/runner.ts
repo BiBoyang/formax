@@ -1397,6 +1397,8 @@ async function* runQuery(
         })
       }
 
+      const resumeInjectedPromptBlocks = resumeResolution.nextTurnInjectedBlocks
+      const injectedPromptBlocks = [...resumeInjectedPromptBlocks, ...toolExposure.injectedPromptBlocks]
       const outputMaxRetries =
         outputFormat?.type === 'json_schema' ? Math.max(0, outputFormat.maxRetries ?? 0) : 0
       let currentHistory = history
@@ -1408,7 +1410,7 @@ async function* runQuery(
       let didStructuredOutputFail = false
 
       for (let attempt = 0; attempt <= outputMaxRetries; attempt += 1) {
-        const userForTurn = toUserPromptMessage(currentPrompt, toolExposure.injectedPromptBlocks)
+        const userForTurn = toUserPromptMessage(currentPrompt, injectedPromptBlocks)
         const nextHistoryRaw = await runtime.engine.runTurn({
           history: currentHistory,
           user: userForTurn,
@@ -1433,7 +1435,7 @@ async function* runQuery(
         nextHistory = stripInjectedBlocksFromHistory(
           parsePromptHistory(nextHistoryRaw),
           currentHistory.length,
-          toolExposure.injectedPromptBlocks.length,
+          injectedPromptBlocks.length,
         )
         assistantBlocks = extractLastAssistantMessage(nextHistory)
 

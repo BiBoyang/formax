@@ -5,10 +5,10 @@ import {
 } from '../../features/repl/sessionSave/reader.js'
 import {
   persistSessionMemoryFromHistory,
-  resolveSessionMemoryRestoreContext,
+  resolveSessionMemoryRestoreArtifacts,
 } from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
-import type { PromptMessage } from '../../prompts/index.js'
+import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { QueryOptions } from '../types.js'
 import type { ReplMode } from '../../features/repl/mode.js'
 import {
@@ -21,6 +21,7 @@ type QueryResumeResolution = {
   sessionId: string | null
   history: PromptMessage[]
   sessionFilePath: string | null
+  nextTurnInjectedBlocks: PromptBlock[]
 }
 
 function parseOptionalSessionId(value: string | undefined): string | null {
@@ -53,7 +54,7 @@ async function loadReplayFromFile(args: {
   try {
     const replay = parseRawSessionReplayOutput(rawReplay)
     const history = buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history))
-    const restoreContext = await resolveSessionMemoryRestoreContext({
+    const restoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
       sessionFilePath: args.filePath,
       fallbackMode: args.replMode ?? 'normal',
       fallbackPlanPath: null,
@@ -61,14 +62,15 @@ async function loadReplayFromFile(args: {
     await (args.persistSessionMemoryForRestore ?? persistSessionMemoryFromHistory)({
       sessionFilePath: args.filePath,
       cwd: args.cwd,
-      mode: restoreContext.mode,
-      planPath: restoreContext.planPath,
+      mode: restoreArtifacts.mode,
+      planPath: restoreArtifacts.planPath,
       history,
     }).catch(() => undefined)
     return {
       sessionId: replay.sessionId,
       history,
       sessionFilePath: args.filePath,
+      nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks,
     }
   } catch (error) {
     throw asValidationError(error, `Invalid ${args.context} session data in ${args.filePath}`)
@@ -111,6 +113,7 @@ export async function resolveQueryResumeResolution(args: {
         sessionId: requestedSessionId,
         history: [],
         sessionFilePath: null,
+        nextTurnInjectedBlocks: [],
       }
     }
 
@@ -136,6 +139,7 @@ export async function resolveQueryResumeResolution(args: {
       sessionId: forkSession ? requestedSessionId : requestedSessionId ?? continued.sessionId,
       history: continued.history,
       sessionFilePath: forkSession ? null : continued.sessionFilePath,
+      nextTurnInjectedBlocks: continued.nextTurnInjectedBlocks,
     }
   }
 
@@ -144,6 +148,7 @@ export async function resolveQueryResumeResolution(args: {
       sessionId: requestedSessionId,
       history: [],
       sessionFilePath: null,
+      nextTurnInjectedBlocks: [],
     }
   }
 
@@ -184,5 +189,6 @@ export async function resolveQueryResumeResolution(args: {
     sessionId: forkSession ? requestedSessionId : requestedSessionId ?? resumeSessionId,
     history: resumed.history,
     sessionFilePath: forkSession ? null : resumed.sessionFilePath,
+    nextTurnInjectedBlocks: resumed.nextTurnInjectedBlocks,
   }
 }

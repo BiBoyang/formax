@@ -168,15 +168,11 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-130` working-set selector v3
-2. `CCA-131` session memory deeper restore consumption v3
-3. `CCA-132` compact protocol ecosystem v2
+1. `CCA-132` compact protocol ecosystem v2
 
 对应含义：
 
-1. working-set / keep strategy 继续升级，优先缩小“当前工作集识别”这条差距
-2. session memory 从 restore reminder 继续走向更深的 canonical restore consumption
-3. compact protocol 继续补 cross-surface / remote ecosystem，而不是直接跳完整 persisted store
+1. compact protocol 继续补 cross-surface / remote ecosystem，而不是直接跳完整 persisted store
 
 ---
 

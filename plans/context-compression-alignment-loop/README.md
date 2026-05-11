@@ -177,14 +177,17 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 
 这意味着下一阶段不再适合继续围绕最小 collapse surface 扩面，而更适合回到仍然明显落后于 Claude Code 的 working-set / session-memory / compact-protocol 三条主线。
 
-### 当前推荐 Top 3
+### 当前推荐下一项
+
+1. `CCA-132` compact protocol ecosystem v2
+   - 目标：继续补 compact boundary / preserved segment / rehydration facts 的 cross-surface / remote parity
+
+刚完成的上一轮主线：
 
 1. `CCA-130` working-set selector v3
-   - 目标：继续缩小 keep strategy 与 Claude Code working-set 选择器的差距
+   - 结果：working-set anchor 已从 recent-`Read` 扩成 filesystem tool cluster（`Read` / `Grep` / `Glob`），并在 diagnostics 中解释 anchor 类型与回卷轮数
 2. `CCA-131` session memory deeper restore consumption v3
-   - 目标：让 session memory 更接近 canonical restore input，而不是只停留在 reminder 层
-3. `CCA-132` compact protocol ecosystem v2
-   - 目标：继续补 compact boundary / preserved segment / rehydration facts 的 cross-surface / remote parity
+   - 结果：file-backed SDK `resume/continue` 已进入 canonical restore-artifacts 路径，并支持 one-turn session-memory reminder block
 
 ## 与 Claude Code 的差异地图
 
