@@ -187,6 +187,8 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Estimated tokens saved by collapse: 0')
     expect(out).toContain('- Collapse recap metadata: none')
     expect(out).toContain('- Fixed group breakdown: none')
+    expect(out).toContain('Assembled payload ledger before future user text')
+    expect(out).toContain('- Assembled ledger: none')
     expect(out).toContain('Lifecycle markers before future user text')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
@@ -333,6 +335,32 @@ describe('contextDiagnostics', () => {
     })
 
     expect(out.fixedGroups.map((row) => row.label)).toEqual(['Mode semantic blocks', 'Pending injected blocks'])
+    expect(out.assembledLedger.map((row) => row.kind)).toEqual([
+      'system_total',
+      'request_history',
+      'fixed_group',
+      'fixed_group',
+      'fixed_total',
+      'assembled_total',
+    ])
+    expect(out.assembledLedger[0]).toMatchObject({
+      kind: 'system_total',
+      key: 'system_total',
+      label: 'System prompt total',
+    })
+    expect(out.assembledLedger[1]).toMatchObject({
+      kind: 'request_history',
+      key: 'request_history',
+    })
+    expect(out.assembledLedger[2]).toMatchObject({
+      kind: 'fixed_group',
+      label: 'Mode semantic blocks',
+      blockCount: 1,
+    })
+    expect(out.assembledLedger.at(-1)).toMatchObject({
+      kind: 'assembled_total',
+      tokens: out.totalTokens,
+    })
     expect(out.microCompactImpact.compactedBlocks).toBe(1)
     expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
     expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
@@ -721,6 +749,11 @@ describe('contextDiagnostics', () => {
       projectedHistoryTokensAfterCollapse: parsed.nextTurnFixed.projectedHistoryTokens,
       projectedHistoryDeltaTokens: 0,
       metadata: null,
+    })
+    expect(parsed.nextTurnFixed.assembledLedger).toBeInstanceOf(Array)
+    expect(parsed.nextTurnFixed.assembledLedger[0]).toMatchObject({
+      kind: 'system_total',
+      key: 'system_total',
     })
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('kind')
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('key')

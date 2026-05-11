@@ -68,6 +68,7 @@
 - `docs/learnings/2026-04-07-thread-collapse-inspection-helper.md`
 - `docs/learnings/2026-04-07-working-set-keep-strategy-v2.md`
 - `docs/learnings/2026-04-07-web-header-latest-request-collapse.md`
+- `docs/learnings/2026-05-11-assembled-payload-ledger.md`
 
 ## Web Reference Runtime / Performance
 

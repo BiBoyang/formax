@@ -75,6 +75,15 @@ export type RpcContextLifecycleMarker = {
   shouldAutoCompact: boolean | null
 }
 
+export type RpcAssembledLedgerRow = {
+  kind: 'system_total' | 'request_history' | 'fixed_group' | 'fixed_total' | 'assembled_total'
+  key: string
+  label: string
+  tokens: number
+  messageCount?: number
+  blockCount?: number
+}
+
 export type RpcCompactBoundaryKeepStrategy =
   | {
       kind: 'keep_last_turns'
@@ -154,6 +163,7 @@ export type RpcContextDiagnosticsSnapshot = {
 
 export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
+  assembledLedger?: RpcAssembledLedgerRow[]
   microCompactImpact: RpcMicroCompactImpact
   collapseImpact?: RpcContextCollapseImpact
   lifecycleMarkers?: RpcContextLifecycleMarker[]
@@ -707,6 +717,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     fixedGroups.push({ label, blockCount, tokens })
   }
   const microCompactImpact = parseMicroCompactImpact(record.microCompactImpact)
+  const assembledLedger = record.assembledLedger == null ? undefined : parseAssembledLedger(record.assembledLedger)
+  if (record.assembledLedger != null && !assembledLedger) return null
   const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
   if (record.collapseImpact != null && !collapseImpact) return null
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
@@ -736,6 +748,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   if (!remainingToEffectiveLimit || !remainingToAutoCompactLimit || !shouldAutoCompact) return null
   return {
     fixedGroups,
+    ...(assembledLedger ? { assembledLedger } : {}),
     microCompactImpact,
     ...(collapseImpact ? { collapseImpact } : {}),
     ...(lifecycleMarkers ? { lifecycleMarkers } : {}),
@@ -750,6 +763,40 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     ...(pruneSkipReason.present ? { pruneSkipReason: pruneSkipReason.value } : {}),
     topAssembledContributors,
   }
+}
+
+function parseAssembledLedger(value: unknown): RpcAssembledLedgerRow[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: RpcAssembledLedgerRow[] = []
+  for (const entry of value) {
+    const row = asOptionalRecord(entry)
+    if (!row) return null
+    const kind =
+      row.kind === 'system_total' ||
+      row.kind === 'request_history' ||
+      row.kind === 'fixed_group' ||
+      row.kind === 'fixed_total' ||
+      row.kind === 'assembled_total'
+        ? row.kind
+        : null
+    const key = typeof row.key === 'string' && row.key.trim() ? row.key : null
+    const label = typeof row.label === 'string' && row.label.trim() ? row.label : null
+    const tokens = asFiniteNumber(row.tokens)
+    const messageCount = row.messageCount == null ? undefined : asFiniteNumber(row.messageCount)
+    const blockCount = row.blockCount == null ? undefined : asFiniteNumber(row.blockCount)
+    if (!kind || !key || !label || tokens == null) return null
+    if (row.messageCount != null && messageCount == null) return null
+    if (row.blockCount != null && blockCount == null) return null
+    rows.push({
+      kind,
+      key,
+      label,
+      tokens,
+      ...(messageCount != null ? { messageCount } : {}),
+      ...(blockCount != null ? { blockCount } : {}),
+    })
+  }
+  return rows
 }
 
 function parseLatestCompactBoundary(value: unknown): RpcLatestCompactBoundary | null {

@@ -183,6 +183,20 @@
     - `remainingToAutoCompactLimit`
     - `shouldAutoCompact`
     - `topAssembledContributors`
+  - `local.diagnostics.nextTurnFixed` 当前 SHOULD 额外暴露 `assembledLedger`，用于列出最终 assembled request payload 的固定组成部分；每个 row 当前稳定字段 SHOULD 至少包含：
+    - `kind`
+    - `key`
+    - `label`
+    - `tokens`
+    并 MAY 按 row 类型额外暴露：
+    - `messageCount`
+    - `blockCount`
+    当前 `kind` MAY 为：
+    - `system_total`
+    - `request_history`
+    - `fixed_group`
+    - `fixed_total`
+    - `assembled_total`
   - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
     - `collapseImpact`（request-time collapse 是否生效，以及估算节省量）
     - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）

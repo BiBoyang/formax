@@ -61,6 +61,7 @@ export type NextTurnFixedContextGroup = {
 
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
+  assembledLedger: ContextAssembledLedgerRow[]
   microCompactImpact: MicroCompactImpact
   collapseImpact: ContextCollapseImpact
   workingSetSignals: AutoCompactWorkingSetSignals
@@ -103,6 +104,21 @@ export type ContextContributor = {
   toolUseId?: string
   toolName?: string
   systemSectionKey?: string
+}
+
+export type ContextAssembledLedgerRow = {
+  kind: 'system_total' | 'request_history' | 'fixed_group' | 'fixed_total' | 'assembled_total'
+  key: string
+  label: string
+  tokens: number
+  messageCount?: number
+  blockCount?: number
+}
+
+type FixedGroupSummary = {
+  label: string
+  blockCount: number
+  tokens: number
 }
 
 export type ContextLifecycleMarker = {
@@ -322,6 +338,7 @@ export function analyzeNextTurnFixedContext(args: {
   const projectedHistoryTokensAfterCollapse = estimatePromptTokens({ system: [], messages: collapsedProjectedHistory })
   const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: promptMessages })
   const fixedTokens = preparedFixedMessage ? estimatePromptTokens({ system: [], messages: [preparedFixedMessage] }) : 0
+  const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
   const stats = args.budgetConfig
     ? computeContextStats({
         config: args.budgetConfig,
@@ -330,15 +347,26 @@ export function analyzeNextTurnFixedContext(args: {
     : null
   const budget = args.budgetConfig ? computeContextBudget(args.budgetConfig) : null
 
+  const fixedGroupSummaries = fixedGroups.map((group) => ({
+    label: group.label,
+    blockCount: group.blocks.length,
+    tokens: estimatePromptTokens({
+      system: [],
+      messages: [{ role: 'user', content: group.blocks }],
+    }),
+  }))
+
   return {
-    fixedGroups: fixedGroups.map((group) => ({
-      label: group.label,
-      blockCount: group.blocks.length,
-      tokens: estimatePromptTokens({
-        system: [],
-        messages: [{ role: 'user', content: group.blocks }],
-      }),
-    })),
+    fixedGroups: fixedGroupSummaries,
+    assembledLedger: buildAssembledLedger({
+      system: args.system,
+      systemTokens,
+      collapsedProjectedHistory,
+      projectedHistoryTokensAfterCollapse,
+      fixedGroups: fixedGroupSummaries,
+      fixedTokens,
+      totalTokens,
+    }),
     microCompactImpact: {
       compactedBlocks: microCompactResult.compactedBlocks,
       compactedToolNames: microCompactResult.compactedToolNames,
@@ -380,6 +408,57 @@ export function analyzeNextTurnFixedContext(args: {
       fixedGroups,
     }),
   }
+}
+
+function buildAssembledLedger(args: {
+  system: PromptBlock[]
+  systemTokens: number
+  collapsedProjectedHistory: PromptMessage[]
+  projectedHistoryTokensAfterCollapse: number
+  fixedGroups: FixedGroupSummary[]
+  fixedTokens: number
+  totalTokens: number
+}): ContextAssembledLedgerRow[] {
+  const fixedGroupRows = args.fixedGroups.map(
+    (group, index): ContextAssembledLedgerRow => ({
+      kind: 'fixed_group',
+      key: `fixed_group:${index + 1}`,
+      label: group.label,
+      tokens: group.tokens,
+      blockCount: group.blockCount,
+    }),
+  )
+
+  return [
+    {
+      kind: 'system_total',
+      key: 'system_total',
+      label: 'System prompt total',
+      tokens: args.systemTokens,
+      blockCount: args.system.length,
+    },
+    {
+      kind: 'request_history',
+      key: 'request_history',
+      label: 'Request history after microcompact/prune/collapse',
+      tokens: args.projectedHistoryTokensAfterCollapse,
+      messageCount: args.collapsedProjectedHistory.length,
+    },
+    ...fixedGroupRows,
+    {
+      kind: 'fixed_total',
+      key: 'fixed_total',
+      label: 'Fixed additions total',
+      tokens: args.fixedTokens,
+      blockCount: args.fixedGroups.reduce((sum, group) => sum + group.blockCount, 0),
+    },
+    {
+      kind: 'assembled_total',
+      key: 'assembled_total',
+      label: 'Assembled total before future user text',
+      tokens: args.totalTokens,
+    },
+  ]
 }
 
 export function buildContextDiagnosticsReport(args: {
@@ -582,6 +661,9 @@ export function formatContextDiagnosticsReport(args: {
     `- Auto-compact skip reason: ${args.nextTurn?.autoCompactSkipReason === null ? 'none (visible preconditions met)' : (args.nextTurn?.autoCompactSkipReason ?? 'unknown')}`,
     `- Prune skip reason: ${args.nextTurn?.pruneSkipReason === null ? 'none (prune applied)' : (args.nextTurn?.pruneSkipReason ?? 'unknown')}`,
     '',
+    'Assembled payload ledger before future user text',
+    ...formatAssembledLedger(args.nextTurn?.assembledLedger ?? []),
+    '',
     'Lifecycle markers before future user text',
     ...formatLifecycleMarkers(args.nextTurn?.lifecycleMarkers ?? []),
     '',
@@ -758,6 +840,16 @@ function formatSignedMaybeInt(value: number | null): string {
 function formatFixedGroups(rows: Array<{ label: string; blockCount: number; tokens: number }>): string[] {
   if (rows.length === 0) return ['- Fixed group breakdown: none']
   return rows.map((row) => `- ${row.label}: ${formatInt(row.tokens)} (${formatInt(row.blockCount)} blocks)`)
+}
+
+function formatAssembledLedger(rows: ContextAssembledLedgerRow[]): string[] {
+  if (rows.length === 0) return ['- Assembled ledger: none']
+  return rows.map((row) => {
+    const details: string[] = []
+    if (row.messageCount != null) details.push(`${formatInt(row.messageCount)} messages`)
+    if (row.blockCount != null) details.push(`${formatInt(row.blockCount)} blocks`)
+    return `- ${row.label}: ${formatInt(row.tokens)}${details.length > 0 ? ` (${details.join(', ')})` : ''}`
+  })
 }
 
 function formatLifecycleMarkers(rows: ContextLifecycleMarker[]): string[] {
