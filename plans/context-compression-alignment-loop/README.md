@@ -181,8 +181,10 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 
 1. `CCA-132` compact protocol ecosystem v2
    - 已完成：`latestCompactBoundary` 已进入 Web runtime thread cache / display selector / header surface
-2. 下一步
-   - 需要基于 post-132 状态重新排下一阶段主线，而不是继续沿旧编号顺推
+2. post-`CCA-132` mainline re-rank
+   - 已完成：下一阶段主线已切换到“独立中间层策略栈”而不是继续围绕 collapse 最小消费面扩面
+3. 下一步
+   - 进入 `CCA-140 ~ 142`：先补 scaffolding，再补第一条真正独立的新中间层策略
 
 刚完成的上一轮主线：
 
@@ -196,17 +198,30 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 ## A. 主循环与分层减压
 
 Claude Code：
-- query 前会做多级减压：boundary 视图、tool-result budget、microcompact、collapse、auto/full compact。
+- query 前会做多级减压：boundary 视图、tool-result budget、snip、microcompact、collapse、auto/full compact。
 
 Formax 当前：
-- 已有 `microcompact + prune + compact` 三层主链。
-- `CCA-063` 已完成技术评估，但当前结论是：
-  - 以现有 `ChatEngine.runTurn()` / `historyRef` 写回模型来看，context collapse 一旦接进主链，就会退化成 persisted history 改写
-  - 所以当前 runtime 仍维持 NO-GO，不进入主请求路径
-- 仍缺更成熟的中间层能力：
-  - 更细粒度的结果预算替换
-  - cached collapse / collapse store
-  - richer collapse diagnostics
+- 已有 `microcompact + prune + request-time collapse + compact` 四层主链。
+- request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
+- 当前最大差距已经不再是“有没有中间层步骤”，而是：
+  - 这些步骤还没有形成真正独立的策略栈
+  - tool-result budget replacement 还不存在
+  - snip layer 还不存在
+  - `microcompact` 还没有 cache-aware / time-aware 路径
+
+### 下一阶段切法
+
+这条差距不适合用“大重构”处理，而应该拆成：
+
+1. `CCA-140` middle-layer strategy stack scaffolding
+2. `CCA-141` tool-result budget replacement v1
+3. `CCA-142` cache-aware microcompact v3
+
+这三刀的关系是：
+
+- `CCA-140` 负责把现有的 `microcompact` / `collapse` / `prune` 从“发送链步骤”收敛成统一 strategy stack
+- `CCA-141` 负责补第一条真正独立的新中间层策略
+- `CCA-142` 才是在统一承载下继续推进 `microcompact` 成熟度
 
 ## B. `microcompact` 能力深度
 
