@@ -11,7 +11,10 @@
 
 ## 当前推荐顺序
 
-1. post-`CCA-153` mainline re-rank
+1. `CCA-160` task-minimal working-set selector v5
+2. `CCA-161` session-memory restore utility v5
+3. `CCA-162` compact protocol replay / inspection parity
+4. `CCA-163` time-aware microcompact v4
 
 ## 说明
 
@@ -25,6 +28,9 @@
 - `CCA-151` 已完成，app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为 next-turn-only injected blocks 在服务端消费一次。
 - `CCA-152` 已完成，post-compact/manual/reactive/finalize 这些 surrounding flow 现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history。
 - `CCA-153` 已完成，app-server `thread/resume` 现在也会暴露 canonical `latestCompactBoundary`，Web runtime 会在 restore path 直接消费这份 compact protocol fact。
-- 当前重点已经从“继续打磨 collapse 的最小消费面”转向：
-  - post-`CCA-153` 的主线重排
+- post-`CCA-153` mainline re-rank 已完成。
+- 当前重点已经从“继续打磨压缩 plumbing / surface”转向：
+  - task-minimal working context
+  - session-memory restore utility
+  - replay / inspection parity
 - 仍然不建议直接进入完整 collapse store / archived span 设计。

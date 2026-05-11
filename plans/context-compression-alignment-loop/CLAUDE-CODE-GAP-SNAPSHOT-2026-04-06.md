@@ -1,4 +1,4 @@
-# Claude Code Gap Snapshot (2026-04-08)
+# Claude Code Gap Snapshot (2026-05-12)
 
 目标：基于当前 Formax 已落地实现，重新评估它与 Claude Code 在“上下文压缩 / 上下文治理”上的差距。
 
@@ -10,7 +10,7 @@
 
 如果把 Claude Code 在上下文压缩这块的成熟度看作 `100`，那么当前 Formax 大约已经走到：
 
-- **80 ~ 85 / 100**
+- **83 ~ 87 / 100**
 
 更准确地说：
 
@@ -34,7 +34,7 @@
 
 1. 这些能力是否已经足够成熟
 2. 是否已经贯通整个 runtime / remote / restore / protocol
-3. 是否已经形成真正稳定的中间层体系
+3. 是否已经形成真正稳定的 task-minimal working context / restore / protocol ecosystem
 
 ---
 
@@ -191,56 +191,31 @@ Claude Code 的 compact 强，不只是摘要 prompt，而是 compact 后仍能�
 
 ## 3. 当前和 Claude Code 仍然差距明显的部分
 
-## 3.1 最大差距：中间层仍然不够成熟
+## 3.1 当前最大差距：还没有真正 task-minimal working context
 
-Claude Code 的真正强项之一，是它在 `microcompact` 和 full compact 之间还有更成熟的中层治理：
+Claude Code 的真正强项之一，不只是 reducer 多，而是它更接近：
 
-- tool-result budget replacement
-- snip
-- context collapse
-- 更深的 query-time projection
+1. 当前任务最小工作集的识别
+2. compact 后仍能继续完成同一任务
+3. restore / replay / remote surface 对同一份任务语义的更深消费
 
-当前 Formax 的中间层已经不再是“只有几步 send-path 逻辑”，而是已经有了独立 stack 起点：
+当前 Formax 已经有：
 
-- `microcompact`
-- `tool-result budget`
-- `snip`
-- `request-time collapse`
-- `prune`
-- `compact`
+- working-set selector v4
+- session-memory restore consumption v4
+- canonical owner convergence
+- compact protocol remote / restore alignment
 
-尤其是：
+但还缺：
 
-- 当前 collapse 还没有：
-  - persisted archived spans
-  - collapse commits / store
-  - replay-time projection rebuild
-  - richer client surface consumption
+1. 更广义的任务相关 working-set 识别
+2. 更稳定的 session-memory restore utility
+3. replay / inspection 对 compact protocol 的更深消费
 
 这意味着：
 
-> Formax 现在已经有了可工作的 collapse 起点，  
-> 但还没有像 Claude Code 那样形成真正成熟的“中间层减压体系”。
-
-这是目前最显眼的结构性差距之一。
-
-### 这条差距现在的实现结论
-
-`CCA-140 ~ 146` 已经把这条差距推进到了一个新阶段：
-
-1. `CCA-140` middle-layer strategy stack scaffolding 已完成
-2. `CCA-141` tool-result budget replacement v1 已完成
-3. `CCA-142` cache-aware microcompact v3 已完成
-4. `CCA-144` middle-layer stage contract / terminal prune fallback v1 已完成
-5. `CCA-145` strategy coordination facts v1 已完成
-6. `CCA-146` middle-layer control-plane diagnostics v1 已完成
-7. `CCA-143` snip boundary + MVP v1 已完成
-
-原因是：
-
-- 当前 Formax 已经有 `microcompact` / `tool-result budget` / `snip` / `collapse` / `prune`
-- 已经不再缺“独立中间层策略栈的第一版骨架”
-- 真正剩下的差距，开始转向更成熟的 time-aware/stale-aware 策略深度，以及 post-143 之后的新主线选择
+> Formax 现在已经不再缺 middle-layer stack 的第一版骨架，  
+> 真正最大的差距已经转向“如何稳定保住当前任务上下文”。
 
 ---
 
@@ -283,7 +258,7 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 但还缺这些更成熟的部分：
 
 1. preserved segment relink 的更完整语义
-2. remote thread restore 的 compact 协议对齐
+2. replay / inspection 对 compact protocol 的更深消费
 3. 更强的 cross-surface compact event 贯通
 4. 更像 Claude Code 那样把 compact 当成 transcript / remote / SDK 的一等公民
 
@@ -339,7 +314,7 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ---
 
-## 3.6 session memory 仍然缺少更宽的 restore consumption
+## 3.6 session memory 仍然缺少更强的 restore utility
 
 当前 Formax 的 session memory 已经接进：
 
@@ -347,6 +322,7 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 - auto compact fallback chain
 - restore 后 sidecar refresh
 - REPL / CLI 的 one-turn restore reminder injection
+- app-server `thread/resume` 的 restore-side reminder consumption
 
 这意味着：
 
@@ -354,8 +330,8 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 但和 Claude Code 相比仍然缺：
 
-- 更宽的 cross-surface restore consumption
-- richer thread / remote 恢复协同
+- 更稳定的 cross-surface utility
+- richer thread / replay 恢复协同
 - 更成熟的长期 working-memory surface
 
 ---
@@ -400,21 +376,18 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ### P0：最值得继续补
 
-1. **更接近真实最终 payload 的 diagnostics ledger**
-2. **更成熟的 `microcompact`**
-3. **更强的 reactive compact shaping**
+1. **task-minimal working-set selector**
+2. **session-memory restore utility**
+3. **compact protocol replay / inspection parity**
 
 ### P1：继续补齐剩余体系差距
 
-4. **更丰富的 collapse client consumption / parity**
-5. **更宽的 session-memory restore consumption**
-6. **更深的 compact protocol ecosystem**
+4. **time-aware / stale-aware `microcompact`**
+5. **compact protocol ecosystem deeper relink / replay semantics**
 
-### P2：谨慎推进，不要硬上
+### P2：明确先不做
 
-7. **更丰富的 collapse client consumption / optional future store**
-
-这条线不是不重要，而是当前依赖仍不成熟，不能为了“追平 CC”就硬接 runtime。
+6. **完整 persisted collapse store / archived spans / replay-time collapse rebuild**
 
 ---
 
@@ -441,10 +414,10 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 如果下一轮还继续沿着“向 Claude Code 靠拢”这条主线走，我建议优先顺序是：
 
-1. **升级 keep strategy / working-set selector**
-2. **让 session memory 进入更深的 restore 消费**
-3. **继续收敛 middle-layer stack 的 canonical owner**
-4. **继续补 compact protocol 的 remote / restore 贯通**
+1. **`CCA-160`：升级 keep strategy / task-minimal working-set selector**
+2. **`CCA-161`：让 session memory 进入更强的 restore utility**
+3. **`CCA-162`：继续补 compact protocol 的 replay / inspection parity**
+4. **`CCA-163`：再考虑 time-aware / stale-aware `microcompact`**
 
 而不是马上上完整 persisted collapse store。
 

@@ -168,31 +168,61 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. post-`CCA-153` mainline re-rank
+1. `CCA-160` task-minimal working-set selector v5
+2. `CCA-161` session-memory restore utility v5
+3. `CCA-162` compact protocol replay / inspection parity
+4. `CCA-163` time-aware microcompact v4
 
 对应含义：
 
 1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
 2. `CCA-150` 已完成，working-set selector 已开始按 anchor kind 区分 backtrack window
-3. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成，下一步应先重排主线而不是继续默认扩张
+3. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
+4. post-`CCA-153` mainline re-rank 已完成，当前新的主线应切到 task-minimal working context
 
-## 刚完成的这一步为什么成立
+## 新主线为什么这样排
 
-### `CCA-153` 已在 `CCA-151/152` 基础上收口
+### `CCA-160` 为什么排第一
 
-`CCA-153` 的目标是让 compact boundary 的 canonical protocol facts 真正进入 remote / restore surface。
+`CCA-150` 已经解决了“filesystem exploration 不该被过早丢掉”，但还没有真正解决：
 
-如果没有先做 `CCA-151/152`，就容易出现这种情况：
+1. 当前任务最小工作集到底应该怎么选
+2. recent planning / todo / execution state 该如何和 filesystem cluster 一起参与 keep strategy
+3. 为什么这段保留、那段放弃，如何被 diagnostics 清楚解释
 
-1. app-server `thread/resume` 虽然能恢复 stale inputs 与 reminder blocks
-2. 但 compact boundary facts 仍然只停留在 `thread/read` / `thread/messages`
-3. Web restore path 需要额外 round-trip 才能补齐最近 compact 的 protocol state
+如果不先做 `CCA-160`，后面的 session-memory utility 与 replay parity 都会继续建立在“working-set 还不够 task-minimal”的基础上，边际收益会被压低。
 
-当前状态：
+### `CCA-161` 为什么排第二
 
-1. app-server `thread/resume` 现在会直接返回 canonical `latestCompactBoundary`
-2. Web runtime restore path 会在 `resumeThreadInputs()` 中直接消费这份 compact fact，更新 thread-scoped compact boundary cache
-3. 整条链路没有引入新的 persisted authority model；compact boundary 仍然来自 session replay 里的 canonical compact protocol
+`CCA-151` 已经把 restore reminder 注入做到了 app-server surface。  
+但 session-memory 目前还更像：
+
+1. sidecar 会刷新
+2. restore 时会给一条 next-turn-only reminder
+3. diagnostics 能解释这条 reminder
+
+离“更稳定地帮助恢复当前任务语义”还差一层 utility。  
+所以它应该排在 working-set 之后，而不是之前。
+
+### `CCA-162` 为什么排第三
+
+`CCA-153` 已经补上了 restore surface 对 compact boundary 的最小消费。  
+下一层更自然的不是再扩更多 transport surface，而是：
+
+1. replay / inspection 能否直接读到 compact protocol facts
+2. preserved segment / boundary 的更完整消费是否能在 inspection 面收口
+
+这条线有价值，但它建立在 160/161 更稳定之后收益更高，所以放第三。
+
+### `CCA-163` 为什么只放第四
+
+time-aware / stale-aware `microcompact` 仍然值得做，但现在它已经不是最大阻塞：
+
+1. middle-layer stack 已经成型
+2. restore / remote compact protocol 也已有最小闭环
+3. 当前最明显的剩余 gap 更偏“工作集质量”和“restore 实用性”
+
+所以 `CCA-163` 现在应视为策略深度增强项，而不是新的 P0 主线。
 
 ## 已完成波段为什么可以收口
 
@@ -215,7 +245,7 @@ flowchart TD
 1. middle-layer stack 的 contract / coordination / control-plane / snip 已成型
 2. working-set selector 已从固定 1-turn rewind 推进到 anchor-kind-aware window
 3. restore surface 现在也已经能直接读到最近 compact boundary 的 canonical protocol facts
-4. 当前已经没有必要继续围绕这条 compact protocol 主线做默认扩张；更合理的是先重排主线
+4. 当前已经没有必要继续围绕这条 compact protocol 主线做默认扩张；更合理的是切到新的 16x 主线
 
 ---
 

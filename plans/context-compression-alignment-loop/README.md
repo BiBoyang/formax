@@ -199,7 +199,8 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已完成：middle-layer canonical-owner convergence
    - 结果：`contextCompressionService` 的 post-compact/manual/reactive/finalize 路径现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history
 7. 下一步
-   - `CCA-153` 已完成，进入 post-`CCA-153` mainline re-rank
+   - `CCA-153` 已完成，post-`CCA-153` mainline re-rank 也已完成
+   - 当前主线已切到 `CCA-160` task-minimal working-set selector v5
 
 刚完成的上一轮主线：
 
@@ -257,8 +258,9 @@ Formax 当前：
 - `CCA-150` 已完成
 - `CCA-152` 已完成
 - `CCA-153` 已完成
-- 当前主线已经收口到：
-  - post-`CCA-153` mainline re-rank
+- post-`CCA-153` mainline re-rank 已完成
+- 当前主线已经切到：
+  - `CCA-160` task-minimal working-set selector v5
 
 ## B. `microcompact` 能力深度
 
@@ -289,9 +291,10 @@ Formax 当前：
 - 已有最小 `preservedSegment` metadata（`continuationMessageCount`、`preservedTailMessageCount`、`summaryFingerprint`、`headFingerprint`、`tailFingerprint`），可用于最小 continuation 校验
 - app-server `turn/event` 已有 `compact_boundary` 协议事件，canonical adapter 可映射成 `system_message(uiKind="compact_boundary")`
 - REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 已会把 persisted history 恢复成 boundary-first continuation view，而不是直接把 replay.history 原样塞回 active baseline
+- app-server `thread/resume` 现在也会直接返回 canonical `latestCompactBoundary`，Web restore path 会立刻消费它并更新 thread-scoped compact boundary cache
 - 缺：
   - preserved segment relink
-  - remote thread restore 协议对齐
+  - replay / inspection 对 compact protocol 的更深消费
 
 ## D. compact 后恢复能力
 
@@ -325,6 +328,11 @@ Formax 当前：
   - manual compact 还没有组合 keep 策略
   - 还没有更广义的“任务最小工作集”选择
 
+这也是 post-`CCA-153` 之后新的第一优先级来源：
+
+> 不是再继续补 compact surface，  
+> 而是让 keep strategy 真正开始围绕“当前任务最小工作集”做选择。
+
 ## F. session memory / rolling memory
 
 Claude Code：
@@ -335,6 +343,7 @@ Formax 当前：
 - 已有 `sessionMemory.ts` 提供最小 draft schema（长期事实层 / 活动任务层 / 当前策略层）
 - 已有 turn-completion 驱动的 rolling memory sidecar
 - 已有 memory-first auto compact，但还没有 memory-first resume / continue
+- 已有 app-server restore reminder 注入与 restore-side utility 起点，但还没有更稳定的 cross-surface task utility
 
 ## G. partial / reactive compact
 
@@ -392,7 +401,7 @@ Formax 当前：
 5. 所有切片默认循环：
    - 实现
    - 定向测试
-   - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+   - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
    - 提交
 
 ## 范围约束（严格）
