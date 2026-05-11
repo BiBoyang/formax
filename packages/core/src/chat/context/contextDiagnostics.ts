@@ -5,6 +5,7 @@ import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { type MicroCompactImpact } from './microCompact'
+import { TOOL_RESULT_BUDGET_STUB_PREFIX, type ToolResultBudgetImpact } from './toolResultBudget'
 import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
 import { pruneForPromptBudget } from './prune'
 import {
@@ -66,6 +67,7 @@ export type NextTurnFixedContextGroup = {
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger: ContextAssembledLedgerRow[]
+  toolResultBudgetImpact: ToolResultBudgetImpact
   microCompactImpact: MicroCompactImpact
   collapseImpact: ContextCollapseImpact
   workingSetSignals: AutoCompactWorkingSetSignals
@@ -117,7 +119,14 @@ export type ContextContributor = {
 }
 
 export type ContextAssembledLedgerRow = {
-  kind: 'system_total' | 'request_history' | 'fixed_group' | 'fixed_total' | 'assembled_total'
+  kind:
+    | 'system_total'
+    | 'request_history'
+    | 'tool_result_group'
+    | 'tool_result_budget_savings'
+    | 'fixed_group'
+    | 'fixed_total'
+    | 'assembled_total'
   key: string
   label: string
   tokens: number
@@ -359,11 +368,13 @@ export function analyzeNextTurnFixedContext(args: {
   })
   const totalTokensBeforePrune = stack.facts.prune.totalTokensBeforePrune
   const projectedHistory = stack.preparedHistory
+  const toolBudgetedProjectedHistory = stack.toolBudgetedHistory
   const preparedFixedMessage = stack.preparedTrailingMessage
   const collapsedProjectedHistory = stack.requestHistory
   const assembledMessagesBeforeCollapse = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
   const assembledMessages = preparedFixedMessage ? [...collapsedProjectedHistory, preparedFixedMessage] : collapsedProjectedHistory
   const projectedToolUsesById = collectToolUsesById(collapsedProjectedHistory)
+  const toolBudgetedSplit = splitHistorySlices(toolBudgetedProjectedHistory)
   const lifecycleMarkers = buildLifecycleMarkers({
     system: args.system,
     snapshotHistory: promptMessages,
@@ -407,10 +418,16 @@ export function analyzeNextTurnFixedContext(args: {
       systemTokens,
       collapsedProjectedHistory,
       projectedHistoryTokensAfterCollapse,
+      toolResultGroupTokensAfterBudget: estimatePromptTokens({
+        system: [],
+        messages: toolBudgetedSplit.toolResultMessages,
+      }),
+      toolResultBudgetImpact: stack.facts.toolResultBudget.impact,
       fixedGroups: fixedGroupSummaries,
       fixedTokens,
       totalTokens,
     }),
+    toolResultBudgetImpact: stack.facts.toolResultBudget.impact,
     microCompactImpact: {
       compactedBlocks: stack.facts.microCompact.impact.compactedBlocks,
       compactedToolNames: stack.facts.microCompact.impact.compactedToolNames,
@@ -459,6 +476,8 @@ function buildAssembledLedger(args: {
   systemTokens: number
   collapsedProjectedHistory: PromptMessage[]
   projectedHistoryTokensAfterCollapse: number
+  toolResultGroupTokensAfterBudget: number
+  toolResultBudgetImpact: ToolResultBudgetImpact
   fixedGroups: FixedGroupSummary[]
   fixedTokens: number
   totalTokens: number
@@ -484,9 +503,22 @@ function buildAssembledLedger(args: {
     {
       kind: 'request_history',
       key: 'request_history',
-      label: 'Request history after microcompact/prune/collapse',
+      label: 'Request history after middle-layer strategies',
       tokens: args.projectedHistoryTokensAfterCollapse,
       messageCount: args.collapsedProjectedHistory.length,
+    },
+    {
+      kind: 'tool_result_group',
+      key: 'tool_result_group',
+      label: 'Tool-result group after budget replacement (pre-collapse)',
+      tokens: args.toolResultGroupTokensAfterBudget,
+    },
+    {
+      kind: 'tool_result_budget_savings',
+      key: 'tool_result_budget_savings',
+      label: 'Tool-result budget savings',
+      tokens: args.toolResultBudgetImpact.estimatedTokensSaved,
+      blockCount: args.toolResultBudgetImpact.replacedBlocks,
     },
     ...fixedGroupRows,
     {
@@ -696,6 +728,13 @@ export function formatContextDiagnosticsReport(args: {
     `- Projected history before microcompact/prune: ${formatInt(diagnostics.historyTokens)}`,
     `- Projected history after microcompact/prune: ${formatMaybeInt(args.nextTurn?.projectedHistoryTokens ?? null)}`,
     `- Projected history delta vs snapshot: ${formatSignedMaybeInt(args.nextTurn?.projectedHistoryDeltaTokens ?? null)}`,
+    `- Tool-result budget target: ${formatMaybeInt(args.nextTurn?.toolResultBudgetImpact.budgetTokens ?? null)}`,
+    `- Tool-result tokens before budget replacement: ${formatInt(args.nextTurn?.toolResultBudgetImpact.totalToolResultTokensBefore ?? 0)}`,
+    `- Tool-result tokens after budget replacement: ${formatInt(args.nextTurn?.toolResultBudgetImpact.totalToolResultTokensAfter ?? 0)}`,
+    `- Tool-result budget replaced blocks: ${formatInt(args.nextTurn?.toolResultBudgetImpact.replacedBlocks ?? 0)}`,
+    `- Tool-result budget kept recent eligible blocks: ${formatInt(args.nextTurn?.toolResultBudgetImpact.keptRecentBlocks ?? 0)}`,
+    `- Tool-result budget replaced tools: ${formatToolNames(args.nextTurn?.toolResultBudgetImpact.replacedToolNames ?? [])}`,
+    `- Estimated tokens saved by tool-result budget: ${formatInt(args.nextTurn?.toolResultBudgetImpact.estimatedTokensSaved ?? 0)}`,
     `- Estimated tokens saved by microcompact: ${formatInt(args.nextTurn?.microCompactImpact.estimatedTokensSaved ?? 0)}`,
     `- Microcompact compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.compactedBlocks ?? 0)}`,
     `- Microcompact kept recent eligible blocks: ${formatInt(args.nextTurn?.microCompactImpact.keptRecentBlocks ?? 0)}`,
@@ -766,6 +805,7 @@ function splitHistorySlices(
   nonToolMessages: PromptMessage[]
   toolResultBlockCount: number
   microCompactedToolResultCount: number
+  toolResultBudgetReplacedCount: number
   toolResultCountsByToolName: Array<{ toolName: string; count: number }>
   microCompactedCountsByToolName: Array<{ toolName: string; count: number }>
 } {
@@ -773,6 +813,7 @@ function splitHistorySlices(
   const nonToolMessages: PromptMessage[] = []
   let toolResultBlockCount = 0
   let microCompactedToolResultCount = 0
+  let toolResultBudgetReplacedCount = 0
   const toolResultCountMap = new Map<string, number>()
   const microCompactedCountMap = new Map<string, number>()
 
@@ -799,6 +840,9 @@ function splitHistorySlices(
           microCompactedToolResultCount += 1
           bumpCount(microCompactedCountMap, toolName)
         }
+        if (toolResultContentToText(block?.content).startsWith(TOOL_RESULT_BUDGET_STUB_PREFIX)) {
+          toolResultBudgetReplacedCount += 1
+        }
       }
     }
 
@@ -815,6 +859,7 @@ function splitHistorySlices(
     nonToolMessages,
     toolResultBlockCount,
     microCompactedToolResultCount,
+    toolResultBudgetReplacedCount,
     toolResultCountsByToolName: toSortedCounts(toolResultCountMap),
     microCompactedCountsByToolName: toSortedCounts(microCompactedCountMap),
   }

@@ -84,6 +84,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Token estimate fallback: `packages/core/src/chat/context/estimate.ts`
 - Context diagnostics snapshot/report builder (`/context`): `packages/core/src/chat/context/contextDiagnostics.ts`
 - Shared query-time middle-layer strategy stack (`microcompact` / `prune` / `collapse` execution + facts): `packages/core/src/chat/context/middleLayerStrategyStack.ts`
+- Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
 - Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
 - Hard pruning rules (tool pair invariants + truncation): `packages/core/src/chat/context/prune.ts`

@@ -8,7 +8,21 @@ import {
   type MicroCompactImpact,
 } from './microCompact'
 import { pruneForPromptBudget } from './prune'
+import {
+  applyToolResultBudget,
+  estimateToolResultGroupTokens,
+  resolveAdaptiveToolResultBudgetPolicy,
+  type AdaptiveToolResultBudgetPolicy,
+  type ToolResultBudgetImpact,
+} from './toolResultBudget'
 import type { PromptBlock, PromptMessage } from '../../prompts'
+
+export type MiddleLayerToolResultBudgetFact = {
+  applied: boolean
+  pressureRatio: number | null
+  policy: AdaptiveToolResultBudgetPolicy
+  impact: ToolResultBudgetImpact
+}
 
 export type MiddleLayerMicroCompactFact = {
   applied: boolean
@@ -33,6 +47,7 @@ export type MiddleLayerCollapseFact = {
 }
 
 export type MiddleLayerStrategyFacts = {
+  toolResultBudget: MiddleLayerToolResultBudgetFact
   microCompact: MiddleLayerMicroCompactFact
   prune: MiddleLayerPruneFact
   collapse: MiddleLayerCollapseFact
@@ -40,6 +55,7 @@ export type MiddleLayerStrategyFacts = {
 
 export type MiddleLayerStrategyStackResult = {
   microCompactedHistory: PromptMessage[]
+  toolBudgetedHistory: PromptMessage[]
   preparedMessages: PromptMessage[]
   preparedHistory: PromptMessage[]
   preparedTrailingMessage: PromptMessage | null
@@ -53,6 +69,7 @@ export function executeMiddleLayerStrategyStack(args: {
   trailingMessage?: PromptMessage | null
   budgetConfig?: ContextBudgetConfig | null
   allowBoundarylessContinuation?: boolean
+  enableToolResultBudget?: boolean
   enableCollapse?: boolean
 }): MiddleLayerStrategyStackResult {
   const trailingMessage = args.trailingMessage ?? null
@@ -95,27 +112,57 @@ export function executeMiddleLayerStrategyStack(args: {
     ? ((preparedMessages[preparedMessages.length - 1] ?? trailingMessage) as PromptMessage)
     : null
   const preparedHistory = trailingMessage ? preparedMessages.slice(0, -1) : preparedMessages
+  const toolResultBudgetPolicy = resolveAdaptiveToolResultBudgetPolicy({
+    pressureRatio,
+    budgetConfig: args.budgetConfig ?? null,
+  })
+  const toolResultBudgetResult =
+    args.enableToolResultBudget === false
+      ? {
+          messages: preparedHistory,
+          applied: false,
+          impact: {
+            replacedBlocks: 0,
+            replacedToolNames: [],
+            estimatedTokensSaved: 0,
+            keptRecentBlocks: 0,
+            budgetTokens: toolResultBudgetPolicy.maxToolResultTokens,
+            totalToolResultTokensBefore: estimateToolResultGroupTokens(preparedHistory),
+            totalToolResultTokensAfter: estimateToolResultGroupTokens(preparedHistory),
+          },
+        }
+      : applyToolResultBudget({
+          messages: preparedHistory,
+          policy: toolResultBudgetPolicy,
+        })
   const collapseResult =
     args.enableCollapse === false
       ? {
-          messages: preparedHistory,
+          messages: toolResultBudgetResult.messages,
           collapsed: false,
           collapsedHeadMessageCount: 0,
           estimatedTokensSaved: 0,
           metadata: null,
         }
       : collapseRequestHistory({
-          messages: preparedHistory,
+          messages: toolResultBudgetResult.messages,
           allowBoundarylessContinuation: args.allowBoundarylessContinuation,
         })
 
   return {
     microCompactedHistory: microCompactResult.messages,
+    toolBudgetedHistory: toolResultBudgetResult.messages,
     preparedMessages,
     preparedHistory,
     preparedTrailingMessage,
     requestHistory: collapseResult.messages,
     facts: {
+      toolResultBudget: {
+        applied: toolResultBudgetResult.applied,
+        pressureRatio,
+        policy: toolResultBudgetPolicy,
+        impact: toolResultBudgetResult.impact,
+      },
       microCompact: {
         applied: microCompactResult.compacted,
         pressureRatio,

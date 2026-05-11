@@ -42,6 +42,16 @@ export type RpcMicroCompactImpact = {
   keptRecentBlocks: number
 }
 
+export type RpcToolResultBudgetImpact = {
+  replacedBlocks: number
+  replacedToolNames: string[]
+  estimatedTokensSaved: number
+  keptRecentBlocks: number
+  budgetTokens: number | null
+  totalToolResultTokensBefore: number
+  totalToolResultTokensAfter: number
+}
+
 export type RpcContextCollapseImpact = {
   collapsed: boolean
   collapsedHeadMessageCount: number
@@ -76,7 +86,14 @@ export type RpcContextLifecycleMarker = {
 }
 
 export type RpcAssembledLedgerRow = {
-  kind: 'system_total' | 'request_history' | 'fixed_group' | 'fixed_total' | 'assembled_total'
+  kind:
+    | 'system_total'
+    | 'request_history'
+    | 'tool_result_group'
+    | 'tool_result_budget_savings'
+    | 'fixed_group'
+    | 'fixed_total'
+    | 'assembled_total'
   key: string
   label: string
   tokens: number
@@ -164,6 +181,7 @@ export type RpcContextDiagnosticsSnapshot = {
 export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger?: RpcAssembledLedgerRow[]
+  toolResultBudgetImpact?: RpcToolResultBudgetImpact
   microCompactImpact: RpcMicroCompactImpact
   collapseImpact?: RpcContextCollapseImpact
   lifecycleMarkers?: RpcContextLifecycleMarker[]
@@ -554,6 +572,38 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
   }
 }
 
+function parseToolResultBudgetImpact(value: unknown): RpcToolResultBudgetImpact | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const replacedBlocks = asFiniteNumber(record.replacedBlocks)
+  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+  const keptRecentBlocks = asFiniteNumber(record.keptRecentBlocks)
+  const totalToolResultTokensBefore = asFiniteNumber(record.totalToolResultTokensBefore)
+  const totalToolResultTokensAfter = asFiniteNumber(record.totalToolResultTokensAfter)
+  const budgetTokens = parseRequiredNullableNumber(record.budgetTokens)
+  const replacedToolNames = parseRequiredStringList(record.replacedToolNames)
+  if (
+    replacedBlocks == null ||
+    estimatedTokensSaved == null ||
+    keptRecentBlocks == null ||
+    totalToolResultTokensBefore == null ||
+    totalToolResultTokensAfter == null ||
+    !budgetTokens ||
+    !replacedToolNames
+  ) {
+    return null
+  }
+  return {
+    replacedBlocks,
+    replacedToolNames: replacedToolNames.value,
+    estimatedTokensSaved,
+    keptRecentBlocks,
+    budgetTokens: budgetTokens.value,
+    totalToolResultTokensBefore,
+    totalToolResultTokensAfter,
+  }
+}
+
 function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | null {
   if (!Array.isArray(value)) return null
   const rows: RpcContextLifecycleMarker[] = []
@@ -787,6 +837,9 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     fixedGroups.push({ label, blockCount, tokens })
   }
   const microCompactImpact = parseMicroCompactImpact(record.microCompactImpact)
+  const toolResultBudgetImpact =
+    record.toolResultBudgetImpact == null ? undefined : parseToolResultBudgetImpact(record.toolResultBudgetImpact)
+  if (record.toolResultBudgetImpact != null && !toolResultBudgetImpact) return null
   const assembledLedger = record.assembledLedger == null ? undefined : parseAssembledLedger(record.assembledLedger)
   if (record.assembledLedger != null && !assembledLedger) return null
   const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
@@ -819,6 +872,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   return {
     fixedGroups,
     ...(assembledLedger ? { assembledLedger } : {}),
+    ...(toolResultBudgetImpact ? { toolResultBudgetImpact } : {}),
     microCompactImpact,
     ...(collapseImpact ? { collapseImpact } : {}),
     ...(lifecycleMarkers ? { lifecycleMarkers } : {}),
@@ -844,6 +898,8 @@ function parseAssembledLedger(value: unknown): RpcAssembledLedgerRow[] | null {
     const kind =
       row.kind === 'system_total' ||
       row.kind === 'request_history' ||
+      row.kind === 'tool_result_group' ||
+      row.kind === 'tool_result_budget_savings' ||
       row.kind === 'fixed_group' ||
       row.kind === 'fixed_total' ||
       row.kind === 'assembled_total'

@@ -9,6 +9,14 @@ import { countNonToolUserTurns } from '../shared/utils'
 import { buildCompactBoundaryMessage, buildCompactionSummaryUserText } from '../../../../chat/context/compact'
 
 vi.mock('../../../../chat/context/budget', () => ({
+  computeContextBudget: vi.fn((config: any) => ({
+    contextWindowTokens: config.contextWindowTokens,
+    effectiveLimitTokens: Math.floor(config.contextWindowTokens * (config.effectiveContextWindowPercent ?? 0.95)),
+    autoCompactLimitTokens: Math.floor(
+      Math.floor(config.contextWindowTokens * (config.effectiveContextWindowPercent ?? 0.95)) *
+        (config.autoCompactLimitPercent ?? 0.9),
+    ),
+  })),
   computeContextStats: vi.fn(),
 }))
 

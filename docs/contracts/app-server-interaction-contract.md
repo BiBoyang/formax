@@ -194,10 +194,13 @@
     当前 `kind` MAY 为：
     - `system_total`
     - `request_history`
+    - `tool_result_group`
+    - `tool_result_budget_savings`
     - `fixed_group`
     - `fixed_total`
     - `assembled_total`
   - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
+    - `toolResultBudgetImpact`（独立 tool-result budget replacement 的 request-time impact）
     - `collapseImpact`（request-time collapse 是否生效，以及估算节省量）
     - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）
     - `autoCompactSkipReason`
@@ -208,6 +211,14 @@
     - `compactedToolNames`
     - `estimatedTokensSaved`
     - `keptRecentBlocks`
+  - `local.diagnostics.nextTurnFixed.toolResultBudgetImpact` 若存在，当前稳定字段 SHOULD 包含：
+    - `replacedBlocks`
+    - `replacedToolNames`
+    - `estimatedTokensSaved`
+    - `keptRecentBlocks`
+    - `budgetTokens`
+    - `totalToolResultTokensBefore`
+    - `totalToolResultTokensAfter`
   - `local.diagnostics.nextTurnFixed.collapseImpact` 若存在，当前稳定字段 SHOULD 包含：
     - `collapsed`
     - `collapsedHeadMessageCount`

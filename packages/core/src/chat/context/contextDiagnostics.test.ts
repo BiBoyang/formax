@@ -338,6 +338,8 @@ describe('contextDiagnostics', () => {
     expect(out.assembledLedger.map((row) => row.kind)).toEqual([
       'system_total',
       'request_history',
+      'tool_result_group',
+      'tool_result_budget_savings',
       'fixed_group',
       'fixed_group',
       'fixed_total',
@@ -353,10 +355,22 @@ describe('contextDiagnostics', () => {
       key: 'request_history',
     })
     expect(out.assembledLedger[2]).toMatchObject({
+      kind: 'tool_result_group',
+      key: 'tool_result_group',
+    })
+    expect(out.assembledLedger[3]).toMatchObject({
+      kind: 'tool_result_budget_savings',
+      key: 'tool_result_budget_savings',
+    })
+    expect(out.assembledLedger[4]).toMatchObject({
       kind: 'fixed_group',
       label: 'Mode semantic blocks',
       blockCount: 1,
     })
+    expect(out.toolResultBudgetImpact.totalToolResultTokensBefore).toBeGreaterThanOrEqual(
+      out.toolResultBudgetImpact.totalToolResultTokensAfter,
+    )
+    expect(out.toolResultBudgetImpact.estimatedTokensSaved).toBeGreaterThanOrEqual(0)
     expect(out.assembledLedger.at(-1)).toMatchObject({
       kind: 'assembled_total',
       tokens: out.totalTokens,
@@ -795,6 +809,15 @@ describe('contextDiagnostics', () => {
       estimatedTokensSaved: 0,
       keptRecentBlocks: 0,
     })
+    expect(parsed.nextTurnFixed.toolResultBudgetImpact).toMatchObject({
+      replacedBlocks: 0,
+      replacedToolNames: [],
+      estimatedTokensSaved: 0,
+      keptRecentBlocks: 0,
+      totalToolResultTokensBefore: 0,
+      totalToolResultTokensAfter: 0,
+    })
+    expect(typeof parsed.nextTurnFixed.toolResultBudgetImpact.budgetTokens).toBe('number')
     expect(parsed.nextTurnFixed.collapseImpact).toEqual({
       collapsed: false,
       collapsedHeadMessageCount: 0,

@@ -5,6 +5,7 @@ import { estimatePromptTokens } from './estimate'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from './microCompact'
 import { pruneForPromptBudget } from './prune'
 import { collapseRequestHistory } from './contextCollapse'
+import { applyToolResultBudget, resolveAdaptiveToolResultBudgetPolicy } from './toolResultBudget'
 
 vi.mock('./budget', () => ({
   computeContextStats: vi.fn(),
@@ -27,6 +28,11 @@ vi.mock('./contextCollapse', () => ({
   collapseRequestHistory: vi.fn(),
 }))
 
+vi.mock('./toolResultBudget', () => ({
+  applyToolResultBudget: vi.fn(),
+  resolveAdaptiveToolResultBudgetPolicy: vi.fn(),
+}))
+
 describe('executeMiddleLayerStrategyStack', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -37,6 +43,14 @@ describe('executeMiddleLayerStrategyStack', () => {
       keepRecentToolResultsByName: { Read: 1 },
       minResultChars: 1200,
       minResultCharsByName: { Grep: 900 },
+    })
+    vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
+      pressureTier: 'tight',
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      keepRecentToolResults: 1,
+      minResultChars: 900,
+      minResultCharsByName: { Grep: 700 },
+      maxToolResultTokens: 2600,
     })
     vi.mocked(computeContextStats).mockReturnValue({
       effectiveLimitTokens: 1000,
@@ -65,6 +79,19 @@ describe('executeMiddleLayerStrategyStack', () => {
     vi.mocked(pruneForPromptBudget).mockReturnValue({
       messages: prunedMessages,
       pruned: true,
+    } as any)
+    vi.mocked(applyToolResultBudget).mockReturnValue({
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }],
+      applied: true,
+      impact: {
+        replacedBlocks: 1,
+        replacedToolNames: ['Read'],
+        estimatedTokensSaved: 180,
+        keptRecentBlocks: 2,
+        budgetTokens: 2600,
+        totalToolResultTokensBefore: 3200,
+        totalToolResultTokensAfter: 3020,
+      },
     } as any)
     vi.mocked(collapseRequestHistory).mockReturnValue({
       messages: [{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }],
@@ -97,10 +124,41 @@ describe('executeMiddleLayerStrategyStack', () => {
     })
 
     expect(resolveAdaptiveMicroCompactPolicy).toHaveBeenCalledWith({ pressureRatio: 0.5 })
+    expect(resolveAdaptiveToolResultBudgetPolicy).toHaveBeenCalledWith({
+      pressureRatio: 0.5,
+      budgetConfig: {
+        contextWindowTokens: 10000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.85,
+        baselineTokens: 1000,
+      },
+    })
     expect(result.preparedHistory).toEqual(compactedHistory)
+    expect(result.toolBudgetedHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }])
     expect(result.preparedTrailingMessage).toEqual(prunedMessages[1])
     expect(result.requestHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }])
     expect(result.facts).toEqual({
+      toolResultBudget: {
+        applied: true,
+        pressureRatio: 0.5,
+        policy: {
+          pressureTier: 'tight',
+          eligibleToolNames: ['Read', 'Grep', 'Glob'],
+          keepRecentToolResults: 1,
+          minResultChars: 900,
+          minResultCharsByName: { Grep: 700 },
+          maxToolResultTokens: 2600,
+        },
+        impact: {
+          replacedBlocks: 1,
+          replacedToolNames: ['Read'],
+          estimatedTokensSaved: 180,
+          keptRecentBlocks: 2,
+          budgetTokens: 2600,
+          totalToolResultTokensBefore: 3200,
+          totalToolResultTokensAfter: 3020,
+        },
+      },
       microCompact: {
         applied: true,
         pressureRatio: 0.5,
@@ -156,6 +214,14 @@ describe('executeMiddleLayerStrategyStack', () => {
       minResultChars: 1200,
       minResultCharsByName: {},
     })
+    vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
+      pressureTier: 'default',
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      keepRecentToolResults: 1,
+      minResultChars: 900,
+      minResultCharsByName: { Grep: 700 },
+      maxToolResultTokens: null,
+    })
     vi.mocked(microCompactHistory).mockReturnValue({
       messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
       compacted: false,
@@ -163,6 +229,19 @@ describe('executeMiddleLayerStrategyStack', () => {
       compactedToolNames: [],
       estimatedTokensSaved: 0,
       keptRecentBlocks: 0,
+    } as any)
+    vi.mocked(applyToolResultBudget).mockReturnValue({
+      messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
+      applied: false,
+      impact: {
+        replacedBlocks: 0,
+        replacedToolNames: [],
+        estimatedTokensSaved: 0,
+        keptRecentBlocks: 0,
+        budgetTokens: null,
+        totalToolResultTokensBefore: 0,
+        totalToolResultTokensAfter: 0,
+      },
     } as any)
 
     const result = executeMiddleLayerStrategyStack({
@@ -175,7 +254,29 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(pruneForPromptBudget).not.toHaveBeenCalled()
     expect(collapseRequestHistory).not.toHaveBeenCalled()
     expect(result.preparedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
+    expect(result.toolBudgetedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.requestHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
+    expect(result.facts.toolResultBudget).toEqual({
+      applied: false,
+      pressureRatio: null,
+      policy: {
+        pressureTier: 'default',
+        eligibleToolNames: ['Read', 'Grep', 'Glob'],
+        keepRecentToolResults: 1,
+        minResultChars: 900,
+        minResultCharsByName: { Grep: 700 },
+        maxToolResultTokens: null,
+      },
+      impact: {
+        replacedBlocks: 0,
+        replacedToolNames: [],
+        estimatedTokensSaved: 0,
+        keptRecentBlocks: 0,
+        budgetTokens: null,
+        totalToolResultTokensBefore: 0,
+        totalToolResultTokensAfter: 0,
+      },
+    })
     expect(result.facts.microCompact.pressureRatio).toBeNull()
     expect(result.facts.prune.applied).toBe(false)
     expect(result.facts.collapse).toEqual({

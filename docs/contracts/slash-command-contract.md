@@ -111,6 +111,15 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `notes`
    未知附加字段 MAY 存在，但客户端 MUST 忽略它们。
 7. `nextTurnFixed` diagnostics payload MUST 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
+7.1. `nextTurnFixed` diagnostics payload 当前 SHOULD 额外暴露 `toolResultBudgetImpact`，用于把 tool-result budget replacement 作为独立中间层策略稳定表达出来；稳定字段至少包含：
+   - `replacedBlocks`
+   - `replacedToolNames`
+   - `estimatedTokensSaved`
+   - `keptRecentBlocks`
+   - `budgetTokens`
+   - `totalToolResultTokensBefore`
+   - `totalToolResultTokensAfter`
+   text diagnostics SHOULD 同步给出 tool-result budget 小节，而不是把这层收益混进 `microCompactImpact`
 8. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
 9. diagnostics payload MUST 暴露 `latestCompactBoundary`；若该值非 `null`，至少要稳定提供 `schemaVersion`，并 SHOULD 暴露 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
 10. 当 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误时，客户端 MUST 将整个 diagnostics payload 视为不可用，而不是继续做 loose partial parsing
@@ -184,6 +193,8 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    当前 `kind` MAY 为：
    - `system_total`
    - `request_history`
+   - `tool_result_group`
+   - `tool_result_budget_savings`
    - `fixed_group`
    - `fixed_total`
    - `assembled_total`
