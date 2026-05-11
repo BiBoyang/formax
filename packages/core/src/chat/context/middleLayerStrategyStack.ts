@@ -129,6 +129,10 @@ export function executeMiddleLayerStrategyStack(args: {
     minResultCharsByName: policy.minResultCharsByName,
     cacheAwareEligibleToolNames: policy.cacheAwareEligibleToolNames,
     cacheAwareMinResultChars: policy.cacheAwareMinResultChars,
+    timeAwareEligibleToolNames: policy.timeAwareEligibleToolNames,
+    timeAwareMinResultChars: policy.timeAwareMinResultChars,
+    timeAwareMinResultCharsByName: policy.timeAwareMinResultCharsByName,
+    timeAwareMinStaleUserTurns: policy.timeAwareMinStaleUserTurns,
   })
   const inputHistoryTokens = estimatePromptTokens({ system: [], messages: args.history })
   const microCompactedHistoryTokens = estimatePromptTokens({ system: [], messages: microCompactResult.messages })
@@ -256,6 +260,11 @@ export function executeMiddleLayerStrategyStack(args: {
           cacheAwareMinResultChars: microCompactResult.cacheAwareMinResultChars,
           cacheAwareCompactedBlocks: microCompactResult.cacheAwareCompactedBlocks,
           cacheAwareToolNames: microCompactResult.cacheAwareToolNames,
+          timeAwareEligibleToolNames: microCompactResult.timeAwareEligibleToolNames,
+          timeAwareMinResultChars: microCompactResult.timeAwareMinResultChars,
+          timeAwareMinStaleUserTurns: microCompactResult.timeAwareMinStaleUserTurns,
+          timeAwareCompactedBlocks: microCompactResult.timeAwareCompactedBlocks,
+          timeAwareToolNames: microCompactResult.timeAwareToolNames,
         },
       },
       snip: {

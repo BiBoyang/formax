@@ -279,6 +279,8 @@ describe('microCompactHistory', () => {
     expect(out.cacheAwareToolNames).toEqual(['Read'])
     expect(out.cacheAwareEligibleToolNames).toEqual(['Read'])
     expect(out.cacheAwareMinResultChars).toBe(400)
+    expect(out.timeAwareCompactedBlocks).toBe(0)
+    expect(out.timeAwareToolNames).toEqual([])
     expect((out.messages[1]!.content[0] as any).content).toContain(
       '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
     )
@@ -311,6 +313,7 @@ describe('microCompactHistory', () => {
     expect(out.compactedBlocks).toBe(0)
     expect(out.estimatedTokensSaved).toBe(0)
     expect(out.cacheAwareCompactedBlocks).toBe(0)
+    expect(out.timeAwareCompactedBlocks).toBe(0)
     expect(out.messages).toBe(messages)
   })
 
@@ -324,6 +327,10 @@ describe('microCompactHistory', () => {
       minResultCharsByName: {},
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 400,
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 900,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 3,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.3 })).toEqual({
       pressureTier: 'relaxed',
@@ -334,6 +341,10 @@ describe('microCompactHistory', () => {
       minResultCharsByName: {},
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 600,
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 1400,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 4,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.6 })).toEqual({
       pressureTier: 'steady',
@@ -344,6 +355,10 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 1000 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 500,
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareMinResultChars: 1000,
+      timeAwareMinResultCharsByName: { Grep: 700, Glob: 700 },
+      timeAwareMinStaleUserTurns: 4,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.8 })).toEqual({
       pressureTier: 'tight',
@@ -354,6 +369,10 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 900, Glob: 900 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 400,
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareMinResultChars: 800,
+      timeAwareMinResultCharsByName: { Grep: 600, Glob: 600 },
+      timeAwareMinStaleUserTurns: 3,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
       pressureTier: 'critical',
@@ -364,7 +383,72 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 600, Glob: 600, Bash: 1200, WebFetch: 1200 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 300,
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'Bash', 'WebFetch'],
+      timeAwareMinResultChars: 600,
+      timeAwareMinResultCharsByName: { Bash: 900, WebFetch: 900 },
+      timeAwareMinStaleUserTurns: 2,
     })
+  })
+
+  it('time-aware microcompacts stale medium results once enough user turns have passed', () => {
+    const mediumRead = 'line\n'.repeat(170)
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', mediumRead),
+      { role: 'user', content: [{ type: 'text', text: 'Investigate auth regression' }] as any },
+      { role: 'assistant', content: [{ type: 'text', text: 'Checking auth flow.' }] as any },
+      { role: 'user', content: [{ type: 'text', text: 'Now isolate redirect behavior' }] as any },
+      { role: 'assistant', content: [{ type: 'text', text: 'Inspecting redirect logic.' }] as any },
+      { role: 'user', content: [{ type: 'text', text: 'Also confirm stale guard.' }] as any },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1600,
+      minResultCharsByName: {},
+      eligibleToolNames: ['Read'],
+      timeAwareEligibleToolNames: ['Read'],
+      timeAwareMinResultChars: 600,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 3,
+    })
+
+    expect(out.compacted).toBe(true)
+    expect(out.compactedBlocks).toBe(1)
+    expect(out.timeAwareCompactedBlocks).toBe(1)
+    expect(out.timeAwareToolNames).toEqual(['Read'])
+    expect(out.cacheAwareCompactedBlocks).toBe(0)
+    expect((out.messages[1]!.content[0] as any).content).toContain(
+      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
+    )
+  })
+
+  it('does not time-aware microcompact medium results before they become stale enough', () => {
+    const mediumRead = 'line\n'.repeat(170)
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', mediumRead),
+      { role: 'user', content: [{ type: 'text', text: 'Investigate auth regression' }] as any },
+      { role: 'assistant', content: [{ type: 'text', text: 'Checking auth flow.' }] as any },
+      { role: 'user', content: [{ type: 'text', text: 'Now isolate redirect behavior' }] as any },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1600,
+      minResultCharsByName: {},
+      eligibleToolNames: ['Read'],
+      timeAwareEligibleToolNames: ['Read'],
+      timeAwareMinResultChars: 600,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 3,
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.timeAwareCompactedBlocks).toBe(0)
+    expect((out.messages[1]!.content[0] as any).content).toBe(mediumRead)
   })
 
   it('prefers recent Read blocks over newer low-value search/list results when recent budgets are tight', () => {

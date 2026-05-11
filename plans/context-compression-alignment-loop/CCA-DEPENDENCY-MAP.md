@@ -168,7 +168,7 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-163` time-aware microcompact v4
+1. post-`CCA-163` mainline re-rank
 
 对应含义：
 
@@ -176,7 +176,7 @@ flowchart TD
 2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
 3. `CCA-151` 与 `CCA-161` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface
 4. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 也已收口，当前新的主线已切到 time-aware microcompact
+5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，当前新的动作应先切到 post-`CCA-163` mainline re-rank
 
 ## 新主线为什么这样排
 
@@ -196,7 +196,7 @@ flowchart TD
 
 1. restore 后的 session-memory 还不够实用
 2. compact protocol 在 replay / inspection 面还不够深
-3. time-aware microcompact 仍然是后置增强项
+3. time-aware microcompact 当时仍然是后置增强项
 
 `CCA-151` 已经把 restore reminder 注入做到了 app-server surface。  
 但 session-memory 目前还更像：
@@ -218,7 +218,7 @@ flowchart TD
 
 这条线有价值，但它建立在 160/161 更稳定之后收益更高，所以放第三。
 
-### `CCA-163` 为什么只放第四
+### `CCA-163` 为什么当时只放第四
 
 time-aware / stale-aware `microcompact` 仍然值得做，但现在它已经不是最大阻塞：
 
@@ -226,7 +226,7 @@ time-aware / stale-aware `microcompact` 仍然值得做，但现在它已经不�
 2. restore / remote compact protocol 也已有最小闭环
 3. 当前最明显的剩余 gap 更偏“工作集质量”和“restore 实用性”
 
-所以 `CCA-163` 现在应视为策略深度增强项，而不是新的 P0 主线。
+所以 `CCA-163` 当时应视为策略深度增强项，而不是新的 P0 主线。
 
 ## 已完成波段为什么可以收口
 

@@ -149,7 +149,9 @@ Formax 的“上下文管理”分两条线：
 - 当前 `middleLayerStrategyStack` 里也已引入第一条真正独立的新中间层策略：`toolResultBudget` 会单独给 tool-result group 计预算；超预算时优先在 request-time projection 上做 replacement，再把结果交给 `collapse`，并通过 `toolResultBudgetImpact` + `assembledLedger` 暴露收益
 - 当前 `middleLayerStrategyStack` 里也已引入最小 `snip` 层：它只会在 request-time projection 上裁短较老的 assistant 纯文本消息，并通过 `snipImpact` 暴露命中消息数、保留的 recent eligible messages、以及估算节省量
 - 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy：pressure ratio 会共同驱动 eligible tool family、per-tool recent keep 配额、以及 per-tool size threshold，避免 `/context` 和真实发送链的 microcompact 行为再次漂移
-- 当前 `microCompactImpact` 也已稳定暴露 cache-aware facts：包括 `cacheAwareEligibleToolNames`、`cacheAwareMinResultChars`、`cacheAwareCompactedBlocks`、`cacheAwareToolNames`，用于解释重复 lookup 命中时到底是哪条 cache-aware path 在减压
+- 当前 `microCompactImpact` 已稳定暴露两类 deeper-path facts：
+  - cache-aware facts：`cacheAwareEligibleToolNames`、`cacheAwareMinResultChars`、`cacheAwareCompactedBlocks`、`cacheAwareToolNames`，用于解释重复 lookup 命中时到底是哪条 cache-aware path 在减压
+  - time-aware facts：`timeAwareEligibleToolNames`、`timeAwareMinResultChars`、`timeAwareMinStaleUserTurns`、`timeAwareCompactedBlocks`、`timeAwareToolNames`，用于解释哪些较旧结果因为 stale user-turn age 达阈值而被更早 stub
 - 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
 - 当前 system prompt diagnostics 已支持 per-system-section breakdown：会把 system 拆成 `Identity`、heading 前 `Preamble`、以及顶层 `# section`，`top contributors` 不再只把 system 当作单个黑盒 contributor
 - 当前 `nextTurnFixed` diagnostics 已支持 lifecycle markers：会以非破坏性投影方式比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异

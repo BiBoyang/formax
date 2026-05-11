@@ -117,6 +117,12 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `cacheAwareMinResultChars`
    - `cacheAwareCompactedBlocks`
    - `cacheAwareToolNames`
+7.0.1. `microCompactImpact` 当前若走到了 time-aware / stale-aware path，SHOULD 额外暴露：
+   - `timeAwareEligibleToolNames`
+   - `timeAwareMinResultChars`
+   - `timeAwareMinStaleUserTurns`
+   - `timeAwareCompactedBlocks`
+   - `timeAwareToolNames`
 7.1. `nextTurnFixed` diagnostics payload 当前 SHOULD 额外暴露 `toolResultBudgetImpact`，用于把 tool-result budget replacement 作为独立中间层策略稳定表达出来；稳定字段至少包含：
    - `replacedBlocks`
    - `replacedToolNames`

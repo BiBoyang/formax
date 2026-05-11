@@ -209,7 +209,8 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-160` 已完成
    - `CCA-161` 已完成
    - `CCA-162` 已完成：`thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，Web replay runtime 会消费它并在 replay source 下继续显示 compact header
-   - 当前主线已切到 `CCA-163` time-aware microcompact v4
+   - `CCA-163` 已完成：`microcompact` 当前已补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser
+   - 当前 16x 波段已完成，下一步先做 post-`CCA-163` mainline re-rank
 
 刚完成的上一轮主线：
 
@@ -229,8 +230,8 @@ Formax 当前：
 - 已有 `microcompact + tool-result budget + snip + request-time collapse + prune + compact` 多层主链。
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
-  - 这些步骤虽已形成独立策略栈，但还没有更成熟的 time-aware / stale-aware 深度
-  - 还缺更厚的 reducer 协作与后续 re-rank
+  - task-minimal working context、restore utility、compact protocol parity、以及 time-aware microcompact 这几条主线做完之后，下一步要重新判断真正剩余的产品型差距
+  - 还缺后续 re-rank，而不是继续惯性扩张 reducer
 
 ### 下一阶段切法
 

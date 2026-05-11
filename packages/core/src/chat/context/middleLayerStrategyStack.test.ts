@@ -52,6 +52,10 @@ describe('executeMiddleLayerStrategyStack', () => {
       minResultCharsByName: { Grep: 900 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 400,
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareMinResultChars: 800,
+      timeAwareMinResultCharsByName: { Grep: 600, Glob: 600 },
+      timeAwareMinStaleUserTurns: 3,
     })
     vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
       pressureTier: 'tight',
@@ -100,6 +104,11 @@ describe('executeMiddleLayerStrategyStack', () => {
       cacheAwareMinResultChars: 400,
       cacheAwareCompactedBlocks: 1,
       cacheAwareToolNames: ['Grep'],
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareMinResultChars: 800,
+      timeAwareMinStaleUserTurns: 3,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
     } as any)
     vi.mocked(applyToolResultBudget).mockReturnValue({
       messages: [{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }],
@@ -239,6 +248,10 @@ describe('executeMiddleLayerStrategyStack', () => {
           minResultCharsByName: { Grep: 900 },
           cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
           cacheAwareMinResultChars: 400,
+          timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+          timeAwareMinResultChars: 800,
+          timeAwareMinResultCharsByName: { Grep: 600, Glob: 600 },
+          timeAwareMinStaleUserTurns: 3,
         },
         impact: {
           compactedBlocks: 2,
@@ -249,6 +262,11 @@ describe('executeMiddleLayerStrategyStack', () => {
           cacheAwareMinResultChars: 400,
           cacheAwareCompactedBlocks: 1,
           cacheAwareToolNames: ['Grep'],
+          timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+          timeAwareMinResultChars: 800,
+          timeAwareMinStaleUserTurns: 3,
+          timeAwareCompactedBlocks: 0,
+          timeAwareToolNames: [],
         },
     })
     expect(result.facts.microCompact.inputTokens).toEqual(expect.any(Number))
@@ -337,6 +355,10 @@ describe('executeMiddleLayerStrategyStack', () => {
       minResultCharsByName: {},
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 400,
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 900,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 3,
     })
     vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
       pressureTier: 'default',
@@ -364,6 +386,11 @@ describe('executeMiddleLayerStrategyStack', () => {
       cacheAwareMinResultChars: 400,
       cacheAwareCompactedBlocks: 0,
       cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 900,
+      timeAwareMinStaleUserTurns: 3,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
     } as any)
     vi.mocked(applyToolResultBudget).mockReturnValue({
       messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],

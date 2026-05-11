@@ -209,6 +209,11 @@ describe('rpcContracts', () => {
                 compactedToolNames: ['Read'],
                 estimatedTokensSaved: 200,
                 keptRecentBlocks: 2,
+                timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+                timeAwareMinResultChars: 800,
+                timeAwareMinStaleUserTurns: 3,
+                timeAwareCompactedBlocks: 1,
+                timeAwareToolNames: ['Read'],
               },
               snipImpact: {
                 snippedMessages: 0,
@@ -406,11 +411,16 @@ describe('rpcContracts', () => {
                 totalToolResultTokensBefore: 160,
                 totalToolResultTokensAfter: 20,
               },
-              microCompactImpact: {
-                compactedBlocks: 1,
-                compactedToolNames: ['Read'],
+          microCompactImpact: {
+            compactedBlocks: 1,
+            compactedToolNames: ['Read'],
             estimatedTokensSaved: 200,
             keptRecentBlocks: 2,
+            timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+            timeAwareMinResultChars: 800,
+            timeAwareMinStaleUserTurns: 3,
+            timeAwareCompactedBlocks: 1,
+            timeAwareToolNames: ['Read'],
           },
           snipImpact: {
             snippedMessages: 0,

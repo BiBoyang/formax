@@ -105,7 +105,7 @@ middle-layer stack MUST 区分以下三个 envelope：
 `snip` 与 `collapse` MUST 只作用于 `request_history_projection`；MUST NOT 改写 persisted `history` 语义。
 
 `CSS-303`  
-`microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。
+`microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。`microcompact` 当前允许存在 cache-aware 与 time-aware / stale-aware 子路径，但这些子路径同样 MUST 保持 request-time reducer 语义，不得把“较旧结果更早 stub”扩展成 persisted baseline 改写。
 
 `CSS-304`  
 `prune` 的规范语义 MUST 是 terminal fallback：它的职责是保证最终 request-time payload 进入预算，而不是抢在前置 reducers/projection 之前充当普通变换步骤。

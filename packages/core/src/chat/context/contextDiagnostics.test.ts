@@ -187,6 +187,11 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Microcompact cache-aware minimum chars: 0')
     expect(out).toContain('- Microcompact cache-aware compacted blocks: 0')
     expect(out).toContain('- Microcompact cache-aware compacted tools: none')
+    expect(out).toContain('- Microcompact time-aware eligible tools: none')
+    expect(out).toContain('- Microcompact time-aware minimum chars: 0')
+    expect(out).toContain('- Microcompact time-aware stale user turns: 0')
+    expect(out).toContain('- Microcompact time-aware compacted blocks: 0')
+    expect(out).toContain('- Microcompact time-aware compacted tools: none')
     expect(out).toContain('- Estimated tokens saved by snip: 0')
     expect(out).toContain('- Snip snipped messages: 0')
     expect(out).toContain('- Snip snipped blocks: 0')
@@ -395,6 +400,11 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.cacheAwareMinResultChars).toBe(500)
     expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBe(0)
     expect(out.microCompactImpact.cacheAwareToolNames).toEqual([])
+    expect(out.microCompactImpact.timeAwareEligibleToolNames).toEqual(['Read', 'Grep', 'Glob'])
+    expect(out.microCompactImpact.timeAwareMinResultChars).toBe(1000)
+    expect(out.microCompactImpact.timeAwareMinStaleUserTurns).toBe(4)
+    expect(out.microCompactImpact.timeAwareCompactedBlocks).toBe(0)
+    expect(out.microCompactImpact.timeAwareToolNames).toEqual([])
     expect(out.snipImpact).toEqual({
       snippedMessages: 0,
       snippedBlocks: 0,
@@ -899,6 +909,11 @@ describe('contextDiagnostics', () => {
       cacheAwareMinResultChars: 600,
       cacheAwareCompactedBlocks: 0,
       cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 1400,
+      timeAwareMinStaleUserTurns: 4,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
     })
     expect(parsed.nextTurnFixed.toolResultBudgetImpact).toMatchObject({
       replacedBlocks: 0,

@@ -10,7 +10,7 @@
 
 如果把 Claude Code 在上下文压缩这块的成熟度看作 `100`，那么当前 Formax 大约已经走到：
 
-- **83 ~ 87 / 100**
+- **84 ~ 88 / 100**
 
 更准确地说：
 
@@ -414,12 +414,11 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 如果下一轮还继续沿着“向 Claude Code 靠拢”这条主线走，我建议优先顺序是：
 
-1. **`CCA-160`：升级 keep strategy / task-minimal working-set selector**
-2. **`CCA-161`：让 session memory 进入更强的 restore utility**
-3. **`CCA-162`：继续补 compact protocol 的 replay / inspection parity**
-4. **`CCA-163`：再考虑 time-aware / stale-aware `microcompact`**
+1. **`CCA-160`：升级 keep strategy / task-minimal working-set selector**（已完成）
+2. **`CCA-161`：让 session memory 进入更强的 restore utility**（已完成）
+3. **`CCA-162`：继续补 compact protocol 的 replay / inspection parity**（已完成）
+4. **`CCA-163`：再考虑 time-aware / stale-aware `microcompact`**（已完成）
 
-而不是马上上完整 persisted collapse store。
+这四项完成后，下一步不应继续惯性扩张 reducer；应先做 post-`CCA-163` mainline re-rank，再决定新的 17x 主线。
 
-因为当前最大收益，已经不在“先做一个酷的新层”，  
-而在“把已经补上的这些层真正贯通成系统”。
+当前最大收益，已经不在“再多做一个压缩技巧”，而在“重新判断还剩下哪些真正值得做的系统差距”。

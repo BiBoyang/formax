@@ -44,6 +44,11 @@ export type RpcMicroCompactImpact = {
   cacheAwareMinResultChars?: number
   cacheAwareCompactedBlocks?: number
   cacheAwareToolNames?: string[]
+  timeAwareEligibleToolNames?: string[]
+  timeAwareMinResultChars?: number
+  timeAwareMinStaleUserTurns?: number
+  timeAwareCompactedBlocks?: number
+  timeAwareToolNames?: string[]
 }
 
 export type RpcToolResultBudgetImpact = {
@@ -711,6 +716,11 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
   const cacheAwareMinResultChars = asOptionalFiniteNumber(record.cacheAwareMinResultChars)
   const cacheAwareCompactedBlocks = asOptionalFiniteNumber(record.cacheAwareCompactedBlocks)
   const cacheAwareToolNames = parseOptionalStringList(record.cacheAwareToolNames)
+  const timeAwareEligibleToolNames = parseOptionalStringList(record.timeAwareEligibleToolNames)
+  const timeAwareMinResultChars = asOptionalFiniteNumber(record.timeAwareMinResultChars)
+  const timeAwareMinStaleUserTurns = asOptionalFiniteNumber(record.timeAwareMinStaleUserTurns)
+  const timeAwareCompactedBlocks = asOptionalFiniteNumber(record.timeAwareCompactedBlocks)
+  const timeAwareToolNames = parseOptionalStringList(record.timeAwareToolNames)
   if (compactedBlocks == null || estimatedTokensSaved == null || keptRecentBlocks == null || !compactedToolNames) {
     return null
   }
@@ -718,7 +728,12 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
     cacheAwareEligibleToolNames === null ||
     cacheAwareMinResultChars === null ||
     cacheAwareCompactedBlocks === null ||
-    cacheAwareToolNames === null
+    cacheAwareToolNames === null ||
+    timeAwareEligibleToolNames === null ||
+    timeAwareMinResultChars === null ||
+    timeAwareMinStaleUserTurns === null ||
+    timeAwareCompactedBlocks === null ||
+    timeAwareToolNames === null
   ) {
     return null
   }
@@ -731,6 +746,11 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
     ...(cacheAwareMinResultChars !== undefined ? { cacheAwareMinResultChars } : {}),
     ...(cacheAwareCompactedBlocks !== undefined ? { cacheAwareCompactedBlocks } : {}),
     ...(cacheAwareToolNames ? { cacheAwareToolNames: cacheAwareToolNames.value } : {}),
+    ...(timeAwareEligibleToolNames ? { timeAwareEligibleToolNames: timeAwareEligibleToolNames.value } : {}),
+    ...(timeAwareMinResultChars !== undefined ? { timeAwareMinResultChars } : {}),
+    ...(timeAwareMinStaleUserTurns !== undefined ? { timeAwareMinStaleUserTurns } : {}),
+    ...(timeAwareCompactedBlocks !== undefined ? { timeAwareCompactedBlocks } : {}),
+    ...(timeAwareToolNames ? { timeAwareToolNames: timeAwareToolNames.value } : {}),
   }
 }
 

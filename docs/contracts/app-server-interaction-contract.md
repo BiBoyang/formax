@@ -266,6 +266,12 @@
     - `cacheAwareMinResultChars`
     - `cacheAwareCompactedBlocks`
     - `cacheAwareToolNames`
+  - `local.diagnostics.nextTurnFixed.microCompactImpact` 当前若走到了 time-aware / stale-aware path，SHOULD 额外暴露：
+    - `timeAwareEligibleToolNames`
+    - `timeAwareMinResultChars`
+    - `timeAwareMinStaleUserTurns`
+    - `timeAwareCompactedBlocks`
+    - `timeAwareToolNames`
   - `local.diagnostics.nextTurnFixed.toolResultBudgetImpact` 若存在，当前稳定字段 SHOULD 包含：
     - `replacedBlocks`
     - `replacedToolNames`
