@@ -17,7 +17,6 @@ import {
 } from './middleLayerStrategyStack'
 import { pruneForPromptBudget } from './prune'
 import {
-  AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS,
   buildWorkingSetAwareAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   countNonToolUserTurns,
@@ -386,13 +385,14 @@ export function analyzeNextTurnFixedContext(args: {
     const baselineStartTurnPosition = Math.max(0, userTurnIndices.length - Math.max(keepLastTurns, keepMinUserTurns))
     const anchorBacktrackTurns =
       anchor.turnPosition < baselineStartTurnPosition &&
-      baselineStartTurnPosition - anchor.turnPosition <= AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS
+      baselineStartTurnPosition - anchor.turnPosition <= anchor.maxBacktrackTurns
         ? baselineStartTurnPosition - anchor.turnPosition
         : 0
     return {
       kind: anchor.kind,
       toolNames: anchor.toolNames,
       backtrackTurns: anchorBacktrackTurns,
+      maxBacktrackTurns: anchor.maxBacktrackTurns,
     }
   })()
   const workingSetSignals = deriveAutoCompactWorkingSetSignals({
@@ -1639,6 +1639,7 @@ function formatWorkingSetSignals(value: AutoCompactWorkingSetSignals | null): st
     `anchor_kind=${value.anchorKind}`,
     `anchor_tools=${value.anchorToolNames.length > 0 ? value.anchorToolNames.join('+') : 'none'}`,
     `anchor_backtrack_turns=${formatInt(value.anchorBacktrackTurns)}`,
+    `anchor_max_backtrack_turns=${formatInt(value.anchorMaxBacktrackTurns)}`,
   ].join(', ')
 }
 

@@ -219,6 +219,67 @@ describe('selectTailForCompaction', () => {
       'x'.repeat(2400),
     ])
   })
+
+  it('allows filesystem-cluster anchors to rewind two extra user turns for the current task', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'grep the auth routes'),
+      grepToolUse('grep-1', 'redirect'),
+      toolResult('grep-1'),
+      globToolUse('glob-1', '**/*auth*'),
+      toolResult('glob-1'),
+      txt('assistant', 'Found redirect handling in auth routes.'),
+      txt('user', 'rename the CTA'),
+      txt('assistant', 'assistant note'),
+      txt('user', 'rewrite the empty state'),
+      txt('assistant', 'x'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text ?? (m.content as any[])[0]?.name ?? (m.content as any[])[0]?.type)).toEqual([
+      'grep the auth routes',
+      'Grep',
+      'tool_result',
+      'Glob',
+      'tool_result',
+      'Found redirect handling in auth routes.',
+      'rename the CTA',
+      'assistant note',
+      'rewrite the empty state',
+      'x'.repeat(2400),
+    ])
+  })
+
+  it('does not rewind to stale filesystem-cluster turns once they are more than two extra user turns behind', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'grep the auth routes'),
+      grepToolUse('grep-1', 'redirect'),
+      toolResult('grep-1'),
+      globToolUse('glob-1', '**/*auth*'),
+      toolResult('glob-1'),
+      txt('assistant', 'Found redirect handling in auth routes.'),
+      txt('user', 'rename the CTA'),
+      txt('assistant', 'assistant note'),
+      txt('user', 'rewrite the empty state'),
+      txt('assistant', 'assistant note 2'),
+      txt('user', 'write release notes'),
+      txt('assistant', 'y'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['write release notes', 'y'.repeat(2400)])
+  })
 })
 
 describe('rebuildHistoryAfterCompaction', () => {
@@ -449,6 +510,7 @@ describe('compaction summary helpers', () => {
       anchorKind: 'none',
       anchorToolNames: [],
       anchorBacktrackTurns: 0,
+      anchorMaxBacktrackTurns: 0,
     })
   })
 

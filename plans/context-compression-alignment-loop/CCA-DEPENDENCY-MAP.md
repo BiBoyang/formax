@@ -1,6 +1,6 @@
 # CCA Dependency Map
 
-更新时间：2026-05-11
+更新时间：2026-05-12
 状态：Active
 
 ## 这份图解决什么问题
@@ -168,49 +168,49 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-140 ~ 146` middle-layer mainline
-2. post-`CCA-143` re-rank
+1. `CCA-151` session-memory restore consumption v4
+2. `CCA-152` middle-layer canonical-owner convergence
+3. `CCA-153` compact protocol remote / restore alignment
 
 对应含义：
 
-1. `CCA-132` 已完成；post-132 重排已经完成
-2. 当前最大结构性差距已经切换到“独立中间层策略栈的协调与控制面成熟度”，而不是继续围绕 collapse surface 打补丁
+1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
+2. `CCA-150` 已完成，working-set selector 已开始按 anchor kind 区分 backtrack window
+3. 当前最大差距已经切回：
+   - restore 后 session-memory 的更宽消费
+   - stack 周边 flow 的 canonical-owner convergence
+   - compact protocol 的 remote / restore ecosystem
 
 ## 新主线为什么这样排
 
-### `CCA-140` 先于 `CCA-141`
+### `CCA-151` 先于 `CCA-152`
 
-`CCA-141` 的目标是引入第一条真正独立的新中间层策略：tool-result budget replacement。
+`CCA-151` 的目标是继续让压缩后的 session-memory 在 restore 之后真正有用。
 
-如果没有 `CCA-140`，这条新策略很容易重新退化成：
+如果没有先做 `CCA-151`，就容易出现这种情况：
 
-1. 再往 `contextCompressionService.ts` 里塞一个特殊分支
-2. 继续和 `microcompact` / `prune` 共享一堆隐含状态
-3. diagnostics 再次事后推导，而不是复用 runtime facts
+1. query-time stack 虽然已经更成熟
+2. 但 restore 后真正延续任务语义的能力仍然偏窄
+3. 用户实际感受到的“压缩后还能继续工作”改进不够明显
 
-所以 `CCA-140` 的作用是先定义：
+所以当前更值钱的顺序是先把 restore 消费面继续补宽，再回头做更内聚的 owner convergence。
 
-1. 统一的 strategy input
-2. 统一的 strategy result
-3. 统一的 execution order
-4. runtime facts 与 diagnostics 的复用边界
+### `CCA-152` 仍然早于 `CCA-153`
 
-只有这些有了承载，`CCA-141` 才不会变成又一段 ad hoc 逻辑。
+`CCA-152` 的目标是让 middle-layer stack 更接近 surrounding flow 的唯一 owner。
 
-### 为什么 `CCA-144` 先于 `CCA-145`
+如果不先做这一步，就容易在 `CCA-153` 里继续把 compact protocol 的新语义散落到：
 
-`CCA-145` 的目标是统一 coordination facts。
+1. `contextCompressionService.ts`
+2. app-server adapters
+3. replay / restore 辅助路径
 
-如果没有先做 `CCA-144`，这些 facts 仍然会建立在隐含 stage semantics 上，结果会是：
+也就是说：
 
-1. `prune` 是否 terminal fallback 依然说不清
-2. `toolResultBudget` 与 `collapse` 的顺序仍然只是代码事实
-3. future `snip` 的位置仍然没有 contract 可依
+- `CCA-152` 先解决 owner convergence
+- `CCA-153` 再把 compact protocol 的 remote / restore 生态补深
 
-所以顺序上更合理的是：
-
-1. 先定义 stage contract / execution-order contract
-2. 再统一 coordination facts
+## 已完成波段为什么可以收口
 
 当前状态：
 
@@ -221,23 +221,13 @@ flowchart TD
 - `CCA-144` 已完成
 - `CCA-145` 已完成
 - `CCA-146` 已完成
-- 当前需要的是 post-`CCA-143` re-rank，而不是继续补这条线的局部边角
+- `CCA-150` 已完成
 
-### 为什么 `CCA-146` 先于 `CCA-143`
+这意味着：
 
-`CCA-143` 的问题已经不只是“写一个新策略”，而是先要回答它和 `microcompact` / `toolResultBudget` / `collapse` 的边界。
-
-所以更稳的顺序是：
-
-1. 先把 stage contract 明确
-2. 先把 coordination facts 做稳
-3. 先把 control-plane diagnostics 建立起来
-4. 再决定 `snip` 的第一版边界与 MVP
-
-当前状态：
-
-- 这条顺序已经执行完成
-- `snip` 当前已作为 request-time `budget_reducer` 接入 canonical stage order
+1. middle-layer stack 的 contract / coordination / control-plane / snip 已成型
+2. working-set selector 也已从固定 1-turn rewind 推进到 anchor-kind-aware window
+3. 当前已经没有必要继续围绕这条 reducer 主线做局部补丁
 
 ---
 

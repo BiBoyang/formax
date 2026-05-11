@@ -322,11 +322,12 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 当前 Formax 已经从固定 `keepLastTurns` 升级到：
 
 - `keep_combo`
-- 最近成功 `Read` 的 working-set anchor
+- 最近成功 `Read` / `Grep` / `Glob` 的 working-set anchor
+- 按 anchor kind 区分的 rewind window（`Read=1`，`filesystem_cluster=2`）
 
 这是好事，但和 Claude Code 相比还不够：
 
-1. 当前最小工作集只覆盖很窄的 `Read` 场景
+1. 当前最小工作集虽然已覆盖 filesystem cluster，但仍缺更广义的任务相关 working-set 识别
 2. manual compact 还没共享更高级 keep 策略
 3. 还没有更广义的“任务相关工作集”识别
 
@@ -442,8 +443,8 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 1. **升级 keep strategy / working-set selector**
 2. **让 session memory 进入更深的 restore 消费**
-3. **继续补 compact protocol 的 remote / restore 贯通**
-4. **richer collapse client consumption 保持在“消费层”范围内继续补齐**
+3. **继续收敛 middle-layer stack 的 canonical owner**
+4. **继续补 compact protocol 的 remote / restore 贯通**
 
 而不是马上上完整 persisted collapse store。
 

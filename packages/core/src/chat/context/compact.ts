@@ -12,7 +12,7 @@ const AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_TODO_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_MODE_STATE_TOKEN_BOOST = 150
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
-export const AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS = READ_WORKING_SET_MAX_BACKTRACK_TURNS
+const FILESYSTEM_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS = 2
 const WORKING_SET_ANCHOR_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
 
 export type CompactBoundaryTrigger = 'manual' | 'auto' | 'reactive'
@@ -44,12 +44,14 @@ export type AutoCompactWorkingSetSignals = {
   anchorKind: 'none' | 'read' | 'filesystem_cluster'
   anchorToolNames: string[]
   anchorBacktrackTurns: number
+  anchorMaxBacktrackTurns: number
 }
 
 export type WorkingSetAnchorInfo = {
   kind: 'read' | 'filesystem_cluster'
   toolNames: string[]
   turnPosition: number
+  maxBacktrackTurns: number
 }
 
 export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
@@ -154,6 +156,7 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     kind: WorkingSetAnchorInfo['kind']
     toolNames: string[]
     backtrackTurns: number
+    maxBacktrackTurns: number
   } | null
 }): AutoCompactWorkingSetSignals {
   const recentFileCount = Math.min(
@@ -186,6 +189,7 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     anchorKind: args.workingSetAnchor?.kind ?? 'none',
     anchorToolNames: args.workingSetAnchor?.toolNames ?? [],
     anchorBacktrackTurns: args.workingSetAnchor?.backtrackTurns ?? 0,
+    anchorMaxBacktrackTurns: args.workingSetAnchor?.maxBacktrackTurns ?? 0,
   }
 }
 
@@ -242,7 +246,7 @@ export function selectTailForCompaction(
   if (
     workingSetTurnPosition != null &&
     workingSetTurnPosition < startTurnPosition &&
-    startTurnPosition - workingSetTurnPosition <= AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS
+    startTurnPosition - workingSetTurnPosition <= workingSetAnchor.maxBacktrackTurns
   ) {
     startTurnPosition = workingSetTurnPosition
   }
@@ -654,6 +658,10 @@ export function findLatestWorkingSetAnchor(
       kind: toolNames.length === 1 && toolNames[0] === 'Read' ? 'read' : 'filesystem_cluster',
       toolNames,
       turnPosition,
+      maxBacktrackTurns:
+        toolNames.length === 1 && toolNames[0] === 'Read'
+          ? READ_WORKING_SET_MAX_BACKTRACK_TURNS
+          : FILESYSTEM_CLUSTER_WORKING_SET_MAX_BACKTRACK_TURNS,
     }
   }
 

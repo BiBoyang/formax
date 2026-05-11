@@ -2,7 +2,7 @@
 
 目标：围绕 Claude Code 的上下文压缩体系，持续缩小 Formax 在“分层压缩、协议化 compact、状态恢复、可观测性”上的差距，并保持每个增量都可测试、可 review、可提交。
 
-最后更新时间：2026-05-11
+最后更新时间：2026-05-12
 
 ## 这份计划解决什么问题
 
@@ -144,10 +144,14 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `keep_combo` 不再只看 turn 数和 token floor。
    - 当前会把“最近成功 `Read` 所在 turn”当成 working-set anchor，但只允许回卷最近 1 个额外 user turn。
    - 这样可以避免 auto compact 只因最后一轮聊天文本够长就把刚读过的文件上下文整段丢掉，同时不把很久以前的 `Read` 永久钉在 tail 里。
-9. `microcompact` turn-level metrics
+9. 最小工作集选择器第二版
+   - working-set anchor 已扩成 filesystem tool cluster（`Read` / `Grep` / `Glob`）。
+   - `filesystem_cluster` 当前有独立的 2-turn backtrack window；`Read` anchor 继续保持 1-turn rewind。
+   - `/context` 当前也会显式说明 `anchorMaxBacktrackTurns`，避免只看到实际回卷而看不到当前策略窗口。
+10. `microcompact` turn-level metrics
    - 已返回 `compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`
    - `/context` diagnostics payload 已可读取 impact 基础字段
-10. 可观测性第一版
+11. 可观测性第一版
    - 已有 `/context`
    - 已有 snapshot 视图
    - 已有 next-turn fixed context 视图
@@ -185,8 +189,11 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已完成：下一阶段主线已切换到“独立中间层策略栈”而不是继续围绕 collapse 最小消费面扩面
 3. `CCA-140 ~ 146`
    - 已完成：middle-layer scaffolding、tool-result budget、cache-aware microcompact、stage contract、coordination facts、control-plane diagnostics、以及最小 request-time snip layer 都已落地
-4. 下一步
-   - 进入 post-`CCA-143` mainline re-rank
+4. `CCA-150`
+   - 已完成：working-set / keep strategy v4 第一刀
+   - 结果：filesystem task cluster 已不再只允许固定 1-turn rewind，diagnostics 也会显式暴露 `anchorMaxBacktrackTurns`
+5. 下一步
+   - 进入 `CCA-151` / `CCA-152` / `CCA-153` mainline
 
 刚完成的上一轮主线：
 
@@ -241,7 +248,11 @@ Formax 当前：
 - `CCA-144` 已完成
 - `CCA-145` 已完成
 - `CCA-146` 已完成
-- 当前需要的是 post-`CCA-143` mainline re-rank
+- `CCA-150` 已完成
+- 当前主线已经切到：
+  - `CCA-151` session-memory restore consumption v4
+  - `CCA-152` middle-layer canonical-owner convergence
+  - `CCA-153` compact protocol remote / restore alignment
 
 ## B. `microcompact` 能力深度
 
@@ -304,7 +315,7 @@ Claude Code：
 Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
-  - 当前 working-set anchor 仍只覆盖最近成功 `Read`，且只做很窄的回卷
+  - 当前 working-set anchor 已覆盖 filesystem cluster，并开始按 anchor kind 区分回卷窗口；但仍未达到真正 task-minimal 的 working-set 识别
   - manual compact 还没有组合 keep 策略
   - 还没有更广义的“任务最小工作集”选择
 
