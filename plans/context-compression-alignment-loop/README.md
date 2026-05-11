@@ -205,9 +205,8 @@ Formax 当前：
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
   - 这些步骤还没有形成真正独立的策略栈
-  - tool-result budget replacement 还不存在
   - snip layer 还不存在
-  - `microcompact` 还没有 cache-aware / time-aware 路径
+  - `microcompact` 还没有更成熟的 time-aware 路径
 
 ### 下一阶段切法
 
@@ -222,6 +221,13 @@ Formax 当前：
 - `CCA-140` 负责把现有的 `microcompact` / `collapse` / `prune` 从“发送链步骤”收敛成统一 strategy stack
 - `CCA-141` 负责补第一条真正独立的新中间层策略
 - `CCA-142` 才是在统一承载下继续推进 `microcompact` 成熟度
+
+当前状态：
+
+- `CCA-140` 已完成
+- `CCA-141` 已完成
+- `CCA-142` 已完成
+- 下一条 backlog 主线是 `CCA-143` snip layer v1
 
 ## B. `microcompact` 能力深度
 

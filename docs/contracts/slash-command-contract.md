@@ -111,6 +111,11 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `notes`
    未知附加字段 MAY 存在，但客户端 MUST 忽略它们。
 7. `nextTurnFixed` diagnostics payload MUST 暴露 `microCompactImpact` 基础字段（`compactedBlocks`、`compactedToolNames`、`estimatedTokensSaved`、`keptRecentBlocks`），供后续展示层与客户端调试消费
+7.0. `microCompactImpact` 当前 SHOULD 额外暴露 cache-aware facts，用于把 `CCA-142` 的 cache-aware path 稳定表达出来；若提供，稳定字段至少包含：
+   - `cacheAwareEligibleToolNames`
+   - `cacheAwareMinResultChars`
+   - `cacheAwareCompactedBlocks`
+   - `cacheAwareToolNames`
 7.1. `nextTurnFixed` diagnostics payload 当前 SHOULD 额外暴露 `toolResultBudgetImpact`，用于把 tool-result budget replacement 作为独立中间层策略稳定表达出来；稳定字段至少包含：
    - `replacedBlocks`
    - `replacedToolNames`

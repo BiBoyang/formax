@@ -43,6 +43,8 @@ describe('executeMiddleLayerStrategyStack', () => {
       keepRecentToolResultsByName: { Read: 1 },
       minResultChars: 1200,
       minResultCharsByName: { Grep: 900 },
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
     })
     vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
       pressureTier: 'tight',
@@ -75,6 +77,10 @@ describe('executeMiddleLayerStrategyStack', () => {
       compactedToolNames: ['Read'],
       estimatedTokensSaved: 300,
       keptRecentBlocks: 1,
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
+      cacheAwareCompactedBlocks: 1,
+      cacheAwareToolNames: ['Grep'],
     } as any)
     vi.mocked(pruneForPromptBudget).mockReturnValue({
       messages: prunedMessages,
@@ -169,12 +175,18 @@ describe('executeMiddleLayerStrategyStack', () => {
           keepRecentToolResultsByName: { Read: 1 },
           minResultChars: 1200,
           minResultCharsByName: { Grep: 900 },
+          cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+          cacheAwareMinResultChars: 400,
         },
         impact: {
           compactedBlocks: 2,
           compactedToolNames: ['Read'],
           estimatedTokensSaved: 300,
           keptRecentBlocks: 1,
+          cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+          cacheAwareMinResultChars: 400,
+          cacheAwareCompactedBlocks: 1,
+          cacheAwareToolNames: ['Grep'],
         },
       },
       prune: {
@@ -213,6 +225,8 @@ describe('executeMiddleLayerStrategyStack', () => {
       keepRecentToolResultsByName: {},
       minResultChars: 1200,
       minResultCharsByName: {},
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
     })
     vi.mocked(resolveAdaptiveToolResultBudgetPolicy).mockReturnValue({
       pressureTier: 'default',
@@ -229,6 +243,10 @@ describe('executeMiddleLayerStrategyStack', () => {
       compactedToolNames: [],
       estimatedTokensSaved: 0,
       keptRecentBlocks: 0,
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
     } as any)
     vi.mocked(applyToolResultBudget).mockReturnValue({
       messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],

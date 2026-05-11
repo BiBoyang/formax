@@ -214,6 +214,13 @@ flowchart TD
 1. 先让 tool-result budget 成为独立层
 2. 再把 `microcompact` 推进到更成熟的 cached/time-aware 路径
 
+当前状态：
+
+- `CCA-140` 已完成
+- `CCA-141` 已完成
+- `CCA-142` 已完成
+- 当前 backlog 入口是 `CCA-143`
+
 ### `CCA-143` 为什么放后
 
 `snip` 是另一条很有价值的中间层，但它比 `CCA-141` 更容易和 `microcompact` / `collapse` 形成职责重叠。

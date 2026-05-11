@@ -211,6 +211,11 @@
     - `compactedToolNames`
     - `estimatedTokensSaved`
     - `keptRecentBlocks`
+  - `local.diagnostics.nextTurnFixed.microCompactImpact` 当前若走到了 cache-aware path，SHOULD 额外暴露：
+    - `cacheAwareEligibleToolNames`
+    - `cacheAwareMinResultChars`
+    - `cacheAwareCompactedBlocks`
+    - `cacheAwareToolNames`
   - `local.diagnostics.nextTurnFixed.toolResultBudgetImpact` 若存在，当前稳定字段 SHOULD 包含：
     - `replacedBlocks`
     - `replacedToolNames`

@@ -8,6 +8,8 @@ export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcomp
 const MICROCOMPACT_COMPANION_STUB_PREFIX = '[Older companion block cleared by microcompact:'
 const SKILL_COMPANION_PREFIX = 'Base directory for this skill: '
 const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'Skill'] as const
+const DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'WebFetch'] as const
+const DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS = 400
 const SAFE_BASH_COMMANDS = [
   'cat',
   'head',
@@ -49,7 +51,9 @@ type EligibleToolResultRef = {
   toolUseId: string
   tool: ToolUseMeta
   rawResultChars: number
+  rawResultText: string
   compactToolResult: boolean
+  compactionReason: 'standard' | 'cache_aware' | null
   companionTextBlockIndex?: number
   companionText?: string
 }
@@ -59,11 +63,17 @@ export type MicroCompactImpact = {
   compactedToolNames: string[]
   estimatedTokensSaved: number
   keptRecentBlocks: number
+  cacheAwareEligibleToolNames: string[]
+  cacheAwareMinResultChars: number
+  cacheAwareCompactedBlocks: number
+  cacheAwareToolNames: string[]
 }
 
 export type AdaptiveMicroCompactPolicy = {
   pressureTier: 'default' | 'relaxed' | 'steady' | 'tight' | 'critical'
   eligibleToolNames: string[]
+  cacheAwareEligibleToolNames: string[]
+  cacheAwareMinResultChars: number
   keepRecentToolResults: number
   keepRecentToolResultsByName: Record<string, number>
   minResultChars: number
@@ -78,6 +88,8 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
     return {
       pressureTier: 'default',
       eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+      cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
+      cacheAwareMinResultChars: DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS,
       keepRecentToolResults: DEFAULT_KEEP_RECENT_TOOL_RESULTS,
       keepRecentToolResultsByName: {
         Read: 2,
@@ -91,6 +103,8 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
     return {
       pressureTier: 'relaxed',
       eligibleToolNames: ['Read', 'Skill'],
+      cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
+      cacheAwareMinResultChars: 600,
       keepRecentToolResults: 4,
       keepRecentToolResultsByName: {
         Read: 2,
@@ -104,6 +118,8 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
     return {
       pressureTier: 'steady',
       eligibleToolNames: ['Read', 'Grep', 'Skill'],
+      cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
+      cacheAwareMinResultChars: 500,
       keepRecentToolResults: 3,
       keepRecentToolResultsByName: {
         Read: 2,
@@ -120,6 +136,8 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
     return {
       pressureTier: 'tight',
       eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
+      cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
+      cacheAwareMinResultChars: 400,
       keepRecentToolResults: 2,
       keepRecentToolResultsByName: {
         Read: 1,
@@ -135,6 +153,8 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
   return {
     pressureTier: 'critical',
     eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES, 'Bash', 'WebFetch'],
+    cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
+    cacheAwareMinResultChars: 300,
     keepRecentToolResults: 1,
     keepRecentToolResultsByName: {
       Read: 1,
@@ -156,6 +176,8 @@ export function microCompactHistory(args: {
   minResultChars?: number
   minResultCharsByName?: Record<string, number>
   eligibleToolNames?: Iterable<string>
+  cacheAwareEligibleToolNames?: Iterable<string>
+  cacheAwareMinResultChars?: number
 }): {
   messages: PromptMessage[]
   compacted: boolean
@@ -163,16 +185,24 @@ export function microCompactHistory(args: {
   compactedToolNames: string[]
   estimatedTokensSaved: number
   keptRecentBlocks: number
+  cacheAwareEligibleToolNames: string[]
+  cacheAwareMinResultChars: number
+  cacheAwareCompactedBlocks: number
+  cacheAwareToolNames: string[]
 } {
   const keepRecentToolResults = clampCount(args.keepRecentToolResults, DEFAULT_KEEP_RECENT_TOOL_RESULTS)
   const keepRecentToolResultsByName = normalizeNamedCountMap(args.keepRecentToolResultsByName)
   const minResultChars = clampCount(args.minResultChars, DEFAULT_MIN_RESULT_CHARS)
   const minResultCharsByName = normalizeNamedCountMap(args.minResultCharsByName)
   const eligibleToolNames = new Set(args.eligibleToolNames ?? DEFAULT_ELIGIBLE_TOOL_NAMES)
+  const cacheAwareEligibleToolNames = new Set(args.cacheAwareEligibleToolNames ?? DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES)
+  const cacheAwareMinResultChars = clampCount(args.cacheAwareMinResultChars, DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS)
   const toolUsesById = collectToolUsesById(args.messages)
   const eligibleBlocks = collectEligibleToolResults({
     messages: args.messages,
     eligibleToolNames,
+    cacheAwareEligibleToolNames,
+    cacheAwareMinResultChars,
     minResultChars,
     minResultCharsByName,
     toolUsesById,
@@ -186,6 +216,10 @@ export function microCompactHistory(args: {
       compactedToolNames: [],
       estimatedTokensSaved: 0,
       keptRecentBlocks: eligibleBlocks.length,
+      cacheAwareEligibleToolNames: [...cacheAwareEligibleToolNames],
+      cacheAwareMinResultChars,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
     }
   }
 
@@ -198,8 +232,11 @@ export function microCompactHistory(args: {
   const patchedByIndex = new Map<number, PromptMessage>()
   const compactedToolNames: string[] = []
   const compactedToolNameSet = new Set<string>()
+  const cacheAwareToolNames: string[] = []
+  const cacheAwareToolNameSet = new Set<string>()
   let estimatedTokensSaved = 0
   let compactedBlocks = 0
+  let cacheAwareCompactedBlocks = 0
 
   for (const ref of refsToCompact) {
     const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
@@ -253,6 +290,13 @@ export function microCompactHistory(args: {
       compactedToolNameSet.add(ref.tool.name)
       compactedToolNames.push(ref.tool.name)
     }
+    if (ref.compactionReason === 'cache_aware') {
+      cacheAwareCompactedBlocks += 1
+      if (!cacheAwareToolNameSet.has(ref.tool.name)) {
+        cacheAwareToolNameSet.add(ref.tool.name)
+        cacheAwareToolNames.push(ref.tool.name)
+      }
+    }
   }
 
   return {
@@ -262,6 +306,10 @@ export function microCompactHistory(args: {
     compactedToolNames,
     estimatedTokensSaved,
     keptRecentBlocks: Math.max(0, eligibleBlocks.length - compactedBlocks),
+    cacheAwareEligibleToolNames: [...cacheAwareEligibleToolNames],
+    cacheAwareMinResultChars,
+    cacheAwareCompactedBlocks,
+    cacheAwareToolNames,
   }
 }
 
@@ -291,11 +339,13 @@ function collectToolUsesById(messages: PromptMessage[]): Map<string, ToolUseMeta
 function collectEligibleToolResults(args: {
   messages: PromptMessage[]
   eligibleToolNames: Set<string>
+  cacheAwareEligibleToolNames: Set<string>
+  cacheAwareMinResultChars: number
   minResultChars: number
   minResultCharsByName: Record<string, number>
   toolUsesById: Map<string, ToolUseMeta>
 }): EligibleToolResultRef[] {
-  const out: EligibleToolResultRef[] = []
+  const candidates: EligibleToolResultRef[] = []
 
   for (let messageIndex = 0; messageIndex < args.messages.length; messageIndex++) {
     const message = args.messages[messageIndex]
@@ -309,9 +359,10 @@ function collectEligibleToolResults(args: {
 
       const tool = args.toolUsesById.get(block.tool_use_id)
       if (!tool) continue
-      if (!args.eligibleToolNames.has(tool.name)) continue
 
       const raw = toolResultContentToText(block.content)
+      if (isAlreadyMicroCompacted(block.content)) continue
+      if (!isSafeToolResultToMicroCompact(tool, raw)) continue
       const minCharsForTool = Math.max(
         0,
         clampCount(args.minResultCharsByName[tool.name], args.minResultChars),
@@ -323,26 +374,92 @@ function collectEligibleToolResults(args: {
         minChars: minCharsForTool,
       })
       const compactToolResult =
+        args.eligibleToolNames.has(tool.name) &&
         raw.length >= minCharsForTool &&
-        !isAlreadyMicroCompacted(block.content) &&
-        isSafeToolResultToMicroCompact(tool, raw)
+        true
+      const cacheAwareCandidate =
+        args.cacheAwareEligibleToolNames.has(tool.name) && raw.length >= args.cacheAwareMinResultChars
 
-      if (!compactToolResult && !companion) continue
+      if (!compactToolResult && !companion && !cacheAwareCandidate) continue
 
-      out.push({
+      candidates.push({
         messageIndex,
         blockIndex,
         toolUseId: block.tool_use_id,
         tool,
         rawResultChars: raw.length,
+        rawResultText: raw,
         compactToolResult,
+        compactionReason: compactToolResult ? 'standard' : null,
         companionTextBlockIndex: companion?.blockIndex,
         companionText: companion?.text,
       })
     }
   }
 
-  return out
+  const duplicateCacheKeys = findCacheAwareDuplicateCacheKeys({
+    refs: candidates,
+    cacheAwareEligibleToolNames: args.cacheAwareEligibleToolNames,
+    cacheAwareMinResultChars: args.cacheAwareMinResultChars,
+  })
+
+  return candidates
+    .map((ref) => {
+      if (ref.compactionReason === 'standard') return ref
+      const cacheKey = buildCacheAwareDuplicateCacheKey(ref.tool, ref.rawResultText)
+      if (!cacheKey || !duplicateCacheKeys.has(cacheKey)) return ref
+      return {
+        ...ref,
+        compactToolResult: true,
+        compactionReason: 'cache_aware' as const,
+      }
+    })
+    .filter((ref) => ref.compactToolResult || typeof ref.companionText === 'string')
+}
+
+function findCacheAwareDuplicateCacheKeys(args: {
+  refs: EligibleToolResultRef[]
+  cacheAwareEligibleToolNames: Set<string>
+  cacheAwareMinResultChars: number
+}): Set<string> {
+  const counts = new Map<string, number>()
+  for (const ref of args.refs) {
+    if (ref.compactionReason === 'standard') continue
+    if (!args.cacheAwareEligibleToolNames.has(ref.tool.name)) continue
+    if (ref.rawResultChars < args.cacheAwareMinResultChars) continue
+    const key = buildCacheAwareDuplicateCacheKey(ref.tool, ref.rawResultText)
+    if (!key) continue
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return new Set([...counts.entries()].filter(([, count]) => count >= 2).map(([key]) => key))
+}
+
+function buildCacheAwareDuplicateCacheKey(tool: ToolUseMeta, rawResultText: string): string | null {
+  const lookupKey = buildCacheAwareLookupKey(tool)
+  if (!lookupKey) return null
+  return `${lookupKey}\u0000${rawResultText}`
+}
+
+function buildCacheAwareLookupKey(tool: ToolUseMeta): string | null {
+  if (tool.name === 'Read') {
+    const filePath = readString(tool.input.file_path)
+    return filePath ? `Read:${filePath}` : null
+  }
+  if (tool.name === 'Grep') {
+    const pattern = readString(tool.input.pattern)
+    const path = readString(tool.input.path)
+    return pattern && path ? `Grep:${pattern}:${path}` : null
+  }
+  if (tool.name === 'Glob') {
+    const pattern = readString(tool.input.pattern)
+    const path = readString(tool.input.path)
+    return pattern && path ? `Glob:${pattern}:${path}` : null
+  }
+  if (tool.name === 'WebFetch') {
+    const url = readString(tool.input.url)
+    return url ? `WebFetch:${url}` : null
+  }
+  return null
 }
 
 function buildMicrocompactStub(tool: ToolUseMeta, rawResultText: string): string {

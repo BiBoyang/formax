@@ -183,6 +183,10 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Estimated tokens saved by microcompact: 0')
     expect(out).toContain('- Microcompact compacted blocks: 0')
     expect(out).toContain('- Microcompact compacted tools: none')
+    expect(out).toContain('- Microcompact cache-aware eligible tools: none')
+    expect(out).toContain('- Microcompact cache-aware minimum chars: 0')
+    expect(out).toContain('- Microcompact cache-aware compacted blocks: 0')
+    expect(out).toContain('- Microcompact cache-aware compacted tools: none')
     expect(out).toContain('- Collapse applied for request projection: unknown')
     expect(out).toContain('- Estimated tokens saved by collapse: 0')
     expect(out).toContain('- Collapse recap metadata: none')
@@ -379,6 +383,10 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
     expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
     expect(out.microCompactImpact.keptRecentBlocks).toBe(3)
+    expect(out.microCompactImpact.cacheAwareEligibleToolNames).toEqual(['Read', 'Grep', 'Glob', 'WebFetch'])
+    expect(out.microCompactImpact.cacheAwareMinResultChars).toBe(500)
+    expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBe(0)
+    expect(out.microCompactImpact.cacheAwareToolNames).toEqual([])
     expect(out.collapseImpact).toEqual({
       collapsed: false,
       collapsedHeadMessageCount: 0,
@@ -525,6 +533,7 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.compactedBlocks).toBe(1)
     expect(out.microCompactImpact.compactedToolNames).toEqual(['Grep'])
     expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
+    expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBeGreaterThanOrEqual(0)
   })
 
   it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {
@@ -808,6 +817,10 @@ describe('contextDiagnostics', () => {
       compactedToolNames: [],
       estimatedTokensSaved: 0,
       keptRecentBlocks: 0,
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 600,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
     })
     expect(parsed.nextTurnFixed.toolResultBudgetImpact).toMatchObject({
       replacedBlocks: 0,

@@ -252,6 +252,68 @@ describe('microCompactHistory', () => {
     )
   })
 
+  it('compacts older duplicate cache-like results even when they are below the standard size threshold', () => {
+    const duplicatedRead = 'line\n'.repeat(120)
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', duplicatedRead),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-2', duplicatedRead),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/session.ts' }),
+      userToolResult('read-3', 'z'.repeat(5000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 1,
+      cacheAwareEligibleToolNames: ['Read'],
+      cacheAwareMinResultChars: 400,
+      minResultChars: 2000,
+      eligibleToolNames: ['Read'],
+    })
+
+    expect(out.compacted).toBe(true)
+    expect(out.compactedBlocks).toBe(2)
+    expect(out.compactedToolNames).toEqual(['Read'])
+    expect(out.cacheAwareCompactedBlocks).toBe(2)
+    expect(out.cacheAwareToolNames).toEqual(['Read'])
+    expect(out.cacheAwareEligibleToolNames).toEqual(['Read'])
+    expect(out.cacheAwareMinResultChars).toBe(400)
+    expect((out.messages[1]!.content[0] as any).content).toContain(
+      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
+    )
+    expect((out.messages[3]!.content[0] as any).content).toContain(
+      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
+    )
+    expect((out.messages[5]!.content[0] as any).content).toBe('z'.repeat(5000))
+  })
+
+  it('does not count unique cache-aware candidates as compacted when no duplicate path is present', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', 'a'.repeat(600)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/session.ts' }),
+      userToolResult('read-2', 'b'.repeat(600)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/redirect.ts' }),
+      userToolResult('read-3', 'c'.repeat(600)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 1,
+      cacheAwareEligibleToolNames: ['Read'],
+      cacheAwareMinResultChars: 400,
+      minResultChars: 2000,
+      eligibleToolNames: ['Read'],
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.compactedBlocks).toBe(0)
+    expect(out.estimatedTokensSaved).toBe(0)
+    expect(out.cacheAwareCompactedBlocks).toBe(0)
+    expect(out.messages).toBe(messages)
+  })
+
   it('resolves predictable adaptive policies for different pressure tiers', () => {
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: null })).toEqual({
       pressureTier: 'default',
@@ -260,6 +322,8 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 2, Skill: 1 },
       minResultChars: 1200,
       minResultCharsByName: {},
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.3 })).toEqual({
       pressureTier: 'relaxed',
@@ -268,6 +332,8 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 2, Skill: 2 },
       minResultChars: 2400,
       minResultCharsByName: {},
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 600,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.6 })).toEqual({
       pressureTier: 'steady',
@@ -276,6 +342,8 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 2, Grep: 1, Skill: 1 },
       minResultChars: 1600,
       minResultCharsByName: { Grep: 1000 },
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 500,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.8 })).toEqual({
       pressureTier: 'tight',
@@ -284,6 +352,8 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 1, Skill: 1 },
       minResultChars: 1200,
       minResultCharsByName: { Grep: 900, Glob: 900 },
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
       pressureTier: 'critical',
@@ -292,6 +362,8 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 1 },
       minResultChars: 800,
       minResultCharsByName: { Grep: 600, Glob: 600, Bash: 1200, WebFetch: 1200 },
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 300,
     })
   })
 

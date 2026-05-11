@@ -40,6 +40,10 @@ export type RpcMicroCompactImpact = {
   compactedToolNames: string[]
   estimatedTokensSaved: number
   keptRecentBlocks: number
+  cacheAwareEligibleToolNames?: string[]
+  cacheAwareMinResultChars?: number
+  cacheAwareCompactedBlocks?: number
+  cacheAwareToolNames?: string[]
 }
 
 export type RpcToolResultBudgetImpact = {
@@ -487,6 +491,11 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function asOptionalFiniteNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined
+  return asFiniteNumber(value)
+}
+
 function parseContributors(value: unknown): RpcContextContributor[] | null {
   if (!Array.isArray(value)) return null
   const rows: RpcContextContributor[] = []
@@ -561,7 +570,19 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
   const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
   const keptRecentBlocks = asFiniteNumber(record.keptRecentBlocks)
   const compactedToolNames = parseRequiredStringList(record.compactedToolNames)
+  const cacheAwareEligibleToolNames = parseOptionalStringList(record.cacheAwareEligibleToolNames)
+  const cacheAwareMinResultChars = asOptionalFiniteNumber(record.cacheAwareMinResultChars)
+  const cacheAwareCompactedBlocks = asOptionalFiniteNumber(record.cacheAwareCompactedBlocks)
+  const cacheAwareToolNames = parseOptionalStringList(record.cacheAwareToolNames)
   if (compactedBlocks == null || estimatedTokensSaved == null || keptRecentBlocks == null || !compactedToolNames) {
+    return null
+  }
+  if (
+    cacheAwareEligibleToolNames === null ||
+    cacheAwareMinResultChars === null ||
+    cacheAwareCompactedBlocks === null ||
+    cacheAwareToolNames === null
+  ) {
     return null
   }
   return {
@@ -569,6 +590,10 @@ function parseMicroCompactImpact(value: unknown): RpcMicroCompactImpact | null {
     compactedToolNames: compactedToolNames.value,
     estimatedTokensSaved,
     keptRecentBlocks,
+    ...(cacheAwareEligibleToolNames ? { cacheAwareEligibleToolNames: cacheAwareEligibleToolNames.value } : {}),
+    ...(cacheAwareMinResultChars !== undefined ? { cacheAwareMinResultChars } : {}),
+    ...(cacheAwareCompactedBlocks !== undefined ? { cacheAwareCompactedBlocks } : {}),
+    ...(cacheAwareToolNames ? { cacheAwareToolNames: cacheAwareToolNames.value } : {}),
   }
 }
 
@@ -985,6 +1010,11 @@ function parseRequiredStringList(value: unknown): { value: string[] } | null {
     rows.push(row)
   }
   return { value: rows }
+}
+
+function parseOptionalStringList(value: unknown): { value: string[] } | null | undefined {
+  if (value === undefined) return undefined
+  return parseRequiredStringList(value)
 }
 
 function parseRequiredNullableNumber(value: unknown): { value: number | null } | null {

@@ -87,6 +87,8 @@ export function executeMiddleLayerStrategyStack(args: {
     keepRecentToolResultsByName: policy.keepRecentToolResultsByName,
     minResultChars: policy.minResultChars,
     minResultCharsByName: policy.minResultCharsByName,
+    cacheAwareEligibleToolNames: policy.cacheAwareEligibleToolNames,
+    cacheAwareMinResultChars: policy.cacheAwareMinResultChars,
   })
 
   const rawPreparedMessages = trailingMessage
@@ -172,6 +174,10 @@ export function executeMiddleLayerStrategyStack(args: {
           compactedToolNames: microCompactResult.compactedToolNames,
           estimatedTokensSaved: microCompactResult.estimatedTokensSaved,
           keptRecentBlocks: microCompactResult.keptRecentBlocks,
+          cacheAwareEligibleToolNames: microCompactResult.cacheAwareEligibleToolNames,
+          cacheAwareMinResultChars: microCompactResult.cacheAwareMinResultChars,
+          cacheAwareCompactedBlocks: microCompactResult.cacheAwareCompactedBlocks,
+          cacheAwareToolNames: microCompactResult.cacheAwareToolNames,
         },
       },
       prune: {

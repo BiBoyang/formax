@@ -69,6 +69,7 @@
 - `docs/learnings/2026-04-07-working-set-keep-strategy-v2.md`
 - `docs/learnings/2026-04-07-web-header-latest-request-collapse.md`
 - `docs/learnings/2026-05-11-assembled-payload-ledger.md`
+- `docs/learnings/2026-05-11-cache-aware-microcompact-v3.md`
 - `docs/learnings/2026-05-11-middle-layer-strategy-stack-scaffolding.md`
 - `docs/learnings/2026-05-11-tool-result-budget-replacement-v1.md`
 
