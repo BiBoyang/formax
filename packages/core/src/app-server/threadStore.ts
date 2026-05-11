@@ -109,6 +109,7 @@ type ThreadTimelineEntry = {
 export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
+  latestCompactBoundary?: CompactBoundaryMeta | null
   nextTurnInjectedBlocks?: PromptBlock[]
 }
 
@@ -560,11 +561,12 @@ export class ThreadStore {
       return {
         thread: toThreadFromProvisional(provisional),
         staleInputs: [],
+        latestCompactBoundary: null,
       }
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs, restoreArtifacts] = await Promise.all([
+    const [summary, staleInputs, restoreArtifacts, replay] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
       resolveSessionMemoryRestoreArtifacts({
@@ -572,23 +574,22 @@ export class ThreadStore {
         fallbackMode: 'normal',
         fallbackPlanPath: null,
       }),
+      readSessionFile(filePath),
     ])
 
-    void readSessionFile(filePath)
-      .then(async (replay) => {
-        await this.persistSessionMemoryForRestore({
-          sessionFilePath: filePath,
-          cwd: replay.meta.cwd,
-          mode: restoreArtifacts.mode,
-          planPath: restoreArtifacts.planPath,
-          history: buildActiveHistoryFromSessionReplay(replay.history),
-        })
-      })
+    void this.persistSessionMemoryForRestore({
+      sessionFilePath: filePath,
+      cwd: replay.meta.cwd,
+      mode: restoreArtifacts.mode,
+      planPath: restoreArtifacts.planPath,
+      history: buildActiveHistoryFromSessionReplay(replay.history),
+    })
       .catch(() => undefined)
 
     return {
       thread: toThread(summary),
       staleInputs,
+      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
         ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
         : {}),

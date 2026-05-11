@@ -339,6 +339,7 @@ describe('ThreadStore', () => {
     const resumedBeforePersist = await store.resumeThread(thread.id)
     expect(resumedBeforePersist.thread.id).toBe(thread.id)
     expect(resumedBeforePersist.staleInputs).toEqual([])
+    expect(resumedBeforePersist.latestCompactBoundary).toBeNull()
     expect(resumedBeforePersist.nextTurnInjectedBlocks).toBeUndefined()
 
     const readBeforePersist = await store.readThread(thread.id)
@@ -363,6 +364,7 @@ describe('ThreadStore', () => {
     const resumed = await store.resumeThread(thread.id)
     expect(resumed.thread.id).toBe(thread.id)
     expect(resumed.staleInputs).toEqual([])
+    expect(resumed.latestCompactBoundary).toBeNull()
     expect(resumed.nextTurnInjectedBlocks).toBeUndefined()
 
     const readOut = await store.readThread(thread.id)
@@ -422,6 +424,40 @@ describe('ThreadStore', () => {
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 2048,
       summaryKind: 'session_memory',
+    })
+  })
+
+  it('exposes latest compact boundary summary in thread/resume', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'reactive',
+            triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+            preTokens: 4096,
+            summaryKind: 'model_summary',
+          },
+        },
+      },
+      { role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const resumed = await store.resumeThread(thread.id)
+    expect(resumed.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+      preTokens: 4096,
+      summaryKind: 'model_summary',
     })
   })
 

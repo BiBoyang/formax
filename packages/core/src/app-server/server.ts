@@ -230,6 +230,7 @@ export class AppServer {
           makeSuccessResponse(req.id, {
             thread: result.thread,
             staleInputs: result.staleInputs,
+            latestCompactBoundary: result.latestCompactBoundary,
           }),
         ]
       } catch (err) {

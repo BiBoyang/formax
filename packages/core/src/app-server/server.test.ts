@@ -110,7 +110,17 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread(threadId) {
-          return { thread: { ...baseThread, id: threadId }, staleInputs: [] }
+          return {
+            thread: { ...baseThread, id: threadId },
+            staleInputs: [],
+            latestCompactBoundary: {
+              schemaVersion: 1,
+              trigger: 'reactive',
+              triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+              preTokens: 1400,
+              summaryKind: 'model_summary',
+            },
+          }
         },
         async listThreads() {
           return { data: [{ ...baseThread, messageCount: 1, lastUserPrompt: 'hi', label: null }], nextCursor: null }
@@ -203,6 +213,13 @@ describe('AppServer', () => {
 
     const resumeOut = await server.handleMessage(request(3, 'thread/resume', { threadId: 't-2' }))
     expect((resumeOut[0] as any).result.thread.id).toBe('t-2')
+    expect((resumeOut[0] as any).result.latestCompactBoundary).toEqual({
+      schemaVersion: 1,
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+      preTokens: 1400,
+      summaryKind: 'model_summary',
+    })
 
     const listOut = await server.handleMessage(request(4, 'thread/list', { limit: 10 }))
     expect((listOut[0] as any).result.data).toHaveLength(1)

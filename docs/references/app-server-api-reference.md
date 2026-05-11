@@ -326,6 +326,7 @@ AskUserQuestion payload：
 {
   thread: Thread
   staleInputs: InputResolvedPayload[]
+  latestCompactBoundary: CompactBoundaryMeta | null
 }
 ```
 
@@ -334,6 +335,7 @@ AskUserQuestion payload：
 - 详细 session / resume / stale-input 合同见 `docs/contracts/session-persistence-contract.md`。
 - `staleInputs` 表示服务重启后恢复出的“过期输入”（`status = "expired"`，`reason = "server_restart"`）。
 - 客户端应在恢复线程后把这些输入标记为不可提交。
+- `latestCompactBoundary` 为 restore surface 上可选的 canonical compact boundary 摘要；若 session 尚无 compact boundary，返回 `null`。
 
 ## 5.3 `thread/list`
 

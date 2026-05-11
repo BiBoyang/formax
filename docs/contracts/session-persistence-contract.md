@@ -80,6 +80,13 @@ app-server `thread/start` 当前 MUST 返回 provisional thread。
 `SES-104`  
 对仍然是 provisional 且尚未物化文件的 thread 执行 `thread/resume` 时，MUST 返回该 thread 本身，且 `staleInputs` MUST 为空数组。
 
+`SES-105`
+对 app-server `thread/resume` 而言，当前 SHOULD 同时暴露与该 session 最近一次 compact boundary 对齐的最小 compact protocol 摘要（`latestCompactBoundary`）。
+该字段：
+1. MUST 来自同一 session 文件 replay / compact boundary 语义，而不是客户端本地推导
+2. MUST NOT 创建新的 persisted authority model
+3. 当前若不存在 compact boundary，MUST 显式返回 `null`
+
 ## 3. SDK Resume 语义
 
 `SES-201`  
@@ -237,6 +244,7 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 1. reminder block MUST 仅对下一次成功的 turn 启动生效
 2. reminder block MUST NOT 作为 `thread/resume` 的 persisted history 结果写回 session JSONL
 3. 服务端 MAY 在 `/context` 的 next-turn fixed groups 中把它暴露为 pending restore injected blocks，以便 diagnostics 解释当前 restore consumption 语义
+4. 服务端当前 SHOULD 同步把 `latestCompactBoundary` 暴露给 restore surface，这样客户端在 resume 后无需额外调用 `thread/read` 才能得到最近 compact 的 canonical protocol facts
 
 ## 6. 变更流程
 

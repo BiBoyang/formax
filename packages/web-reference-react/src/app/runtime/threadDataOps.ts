@@ -1,7 +1,7 @@
 import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
 import {
   parseHiddenThreadGroupCwdsFromThreadList,
-  parseResolvedInputsResponse,
+  parseThreadResumeResponse,
   parseThreadListResponse,
   parseThreadMessagesResponse,
 } from '../core/rpcContracts'
@@ -241,7 +241,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const resumeThreadInputs = async (threadId: string) => {
     try {
       const resumeResult = await ctx.request('thread/resume', { threadId })
-      const staleInputs = parseResolvedInputsResponse(resumeResult)
+      const parsed = parseThreadResumeResponse(resumeResult)
+      const staleInputs = parsed?.staleInputs ?? []
+      setThreadLatestCompactBoundary(threadId, parsed?.latestCompactBoundary)
       for (const input of staleInputs) {
         if (ctx.seenStaleInputIdRef.current.has(input.inputId)) continue
         ctx.seenStaleInputIdRef.current.add(input.inputId)

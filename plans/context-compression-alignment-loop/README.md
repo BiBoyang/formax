@@ -199,7 +199,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已完成：middle-layer canonical-owner convergence
    - 结果：`contextCompressionService` 的 post-compact/manual/reactive/finalize 路径现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history
 7. 下一步
-   - 进入 `CCA-153` mainline
+   - `CCA-153` 已完成，进入 post-`CCA-153` mainline re-rank
 
 刚完成的上一轮主线：
 
@@ -256,8 +256,9 @@ Formax 当前：
 - `CCA-146` 已完成
 - `CCA-150` 已完成
 - `CCA-152` 已完成
-- 当前主线已经切到：
-  - `CCA-153` compact protocol remote / restore alignment
+- `CCA-153` 已完成
+- 当前主线已经收口到：
+  - post-`CCA-153` mainline re-rank
 
 ## B. `microcompact` 能力深度
 

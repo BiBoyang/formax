@@ -7,7 +7,10 @@ vi.mock('../../eventAdapters', () => ({
 }))
 
 vi.mock('../core/rpcContracts', () => ({
-  parseResolvedInputsResponse: vi.fn(() => []),
+  parseThreadResumeResponse: vi.fn(() => ({
+    thread: { id: 'thread-1', cwd: '/tmp', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    staleInputs: [],
+  })),
   parseThreadMessagesResponse: vi.fn(() => ({ data: [], nextCursor: 'cursor-next' })),
   parseThreadListResponse: vi.fn(() => []),
 }))
@@ -257,5 +260,34 @@ describe('threadDataOps', () => {
       type: 'prepend_logs',
       logs: [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }],
     })
+  })
+
+  it('caches latest compact boundary from thread/resume responses', async () => {
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'reactive',
+      preTokens: 1536,
+      summaryKind: 'model_summary',
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({}),
+    })
+    const { parseThreadResumeResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadResumeResponse).mockReturnValueOnce({
+      thread: {
+        id: 'thread-1',
+        cwd: '/tmp',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      staleInputs: [],
+      latestCompactBoundary,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await ops.resumeThreadInputs('thread-1')
+
+    expect(ctx.setLatestCompactBoundaryByThreadId).toHaveBeenCalled()
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
   })
 })

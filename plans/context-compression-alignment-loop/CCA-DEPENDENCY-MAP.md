@@ -168,49 +168,31 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-153` compact protocol remote / restore alignment
+1. post-`CCA-153` mainline re-rank
 
 对应含义：
 
 1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
 2. `CCA-150` 已完成，working-set selector 已开始按 anchor kind 区分 backtrack window
-3. 当前最大差距已经切回：
-   - compact protocol 的 remote / restore ecosystem
+3. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成，下一步应先重排主线而不是继续默认扩张
 
-## 新主线为什么这样排
+## 刚完成的这一步为什么成立
 
-### `CCA-151` 已先于 `CCA-152` 完成
+### `CCA-153` 已在 `CCA-151/152` 基础上收口
 
-`CCA-151` 的目标是继续让压缩后的 session-memory 在 restore 之后真正有用。
+`CCA-153` 的目标是让 compact boundary 的 canonical protocol facts 真正进入 remote / restore surface。
 
-如果没有先做 `CCA-151`，就容易出现这种情况：
+如果没有先做 `CCA-151/152`，就容易出现这种情况：
 
-1. query-time stack 虽然已经更成熟
-2. 但 restore 后真正延续任务语义的能力仍然偏窄
-3. 用户实际感受到的“压缩后还能继续工作”改进不够明显
+1. app-server `thread/resume` 虽然能恢复 stale inputs 与 reminder blocks
+2. 但 compact boundary facts 仍然只停留在 `thread/read` / `thread/messages`
+3. Web restore path 需要额外 round-trip 才能补齐最近 compact 的 protocol state
 
 当前状态：
 
-1. app-server `thread/resume` 已开始复用 canonical restore artifacts
-2. session-memory reminder 已能在服务端作为 next-turn-only injected blocks 消费一次
-3. `/context` diagnostics 也能解释这层 pending restore consumption
-
-`CCA-152` 已完成，current mainline 现在可以继续切到 `CCA-153`。
-
-### `CCA-152` 已为 `CCA-153` 清障
-
-`CCA-152` 的目标是让 middle-layer stack 更接近 surrounding flow 的唯一 owner。
-
-如果不先做这一步，就容易在 `CCA-153` 里继续把 compact protocol 的新语义散落到：
-
-1. `contextCompressionService.ts`
-2. app-server adapters
-3. replay / restore 辅助路径
-
-当前已完成的 owner convergence 意味着：
-
-- post-compact/manual/reactive/finalize 不再各自手搓 persisted baseline
-- `CCA-153` 可以直接在更干净的 canonical-owner 之上补 compact protocol 的 remote / restore 生态
+1. app-server `thread/resume` 现在会直接返回 canonical `latestCompactBoundary`
+2. Web runtime restore path 会在 `resumeThreadInputs()` 中直接消费这份 compact fact，更新 thread-scoped compact boundary cache
+3. 整条链路没有引入新的 persisted authority model；compact boundary 仍然来自 session replay 里的 canonical compact protocol
 
 ## 已完成波段为什么可以收口
 
@@ -226,12 +208,14 @@ flowchart TD
 - `CCA-150` 已完成
 - `CCA-151` 已完成
 - `CCA-152` 已完成
+- `CCA-153` 已完成
 
 这意味着：
 
 1. middle-layer stack 的 contract / coordination / control-plane / snip 已成型
-2. working-set selector 也已从固定 1-turn rewind 推进到 anchor-kind-aware window
-3. 当前已经没有必要继续围绕这条 reducer 主线做局部补丁
+2. working-set selector 已从固定 1-turn rewind 推进到 anchor-kind-aware window
+3. restore surface 现在也已经能直接读到最近 compact boundary 的 canonical protocol facts
+4. 当前已经没有必要继续围绕这条 compact protocol 主线做默认扩张；更合理的是先重排主线
 
 ---
 

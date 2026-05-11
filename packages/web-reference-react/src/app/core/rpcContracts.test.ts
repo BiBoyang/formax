@@ -5,6 +5,7 @@ import {
   parseThreadListResponse,
   parseThreadMessagesResponse,
   parseThreadReadResponse,
+  parseThreadResumeResponse,
   parseThreadReplayResponse,
   parseThreadStartResponse,
   parseTurnStartLikeResponse,
@@ -1369,6 +1370,48 @@ describe('rpcContracts', () => {
         collapsedHeadMessageCount: 3,
         estimatedTokensSaved: 120,
         recapFingerprint: 'abcdef0123456789',
+      },
+    })
+  })
+
+  it('parses thread/resume payload with latest compact boundary summary', () => {
+    expect(
+      parseThreadResumeResponse({
+        thread: {
+          id: 'thread-1',
+          cwd: '/repo',
+          createdAt: '2026-05-12T00:00:00.000Z',
+          updatedAt: '2026-05-12T00:01:00.000Z',
+        },
+        staleInputs: [],
+        latestCompactBoundary: {
+          schemaVersion: 1,
+          trigger: 'reactive',
+          triggerReason: {
+            kind: 'reactive_error',
+            detail: 'maximum context length exceeded',
+          },
+          preTokens: 1400,
+          summaryKind: 'model_summary',
+        },
+      }),
+    ).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-05-12T00:00:00.000Z',
+        updatedAt: '2026-05-12T00:01:00.000Z',
+      },
+      staleInputs: [],
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        trigger: 'reactive',
+        triggerReason: {
+          kind: 'reactive_error',
+          detail: 'maximum context length exceeded',
+        },
+        preTokens: 1400,
+        summaryKind: 'model_summary',
       },
     })
   })

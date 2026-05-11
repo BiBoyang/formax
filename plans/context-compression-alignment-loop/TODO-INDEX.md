@@ -11,7 +11,7 @@
 
 ## 当前推荐顺序
 
-1. `CCA-153` compact protocol remote / restore alignment
+1. post-`CCA-153` mainline re-rank
 
 ## 说明
 
@@ -24,6 +24,7 @@
 - `CCA-150` 已完成，working-set selector 现已按 anchor kind 区分 backtrack window，并把 `anchorMaxBacktrackTurns` 暴露到 diagnostics。
 - `CCA-151` 已完成，app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为 next-turn-only injected blocks 在服务端消费一次。
 - `CCA-152` 已完成，post-compact/manual/reactive/finalize 这些 surrounding flow 现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history。
+- `CCA-153` 已完成，app-server `thread/resume` 现在也会暴露 canonical `latestCompactBoundary`，Web runtime 会在 restore path 直接消费这份 compact protocol fact。
 - 当前重点已经从“继续打磨 collapse 的最小消费面”转向：
-  - compact protocol 的 remote / restore ecosystem 对齐
+  - post-`CCA-153` 的主线重排
 - 仍然不建议直接进入完整 collapse store / archived span 设计。

@@ -42,10 +42,17 @@
 ## 2.2 thread/resume
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, staleInputs }`
+- 返回：`{ thread, staleInputs, latestCompactBoundary? }`
 - 共享恢复语义：
   - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
   - 若 file-backed restore 同时恢复出 session-memory reminder block，app-server MAY 在服务端缓存它，并在下一次成功的 `turn/start` / turn-dispatch 上作为 next-turn-only injected blocks 消费一次；该 block MUST NOT 被写回 persisted history
+  - `latestCompactBoundary` 当前为 restore surface 上可选的最近 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
+    - `schemaVersion`
+    - `trigger?`
+    - `triggerReason?`
+    - `preTokens?`
+    - `summaryKind?`
+  - `thread/resume` 返回的 `latestCompactBoundary` MUST 与同一 session 的 `thread/read` / `thread/messages` 使用相同 canonical compact protocol 来源；客户端不得为 restore surface 自行推导第二套 compact summary
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 

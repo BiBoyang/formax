@@ -301,6 +301,17 @@ export type RpcThreadReadResult = {
   latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
+export type RpcThreadResumeResult = {
+  thread: {
+    id: string
+    cwd: string
+    createdAt: string
+    updatedAt: string
+  }
+  staleInputs: ResolvedInput[]
+  latestCompactBoundary?: RpcLatestCompactBoundary | null
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object') return {}
   return value as Record<string, unknown>
@@ -396,6 +407,23 @@ export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | n
     transcriptPreview,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
+  }
+}
+
+export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult | null {
+  const root = asRecord(value)
+  const thread = asRecord(root.thread)
+  const id = typeof thread.id === 'string' && thread.id.trim() ? thread.id : null
+  const cwd = typeof thread.cwd === 'string' && thread.cwd.trim() ? thread.cwd : null
+  const createdAt = typeof thread.createdAt === 'string' && thread.createdAt.trim() ? thread.createdAt : null
+  const updatedAt = typeof thread.updatedAt === 'string' && thread.updatedAt.trim() ? thread.updatedAt : null
+  const staleInputs = asResolvedInputs(root)
+  const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  if (!id || !cwd || !createdAt || !updatedAt || !latestCompactBoundary) return null
+  return {
+    thread: { id, cwd, createdAt, updatedAt },
+    staleInputs,
+    ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
   }
 }
 
