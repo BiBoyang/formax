@@ -171,6 +171,15 @@ describe('rpcContracts', () => {
                   outputTokens: 85,
                 },
               ],
+              strategyControlPlane: {
+                stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+                appliedStages: ['microcompact'],
+                skippedStages: ['prune'],
+                terminalStage: 'prune',
+                terminalDisposition: 'skipped',
+                dominantSavingStage: 'microcompact',
+                dominantSavingTokens: 200,
+              },
               toolResultBudgetImpact: {
                 replacedBlocks: 1,
                 replacedToolNames: ['Read'],
@@ -343,6 +352,15 @@ describe('rpcContracts', () => {
                   outputTokens: 85,
                 },
               ],
+              strategyControlPlane: {
+                stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+                appliedStages: ['microcompact'],
+                skippedStages: ['prune'],
+                terminalStage: 'prune',
+                terminalDisposition: 'skipped',
+                dominantSavingStage: 'microcompact',
+                dominantSavingTokens: 200,
+              },
               toolResultBudgetImpact: {
                 replacedBlocks: 1,
                 replacedToolNames: ['Read'],

@@ -211,6 +211,14 @@
     - `estimatedTokensSaved`
     - `inputTokens`
     - `outputTokens`
+  - `local.diagnostics.nextTurnFixed` 当前 SHOULD 额外暴露 `strategyControlPlane`，用于把 middle-layer stack 组织成真正可消费的 control-plane surface；当前稳定字段 SHOULD 至少包含：
+    - `stageOrder`
+    - `appliedStages`
+    - `skippedStages`
+    - `terminalStage`
+    - `terminalDisposition`
+    - `dominantSavingStage`
+    - `dominantSavingTokens`
   - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
     - `toolResultBudgetImpact`（独立 tool-result budget replacement 的 request-time impact）
     - `collapseImpact`（request-time collapse 是否生效，以及估算节省量）
@@ -272,7 +280,7 @@
     - `triggerKind`
     - `strategy`
     - `triggerDetail`（可选）
-  - `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
+  - `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
   - 当前 `summaryKind` MAY 为：
     - `model_summary`
     - `session_memory`

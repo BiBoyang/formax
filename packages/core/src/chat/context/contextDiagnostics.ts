@@ -75,6 +75,7 @@ export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger: ContextAssembledLedgerRow[]
   strategyCoordination: ContextStrategyCoordinationFact[]
+  strategyControlPlane: ContextStrategyControlPlane
   toolResultBudgetImpact: ToolResultBudgetImpact
   microCompactImpact: MicroCompactImpact
   collapseImpact: ContextCollapseImpact
@@ -171,6 +172,16 @@ export type ContextStrategyCoordinationFact = {
   estimatedTokensSaved: number
   inputTokens: number
   outputTokens: number
+}
+
+export type ContextStrategyControlPlane = {
+  stageOrder: MiddleLayerStage[]
+  appliedStages: MiddleLayerStage[]
+  skippedStages: MiddleLayerStage[]
+  terminalStage: MiddleLayerStage | null
+  terminalDisposition: MiddleLayerStageDisposition | null
+  dominantSavingStage: MiddleLayerStage | null
+  dominantSavingTokens: number
 }
 
 export type ContextDiagnosticsPayload = {
@@ -453,6 +464,7 @@ export function analyzeNextTurnFixedContext(args: {
       totalTokens,
     }),
     strategyCoordination: buildStrategyCoordinationFacts(stack.facts),
+    strategyControlPlane: buildStrategyControlPlane(stack.facts),
     toolResultBudgetImpact: stack.facts.toolResultBudget.impact,
     microCompactImpact: {
       compactedBlocks: stack.facts.microCompact.impact.compactedBlocks,
@@ -518,6 +530,30 @@ function buildStrategyCoordinationFacts(facts: MiddleLayerStrategyFacts): Contex
       inputTokens: fact.inputTokens,
       outputTokens: fact.outputTokens,
     }))
+}
+
+function buildStrategyControlPlane(facts: MiddleLayerStrategyFacts): ContextStrategyControlPlane {
+  const rows = buildStrategyCoordinationFacts(facts)
+  const appliedStages = rows.filter((row) => row.disposition === 'applied').map((row) => row.stage)
+  const skippedStages = rows.filter((row) => row.disposition === 'skipped').map((row) => row.stage)
+  const terminal = rows.find((row) => row.terminal) ?? null
+  const dominant = rows
+    .filter((row) => row.disposition === 'applied')
+    .reduce<ContextStrategyCoordinationFact | null>((best, row) => {
+      if (!best) return row
+      if (row.estimatedTokensSaved > best.estimatedTokensSaved) return row
+      return best
+    }, null)
+
+  return {
+    stageOrder: [...facts.stageOrder],
+    appliedStages,
+    skippedStages,
+    terminalStage: terminal?.stage ?? null,
+    terminalDisposition: terminal?.disposition ?? null,
+    dominantSavingStage: dominant && dominant.estimatedTokensSaved > 0 ? dominant.stage : null,
+    dominantSavingTokens: dominant && dominant.estimatedTokensSaved > 0 ? dominant.estimatedTokensSaved : 0,
+  }
 }
 
 function buildAssembledLedger(args: {
@@ -814,7 +850,8 @@ export function formatContextDiagnosticsReport(args: {
     'Lifecycle markers before future user text',
     ...formatLifecycleMarkers(args.nextTurn?.lifecycleMarkers ?? []),
     '',
-    'Middle-layer coordination',
+    'Middle-layer control plane',
+    ...formatStrategyControlPlane(args.nextTurn?.strategyControlPlane ?? null),
     ...formatStrategyCoordination(args.nextTurn?.strategyCoordination ?? []),
     '',
     'Top assembled contributors before future user text',
@@ -985,6 +1022,11 @@ function formatToolNames(value: string[]): string {
   return value.join(', ')
 }
 
+function formatStageNames(value: MiddleLayerStage[]): string {
+  if (value.length === 0) return 'none'
+  return value.join(', ')
+}
+
 function formatSignedMaybeInt(value: number | null): string {
   if (value == null) return 'unknown'
   const rounded = Math.round(value)
@@ -1022,6 +1064,30 @@ function formatStrategyCoordination(rows: ContextStrategyCoordinationFact[]): st
     (row) =>
       `- ${row.stage} [${row.disposition}] role=${row.role} scope=${row.scope} terminal=${row.terminal ? 'yes' : 'no'} advisory=${row.advisory ? 'yes' : 'no'} saved=${formatInt(row.estimatedTokensSaved)} input=${formatInt(row.inputTokens)} output=${formatInt(row.outputTokens)} reason=${row.reason}`,
   )
+}
+
+function formatStrategyControlPlane(value: ContextStrategyControlPlane | null): string[] {
+  if (!value || value.stageOrder.length === 0) return ['- Strategy control plane: none']
+  return [
+    `- Stage order: ${value.stageOrder.join(' -> ')}`,
+    `- Applied stages: ${formatStageNames(value.appliedStages)}`,
+    `- Skipped stages: ${formatStageNames(value.skippedStages)}`,
+    `- Terminal fallback: ${formatTerminalStage(value.terminalStage, value.terminalDisposition)}`,
+    `- Dominant saving stage: ${formatDominantSavingStage(value.dominantSavingStage, value.dominantSavingTokens)}`,
+  ]
+}
+
+function formatTerminalStage(
+  stage: MiddleLayerStage | null,
+  disposition: MiddleLayerStageDisposition | null,
+): string {
+  if (!stage || !disposition) return 'none'
+  return `${stage} [${disposition}]`
+}
+
+function formatDominantSavingStage(stage: MiddleLayerStage | null, tokens: number): string {
+  if (!stage || tokens <= 0) return 'none'
+  return `${stage} (${formatInt(tokens)} tokens)`
 }
 
 function buildLifecycleMarkers(args: {

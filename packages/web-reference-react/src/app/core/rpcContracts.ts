@@ -102,6 +102,16 @@ export type RpcContextStrategyCoordinationFact = {
   outputTokens: number
 }
 
+export type RpcContextStrategyControlPlane = {
+  stageOrder: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
+  appliedStages: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
+  skippedStages: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
+  terminalStage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null
+  terminalDisposition: 'applied' | 'skipped' | null
+  dominantSavingStage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null
+  dominantSavingTokens: number
+}
+
 export type RpcAssembledLedgerRow = {
   kind:
     | 'system_total'
@@ -199,6 +209,7 @@ export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger?: RpcAssembledLedgerRow[]
   strategyCoordination?: RpcContextStrategyCoordinationFact[]
+  strategyControlPlane?: RpcContextStrategyControlPlane
   toolResultBudgetImpact?: RpcToolResultBudgetImpact
   microCompactImpact: RpcMicroCompactImpact
   collapseImpact?: RpcContextCollapseImpact
@@ -754,6 +765,65 @@ function parseStrategyCoordination(value: unknown): RpcContextStrategyCoordinati
   return rows
 }
 
+function parseStrategyControlPlane(value: unknown): RpcContextStrategyControlPlane | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const stageOrder = parseMiddleLayerStageArray(record.stageOrder)
+  const appliedStages = parseMiddleLayerStageArray(record.appliedStages)
+  const skippedStages = parseMiddleLayerStageArray(record.skippedStages)
+  const terminalStage = parseNullableMiddleLayerStage(record.terminalStage)
+  const terminalDisposition = parseNullableMiddleLayerDisposition(record.terminalDisposition)
+  const dominantSavingStage = parseNullableMiddleLayerStage(record.dominantSavingStage)
+  const dominantSavingTokens = asFiniteNumber(record.dominantSavingTokens)
+  if (
+    !stageOrder ||
+    !appliedStages ||
+    !skippedStages ||
+    terminalStage === undefined ||
+    terminalDisposition === undefined ||
+    dominantSavingStage === undefined ||
+    dominantSavingTokens == null
+  ) {
+    return null
+  }
+  return {
+    stageOrder,
+    appliedStages,
+    skippedStages,
+    terminalStage,
+    terminalDisposition,
+    dominantSavingStage,
+    dominantSavingTokens,
+  }
+}
+
+function parseMiddleLayerStageArray(
+  value: unknown,
+): Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'> | null {
+  if (!Array.isArray(value)) return null
+  const out: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'> = []
+  for (const item of value) {
+    const parsed = parseNullableMiddleLayerStage(item)
+    if (parsed == null) return null
+    out.push(parsed)
+  }
+  return out
+}
+
+function parseNullableMiddleLayerStage(
+  value: unknown,
+): 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null | undefined {
+  if (value == null) return null
+  return value === 'microcompact' || value === 'tool_result_budget' || value === 'collapse' || value === 'prune'
+    ? value
+    : undefined
+}
+
+function parseNullableMiddleLayerDisposition(value: unknown): 'applied' | 'skipped' | null | undefined {
+  if (value == null) return null
+  return value === 'applied' || value === 'skipped' ? value : undefined
+}
+
 function parseCollapseImpact(value: unknown): RpcContextCollapseImpact | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -946,6 +1016,9 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   const strategyCoordination =
     record.strategyCoordination == null ? undefined : parseStrategyCoordination(record.strategyCoordination)
   if (record.strategyCoordination != null && !strategyCoordination) return null
+  const strategyControlPlane =
+    record.strategyControlPlane == null ? undefined : parseStrategyControlPlane(record.strategyControlPlane)
+  if (record.strategyControlPlane != null && !strategyControlPlane) return null
   const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
   if (record.collapseImpact != null && !collapseImpact) return null
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
@@ -977,6 +1050,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     fixedGroups,
     ...(assembledLedger ? { assembledLedger } : {}),
     ...(strategyCoordination ? { strategyCoordination } : {}),
+    ...(strategyControlPlane ? { strategyControlPlane } : {}),
     ...(toolResultBudgetImpact ? { toolResultBudgetImpact } : {}),
     microCompactImpact,
     ...(collapseImpact ? { collapseImpact } : {}),

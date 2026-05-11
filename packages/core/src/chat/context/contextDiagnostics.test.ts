@@ -194,7 +194,8 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('Assembled payload ledger before future user text')
     expect(out).toContain('- Assembled ledger: none')
     expect(out).toContain('Lifecycle markers before future user text')
-    expect(out).toContain('Middle-layer coordination')
+    expect(out).toContain('Middle-layer control plane')
+    expect(out).toContain('- Strategy control plane: none')
     expect(out).toContain('- Strategy coordination: none')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
@@ -409,6 +410,15 @@ describe('contextDiagnostics', () => {
       'collapse',
       'prune',
     ])
+    expect(out.strategyControlPlane).toEqual({
+      stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      appliedStages: ['microcompact'],
+      skippedStages: ['tool_result_budget', 'collapse', 'prune'],
+      terminalStage: 'prune',
+      terminalDisposition: 'skipped',
+      dominantSavingStage: 'microcompact',
+      dominantSavingTokens: out.microCompactImpact.estimatedTokensSaved,
+    })
     expect(out.strategyCoordination[0]).toMatchObject({
       stage: 'microcompact',
       role: 'budget_reducer',
@@ -836,6 +846,15 @@ describe('contextDiagnostics', () => {
       'collapse',
       'prune',
     ])
+    expect(parsed.nextTurnFixed.strategyControlPlane).toEqual({
+      stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      appliedStages: [],
+      skippedStages: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      terminalStage: 'prune',
+      terminalDisposition: 'skipped',
+      dominantSavingStage: null,
+      dominantSavingTokens: 0,
+    })
     expect(parsed.nextTurnFixed.strategyCoordination[0]).toMatchObject({
       stage: 'microcompact',
       role: 'budget_reducer',

@@ -130,6 +130,9 @@ middle-layer stack SHOULD 为每个 stage 暴露结构化 facts；这些 facts M
 `CSS-403`  
 diagnostics / app-server / Web surface 对 middle-layer 的展示 SHOULD 优先消费 runtime 产生的 canonical stage facts，而不是各自重新推导另一套 stage 语义。
 
+`CSS-404`  
+若 diagnostics / app-server / Web surface 需要展示 stack-level control-plane summary，则该 summary MUST 建立在 canonical stage facts 之上；不得引入一套与 `stageOrder` / `role` / `scope` / `disposition` 不一致的独立推导逻辑。
+
 ## 6. 变更流程
 
 `CSS-501`  

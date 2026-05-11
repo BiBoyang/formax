@@ -217,7 +217,16 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `inputTokens`
    - `outputTokens`
    text diagnostics SHOULD 同步提供 `Middle-layer coordination` 小节，避免客户端只能从 `microCompactImpact` / `toolResultBudgetImpact` / `collapseImpact` 零散反推 stage ordering
-22. `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination` 当前只定义稳定消费字段；其 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准。`/context` 合同不得重定义 middle-layer stage order。
+22. `nextTurnFixed` diagnostics payload 当前 SHOULD 暴露 `strategyControlPlane`，用于把 `CCA-145` 的 stage facts 组织成真正可消费的 stack control-plane surface；当前稳定字段 SHOULD 至少包含：
+   - `stageOrder`
+   - `appliedStages`
+   - `skippedStages`
+   - `terminalStage`
+   - `terminalDisposition`
+   - `dominantSavingStage`
+   - `dominantSavingTokens`
+   text diagnostics SHOULD 同步提供 `Middle-layer control plane` 小节，用于先给出 stack 级摘要，再给出逐 stage coordination facts
+23. `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 当前只定义稳定消费字段；其 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准。`/context` 合同不得重定义 middle-layer stage order。
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

@@ -72,6 +72,7 @@
 - `docs/learnings/2026-05-11-cache-aware-microcompact-v3.md`
 - `docs/learnings/2026-05-11-middle-layer-strategy-stack-scaffolding.md`
 - `docs/learnings/2026-05-11-middle-layer-stage-contract.md`
+- `docs/learnings/2026-05-11-middle-layer-control-plane-diagnostics.md`
 - `docs/learnings/2026-05-11-strategy-coordination-facts.md`
 - `docs/learnings/2026-05-11-tool-result-budget-replacement-v1.md`
 - `docs/learnings/2026-05-11-middle-layer-terminal-prune.md`
