@@ -56,6 +56,14 @@ export type RpcToolResultBudgetImpact = {
   totalToolResultTokensAfter: number
 }
 
+export type RpcSnipImpact = {
+  snippedMessages: number
+  snippedBlocks: number
+  estimatedTokensSaved: number
+  keptRecentMessages: number
+  minTextChars: number
+}
+
 export type RpcContextCollapseImpact = {
   collapsed: boolean
   collapsedHeadMessageCount: number
@@ -90,7 +98,7 @@ export type RpcContextLifecycleMarker = {
 }
 
 export type RpcContextStrategyCoordinationFact = {
-  stage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'
+  stage: 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'
   role: 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
   scope: 'persisted_history_candidate' | 'request_history_projection' | 'assembled_request_envelope'
   disposition: 'applied' | 'skipped'
@@ -103,12 +111,12 @@ export type RpcContextStrategyCoordinationFact = {
 }
 
 export type RpcContextStrategyControlPlane = {
-  stageOrder: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
-  appliedStages: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
-  skippedStages: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'>
-  terminalStage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null
+  stageOrder: Array<'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'>
+  appliedStages: Array<'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'>
+  skippedStages: Array<'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'>
+  terminalStage: 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune' | null
   terminalDisposition: 'applied' | 'skipped' | null
-  dominantSavingStage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null
+  dominantSavingStage: 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune' | null
   dominantSavingTokens: number
 }
 
@@ -212,6 +220,7 @@ export type RpcNextTurnFixedContextDiagnostics = {
   strategyControlPlane?: RpcContextStrategyControlPlane
   toolResultBudgetImpact?: RpcToolResultBudgetImpact
   microCompactImpact: RpcMicroCompactImpact
+  snipImpact?: RpcSnipImpact
   collapseImpact?: RpcContextCollapseImpact
   lifecycleMarkers?: RpcContextLifecycleMarker[]
   projectedHistoryTokens: number
@@ -654,6 +663,32 @@ function parseToolResultBudgetImpact(value: unknown): RpcToolResultBudgetImpact 
   }
 }
 
+function parseSnipImpact(value: unknown): RpcSnipImpact | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const snippedMessages = asFiniteNumber(record.snippedMessages)
+  const snippedBlocks = asFiniteNumber(record.snippedBlocks)
+  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+  const keptRecentMessages = asFiniteNumber(record.keptRecentMessages)
+  const minTextChars = asFiniteNumber(record.minTextChars)
+  if (
+    snippedMessages == null ||
+    snippedBlocks == null ||
+    estimatedTokensSaved == null ||
+    keptRecentMessages == null ||
+    minTextChars == null
+  ) {
+    return null
+  }
+  return {
+    snippedMessages,
+    snippedBlocks,
+    estimatedTokensSaved,
+    keptRecentMessages,
+    minTextChars,
+  }
+}
+
 function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | null {
   if (!Array.isArray(value)) return null
   const rows: RpcContextLifecycleMarker[] = []
@@ -712,6 +747,7 @@ function parseStrategyCoordination(value: unknown): RpcContextStrategyCoordinati
     const stage =
       record.stage === 'microcompact' ||
       record.stage === 'tool_result_budget' ||
+      record.stage === 'snip' ||
       record.stage === 'collapse' ||
       record.stage === 'prune'
         ? record.stage
@@ -799,9 +835,9 @@ function parseStrategyControlPlane(value: unknown): RpcContextStrategyControlPla
 
 function parseMiddleLayerStageArray(
   value: unknown,
-): Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'> | null {
+): Array<'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'> | null {
   if (!Array.isArray(value)) return null
-  const out: Array<'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'> = []
+  const out: Array<'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'> = []
   for (const item of value) {
     const parsed = parseNullableMiddleLayerStage(item)
     if (parsed == null) return null
@@ -812,9 +848,13 @@ function parseMiddleLayerStageArray(
 
 function parseNullableMiddleLayerStage(
   value: unknown,
-): 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune' | null | undefined {
+): 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune' | null | undefined {
   if (value == null) return null
-  return value === 'microcompact' || value === 'tool_result_budget' || value === 'collapse' || value === 'prune'
+  return value === 'microcompact' ||
+    value === 'tool_result_budget' ||
+    value === 'snip' ||
+    value === 'collapse' ||
+    value === 'prune'
     ? value
     : undefined
 }
@@ -1011,6 +1051,8 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   const toolResultBudgetImpact =
     record.toolResultBudgetImpact == null ? undefined : parseToolResultBudgetImpact(record.toolResultBudgetImpact)
   if (record.toolResultBudgetImpact != null && !toolResultBudgetImpact) return null
+  const snipImpact = record.snipImpact == null ? undefined : parseSnipImpact(record.snipImpact)
+  if (record.snipImpact != null && !snipImpact) return null
   const assembledLedger = record.assembledLedger == null ? undefined : parseAssembledLedger(record.assembledLedger)
   if (record.assembledLedger != null && !assembledLedger) return null
   const strategyCoordination =
@@ -1053,6 +1095,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
     ...(strategyControlPlane ? { strategyControlPlane } : {}),
     ...(toolResultBudgetImpact ? { toolResultBudgetImpact } : {}),
     microCompactImpact,
+    ...(snipImpact ? { snipImpact } : {}),
     ...(collapseImpact ? { collapseImpact } : {}),
     ...(lifecycleMarkers ? { lifecycleMarkers } : {}),
     projectedHistoryTokens,

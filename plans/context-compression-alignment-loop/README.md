@@ -183,8 +183,10 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - 已完成：`latestCompactBoundary` 已进入 Web runtime thread cache / display selector / header surface
 2. post-`CCA-132` mainline re-rank
    - 已完成：下一阶段主线已切换到“独立中间层策略栈”而不是继续围绕 collapse 最小消费面扩面
-3. 下一步
-   - 进入 `CCA-140 ~ 142`：先补 scaffolding，再补第一条真正独立的新中间层策略
+3. `CCA-140 ~ 146`
+   - 已完成：middle-layer scaffolding、tool-result budget、cache-aware microcompact、stage contract、coordination facts、control-plane diagnostics、以及最小 request-time snip layer 都已落地
+4. 下一步
+   - 进入 post-`CCA-143` mainline re-rank
 
 刚完成的上一轮主线：
 
@@ -201,12 +203,11 @@ Claude Code：
 - query 前会做多级减压：boundary 视图、tool-result budget、snip、microcompact、collapse、auto/full compact。
 
 Formax 当前：
-- 已有 `microcompact + prune + request-time collapse + compact` 四层主链。
+- 已有 `microcompact + tool-result budget + snip + request-time collapse + prune + compact` 多层主链。
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
-  - 这些步骤还没有形成真正独立的策略栈
-  - snip layer 还不存在
-  - `microcompact` 还没有更成熟的 time-aware 路径
+  - 这些步骤虽已形成独立策略栈，但还没有更成熟的 time-aware / stale-aware 深度
+  - 还缺更厚的 reducer 协作与后续 re-rank
 
 ### 下一阶段切法
 
@@ -236,7 +237,11 @@ Formax 当前：
 - `CCA-140` 已完成
 - `CCA-141` 已完成
 - `CCA-142` 已完成
-- 当前 backlog 入口是 `CCA-144`
+- `CCA-143` 已完成
+- `CCA-144` 已完成
+- `CCA-145` 已完成
+- `CCA-146` 已完成
+- 当前需要的是 post-`CCA-143` mainline re-rank
 
 ## B. `microcompact` 能力深度
 

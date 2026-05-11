@@ -126,6 +126,13 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `totalToolResultTokensBefore`
    - `totalToolResultTokensAfter`
    text diagnostics SHOULD 同步给出 tool-result budget 小节，而不是把这层收益混进 `microCompactImpact`
+7.2. `nextTurnFixed` diagnostics payload 当前 SHOULD 额外暴露 `snipImpact`，用于把 request-time `snip` 作为独立中间层策略稳定表达出来；稳定字段至少包含：
+   - `snippedMessages`
+   - `snippedBlocks`
+   - `estimatedTokensSaved`
+   - `keptRecentMessages`
+   - `minTextChars`
+   text diagnostics SHOULD 同步给出 snip 小节，而不是要求客户端从 `strategyCoordination` 间接反推
 8. text diagnostics SHOULD 额外展示 microcompact impact 小节，至少包含 `projected history before/after microcompact/prune` 与 `estimated tokens saved by microcompact`
 9. diagnostics payload MUST 暴露 `latestCompactBoundary`；若该值非 `null`，至少要稳定提供 `schemaVersion`，并 SHOULD 暴露 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`；当前若存在 `rehydrationPlan`、`rehydrationCost`、`preservedSegment` 也 SHOULD 一并暴露
 10. 当 `kind` 不匹配、`schemaVersion` 非 `1`、或稳定字段缺失/类型错误时，客户端 MUST 将整个 diagnostics payload 视为不可用，而不是继续做 loose partial parsing
@@ -226,7 +233,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `dominantSavingStage`
    - `dominantSavingTokens`
    text diagnostics SHOULD 同步提供 `Middle-layer control plane` 小节，用于先给出 stack 级摘要，再给出逐 stage coordination facts
-23. `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 当前只定义稳定消费字段；其 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准。`/context` 合同不得重定义 middle-layer stage order。
+23. `microCompactImpact`、`toolResultBudgetImpact`、`snipImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 当前只定义稳定消费字段；其 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准。`/context` 合同不得重定义 middle-layer stage order。
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

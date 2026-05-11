@@ -168,10 +168,8 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
-2. `CCA-145` strategy coordination facts v1
-3. `CCA-146` middle-layer control-plane diagnostics v1
-4. `CCA-143` snip boundary + MVP v1
+1. `CCA-140 ~ 146` middle-layer mainline
+2. post-`CCA-143` re-rank
 
 对应含义：
 
@@ -219,7 +217,11 @@ flowchart TD
 - `CCA-140` 已完成
 - `CCA-141` 已完成
 - `CCA-142` 已完成
-- 当前 backlog 入口是 `CCA-144`
+- `CCA-143` 已完成
+- `CCA-144` 已完成
+- `CCA-145` 已完成
+- `CCA-146` 已完成
+- 当前需要的是 post-`CCA-143` re-rank，而不是继续补这条线的局部边角
 
 ### 为什么 `CCA-146` 先于 `CCA-143`
 
@@ -231,6 +233,11 @@ flowchart TD
 2. 先把 coordination facts 做稳
 3. 先把 control-plane diagnostics 建立起来
 4. 再决定 `snip` 的第一版边界与 MVP
+
+当前状态：
+
+- 这条顺序已经执行完成
+- `snip` 当前已作为 request-time `budget_reducer` 接入 canonical stage order
 
 ---
 

@@ -27,6 +27,7 @@
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`
 - `packages/core/src/chat/context/microCompact.ts`
 - `packages/core/src/chat/context/toolResultBudget.ts`
+- `packages/core/src/chat/context/snip.ts`
 - `packages/core/src/chat/context/contextCollapse.ts`
 - `packages/core/src/chat/context/prune.ts`
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
@@ -49,11 +50,12 @@ runtime send-path 与 `/context` next-turn diagnostics MUST 复用同一 middle-
 ## 2. Stage 列表与角色
 
 `CSS-101`  
-当前 query-time middle-layer stages MUST 只包含以下四类：
+当前 query-time middle-layer stages MUST 只包含以下五类：
 1. `microcompact`
 2. `tool_result_budget`
-3. `collapse`
-4. `prune`
+3. `snip`
+4. `collapse`
+5. `prune`
 
 `CSS-102`  
 每个 stage MUST 属于以下角色之一：
@@ -65,8 +67,9 @@ runtime send-path 与 `/context` next-turn diagnostics MUST 复用同一 middle-
 当前 stage 角色 MUST 为：
 1. `microcompact -> budget_reducer`
 2. `tool_result_budget -> budget_reducer`
-3. `collapse -> semantic_projection`
-4. `prune -> terminal_fallback`
+3. `snip -> budget_reducer`
+4. `collapse -> semantic_projection`
+5. `prune -> terminal_fallback`
 
 `CSS-104`  
 `prune` MUST NOT 被视为普通中途压缩步骤；它的规范角色是最终 hard cutoff / terminal fallback。
@@ -77,8 +80,9 @@ runtime send-path 与 `/context` next-turn diagnostics MUST 复用同一 middle-
 当前 middle-layer stage 的规范执行顺序 MUST 为：
 1. `microcompact`
 2. `tool_result_budget`
-3. `collapse`
-4. `prune`
+3. `snip`
+4. `collapse`
+5. `prune`
 
 `CSS-202`  
 `budget_reducer` stages MUST 在 `semantic_projection` stage 之前执行。
@@ -98,7 +102,7 @@ middle-layer stack MUST 区分以下三个 envelope：
 3. `assembled_request_envelope`
 
 `CSS-302`  
-`collapse` MUST 只作用于 `request_history_projection`；MUST NOT 改写 persisted `history` 语义。
+`snip` 与 `collapse` MUST 只作用于 `request_history_projection`；MUST NOT 改写 persisted `history` 语义。
 
 `CSS-303`  
 `microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。

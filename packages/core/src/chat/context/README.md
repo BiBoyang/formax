@@ -115,8 +115,9 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
-- `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
+- `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> snip -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
 - `packages/core/src/chat/context/toolResultBudget.ts`：独立的 request-time tool-result budget replacement 策略（`CCA-141` 起点；只改 request projection，不改 persisted `history`）
+- `packages/core/src/chat/context/snip.ts`：独立的 request-time snip reducer（`CCA-143` 起点；当前只裁短较老的 assistant 纯文本消息，不改 persisted `history`）
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要；v2 已把策略从“全局 keep N”扩成按 tool family 的 recent keep 配额 + per-tool size threshold；v3 已额外引入 cache-aware duplicate path，会对重复的 cache-like lookup 结果更早做 request-time stub replacement）
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性、family-aware recency、per-tool size threshold）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
@@ -143,6 +144,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 `/context` snapshot 与主路径 prompt 估算已统一基于“最近 compact boundary 后 continuation view”；如果没有 boundary，才退化为全 persisted history
 - 当前 runtime send-path 与 `/context` next-turn diagnostics 也已共用 `middleLayerStrategyStack`：`microcompact`、`prune`、`collapse` 不再由两边各自串联执行，从而把 `strategyFacts`、impact 字段和 request-time prepared view 收敛到同一个 owner
 - 当前 `middleLayerStrategyStack` 里也已引入第一条真正独立的新中间层策略：`toolResultBudget` 会单独给 tool-result group 计预算；超预算时优先在 request-time projection 上做 replacement，再把结果交给 `collapse`，并通过 `toolResultBudgetImpact` + `assembledLedger` 暴露收益
+- 当前 `middleLayerStrategyStack` 里也已引入最小 `snip` 层：它只会在 request-time projection 上裁短较老的 assistant 纯文本消息，并通过 `snipImpact` 暴露命中消息数、保留的 recent eligible messages、以及估算节省量
 - 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy：pressure ratio 会共同驱动 eligible tool family、per-tool recent keep 配额、以及 per-tool size threshold，避免 `/context` 和真实发送链的 microcompact 行为再次漂移
 - 当前 `microCompactImpact` 也已稳定暴露 cache-aware facts：包括 `cacheAwareEligibleToolNames`、`cacheAwareMinResultChars`、`cacheAwareCompactedBlocks`、`cacheAwareToolNames`，用于解释重复 lookup 命中时到底是哪条 cache-aware path 在减压
 - 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
@@ -152,7 +154,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 diagnostics 也已暴露 request-time collapse impact：`nextTurnFixed.collapseImpact` 会说明 collapse 是否生效、折叠了多少条较老消息，以及估算节省了多少 token
 - `nextTurnFixed.collapseImpact.metadata` 当前也会暴露最小 request-recap metadata：包括 `keepLastTurns`、保留 tail 条数、是否保留 compact summary、保留的 recent prompt/file 计数，以及 `recapFingerprint`
 - 当前 `nextTurnFixed` diagnostics 也已暴露 `assembledLedger`：会把最终 assembled request payload 拆成 `system_total`、`request_history`、`tool_result_group`、`tool_result_budget_savings`、各个 `fixed_group`、`fixed_total` 与 `assembled_total`，用于回答“真正发给模型的 payload 大头是谁”，以及这轮独立 tool-result budget 到底省了多少
-- 当前 `nextTurnFixed` diagnostics 也已暴露 `strategyCoordination`：它直接复用 `middleLayerStrategyStack` 的 canonical stage facts，把 `microcompact` / `tool_result_budget` / `collapse` / `prune` 的 `stage`、`role`、`scope`、`disposition`、`reason`、以及输入/输出 token 账本稳定表达出来，避免 diagnostics 继续从零散 impact 字段自行猜测 stack ordering
+- 当前 `nextTurnFixed` diagnostics 也已暴露 `strategyCoordination`：它直接复用 `middleLayerStrategyStack` 的 canonical stage facts，把 `microcompact` / `tool_result_budget` / `snip` / `collapse` / `prune` 的 `stage`、`role`、`scope`、`disposition`、`reason`、以及输入/输出 token 账本稳定表达出来，避免 diagnostics 继续从零散 impact 字段自行猜测 stack ordering
 - 当前 `nextTurnFixed` diagnostics 也已暴露 `strategyControlPlane`：它把 `strategyCoordination` 再聚合成 stack-level 摘要（`stageOrder`、`appliedStages`、`skippedStages`、`terminalStage`、`dominantSavingStage`），让 `/context`、app-server 与 Web parser 可以先消费统一控制面，再按需下钻到逐 stage facts
 - 当前 auto compact 的 `keep_combo` 已开始根据 working-set signals 做 v3 调整：除了 recent files、plan/todo state、以及 mode state 的动态 boost，working-set anchor 现在也会识别最近成功的 filesystem tool cluster（`Read` / `Grep` / `Glob`），并在 `/context` 里通过 `nextTurnFixed.workingSetSignals` / `Working-set signals` 小节显式说明 `anchorKind`、`anchorToolNames` 与实际 `anchorBacktrackTurns`
 - `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `request_collapse_applied` 事实，也会额外暴露 `latestRequestCollapse` 摘要，避免 diagnostics 只能靠重新推导 collapse 事实

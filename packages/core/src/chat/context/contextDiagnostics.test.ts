@@ -187,6 +187,11 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('- Microcompact cache-aware minimum chars: 0')
     expect(out).toContain('- Microcompact cache-aware compacted blocks: 0')
     expect(out).toContain('- Microcompact cache-aware compacted tools: none')
+    expect(out).toContain('- Estimated tokens saved by snip: 0')
+    expect(out).toContain('- Snip snipped messages: 0')
+    expect(out).toContain('- Snip snipped blocks: 0')
+    expect(out).toContain('- Snip kept recent eligible messages: 0')
+    expect(out).toContain('- Snip minimum chars: 0')
     expect(out).toContain('- Collapse applied for request projection: unknown')
     expect(out).toContain('- Estimated tokens saved by collapse: 0')
     expect(out).toContain('- Collapse recap metadata: none')
@@ -390,6 +395,13 @@ describe('contextDiagnostics', () => {
     expect(out.microCompactImpact.cacheAwareMinResultChars).toBe(500)
     expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBe(0)
     expect(out.microCompactImpact.cacheAwareToolNames).toEqual([])
+    expect(out.snipImpact).toEqual({
+      snippedMessages: 0,
+      snippedBlocks: 0,
+      estimatedTokensSaved: 0,
+      keptRecentMessages: 0,
+      minTextChars: 1800,
+    })
     expect(out.collapseImpact).toEqual({
       collapsed: false,
       collapsedHeadMessageCount: 0,
@@ -407,13 +419,14 @@ describe('contextDiagnostics', () => {
     expect(out.strategyCoordination.map((row) => row.stage)).toEqual([
       'microcompact',
       'tool_result_budget',
+      'snip',
       'collapse',
       'prune',
     ])
     expect(out.strategyControlPlane).toEqual({
-      stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
       appliedStages: ['microcompact'],
-      skippedStages: ['tool_result_budget', 'collapse', 'prune'],
+      skippedStages: ['tool_result_budget', 'snip', 'collapse', 'prune'],
       terminalStage: 'prune',
       terminalDisposition: 'skipped',
       dominantSavingStage: 'microcompact',
@@ -433,6 +446,14 @@ describe('contextDiagnostics', () => {
       scope: 'assembled_request_envelope',
       terminal: true,
       advisory: false,
+    })
+    expect(out.strategyCoordination[2]).toMatchObject({
+      stage: 'snip',
+      role: 'budget_reducer',
+      scope: 'request_history_projection',
+      disposition: 'skipped',
+      terminal: false,
+      advisory: true,
     })
     expect(out.lifecycleMarkers[0]?.deltaFromSnapshot).toBe(0)
     expect(out.fixedTokens).toBeGreaterThan(0)
@@ -843,13 +864,14 @@ describe('contextDiagnostics', () => {
     expect(parsed.nextTurnFixed.strategyCoordination.map((row: any) => row.stage)).toEqual([
       'microcompact',
       'tool_result_budget',
+      'snip',
       'collapse',
       'prune',
     ])
     expect(parsed.nextTurnFixed.strategyControlPlane).toEqual({
-      stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
       appliedStages: [],
-      skippedStages: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+      skippedStages: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
       terminalStage: 'prune',
       terminalDisposition: 'skipped',
       dominantSavingStage: null,
@@ -887,6 +909,13 @@ describe('contextDiagnostics', () => {
       totalToolResultTokensAfter: 0,
     })
     expect(typeof parsed.nextTurnFixed.toolResultBudgetImpact.budgetTokens).toBe('number')
+    expect(parsed.nextTurnFixed.snipImpact).toEqual({
+      snippedMessages: 0,
+      snippedBlocks: 0,
+      estimatedTokensSaved: 0,
+      keptRecentMessages: 0,
+      minTextChars: 1800,
+    })
     expect(parsed.nextTurnFixed.collapseImpact).toEqual({
       collapsed: false,
       collapsedHeadMessageCount: 0,
@@ -1126,10 +1155,10 @@ describe('autoCompactSkipReason and pruneSkipReason', () => {
 
   it('returns null autoCompactSkipReason when all conditions pass', () => {
     const largeMessages: PromptMessage[] = [
-      userMsg('turn 1'),
-      { role: 'assistant', content: [{ type: 'text', text: 'A'.repeat(25_000) }] as any },
-      userMsg('turn 2'),
-      { role: 'assistant', content: [{ type: 'text', text: 'B'.repeat(25_000) }] as any },
+      userMsg(`turn 1 ${'A'.repeat(25_000)}`),
+      { role: 'assistant', content: [{ type: 'text', text: 'ack-1' }] as any },
+      userMsg(`turn 2 ${'B'.repeat(25_000)}`),
+      { role: 'assistant', content: [{ type: 'text', text: 'ack-2' }] as any },
     ]
     // Pre-prune assembled total is above the auto-compact threshold, but prune pulls the final
     // assembled view back down. Diagnostics should still report that visible auto-compact
@@ -1158,10 +1187,10 @@ describe('autoCompactSkipReason and pruneSkipReason', () => {
 
   it('pruneSkipReason is null when tokens exceed effective limit', () => {
     const largeMessages: PromptMessage[] = [
-      userMsg('turn 1'),
-      { role: 'assistant', content: [{ type: 'text', text: 'A'.repeat(25_000) }] as any },
-      userMsg('turn 2'),
-      { role: 'assistant', content: [{ type: 'text', text: 'B'.repeat(25_000) }] as any },
+      userMsg(`turn 1 ${'A'.repeat(25_000)}`),
+      { role: 'assistant', content: [{ type: 'text', text: 'ack-1' }] as any },
+      userMsg(`turn 2 ${'B'.repeat(25_000)}`),
+      { role: 'assistant', content: [{ type: 'text', text: 'ack-2' }] as any },
     ]
     const tinyBudget = {
       contextWindowTokens: 10_000,

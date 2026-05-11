@@ -15,9 +15,10 @@ import {
   type AdaptiveToolResultBudgetPolicy,
   type ToolResultBudgetImpact,
 } from './toolResultBudget'
+import { applyRequestSnip, resolveAdaptiveSnipPolicy, type AdaptiveSnipPolicy, type SnipImpact } from './snip'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 
-export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'
+export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'
 export type MiddleLayerStageRole = 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
 export type MiddleLayerStageDisposition = 'applied' | 'skipped'
 export type MiddleLayerStageScope =
@@ -28,6 +29,7 @@ export type MiddleLayerStageScope =
 export const MIDDLE_LAYER_STAGE_ORDER: MiddleLayerStage[] = [
   'microcompact',
   'tool_result_budget',
+  'snip',
   'collapse',
   'prune',
 ]
@@ -59,6 +61,13 @@ export type MiddleLayerMicroCompactFact = MiddleLayerStageFactBase & {
   impact: MicroCompactImpact
 }
 
+export type MiddleLayerSnipFact = MiddleLayerStageFactBase & {
+  applied: boolean
+  pressureRatio: number | null
+  policy: AdaptiveSnipPolicy
+  impact: SnipImpact
+}
+
 export type MiddleLayerPruneFact = MiddleLayerStageFactBase & {
   applied: boolean
   totalTokensBeforePrune: number
@@ -77,6 +86,7 @@ export type MiddleLayerStrategyFacts = {
   stageOrder: MiddleLayerStage[]
   toolResultBudget: MiddleLayerToolResultBudgetFact
   microCompact: MiddleLayerMicroCompactFact
+  snip: MiddleLayerSnipFact
   prune: MiddleLayerPruneFact
   collapse: MiddleLayerCollapseFact
 }
@@ -84,6 +94,7 @@ export type MiddleLayerStrategyFacts = {
 export type MiddleLayerStrategyStackResult = {
   microCompactedHistory: PromptMessage[]
   toolBudgetedHistory: PromptMessage[]
+  snippedHistory: PromptMessage[]
   collapsedHistory: PromptMessage[]
   persistedHistoryCandidate: PromptMessage[]
   preparedMessages: PromptMessage[]
@@ -145,17 +156,23 @@ export function executeMiddleLayerStrategyStack(args: {
           policy: toolResultBudgetPolicy,
         })
   const toolBudgetedHistoryTokens = estimatePromptTokens({ system: [], messages: toolResultBudgetResult.messages })
+  const snipPolicy = resolveAdaptiveSnipPolicy({ pressureRatio })
+  const snipResult = applyRequestSnip({
+    messages: toolResultBudgetResult.messages,
+    policy: snipPolicy,
+  })
+  const snippedHistoryTokens = estimatePromptTokens({ system: [], messages: snipResult.messages })
   const collapseResult =
     args.enableCollapse === false
       ? {
-          messages: toolResultBudgetResult.messages,
+          messages: snipResult.messages,
           collapsed: false,
           collapsedHeadMessageCount: 0,
           estimatedTokensSaved: 0,
           metadata: null,
         }
       : collapseRequestHistory({
-          messages: toolResultBudgetResult.messages,
+          messages: snipResult.messages,
           allowBoundarylessContinuation: args.allowBoundarylessContinuation,
         })
   const collapsedHistoryTokens = estimatePromptTokens({ system: [], messages: collapseResult.messages })
@@ -184,6 +201,7 @@ export function executeMiddleLayerStrategyStack(args: {
   return {
     microCompactedHistory: microCompactResult.messages,
     toolBudgetedHistory: toolResultBudgetResult.messages,
+    snippedHistory: snipResult.messages,
     collapsedHistory: collapseResult.messages,
     persistedHistoryCandidate: microCompactResult.messages,
     preparedMessages,
@@ -240,6 +258,26 @@ export function executeMiddleLayerStrategyStack(args: {
           cacheAwareToolNames: microCompactResult.cacheAwareToolNames,
         },
       },
+      snip: {
+        stage: 'snip',
+        role: 'budget_reducer',
+        scope: 'request_history_projection',
+        disposition: snipResult.applied ? 'applied' : 'skipped',
+        terminal: false,
+        advisory: true,
+        reason: buildSnipReason({
+          enabled: snipPolicy.enabled,
+          applied: snipResult.applied,
+          impact: snipResult.impact,
+        }),
+        estimatedTokensSaved: Math.max(0, snipResult.impact.estimatedTokensSaved),
+        inputTokens: toolBudgetedHistoryTokens,
+        outputTokens: snippedHistoryTokens,
+        applied: snipResult.applied,
+        pressureRatio,
+        policy: snipPolicy,
+        impact: snipResult.impact,
+      },
       prune: {
         stage: 'prune',
         role: 'terminal_fallback',
@@ -279,7 +317,7 @@ export function executeMiddleLayerStrategyStack(args: {
           allowBoundarylessContinuation: args.allowBoundarylessContinuation,
         }),
         estimatedTokensSaved: Math.max(0, collapseResult.estimatedTokensSaved),
-        inputTokens: toolBudgetedHistoryTokens,
+        inputTokens: snippedHistoryTokens,
         outputTokens: collapsedHistoryTokens,
         applied: collapseResult.collapsed,
         collapsedHeadMessageCount: collapseResult.collapsedHeadMessageCount,
@@ -333,6 +371,17 @@ function buildCollapseReason(args: {
   if (args.applied) return 'collapsed older continuation into request recap'
   if (args.allowBoundarylessContinuation) return 'collapse conditions not met for current continuation view'
   return 'no latest compact boundary for request-only collapse'
+}
+
+function buildSnipReason(args: {
+  enabled: boolean
+  applied: boolean
+  impact: SnipImpact
+}): string {
+  if (!args.enabled) return 'snip inactive for current pressure tier'
+  if (args.applied) return `snipped ${args.impact.snippedMessages} older assistant message(s)`
+  if (args.impact.keptRecentMessages > 0) return 'eligible assistant text preserved by recent-message keep rule'
+  return 'no eligible older assistant text exceeded snip thresholds'
 }
 
 function buildPruneReason(args: {

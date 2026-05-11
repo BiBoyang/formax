@@ -172,9 +172,9 @@ describe('rpcContracts', () => {
                 },
               ],
               strategyControlPlane: {
-                stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+                stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
                 appliedStages: ['microcompact'],
-                skippedStages: ['prune'],
+                skippedStages: ['snip', 'prune'],
                 terminalStage: 'prune',
                 terminalDisposition: 'skipped',
                 dominantSavingStage: 'microcompact',
@@ -194,6 +194,13 @@ describe('rpcContracts', () => {
                 compactedToolNames: ['Read'],
                 estimatedTokensSaved: 200,
                 keptRecentBlocks: 2,
+              },
+              snipImpact: {
+                snippedMessages: 0,
+                snippedBlocks: 0,
+                estimatedTokensSaved: 0,
+                keptRecentMessages: 0,
+                minTextChars: 1800,
               },
               collapseImpact: {
                 collapsed: true,
@@ -353,9 +360,9 @@ describe('rpcContracts', () => {
                 },
               ],
               strategyControlPlane: {
-                stageOrder: ['microcompact', 'tool_result_budget', 'collapse', 'prune'],
+                stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
                 appliedStages: ['microcompact'],
-                skippedStages: ['prune'],
+                skippedStages: ['snip', 'prune'],
                 terminalStage: 'prune',
                 terminalDisposition: 'skipped',
                 dominantSavingStage: 'microcompact',
@@ -375,6 +382,13 @@ describe('rpcContracts', () => {
                 compactedToolNames: ['Read'],
             estimatedTokensSaved: 200,
             keptRecentBlocks: 2,
+          },
+          snipImpact: {
+            snippedMessages: 0,
+            snippedBlocks: 0,
+            estimatedTokensSaved: 0,
+            keptRecentMessages: 0,
+            minTextChars: 1800,
           },
           collapseImpact: {
             collapsed: true,

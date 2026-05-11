@@ -221,6 +221,7 @@
     - `dominantSavingTokens`
   - `local.diagnostics.nextTurnFixed` 当前 MAY 额外暴露：
     - `toolResultBudgetImpact`（独立 tool-result budget replacement 的 request-time impact）
+    - `snipImpact`（独立 request-time snip 的 request-time impact）
     - `collapseImpact`（request-time collapse 是否生效，以及估算节省量）
     - `lifecycleMarkers`（`snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四阶段的估算对比）
     - `autoCompactSkipReason`
@@ -244,6 +245,12 @@
     - `budgetTokens`
     - `totalToolResultTokensBefore`
     - `totalToolResultTokensAfter`
+  - `local.diagnostics.nextTurnFixed.snipImpact` 若存在，当前稳定字段 SHOULD 包含：
+    - `snippedMessages`
+    - `snippedBlocks`
+    - `estimatedTokensSaved`
+    - `keptRecentMessages`
+    - `minTextChars`
   - `local.diagnostics.nextTurnFixed.collapseImpact` 若存在，当前稳定字段 SHOULD 包含：
     - `collapsed`
     - `collapsedHeadMessageCount`
@@ -280,7 +287,7 @@
     - `triggerKind`
     - `strategy`
     - `triggerDetail`（可选）
-  - `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
+  - `microCompactImpact`、`toolResultBudgetImpact`、`snipImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
   - 当前 `summaryKind` MAY 为：
     - `model_summary`
     - `session_memory`

@@ -5,6 +5,7 @@ import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { type MicroCompactImpact } from './microCompact'
+import { type SnipImpact } from './snip'
 import { TOOL_RESULT_BUDGET_STUB_PREFIX, type ToolResultBudgetImpact } from './toolResultBudget'
 import {
   executeMiddleLayerStrategyStack,
@@ -78,6 +79,7 @@ export type NextTurnFixedContextDiagnostics = {
   strategyControlPlane: ContextStrategyControlPlane
   toolResultBudgetImpact: ToolResultBudgetImpact
   microCompactImpact: MicroCompactImpact
+  snipImpact: SnipImpact
   collapseImpact: ContextCollapseImpact
   workingSetSignals: AutoCompactWorkingSetSignals
   lifecycleMarkers: ContextLifecycleMarker[]
@@ -401,6 +403,7 @@ export function analyzeNextTurnFixedContext(args: {
   const totalTokensBeforePrune = stack.facts.prune.totalTokensBeforePrune
   const persistedHistoryCandidate = stack.persistedHistoryCandidate
   const toolBudgetedProjectedHistory = stack.toolBudgetedHistory
+  const snippedProjectedHistory = stack.snippedHistory
   const collapsedProjectedHistory = stack.collapsedHistory
   const preparedFixedMessage = stack.preparedTrailingMessage
   const projectedHistory = stack.requestHistory
@@ -424,7 +427,7 @@ export function analyzeNextTurnFixedContext(args: {
   })
 
   const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
-  const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: toolBudgetedProjectedHistory })
+  const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: snippedProjectedHistory })
   const projectedHistoryTokensAfterCollapse = estimatePromptTokens({ system: [], messages: collapsedProjectedHistory })
   const finalProjectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
   const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: promptMessages })
@@ -476,6 +479,7 @@ export function analyzeNextTurnFixedContext(args: {
       cacheAwareCompactedBlocks: stack.facts.microCompact.impact.cacheAwareCompactedBlocks,
       cacheAwareToolNames: stack.facts.microCompact.impact.cacheAwareToolNames,
     },
+    snipImpact: stack.facts.snip.impact,
     collapseImpact: {
       collapsed: stack.facts.collapse.applied,
       collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
@@ -514,7 +518,7 @@ export function analyzeNextTurnFixedContext(args: {
 }
 
 function buildStrategyCoordinationFacts(facts: MiddleLayerStrategyFacts): ContextStrategyCoordinationFact[] {
-  const stages = [facts.microCompact, facts.toolResultBudget, facts.collapse, facts.prune]
+  const stages = [facts.microCompact, facts.toolResultBudget, facts.snip, facts.collapse, facts.prune]
   return facts.stageOrder
     .map((stage) => stages.find((fact) => fact.stage === stage) ?? null)
     .filter((fact): fact is NonNullable<(typeof stages)[number]> => Boolean(fact))
@@ -828,6 +832,11 @@ export function formatContextDiagnosticsReport(args: {
     `- Microcompact cache-aware minimum chars: ${formatInt(args.nextTurn?.microCompactImpact.cacheAwareMinResultChars ?? 0)}`,
     `- Microcompact cache-aware compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.cacheAwareCompactedBlocks ?? 0)}`,
     `- Microcompact cache-aware compacted tools: ${formatToolNames(args.nextTurn?.microCompactImpact.cacheAwareToolNames ?? [])}`,
+    `- Estimated tokens saved by snip: ${formatInt(args.nextTurn?.snipImpact.estimatedTokensSaved ?? 0)}`,
+    `- Snip snipped messages: ${formatInt(args.nextTurn?.snipImpact.snippedMessages ?? 0)}`,
+    `- Snip snipped blocks: ${formatInt(args.nextTurn?.snipImpact.snippedBlocks ?? 0)}`,
+    `- Snip kept recent eligible messages: ${formatInt(args.nextTurn?.snipImpact.keptRecentMessages ?? 0)}`,
+    `- Snip minimum chars: ${formatInt(args.nextTurn?.snipImpact.minTextChars ?? 0)}`,
     `- Collapse applied for request projection: ${formatMaybeBool(args.nextTurn ? args.nextTurn.collapseImpact.collapsed : null)}`,
     `- Projected history after collapse: ${formatMaybeInt(args.nextTurn?.collapseImpact.projectedHistoryTokensAfterCollapse ?? null)}`,
     `- Projected history delta from collapse: ${formatSignedMaybeInt(args.nextTurn?.collapseImpact.projectedHistoryDeltaTokens ?? null)}`,

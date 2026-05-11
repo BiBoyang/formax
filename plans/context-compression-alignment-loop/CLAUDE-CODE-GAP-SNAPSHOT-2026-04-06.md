@@ -200,12 +200,14 @@ Claude Code 的真正强项之一，是它在 `microcompact` 和 full compact �
 - context collapse
 - 更深的 query-time projection
 
-当前 Formax 的中间层仍然比较薄：
+当前 Formax 的中间层已经不再是“只有几步 send-path 逻辑”，而是已经有了独立 stack 起点：
 
 - `microcompact`
+- `tool-result budget`
+- `snip`
+- `request-time collapse`
 - `prune`
-- request-time collapse MVP
-- compact
+- `compact`
 
 尤其是：
 
@@ -224,24 +226,21 @@ Claude Code 的真正强项之一，是它在 `microcompact` 和 full compact �
 
 ### 这条差距现在的实现结论
 
-`CCA-140 ~ 142` 已经把这条差距推进到了一个新阶段：
+`CCA-140 ~ 146` 已经把这条差距推进到了一个新阶段：
 
 1. `CCA-140` middle-layer strategy stack scaffolding 已完成
 2. `CCA-141` tool-result budget replacement v1 已完成
 3. `CCA-142` cache-aware microcompact v3 已完成
-
-所以当前最合理的下一阶段主线，不再是继续优先加新的压缩技巧，而是先把 stack 本身的协调与控制面补成熟：
-
-1. `CCA-144` middle-layer stage contract / terminal prune fallback v1
-2. `CCA-145` strategy coordination facts v1
-3. `CCA-146` middle-layer control-plane diagnostics v1
-4. `CCA-143` snip boundary + MVP v1
+4. `CCA-144` middle-layer stage contract / terminal prune fallback v1 已完成
+5. `CCA-145` strategy coordination facts v1 已完成
+6. `CCA-146` middle-layer control-plane diagnostics v1 已完成
+7. `CCA-143` snip boundary + MVP v1 已完成
 
 原因是：
 
-- 当前 Formax 已经有 `microcompact` / `collapse` / `prune` / tool-result budget
-- 真正剩下的核心结构性差距，是 stage semantics、execution order、coordination facts 仍然不够明确
-- 如果不先补这层，`snip` 或 time-aware `microcompact` 很容易再次长成 send-path 特殊分支，而不是更成熟的中间层体系
+- 当前 Formax 已经有 `microcompact` / `tool-result budget` / `snip` / `collapse` / `prune`
+- 已经不再缺“独立中间层策略栈的第一版骨架”
+- 真正剩下的差距，开始转向更成熟的 time-aware/stale-aware 策略深度，以及 post-143 之后的新主线选择
 
 ---
 

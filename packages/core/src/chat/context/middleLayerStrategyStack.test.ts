@@ -6,6 +6,7 @@ import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from './microC
 import { pruneForPromptBudget } from './prune'
 import { collapseRequestHistory } from './contextCollapse'
 import { applyToolResultBudget, resolveAdaptiveToolResultBudgetPolicy } from './toolResultBudget'
+import { applyRequestSnip, resolveAdaptiveSnipPolicy } from './snip'
 
 vi.mock('./budget', () => ({
   computeContextStats: vi.fn(),
@@ -34,6 +35,11 @@ vi.mock('./toolResultBudget', () => ({
   resolveAdaptiveToolResultBudgetPolicy: vi.fn(),
 }))
 
+vi.mock('./snip', () => ({
+  applyRequestSnip: vi.fn(),
+  resolveAdaptiveSnipPolicy: vi.fn(),
+}))
+
 describe('executeMiddleLayerStrategyStack', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -55,6 +61,13 @@ describe('executeMiddleLayerStrategyStack', () => {
       minResultCharsByName: { Grep: 700 },
       maxToolResultTokens: 2600,
     })
+    vi.mocked(resolveAdaptiveSnipPolicy).mockReturnValue({
+      pressureTier: 'tight',
+      enabled: true,
+      keepRecentMessages: 2,
+      minTextChars: 1400,
+      maxExcerptChars: 160,
+    })
     vi.mocked(computeContextStats).mockReturnValue({
       effectiveLimitTokens: 1000,
       usedTokens: 500,
@@ -73,6 +86,7 @@ describe('executeMiddleLayerStrategyStack', () => {
       return 500
     })
     const compactedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'microcompacted-history' }] }] as any
+    const snippedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'snipped-history' }] }] as any
     const collapsedHistory = [{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }] as any
     const prunedMessages = [...collapsedHistory, { role: 'user', content: [{ type: 'text', text: 'pruned-user' }] }] as any
     vi.mocked(microCompactHistory).mockReturnValue({
@@ -98,6 +112,17 @@ describe('executeMiddleLayerStrategyStack', () => {
         budgetTokens: 2600,
         totalToolResultTokensBefore: 3200,
         totalToolResultTokensAfter: 3020,
+      },
+    } as any)
+    vi.mocked(applyRequestSnip).mockReturnValue({
+      messages: snippedHistory,
+      applied: true,
+      impact: {
+        snippedMessages: 1,
+        snippedBlocks: 1,
+        estimatedTokensSaved: 90,
+        keptRecentMessages: 2,
+        minTextChars: 1400,
       },
     } as any)
     vi.mocked(collapseRequestHistory).mockReturnValue({
@@ -148,6 +173,9 @@ describe('executeMiddleLayerStrategyStack', () => {
       vi.mocked(applyToolResultBudget).mock.invocationCallOrder[0]!,
     )
     expect(vi.mocked(applyToolResultBudget).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(applyRequestSnip).mock.invocationCallOrder[0]!,
+    )
+    expect(vi.mocked(applyRequestSnip).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(collapseRequestHistory).mock.invocationCallOrder[0]!,
     )
     expect(vi.mocked(collapseRequestHistory).mock.invocationCallOrder[0]).toBeLessThan(
@@ -155,10 +183,11 @@ describe('executeMiddleLayerStrategyStack', () => {
     )
     expect(result.persistedHistoryCandidate).toEqual(compactedHistory)
     expect(result.toolBudgetedHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }])
+    expect(result.snippedHistory).toEqual(snippedHistory)
     expect(result.collapsedHistory).toEqual(collapsedHistory)
     expect(result.preparedTrailingMessage).toEqual(prunedMessages[1])
     expect(result.requestHistory).toEqual(collapsedHistory)
-    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'collapse', 'prune'])
+    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'])
     expect(result.facts.toolResultBudget).toEqual({
         stage: 'tool_result_budget',
         role: 'budget_reducer',
@@ -224,6 +253,34 @@ describe('executeMiddleLayerStrategyStack', () => {
     })
     expect(result.facts.microCompact.inputTokens).toEqual(expect.any(Number))
     expect(result.facts.microCompact.outputTokens).toEqual(expect.any(Number))
+    expect(result.facts.snip).toEqual({
+        stage: 'snip',
+        role: 'budget_reducer',
+        scope: 'request_history_projection',
+        disposition: 'applied',
+        terminal: false,
+        advisory: true,
+        reason: 'snipped 1 older assistant message(s)',
+        estimatedTokensSaved: 90,
+        inputTokens: 500,
+        outputTokens: 500,
+        applied: true,
+        pressureRatio: 0.5,
+        policy: {
+          pressureTier: 'tight',
+          enabled: true,
+          keepRecentMessages: 2,
+          minTextChars: 1400,
+          maxExcerptChars: 160,
+        },
+        impact: {
+          snippedMessages: 1,
+          snippedBlocks: 1,
+          estimatedTokensSaved: 90,
+          keptRecentMessages: 2,
+          minTextChars: 1400,
+        },
+    })
     expect(result.facts.prune).toEqual({
         stage: 'prune',
         role: 'terminal_fallback',
@@ -289,6 +346,13 @@ describe('executeMiddleLayerStrategyStack', () => {
       minResultCharsByName: { Grep: 700 },
       maxToolResultTokens: null,
     })
+    vi.mocked(resolveAdaptiveSnipPolicy).mockReturnValue({
+      pressureTier: 'inactive',
+      enabled: false,
+      keepRecentMessages: 2,
+      minTextChars: 1800,
+      maxExcerptChars: 160,
+    })
     vi.mocked(microCompactHistory).mockReturnValue({
       messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
       compacted: false,
@@ -314,6 +378,17 @@ describe('executeMiddleLayerStrategyStack', () => {
         totalToolResultTokensAfter: 0,
       },
     } as any)
+    vi.mocked(applyRequestSnip).mockReturnValue({
+      messages: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
+      applied: false,
+      impact: {
+        snippedMessages: 0,
+        snippedBlocks: 0,
+        estimatedTokensSaved: 0,
+        keptRecentMessages: 0,
+        minTextChars: 1800,
+      },
+    } as any)
 
     const result = executeMiddleLayerStrategyStack({
       system: [{ type: 'text', text: 'sys' }],
@@ -326,6 +401,7 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(pruneForPromptBudget).not.toHaveBeenCalled()
     expect(collapseRequestHistory).not.toHaveBeenCalled()
     expect(applyToolResultBudget).not.toHaveBeenCalled()
+    expect(applyRequestSnip).toHaveBeenCalled()
     expect(result.persistedHistoryCandidate).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.toolBudgetedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.collapsedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
@@ -376,6 +452,34 @@ describe('executeMiddleLayerStrategyStack', () => {
         pressureRatio: null,
       }),
     )
+    expect(result.facts.snip).toEqual({
+      stage: 'snip',
+      role: 'budget_reducer',
+      scope: 'request_history_projection',
+      disposition: 'skipped',
+      terminal: false,
+      advisory: true,
+      reason: 'snip inactive for current pressure tier',
+      estimatedTokensSaved: 0,
+      inputTokens: 400,
+      outputTokens: 400,
+      applied: false,
+      pressureRatio: null,
+      policy: {
+        pressureTier: 'inactive',
+        enabled: false,
+        keepRecentMessages: 2,
+        minTextChars: 1800,
+        maxExcerptChars: 160,
+      },
+      impact: {
+        snippedMessages: 0,
+        snippedBlocks: 0,
+        estimatedTokensSaved: 0,
+        keptRecentMessages: 0,
+        minTextChars: 1800,
+      },
+    })
     expect(result.facts.prune).toEqual(
       expect.objectContaining({
         stage: 'prune',
@@ -406,6 +510,6 @@ describe('executeMiddleLayerStrategyStack', () => {
       collapsedHeadMessageCount: 0,
       metadata: null,
     })
-    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'collapse', 'prune'])
+    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'])
   })
 })
