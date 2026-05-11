@@ -1,4 +1,12 @@
-import type { CompactBoundarySummary, PendingInput, RequestCollapseSummary, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
+import type {
+  CompactBoundarySummary,
+  PendingInput,
+  RequestCollapseSummary,
+  ResolvedInput,
+  SessionMemoryRestoreSummary,
+  ThreadMessage,
+  ThreadSummary,
+} from '../../types'
 import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -363,12 +371,56 @@ function parseStringRecord(value: unknown): Record<string, string> {
   return out
 }
 
+function parseRequiredStringList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null
+  const out: string[] = []
+  for (const row of value) {
+    if (typeof row !== 'string') return null
+    const trimmed = row.trim()
+    if (!trimmed) return null
+    out.push(trimmed)
+  }
+  return out
+}
+
+function parseRequiredNullableString(value: unknown): string | null | undefined {
+  if (value === null) return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreSummary | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (record.schemaVersion !== 1) return null
+  const mode = record.mode === 'normal' || record.mode === 'acceptEdits' || record.mode === 'plan' ? record.mode : null
+  const recentFiles = parseRequiredStringList(record.recentFiles)
+  const recentUserPrompts = parseRequiredStringList(record.recentUserPrompts)
+  const planPath = parseRequiredNullableString(record.planPath)
+  const planExcerpt = parseRequiredNullableString(record.planExcerpt)
+  const todoSummary = parseRequiredNullableString(record.todoSummary)
+  if (!mode || !recentFiles || !recentUserPrompts || planPath === undefined || planExcerpt === undefined || todoSummary === undefined) {
+    return null
+  }
+  return {
+    schemaVersion: 1,
+    mode,
+    recentFiles,
+    recentUserPrompts,
+    planPath,
+    planExcerpt,
+    todoSummary,
+  }
+}
+
 export function asThreadReplay(value: unknown): {
   data: ReplayNotification[]
   nextCursor: number
   latestCursor: number
   hasGap: boolean
   state: ReplayStateSnapshot | null
+  pendingSessionMemoryRestore?: SessionMemoryRestoreSummary | null
 } {
   if (!value || typeof value !== 'object') {
     return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false, state: null }
@@ -392,6 +444,12 @@ export function asThreadReplay(value: unknown): {
   const latestCursor =
     typeof record.latestCursor === 'number' && Number.isFinite(record.latestCursor) ? record.latestCursor : nextCursor
   const hasGap = Boolean(record.hasGap)
+  const pendingSessionMemoryRestore =
+    record.pendingSessionMemoryRestore === undefined
+      ? undefined
+      : record.pendingSessionMemoryRestore === null
+        ? null
+        : parseSessionMemoryRestoreSummary(record.pendingSessionMemoryRestore)
   const rawState = record.state
   let state: ReplayStateSnapshot | null = null
   if (rawState && typeof rawState === 'object') {
@@ -481,7 +539,16 @@ export function asThreadReplay(value: unknown): {
       updatedAt,
     }
   }
-  return { data, nextCursor, latestCursor, hasGap, state }
+  return {
+    data,
+    nextCursor,
+    latestCursor,
+    hasGap,
+    state,
+    ...(record.pendingSessionMemoryRestore !== undefined
+      ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore ?? null }
+      : {}),
+  }
 }
 
 export function asResolvedInputs(value: unknown): ResolvedInput[] {

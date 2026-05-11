@@ -1403,12 +1403,30 @@ describe('rpcContracts', () => {
       nextCursor: 8,
       latestCursor: 9,
       hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
     })
 
     expect(replay.data).toHaveLength(1)
     expect(replay.nextCursor).toBe(8)
     expect(replay.latestCursor).toBe(9)
     expect(replay.hasGap).toBe(false)
+    expect(replay.pendingSessionMemoryRestore).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    })
   })
 
   it('parses thread/list and thread/messages payloads via shared parser contracts', () => {
@@ -1518,6 +1536,15 @@ describe('rpcContracts', () => {
           preTokens: 1400,
           summaryKind: 'model_summary',
         },
+        pendingSessionMemoryRestore: {
+          schemaVersion: 1,
+          mode: 'plan',
+          recentFiles: ['/repo/src/session.ts'],
+          recentUserPrompts: ['Recover plan context'],
+          planPath: '/repo/.formax/plan.md',
+          planExcerpt: 'Finish restore utility',
+          todoSummary: null,
+        },
       }),
     ).toEqual({
       thread: {
@@ -1536,6 +1563,15 @@ describe('rpcContracts', () => {
         },
         preTokens: 1400,
         summaryKind: 'model_summary',
+      },
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
       },
     })
   })

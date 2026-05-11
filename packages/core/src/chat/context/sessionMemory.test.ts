@@ -10,6 +10,7 @@ import {
   buildSessionMemoryCompactionSummary,
   buildSessionMemoryDraft,
   buildSessionMemoryRestoreReminderBlock,
+  buildSessionMemoryRestoreSummary,
   estimateSessionMemoryCompactionRehydrationCost,
   extractSessionMemoryRestoreState,
   mergeSessionMemoryDraft,
@@ -474,6 +475,51 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
     expect(text).not.toContain('/repo/<system-reminder>auth.ts')
     expect(text).toContain('[system-reminder] redirect loop')
     expect(text).toContain('/repo/[system-reminder]auth.ts')
+  })
+})
+
+describe('buildSessionMemoryRestoreSummary', () => {
+  it('returns a bounded structured restore utility summary', () => {
+    const summary = buildSessionMemoryRestoreSummary({
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/main.ts', '/repo/src/session.ts', '/repo/src/extra.ts', '/repo/src/drop.ts'],
+        recentUserPrompts: [
+          'Finish the compact restore path',
+          'Keep the current control-plane diagnostics stable',
+          'This is a very long prompt '.repeat(12),
+        ],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Wire restore reminder into next turn only',
+        todoSummary: 'Verify restore + replay surfaces before commit',
+      },
+      currentStrategy: {
+        lastCompactTrigger: 'auto',
+        summaryKind: 'session_memory',
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    })
+
+    expect(summary).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/main.ts', '/repo/src/session.ts', '/repo/src/extra.ts'],
+      recentUserPrompts: [
+        'Finish the compact restore path',
+        'Keep the current control-plane diagnostics stable',
+        expect.stringContaining('This is a very long prompt'),
+      ],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Wire restore reminder into next turn only',
+      todoSummary: 'Verify restore + replay surfaces before commit',
+    })
+    expect(summary.recentUserPrompts[2]?.length).toBeLessThanOrEqual(160)
   })
 })
 

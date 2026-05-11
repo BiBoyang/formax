@@ -2,8 +2,10 @@ import type { ChatHistory } from '../../../chat/engine'
 import {
   buildSessionMemoryDraft,
   buildSessionMemoryRestoreReminderBlock,
+  buildSessionMemoryRestoreSummary,
   extractSessionMemoryRestoreState,
   type SessionMemoryDraft,
+  type SessionMemoryRestoreSummary,
 } from '../../../chat/context/sessionMemory'
 import type { ReplMode } from '../mode'
 import type { PromptBlock } from '../../../prompts'
@@ -66,6 +68,7 @@ export type SessionMemoryRestoreArtifacts = {
   mode: ReplMode
   planPath: string | null
   nextTurnInjectedBlocks: PromptBlock[]
+  pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null
 }
 
 export async function resolveSessionMemoryRestoreArtifacts(args: {
@@ -89,6 +92,7 @@ export async function resolveSessionMemoryRestoreArtifacts(args: {
       }
     }
 
+    const pendingSessionMemoryRestore = isSessionMemoryDraft(rawDraft) ? buildSessionMemoryRestoreSummary(rawDraft) : null
     const reminderBlock = isSessionMemoryDraft(rawDraft) ? buildSessionMemoryRestoreReminderBlock(rawDraft) : null
     const nextTurnInjectedBlocks = reminderBlock ? [reminderBlock] : []
 
@@ -96,12 +100,14 @@ export async function resolveSessionMemoryRestoreArtifacts(args: {
       mode: nextMode,
       planPath: nextPlanPath,
       nextTurnInjectedBlocks,
+      pendingSessionMemoryRestore,
     }
   } catch {
     return {
       mode: nextMode,
       planPath: nextPlanPath,
       nextTurnInjectedBlocks: [],
+      pendingSessionMemoryRestore: null,
     }
   }
 }

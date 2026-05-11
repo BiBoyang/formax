@@ -327,6 +327,15 @@ AskUserQuestion payload：
   thread: Thread
   staleInputs: InputResolvedPayload[]
   latestCompactBoundary: CompactBoundaryMeta | null
+  pendingSessionMemoryRestore: {
+    schemaVersion: 1
+    mode: 'normal' | 'acceptEdits' | 'plan'
+    recentFiles: string[]
+    recentUserPrompts: string[]
+    planPath: string | null
+    planExcerpt: string | null
+    todoSummary: string | null
+  } | null
 }
 ```
 
@@ -336,6 +345,7 @@ AskUserQuestion payload：
 - `staleInputs` 表示服务重启后恢复出的“过期输入”（`status = "expired"`，`reason = "server_restart"`）。
 - 客户端应在恢复线程后把这些输入标记为不可提交。
 - `latestCompactBoundary` 为 restore surface 上可选的 canonical compact boundary 摘要；若 session 尚无 compact boundary，返回 `null`。
+- `pendingSessionMemoryRestore` 为 next-turn-only 的结构化 restore utility 摘要；它与服务端缓存的 session-memory reminder block 来自同一条 canonical restore-artifacts 路径，不是新的 persisted authority。
 
 ## 5.3 `thread/list`
 
@@ -466,6 +476,15 @@ AskUserQuestion payload：
   nextCursor: number
   latestCursor: number
   hasGap: boolean
+  pendingSessionMemoryRestore: {
+    schemaVersion: 1
+    mode: 'normal' | 'acceptEdits' | 'plan'
+    recentFiles: string[]
+    recentUserPrompts: string[]
+    planPath: string | null
+    planExcerpt: string | null
+    todoSummary: string | null
+  } | null
   state: {
     mode: 'normal' | 'acceptEdits' | 'plan'
     activeTurnId: string | null
@@ -546,6 +565,11 @@ AskUserQuestion payload：
   }
 }
 ```
+
+说明：
+
+- `pendingSessionMemoryRestore` 只在 restore 后的待消费窗口存在。
+- 一旦下一次成功的 `turn/start` / `command/dispatch` 消费掉 next-turn-only reminder blocks，它也会一起清空。
 
 约束：
 

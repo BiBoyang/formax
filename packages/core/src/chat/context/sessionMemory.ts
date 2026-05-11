@@ -57,6 +57,16 @@ export type SessionMemoryDraftPatch = {
   currentStrategy?: Partial<SessionMemoryDraft['currentStrategy']>
 }
 
+export type SessionMemoryRestoreSummary = {
+  schemaVersion: 1
+  mode: SessionMemoryDraft['activeTask']['mode']
+  recentFiles: string[]
+  recentUserPrompts: string[]
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+}
+
 export function extractSessionMemoryRestoreState(value: unknown): {
   mode: SessionMemoryDraft['activeTask']['mode']
   planPath: string | null
@@ -232,6 +242,33 @@ export function buildSessionMemoryRestoreReminderBlock(draft: SessionMemoryDraft
   return makeSystemReminderBlock(body)
 }
 
+export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): SessionMemoryRestoreSummary {
+  const recentFiles = draft.activeTask.recentFiles
+    .map((value) => readNonEmptyString(value))
+    .filter((value): value is string => Boolean(value))
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS))
+
+  const recentUserPrompts = draft.activeTask.recentUserPrompts
+    .map((value) => readNonEmptyString(value))
+    .filter((value): value is string => Boolean(value))
+    .slice(0, SESSION_MEMORY_RECENT_PROMPTS_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS))
+
+  return {
+    schemaVersion: 1,
+    mode: draft.activeTask.mode,
+    recentFiles,
+    recentUserPrompts,
+    planPath: truncateNullableSummaryField(draft.activeTask.planPath, SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS),
+    planExcerpt: truncateNullableSummaryField(
+      draft.activeTask.planExcerpt,
+      SESSION_MEMORY_SUMMARY_PLAN_EXCERPT_MAX_CHARS,
+    ),
+    todoSummary: truncateNullableSummaryField(draft.activeTask.todoSummary, SESSION_MEMORY_SUMMARY_TODO_MAX_CHARS),
+  }
+}
+
 export function buildSessionMemoryCompactionRehydration(args: {
   draft: SessionMemoryDraft
   fallback?: {
@@ -336,6 +373,11 @@ function truncateForSummary(value: string, maxChars: number): string {
   if (!normalized) return ''
   if (!Number.isFinite(maxChars) || maxChars <= 1 || normalized.length <= maxChars) return normalized
   return `${normalized.slice(0, maxChars - 1)}…`
+}
+
+function truncateNullableSummaryField(value: unknown, maxChars: number): string | null {
+  const normalized = readNonEmptyString(value)
+  return normalized ? truncateForSummary(normalized, maxChars) : null
 }
 
 function extractLeadingText(message: PromptMessage): string {

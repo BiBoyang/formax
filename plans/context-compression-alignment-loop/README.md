@@ -198,13 +198,17 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 6. `CCA-151`
    - 已完成：session-memory restore consumption v4
    - 结果：app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为服务端缓存的 next-turn-only injected blocks 消费一次
-7. `CCA-152`
+7. `CCA-161`
+   - 已完成：session-memory restore utility v5
+   - 结果：canonical restore-artifacts 路径现在也会产出结构化 `pendingSessionMemoryRestore`；`thread/resume` 与 `thread/replay` 会在 pending 窗口内共用这份 utility surface
+8. `CCA-152`
    - 已完成：middle-layer canonical-owner convergence
    - 结果：`contextCompressionService` 的 post-compact/manual/reactive/finalize 路径现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history
-8. 下一步
+9. 下一步
    - `CCA-153` 已完成，post-`CCA-153` mainline re-rank 也已完成
    - `CCA-160` 已完成
-   - 当前主线已切到 `CCA-161` session-memory restore utility v5
+   - `CCA-161` 已完成
+   - 当前主线已切到 `CCA-162` compact protocol replay / inspection parity
 
 刚完成的上一轮主线：
 

@@ -286,6 +286,16 @@ export type RpcLatestReactiveCompact = {
   strategy: 'session_memory' | 'model_summary'
 }
 
+export type RpcSessionMemoryRestoreSummary = {
+  schemaVersion: 1
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  recentFiles: string[]
+  recentUserPrompts: string[]
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+}
+
 export type RpcInputSubmitResult = {
   status: string
 }
@@ -296,6 +306,7 @@ export type RpcThreadReplayResult = {
   latestCursor: number
   hasGap: boolean
   state: ReplayStateSnapshot | null
+  pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
 
 export type RpcThreadMessagesResult = {
@@ -326,6 +337,7 @@ export type RpcThreadResumeResult = {
   }
   staleInputs: ResolvedInput[]
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -435,11 +447,15 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
   const updatedAt = typeof thread.updatedAt === 'string' && thread.updatedAt.trim() ? thread.updatedAt : null
   const staleInputs = asResolvedInputs(root)
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
-  if (!id || !cwd || !createdAt || !updatedAt || !latestCompactBoundary) return null
+  const pendingSessionMemoryRestore = parseOptionalNullableSessionMemoryRestoreField(root, 'pendingSessionMemoryRestore')
+  if (!id || !cwd || !createdAt || !updatedAt || !latestCompactBoundary || !pendingSessionMemoryRestore) return null
   return {
     thread: { id, cwd, createdAt, updatedAt },
     staleInputs,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(pendingSessionMemoryRestore.present
+      ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore.value }
+      : {}),
   }
 }
 
@@ -557,6 +573,41 @@ function parseOptionalNullableLatestReactiveCompactField(
   const value = record[key]
   if (value === null) return { present: true, value: null }
   const parsed = parseLatestReactiveCompact(value)
+  return parsed ? { present: true, value: parsed } : null
+}
+
+function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryRestoreSummary | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  if (record.schemaVersion !== 1) return null
+  const mode = record.mode === 'normal' || record.mode === 'acceptEdits' || record.mode === 'plan' ? record.mode : null
+  const recentFiles = parseRequiredStringList(record.recentFiles)
+  const recentUserPrompts = parseRequiredStringList(record.recentUserPrompts)
+  const planPath = parseRequiredNullableString(record.planPath)
+  const planExcerpt = parseRequiredNullableString(record.planExcerpt)
+  const todoSummary = parseRequiredNullableString(record.todoSummary)
+  if (!mode || !recentFiles || !recentUserPrompts || !planPath || !planExcerpt || !todoSummary) {
+    return null
+  }
+  return {
+    schemaVersion: 1,
+    mode,
+    recentFiles: recentFiles.value,
+    recentUserPrompts: recentUserPrompts.value,
+    planPath: planPath.value,
+    planExcerpt: planExcerpt.value,
+    todoSummary: todoSummary.value,
+  }
+}
+
+function parseOptionalNullableSessionMemoryRestoreField(
+  record: Record<string, unknown>,
+  key: string,
+): { present: boolean; value: RpcSessionMemoryRestoreSummary | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
+  const value = record[key]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseSessionMemoryRestoreSummary(value)
   return parsed ? { present: true, value: parsed } : null
 }
 
@@ -1324,6 +1375,11 @@ function parseRequiredStringList(value: unknown): { value: string[] } | null {
     rows.push(row)
   }
   return { value: rows }
+}
+
+function parseRequiredNullableString(value: unknown): { value: string | null } | null {
+  if (value === null) return { value: null }
+  return typeof value === 'string' ? { value } : null
 }
 
 function parseOptionalStringList(value: unknown): { value: string[] } | null | undefined {

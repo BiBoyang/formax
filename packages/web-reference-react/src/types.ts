@@ -55,6 +55,16 @@ export type CompactBoundarySummary = {
   summaryKind?: 'model_summary' | 'session_memory'
 }
 
+export type SessionMemoryRestoreSummary = {
+  schemaVersion: 1
+  mode: 'normal' | 'acceptEdits' | 'plan'
+  recentFiles: string[]
+  recentUserPrompts: string[]
+  planPath: string | null
+  planExcerpt: string | null
+  todoSummary: string | null
+}
+
 export type ThreadHistoryMessage = {
   id: string
   kind: 'message'

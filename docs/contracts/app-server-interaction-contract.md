@@ -42,10 +42,19 @@
 ## 2.2 thread/resume
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, staleInputs, latestCompactBoundary? }`
+- 返回：`{ thread, staleInputs, latestCompactBoundary?, pendingSessionMemoryRestore? }`
 - 共享恢复语义：
   - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
   - 若 file-backed restore 同时恢复出 session-memory reminder block，app-server MAY 在服务端缓存它，并在下一次成功的 `turn/start` / turn-dispatch 上作为 next-turn-only injected blocks 消费一次；该 block MUST NOT 被写回 persisted history
+  - `pendingSessionMemoryRestore` 当前为可选 next-turn-only restore utility 摘要；若存在，稳定字段 SHOULD 至少包含：
+    - `schemaVersion`
+    - `mode`
+    - `recentFiles`
+    - `recentUserPrompts`
+    - `planPath`
+    - `planExcerpt`
+    - `todoSummary`
+  - `pendingSessionMemoryRestore` MUST 与同一 session 的 next-turn-only reminder block 使用同一条 canonical restore-artifacts 路径；客户端不得重新组装第二套 restore utility
   - `latestCompactBoundary` 当前为 restore surface 上可选的最近 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
     - `trigger?`
@@ -106,6 +115,14 @@
     - `estimatedTokensSaved`
     - `recapFingerprint?`
   - 该字段用于让 thread timeline surface 感知最近一次 request-time collapse 事实；它 MUST NOT 改写现有 `data[]` item 语义
+
+## 2.4.2 thread/replay
+
+- 入参：`{ threadId: string, after?: number, limit?: number }`
+- 返回：`{ data, nextCursor, latestCursor, hasGap, state, pendingSessionMemoryRestore? }`
+  - `pendingSessionMemoryRestore` 当前为可选 next-turn-only restore utility 摘要。
+  - 若存在，它 MUST 与同一 thread 最近一次 `thread/resume` 缓存的 pending restore artifact 对齐，并在下一次成功的 `turn/start` / turn-dispatch 消费后消失。
+  - 该字段 MUST NOT 被解释为新的 persisted authority；它只描述当前 server-side pending restore utility 窗口。
 
 ## 2.5 turn/start
 

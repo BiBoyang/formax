@@ -340,6 +340,7 @@ describe('ThreadStore', () => {
     expect(resumedBeforePersist.thread.id).toBe(thread.id)
     expect(resumedBeforePersist.staleInputs).toEqual([])
     expect(resumedBeforePersist.latestCompactBoundary).toBeNull()
+    expect(resumedBeforePersist.pendingSessionMemoryRestore).toBeNull()
     expect(resumedBeforePersist.nextTurnInjectedBlocks).toBeUndefined()
 
     const readBeforePersist = await store.readThread(thread.id)
@@ -365,6 +366,7 @@ describe('ThreadStore', () => {
     expect(resumed.thread.id).toBe(thread.id)
     expect(resumed.staleInputs).toEqual([])
     expect(resumed.latestCompactBoundary).toBeNull()
+    expect(resumed.pendingSessionMemoryRestore).toBeNull()
     expect(resumed.nextTurnInjectedBlocks).toBeUndefined()
 
     const readOut = await store.readThread(thread.id)
@@ -613,8 +615,8 @@ describe('ThreadStore', () => {
         },
         activeTask: {
           mode: 'plan',
-          recentFiles: [],
-          recentUserPrompts: [],
+          recentFiles: ['/repo/src/session.ts'],
+          recentUserPrompts: ['Need restore reminder utility'],
           planPath: path.join(cwd, '.formax', 'resume-plan.md'),
           planExcerpt: null,
           todoSummary: null,
@@ -638,6 +640,15 @@ describe('ThreadStore', () => {
     const resumed = await storeWithPersist.resumeThread(thread.id)
 
     expect(resumed.thread.id).toBe(thread.id)
+    expect(resumed.pendingSessionMemoryRestore).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Need restore reminder utility'],
+      planPath: path.join(cwd, '.formax', 'resume-plan.md'),
+      planExcerpt: null,
+      todoSummary: null,
+    })
     expect(resumed.nextTurnInjectedBlocks).toHaveLength(1)
     expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
       'Restored session memory for the next turn only:',

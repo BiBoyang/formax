@@ -52,6 +52,7 @@ import {
 } from '@formax/semantics'
 import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStateSnapshot.js'
 import type { PromptBlock } from '../prompts/index.js'
+import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -125,6 +126,7 @@ export class AppServer {
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
   private readonly pendingInjectedBlocksByThreadId = new Map<string, PromptBlock[]>()
+  private readonly pendingSessionMemoryRestoreByThreadId = new Map<string, SessionMemoryRestoreSummary | null>()
   private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
   private replaySeq = 0
 
@@ -222,6 +224,7 @@ export class AppServer {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadResumeResult = await this.threadStore.resumeThread(params.threadId)
         this.setPendingInjectedBlocks(params.threadId, result.nextTurnInjectedBlocks)
+        this.setPendingSessionMemoryRestore(params.threadId, result.pendingSessionMemoryRestore)
         for (const input of result.staleInputs) {
           this.staleInputIds.add(input.inputId)
           this.staleInputIdsByToolUseId.set(input.toolUseId, input.inputId)
@@ -231,6 +234,7 @@ export class AppServer {
             thread: result.thread,
             staleInputs: result.staleInputs,
             latestCompactBoundary: result.latestCompactBoundary,
+            pendingSessionMemoryRestore: result.pendingSessionMemoryRestore ?? null,
           }),
         ]
       } catch (err) {
@@ -374,6 +378,7 @@ export class AppServer {
         }
         if (nextTurnInjectedBlocks.length > 0) {
           this.clearPendingInjectedBlocks(params.threadId)
+          this.clearPendingSessionMemoryRestore(params.threadId)
         }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
@@ -473,6 +478,7 @@ export class AppServer {
         }
         if (nextTurnInjectedBlocks.length > 0) {
           this.clearPendingInjectedBlocks(params.threadId)
+          this.clearPendingSessionMemoryRestore(params.threadId)
         }
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
@@ -585,6 +591,22 @@ export class AppServer {
     this.pendingInjectedBlocksByThreadId.delete(threadId)
   }
 
+  private getPendingSessionMemoryRestore(threadId: string): SessionMemoryRestoreSummary | null {
+    return this.pendingSessionMemoryRestoreByThreadId.get(threadId) ?? null
+  }
+
+  private setPendingSessionMemoryRestore(threadId: string, summary?: SessionMemoryRestoreSummary | null): void {
+    if (summary) {
+      this.pendingSessionMemoryRestoreByThreadId.set(threadId, summary)
+      return
+    }
+    this.pendingSessionMemoryRestoreByThreadId.delete(threadId)
+  }
+
+  private clearPendingSessionMemoryRestore(threadId: string): void {
+    this.pendingSessionMemoryRestoreByThreadId.delete(threadId)
+  }
+
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
     return (method, params) => {
       this.emitServerNotification(method, params)
@@ -682,6 +704,7 @@ export class AppServer {
     latestCursor: number
     hasGap: boolean
     state: ReplayStateSnapshot | null
+    pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null
   } {
     const entries = this.replayByThreadId.get(args.threadId) ?? []
     const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
@@ -721,6 +744,7 @@ export class AppServer {
         latestCursor: 0,
         hasGap,
         state: stateSnapshot,
+        pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
 
@@ -731,6 +755,7 @@ export class AppServer {
         latestCursor,
         hasGap: false,
         state: stateSnapshot,
+        pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
 
@@ -751,6 +776,7 @@ export class AppServer {
       latestCursor,
       hasGap,
       state: stateSnapshot,
+      pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
     }
   }
 }

@@ -53,6 +53,15 @@ describe('rpcParsers', () => {
       nextCursor: 11,
       latestCursor: 12,
       hasGap: true,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
       state: {
         mode: 'unknown-mode',
         pendingInputCount: 3,
@@ -111,6 +120,15 @@ describe('rpcParsers', () => {
     expect(parsed.nextCursor).toBe(11)
     expect(parsed.latestCursor).toBe(12)
     expect(parsed.hasGap).toBe(true)
+    expect(parsed.pendingSessionMemoryRestore).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    })
     expect(parsed.state?.mode).toBe('normal')
     expect(parsed.state?.pendingInputCount).toBe(3)
     expect(parsed.state?.canonicalProtocolAnomalyCount).toBe(0)

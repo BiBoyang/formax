@@ -11,6 +11,7 @@ import {
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreArtifacts,
 } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
+import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.js'
 import type { PromptBlock } from '../prompts/index.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { buildActiveHistoryFromSessionReplay, findLatestCompactBoundary, type CompactBoundaryMeta } from '../chat/context/compact.js'
@@ -110,6 +111,7 @@ export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
   latestCompactBoundary?: CompactBoundaryMeta | null
+  pendingSessionMemoryRestore?: SessionMemoryRestoreSummary | null
   nextTurnInjectedBlocks?: PromptBlock[]
 }
 
@@ -562,6 +564,7 @@ export class ThreadStore {
         thread: toThreadFromProvisional(provisional),
         staleInputs: [],
         latestCompactBoundary: null,
+        pendingSessionMemoryRestore: null,
       }
     }
     this.provisionalThreads.delete(threadId)
@@ -590,6 +593,7 @@ export class ThreadStore {
       thread: toThread(summary),
       staleInputs,
       latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
+      pendingSessionMemoryRestore: restoreArtifacts.pendingSessionMemoryRestore,
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
         ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
         : {}),

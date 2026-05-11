@@ -748,6 +748,15 @@ describe('AppServer', () => {
       type: 'text',
       text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
     }
+    const pendingSessionMemoryRestore = {
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    }
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
       threadStore: {
@@ -760,6 +769,7 @@ describe('AppServer', () => {
               updatedAt: '2026-02-12T00:00:00.000Z',
             },
             staleInputs: [],
+            pendingSessionMemoryRestore,
             nextTurnInjectedBlocks: [reminderBlock as any],
           }
         },
@@ -800,7 +810,11 @@ describe('AppServer', () => {
         updatedAt: '2026-02-12T00:00:00.000Z',
       },
       staleInputs: [],
+      pendingSessionMemoryRestore,
     })
+
+    const replayBeforeTurn = await server.handleMessage(request(25, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayBeforeTurn[0] as any).result.pendingSessionMemoryRestore).toEqual(pendingSessionMemoryRestore)
 
     await server.handleMessage(
       request(3, 'turn/start', {
@@ -824,6 +838,9 @@ describe('AppServer', () => {
       threadId: 'thread-1',
       input: { text: 'second turn after resume' },
     })
+
+    const replayAfterConsumption = await server.handleMessage(request(45, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterConsumption[0] as any).result.pendingSessionMemoryRestore).toBeNull()
   })
 
   it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {
