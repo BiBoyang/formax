@@ -110,6 +110,7 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
+- `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层（当前先统一 runtime send-path 与 `/context` next-turn diagnostics 对 `microcompact` / `prune` / `collapse` 的执行顺序与 facts 归档；这是 `CCA-140` 的 scaffolding，不在这里引入新的压缩策略）
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要；v2 已把策略从“全局 keep N”扩成按 tool family 的 recent keep 配额 + per-tool size threshold）
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性、family-aware recency、per-tool size threshold）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
@@ -134,6 +135,7 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/contextDiagnostics.test.ts`：单测覆盖（slice 估算、budget 字段、报告文案）
 - `packages/core/src/features/repl/controller/send/send.ts`：`/context` 的本地命令入口
 - 当前 `/context` snapshot 与主路径 prompt 估算已统一基于“最近 compact boundary 后 continuation view”；如果没有 boundary，才退化为全 persisted history
+- 当前 runtime send-path 与 `/context` next-turn diagnostics 也已共用 `middleLayerStrategyStack`：`microcompact`、`prune`、`collapse` 不再由两边各自串联执行，从而把 `strategyFacts`、impact 字段和 request-time prepared view 收敛到同一个 owner
 - 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy：pressure ratio 会共同驱动 eligible tool family、per-tool recent keep 配额、以及 per-tool size threshold，避免 `/context` 和真实发送链的 microcompact 行为再次漂移
 - 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
 - 当前 system prompt diagnostics 已支持 per-system-section breakdown：会把 system 拆成 `Identity`、heading 前 `Preamble`、以及顶层 `# section`，`top contributors` 不再只把 system 当作单个黑盒 contributor

@@ -12,6 +12,10 @@ import {
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { collapseRequestHistory } from '../../../../chat/context/contextCollapse'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
+import {
+  executeMiddleLayerStrategyStack,
+  type MiddleLayerStrategyFacts,
+} from '../../../../chat/context/middleLayerStrategyStack'
 import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import {
@@ -72,24 +76,6 @@ export function createContextCompressionService(deps: {
     autoCompactLimitPercent: deps.cfg.context.autoCompactTokenLimitPercent,
     baselineTokens: deps.cfg.context.baselineTokens,
   })
-
-  const buildCollapsedRequestProjection = (messages: ChatHistory): {
-    requestHistory: ChatHistory
-    collapseState: RequestCollapseState
-  } => {
-    const collapsed = collapseRequestHistory({
-      messages,
-    })
-    return {
-      requestHistory: collapsed.messages,
-      collapseState: {
-        applied: collapsed.collapsed,
-        collapsedHeadMessageCount: collapsed.collapsedHeadMessageCount,
-        estimatedTokensSaved: collapsed.estimatedTokensSaved,
-        metadata: collapsed.metadata,
-      },
-    }
-  }
 
   const pruneMessages = (args: { system: PromptBlock[]; messages: ChatHistory; contextWindowTokens: number | undefined }) => {
     if (!args.contextWindowTokens) return args.messages
@@ -282,6 +268,7 @@ export function createContextCompressionService(deps: {
       history: ChatHistory
       requestHistory: ChatHistory
       collapseState: RequestCollapseState
+      strategyFacts: MiddleLayerStrategyFacts
       user: PromptMessage
       context: EstimatedContextState
       autoCompacted: boolean
@@ -365,23 +352,29 @@ export function createContextCompressionService(deps: {
         }
       }
 
-      const preparedMessages = pruneMessages({
+      const stack = executeMiddleLayerStrategyStack({
         system: args.system,
-        messages: [...nextHistory, args.user],
-        contextWindowTokens: args.contextWindowTokens,
+        history: nextHistory,
+        trailingMessage: args.user,
+        budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       })
-      const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
-      const preparedHistory = preparedMessages.slice(0, -1)
-      const collapsedRequestProjection = buildCollapsedRequestProjection(preparedHistory)
+      const preparedUser = stack.preparedTrailingMessage ?? args.user
+      const preparedHistory = stack.preparedHistory
 
       return {
         history: preparedHistory,
-        requestHistory: collapsedRequestProjection.requestHistory,
-        collapseState: collapsedRequestProjection.collapseState,
+        requestHistory: stack.requestHistory,
+        collapseState: {
+          applied: stack.facts.collapse.applied,
+          collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
+          estimatedTokensSaved: stack.facts.collapse.estimatedTokensSaved,
+          metadata: stack.facts.collapse.metadata,
+        },
+        strategyFacts: stack.facts,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...collapsedRequestProjection.requestHistory, preparedUser],
+          messages: [...stack.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
         autoCompacted,
@@ -478,6 +471,7 @@ export function createContextCompressionService(deps: {
       history: ChatHistory
       requestHistory: ChatHistory
       collapseState: RequestCollapseState
+      strategyFacts: MiddleLayerStrategyFacts
       reactiveCompactState: ReactiveCompactState
       user: PromptMessage
       context: EstimatedContextState
@@ -520,19 +514,25 @@ export function createContextCompressionService(deps: {
         user: args.user,
       })
 
-      const preparedMessages = pruneMessages({
+      const stack = executeMiddleLayerStrategyStack({
         system: args.system,
-        messages: [...nextHistory, args.user],
-        contextWindowTokens: args.contextWindowTokens,
+        history: nextHistory,
+        trailingMessage: args.user,
+        budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       })
-      const preparedUser = preparedMessages[preparedMessages.length - 1] ?? args.user
-      const preparedHistory = preparedMessages.slice(0, -1)
-      const collapsedRequestProjection = buildCollapsedRequestProjection(preparedHistory)
+      const preparedUser = stack.preparedTrailingMessage ?? args.user
+      const preparedHistory = stack.preparedHistory
 
       return {
         history: preparedHistory,
-        requestHistory: collapsedRequestProjection.requestHistory,
-        collapseState: collapsedRequestProjection.collapseState,
+        requestHistory: stack.requestHistory,
+        collapseState: {
+          applied: stack.facts.collapse.applied,
+          collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
+          estimatedTokensSaved: stack.facts.collapse.estimatedTokensSaved,
+          metadata: stack.facts.collapse.metadata,
+        },
+        strategyFacts: stack.facts,
         reactiveCompactState: {
           applied: true,
           strategy: sessionMemoryCompactedHistory ? 'session_memory' : 'model_summary',
@@ -540,7 +540,7 @@ export function createContextCompressionService(deps: {
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...collapsedRequestProjection.requestHistory, preparedUser],
+          messages: [...stack.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
       }

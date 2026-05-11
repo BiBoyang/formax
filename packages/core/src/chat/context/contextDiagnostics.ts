@@ -3,8 +3,9 @@ import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
-import { microCompactHistory, resolveAdaptiveMicroCompactPolicy, type MicroCompactImpact } from './microCompact'
-import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
+import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
+import { type MicroCompactImpact } from './microCompact'
+import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
 import { pruneForPromptBudget } from './prune'
 import {
   AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS,
@@ -308,38 +309,16 @@ export function analyzeNextTurnFixedContext(args: {
           content: fixedGroups.flatMap((group) => group.blocks),
         } satisfies PromptMessage)
       : null
-  const preMicrocompactMessages = preMicrocompactFixedMessage
-    ? [...promptMessages, preMicrocompactFixedMessage]
-    : [...promptMessages]
-  const microCompactPressureRatio = args.budgetConfig
-    ? (() => {
-        const stats = computeContextStats({
-          config: args.budgetConfig,
-          usedTokens: estimatePromptTokens({
-            system: args.system,
-            messages: preMicrocompactMessages,
-          }),
-        })
-        if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
-        return stats.usedTokens / stats.effectiveLimitTokens
-      })()
-    : null
-  const microCompactPolicy = resolveAdaptiveMicroCompactPolicy({
-    pressureRatio: microCompactPressureRatio,
-  })
-
-  const microCompactResult = microCompactHistory({
-    messages: promptMessages,
-    eligibleToolNames: microCompactPolicy.eligibleToolNames,
-    keepRecentToolResults: microCompactPolicy.keepRecentToolResults,
-    keepRecentToolResultsByName: microCompactPolicy.keepRecentToolResultsByName,
-    minResultChars: microCompactPolicy.minResultChars,
-    minResultCharsByName: microCompactPolicy.minResultCharsByName,
-  })
-  const microCompactedHistory = microCompactResult.messages
   const fixedUserMessage = preMicrocompactFixedMessage
+  const stack = executeMiddleLayerStrategyStack({
+    system: args.system,
+    history: promptMessages,
+    trailingMessage: fixedUserMessage,
+    budgetConfig: args.budgetConfig ?? null,
+    allowBoundarylessContinuation: hasLatestCompactBoundary,
+  })
+  const microCompactedHistory = stack.microCompactedHistory
 
-  const rawPreparedMessages = fixedUserMessage ? [...microCompactedHistory, fixedUserMessage] : [...microCompactedHistory]
   const fallbackRehydration = buildPostCompactRehydration({
     cwd: args.cwd,
     mode: normalizeDiagnosticsMode(args.mode),
@@ -378,22 +357,10 @@ export function analyzeNextTurnFixedContext(args: {
     rehydration: fallbackRehydration,
     workingSetAnchor,
   })
-  const totalTokensBeforePrune = estimatePromptTokens({ system: args.system, messages: rawPreparedMessages })
-  const preparedMessages = args.budgetConfig
-    ? pruneForPromptBudget({
-        system: args.system,
-        messages: rawPreparedMessages,
-        ...args.budgetConfig,
-      }).messages
-    : rawPreparedMessages
-
-  const projectedHistory = fixedUserMessage ? preparedMessages.slice(0, -1) : preparedMessages
-  const preparedFixedMessage = fixedUserMessage ? (preparedMessages[preparedMessages.length - 1] ?? fixedUserMessage) : null
-  const collapseResult = collapseRequestHistory({
-    messages: projectedHistory,
-    allowBoundarylessContinuation: hasLatestCompactBoundary,
-  })
-  const collapsedProjectedHistory = collapseResult.messages
+  const totalTokensBeforePrune = stack.facts.prune.totalTokensBeforePrune
+  const projectedHistory = stack.preparedHistory
+  const preparedFixedMessage = stack.preparedTrailingMessage
+  const collapsedProjectedHistory = stack.requestHistory
   const assembledMessagesBeforeCollapse = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
   const assembledMessages = preparedFixedMessage ? [...collapsedProjectedHistory, preparedFixedMessage] : collapsedProjectedHistory
   const projectedToolUsesById = collectToolUsesById(collapsedProjectedHistory)
@@ -401,7 +368,7 @@ export function analyzeNextTurnFixedContext(args: {
     system: args.system,
     snapshotHistory: promptMessages,
     microCompactedHistory,
-    postPruneMessages: preparedMessages,
+    postPruneMessages: stack.preparedMessages,
     preparedFixedMessage,
     budgetConfig: args.budgetConfig ?? null,
     cwd: args.cwd,
@@ -445,18 +412,18 @@ export function analyzeNextTurnFixedContext(args: {
       totalTokens,
     }),
     microCompactImpact: {
-      compactedBlocks: microCompactResult.compactedBlocks,
-      compactedToolNames: microCompactResult.compactedToolNames,
-      estimatedTokensSaved: microCompactResult.estimatedTokensSaved,
-      keptRecentBlocks: microCompactResult.keptRecentBlocks,
+      compactedBlocks: stack.facts.microCompact.impact.compactedBlocks,
+      compactedToolNames: stack.facts.microCompact.impact.compactedToolNames,
+      estimatedTokensSaved: stack.facts.microCompact.impact.estimatedTokensSaved,
+      keptRecentBlocks: stack.facts.microCompact.impact.keptRecentBlocks,
     },
     collapseImpact: {
-      collapsed: collapseResult.collapsed,
-      collapsedHeadMessageCount: collapseResult.collapsedHeadMessageCount,
-      estimatedTokensSaved: collapseResult.estimatedTokensSaved,
+      collapsed: stack.facts.collapse.applied,
+      collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
+      estimatedTokensSaved: stack.facts.collapse.estimatedTokensSaved,
       projectedHistoryTokensAfterCollapse,
       projectedHistoryDeltaTokens: projectedHistoryTokensAfterCollapse - projectedHistoryTokens,
-      metadata: collapseResult.metadata,
+      metadata: stack.facts.collapse.metadata,
     },
     workingSetSignals,
     lifecycleMarkers,
