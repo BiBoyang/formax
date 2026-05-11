@@ -112,6 +112,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - Permissions/policy source of truth: `docs/contracts/permissions-policy-contract.md`
 - Transcript surface source of truth: `docs/contracts/transcript-surface-contract.md`
 - Prompt/tool exposure source of truth: `docs/contracts/prompt-tool-exposure-contract.md`
+- Context strategy stack source of truth: `docs/contracts/context-strategy-stack-contract.md`
 - Tool runtime / ToolSearch source of truth: `docs/contracts/tool-runtime-contract.md`
 - Hooks source of truth: `docs/contracts/hooks-contract.md`
 - Session persistence / resume source of truth: `docs/contracts/session-persistence-contract.md`
@@ -126,6 +127,7 @@ If you modify tool specs/contracts or tool module coverage, consider running:
 - When permissions, remember side effects, or workspace approval behavior changes, update the permissions/policy contract first.
 - When `/clear` `/resume` transcript remount, Ctrl+O/Ctrl+E view reset, or legacy terminal clear behavior changes, update the transcript surface contract first.
 - When deferred tool exposure, skills reminder, or request dry-run behavior changes, update the prompt/tool exposure contract first.
+- When query-time middle-layer stage order, stage roles, request-only projection scope, or terminal prune fallback behavior changes, update the context strategy stack contract first.
 - When tool protocol shape, executor gate order, ToolSearch runtime, or ToolResult vs CommandResult boundaries change, update the tool runtime contract first.
 - When hook events, matcher semantics, or `additionalContext` injection behavior changes, update the hooks contract first.
 - When session persistence roots, `query(...).resume/continue`, `unstable_v2_resumeSession`, `thread/start` provisional-file behavior, or `thread/resume` stale-input recovery changes, update the session persistence contract first.

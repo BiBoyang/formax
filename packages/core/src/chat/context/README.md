@@ -2,6 +2,11 @@
 
 Last verified: 2026-05-11
 
+Canonical contracts:
+- `docs/contracts/context-strategy-stack-contract.md`
+- `docs/contracts/session-persistence-contract.md`
+- `docs/contracts/slash-command-contract.md`
+
 Formax 的“上下文管理”分两条线：
 
 1. **UI transcript（完整保留）**：你在终端看到的 `messages[]`。

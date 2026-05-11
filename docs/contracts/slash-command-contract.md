@@ -20,6 +20,7 @@
 
 相关文档（信息性镜像）：
 - `docs/contracts/semantics-contract.md`
+- `docs/contracts/context-strategy-stack-contract.md`
 - `docs/contracts/tool-runtime-contract.md`
 - `docs/contracts/config-settings-contract.md`
 - `docs/contracts/interactive-input-contract.md`
@@ -204,6 +205,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `fixed_total`
    - `assembled_total`
    text diagnostics SHOULD 同步提供 `Assembled payload ledger before future user text` 小节，避免客户端只能从多个分散字段自行拼账本
+21. `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger` 当前只定义稳定消费字段；其 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准。`/context` 合同不得重定义 middle-layer stage order。
 当前 `summaryKind` MAY 为：
  - `model_summary`
  - `session_memory`

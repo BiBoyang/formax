@@ -8,6 +8,7 @@
 相关文档：
 
 - 项目语义边界：`docs/contracts/semantics-contract.md`
+- Context strategy stack 唯一事实源：`docs/contracts/context-strategy-stack-contract.md`
 - UI 行为：`docs/frontend/app-server-ui-spec.md`
 - 接口参考：`docs/references/app-server-api-reference.md`
 - 交互输入唯一事实源：`docs/contracts/interactive-input-contract.md`
@@ -260,6 +261,7 @@
     - `triggerKind`
     - `strategy`
     - `triggerDetail`（可选）
+  - `microCompactImpact`、`toolResultBudgetImpact`、`collapseImpact`、`assembledLedger` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
   - 当前 `summaryKind` MAY 为：
     - `model_summary`
     - `session_memory`
