@@ -168,9 +168,8 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-151` session-memory restore consumption v4
-2. `CCA-152` middle-layer canonical-owner convergence
-3. `CCA-153` compact protocol remote / restore alignment
+1. `CCA-152` middle-layer canonical-owner convergence
+2. `CCA-153` compact protocol remote / restore alignment
 
 对应含义：
 
@@ -183,7 +182,7 @@ flowchart TD
 
 ## 新主线为什么这样排
 
-### `CCA-151` 先于 `CCA-152`
+### `CCA-151` 已先于 `CCA-152` 完成
 
 `CCA-151` 的目标是继续让压缩后的 session-memory 在 restore 之后真正有用。
 
@@ -193,7 +192,13 @@ flowchart TD
 2. 但 restore 后真正延续任务语义的能力仍然偏窄
 3. 用户实际感受到的“压缩后还能继续工作”改进不够明显
 
-所以当前更值钱的顺序是先把 restore 消费面继续补宽，再回头做更内聚的 owner convergence。
+当前状态：
+
+1. app-server `thread/resume` 已开始复用 canonical restore artifacts
+2. session-memory reminder 已能在服务端作为 next-turn-only injected blocks 消费一次
+3. `/context` diagnostics 也能解释这层 pending restore consumption
+
+所以当前主线可以继续切到 `CCA-152`。
 
 ### `CCA-152` 仍然早于 `CCA-153`
 

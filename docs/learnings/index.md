@@ -113,4 +113,5 @@
 - [2026-05-11 - Session memory restore consumption v3](./2026-05-11-session-memory-restore-consumption-v3.md)
 - [2026-05-11 - Web right rail collapse summary](./2026-05-11-web-right-rail-collapse-summary.md)
 - [2026-05-11 - Working-set selector v3](./2026-05-11-working-set-selector-v3.md)
+- [2026-05-12 - App-server session-memory restore consumption v4](./2026-05-12-app-server-session-memory-restore-consumption-v4.md)
 - [2026-05-12 - Working-set selector v4](./2026-05-12-working-set-selector-v4.md)

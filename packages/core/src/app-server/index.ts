@@ -239,7 +239,14 @@ export async function runAppServer(args?: {
       })
       return lazyTurnRunner
     },
-    resolveContextDiagnostics: async ({ threadId, cwd: dispatchCwd, mode, includeExitPlanReminder, format }) => {
+    resolveContextDiagnostics: async ({
+      threadId,
+      cwd: dispatchCwd,
+      mode,
+      includeExitPlanReminder,
+      nextTurnInjectedBlocks = [],
+      format,
+    }) => {
       const runtime = await createRuntime({ cwd: dispatchCwd, env })
       const sessionFilePath = await findSessionFileBySessionId({
         cwd: dispatchCwd,
@@ -284,6 +291,9 @@ export async function runAppServer(args?: {
         nextTurnFixedGroups: [
           { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
           { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
+          ...(nextTurnInjectedBlocks.length > 0
+            ? [{ label: 'Pending restore injected blocks', blocks: nextTurnInjectedBlocks }]
+            : []),
         ],
       })
 

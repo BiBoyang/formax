@@ -339,6 +339,7 @@ describe('ThreadStore', () => {
     const resumedBeforePersist = await store.resumeThread(thread.id)
     expect(resumedBeforePersist.thread.id).toBe(thread.id)
     expect(resumedBeforePersist.staleInputs).toEqual([])
+    expect(resumedBeforePersist.nextTurnInjectedBlocks).toBeUndefined()
 
     const readBeforePersist = await store.readThread(thread.id)
     expect(readBeforePersist.thread.id).toBe(thread.id)
@@ -362,6 +363,7 @@ describe('ThreadStore', () => {
     const resumed = await store.resumeThread(thread.id)
     expect(resumed.thread.id).toBe(thread.id)
     expect(resumed.staleInputs).toEqual([])
+    expect(resumed.nextTurnInjectedBlocks).toBeUndefined()
 
     const readOut = await store.readThread(thread.id)
     expect(readOut.thread.id).toBe(thread.id)
@@ -543,6 +545,7 @@ describe('ThreadStore', () => {
     const resumed = await storeWithPersist.resumeThread(thread.id)
 
     expect(resumed.thread.id).toBe(thread.id)
+    expect(resumed.nextTurnInjectedBlocks).toBeUndefined()
     await vi.waitFor(() => {
       expect(persistSpy).toHaveBeenCalledWith({
         sessionFilePath: filePath,
@@ -599,6 +602,13 @@ describe('ThreadStore', () => {
     const resumed = await storeWithPersist.resumeThread(thread.id)
 
     expect(resumed.thread.id).toBe(thread.id)
+    expect(resumed.nextTurnInjectedBlocks).toHaveLength(1)
+    expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
+      'Restored session memory for the next turn only:',
+    )
+    expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
+      path.join(cwd, '.formax', 'resume-plan.md'),
+    )
     await vi.waitFor(() => {
       expect(persistSpy).toHaveBeenCalledWith({
         sessionFilePath: filePath,

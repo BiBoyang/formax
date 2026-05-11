@@ -185,7 +185,8 @@ Formax 的“上下文管理”分两条线：
   - app-server `thread/resume` 也已开始沿用同一条 restore-side sidecar refresh 语义
   - rolling session memory sidecar 现在会在 REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue`、app-server `thread/resume` 成功恢复 active history 后做 best-effort 刷新，这样下一轮能立刻复用 memory-first auto compact
   - 非 REPL 恢复链当前会优先沿用已有 sidecar 中保存的 `mode` / `planPath`，避免刷新时把 session memory 降级回 `normal/null`
-  - REPL `/resume`、CLI `resumeLast` 与 SDK file-backed `resume/continue` 当前还会把 sidecar 派生成一条 **只作用于下一轮请求** 的 session-memory reminder block；该 block 走 request-time injection 路径，不会写回 persisted history
+  - REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 与 app-server `thread/resume` 当前都可以把 sidecar 派生成一条 **只作用于下一轮请求** 的 session-memory reminder block；该 block 走 request-time injection 路径，不会写回 persisted history
+  - app-server 当前会在服务端缓存这条 reminder，并在下一次成功的 `turn/start` / turn-dispatch 上消费一次；`/context` fixed groups 也会把它显示为 `Pending restore injected blocks`
   - 当前恢复链不会因为 sidecar 刷新失败而中断；JSONL replay 仍然是唯一权威历史来源
 
 ---

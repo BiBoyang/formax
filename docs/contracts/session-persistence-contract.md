@@ -167,8 +167,9 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
    - REPL `/resume` SHOULD 传入当前 REPL mode 与当前 `planPath`
    - CLI `resumeLast`、SDK file-backed resume/continue 与 app-server `thread/resume` 当前 SHOULD 优先沿用已有 session memory sidecar 里的 `mode` / `planPath`
    - 若不存在可用 sidecar，上述入口 MAY 退化为 `mode = normal` 且 `planPath = null`
-10. 当前 REPL `/resume`、CLI `resumeLast` 与 SDK file-backed `resume/continue` 在 restore 成功后，MAY 基于 sidecar 额外派生一条 **仅下一轮请求可见** 的 session-memory reminder block
+10. 当前 REPL `/resume`、CLI `resumeLast`、SDK file-backed `resume/continue` 与 app-server `thread/resume` 在 restore 成功后，MAY 基于 sidecar 额外派生一条 **仅下一轮请求可见** 的 session-memory reminder block
 11. `SES-304B.10` 的 reminder block MUST 通过 request-time injection 路径消费；不得写回 persisted history，也不得替代 boundary-aware restore 后的 active history
+12. 对 app-server `thread/resume` 而言，`SES-304B.10` 的 reminder block SHOULD 由服务端缓存，并在下一次成功的 `turn/start` / turn-dispatch 上消费一次；客户端不需要重新组装第二套 reminder
 
 `SES-304C`
 当 file-backed restore 需要把 persisted history 恢复成“下一轮 active prompt baseline”时，系统 MUST 以最近 compact boundary 之后的 continuation view 为准，而不是直接把完整 replay.history 原样作为 active history。  
@@ -231,6 +232,11 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 
 `SES-405`  
 客户端在收到 `thread/resume.staleInputs` 后，MUST 以服务端恢复结果为准更新本地 pending-input 状态；不得继续把这些输入视为可提交。
+
+当 app-server `thread/resume` 同时恢复出 session-memory reminder block 时：
+1. reminder block MUST 仅对下一次成功的 turn 启动生效
+2. reminder block MUST NOT 作为 `thread/resume` 的 persisted history 结果写回 session JSONL
+3. 服务端 MAY 在 `/context` 的 next-turn fixed groups 中把它暴露为 pending restore injected blocks，以便 diagnostics 解释当前 restore consumption 语义
 
 ## 6. 变更流程
 

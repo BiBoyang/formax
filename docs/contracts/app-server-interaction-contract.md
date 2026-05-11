@@ -45,6 +45,7 @@
 - 返回：`{ thread, staleInputs }`
 - 共享恢复语义：
   - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
+  - 若 file-backed restore 同时恢复出 session-memory reminder block，app-server MAY 在服务端缓存它，并在下一次成功的 `turn/start` / turn-dispatch 上作为 next-turn-only injected blocks 消费一次；该 block MUST NOT 被写回 persisted history
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 
@@ -227,6 +228,7 @@
     - `autoCompactSkipReason`
     - `pruneSkipReason`
     - `workingSetSignals`（解释 auto `keep_combo` 如何根据 recent files / plan/todo / mode state 调整保留策略）
+  - 当 thread 最近执行过 `thread/resume` 且服务端仍持有未消费的 session-memory reminder block 时，`local.diagnostics.nextTurnFixed.fixedGroups` MAY 额外包含 `Pending restore injected blocks`
   - `local.diagnostics.nextTurnFixed.microCompactImpact` MUST 暴露：
     - `compactedBlocks`
     - `compactedToolNames`

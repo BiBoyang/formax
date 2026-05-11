@@ -765,6 +765,7 @@ describe('TurnRunner', () => {
         modelInputText: compact ? '/compact' : 'hello',
         modelUserContent: [{ type: 'text', text: compact ? '/compact' : 'hello' }],
         semanticBlockCount: 0,
+        pendingInjectedBlockCount: 0,
         replMode: 'normal',
         abortController: new AbortController(),
         inputStore: { resolveAllPending: () => [] },
@@ -804,6 +805,59 @@ describe('TurnRunner', () => {
     }
 
     expect(notifications.some((n) => n.method === 'turn/failed')).toBe(true)
+  })
+
+  it('treats pending restore injected blocks as next-turn-only and strips them from persisted history', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
+    } as const
+    let capturedUserContent: unknown[] = []
+
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          if (capturedUserContent.length === 0) {
+            capturedUserContent = Array.isArray(args.user.content) ? [...args.user.content] : []
+          }
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'resume-aware turn' },
+      pendingInjectedBlocks: [reminderBlock],
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(JSON.stringify(capturedUserContent)).toContain('Restored session memory for the next turn only:')
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const replay = await readSessionFile(filePath!)
+    const lastUser = [...replay.history].reverse().find((message) => message.role === 'user')
+    expect(JSON.stringify(lastUser?.content ?? [])).toContain('resume-aware turn')
+    expect(JSON.stringify(lastUser?.content ?? [])).not.toContain('Restored session memory for the next turn only:')
   })
 
   it('covers tool event branches with missing metadata and line-less updates', async () => {

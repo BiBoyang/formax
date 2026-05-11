@@ -51,6 +51,7 @@ import {
   type TranscriptProjectionState,
 } from '@formax/semantics'
 import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStateSnapshot.js'
+import type { PromptBlock } from '../prompts/index.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -82,6 +83,7 @@ export type AppServerOptions = {
     cwd: string
     mode: 'normal' | 'acceptEdits' | 'plan'
     includeExitPlanReminder: boolean
+    nextTurnInjectedBlocks?: PromptBlock[]
     format: 'text' | 'json'
   }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
@@ -122,6 +124,7 @@ export class AppServer {
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
+  private readonly pendingInjectedBlocksByThreadId = new Map<string, PromptBlock[]>()
   private readonly maxReplayEventsPerThread = DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD
   private replaySeq = 0
 
@@ -218,11 +221,17 @@ export class AppServer {
       try {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadResumeResult = await this.threadStore.resumeThread(params.threadId)
+        this.setPendingInjectedBlocks(params.threadId, result.nextTurnInjectedBlocks)
         for (const input of result.staleInputs) {
           this.staleInputIds.add(input.inputId)
           this.staleInputIdsByToolUseId.set(input.toolUseId, input.inputId)
         }
-        return [makeSuccessResponse(req.id, result)]
+        return [
+          makeSuccessResponse(req.id, {
+            thread: result.thread,
+            staleInputs: result.staleInputs,
+          }),
+        ]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }
@@ -353,12 +362,17 @@ export class AppServer {
           threadId: params.threadId,
           requestedMode: params.mode,
         })
+        const nextTurnInjectedBlocks = this.getPendingInjectedBlocks(params.threadId)
         const result = await runner.startTurn({
           ...params,
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
+          ...(nextTurnInjectedBlocks.length > 0 ? { pendingInjectedBlocks: nextTurnInjectedBlocks } : {}),
         })
         if (exitPlanReminder.consumePendingOnSuccess) {
           this.pendingExitPlanReminderByThreadId.delete(params.threadId)
+        }
+        if (nextTurnInjectedBlocks.length > 0) {
+          this.clearPendingInjectedBlocks(params.threadId)
         }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
@@ -407,6 +421,7 @@ export class AppServer {
                 threadId: params.threadId,
                 requestedMode: params.mode,
               }).include,
+              nextTurnInjectedBlocks: this.getPendingInjectedBlocks(params.threadId),
               format: outputFormat,
             })
             return [
@@ -443,15 +458,20 @@ export class AppServer {
           threadId: params.threadId,
           requestedMode: params.mode,
         })
+        const nextTurnInjectedBlocks = this.getPendingInjectedBlocks(params.threadId)
         const result = await runner.startTurn({
           threadId: params.threadId,
           input: { text: params.command },
           ...(params.mode ? { mode: params.mode } : {}),
           ...(params.cwd ? { cwd: params.cwd } : {}),
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
+          ...(nextTurnInjectedBlocks.length > 0 ? { pendingInjectedBlocks: nextTurnInjectedBlocks } : {}),
         })
         if (exitPlanReminder.consumePendingOnSuccess) {
           this.pendingExitPlanReminderByThreadId.delete(params.threadId)
+        }
+        if (nextTurnInjectedBlocks.length > 0) {
+          this.clearPendingInjectedBlocks(params.threadId)
         }
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
@@ -546,6 +566,22 @@ export class AppServer {
       include: shouldInjectExitPlanReminder({ current: previousMode, next: nextMode }),
       consumePendingOnSuccess: false,
     }
+  }
+
+  private getPendingInjectedBlocks(threadId: string): PromptBlock[] {
+    return this.pendingInjectedBlocksByThreadId.get(threadId) ?? []
+  }
+
+  private setPendingInjectedBlocks(threadId: string, blocks?: PromptBlock[]): void {
+    if (Array.isArray(blocks) && blocks.length > 0) {
+      this.pendingInjectedBlocksByThreadId.set(threadId, blocks)
+      return
+    }
+    this.pendingInjectedBlocksByThreadId.delete(threadId)
+  }
+
+  private clearPendingInjectedBlocks(threadId: string): void {
+    this.pendingInjectedBlocksByThreadId.delete(threadId)
   }
 
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {

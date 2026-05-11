@@ -192,8 +192,11 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 4. `CCA-150`
    - 已完成：working-set / keep strategy v4 第一刀
    - 结果：filesystem task cluster 已不再只允许固定 1-turn rewind，diagnostics 也会显式暴露 `anchorMaxBacktrackTurns`
-5. 下一步
-   - 进入 `CCA-151` / `CCA-152` / `CCA-153` mainline
+5. `CCA-151`
+   - 已完成：session-memory restore consumption v4
+   - 结果：app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为服务端缓存的 next-turn-only injected blocks 消费一次
+6. 下一步
+   - 进入 `CCA-152` / `CCA-153` mainline
 
 刚完成的上一轮主线：
 

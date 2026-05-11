@@ -725,6 +725,90 @@ describe('AppServer', () => {
     })
   })
 
+  it('caches restore injected blocks from thread/resume and consumes them on the next turn only', async () => {
+    const received: unknown[] = []
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            staleInputs: [],
+            nextTurnInjectedBlocks: [reminderBlock as any],
+          }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 'thread-1',
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      turnRunner: {
+        async startTurn(params) {
+          received.push(params)
+          return { turn: { id: `turn-${received.length}`, threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+
+    const resumeOut = await server.handleMessage(request(2, 'thread/resume', { threadId: 'thread-1' }))
+    expect((resumeOut[0] as any).result).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-02-12T00:00:00.000Z',
+        updatedAt: '2026-02-12T00:00:00.000Z',
+      },
+      staleInputs: [],
+    })
+
+    await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'first turn after resume' },
+      }),
+    )
+    await server.handleMessage(
+      request(4, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'second turn after resume' },
+      }),
+    )
+
+    expect(received[0]).toEqual({
+      threadId: 'thread-1',
+      input: { text: 'first turn after resume' },
+      pendingInjectedBlocks: [reminderBlock],
+    })
+    expect(received[1]).toEqual({
+      threadId: 'thread-1',
+      input: { text: 'second turn after resume' },
+    })
+  })
+
   it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {
     const received: unknown[] = []
     const server = new AppServer({
@@ -786,6 +870,68 @@ describe('AppServer', () => {
         mode: 'normal',
       },
     ])
+  })
+
+  it('passes pending restore injected blocks into /context diagnostics after thread/resume', async () => {
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
+    }
+    const resolveContextDiagnostics = vi.fn(async () => ({
+      stdout: 'Context diagnostics',
+      diagnostics: {
+        kind: 'formax.context_diagnostics' as const,
+        schemaVersion: 1 as const,
+        mode: 'normal',
+        model: 'claude-3-5-sonnet-latest',
+        latestCompactBoundary: null,
+        snapshot: {} as any,
+        nextTurnFixed: {} as any,
+        notes: [],
+      },
+    }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo/from-thread',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            staleInputs: [],
+            nextTurnInjectedBlocks: [reminderBlock as any],
+          }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 'thread-1',
+              cwd: '/repo/from-thread',
+              createdAt: '',
+              updatedAt: '',
+            },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      resolveContextDiagnostics,
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/resume', { threadId: 'thread-1' }))
+    await server.handleMessage(request(3, 'command/dispatch', { threadId: 'thread-1', command: '/context' }))
+
+    expect(resolveContextDiagnostics).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      cwd: '/repo/from-thread',
+      mode: 'normal',
+      includeExitPlanReminder: false,
+      nextTurnInjectedBlocks: [reminderBlock],
+      format: 'text',
+    })
   })
 
   it('does not apply pending exit-plan reminder when next turn re-enters plan mode', async () => {
@@ -2537,6 +2683,7 @@ describe('AppServer', () => {
       cwd: '/repo/from-param',
       mode: 'plan',
       includeExitPlanReminder: false,
+      nextTurnInjectedBlocks: [],
       format: 'text',
     })
   })
@@ -2577,6 +2724,7 @@ describe('AppServer', () => {
       cwd: '/repo/from-param',
       mode: 'plan',
       includeExitPlanReminder: false,
+      nextTurnInjectedBlocks: [],
       format: 'json',
     })
   })

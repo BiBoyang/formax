@@ -9,8 +9,9 @@ import {
 } from '../features/repl/sessionSave/index.js'
 import {
   persistSessionMemoryFromHistory,
-  resolveSessionMemoryRestoreContext,
+  resolveSessionMemoryRestoreArtifacts,
 } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
+import type { PromptBlock } from '../prompts/index.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { buildActiveHistoryFromSessionReplay, findLatestCompactBoundary, type CompactBoundaryMeta } from '../chat/context/compact.js'
 import type { InputResolvedPayload } from './protocol/input.js'
@@ -108,6 +109,7 @@ type ThreadTimelineEntry = {
 export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
+  nextTurnInjectedBlocks?: PromptBlock[]
 }
 
 export type ThreadRenameResult = {
@@ -562,23 +564,23 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs] = await Promise.all([
+    const [summary, staleInputs, restoreArtifacts] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
+      resolveSessionMemoryRestoreArtifacts({
+        sessionFilePath: filePath,
+        fallbackMode: 'normal',
+        fallbackPlanPath: null,
+      }),
     ])
 
     void readSessionFile(filePath)
       .then(async (replay) => {
-        const restoreContext = await resolveSessionMemoryRestoreContext({
-          sessionFilePath: filePath,
-          fallbackMode: 'normal',
-          fallbackPlanPath: null,
-        })
         await this.persistSessionMemoryForRestore({
           sessionFilePath: filePath,
           cwd: replay.meta.cwd,
-          mode: restoreContext.mode,
-          planPath: restoreContext.planPath,
+          mode: restoreArtifacts.mode,
+          planPath: restoreArtifacts.planPath,
           history: buildActiveHistoryFromSessionReplay(replay.history),
         })
       })
@@ -587,6 +589,9 @@ export class ThreadStore {
     return {
       thread: toThread(summary),
       staleInputs,
+      ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
+        ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
+        : {}),
     }
   }
 

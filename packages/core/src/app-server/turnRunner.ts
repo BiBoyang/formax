@@ -52,6 +52,7 @@ type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
 type TurnStartRuntimeParams = TurnStartParams & {
   includeExitPlanReminder?: boolean
+  pendingInjectedBlocks?: PromptBlock[]
 }
 
 export type TurnRunnerNotificationEmitter = (method: string, params?: unknown) => void
@@ -85,6 +86,7 @@ type RunningTurn = {
   modelInputText: string
   modelUserContent: PromptBlock[]
   semanticBlockCount: number
+  pendingInjectedBlockCount: number
   replMode: ReplMode
   planSession: PlanSessionManager | null
   planPath: string | null
@@ -292,6 +294,7 @@ export class TurnRunner {
       planPath,
       includeExitPlanReminder: Boolean(params.includeExitPlanReminder),
     })
+    const pendingInjectedBlocks = [...(params.pendingInjectedBlocks ?? [])]
     const commandRouting = resolveCommandRouting(params.input.text)
     const compactInstructions = commandRouting.isExactCompact ? (commandRouting.commandArgs as string) : ''
 
@@ -305,8 +308,9 @@ export class TurnRunner {
       cwd,
       inputText: params.input.text,
       modelInputText: turnInput.modelUserText,
-      modelUserContent: [...turnInput.semanticBlocks, ...turnInput.userBlocks],
+      modelUserContent: [...turnInput.semanticBlocks, ...pendingInjectedBlocks, ...turnInput.userBlocks],
       semanticBlockCount: turnInput.semanticBlocks.length,
+      pendingInjectedBlockCount: pendingInjectedBlocks.length,
       replMode: initialMode,
       planSession,
       planPath,
@@ -721,11 +725,11 @@ export class TurnRunner {
           throw new Error('Request aborted')
         }
         nextHistoryForSnapshot =
-          running.semanticBlockCount + exposureInjectedBlockCount > 0
+          running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0
             ? stripInjectedBlocksFromHistory(
                 nextHistory as ChatHistory,
                 history.length,
-                running.semanticBlockCount + exposureInjectedBlockCount,
+                running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount,
               )
             : (nextHistory as ChatHistory)
       }
