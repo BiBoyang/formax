@@ -184,7 +184,7 @@ describe('createContextCompressionService', () => {
     expect(runCompactFlow).not.toHaveBeenCalled()
   })
 
-  it('auto-compacts, updates sequence state, and keeps request-only prune out of persisted history', async () => {
+  it('auto-compacts, updates sequence state, and keeps post-compact terminal prune out of persisted history', async () => {
     vi.mocked(pruneForPromptBudget)
       .mockReturnValueOnce({
         messages: [{ role: 'user', content: [{ type: 'text', text: 'after-auto' }] }],
@@ -216,7 +216,7 @@ describe('createContextCompressionService', () => {
     expect(lastAutoCompactSeqRef.current).toBe(10)
     expect(out.autoCompacted).toBe(true)
     expect(out.showAutoCompactNotice).toBe(true)
-    expect(out.history).toEqual([{ role: 'user', content: [{ type: 'text', text: 'after-auto' }] }])
+    expect(out.history).toEqual([{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }])
     expect(out.collapseState).toEqual({
       applied: false,
       collapsedHeadMessageCount: 0,
@@ -238,7 +238,7 @@ describe('createContextCompressionService', () => {
       estimatedTokensSaved: 0,
       metadata: null,
     })
-    expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'after-final' }] })
+    expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'after-auto' }] })
     expect(out.context).toEqual({
       usedTokens: 1234,
       limitTokens: 9000,
@@ -391,7 +391,7 @@ describe('createContextCompressionService', () => {
     expect(JSON.stringify(out.history)).toContain('latest assistant')
   })
 
-  it('reactively compacts with source=reactive when session memory is unavailable', async () => {
+  it('reactively compacts with source=reactive when session memory is unavailable and keeps terminal prune request-only', async () => {
     vi.mocked(readSessionMemoryFile).mockResolvedValue(null)
     vi.mocked(pruneForPromptBudget).mockReturnValue({
       messages: [
@@ -419,9 +419,9 @@ describe('createContextCompressionService', () => {
       }),
     )
     expect(vi.mocked(runCompactFlow).mock.calls[0]?.[0]).not.toHaveProperty('onStreamEvent')
-    expect(out.history).toEqual([
+    expect(out.history).toEqual([{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }])
+    expect(out.requestHistory).toEqual([
       { role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] },
-      { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
     ])
     expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'reactive-user' }] })
   })
@@ -752,7 +752,7 @@ describe('createContextCompressionService', () => {
     })
   })
 
-  it('runs manual compact with keepLastTurns=0, forwards usage events, and prunes the result', async () => {
+  it('runs manual compact with keepLastTurns=0, forwards usage events, and returns the canonical persisted compact result', async () => {
     vi.mocked(pruneForPromptBudget).mockReturnValueOnce({
       messages: [{ role: 'user', content: [{ type: 'text', text: 'manual-pruned' }] }],
       pruned: true,
@@ -781,7 +781,7 @@ describe('createContextCompressionService', () => {
     )
     expect(out).toEqual({
       summary: 'summary',
-      compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'manual-pruned' }] }],
+      compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }],
       context: {
         usedTokens: 1234,
         limitTokens: 9000,
@@ -806,7 +806,7 @@ describe('createContextCompressionService', () => {
     ).rejects.toThrow('Compact failed: empty summary')
   })
 
-  it('finalizes post-turn history by pruning and refreshing context stats', () => {
+  it('finalizes post-turn history via the canonical persisted candidate and refreshes context stats', () => {
     vi.mocked(pruneForPromptBudget).mockReturnValueOnce({
       messages: [{ role: 'assistant', content: [{ type: 'text', text: 'post-pruned' }] }],
       pruned: true,
@@ -820,7 +820,7 @@ describe('createContextCompressionService', () => {
     })
 
     expect(out).toEqual({
-      history: [{ role: 'assistant', content: [{ type: 'text', text: 'post-pruned' }] }],
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'full' }] }],
       context: {
         usedTokens: 1234,
         limitTokens: 9000,

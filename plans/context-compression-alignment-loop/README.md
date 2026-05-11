@@ -195,8 +195,11 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 5. `CCA-151`
    - 已完成：session-memory restore consumption v4
    - 结果：app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为服务端缓存的 next-turn-only injected blocks 消费一次
-6. 下一步
-   - 进入 `CCA-152` / `CCA-153` mainline
+6. `CCA-152`
+   - 已完成：middle-layer canonical-owner convergence
+   - 结果：`contextCompressionService` 的 post-compact/manual/reactive/finalize 路径现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history
+7. 下一步
+   - 进入 `CCA-153` mainline
 
 刚完成的上一轮主线：
 
@@ -252,9 +255,8 @@ Formax 当前：
 - `CCA-145` 已完成
 - `CCA-146` 已完成
 - `CCA-150` 已完成
+- `CCA-152` 已完成
 - 当前主线已经切到：
-  - `CCA-151` session-memory restore consumption v4
-  - `CCA-152` middle-layer canonical-owner convergence
   - `CCA-153` compact protocol remote / restore alignment
 
 ## B. `microcompact` 能力深度

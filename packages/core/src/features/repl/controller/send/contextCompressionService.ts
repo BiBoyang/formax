@@ -16,7 +16,6 @@ import {
   type MiddleLayerStrategyFacts,
 } from '../../../../chat/context/middleLayerStrategyStack'
 import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
-import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import {
   buildSessionMemoryCompactionRehydration,
   buildSessionMemoryCompactionSummary,
@@ -76,14 +75,18 @@ export function createContextCompressionService(deps: {
     baselineTokens: deps.cfg.context.baselineTokens,
   })
 
-  const pruneMessages = (args: { system: PromptBlock[]; messages: ChatHistory; contextWindowTokens: number | undefined }) => {
-    if (!args.contextWindowTokens) return args.messages
-    return pruneForPromptBudget({
+  const runCanonicalMiddleLayerStack = (args: {
+    system: PromptBlock[]
+    history: ChatHistory
+    contextWindowTokens: number | undefined
+    trailingMessage?: PromptMessage | null
+  }) =>
+    executeMiddleLayerStrategyStack({
       system: args.system,
-      messages: args.messages,
-      ...buildBudgetConfig(args.contextWindowTokens),
-    }).messages
-  }
+      history: args.history,
+      trailingMessage: args.trailingMessage,
+      budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+    })
 
   const estimateContext = (args: {
     system: PromptBlock[]
@@ -143,23 +146,6 @@ export function createContextCompressionService(deps: {
     if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
     return stats.usedTokens / stats.effectiveLimitTokens
   }
-
-  const applyCompactedHistory = (args: {
-    compactedHistory: ChatHistory
-    system: PromptBlock[]
-    contextWindowTokens: number | undefined
-    user: PromptMessage
-  }): ChatHistory =>
-    microCompactMessages({
-      history: pruneMessages({
-        system: args.system,
-        messages: args.compactedHistory,
-        contextWindowTokens: args.contextWindowTokens,
-      }),
-      system: args.system,
-      contextWindowTokens: args.contextWindowTokens,
-      user: args.user,
-    })
 
   const tryRunSessionMemoryCompact = async (args: {
     source: 'auto' | 'reactive'
@@ -273,6 +259,7 @@ export function createContextCompressionService(deps: {
       autoCompacted: boolean
       showAutoCompactNotice: boolean
     }> {
+      let stack: ReturnType<typeof runCanonicalMiddleLayerStack> | null = null
       let nextHistory = microCompactMessages({
         history: args.history,
         system: args.system,
@@ -336,12 +323,13 @@ export function createContextCompressionService(deps: {
                 })
               ).compactedHistory
 
-            nextHistory = applyCompactedHistory({
-              compactedHistory,
+            stack = runCanonicalMiddleLayerStack({
               system: args.system,
+              history: compactedHistory,
+              trailingMessage: args.user,
               contextWindowTokens: args.contextWindowTokens,
-              user: args.user,
             })
+            nextHistory = stack.persistedHistoryCandidate
             args.lastAutoCompactSeqRef.current = args.sendSeq
             autoCompacted = true
             showAutoCompactNotice = deps.cfg.ui.showAutoCompactNotice === true
@@ -351,11 +339,11 @@ export function createContextCompressionService(deps: {
         }
       }
 
-      const stack = executeMiddleLayerStrategyStack({
+      stack ??= runCanonicalMiddleLayerStack({
         system: args.system,
         history: nextHistory,
         trailingMessage: args.user,
-        budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+        contextWindowTokens: args.contextWindowTokens,
       })
       const preparedUser = stack.preparedTrailingMessage ?? args.user
       const persistedHistoryCandidate = stack.persistedHistoryCandidate
@@ -389,15 +377,11 @@ export function createContextCompressionService(deps: {
       history: ChatHistory
       context: EstimatedContextState
     } {
-      const history = pruneMessages({
+      const history = runCanonicalMiddleLayerStack({
         system: args.system,
-        messages: microCompactMessages({
-          history: args.history,
-          system: args.system,
-          contextWindowTokens: args.contextWindowTokens,
-        }),
+        history: args.history,
         contextWindowTokens: args.contextWindowTokens,
-      })
+      }).persistedHistoryCandidate
 
       return {
         history,
@@ -443,11 +427,11 @@ export function createContextCompressionService(deps: {
         onLifecycle: deps.onCompactLifecycle,
       })
 
-      const compactedHistory = pruneMessages({
+      const compactedHistory = runCanonicalMiddleLayerStack({
         system: args.system,
-        messages: compactResult.compactedHistory,
+        history: compactResult.compactedHistory,
         contextWindowTokens: args.contextWindowTokens,
-      })
+      }).persistedHistoryCandidate
 
       return {
         summary: compactResult.summary,
@@ -506,18 +490,11 @@ export function createContextCompressionService(deps: {
           })
         ).compactedHistory
 
-      const nextHistory = applyCompactedHistory({
-        compactedHistory,
+      const stack = runCanonicalMiddleLayerStack({
         system: args.system,
-        contextWindowTokens: args.contextWindowTokens,
-        user: args.user,
-      })
-
-      const stack = executeMiddleLayerStrategyStack({
-        system: args.system,
-        history: nextHistory,
+        history: compactedHistory,
         trailingMessage: args.user,
-        budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+        contextWindowTokens: args.contextWindowTokens,
       })
       const preparedUser = stack.preparedTrailingMessage ?? args.user
       const persistedHistoryCandidate = stack.persistedHistoryCandidate

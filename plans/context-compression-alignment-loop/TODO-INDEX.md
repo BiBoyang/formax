@@ -11,8 +11,7 @@
 
 ## 当前推荐顺序
 
-1. `CCA-152` middle-layer canonical-owner convergence
-2. `CCA-153` compact protocol remote / restore alignment
+1. `CCA-153` compact protocol remote / restore alignment
 
 ## 说明
 
@@ -24,7 +23,7 @@
 - `CCA-143` / `CCA-144` / `CCA-145` / `CCA-146` 已完成，当前 14x wave 已收口。
 - `CCA-150` 已完成，working-set selector 现已按 anchor kind 区分 backtrack window，并把 `anchorMaxBacktrackTurns` 暴露到 diagnostics。
 - `CCA-151` 已完成，app-server `thread/resume` 现在也会复用 canonical restore artifacts，并把 session-memory reminder 作为 next-turn-only injected blocks 在服务端消费一次。
+- `CCA-152` 已完成，post-compact/manual/reactive/finalize 这些 surrounding flow 现在会复用 canonical middle-layer stack materialize persisted baseline；terminal prune 不再写回 future-turn history。
 - 当前重点已经从“继续打磨 collapse 的最小消费面”转向：
-  - middle-layer stack 周边 flow 的 canonical-owner convergence
   - compact protocol 的 remote / restore ecosystem 对齐
 - 仍然不建议直接进入完整 collapse store / archived span 设计。

@@ -113,6 +113,12 @@ middle-layer stack MUST 区分以下三个 envelope：
 `CSS-305`  
 若 stage 只影响 request-time projection，runtime 返回结构 MUST 能将其 effects 与 persisted `history` 基线分离表达；不得要求调用方从最终 history 倒推 request-only effects。
 
+`CSS-306`  
+post-turn finalization、manual compact 后的 persisted baseline materialization、以及 reactive/auto compact 后的 persisted-history normalization SHOULD 复用 canonical middle-layer stack owner，而不是在调用侧继续手工串联 `microcompact` / `prune` helper。
+
+`CSS-307`  
+当 surrounding flow materialize future-turn persisted `history` 时，`prune` MUST NOT 被写回 persisted baseline。`prune` 只负责 `assembled_request_envelope` 的 terminal fallback；若调用方需要 future-turn baseline，MUST 取 canonical stack 暴露的 persisted-history candidate，而不是取 terminal-pruned request payload。
+
 ## 5. Stage Facts 合同
 
 `CSS-401`  

@@ -168,16 +168,13 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-152` middle-layer canonical-owner convergence
-2. `CCA-153` compact protocol remote / restore alignment
+1. `CCA-153` compact protocol remote / restore alignment
 
 对应含义：
 
 1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
 2. `CCA-150` 已完成，working-set selector 已开始按 anchor kind 区分 backtrack window
 3. 当前最大差距已经切回：
-   - restore 后 session-memory 的更宽消费
-   - stack 周边 flow 的 canonical-owner convergence
    - compact protocol 的 remote / restore ecosystem
 
 ## 新主线为什么这样排
@@ -198,9 +195,9 @@ flowchart TD
 2. session-memory reminder 已能在服务端作为 next-turn-only injected blocks 消费一次
 3. `/context` diagnostics 也能解释这层 pending restore consumption
 
-所以当前主线可以继续切到 `CCA-152`。
+`CCA-152` 已完成，current mainline 现在可以继续切到 `CCA-153`。
 
-### `CCA-152` 仍然早于 `CCA-153`
+### `CCA-152` 已为 `CCA-153` 清障
 
 `CCA-152` 的目标是让 middle-layer stack 更接近 surrounding flow 的唯一 owner。
 
@@ -210,10 +207,10 @@ flowchart TD
 2. app-server adapters
 3. replay / restore 辅助路径
 
-也就是说：
+当前已完成的 owner convergence 意味着：
 
-- `CCA-152` 先解决 owner convergence
-- `CCA-153` 再把 compact protocol 的 remote / restore 生态补深
+- post-compact/manual/reactive/finalize 不再各自手搓 persisted baseline
+- `CCA-153` 可以直接在更干净的 canonical-owner 之上补 compact protocol 的 remote / restore 生态
 
 ## 已完成波段为什么可以收口
 
@@ -227,6 +224,8 @@ flowchart TD
 - `CCA-145` 已完成
 - `CCA-146` 已完成
 - `CCA-150` 已完成
+- `CCA-151` 已完成
+- `CCA-152` 已完成
 
 这意味着：
 

@@ -114,4 +114,5 @@
 - [2026-05-11 - Web right rail collapse summary](./2026-05-11-web-right-rail-collapse-summary.md)
 - [2026-05-11 - Working-set selector v3](./2026-05-11-working-set-selector-v3.md)
 - [2026-05-12 - App-server session-memory restore consumption v4](./2026-05-12-app-server-session-memory-restore-consumption-v4.md)
+- [2026-05-12 - Middle-layer canonical-owner convergence](./2026-05-12-middle-layer-canonical-owner-convergence.md)
 - [2026-05-12 - Working-set selector v4](./2026-05-12-working-set-selector-v4.md)

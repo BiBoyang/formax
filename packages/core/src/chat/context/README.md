@@ -39,8 +39,9 @@ Formax 的“上下文管理”分两条线：
 │ - user: buildUserContent     │
 │ - injected: reminders/plan   │
 └───────┬──────────────────────┘
-        │ microCompactHistory (P2: 轻量清理旧 tool_result)
-        │ pruneForPromptBudget (P3: 硬截断兜底)
+        │ canonical middle-layer stack
+        │ - persistedHistoryCandidate
+        │ - requestHistory projection
         v
 ┌──────────────────────────────┐
 │ ChatEngine.runTurn()         │
@@ -54,7 +55,8 @@ Formax 的“上下文管理”分两条线：
 │ stripInjectedBlocksFromHistory│
 │ - injected 仅用于“本轮发送”   │
 └───────┬──────────────────────┘
-        │ pruneForPromptBudget (post-turn)
+        │ canonical middle-layer stack
+        │ - materialize persisted candidate
         v
 ┌──────────────────────────────┐
 │ historyRef.current 更新       │
@@ -121,6 +123,7 @@ Formax 的“上下文管理”分两条线：
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要；v2 已把策略从“全局 keep N”扩成按 tool family 的 recent keep 配额 + per-tool size threshold；v3 已额外引入 cache-aware duplicate path，会对重复的 cache-like lookup 结果更早做 request-time stub replacement）
 - `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性、family-aware recency、per-tool size threshold）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
+- 当前 `contextCompressionService` 也已把 post-compact、manual compact、reactive retry、post-turn finalization 的 persisted-history normalization 收敛到同一个 canonical stack owner；terminal `prune` 不再被 materialize 到 future-turn persisted baseline
 
 ### 想改“request-time context collapse（P2.5 / MVP）”
 
