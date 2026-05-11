@@ -4,9 +4,11 @@ import type { SessionWriter } from '../../sessionSave/writer'
 import {
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
+  recordReactiveCompactEvent,
   recordRequestCollapseEvent,
 } from './sessionEvents'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { ReactiveCompactErrorKind } from '../send/reactiveCompact'
 
 type CompactLifecycleEvent =
   | { type: 'compact_started'; source: string }
@@ -23,6 +25,11 @@ function useSessionEventRecorders(args: {
     collapsedHeadMessageCount: number
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
+  }) => void
+  onReactiveCompact: (event: {
+    triggerKind: ReactiveCompactErrorKind
+    triggerDetail: string
+    strategy: 'session_memory' | 'model_summary'
   }) => void
   onCompactRequested: () => void
   onSlashLocalAsyncRecordForNextTurn: (record: LocalCommandRecord) => void
@@ -70,6 +77,23 @@ function useSessionEventRecorders(args: {
     [args.sessionSaveEnabled, args.writerRef],
   )
 
+  const onReactiveCompact = useCallback(
+    (event: {
+      triggerKind: ReactiveCompactErrorKind
+      triggerDetail: string
+      strategy: 'session_memory' | 'model_summary'
+    }) => {
+      recordReactiveCompactEvent({
+        sessionSaveEnabled: args.sessionSaveEnabled,
+        writer: args.writerRef.current,
+        triggerKind: event.triggerKind,
+        triggerDetail: event.triggerDetail,
+        strategy: event.strategy,
+      })
+    },
+    [args.sessionSaveEnabled, args.writerRef],
+  )
+
   const onSlashLocalAsyncRecordForNextTurn = useCallback(
     (record: LocalCommandRecord) => {
       recordLocalCommandInjectionEvent({
@@ -97,6 +121,7 @@ function useSessionEventRecorders(args: {
   return {
     onCompactLifecycle,
     onRequestCollapse,
+    onReactiveCompact,
     onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn,
     onSlashLocalRecordForNextTurn,

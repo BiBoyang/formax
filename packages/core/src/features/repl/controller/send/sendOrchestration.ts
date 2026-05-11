@@ -14,6 +14,7 @@ import { applyProviderErrorToState } from '../shared'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import { createMainTurnExecutionContext } from './sendMainTurnContext'
 import { runMainSendTurn } from './sendMainTurn'
 import type { ReplModeAccess, SendStateSetters, SendTurnSharedRefs } from './sendTypes'
@@ -65,6 +66,11 @@ type RunReplModelSendFlowArgs = {
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
+    }) => void
+    onReactiveCompact?: (event: {
+      triggerKind: ReactiveCompactErrorKind
+      triggerDetail: string
+      strategy: 'session_memory' | 'model_summary'
     }) => void
     onCompactRequested: () => void
     onSlashLocalAsyncRecordForNextTurn: (record: LocalCommandRecord) => void
@@ -146,6 +152,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     lastAutoCompactSeqRef: args.turnRefs.autoCompactSeqRef,
     onCompactLifecycle: args.callbacks.onCompactLifecycle,
     onRequestCollapse: args.callbacks.onRequestCollapse,
+    onReactiveCompact: args.callbacks.onReactiveCompact,
     getSessionFilePath: args.turnRefs.getSessionFilePath,
   })
   try {

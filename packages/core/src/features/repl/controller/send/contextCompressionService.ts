@@ -43,6 +43,11 @@ export type RequestCollapseState = {
   metadata: ContextCollapseMeta | null
 }
 
+export type ReactiveCompactState = {
+  applied: boolean
+  strategy: 'session_memory' | 'model_summary' | null
+}
+
 export function createContextCompressionService(deps: {
   cfg: RuntimeConfig
   engine: ChatEngine
@@ -473,6 +478,7 @@ export function createContextCompressionService(deps: {
       history: ChatHistory
       requestHistory: ChatHistory
       collapseState: RequestCollapseState
+      reactiveCompactState: ReactiveCompactState
       user: PromptMessage
       context: EstimatedContextState
     }> {
@@ -527,6 +533,10 @@ export function createContextCompressionService(deps: {
         history: preparedHistory,
         requestHistory: collapsedRequestProjection.requestHistory,
         collapseState: collapsedRequestProjection.collapseState,
+        reactiveCompactState: {
+          applied: true,
+          strategy: sessionMemoryCompactedHistory ? 'session_memory' : 'model_summary',
+        },
         user: preparedUser,
         context: estimateContext({
           system: args.system,

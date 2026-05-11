@@ -8,6 +8,7 @@ import type { PlanSessionManager } from '../../planSession'
 import type { ReminderService } from '../../reminders/ReminderService'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import type { ReplModeAccess, SendTurnSharedRefs } from './sendTypes'
 
 type MainTurnContextArgs = {
@@ -32,6 +33,11 @@ type MainTurnContextArgs = {
     collapsedHeadMessageCount: number
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
+  }) => void) | undefined
+  onReactiveCompact?: ((event: {
+    triggerKind: ReactiveCompactErrorKind
+    triggerDetail: string
+    strategy: 'session_memory' | 'model_summary'
   }) => void) | undefined
   getSessionFilePath?: () => string | null
 }
@@ -62,6 +68,11 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
     }) => void
+    onReactiveCompact?: (event: {
+      triggerKind: ReactiveCompactErrorKind
+      triggerDetail: string
+      strategy: 'session_memory' | 'model_summary'
+    }) => void
     getSessionFilePath?: () => string | null
   }
 } {
@@ -86,6 +97,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
       onCompactLifecycle: args.onCompactLifecycle,
       onRequestCollapse: args.onRequestCollapse,
+      onReactiveCompact: args.onReactiveCompact,
       getSessionFilePath: args.getSessionFilePath,
     },
   }

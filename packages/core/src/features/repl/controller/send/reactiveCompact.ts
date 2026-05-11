@@ -1,14 +1,28 @@
-const REACTIVE_COMPACT_PATTERNS = [
-  /\bHTTP 413\b/i,
-  /\bAPI Error:\s*413\b/i,
-  /\brequest (entity )?too large\b/i,
-  /\binput too long\b/i,
-  /\bprompt (is )?too long\b/i,
-  /\bmaximum context length\b/i,
-  /\bcontext length exceeded\b/i,
-  /\bcontext limit\b/i,
-  /\btoo many tokens\b/i,
-  /\breduce the length of the messages\b/i,
+export type ReactiveCompactErrorKind =
+  | 'http_413'
+  | 'request_too_large'
+  | 'input_too_long'
+  | 'prompt_too_long'
+  | 'maximum_context_length'
+  | 'context_length_exceeded'
+  | 'context_limit'
+  | 'too_many_tokens'
+  | 'reduce_messages_length'
+
+const REACTIVE_COMPACT_PATTERNS: ReadonlyArray<{
+  kind: ReactiveCompactErrorKind
+  pattern: RegExp
+}> = [
+  { kind: 'http_413', pattern: /\bHTTP 413\b/i },
+  { kind: 'http_413', pattern: /\bAPI Error:\s*413\b/i },
+  { kind: 'request_too_large', pattern: /\brequest (entity )?too large\b/i },
+  { kind: 'input_too_long', pattern: /\binput too long\b/i },
+  { kind: 'prompt_too_long', pattern: /\bprompt (is )?too long\b/i },
+  { kind: 'maximum_context_length', pattern: /\bmaximum context length\b/i },
+  { kind: 'context_length_exceeded', pattern: /\bcontext length exceeded\b/i },
+  { kind: 'context_limit', pattern: /\bcontext limit\b/i },
+  { kind: 'too_many_tokens', pattern: /\btoo many tokens\b/i },
+  { kind: 'reduce_messages_length', pattern: /\breduce the length of the messages\b/i },
 ] as const
 
 const NON_REACTIVE_PATTERNS = [
@@ -28,9 +42,21 @@ function getErrorMessage(error: unknown): string {
   return ''
 }
 
-export function isReactiveCompactEligibleError(error: unknown): boolean {
+export function classifyReactiveCompactError(error: unknown): {
+  kind: ReactiveCompactErrorKind
+  detail: string
+} | null {
   const message = getErrorMessage(error).trim()
-  if (!message) return false
-  if (NON_REACTIVE_PATTERNS.some((pattern) => pattern.test(message))) return false
-  return REACTIVE_COMPACT_PATTERNS.some((pattern) => pattern.test(message))
+  if (!message) return null
+  if (NON_REACTIVE_PATTERNS.some((pattern) => pattern.test(message))) return null
+  const match = REACTIVE_COMPACT_PATTERNS.find(({ pattern }) => pattern.test(message))
+  if (!match) return null
+  return {
+    kind: match.kind,
+    detail: message,
+  }
+}
+
+export function isReactiveCompactEligibleError(error: unknown): boolean {
+  return classifyReactiveCompactError(error) != null
 }

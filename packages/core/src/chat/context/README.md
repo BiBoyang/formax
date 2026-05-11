@@ -144,6 +144,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 `nextTurnFixed` diagnostics 也已暴露 `assembledLedger`：会把最终 assembled request payload 拆成 `system_total`、`request_history`、各个 `fixed_group`、`fixed_total` 与 `assembled_total`，用于回答“真正发给模型的 payload 大头是谁”
 - 当前 auto compact 的 `keep_combo` 已开始根据 working-set signals 做 v2 调整：除了最近成功 `Read` anchor，还会把 recent files、plan/todo state、以及 mode state 计入 `keepMinTokens` / `keepMinUserTurns` 的动态 boost，并在 `/context` 里通过 `nextTurnFixed.workingSetSignals` / `Working-set signals` 小节解释这些增量
 - `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `request_collapse_applied` 事实，也会额外暴露 `latestRequestCollapse` 摘要，避免 diagnostics 只能靠重新推导 collapse 事实
+- `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `reactive_compact_applied` 事实，也会额外暴露 `latestReactiveCompact` 摘要，用于解释最近一次 overflow 是哪类错误触发、最终走了哪条 fallback 路径
 - contributor diagnostics 当前会把 request-time collapse 生成的 synthetic recap 单独标成 `kind='collapse_recap'`，避免客户端再把它误识别成普通 user message
 - 当前 contributor diagnostics 已有稳定 identity：`topSnapshotContributors` / `systemSectionBreakdown` / `topAssembledContributors` 不再只有 `label + tokens`，还会带 `kind` / `key`，并按类型补 `ordinal`、`toolUseId`、`toolName`、`systemSectionKey`
 
@@ -152,7 +153,7 @@ Formax 的“上下文管理”分两条线：
 `/compact` 已实现。主要入口：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
 - compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；auto compact 现在会走 `keep_combo`，且当已有 latest boundary 时，会优先对 continuation 作用域做 partial compact）
-- reactive compact：`packages/core/src/features/repl/controller/send/reactiveCompact.ts` + `packages/core/src/features/repl/controller/send/sendMainTurn.ts`（主 turn 首次 provider 调用命中上下文超限类错误时，会做一次受控 compact/retry；优先 session memory，失败再 fallback model summary）
+- reactive compact：`packages/core/src/features/repl/controller/send/reactiveCompact.ts` + `packages/core/src/features/repl/controller/send/sendMainTurn.ts`（主 turn 首次 provider 调用命中上下文超限类错误时，会做一次受控 compact/retry；当前会先把错误归类成稳定 `triggerKind`，优先 session memory，失败再 fallback model summary，并把成功 fallback 事实记录成 `reactive_compact_applied` session event）
 - history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前 working-set v2 已覆盖最近成功 `Read` anchor，并把 recent files、plan/todo state、mode state 合并进 auto keep strategy）
 
 ### 想改“session memory / rolling memory（P5 起点）”

@@ -710,6 +710,11 @@ describe('contextDiagnostics', () => {
         estimatedTokensSaved: 180,
         recapFingerprint: 'feedfacecafebeef',
       },
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        triggerDetail: 'This model exceeded its context window.',
+        strategy: 'session_memory',
+      },
       nextTurnFixedGroups: [{ label: 'Pending injected blocks', blocks: [{ type: 'text', text: 'saved settings' }] }],
     })
 
@@ -746,6 +751,11 @@ describe('contextDiagnostics', () => {
       collapsedHeadMessageCount: 4,
       estimatedTokensSaved: 180,
       recapFingerprint: 'feedfacecafebeef',
+    })
+    expect(parsed.latestReactiveCompact).toEqual({
+      triggerKind: 'maximum_context_length',
+      triggerDetail: 'This model exceeded its context window.',
+      strategy: 'session_memory',
     })
     expect(parsed.latestCompactBoundary.preservedSegment).toEqual({
       schemaVersion: 1,
@@ -1070,5 +1080,23 @@ describe('autoCompactSkipReason and pruneSkipReason', () => {
     expect(report).toContain('- Collapsed older messages: 5')
     expect(report).toContain('- Estimated tokens saved: 210')
     expect(report).toContain('- Recap fingerprint: abcdeffedcba1234')
+  })
+
+  it('text report contains latest reactive compact summary when present', () => {
+    const out = formatContextDiagnosticsReport({
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        triggerDetail: 'context window exceeded',
+        strategy: 'model_summary',
+      },
+      diagnostics: analyzeContextDiagnostics({ system, messages: [] }),
+      mode: 'normal',
+      model: 'test-model',
+    })
+
+    expect(out).toContain('Latest reactive compact')
+    expect(out).toContain('- Trigger kind: maximum_context_length')
+    expect(out).toContain('- Trigger detail: context window exceeded')
+    expect(out).toContain('- Fallback strategy: model_summary')
   })
 })

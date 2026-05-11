@@ -157,7 +157,12 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `estimatedTokensSaved`
    - `recapFingerprint`（可选）
    text diagnostics SHOULD 同步给出 `Latest request collapse` 小节，避免客户端只能重新推导 collapse 事实
-18. `nextTurnFixed` diagnostics payload 当前 MAY 额外暴露 `workingSetSignals`，用于解释 auto `keep_combo` 为什么会比固定 `keepLastTurns` 更积极地保留 tail；若存在，稳定字段 SHOULD 至少包含：
+18. diagnostics payload 当前 MAY 额外暴露 `latestReactiveCompact`，用于优先复用 runtime / persisted session 已记录的最近一次 reactive compact fallback 事实；若存在，稳定字段 SHOULD 至少包含：
+   - `triggerKind`
+   - `strategy`
+   - `triggerDetail`（可选）
+   text diagnostics SHOULD 同步给出 `Latest reactive compact` 小节，帮助解释最近一次 overflow 是哪类错误触发、最后落到了哪条 fallback 路径
+19. `nextTurnFixed` diagnostics payload 当前 MAY 额外暴露 `workingSetSignals`，用于解释 auto `keep_combo` 为什么会比固定 `keepLastTurns` 更积极地保留 tail；若存在，稳定字段 SHOULD 至少包含：
    - `recentFileCount`
    - `hasPlanState`
    - `hasTodoState`
@@ -165,7 +170,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
    - `keepMinTokensBoost`
    - `keepMinUserTurnsBoost`
    text diagnostics SHOULD 同步提供 `Working-set signals` 小节，帮助解释最近文件、plan/todo、以及 mode state 如何影响 auto compact 的保留策略
-19. `nextTurnFixed` diagnostics payload 当前 SHOULD 暴露 `assembledLedger`，用于把“未来用户正文出现前，最终 assembled request payload 是由哪些固定部分组成的”稳定表达出来；每个 row 当前稳定字段 SHOULD 至少包含：
+20. `nextTurnFixed` diagnostics payload 当前 SHOULD 暴露 `assembledLedger`，用于把“未来用户正文出现前，最终 assembled request payload 是由哪些固定部分组成的”稳定表达出来；每个 row 当前稳定字段 SHOULD 至少包含：
    - `kind`
    - `key`
    - `label`

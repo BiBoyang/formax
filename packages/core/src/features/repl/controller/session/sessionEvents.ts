@@ -3,6 +3,7 @@ import { getLocalCommandInjectionStats } from './localCommandInjection'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import type { SessionWriter } from '../../sessionSave/writer'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { ReactiveCompactErrorKind } from '../send/reactiveCompact'
 
 type SessionEventWriter = Pick<SessionWriter, 'appendEvent'> | null
 
@@ -77,5 +78,20 @@ export function recordRequestCollapseEvent(args: {
     recentFileCount: args.metadata.recentFileCount,
     earlierToolResultBlockCount: args.metadata.earlierToolResultBlockCount,
     recapFingerprint: args.metadata.recapFingerprint,
+  })
+}
+
+export function recordReactiveCompactEvent(args: {
+  sessionSaveEnabled: boolean
+  writer: SessionEventWriter
+  triggerKind: ReactiveCompactErrorKind
+  triggerDetail: string
+  strategy: 'session_memory' | 'model_summary'
+}): void {
+  if (!args.sessionSaveEnabled) return
+  void args.writer?.appendEvent('reactive_compact_applied', {
+    triggerKind: args.triggerKind,
+    triggerDetail: args.triggerDetail,
+    strategy: args.strategy,
   })
 }

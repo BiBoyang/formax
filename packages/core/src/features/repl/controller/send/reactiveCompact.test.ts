@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isReactiveCompactEligibleError } from './reactiveCompact'
+import { classifyReactiveCompactError, isReactiveCompactEligibleError } from './reactiveCompact'
 
 describe('isReactiveCompactEligibleError', () => {
   it('matches common provider context overflow errors', () => {
@@ -22,5 +22,25 @@ describe('isReactiveCompactEligibleError', () => {
     expect(isReactiveCompactEligibleError(new Error('tool failed'))).toBe(false)
     expect(isReactiveCompactEligibleError('')).toBe(false)
     expect(isReactiveCompactEligibleError(null)).toBe(false)
+  })
+
+  it('classifies common overflow patterns into stable trigger kinds', () => {
+    expect(classifyReactiveCompactError(new Error('HTTP 413: request too large'))).toEqual({
+      kind: 'http_413',
+      detail: 'HTTP 413: request too large',
+    })
+    expect(classifyReactiveCompactError(new Error('API Error: 400 prompt is too long: 214528 tokens'))).toEqual({
+      kind: 'prompt_too_long',
+      detail: 'API Error: 400 prompt is too long: 214528 tokens',
+    })
+    expect(
+      classifyReactiveCompactError(
+        new Error("This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens."),
+      ),
+    ).toEqual({
+      kind: 'maximum_context_length',
+      detail:
+        "This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens.",
+    })
   })
 })

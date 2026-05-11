@@ -186,6 +186,7 @@ export type RpcContextDiagnosticsPayload = {
   model: string
   latestCompactBoundary: RpcLatestCompactBoundary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
+  latestReactiveCompact?: RpcLatestReactiveCompact | null
   snapshot: RpcContextDiagnosticsSnapshot
   nextTurnFixed: RpcNextTurnFixedContextDiagnostics
   notes: string[]
@@ -196,6 +197,21 @@ export type RpcLatestRequestCollapse = {
   collapsedHeadMessageCount: number
   estimatedTokensSaved: number
   recapFingerprint?: string
+}
+
+export type RpcLatestReactiveCompact = {
+  triggerKind:
+    | 'http_413'
+    | 'request_too_large'
+    | 'input_too_long'
+    | 'prompt_too_long'
+    | 'maximum_context_length'
+    | 'context_length_exceeded'
+    | 'context_limit'
+    | 'too_many_tokens'
+    | 'reduce_messages_length'
+  triggerDetail?: string
+  strategy: 'session_memory' | 'model_summary'
 }
 
 export type RpcInputSubmitResult = {
@@ -341,8 +357,20 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
   const nextTurnFixed = parseNextTurnFixedContextDiagnostics(record.nextTurnFixed)
   const latestCompactBoundary = parseStrictLatestCompactBoundaryField(record)
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(record, 'latestRequestCollapse')
+  const latestReactiveCompact = parseOptionalNullableLatestReactiveCompactField(record, 'latestReactiveCompact')
   const notes = parseRequiredStringList(record.notes)
-  if (!mode || !model || !snapshot || !nextTurnFixed || !latestCompactBoundary || !latestRequestCollapse || !notes) return null
+  if (
+    !mode ||
+    !model ||
+    !snapshot ||
+    !nextTurnFixed ||
+    !latestCompactBoundary ||
+    !latestRequestCollapse ||
+    !latestReactiveCompact ||
+    !notes
+  ) {
+    return null
+  }
   return {
     kind: 'formax.context_diagnostics',
     schemaVersion: 1,
@@ -350,6 +378,7 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
     model,
     latestCompactBoundary: latestCompactBoundary.value,
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
+    ...(latestReactiveCompact.present ? { latestReactiveCompact: latestReactiveCompact.value } : {}),
     snapshot,
     nextTurnFixed,
     notes: notes.value,
@@ -387,6 +416,47 @@ function parseOptionalNullableLatestRequestCollapseField(
   const value = record[key]
   if (value === null) return { present: true, value: null }
   const parsed = parseLatestRequestCollapse(value)
+  return parsed ? { present: true, value: parsed } : null
+}
+
+function parseLatestReactiveCompact(value: unknown): RpcLatestReactiveCompact | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const triggerKind =
+    record.triggerKind === 'http_413' ||
+    record.triggerKind === 'request_too_large' ||
+    record.triggerKind === 'input_too_long' ||
+    record.triggerKind === 'prompt_too_long' ||
+    record.triggerKind === 'maximum_context_length' ||
+    record.triggerKind === 'context_length_exceeded' ||
+    record.triggerKind === 'context_limit' ||
+    record.triggerKind === 'too_many_tokens' ||
+    record.triggerKind === 'reduce_messages_length'
+      ? record.triggerKind
+      : null
+  const strategy = record.strategy === 'session_memory' || record.strategy === 'model_summary' ? record.strategy : null
+  const triggerDetail =
+    record.triggerDetail === undefined
+      ? undefined
+      : typeof record.triggerDetail === 'string' && record.triggerDetail.trim()
+        ? record.triggerDetail
+        : null
+  if (!triggerKind || !strategy || triggerDetail === null) return null
+  return {
+    triggerKind,
+    strategy,
+    ...(triggerDetail ? { triggerDetail } : {}),
+  }
+}
+
+function parseOptionalNullableLatestReactiveCompactField(
+  record: Record<string, unknown>,
+  key: string,
+): { present: boolean; value: RpcLatestReactiveCompact | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
+  const value = record[key]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseLatestReactiveCompact(value)
   return parsed ? { present: true, value: parsed } : null
 }
 

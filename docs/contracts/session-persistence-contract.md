@@ -193,6 +193,14 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 3. 当前 SHOULD 尽量携带最小 request-recap metadata，用于后续 diagnostics / replay tooling / state-store 设计；最小集合 MAY 包含 `keepLastTurns`、`preservedTailMessageCount`、`retainedCompactSummary`、`recapFingerprint`
 4. 当前 MUST 只描述 request-time projection；不得被解释为 persisted history 已被 rewrite
 
+`SES-304F`
+当一次真实模型请求因为上下文超限类错误触发 reactive compact fallback 且 fallback 成功进入重试时，session 持久化当前 SHOULD 追加最小运行时事件 `reactive_compact_applied`。  
+该事件：
+1. 当前 SHOULD 至少包含：`triggerKind`、`strategy`
+2. 当前 MAY 包含 `triggerDetail`，用于 diagnostics / inspection surface 解释最近一次 overflow 来源
+3. 当前 `strategy` 允许的稳定值至少包括：`session_memory`、`model_summary`
+4. 当前 MUST 只描述 reactive fallback 事实；不得被解释为 persisted history 已被 rewrite
+
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：
 1. `options.dir` 存在时以其为 lookup cwd

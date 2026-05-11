@@ -231,6 +231,7 @@ export function useReplController(deps: {
   const {
     onCompactLifecycle,
     onRequestCollapse,
+    onReactiveCompact,
     onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn,
     onSlashLocalRecordForNextTurn,
@@ -520,6 +521,7 @@ export function useReplController(deps: {
           onCanonicalEvent,
           onCompactLifecycle,
           onRequestCollapse,
+          onReactiveCompact,
           onCompactRequested,
           onSlashLocalAsyncRecordForNextTurn,
           onSlashLocalRecordForNextTurn,
@@ -555,6 +557,7 @@ export function useReplController(deps: {
       runNewSession,
       onCompactRequested,
       onRequestCollapse,
+      onReactiveCompact,
       openOverlay,
       onSlashLocalAsyncRecordForNextTurn,
       onSlashLocalRecordForNextTurn,

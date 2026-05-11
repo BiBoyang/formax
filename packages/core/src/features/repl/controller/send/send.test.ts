@@ -467,6 +467,11 @@ describe('resolvePreMainSendRouting', () => {
           estimatedTokensSaved: 120,
           recapFingerprint: 'abcdef0123456789',
         } }),
+        JSON.stringify({ type: 'event', ts: '2026-04-07T10:01:00.000Z', name: 'reactive_compact_applied', data: {
+          triggerKind: 'maximum_context_length',
+          triggerDetail: "This model's maximum context length is 200000 tokens.",
+          strategy: 'session_memory',
+        } }),
       ].join('\n'),
       'utf8',
     )
@@ -484,6 +489,11 @@ describe('resolvePreMainSendRouting', () => {
       collapsedHeadMessageCount: 3,
       estimatedTokensSaved: 120,
       recapFingerprint: 'abcdef0123456789',
+    })
+    expect(parsed.latestReactiveCompact).toEqual({
+      triggerKind: 'maximum_context_length',
+      triggerDetail: "This model's maximum context length is 200000 tokens.",
+      strategy: 'session_memory',
     })
   })
 

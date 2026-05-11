@@ -21,9 +21,9 @@ import type { CanonicalUiMessage, SendStateSetters, SendTurnSharedRefs } from '.
 import type { CompactLifecycleEvent } from './compactFlow'
 import { isAbortLikeError } from '../shared/utils'
 import { createContextCompressionService } from './contextCompressionService'
-import { isReactiveCompactEligibleError } from './reactiveCompact'
+import { classifyReactiveCompactError, isReactiveCompactEligibleError, type ReactiveCompactErrorKind } from './reactiveCompact'
 import type { CompactTriggerReason } from '../../../../chat/context/compact'
-import type { RequestCollapseState } from './contextCompressionService'
+import type { ReactiveCompactState, RequestCollapseState } from './contextCompressionService'
 
 const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
@@ -57,6 +57,11 @@ type RunMainSendTurnArgs = {
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: RequestCollapseState['metadata']
+    }) => void
+    onReactiveCompact?: (event: {
+      triggerKind: ReactiveCompactErrorKind
+      triggerDetail: string
+      strategy: Exclude<ReactiveCompactState['strategy'], null>
     }) => void
     getSessionFilePath?: () => string | null
   }
@@ -243,6 +248,18 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         metadata: collapseState.metadata,
       })
     }
+    const recordReactiveCompact = (
+      triggerKind: ReactiveCompactErrorKind,
+      triggerDetail: string,
+      reactiveCompactState: ReactiveCompactState | undefined,
+    ) => {
+      if (!reactiveCompactState?.applied || !reactiveCompactState.strategy) return
+      args.onReactiveCompact?.({
+        triggerKind,
+        triggerDetail,
+        strategy: reactiveCompactState.strategy,
+      })
+    }
 
     let executionHistory = prunedHistory
     let executionRequestHistory = prunedRequestHistory
@@ -254,10 +271,11 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     } catch (error) {
       const abortLike = isAbortLikeError(error)
       if (abortLike) sawAbortLikeError = true
-      if (!abortLike && isReactiveCompactEligibleError(error)) {
+      const reactiveErrorInfo = !abortLike ? classifyReactiveCompactError(error) : null
+      if (!abortLike && reactiveErrorInfo && isReactiveCompactEligibleError(error)) {
         const reactiveTriggerReason: CompactTriggerReason = {
           kind: 'reactive_error',
-          detail: error instanceof Error ? error.message.slice(0, 200) : 'API error',
+          detail: reactiveErrorInfo.detail.slice(0, 200),
         }
         let reactivePrepared
         try {
@@ -276,6 +294,11 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         executionHistory = reactivePrepared.history
         executionRequestHistory = reactivePrepared.requestHistory
         executionUser = reactivePrepared.user
+        recordReactiveCompact(
+          reactiveErrorInfo.kind,
+          reactiveErrorInfo.detail,
+          reactivePrepared.reactiveCompactState,
+        )
         recordRequestCollapse('reactive_retry', reactivePrepared.collapseState)
         nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
       } else {

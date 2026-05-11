@@ -28,6 +28,7 @@ import { resolveSystemPromptVariant } from '../../prompts/system'
 import { buildPostCompactRehydration } from './postCompactRehydration'
 import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
+import type { ReactiveCompactErrorKind } from '../../features/repl/controller/send/reactiveCompact'
 
 export type ContextDiagnostics = {
   totalTokens: number
@@ -85,6 +86,12 @@ export type ContextLatestRequestCollapse = {
   recapFingerprint?: string
 }
 
+export type ContextLatestReactiveCompact = {
+  triggerKind: ReactiveCompactErrorKind
+  triggerDetail?: string
+  strategy: 'session_memory' | 'model_summary'
+}
+
 export type ContextCollapseImpact = {
   collapsed: boolean
   collapsedHeadMessageCount: number
@@ -140,6 +147,7 @@ export type ContextDiagnosticsPayload = {
   model: string
   latestCompactBoundary: CompactBoundaryMeta | null
   latestRequestCollapse?: ContextLatestRequestCollapse | null
+  latestReactiveCompact?: ContextLatestReactiveCompact | null
   snapshot: ContextDiagnostics
   nextTurnFixed: NextTurnFixedContextDiagnostics
   notes: string[]
@@ -154,6 +162,17 @@ function normalizeLatestRequestCollapse(
     collapsedHeadMessageCount: value.collapsedHeadMessageCount,
     estimatedTokensSaved: value.estimatedTokensSaved,
     ...(value.recapFingerprint ? { recapFingerprint: value.recapFingerprint } : {}),
+  }
+}
+
+function normalizeLatestReactiveCompact(
+  value: ContextLatestReactiveCompact | null | undefined,
+): ContextLatestReactiveCompact | null {
+  if (!value) return null
+  return {
+    triggerKind: value.triggerKind,
+    strategy: value.strategy,
+    ...(value.triggerDetail ? { triggerDetail: value.triggerDetail } : {}),
   }
 }
 
@@ -499,11 +518,13 @@ export function buildContextDiagnosticsReport(args: {
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
+  latestReactiveCompact?: ContextLatestReactiveCompact | null
 }): string {
   const payload = buildContextDiagnosticsPayload(args)
   return formatContextDiagnosticsReport({
     latestCompactBoundary: payload.latestCompactBoundary,
     latestRequestCollapse: payload.latestRequestCollapse,
+    latestReactiveCompact: payload.latestReactiveCompact,
     diagnostics: payload.snapshot,
     nextTurn: payload.nextTurnFixed,
     mode: payload.mode,
@@ -522,6 +543,7 @@ export function buildContextDiagnosticsJson(args: {
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
+  latestReactiveCompact?: ContextLatestReactiveCompact | null
 }): string {
   return JSON.stringify(buildContextDiagnosticsPayload(args), null, 2)
 }
@@ -536,6 +558,7 @@ export function buildContextDiagnosticsPayload(args: {
   messages: PromptMessage[]
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
+  latestReactiveCompact?: ContextLatestReactiveCompact | null
 }): ContextDiagnosticsPayload {
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
@@ -592,6 +615,7 @@ export function buildContextDiagnosticsPayload(args: {
     model: args.cfg.llm.model,
     latestCompactBoundary: findLatestCompactBoundary(args.messages),
     latestRequestCollapse: normalizeLatestRequestCollapse(args.latestRequestCollapse),
+    latestReactiveCompact: normalizeLatestReactiveCompact(args.latestReactiveCompact),
     snapshot: diagnostics,
     nextTurnFixed: nextTurn,
     notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],
@@ -601,6 +625,7 @@ export function buildContextDiagnosticsPayload(args: {
 export function formatContextDiagnosticsReport(args: {
   latestCompactBoundary?: CompactBoundaryMeta | null
   latestRequestCollapse?: ContextLatestRequestCollapse | null
+  latestReactiveCompact?: ContextLatestReactiveCompact | null
   diagnostics: ContextDiagnostics
   nextTurn?: NextTurnFixedContextDiagnostics | null
   mode: string
@@ -630,6 +655,11 @@ export function formatContextDiagnosticsReport(args: {
     `- Collapsed older messages: ${formatMaybeInt(args.latestRequestCollapse?.collapsedHeadMessageCount ?? null)}`,
     `- Estimated tokens saved: ${formatMaybeInt(args.latestRequestCollapse?.estimatedTokensSaved ?? null)}`,
     `- Recap fingerprint: ${args.latestRequestCollapse?.recapFingerprint ?? 'none'}`,
+    '',
+    'Latest reactive compact',
+    `- Trigger kind: ${args.latestReactiveCompact?.triggerKind ?? 'none'}`,
+    `- Trigger detail: ${args.latestReactiveCompact?.triggerDetail ?? 'none'}`,
+    `- Fallback strategy: ${args.latestReactiveCompact?.strategy ?? 'none'}`,
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,

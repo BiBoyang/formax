@@ -8,16 +8,19 @@ import { useSessionEventRecorders } from './useSessionEventRecorders'
 const {
   recordCompactRequestedEventMock,
   recordLocalCommandInjectionEventMock,
+  recordReactiveCompactEventMock,
   recordRequestCollapseEventMock,
 } = vi.hoisted(() => ({
   recordCompactRequestedEventMock: vi.fn(),
   recordLocalCommandInjectionEventMock: vi.fn(),
+  recordReactiveCompactEventMock: vi.fn(),
   recordRequestCollapseEventMock: vi.fn(),
 }))
 
 vi.mock('./sessionEvents', () => ({
   recordCompactRequestedEvent: recordCompactRequestedEventMock,
   recordLocalCommandInjectionEvent: recordLocalCommandInjectionEventMock,
+  recordReactiveCompactEvent: recordReactiveCompactEventMock,
   recordRequestCollapseEvent: recordRequestCollapseEventMock,
 }))
 
@@ -178,6 +181,31 @@ describe('useSessionEventRecorders', () => {
         earlierToolResultBlockCount: 5,
         recapFingerprint: 'abcdef0123456789',
       },
+    })
+
+    app.unmount()
+  })
+
+  it('delegates reactive compact events to session helpers', async () => {
+    const appendEvent = vi.fn(async () => undefined)
+    const writer = { appendEvent }
+    const writerRef = { current: writer }
+    const apiRef = { current: null as RecorderApi | null }
+
+    const app = render(<Harness apiRef={apiRef} sessionSaveEnabled={true} writerRef={writerRef} />)
+
+    apiRef.current?.onReactiveCompact({
+      triggerKind: 'maximum_context_length',
+      triggerDetail: "This model's maximum context length is 200000 tokens.",
+      strategy: 'session_memory',
+    })
+
+    expect(recordReactiveCompactEventMock).toHaveBeenCalledWith({
+      sessionSaveEnabled: true,
+      writer,
+      triggerKind: 'maximum_context_length',
+      triggerDetail: "This model's maximum context length is 200000 tokens.",
+      strategy: 'session_memory',
     })
 
     app.unmount()

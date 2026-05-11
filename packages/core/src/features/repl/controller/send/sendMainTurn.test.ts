@@ -140,6 +140,7 @@ function createHarness(overrides?: Record<string, unknown>): any {
       lastAutoCompactSeqRef: { current: 0 },
       onCompactLifecycle: vi.fn(),
       onRequestCollapse: vi.fn(),
+      onReactiveCompact: vi.fn(),
     },
     state: {
       setMessages,
@@ -247,6 +248,10 @@ describe('runMainSendTurn', () => {
           recapFingerprint: 'abcdef0123456789',
         },
       },
+      reactiveCompactState: {
+        applied: true,
+        strategy: 'session_memory',
+      },
       user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
       context: {
         usedTokens: 900,
@@ -298,6 +303,12 @@ describe('runMainSendTurn', () => {
         kind: 'request_recap',
         keepLastTurns: 2,
       }),
+    })
+    expect(harness.refs.onReactiveCompact).toHaveBeenCalledWith({
+      triggerKind: 'maximum_context_length',
+      triggerDetail:
+        "This model's maximum context length is 200000 tokens. However, your messages resulted in 214528 tokens.",
+      strategy: 'session_memory',
     })
   })
 
