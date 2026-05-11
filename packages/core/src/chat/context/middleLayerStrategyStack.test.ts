@@ -30,6 +30,7 @@ vi.mock('./contextCollapse', () => ({
 
 vi.mock('./toolResultBudget', () => ({
   applyToolResultBudget: vi.fn(),
+  estimateToolResultGroupTokens: vi.fn(() => 0),
   resolveAdaptiveToolResultBudgetPolicy: vi.fn(),
 }))
 
@@ -65,6 +66,12 @@ describe('executeMiddleLayerStrategyStack', () => {
   })
 
   it('runs reducers before collapse and keeps prune as terminal fallback', () => {
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const text = JSON.stringify(messages ?? [])
+      if (text.includes('pruned-user')) return 700
+      if (text.includes('request-recap') && text.includes('next')) return 900
+      return 500
+    })
     const compactedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'microcompacted-history' }] }] as any
     const collapsedHistory = [{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }] as any
     const prunedMessages = [...collapsedHistory, { role: 'user', content: [{ type: 'text', text: 'pruned-user' }] }] as any
@@ -151,11 +158,18 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(result.collapsedHistory).toEqual(collapsedHistory)
     expect(result.preparedTrailingMessage).toEqual(prunedMessages[1])
     expect(result.requestHistory).toEqual(collapsedHistory)
-    expect(result.facts).toEqual({
-      toolResultBudget: {
+    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'collapse', 'prune'])
+    expect(result.facts.toolResultBudget).toEqual({
         stage: 'tool_result_budget',
         role: 'budget_reducer',
         scope: 'request_history_projection',
+        disposition: 'applied',
+        terminal: false,
+        advisory: true,
+        reason: 'tool-result group exceeded budget (2600 tokens)',
+        estimatedTokensSaved: 180,
+        inputTokens: 700,
+        outputTokens: 500,
         applied: true,
         pressureRatio: 0.5,
         policy: {
@@ -175,11 +189,16 @@ describe('executeMiddleLayerStrategyStack', () => {
           totalToolResultTokensBefore: 3200,
           totalToolResultTokensAfter: 3020,
         },
-      },
-      microCompact: {
+    })
+    expect(result.facts.microCompact).toMatchObject({
         stage: 'microcompact',
         role: 'budget_reducer',
         scope: 'persisted_history_candidate',
+        disposition: 'applied',
+        terminal: false,
+        advisory: true,
+        reason: 'compacted 2 eligible older block(s)',
+        estimatedTokensSaved: 300,
         applied: true,
         pressureRatio: 0.5,
         policy: {
@@ -202,24 +221,39 @@ describe('executeMiddleLayerStrategyStack', () => {
           cacheAwareCompactedBlocks: 1,
           cacheAwareToolNames: ['Grep'],
         },
-      },
-      prune: {
+    })
+    expect(result.facts.microCompact.inputTokens).toEqual(expect.any(Number))
+    expect(result.facts.microCompact.outputTokens).toEqual(expect.any(Number))
+    expect(result.facts.prune).toEqual({
         stage: 'prune',
         role: 'terminal_fallback',
         scope: 'assembled_request_envelope',
+        disposition: 'applied',
+        terminal: true,
+        advisory: false,
+        reason: 'assembled request exceeded effective limit (900 tokens)',
+        estimatedTokensSaved: 200,
+        inputTokens: 900,
+        outputTokens: 700,
         applied: true,
         totalTokensBeforePrune: 900,
         totalTokensAfterPrune: 700,
         messageCountBeforePrune: 2,
         messageCountAfterPrune: 2,
-      },
-      collapse: {
+    })
+    expect(result.facts.collapse).toEqual({
         stage: 'collapse',
         role: 'semantic_projection',
         scope: 'request_history_projection',
+        disposition: 'applied',
+        terminal: false,
+        advisory: true,
+        reason: 'collapsed older continuation into request recap',
+        estimatedTokensSaved: 220,
+        inputTokens: 500,
+        outputTokens: 500,
         applied: true,
         collapsedHeadMessageCount: 3,
-        estimatedTokensSaved: 220,
         metadata: {
           schemaVersion: 1,
           kind: 'request_recap',
@@ -231,11 +265,10 @@ describe('executeMiddleLayerStrategyStack', () => {
           earlierToolResultBlockCount: 2,
           recapFingerprint: 'fp-1',
         },
-      },
     })
   })
 
-  it('can skip collapse and prune while still returning a unified strategy shape', () => {
+  it('reports config-disabled stages as skipped by config while keeping a unified strategy shape', () => {
     vi.mocked(estimatePromptTokens).mockReset()
     vi.mocked(estimatePromptTokens).mockReturnValue(400)
     vi.mocked(resolveAdaptiveMicroCompactPolicy).mockReturnValue({
@@ -286,11 +319,13 @@ describe('executeMiddleLayerStrategyStack', () => {
       system: [{ type: 'text', text: 'sys' }],
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }] as any,
       budgetConfig: null,
+      enableToolResultBudget: false,
       enableCollapse: false,
     })
 
     expect(pruneForPromptBudget).not.toHaveBeenCalled()
     expect(collapseRequestHistory).not.toHaveBeenCalled()
+    expect(applyToolResultBudget).not.toHaveBeenCalled()
     expect(result.persistedHistoryCandidate).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.toolBudgetedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.collapsedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
@@ -299,6 +334,13 @@ describe('executeMiddleLayerStrategyStack', () => {
       stage: 'tool_result_budget',
       role: 'budget_reducer',
       scope: 'request_history_projection',
+      disposition: 'skipped',
+      terminal: false,
+      advisory: true,
+      reason: 'tool-result budget disabled by config',
+      estimatedTokensSaved: 0,
+      inputTokens: 400,
+      outputTokens: 400,
       applied: false,
       pressureRatio: null,
       policy: {
@@ -324,6 +366,13 @@ describe('executeMiddleLayerStrategyStack', () => {
         stage: 'microcompact',
         role: 'budget_reducer',
         scope: 'persisted_history_candidate',
+        disposition: 'skipped',
+        terminal: false,
+        advisory: true,
+        reason: 'no eligible older blocks exceeded microcompact thresholds',
+        estimatedTokensSaved: 0,
+        inputTokens: 400,
+        outputTokens: 400,
         pressureRatio: null,
       }),
     )
@@ -332,6 +381,13 @@ describe('executeMiddleLayerStrategyStack', () => {
         stage: 'prune',
         role: 'terminal_fallback',
         scope: 'assembled_request_envelope',
+        disposition: 'skipped',
+        terminal: true,
+        advisory: false,
+        reason: 'contextWindowTokens unavailable for terminal prune fallback',
+        estimatedTokensSaved: 0,
+        inputTokens: 400,
+        outputTokens: 400,
         applied: false,
       }),
     )
@@ -339,10 +395,17 @@ describe('executeMiddleLayerStrategyStack', () => {
       stage: 'collapse',
       role: 'semantic_projection',
       scope: 'request_history_projection',
+      disposition: 'skipped',
+      terminal: false,
+      advisory: true,
+      reason: 'collapse disabled by config',
+      estimatedTokensSaved: 0,
+      inputTokens: 400,
+      outputTokens: 400,
       applied: false,
       collapsedHeadMessageCount: 0,
-      estimatedTokensSaved: 0,
       metadata: null,
     })
+    expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'collapse', 'prune'])
   })
 })

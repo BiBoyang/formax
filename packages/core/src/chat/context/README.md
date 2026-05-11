@@ -152,6 +152,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 diagnostics 也已暴露 request-time collapse impact：`nextTurnFixed.collapseImpact` 会说明 collapse 是否生效、折叠了多少条较老消息，以及估算节省了多少 token
 - `nextTurnFixed.collapseImpact.metadata` 当前也会暴露最小 request-recap metadata：包括 `keepLastTurns`、保留 tail 条数、是否保留 compact summary、保留的 recent prompt/file 计数，以及 `recapFingerprint`
 - 当前 `nextTurnFixed` diagnostics 也已暴露 `assembledLedger`：会把最终 assembled request payload 拆成 `system_total`、`request_history`、`tool_result_group`、`tool_result_budget_savings`、各个 `fixed_group`、`fixed_total` 与 `assembled_total`，用于回答“真正发给模型的 payload 大头是谁”，以及这轮独立 tool-result budget 到底省了多少
+- 当前 `nextTurnFixed` diagnostics 也已暴露 `strategyCoordination`：它直接复用 `middleLayerStrategyStack` 的 canonical stage facts，把 `microcompact` / `tool_result_budget` / `collapse` / `prune` 的 `stage`、`role`、`scope`、`disposition`、`reason`、以及输入/输出 token 账本稳定表达出来，避免 diagnostics 继续从零散 impact 字段自行猜测 stack ordering
 - 当前 auto compact 的 `keep_combo` 已开始根据 working-set signals 做 v3 调整：除了 recent files、plan/todo state、以及 mode state 的动态 boost，working-set anchor 现在也会识别最近成功的 filesystem tool cluster（`Read` / `Grep` / `Glob`），并在 `/context` 里通过 `nextTurnFixed.workingSetSignals` / `Working-set signals` 小节显式说明 `anchorKind`、`anchorToolNames` 与实际 `anchorBacktrackTurns`
 - `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `request_collapse_applied` 事实，也会额外暴露 `latestRequestCollapse` 摘要，避免 diagnostics 只能靠重新推导 collapse 事实
 - `/context` 当前若能拿到 runtime / persisted session 里的最近一次 `reactive_compact_applied` 事实，也会额外暴露 `latestReactiveCompact` 摘要，用于解释最近一次 overflow 是哪类错误触发、最终走了哪条 fallback 路径

@@ -19,15 +19,30 @@ import type { PromptBlock, PromptMessage } from '../../prompts'
 
 export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'
 export type MiddleLayerStageRole = 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
+export type MiddleLayerStageDisposition = 'applied' | 'skipped'
 export type MiddleLayerStageScope =
   | 'persisted_history_candidate'
   | 'request_history_projection'
   | 'assembled_request_envelope'
 
+export const MIDDLE_LAYER_STAGE_ORDER: MiddleLayerStage[] = [
+  'microcompact',
+  'tool_result_budget',
+  'collapse',
+  'prune',
+]
+
 type MiddleLayerStageFactBase = {
   stage: MiddleLayerStage
   role: MiddleLayerStageRole
   scope: MiddleLayerStageScope
+  disposition: MiddleLayerStageDisposition
+  terminal: boolean
+  advisory: boolean
+  reason: string
+  estimatedTokensSaved: number
+  inputTokens: number
+  outputTokens: number
 }
 
 export type MiddleLayerToolResultBudgetFact = MiddleLayerStageFactBase & {
@@ -55,11 +70,11 @@ export type MiddleLayerPruneFact = MiddleLayerStageFactBase & {
 export type MiddleLayerCollapseFact = MiddleLayerStageFactBase & {
   applied: boolean
   collapsedHeadMessageCount: number
-  estimatedTokensSaved: number
   metadata: ContextCollapseMeta | null
 }
 
 export type MiddleLayerStrategyFacts = {
+  stageOrder: MiddleLayerStage[]
   toolResultBudget: MiddleLayerToolResultBudgetFact
   microCompact: MiddleLayerMicroCompactFact
   prune: MiddleLayerPruneFact
@@ -104,6 +119,8 @@ export function executeMiddleLayerStrategyStack(args: {
     cacheAwareEligibleToolNames: policy.cacheAwareEligibleToolNames,
     cacheAwareMinResultChars: policy.cacheAwareMinResultChars,
   })
+  const inputHistoryTokens = estimatePromptTokens({ system: [], messages: args.history })
+  const microCompactedHistoryTokens = estimatePromptTokens({ system: [], messages: microCompactResult.messages })
   const toolResultBudgetPolicy = resolveAdaptiveToolResultBudgetPolicy({
     pressureRatio,
     budgetConfig: args.budgetConfig ?? null,
@@ -127,6 +144,7 @@ export function executeMiddleLayerStrategyStack(args: {
           messages: microCompactResult.messages,
           policy: toolResultBudgetPolicy,
         })
+  const toolBudgetedHistoryTokens = estimatePromptTokens({ system: [], messages: toolResultBudgetResult.messages })
   const collapseResult =
     args.enableCollapse === false
       ? {
@@ -134,12 +152,13 @@ export function executeMiddleLayerStrategyStack(args: {
           collapsed: false,
           collapsedHeadMessageCount: 0,
           estimatedTokensSaved: 0,
-        metadata: null,
-      }
-    : collapseRequestHistory({
-        messages: toolResultBudgetResult.messages,
-        allowBoundarylessContinuation: args.allowBoundarylessContinuation,
-      })
+          metadata: null,
+        }
+      : collapseRequestHistory({
+          messages: toolResultBudgetResult.messages,
+          allowBoundarylessContinuation: args.allowBoundarylessContinuation,
+        })
+  const collapsedHistoryTokens = estimatePromptTokens({ system: [], messages: collapseResult.messages })
   const prePruneMessages = trailingMessage ? [...collapseResult.messages, trailingMessage] : [...collapseResult.messages]
   const totalTokensBeforePrune = estimatePromptTokens({
     system: args.system,
@@ -171,10 +190,23 @@ export function executeMiddleLayerStrategyStack(args: {
     preparedTrailingMessage,
     requestHistory,
     facts: {
+      stageOrder: [...MIDDLE_LAYER_STAGE_ORDER],
       toolResultBudget: {
         stage: 'tool_result_budget',
         role: 'budget_reducer',
         scope: 'request_history_projection',
+        disposition: toolResultBudgetResult.applied ? 'applied' : 'skipped',
+        terminal: false,
+        advisory: true,
+        reason: buildToolResultBudgetReason({
+          disabledByConfig: args.enableToolResultBudget === false,
+          applied: toolResultBudgetResult.applied,
+          policy: toolResultBudgetPolicy,
+          impact: toolResultBudgetResult.impact,
+        }),
+        estimatedTokensSaved: Math.max(0, toolResultBudgetResult.impact.estimatedTokensSaved),
+        inputTokens: microCompactedHistoryTokens,
+        outputTokens: toolBudgetedHistoryTokens,
         applied: toolResultBudgetResult.applied,
         pressureRatio,
         policy: toolResultBudgetPolicy,
@@ -184,6 +216,16 @@ export function executeMiddleLayerStrategyStack(args: {
         stage: 'microcompact',
         role: 'budget_reducer',
         scope: 'persisted_history_candidate',
+        disposition: microCompactResult.compacted ? 'applied' : 'skipped',
+        terminal: false,
+        advisory: true,
+        reason: buildMicroCompactReason({
+          applied: microCompactResult.compacted,
+          compactedBlocks: microCompactResult.compactedBlocks,
+        }),
+        estimatedTokensSaved: Math.max(0, microCompactResult.estimatedTokensSaved),
+        inputTokens: inputHistoryTokens,
+        outputTokens: microCompactedHistoryTokens,
         applied: microCompactResult.compacted,
         pressureRatio,
         policy,
@@ -202,6 +244,21 @@ export function executeMiddleLayerStrategyStack(args: {
         stage: 'prune',
         role: 'terminal_fallback',
         scope: 'assembled_request_envelope',
+        disposition:
+          preparedMessages.length !== prePruneMessages.length || totalTokensAfterPrune !== totalTokensBeforePrune
+            ? 'applied'
+            : 'skipped',
+        terminal: true,
+        advisory: false,
+        reason: buildPruneReason({
+          budgetConfig: args.budgetConfig ?? null,
+          applied:
+            preparedMessages.length !== prePruneMessages.length || totalTokensAfterPrune !== totalTokensBeforePrune,
+          totalTokensBeforePrune,
+        }),
+        estimatedTokensSaved: Math.max(0, totalTokensBeforePrune - totalTokensAfterPrune),
+        inputTokens: totalTokensBeforePrune,
+        outputTokens: totalTokensAfterPrune,
         applied:
           preparedMessages.length !== prePruneMessages.length || totalTokensAfterPrune !== totalTokensBeforePrune,
         totalTokensBeforePrune,
@@ -213,9 +270,19 @@ export function executeMiddleLayerStrategyStack(args: {
         stage: 'collapse',
         role: 'semantic_projection',
         scope: 'request_history_projection',
+        disposition: collapseResult.collapsed ? 'applied' : 'skipped',
+        terminal: false,
+        advisory: true,
+        reason: buildCollapseReason({
+          disabledByConfig: args.enableCollapse === false,
+          applied: collapseResult.collapsed,
+          allowBoundarylessContinuation: args.allowBoundarylessContinuation,
+        }),
+        estimatedTokensSaved: Math.max(0, collapseResult.estimatedTokensSaved),
+        inputTokens: toolBudgetedHistoryTokens,
+        outputTokens: collapsedHistoryTokens,
         applied: collapseResult.collapsed,
         collapsedHeadMessageCount: collapseResult.collapsedHeadMessageCount,
-        estimatedTokensSaved: collapseResult.estimatedTokensSaved,
         metadata: collapseResult.metadata,
       },
     },
@@ -237,4 +304,43 @@ function resolvePressureRatio(args: {
   })
   if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
   return stats.usedTokens / stats.effectiveLimitTokens
+}
+
+function buildMicroCompactReason(args: { applied: boolean; compactedBlocks: number }): string {
+  if (args.applied) return `compacted ${args.compactedBlocks} eligible older block(s)`
+  return 'no eligible older blocks exceeded microcompact thresholds'
+}
+
+function buildToolResultBudgetReason(args: {
+  disabledByConfig: boolean
+  applied: boolean
+  policy: AdaptiveToolResultBudgetPolicy
+  impact: ToolResultBudgetImpact
+}): string {
+  if (args.disabledByConfig) return 'tool-result budget disabled by config'
+  if (args.policy.maxToolResultTokens == null) return 'tool-result budget inactive for current pressure tier'
+  if (args.applied) return `tool-result group exceeded budget (${args.policy.maxToolResultTokens} tokens)`
+  if (args.impact.totalToolResultTokensBefore <= args.policy.maxToolResultTokens) return 'tool-result group already within budget'
+  return 'tool-result group exceeded budget but no eligible replacements were available'
+}
+
+function buildCollapseReason(args: {
+  disabledByConfig: boolean
+  applied: boolean
+  allowBoundarylessContinuation: boolean | undefined
+}): string {
+  if (args.disabledByConfig) return 'collapse disabled by config'
+  if (args.applied) return 'collapsed older continuation into request recap'
+  if (args.allowBoundarylessContinuation) return 'collapse conditions not met for current continuation view'
+  return 'no latest compact boundary for request-only collapse'
+}
+
+function buildPruneReason(args: {
+  budgetConfig: ContextBudgetConfig | null
+  applied: boolean
+  totalTokensBeforePrune: number
+}): string {
+  if (!args.budgetConfig) return 'contextWindowTokens unavailable for terminal prune fallback'
+  if (args.applied) return `assembled request exceeded effective limit (${args.totalTokensBeforePrune} tokens)`
+  return 'assembled request already within effective limit'
 }

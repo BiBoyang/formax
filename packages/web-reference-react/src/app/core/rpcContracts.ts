@@ -89,6 +89,19 @@ export type RpcContextLifecycleMarker = {
   shouldAutoCompact: boolean | null
 }
 
+export type RpcContextStrategyCoordinationFact = {
+  stage: 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'
+  role: 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
+  scope: 'persisted_history_candidate' | 'request_history_projection' | 'assembled_request_envelope'
+  disposition: 'applied' | 'skipped'
+  terminal: boolean
+  advisory: boolean
+  reason: string
+  estimatedTokensSaved: number
+  inputTokens: number
+  outputTokens: number
+}
+
 export type RpcAssembledLedgerRow = {
   kind:
     | 'system_total'
@@ -185,6 +198,7 @@ export type RpcContextDiagnosticsSnapshot = {
 export type RpcNextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger?: RpcAssembledLedgerRow[]
+  strategyCoordination?: RpcContextStrategyCoordinationFact[]
   toolResultBudgetImpact?: RpcToolResultBudgetImpact
   microCompactImpact: RpcMicroCompactImpact
   collapseImpact?: RpcContextCollapseImpact
@@ -678,6 +692,68 @@ function parseLifecycleMarkers(value: unknown): RpcContextLifecycleMarker[] | nu
   return rows
 }
 
+function parseStrategyCoordination(value: unknown): RpcContextStrategyCoordinationFact[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: RpcContextStrategyCoordinationFact[] = []
+  for (const row of value) {
+    const record = asOptionalRecord(row)
+    if (!record) return null
+    const stage =
+      record.stage === 'microcompact' ||
+      record.stage === 'tool_result_budget' ||
+      record.stage === 'collapse' ||
+      record.stage === 'prune'
+        ? record.stage
+        : null
+    const role =
+      record.role === 'budget_reducer' ||
+      record.role === 'semantic_projection' ||
+      record.role === 'terminal_fallback'
+        ? record.role
+        : null
+    const scope =
+      record.scope === 'persisted_history_candidate' ||
+      record.scope === 'request_history_projection' ||
+      record.scope === 'assembled_request_envelope'
+        ? record.scope
+        : null
+    const disposition = record.disposition === 'applied' || record.disposition === 'skipped' ? record.disposition : null
+    const terminal = typeof record.terminal === 'boolean' ? record.terminal : null
+    const advisory = typeof record.advisory === 'boolean' ? record.advisory : null
+    const reason = typeof record.reason === 'string' ? record.reason : null
+    const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
+    const inputTokens = asFiniteNumber(record.inputTokens)
+    const outputTokens = asFiniteNumber(record.outputTokens)
+    if (
+      !stage ||
+      !role ||
+      !scope ||
+      !disposition ||
+      terminal == null ||
+      advisory == null ||
+      reason == null ||
+      estimatedTokensSaved == null ||
+      inputTokens == null ||
+      outputTokens == null
+    ) {
+      return null
+    }
+    rows.push({
+      stage,
+      role,
+      scope,
+      disposition,
+      terminal,
+      advisory,
+      reason,
+      estimatedTokensSaved,
+      inputTokens,
+      outputTokens,
+    })
+  }
+  return rows
+}
+
 function parseCollapseImpact(value: unknown): RpcContextCollapseImpact | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -867,6 +943,9 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   if (record.toolResultBudgetImpact != null && !toolResultBudgetImpact) return null
   const assembledLedger = record.assembledLedger == null ? undefined : parseAssembledLedger(record.assembledLedger)
   if (record.assembledLedger != null && !assembledLedger) return null
+  const strategyCoordination =
+    record.strategyCoordination == null ? undefined : parseStrategyCoordination(record.strategyCoordination)
+  if (record.strategyCoordination != null && !strategyCoordination) return null
   const collapseImpact = record.collapseImpact == null ? undefined : parseCollapseImpact(record.collapseImpact)
   if (record.collapseImpact != null && !collapseImpact) return null
   const lifecycleMarkers = record.lifecycleMarkers == null ? undefined : parseLifecycleMarkers(record.lifecycleMarkers)
@@ -897,6 +976,7 @@ function parseNextTurnFixedContextDiagnostics(value: unknown): RpcNextTurnFixedC
   return {
     fixedGroups,
     ...(assembledLedger ? { assembledLedger } : {}),
+    ...(strategyCoordination ? { strategyCoordination } : {}),
     ...(toolResultBudgetImpact ? { toolResultBudgetImpact } : {}),
     microCompactImpact,
     ...(collapseImpact ? { collapseImpact } : {}),

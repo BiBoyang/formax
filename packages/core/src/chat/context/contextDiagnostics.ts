@@ -6,7 +6,14 @@ import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { type MicroCompactImpact } from './microCompact'
 import { TOOL_RESULT_BUDGET_STUB_PREFIX, type ToolResultBudgetImpact } from './toolResultBudget'
-import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
+import {
+  executeMiddleLayerStrategyStack,
+  type MiddleLayerStage,
+  type MiddleLayerStageDisposition,
+  type MiddleLayerStageRole,
+  type MiddleLayerStageScope,
+  type MiddleLayerStrategyFacts,
+} from './middleLayerStrategyStack'
 import { pruneForPromptBudget } from './prune'
 import {
   AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS,
@@ -67,6 +74,7 @@ export type NextTurnFixedContextGroup = {
 export type NextTurnFixedContextDiagnostics = {
   fixedGroups: Array<{ label: string; blockCount: number; tokens: number }>
   assembledLedger: ContextAssembledLedgerRow[]
+  strategyCoordination: ContextStrategyCoordinationFact[]
   toolResultBudgetImpact: ToolResultBudgetImpact
   microCompactImpact: MicroCompactImpact
   collapseImpact: ContextCollapseImpact
@@ -150,6 +158,19 @@ export type ContextLifecycleMarker = {
   remainingToEffectiveLimit: number | null
   remainingToAutoCompactLimit: number | null
   shouldAutoCompact: boolean | null
+}
+
+export type ContextStrategyCoordinationFact = {
+  stage: MiddleLayerStage
+  role: MiddleLayerStageRole
+  scope: MiddleLayerStageScope
+  disposition: MiddleLayerStageDisposition
+  terminal: boolean
+  advisory: boolean
+  reason: string
+  estimatedTokensSaved: number
+  inputTokens: number
+  outputTokens: number
 }
 
 export type ContextDiagnosticsPayload = {
@@ -431,6 +452,7 @@ export function analyzeNextTurnFixedContext(args: {
       fixedTokens,
       totalTokens,
     }),
+    strategyCoordination: buildStrategyCoordinationFacts(stack.facts),
     toolResultBudgetImpact: stack.facts.toolResultBudget.impact,
     microCompactImpact: {
       compactedBlocks: stack.facts.microCompact.impact.compactedBlocks,
@@ -477,6 +499,25 @@ export function analyzeNextTurnFixedContext(args: {
       fixedGroups,
     }),
   }
+}
+
+function buildStrategyCoordinationFacts(facts: MiddleLayerStrategyFacts): ContextStrategyCoordinationFact[] {
+  const stages = [facts.microCompact, facts.toolResultBudget, facts.collapse, facts.prune]
+  return facts.stageOrder
+    .map((stage) => stages.find((fact) => fact.stage === stage) ?? null)
+    .filter((fact): fact is NonNullable<(typeof stages)[number]> => Boolean(fact))
+    .map((fact) => ({
+      stage: fact.stage,
+      role: fact.role,
+      scope: fact.scope,
+      disposition: fact.disposition,
+      terminal: fact.terminal,
+      advisory: fact.advisory,
+      reason: fact.reason,
+      estimatedTokensSaved: fact.estimatedTokensSaved,
+      inputTokens: fact.inputTokens,
+      outputTokens: fact.outputTokens,
+    }))
 }
 
 function buildAssembledLedger(args: {
@@ -773,6 +814,9 @@ export function formatContextDiagnosticsReport(args: {
     'Lifecycle markers before future user text',
     ...formatLifecycleMarkers(args.nextTurn?.lifecycleMarkers ?? []),
     '',
+    'Middle-layer coordination',
+    ...formatStrategyCoordination(args.nextTurn?.strategyCoordination ?? []),
+    '',
     'Top assembled contributors before future user text',
     ...formatContributors(args.nextTurn?.topAssembledContributors ?? []),
     '',
@@ -969,6 +1013,14 @@ function formatLifecycleMarkers(rows: ContextLifecycleMarker[]): string[] {
   return rows.map(
     (row) =>
       `- ${row.label}: total=${formatInt(row.totalTokens)}, history=${formatInt(row.historyTokens)}, fixed=${formatInt(row.fixedTokens)}, delta=${formatSignedMaybeInt(row.deltaFromSnapshot)}, remaining_effective=${formatMaybeInt(row.remainingToEffectiveLimit)}, remaining_auto=${formatMaybeInt(row.remainingToAutoCompactLimit)}, auto=${formatMaybeBool(row.shouldAutoCompact)}`,
+  )
+}
+
+function formatStrategyCoordination(rows: ContextStrategyCoordinationFact[]): string[] {
+  if (rows.length === 0) return ['- Strategy coordination: none']
+  return rows.map(
+    (row) =>
+      `- ${row.stage} [${row.disposition}] role=${row.role} scope=${row.scope} terminal=${row.terminal ? 'yes' : 'no'} advisory=${row.advisory ? 'yes' : 'no'} saved=${formatInt(row.estimatedTokensSaved)} input=${formatInt(row.inputTokens)} output=${formatInt(row.outputTokens)} reason=${row.reason}`,
   )
 }
 

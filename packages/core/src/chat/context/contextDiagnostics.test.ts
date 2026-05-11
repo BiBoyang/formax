@@ -194,6 +194,8 @@ describe('contextDiagnostics', () => {
     expect(out).toContain('Assembled payload ledger before future user text')
     expect(out).toContain('- Assembled ledger: none')
     expect(out).toContain('Lifecycle markers before future user text')
+    expect(out).toContain('Middle-layer coordination')
+    expect(out).toContain('- Strategy coordination: none')
     expect(out).toContain('Top assembled contributors before future user text')
     expect(out).toContain('Notes')
     expect(out).toContain('latest compact-boundary continuation view')
@@ -401,6 +403,27 @@ describe('contextDiagnostics', () => {
       'post_prune',
       'post_compact',
     ])
+    expect(out.strategyCoordination.map((row) => row.stage)).toEqual([
+      'microcompact',
+      'tool_result_budget',
+      'collapse',
+      'prune',
+    ])
+    expect(out.strategyCoordination[0]).toMatchObject({
+      stage: 'microcompact',
+      role: 'budget_reducer',
+      scope: 'persisted_history_candidate',
+      disposition: 'applied',
+      terminal: false,
+      advisory: true,
+    })
+    expect(out.strategyCoordination.at(-1)).toMatchObject({
+      stage: 'prune',
+      role: 'terminal_fallback',
+      scope: 'assembled_request_envelope',
+      terminal: true,
+      advisory: false,
+    })
     expect(out.lifecycleMarkers[0]?.deltaFromSnapshot).toBe(0)
     expect(out.fixedTokens).toBeGreaterThan(0)
     expect(out.projectedHistoryTokens).toBeGreaterThan(0)
@@ -806,6 +829,20 @@ describe('contextDiagnostics', () => {
       'post_prune',
       'post_compact',
     ])
+    expect(parsed.nextTurnFixed.strategyCoordination).toBeInstanceOf(Array)
+    expect(parsed.nextTurnFixed.strategyCoordination.map((row: any) => row.stage)).toEqual([
+      'microcompact',
+      'tool_result_budget',
+      'collapse',
+      'prune',
+    ])
+    expect(parsed.nextTurnFixed.strategyCoordination[0]).toMatchObject({
+      stage: 'microcompact',
+      role: 'budget_reducer',
+      scope: 'persisted_history_candidate',
+      terminal: false,
+      advisory: true,
+    })
     expect(typeof parsed.nextTurnFixed.autoCompactSkipReason).toBe('string')
     expect(parsed.nextTurnFixed.autoCompactSkipReason).toContain('history is empty')
     expect(typeof parsed.nextTurnFixed.pruneSkipReason).toBe('string')

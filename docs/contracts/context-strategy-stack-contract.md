@@ -115,12 +115,17 @@ middle-layer stack MUST 区分以下三个 envelope：
 middle-layer stack SHOULD 为每个 stage 暴露结构化 facts；这些 facts MUST 至少能表达：
 1. `stage`
 2. `role`
-3. `applied`
-4. `scope`
-5. `estimatedTokensSaved`（若适用）
+3. `scope`
+4. `disposition`（`applied` / `skipped`）
+5. `terminal`
+6. `advisory`
+7. `reason`
+8. `estimatedTokensSaved`
+9. `inputTokens`
+10. `outputTokens`
 
 `CSS-402`  
-若 stage 被跳过，facts SHOULD 能表达 skip reason；若 stage 生效，facts SHOULD 能表达 apply reason 或触发依据。
+若 stage 被跳过，facts SHOULD 能表达 skip reason；若 stage 生效，facts SHOULD 能表达 apply reason 或触发依据。各派生 payload MAY 继续保留 strategy-specific impact 子对象，但 stage-level canonical facts MUST 以本合同字段为准。
 
 `CSS-403`  
 diagnostics / app-server / Web surface 对 middle-layer 的展示 SHOULD 优先消费 runtime 产生的 canonical stage facts，而不是各自重新推导另一套 stage 语义。
