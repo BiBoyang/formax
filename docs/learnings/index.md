@@ -73,6 +73,7 @@
 - `docs/learnings/2026-05-11-middle-layer-strategy-stack-scaffolding.md`
 - `docs/learnings/2026-05-11-middle-layer-stage-contract.md`
 - `docs/learnings/2026-05-11-tool-result-budget-replacement-v1.md`
+- `docs/learnings/2026-05-11-middle-layer-terminal-prune.md`
 
 ## Web Reference Runtime / Performance
 

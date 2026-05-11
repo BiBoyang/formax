@@ -64,12 +64,10 @@ describe('executeMiddleLayerStrategyStack', () => {
       .mockReturnValueOnce(700)
   })
 
-  it('returns unified facts and request history for microcompact, prune, and collapse', () => {
+  it('runs reducers before collapse and keeps prune as terminal fallback', () => {
     const compactedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'microcompacted-history' }] }] as any
-    const prunedMessages = [
-      compactedHistory[0],
-      { role: 'user', content: [{ type: 'text', text: 'pruned-user' }] },
-    ] as any
+    const collapsedHistory = [{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }] as any
+    const prunedMessages = [...collapsedHistory, { role: 'user', content: [{ type: 'text', text: 'pruned-user' }] }] as any
     vi.mocked(microCompactHistory).mockReturnValue({
       messages: compactedHistory,
       compacted: true,
@@ -81,10 +79,6 @@ describe('executeMiddleLayerStrategyStack', () => {
       cacheAwareMinResultChars: 400,
       cacheAwareCompactedBlocks: 1,
       cacheAwareToolNames: ['Grep'],
-    } as any)
-    vi.mocked(pruneForPromptBudget).mockReturnValue({
-      messages: prunedMessages,
-      pruned: true,
     } as any)
     vi.mocked(applyToolResultBudget).mockReturnValue({
       messages: [{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }],
@@ -100,7 +94,7 @@ describe('executeMiddleLayerStrategyStack', () => {
       },
     } as any)
     vi.mocked(collapseRequestHistory).mockReturnValue({
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }],
+      messages: collapsedHistory,
       collapsed: true,
       collapsedHeadMessageCount: 3,
       estimatedTokensSaved: 220,
@@ -115,6 +109,10 @@ describe('executeMiddleLayerStrategyStack', () => {
         earlierToolResultBlockCount: 2,
         recapFingerprint: 'fp-1',
       },
+    } as any)
+    vi.mocked(pruneForPromptBudget).mockReturnValue({
+      messages: prunedMessages,
+      pruned: true,
     } as any)
 
     const result = executeMiddleLayerStrategyStack({
@@ -139,12 +137,25 @@ describe('executeMiddleLayerStrategyStack', () => {
         baselineTokens: 1000,
       },
     })
-    expect(result.preparedHistory).toEqual(compactedHistory)
+    expect(vi.mocked(microCompactHistory).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(applyToolResultBudget).mock.invocationCallOrder[0]!,
+    )
+    expect(vi.mocked(applyToolResultBudget).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(collapseRequestHistory).mock.invocationCallOrder[0]!,
+    )
+    expect(vi.mocked(collapseRequestHistory).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(pruneForPromptBudget).mock.invocationCallOrder[0]!,
+    )
+    expect(result.persistedHistoryCandidate).toEqual(compactedHistory)
     expect(result.toolBudgetedHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }])
+    expect(result.collapsedHistory).toEqual(collapsedHistory)
     expect(result.preparedTrailingMessage).toEqual(prunedMessages[1])
-    expect(result.requestHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'request-recap' }] }])
+    expect(result.requestHistory).toEqual(collapsedHistory)
     expect(result.facts).toEqual({
       toolResultBudget: {
+        stage: 'tool_result_budget',
+        role: 'budget_reducer',
+        scope: 'request_history_projection',
         applied: true,
         pressureRatio: 0.5,
         policy: {
@@ -166,6 +177,9 @@ describe('executeMiddleLayerStrategyStack', () => {
         },
       },
       microCompact: {
+        stage: 'microcompact',
+        role: 'budget_reducer',
+        scope: 'persisted_history_candidate',
         applied: true,
         pressureRatio: 0.5,
         policy: {
@@ -190,6 +204,9 @@ describe('executeMiddleLayerStrategyStack', () => {
         },
       },
       prune: {
+        stage: 'prune',
+        role: 'terminal_fallback',
+        scope: 'assembled_request_envelope',
         applied: true,
         totalTokensBeforePrune: 900,
         totalTokensAfterPrune: 700,
@@ -197,6 +214,9 @@ describe('executeMiddleLayerStrategyStack', () => {
         messageCountAfterPrune: 2,
       },
       collapse: {
+        stage: 'collapse',
+        role: 'semantic_projection',
+        scope: 'request_history_projection',
         applied: true,
         collapsedHeadMessageCount: 3,
         estimatedTokensSaved: 220,
@@ -271,10 +291,14 @@ describe('executeMiddleLayerStrategyStack', () => {
 
     expect(pruneForPromptBudget).not.toHaveBeenCalled()
     expect(collapseRequestHistory).not.toHaveBeenCalled()
-    expect(result.preparedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
+    expect(result.persistedHistoryCandidate).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.toolBudgetedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
+    expect(result.collapsedHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.requestHistory).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.facts.toolResultBudget).toEqual({
+      stage: 'tool_result_budget',
+      role: 'budget_reducer',
+      scope: 'request_history_projection',
       applied: false,
       pressureRatio: null,
       policy: {
@@ -295,9 +319,26 @@ describe('executeMiddleLayerStrategyStack', () => {
         totalToolResultTokensAfter: 0,
       },
     })
-    expect(result.facts.microCompact.pressureRatio).toBeNull()
-    expect(result.facts.prune.applied).toBe(false)
+    expect(result.facts.microCompact).toEqual(
+      expect.objectContaining({
+        stage: 'microcompact',
+        role: 'budget_reducer',
+        scope: 'persisted_history_candidate',
+        pressureRatio: null,
+      }),
+    )
+    expect(result.facts.prune).toEqual(
+      expect.objectContaining({
+        stage: 'prune',
+        role: 'terminal_fallback',
+        scope: 'assembled_request_envelope',
+        applied: false,
+      }),
+    )
     expect(result.facts.collapse).toEqual({
+      stage: 'collapse',
+      role: 'semantic_projection',
+      scope: 'request_history_projection',
       applied: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,

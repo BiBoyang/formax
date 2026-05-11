@@ -367,19 +367,22 @@ export function analyzeNextTurnFixedContext(args: {
     workingSetAnchor,
   })
   const totalTokensBeforePrune = stack.facts.prune.totalTokensBeforePrune
-  const projectedHistory = stack.preparedHistory
+  const persistedHistoryCandidate = stack.persistedHistoryCandidate
   const toolBudgetedProjectedHistory = stack.toolBudgetedHistory
+  const collapsedProjectedHistory = stack.collapsedHistory
   const preparedFixedMessage = stack.preparedTrailingMessage
-  const collapsedProjectedHistory = stack.requestHistory
-  const assembledMessagesBeforeCollapse = preparedFixedMessage ? [...projectedHistory, preparedFixedMessage] : projectedHistory
-  const assembledMessages = preparedFixedMessage ? [...collapsedProjectedHistory, preparedFixedMessage] : collapsedProjectedHistory
-  const projectedToolUsesById = collectToolUsesById(collapsedProjectedHistory)
+  const projectedHistory = stack.requestHistory
+  const assembledMessagesBeforePrune = preparedFixedMessage
+    ? [...collapsedProjectedHistory, preparedFixedMessage]
+    : collapsedProjectedHistory
+  const assembledMessages = [...stack.preparedMessages]
+  const projectedToolUsesById = collectToolUsesById(projectedHistory)
   const toolBudgetedSplit = splitHistorySlices(toolBudgetedProjectedHistory)
   const lifecycleMarkers = buildLifecycleMarkers({
     system: args.system,
     snapshotHistory: promptMessages,
-    microCompactedHistory,
-    postPruneMessages: stack.preparedMessages,
+    microCompactedHistory: persistedHistoryCandidate,
+    postPruneMessages: assembledMessages,
     preparedFixedMessage,
     budgetConfig: args.budgetConfig ?? null,
     cwd: args.cwd,
@@ -389,8 +392,9 @@ export function analyzeNextTurnFixedContext(args: {
   })
 
   const totalTokens = estimatePromptTokens({ system: args.system, messages: assembledMessages })
-  const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
+  const projectedHistoryTokens = estimatePromptTokens({ system: [], messages: toolBudgetedProjectedHistory })
   const projectedHistoryTokensAfterCollapse = estimatePromptTokens({ system: [], messages: collapsedProjectedHistory })
+  const finalProjectedHistoryTokens = estimatePromptTokens({ system: [], messages: projectedHistory })
   const snapshotHistoryTokens = estimatePromptTokens({ system: [], messages: promptMessages })
   const fixedTokens = preparedFixedMessage ? estimatePromptTokens({ system: [], messages: [preparedFixedMessage] }) : 0
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
@@ -416,8 +420,8 @@ export function analyzeNextTurnFixedContext(args: {
     assembledLedger: buildAssembledLedger({
       system: args.system,
       systemTokens,
-      collapsedProjectedHistory,
-      projectedHistoryTokensAfterCollapse,
+      collapsedProjectedHistory: projectedHistory,
+      projectedHistoryTokensAfterCollapse: finalProjectedHistoryTokens,
       toolResultGroupTokensAfterBudget: estimatePromptTokens({
         system: [],
         messages: toolBudgetedSplit.toolResultMessages,
@@ -458,13 +462,13 @@ export function analyzeNextTurnFixedContext(args: {
     autoCompactSkipReason: deriveAutoCompactSkipReason({
       enableAutoCompact: args.enableAutoCompact,
       budgetConfig: args.budgetConfig ?? null,
-      microCompactedHistory,
+      microCompactedHistory: persistedHistoryCandidate,
       totalTokensBeforePrune,
     }),
     pruneSkipReason: derivePruneSkipReason({
       budgetConfig: args.budgetConfig ?? null,
       totalTokensBeforePrune,
-      totalTokensAfterPrune: estimatePromptTokens({ system: args.system, messages: assembledMessagesBeforeCollapse }),
+      totalTokensAfterPrune: estimatePromptTokens({ system: args.system, messages: assembledMessages }),
     }),
     topAssembledContributors: buildTopAssembledContributors({
       system: args.system,
@@ -729,8 +733,8 @@ export function formatContextDiagnosticsReport(args: {
     ...formatContributors(diagnostics.topSnapshotContributors),
     '',
     'Next-turn fixed context (before future user text)',
-    `- Projected history before microcompact/prune: ${formatInt(diagnostics.historyTokens)}`,
-    `- Projected history after microcompact/prune: ${formatMaybeInt(args.nextTurn?.projectedHistoryTokens ?? null)}`,
+    `- Projected history before middle-layer strategies: ${formatInt(diagnostics.historyTokens)}`,
+    `- Projected history after budget reducers (pre-collapse/prune): ${formatMaybeInt(args.nextTurn?.projectedHistoryTokens ?? null)}`,
     `- Projected history delta vs snapshot: ${formatSignedMaybeInt(args.nextTurn?.projectedHistoryDeltaTokens ?? null)}`,
     `- Tool-result budget target: ${formatMaybeInt(args.nextTurn?.toolResultBudgetImpact.budgetTokens ?? null)}`,
     `- Tool-result tokens before budget replacement: ${formatInt(args.nextTurn?.toolResultBudgetImpact.totalToolResultTokensBefore ?? 0)}`,

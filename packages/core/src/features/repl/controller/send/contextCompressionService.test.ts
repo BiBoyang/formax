@@ -184,7 +184,7 @@ describe('createContextCompressionService', () => {
     expect(runCompactFlow).not.toHaveBeenCalled()
   })
 
-  it('auto-compacts, updates sequence state, and re-prunes before returning prepared history', async () => {
+  it('auto-compacts, updates sequence state, and keeps request-only prune out of persisted history', async () => {
     vi.mocked(pruneForPromptBudget)
       .mockReturnValueOnce({
         messages: [{ role: 'user', content: [{ type: 'text', text: 'after-auto' }] }],
@@ -216,7 +216,7 @@ describe('createContextCompressionService', () => {
     expect(lastAutoCompactSeqRef.current).toBe(10)
     expect(out.autoCompacted).toBe(true)
     expect(out.showAutoCompactNotice).toBe(true)
-    expect(out.history).toEqual([])
+    expect(out.history).toEqual([{ role: 'user', content: [{ type: 'text', text: 'after-auto' }] }])
     expect(out.collapseState).toEqual({
       applied: false,
       collapsedHeadMessageCount: 0,
@@ -224,6 +224,9 @@ describe('createContextCompressionService', () => {
       metadata: null,
     })
     expect(out.strategyFacts.collapse).toEqual({
+      stage: 'collapse',
+      role: 'semantic_projection',
+      scope: 'request_history_projection',
       applied: false,
       collapsedHeadMessageCount: 0,
       estimatedTokensSaved: 0,
@@ -410,7 +413,10 @@ describe('createContextCompressionService', () => {
       }),
     )
     expect(vi.mocked(runCompactFlow).mock.calls[0]?.[0]).not.toHaveProperty('onStreamEvent')
-    expect(out.history).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }])
+    expect(out.history).toEqual([
+      { role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] },
+      { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+    ])
     expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'reactive-user' }] })
   })
 

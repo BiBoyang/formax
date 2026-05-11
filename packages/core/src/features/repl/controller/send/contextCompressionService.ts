@@ -10,7 +10,6 @@ import {
   type CompactTriggerReason,
 } from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
-import { collapseRequestHistory } from '../../../../chat/context/contextCollapse'
 import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
 import {
   executeMiddleLayerStrategyStack,
@@ -359,10 +358,10 @@ export function createContextCompressionService(deps: {
         budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       })
       const preparedUser = stack.preparedTrailingMessage ?? args.user
-      const preparedHistory = stack.preparedHistory
+      const persistedHistoryCandidate = stack.persistedHistoryCandidate
 
       return {
-        history: preparedHistory,
+        history: persistedHistoryCandidate,
         requestHistory: stack.requestHistory,
         collapseState: {
           applied: stack.facts.collapse.applied,
@@ -521,10 +520,10 @@ export function createContextCompressionService(deps: {
         budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       })
       const preparedUser = stack.preparedTrailingMessage ?? args.user
-      const preparedHistory = stack.preparedHistory
+      const persistedHistoryCandidate = stack.persistedHistoryCandidate
 
       return {
-        history: preparedHistory,
+        history: persistedHistoryCandidate,
         requestHistory: stack.requestHistory,
         collapseState: {
           applied: stack.facts.collapse.applied,

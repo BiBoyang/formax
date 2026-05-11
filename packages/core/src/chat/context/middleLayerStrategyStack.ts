@@ -17,21 +17,34 @@ import {
 } from './toolResultBudget'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 
-export type MiddleLayerToolResultBudgetFact = {
+export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'collapse' | 'prune'
+export type MiddleLayerStageRole = 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
+export type MiddleLayerStageScope =
+  | 'persisted_history_candidate'
+  | 'request_history_projection'
+  | 'assembled_request_envelope'
+
+type MiddleLayerStageFactBase = {
+  stage: MiddleLayerStage
+  role: MiddleLayerStageRole
+  scope: MiddleLayerStageScope
+}
+
+export type MiddleLayerToolResultBudgetFact = MiddleLayerStageFactBase & {
   applied: boolean
   pressureRatio: number | null
   policy: AdaptiveToolResultBudgetPolicy
   impact: ToolResultBudgetImpact
 }
 
-export type MiddleLayerMicroCompactFact = {
+export type MiddleLayerMicroCompactFact = MiddleLayerStageFactBase & {
   applied: boolean
   pressureRatio: number | null
   policy: AdaptiveMicroCompactPolicy
   impact: MicroCompactImpact
 }
 
-export type MiddleLayerPruneFact = {
+export type MiddleLayerPruneFact = MiddleLayerStageFactBase & {
   applied: boolean
   totalTokensBeforePrune: number
   totalTokensAfterPrune: number
@@ -39,7 +52,7 @@ export type MiddleLayerPruneFact = {
   messageCountAfterPrune: number
 }
 
-export type MiddleLayerCollapseFact = {
+export type MiddleLayerCollapseFact = MiddleLayerStageFactBase & {
   applied: boolean
   collapsedHeadMessageCount: number
   estimatedTokensSaved: number
@@ -56,8 +69,9 @@ export type MiddleLayerStrategyFacts = {
 export type MiddleLayerStrategyStackResult = {
   microCompactedHistory: PromptMessage[]
   toolBudgetedHistory: PromptMessage[]
+  collapsedHistory: PromptMessage[]
+  persistedHistoryCandidate: PromptMessage[]
   preparedMessages: PromptMessage[]
-  preparedHistory: PromptMessage[]
   preparedTrailingMessage: PromptMessage | null
   requestHistory: PromptMessage[]
   facts: MiddleLayerStrategyFacts
@@ -90,30 +104,6 @@ export function executeMiddleLayerStrategyStack(args: {
     cacheAwareEligibleToolNames: policy.cacheAwareEligibleToolNames,
     cacheAwareMinResultChars: policy.cacheAwareMinResultChars,
   })
-
-  const rawPreparedMessages = trailingMessage
-    ? [...microCompactResult.messages, trailingMessage]
-    : [...microCompactResult.messages]
-  const totalTokensBeforePrune = estimatePromptTokens({
-    system: args.system,
-    messages: rawPreparedMessages,
-  })
-  const preparedMessages = args.budgetConfig
-    ? pruneForPromptBudget({
-        system: args.system,
-        messages: rawPreparedMessages,
-        ...args.budgetConfig,
-      }).messages
-    : rawPreparedMessages
-  const totalTokensAfterPrune = estimatePromptTokens({
-    system: args.system,
-    messages: preparedMessages,
-  })
-
-  const preparedTrailingMessage = trailingMessage
-    ? ((preparedMessages[preparedMessages.length - 1] ?? trailingMessage) as PromptMessage)
-    : null
-  const preparedHistory = trailingMessage ? preparedMessages.slice(0, -1) : preparedMessages
   const toolResultBudgetPolicy = resolveAdaptiveToolResultBudgetPolicy({
     pressureRatio,
     budgetConfig: args.budgetConfig ?? null,
@@ -121,7 +111,7 @@ export function executeMiddleLayerStrategyStack(args: {
   const toolResultBudgetResult =
     args.enableToolResultBudget === false
       ? {
-          messages: preparedHistory,
+          messages: microCompactResult.messages,
           applied: false,
           impact: {
             replacedBlocks: 0,
@@ -129,12 +119,12 @@ export function executeMiddleLayerStrategyStack(args: {
             estimatedTokensSaved: 0,
             keptRecentBlocks: 0,
             budgetTokens: toolResultBudgetPolicy.maxToolResultTokens,
-            totalToolResultTokensBefore: estimateToolResultGroupTokens(preparedHistory),
-            totalToolResultTokensAfter: estimateToolResultGroupTokens(preparedHistory),
+            totalToolResultTokensBefore: estimateToolResultGroupTokens(microCompactResult.messages),
+            totalToolResultTokensAfter: estimateToolResultGroupTokens(microCompactResult.messages),
           },
         }
       : applyToolResultBudget({
-          messages: preparedHistory,
+          messages: microCompactResult.messages,
           policy: toolResultBudgetPolicy,
         })
   const collapseResult =
@@ -144,28 +134,56 @@ export function executeMiddleLayerStrategyStack(args: {
           collapsed: false,
           collapsedHeadMessageCount: 0,
           estimatedTokensSaved: 0,
-          metadata: null,
-        }
-      : collapseRequestHistory({
-          messages: toolResultBudgetResult.messages,
-          allowBoundarylessContinuation: args.allowBoundarylessContinuation,
-        })
+        metadata: null,
+      }
+    : collapseRequestHistory({
+        messages: toolResultBudgetResult.messages,
+        allowBoundarylessContinuation: args.allowBoundarylessContinuation,
+      })
+  const prePruneMessages = trailingMessage ? [...collapseResult.messages, trailingMessage] : [...collapseResult.messages]
+  const totalTokensBeforePrune = estimatePromptTokens({
+    system: args.system,
+    messages: prePruneMessages,
+  })
+  const preparedMessages = args.budgetConfig
+    ? pruneForPromptBudget({
+        system: args.system,
+        messages: prePruneMessages,
+        ...args.budgetConfig,
+      }).messages
+    : prePruneMessages
+  const totalTokensAfterPrune = estimatePromptTokens({
+    system: args.system,
+    messages: preparedMessages,
+  })
+
+  const preparedTrailingMessage = trailingMessage
+    ? ((preparedMessages[preparedMessages.length - 1] ?? trailingMessage) as PromptMessage)
+    : null
+  const requestHistory = trailingMessage ? preparedMessages.slice(0, -1) : preparedMessages
 
   return {
     microCompactedHistory: microCompactResult.messages,
     toolBudgetedHistory: toolResultBudgetResult.messages,
+    collapsedHistory: collapseResult.messages,
+    persistedHistoryCandidate: microCompactResult.messages,
     preparedMessages,
-    preparedHistory,
     preparedTrailingMessage,
-    requestHistory: collapseResult.messages,
+    requestHistory,
     facts: {
       toolResultBudget: {
+        stage: 'tool_result_budget',
+        role: 'budget_reducer',
+        scope: 'request_history_projection',
         applied: toolResultBudgetResult.applied,
         pressureRatio,
         policy: toolResultBudgetPolicy,
         impact: toolResultBudgetResult.impact,
       },
       microCompact: {
+        stage: 'microcompact',
+        role: 'budget_reducer',
+        scope: 'persisted_history_candidate',
         applied: microCompactResult.compacted,
         pressureRatio,
         policy,
@@ -181,14 +199,20 @@ export function executeMiddleLayerStrategyStack(args: {
         },
       },
       prune: {
+        stage: 'prune',
+        role: 'terminal_fallback',
+        scope: 'assembled_request_envelope',
         applied:
-          preparedMessages.length !== rawPreparedMessages.length || totalTokensAfterPrune !== totalTokensBeforePrune,
+          preparedMessages.length !== prePruneMessages.length || totalTokensAfterPrune !== totalTokensBeforePrune,
         totalTokensBeforePrune,
         totalTokensAfterPrune,
-        messageCountBeforePrune: rawPreparedMessages.length,
+        messageCountBeforePrune: prePruneMessages.length,
         messageCountAfterPrune: preparedMessages.length,
       },
       collapse: {
+        stage: 'collapse',
+        role: 'semantic_projection',
+        scope: 'request_history_projection',
         applied: collapseResult.collapsed,
         collapsedHeadMessageCount: collapseResult.collapsedHeadMessageCount,
         estimatedTokensSaved: collapseResult.estimatedTokensSaved,
