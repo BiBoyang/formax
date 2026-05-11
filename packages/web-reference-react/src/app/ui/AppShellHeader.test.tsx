@@ -11,6 +11,12 @@ function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US') {
         isDesktopClient={false}
         isSidebarOpen={true}
         activeThreadTitle="Thread title"
+        activeThreadLatestCompactBoundary={{
+          schemaVersion: 1,
+          trigger: 'auto',
+          preTokens: 2048,
+          summaryKind: 'session_memory',
+        }}
         activeThreadLatestRequestCollapse={{
           phase: 'reactive_retry',
           collapsedHeadMessageCount: 2,
@@ -48,6 +54,14 @@ describe('AppShellHeader', () => {
 
     expect(screen.getByTestId('app-shell-collapse-summary')).toHaveTextContent(
       'Collapse 节省 64 tok · 折叠 2 条旧消息 · 重试',
+    )
+  })
+
+  it('renders latest compact boundary summary text', () => {
+    renderHeader('en-US')
+
+    expect(screen.getByTestId('app-shell-compact-summary')).toHaveTextContent(
+      'Latest compact: auto · session memory · 2048 tok',
     )
   })
 })

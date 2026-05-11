@@ -99,6 +99,7 @@
 - `docs/learnings/2026-03-05-web-useappruntime-domain-handler-stability-n.md`
 - `docs/learnings/2026-04-07-session-memory-restore-reminder.md`
 - `docs/learnings/2026-04-07-thread-latest-compact-boundary-surface.md`
+- [2026-05-11 - Compact boundary client surface](./2026-05-11-compact-boundary-client-surface.md)
 - [2026-05-11 - Microcompact strategy v2](./2026-05-11-microcompact-strategy-v2.md)
 - [2026-05-11 - Reactive compact shaping v2](./2026-05-11-reactive-compact-shaping-v2.md)
 - [2026-05-11 - Session memory restore consumption v3](./2026-05-11-session-memory-restore-consumption-v3.md)

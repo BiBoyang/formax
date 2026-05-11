@@ -8,7 +8,7 @@ import { useRef, useEffect } from 'react'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import type { RpcClient } from '../../rpcClient'
 import { SEEN_EVENT_CAP } from '../core/constants'
-import type { RequestCollapseSummary, ThreadSummary } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary, ThreadSummary } from '../../types'
 import type { TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -123,6 +123,7 @@ export function useHistoryRefs(historyCursorByThreadId: Record<string, string | 
 export interface ThreadCacheRefs {
   logsByThreadIdRef: React.RefObject<Record<string, TranscriptItem[]>>
   transcriptSourceByThreadRef: React.RefObject<Record<string, ThreadTranscriptSource>>
+  latestCompactBoundaryByThreadIdRef: React.RefObject<Record<string, CompactBoundarySummary | null>>
   latestRequestCollapseByThreadIdRef: React.RefObject<Record<string, RequestCollapseSummary | null>>
 }
 
@@ -134,22 +135,26 @@ export interface ThreadCacheRefs {
 export function useThreadCacheRefs(
   logsByThreadId: Record<string, TranscriptItem[]>,
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>,
+  latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>,
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>,
 ): ThreadCacheRefs {
   const logsByThreadIdRef = useRef(logsByThreadId)
   const transcriptSourceByThreadRef = useRef(transcriptSourceByThreadId)
+  const latestCompactBoundaryByThreadIdRef = useRef(latestCompactBoundaryByThreadId)
   const latestRequestCollapseByThreadIdRef = useRef(latestRequestCollapseByThreadId)
 
   // Keep cache refs synchronized together to avoid redundant effect scheduling.
   useEffect(() => {
     logsByThreadIdRef.current = logsByThreadId
     transcriptSourceByThreadRef.current = transcriptSourceByThreadId
+    latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThreadId
     latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThreadId
-  }, [logsByThreadId, transcriptSourceByThreadId, latestRequestCollapseByThreadId])
+  }, [logsByThreadId, transcriptSourceByThreadId, latestCompactBoundaryByThreadId, latestRequestCollapseByThreadId])
 
   return {
     logsByThreadIdRef,
     transcriptSourceByThreadRef,
+    latestCompactBoundaryByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
   }
 }

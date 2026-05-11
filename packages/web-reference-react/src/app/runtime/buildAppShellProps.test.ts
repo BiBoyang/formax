@@ -32,6 +32,7 @@ describe('buildAppShellProps', () => {
       },
       transcript: {
         activeThreadTitle: 'T',
+        activeThreadLatestCompactBoundary: null,
         activeThreadLatestRequestCollapse: null,
         activeTurnId: null,
         connectionStatus: 'connected',
@@ -91,6 +92,7 @@ describe('buildAppShellProps', () => {
     expect(props.selectedCwd).toBe('/repo')
     expect(props.mode).toBe('normal')
     expect(props.noticeMessage).toBe(null)
+    expect(props.activeThreadLatestCompactBoundary).toBe(null)
     expect(props.activeThreadLatestRequestCollapse).toBe(null)
     expect(typeof props.onRequestDiffPatch).toBe('function')
     expect(props.userSettings.language).toBe('zh-CN')

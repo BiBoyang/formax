@@ -1,4 +1,4 @@
-import type { PendingInput, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
+import type { CompactBoundarySummary, PendingInput, RequestCollapseSummary, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
 import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -77,19 +77,8 @@ export function asThreadSummaries(value: unknown): ThreadSummary[] {
 export function asThreadMessages(value: unknown): {
   data: ThreadMessage[]
   nextCursor: string | null
-  latestCompactBoundary?: {
-    schemaVersion: 1
-    trigger?: 'manual' | 'auto' | 'reactive'
-    triggerReason?: { kind: 'auto_threshold' | 'manual' | 'reactive_error'; detail?: string }
-    preTokens?: number
-    summaryKind?: 'model_summary' | 'session_memory'
-  } | null
-  latestRequestCollapse?: {
-    phase: 'initial' | 'reactive_retry'
-    collapsedHeadMessageCount: number
-    estimatedTokensSaved: number
-    recapFingerprint?: string
-  } | null
+  latestCompactBoundary?: CompactBoundarySummary | null
+  latestRequestCollapse?: RequestCollapseSummary | null
 } {
   if (!value || typeof value !== 'object') return { data: [], nextCursor: null }
   const raw = Array.isArray((value as { data?: unknown }).data) ? ((value as { data: unknown[] }).data ?? []) : []
@@ -141,7 +130,7 @@ export function asThreadMessages(value: unknown): {
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
   const root = value as Record<string, unknown>
   const latestCompactBoundaryRaw = root.latestCompactBoundary
-  const latestCompactBoundary =
+  const latestCompactBoundary: CompactBoundarySummary | null | undefined =
     latestCompactBoundaryRaw && typeof latestCompactBoundaryRaw === 'object'
       ? (() => {
           const record = latestCompactBoundaryRaw as Record<string, unknown>
@@ -152,9 +141,9 @@ export function asThreadMessages(value: unknown): {
               : undefined
           const triggerReason =
             record.triggerReason && typeof record.triggerReason === 'object'
-              ? (() => {
+                ? (() => {
                   const raw = record.triggerReason as Record<string, unknown>
-                  const kind =
+                  const kind: NonNullable<CompactBoundarySummary['triggerReason']>['kind'] | null =
                     raw.kind === 'auto_threshold' || raw.kind === 'manual' || raw.kind === 'reactive_error'
                       ? raw.kind
                       : null
@@ -189,7 +178,7 @@ export function asThreadMessages(value: unknown): {
         ? null
         : undefined
   const latestRequestCollapseRaw = root.latestRequestCollapse
-  const latestRequestCollapse =
+  const latestRequestCollapse: RequestCollapseSummary | null | undefined =
     latestRequestCollapseRaw && typeof latestRequestCollapseRaw === 'object'
       ? (() => {
           const record = latestRequestCollapseRaw as Record<string, unknown>

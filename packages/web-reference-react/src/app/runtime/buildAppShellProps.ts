@@ -33,6 +33,7 @@ type LayoutSection = Pick<
 type TranscriptSection = Pick<
   AppShellProps,
   | 'activeThreadTitle'
+  | 'activeThreadLatestCompactBoundary'
   | 'activeThreadLatestRequestCollapse'
   | 'activeTurnId'
   | 'connectionStatus'

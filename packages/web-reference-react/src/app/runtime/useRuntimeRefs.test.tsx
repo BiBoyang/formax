@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { ThreadSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, ThreadSummary, TranscriptItem } from '../../types'
 import { useThreadCacheRefs, useThreadSnapshotRefs } from './useRuntimeRefs'
 
 function createThread(id: string, cwd: string): ThreadSummary {
@@ -79,6 +79,7 @@ describe('useRuntimeRefs', () => {
     type CacheProps = {
       logsByThreadId: Record<string, TranscriptItem[]>
       transcriptSourceByThreadId: Record<string, 'history' | 'replay'>
+      latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
       latestRequestCollapseByThreadId: Record<string, { phase: 'initial' | 'reactive_retry'; collapsedHeadMessageCount: number; estimatedTokensSaved: number } | null>
     }
     const initialLogsByThread = {
@@ -90,6 +91,7 @@ describe('useRuntimeRefs', () => {
     const initialProps: CacheProps = {
       logsByThreadId: initialLogsByThread,
       transcriptSourceByThreadId: initialSources,
+      latestCompactBoundaryByThreadId: { 'thread-1': null },
       latestRequestCollapseByThreadId: { 'thread-1': null },
     }
 
@@ -98,6 +100,7 @@ describe('useRuntimeRefs', () => {
         useThreadCacheRefs(
           props.logsByThreadId,
           props.transcriptSourceByThreadId,
+          props.latestCompactBoundaryByThreadId,
           props.latestRequestCollapseByThreadId,
         ),
       {
@@ -114,6 +117,14 @@ describe('useRuntimeRefs', () => {
     const nextProps: CacheProps = {
       logsByThreadId: nextLogsByThread,
       transcriptSourceByThreadId: nextSources,
+      latestCompactBoundaryByThreadId: {
+        'thread-2': {
+          schemaVersion: 1,
+          trigger: 'auto',
+          preTokens: 1024,
+          summaryKind: 'session_memory',
+        },
+      },
       latestRequestCollapseByThreadId: {
         'thread-2': {
           phase: 'initial',
@@ -128,6 +139,7 @@ describe('useRuntimeRefs', () => {
     await waitFor(() => {
       expect(result.current.logsByThreadIdRef.current).toBe(nextLogsByThread)
       expect(result.current.transcriptSourceByThreadRef.current).toBe(nextSources)
+      expect(result.current.latestCompactBoundaryByThreadIdRef.current).toBe(nextProps.latestCompactBoundaryByThreadId)
       expect(result.current.latestRequestCollapseByThreadIdRef.current).toBe(nextProps.latestRequestCollapseByThreadId)
     })
   })

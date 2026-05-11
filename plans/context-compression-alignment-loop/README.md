@@ -177,10 +177,12 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 
 这意味着下一阶段不再适合继续围绕最小 collapse surface 扩面，而更适合回到仍然明显落后于 Claude Code 的 working-set / session-memory / compact-protocol 三条主线。
 
-### 当前推荐下一项
+### 当前状态
 
 1. `CCA-132` compact protocol ecosystem v2
-   - 目标：继续补 compact boundary / preserved segment / rehydration facts 的 cross-surface / remote parity
+   - 已完成：`latestCompactBoundary` 已进入 Web runtime thread cache / display selector / header surface
+2. 下一步
+   - 需要基于 post-132 状态重新排下一阶段主线，而不是继续沿旧编号顺推
 
 刚完成的上一轮主线：
 

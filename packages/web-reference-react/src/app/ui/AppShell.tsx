@@ -12,7 +12,7 @@ import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
-import type { PendingInput, RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, PendingInput, RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
@@ -53,6 +53,7 @@ export type AppShellProps = {
   isSettingsOpen: boolean
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>
   activeThreadTitle: string
+  activeThreadLatestCompactBoundary: CompactBoundarySummary | null
   activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   activeTurnId: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
@@ -454,9 +455,10 @@ export function AppShell(props: AppShellProps) {
               <AppShellHeader
                 isRightRailOpen={props.isRightRailOpen}
                 isDesktopClient={isDesktopClient}
-                isSidebarOpen={props.isSidebarOpen}
-                activeThreadTitle={props.activeThreadTitle}
-                activeThreadLatestRequestCollapse={props.activeThreadLatestRequestCollapse}
+        isSidebarOpen={props.isSidebarOpen}
+        activeThreadTitle={props.activeThreadTitle}
+        activeThreadLatestCompactBoundary={props.activeThreadLatestCompactBoundary}
+        activeThreadLatestRequestCollapse={props.activeThreadLatestRequestCollapse}
                 activeWorkspaceLabel={activeWorkspaceLabel}
                 showDevLoadAllButton={showDevLoadAllButton}
                 devLoadAllDisabled={devLoadAllDisabled}

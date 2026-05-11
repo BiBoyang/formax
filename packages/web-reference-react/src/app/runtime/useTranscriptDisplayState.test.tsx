@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { RequestCollapseSummary } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
 import type { ThreadSummary, TranscriptItem } from '../../types'
 import { useTranscriptDisplayState } from './useTranscriptDisplayState'
 
@@ -33,6 +33,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: { 'thread-1': true },
         transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestCompactBoundaryByThreadId: {},
         latestRequestCollapseByThreadId: {},
         displayPolicy: 'debug',
       }),
@@ -60,6 +61,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: { 'thread-1': 'cursor-1' },
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        latestCompactBoundaryByThreadId: {},
         latestRequestCollapseByThreadId: {},
         displayPolicy: 'debug',
       }),
@@ -86,6 +88,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: {},
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: {},
+        latestCompactBoundaryByThreadId: {},
         latestRequestCollapseByThreadId: {},
         displayPolicy: 'chat',
       }),
@@ -111,6 +114,7 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: {},
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestCompactBoundaryByThreadId: {},
         latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
       }),
     )
@@ -134,10 +138,36 @@ describe('useTranscriptDisplayState', () => {
         historyCursorByThreadId: {},
         historyLoadingByThreadId: {},
         transcriptSourceByThreadId: { 'thread-1': 'replay' },
+        latestCompactBoundaryByThreadId: {},
         latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
       }),
     )
 
     expect(result.current.activeThreadLatestRequestCollapse).toBe(null)
+  })
+
+  it('selects the active thread latest compact boundary summary', () => {
+    const latestCompactBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs: [],
+        logsByThreadId: {},
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
+        latestRequestCollapseByThreadId: {},
+      }),
+    )
+
+    expect(result.current.activeThreadLatestCompactBoundary).toEqual(latestCompactBoundary)
   })
 })

@@ -44,6 +44,17 @@ export type RequestCollapseSummary = {
   recapFingerprint?: string
 }
 
+export type CompactBoundarySummary = {
+  schemaVersion: 1
+  trigger?: 'manual' | 'auto' | 'reactive'
+  triggerReason?: {
+    kind: 'auto_threshold' | 'manual' | 'reactive_error'
+    detail?: string
+  }
+  preTokens?: number
+  summaryKind?: 'model_summary' | 'session_memory'
+}
+
 export type ThreadHistoryMessage = {
   id: string
   kind: 'message'

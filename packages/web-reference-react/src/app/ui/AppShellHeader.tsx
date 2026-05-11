@@ -13,7 +13,7 @@ import { Button } from '../../components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip'
 import { cn } from '../../lib/utils'
-import type { RequestCollapseSummary } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
 import { useI18n } from '../i18n/I18nProvider'
 
 const SHARED_HEADER_BTN_ICON =
@@ -27,6 +27,7 @@ export type AppShellHeaderProps = {
   isDesktopClient: boolean
   isSidebarOpen: boolean
   activeThreadTitle: string
+  activeThreadLatestCompactBoundary: CompactBoundarySummary | null
   activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   activeWorkspaceLabel: string
   showDevLoadAllButton: boolean
@@ -50,6 +51,12 @@ export function AppShellHeader(props: AppShellHeaderProps) {
     props.activeThreadLatestRequestCollapse?.phase === 'reactive_retry'
       ? t('appShell.collapsePhase.reactiveRetry')
       : t('appShell.collapsePhase.initial')
+  const compactTriggerLabel = props.activeThreadLatestCompactBoundary?.trigger
+    ? t(`appShell.compactTrigger.${props.activeThreadLatestCompactBoundary.trigger}`)
+    : t('appShell.compactTrigger.unknown')
+  const compactSummaryKindLabel = props.activeThreadLatestCompactBoundary?.summaryKind
+    ? t(`appShell.compactSummaryKind.${props.activeThreadLatestCompactBoundary.summaryKind}`)
+    : t('appShell.compactSummaryKind.unknown')
 
   return (
     <header
@@ -89,6 +96,18 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                   tokens: String(props.activeThreadLatestRequestCollapse.estimatedTokensSaved),
                   messages: String(props.activeThreadLatestRequestCollapse.collapsedHeadMessageCount),
                   phase: collapsePhaseLabel,
+                })}
+              </div>
+            ) : null}
+            {props.activeThreadLatestCompactBoundary ? (
+              <div
+                data-testid="app-shell-compact-summary"
+                className="min-w-0 truncate text-[11px] text-muted-foreground/80"
+              >
+                {t('appShell.compactSummary', {
+                  trigger: compactTriggerLabel,
+                  summaryKind: compactSummaryKindLabel,
+                  preTokens: String(props.activeThreadLatestCompactBoundary.preTokens ?? 0),
                 })}
               </div>
             ) : null}

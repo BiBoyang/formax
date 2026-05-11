@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import type { RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { selectActiveTranscriptLogs, type TranscriptDisplayPolicy } from '../core/logSelectors'
 import { createTranscriptSelectorStore } from '../core/transcriptSelectorStore'
@@ -13,6 +13,7 @@ type UseTranscriptDisplayStateArgs = {
   historyCursorByThreadId: Record<string, string | null>
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
   displayPolicy?: TranscriptDisplayPolicy
 }
@@ -22,6 +23,7 @@ type TranscriptDisplayState = {
   activeLogs: TranscriptItem[]
   activeThread: ThreadSummary | undefined
   activeThreadTitle: string
+  activeThreadLatestCompactBoundary: CompactBoundarySummary | null
   activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   historyMore: boolean
 }
@@ -35,6 +37,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
+    latestCompactBoundaryByThreadId,
     latestRequestCollapseByThreadId,
     displayPolicy = 'debug',
   } = args
@@ -63,6 +66,13 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     [activeThreadId, threadById],
   )
   const activeThreadTitle = useMemo(() => selectThreadTitle(activeThread), [activeThread])
+  const activeThreadLatestCompactBoundary = useMemo(
+    () =>
+      activeThreadId && activeTranscriptSource === 'history'
+        ? latestCompactBoundaryByThreadId[activeThreadId] ?? null
+        : null,
+    [activeThreadId, activeTranscriptSource, latestCompactBoundaryByThreadId],
+  )
   const activeThreadLatestRequestCollapse = useMemo(
     () =>
       activeThreadId && activeTranscriptSource === 'history'
@@ -76,6 +86,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
     activeLogs,
     activeThread,
     activeThreadTitle,
+    activeThreadLatestCompactBoundary,
     activeThreadLatestRequestCollapse,
     historyMore,
   }

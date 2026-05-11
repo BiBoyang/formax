@@ -11,14 +11,14 @@
 
 ## 当前推荐顺序
 
-1. `CCA-132` compact protocol ecosystem v2
+1. post-`CCA-132` mainline re-rank
 
 ## 说明
 
 - `CCA-080` ~ `CCA-085` 与 `CCA-090` 这一波已经完成。
 - `CCA-100` / `CCA-110` / `CCA-111` / `CCA-112` 已完成。
 - `CCA-120` / `CCA-121` / `CCA-122` / `CCA-123` 这一波也已经完成，当前主线已切换。
-- `CCA-130` / `CCA-131` 已完成，当前主线前推到 `CCA-132`。
+- `CCA-130` / `CCA-131` / `CCA-132` 已完成，当前主线等待 post-132 重排。
 - 当前重点已经从“继续打磨 collapse 的最小消费面”转向：
   - 升级 working-set / keep strategy
   - 让 session memory 进入更深的 restore consumption

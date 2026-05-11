@@ -168,11 +168,11 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-132` compact protocol ecosystem v2
+1. post-`CCA-132` mainline re-rank
 
 对应含义：
 
-1. compact protocol 继续补 cross-surface / remote ecosystem，而不是直接跳完整 persisted store
+1. `CCA-132` 已完成；下一阶段先基于最新 gap 重新排主线，而不是继续沿旧编号顺推
 
 ---
 

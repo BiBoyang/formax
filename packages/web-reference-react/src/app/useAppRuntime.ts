@@ -89,6 +89,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     selectedCwd,
     hiddenGroupCwds,
     logsByThreadId,
+    latestCompactBoundaryByThreadId,
     latestRequestCollapseByThreadId,
     historyCursorByThreadId,
     historyLoadingByThreadId,
@@ -108,6 +109,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setLogsByThreadId,
     setHistoryCursorByThreadId,
     setTranscriptSourceByThreadId,
+    setLatestCompactBoundaryByThreadId,
     setLatestRequestCollapseByThreadId,
   } = useRuntimeViewState()
 
@@ -124,6 +126,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const threadCacheRefs = useThreadCacheRefs(
     logsByThreadId,
     transcriptSourceByThreadId,
+    latestCompactBoundaryByThreadId,
     latestRequestCollapseByThreadId,
   )
   const threadRuntimeRefs = useThreadRuntimeRefs()
@@ -132,7 +135,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const { clientRef, eventCursorRef, commandByTurnRef } = rpcRefs
   const { activeThreadIdRef, threadsRef, selectedCwdRef, selectedInputIdRef, stateLogsRef } = threadSnapshotRefs
   const { historyLoadTokenRef, historyLoadSeqByThreadRef, historyLoadingRef, historyCursorByThreadIdRef } = historyRefs
-  const { logsByThreadIdRef, transcriptSourceByThreadRef, latestRequestCollapseByThreadIdRef } = threadCacheRefs
+  const { logsByThreadIdRef, transcriptSourceByThreadRef, latestCompactBoundaryByThreadIdRef, latestRequestCollapseByThreadIdRef } = threadCacheRefs
   const { replayCursorByThreadRef, replayAnomalyCountSeenByThreadRef, runtimeStateByThreadRef } = threadRuntimeRefs
 
   // 其他 Refs（不在分组中）
@@ -152,6 +155,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeLogs,
     activeThread,
     activeThreadTitle,
+    activeThreadLatestCompactBoundary,
     activeThreadLatestRequestCollapse,
     historyMore,
   } = useTranscriptDisplayState({
@@ -162,6 +166,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
+    latestCompactBoundaryByThreadId,
     latestRequestCollapseByThreadId,
     displayPolicy: 'debug',
   })
@@ -257,6 +262,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         historyLoadingRef,
         historyCursorByThreadIdRef,
         transcriptSourceByThreadRef,
+        latestCompactBoundaryByThreadIdRef,
         latestRequestCollapseByThreadIdRef,
         logsByThreadIdRef,
         stateLogsRef,
@@ -264,6 +270,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setHistoryLoadingByThreadId,
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
+        setLatestCompactBoundaryByThreadId,
         setLatestRequestCollapseByThreadId,
         setLogsByThreadId,
         setHiddenGroupCwds: setHiddenGroupCwdsStable,
@@ -552,6 +559,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const transcriptSection = useMemo<BuildAppShellPropsArgs['transcript']>(
     () => ({
       activeThreadTitle,
+      activeThreadLatestCompactBoundary,
       activeThreadLatestRequestCollapse,
       activeTurnId: state.activeTurnId,
       connectionStatus: state.connectionStatus,

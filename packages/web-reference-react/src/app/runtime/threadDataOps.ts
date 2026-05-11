@@ -7,7 +7,7 @@ import {
 } from '../core/rpcContracts'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey } from '../core/threadCache'
-import type { RequestCollapseSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 
 export type ThreadDataOpsContext = {
@@ -20,6 +20,7 @@ export type ThreadDataOpsContext = {
   historyLoadingRef: { current: Record<string, boolean> }
   historyCursorByThreadIdRef: { current: Record<string, string | null> }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
+  latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
   stateLogsRef: { current: TranscriptItem[] }
@@ -38,6 +39,11 @@ export type ThreadDataOpsContext = {
     updater: (
       prev: Record<string, ThreadTranscriptSource>,
     ) => Record<string, ThreadTranscriptSource>,
+  ) => void
+  setLatestCompactBoundaryByThreadId: (
+    updater: (
+      prev: Record<string, CompactBoundarySummary | null>,
+    ) => Record<string, CompactBoundarySummary | null>,
   ) => void
   setLatestRequestCollapseByThreadId: (
     updater: (
@@ -63,6 +69,46 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       left.estimatedTokensSaved === right.estimatedTokensSaved &&
       (left.recapFingerprint ?? null) === (right.recapFingerprint ?? null)
     )
+  }
+
+  const areLatestCompactBoundaryEqual = (
+    left: CompactBoundarySummary | null | undefined,
+    right: CompactBoundarySummary | null | undefined,
+  ) => {
+    if (!left && !right) return true
+    if (!left || !right) return false
+    return (
+      left.schemaVersion === right.schemaVersion &&
+      (left.trigger ?? null) === (right.trigger ?? null) &&
+      (left.triggerReason?.kind ?? null) === (right.triggerReason?.kind ?? null) &&
+      (left.triggerReason?.detail ?? null) === (right.triggerReason?.detail ?? null) &&
+      (left.preTokens ?? null) === (right.preTokens ?? null) &&
+      (left.summaryKind ?? null) === (right.summaryKind ?? null)
+    )
+  }
+
+  const setThreadLatestCompactBoundary = (
+    threadId: string,
+    boundary: CompactBoundarySummary | null | undefined,
+  ) => {
+    if (boundary === undefined) {
+      return
+    }
+    const nextBoundary = boundary
+    if (
+      areLatestCompactBoundaryEqual(
+        ctx.latestCompactBoundaryByThreadIdRef.current[threadId] ?? null,
+        nextBoundary,
+      )
+    ) {
+      return
+    }
+    ctx.latestCompactBoundaryByThreadIdRef.current = withRecordValue(
+      ctx.latestCompactBoundaryByThreadIdRef.current,
+      threadId,
+      nextBoundary,
+    )
+    ctx.setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, nextBoundary))
   }
 
   const setThreadLatestRequestCollapse = (
@@ -178,6 +224,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs })
       ctx.setLogsByThreadId((prev) => withRecordValue(prev, threadId, logs))
+      setThreadLatestCompactBoundary(threadId, parsed.latestCompactBoundary)
       setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
       setThreadTranscriptSource(threadId, 'history')
@@ -237,6 +284,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           ctx.stateLogsRef.current
         return withRecordValue(prev, threadId, [...prepended, ...current])
       })
+      setThreadLatestCompactBoundary(threadId, parsed.latestCompactBoundary)
       setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
     } finally {

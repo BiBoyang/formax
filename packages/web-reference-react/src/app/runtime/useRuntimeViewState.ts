@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import type { ReplMode } from '../../semantics'
-import type { RequestCollapseSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import {
   INITIAL_THREAD_CACHE_STATE,
   withThreadCacheSlice,
@@ -37,6 +37,7 @@ export type RuntimeViewState = {
   historyCursorByThreadId: Record<string, string | null>
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
+  latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
   setDiffSnapshot: (value: DiffSnapshot | null) => void
   setHistoryLoadingByThreadId: (
@@ -68,6 +69,11 @@ export type RuntimeViewState = {
     updater: (
       prev: Record<string, ThreadTranscriptSource>,
     ) => Record<string, ThreadTranscriptSource>,
+  ) => void
+  setLatestCompactBoundaryByThreadId: (
+    updater: (
+      prev: Record<string, CompactBoundarySummary | null>,
+    ) => Record<string, CompactBoundarySummary | null>,
   ) => void
   setLatestRequestCollapseByThreadId: (
     updater: (
@@ -166,6 +172,23 @@ export function useRuntimeViewState(): RuntimeViewState {
     [],
   )
 
+  const setLatestCompactBoundaryByThreadId = useCallback(
+    (
+      updater: (
+        prev: Record<string, CompactBoundarySummary | null>,
+      ) => Record<string, CompactBoundarySummary | null>,
+    ) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(
+          prev,
+          'latestCompactBoundaryByThreadId',
+          updater(prev.latestCompactBoundaryByThreadId),
+        ),
+      )
+    },
+    [],
+  )
+
   const setLatestRequestCollapseByThreadId = useCallback(
     (
       updater: (
@@ -208,6 +231,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     historyCursorByThreadId: threadCache.historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId: threadCache.transcriptSourceByThreadId,
+    latestCompactBoundaryByThreadId: threadCache.latestCompactBoundaryByThreadId,
     latestRequestCollapseByThreadId: threadCache.latestRequestCollapseByThreadId,
     setDiffSnapshot,
     setHistoryLoadingByThreadId,
@@ -224,6 +248,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     setLogsByThreadId,
     setHistoryCursorByThreadId,
     setTranscriptSourceByThreadId,
+    setLatestCompactBoundaryByThreadId,
     setLatestRequestCollapseByThreadId,
   }
 }
