@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '../app/i18n/I18nProvider'
+import type { RequestCollapseSummary } from '../types'
 import { ScrollArea } from './ui/scroll-area'
 import { cn } from '../lib/utils'
 import { shouldStopWheelPropagation } from './scrollBoundary'
@@ -30,6 +31,7 @@ export type DiffFilePatchPayload = {
 
 export type WorktreeDiffPaneProps = {
   diffSnapshot?: DiffSnapshot | null
+  latestRequestCollapse?: RequestCollapseSummary | null
   onRefreshDiff?: () => void
   onRequestPatch?: (filePath: string) => Promise<DiffFilePatchPayload | null>
   isRefreshingDiff?: boolean
@@ -42,6 +44,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const { t } = useI18n()
   const {
     diffSnapshot = null,
+    latestRequestCollapse = null,
     onRefreshDiff,
     onRequestPatch,
     isRefreshingDiff = false,
@@ -59,6 +62,10 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const isLargeChangeSet = Boolean(diffSnapshot && diffSnapshot.hasChanges && exceedsRenderFileLimit)
   const hasTruncatedPreview = Boolean(diffSnapshot?.truncated)
   const hasTruncatedButNoFiles = Boolean(diffSnapshot?.hasChanges && diffSnapshot?.truncated && files.length === 0)
+  const collapsePhaseLabel =
+    latestRequestCollapse?.phase === 'reactive_retry'
+      ? t('appShell.collapsePhase.reactiveRetry')
+      : t('appShell.collapsePhase.initial')
 
   useEffect(() => {
     snapshotKeyRef.current = `${diffSnapshot?.cwd ?? ''}:${diffSnapshot?.generatedAt ?? ''}`
@@ -192,6 +199,33 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
         <ScrollArea ref={diffScrollAreaRef} className="h-full min-w-0 px-6 pb-20">
           <div className="relative">
             <div className="sticky top-0 h-4 w-full bg-background z-[15] -mt-1 pointer-events-none" />
+
+            {latestRequestCollapse ? (
+              <div
+                data-testid="worktree-collapse-summary"
+                className="mb-3 rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="ui-text-base font-medium ui-text-primary">
+                      {t('worktreeDiff.latestCollapseTitle')}
+                    </div>
+                    <div className="mt-1 ui-text-meta ui-text-secondary">
+                      {t('worktreeDiff.latestCollapseSummary', {
+                        tokens: String(latestRequestCollapse.estimatedTokensSaved),
+                        messages: String(latestRequestCollapse.collapsedHeadMessageCount),
+                        phase: collapsePhaseLabel,
+                      })}
+                    </div>
+                  </div>
+                  {latestRequestCollapse.recapFingerprint ? (
+                    <div className="shrink-0 rounded-md border border-border/60 bg-background/70 px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                      {latestRequestCollapse.recapFingerprint.slice(0, 12)}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             {listOpen ? (
               !diffSnapshot ? null : isLargeChangeSet ? (

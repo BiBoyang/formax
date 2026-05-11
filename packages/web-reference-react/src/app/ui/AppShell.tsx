@@ -333,12 +333,14 @@ export function AppShell(props: AppShellProps) {
   const worktreeDiffPaneProps = useMemo(
     () => ({
       diffSnapshot: props.diffSnapshot,
+      latestRequestCollapse: props.activeThreadLatestRequestCollapse,
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
       isRefreshingDiff: props.isRefreshingDiff,
       showHeader: true as const,
     }),
     [
+      props.activeThreadLatestRequestCollapse,
       props.diffSnapshot,
       props.isRefreshingDiff,
       props.onRefreshDiff,

@@ -9,6 +9,34 @@ function renderPane(node: ReactElement, language: I18nProviderProps['language'] 
 }
 
 describe('WorktreeDiffPane', () => {
+  it('renders latest request collapse summary when provided', () => {
+    renderPane(
+      <WorktreeDiffPane
+        latestRequestCollapse={{
+          phase: 'reactive_retry',
+          collapsedHeadMessageCount: 5,
+          estimatedTokensSaved: 320,
+          recapFingerprint: 'recap-abcdef123456',
+        }}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('worktree-collapse-summary')).toHaveTextContent(
+      'Latest request collapse',
+    )
+    expect(screen.getByTestId('worktree-collapse-summary')).toHaveTextContent(
+      'Saved 320 tok · 5 older msgs · retry',
+    )
+    expect(screen.getByText('recap-abcdef')).toBeInTheDocument()
+  })
+
   it('renders diff files and expands patch content', () => {
     renderPane(
       <WorktreeDiffPane

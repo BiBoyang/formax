@@ -101,3 +101,4 @@
 - `docs/learnings/2026-04-07-thread-latest-compact-boundary-surface.md`
 - [2026-05-11 - Microcompact strategy v2](./2026-05-11-microcompact-strategy-v2.md)
 - [2026-05-11 - Reactive compact shaping v2](./2026-05-11-reactive-compact-shaping-v2.md)
+- [2026-05-11 - Web right rail collapse summary](./2026-05-11-web-right-rail-collapse-summary.md)
