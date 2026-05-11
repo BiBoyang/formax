@@ -420,10 +420,10 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 如果下一轮还继续沿着“向 Claude Code 靠拢”这条主线走，我建议优先顺序是：
 
-1. **让已存在的 collapse state 进入真实 surface 消费**
-2. **升级 keep strategy / working-set selector**
-3. **让 session memory 进入更深的 restore 消费**
-4. **继续补 compact protocol 的 remote / restore 贯通**
+1. **升级 keep strategy / working-set selector**
+2. **让 session memory 进入更深的 restore 消费**
+3. **继续补 compact protocol 的 remote / restore 贯通**
+4. **richer collapse client consumption 保持在“消费层”范围内继续补齐**
 
 而不是马上上完整 persisted collapse store。
 

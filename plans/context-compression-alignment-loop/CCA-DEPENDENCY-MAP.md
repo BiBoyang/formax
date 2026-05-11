@@ -1,6 +1,6 @@
 # CCA Dependency Map
 
-更新时间：2026-04-08
+更新时间：2026-05-11
 状态：Active
 
 ## 这份图解决什么问题
@@ -168,16 +168,15 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-120` richer assembled-payload diagnostics ledger
-2. `CCA-121` microcompact strategy v2
-3. `CCA-122` reactive compact shaping v2
-4. `CCA-123` richer collapse client consumption / parity
+1. `CCA-130` working-set selector v3
+2. `CCA-131` session memory deeper restore consumption v3
+3. `CCA-132` compact protocol ecosystem v2
 
 对应含义：
 
-1. 先把已经完成的 collapse / compact / session-memory / working-set 能力，继续沉淀成更贴近最终 payload 的可观测账本
-2. 再继续补中间层减压与 reactive compact 的成熟度
-3. collapse 这条线继续优先做消费层，不急着重启完整 persisted store
+1. working-set / keep strategy 继续升级，优先缩小“当前工作集识别”这条差距
+2. session memory 从 restore reminder 继续走向更深的 canonical restore consumption
+3. compact protocol 继续补 cross-surface / remote ecosystem，而不是直接跳完整 persisted store
 
 ---
 
