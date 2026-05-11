@@ -7,11 +7,13 @@ import { microCompactHistory, resolveAdaptiveMicroCompactPolicy, type MicroCompa
 import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
+  AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS,
   buildWorkingSetAwareAutoCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   countNonToolUserTurns,
   deriveAutoCompactWorkingSetSignals,
   estimateCompactRehydrationCost,
+  findLatestWorkingSetAnchor,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
   findLatestCompactBoundary,
@@ -344,9 +346,37 @@ export function analyzeNextTurnFixedContext(args: {
     planPath: args.planPath ?? null,
     previousHistory: promptMessages,
   })
+  const baseWorkingSetSignals = deriveAutoCompactWorkingSetSignals({
+    mode: normalizeDiagnosticsMode(args.mode),
+    rehydration: fallbackRehydration,
+  })
+  const workingSetAnchor = (() => {
+    const userTurnIndices = promptMessages.reduce<number[]>((out, message, index) => {
+      if (message?.role !== 'user' || !Array.isArray(message.content)) return out
+      if ((message.content as any[]).some((block) => block?.type === 'tool_result')) return out
+      out.push(index)
+      return out
+    }, [])
+    const anchor = findLatestWorkingSetAnchor(promptMessages, userTurnIndices)
+    if (!anchor) return null
+    const keepLastTurns = Math.max(0, Math.floor(args.keepLastTurns ?? 4))
+    const keepMinUserTurns = Math.max(1, 1 + baseWorkingSetSignals.keepMinUserTurnsBoost)
+    const baselineStartTurnPosition = Math.max(0, userTurnIndices.length - Math.max(keepLastTurns, keepMinUserTurns))
+    const anchorBacktrackTurns =
+      anchor.turnPosition < baselineStartTurnPosition &&
+      baselineStartTurnPosition - anchor.turnPosition <= AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS
+        ? baselineStartTurnPosition - anchor.turnPosition
+        : 0
+    return {
+      kind: anchor.kind,
+      toolNames: anchor.toolNames,
+      backtrackTurns: anchorBacktrackTurns,
+    }
+  })()
   const workingSetSignals = deriveAutoCompactWorkingSetSignals({
     mode: normalizeDiagnosticsMode(args.mode),
     rehydration: fallbackRehydration,
+    workingSetAnchor,
   })
   const totalTokensBeforePrune = estimatePromptTokens({ system: args.system, messages: rawPreparedMessages })
   const preparedMessages = args.budgetConfig
@@ -1455,6 +1485,9 @@ function formatWorkingSetSignals(value: AutoCompactWorkingSetSignals | null): st
     `mode_state=${value.modeState}`,
     `keep_tokens_boost=${formatInt(value.keepMinTokensBoost)}`,
     `keep_user_turns_boost=${formatInt(value.keepMinUserTurnsBoost)}`,
+    `anchor_kind=${value.anchorKind}`,
+    `anchor_tools=${value.anchorToolNames.length > 0 ? value.anchorToolNames.join('+') : 'none'}`,
+    `anchor_backtrack_turns=${formatInt(value.anchorBacktrackTurns)}`,
   ].join(', ')
 }
 

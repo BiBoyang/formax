@@ -899,7 +899,79 @@ describe('contextDiagnostics', () => {
       modeState: 'plan',
       keepMinTokensBoost: 600,
       keepMinUserTurnsBoost: 1,
+      anchorKind: 'read',
+      anchorToolNames: ['Read'],
+      anchorBacktrackTurns: 0,
     })
+  })
+
+  it('reports filesystem-cluster working-set anchor details in next-turn diagnostics', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'normal',
+      system: [{ type: 'text', text: 'sys' }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'grep auth routes' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'grep-1', name: 'Grep', input: { pattern: 'redirect', path: '/repo/src' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'grep-1', content: 'ok' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'glob-1', name: 'Glob', input: { pattern: '**/*auth*', path: '/repo/src' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'glob-1', content: 'ok' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'found auth route files' }] as any },
+        { role: 'user', content: [{ type: 'text', text: 'rename the CTA' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(2400) }] as any },
+      ],
+      fixedGroups: [],
+      keepLastTurns: 1,
+      enableAutoCompact: true,
+      budgetConfig: {
+        contextWindowTokens: 10_000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.7,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(out.workingSetSignals.anchorKind).toBe('filesystem_cluster')
+    expect(out.workingSetSignals.anchorToolNames).toEqual(['Glob', 'Grep'])
+    expect(out.workingSetSignals.anchorBacktrackTurns).toBe(1)
+  })
+
+  it('does not overstate anchor backtrack when keepMinUserTurns boost already expands the baseline', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'plan',
+      planPath: '/repo/.formax/plan.md',
+      system: [{ type: 'text', text: 'sys' }],
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'inspect auth.ts' }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'ok' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'found redirect guard' }] as any },
+        { role: 'user', content: [{ type: 'text', text: 'rename CTA copy' }] as any },
+        { role: 'assistant', content: [{ type: 'text', text: 'x'.repeat(2400) }] as any },
+      ],
+      fixedGroups: [],
+      keepLastTurns: 1,
+      enableAutoCompact: true,
+      budgetConfig: {
+        contextWindowTokens: 10_000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.7,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(out.workingSetSignals.keepMinUserTurnsBoost).toBe(1)
+    expect(out.workingSetSignals.anchorBacktrackTurns).toBe(0)
   })
 })
 

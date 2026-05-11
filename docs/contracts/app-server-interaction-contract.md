@@ -231,6 +231,9 @@
     - `modeState`
     - `keepMinTokensBoost`
     - `keepMinUserTurnsBoost`
+    - `anchorKind`
+    - `anchorToolNames`
+    - `anchorBacktrackTurns`
   - `local.diagnostics.latestCompactBoundary` 若非 `null`，当前稳定字段 MUST 至少包含 `schemaVersion`，并 MAY 包含 `trigger`、`triggerReason`、`preTokens`、`summaryKind`、`keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`
   - `local.diagnostics.latestRequestCollapse` 当前 MAY 额外暴露最近一次 persisted / runtime request-time collapse 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `phase`

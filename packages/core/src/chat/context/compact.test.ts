@@ -42,6 +42,20 @@ function readToolUse(id: string, filePath: string): PromptMessage {
   }
 }
 
+function grepToolUse(id: string, pattern: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Grep', input: { pattern, path: '/repo/src' } }] as any,
+  }
+}
+
+function globToolUse(id: string, pattern: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Glob', input: { pattern, path: '/repo/src' } }] as any,
+  }
+}
+
 function toolResult(id: string): PromptMessage {
   return {
     role: 'user',
@@ -173,6 +187,37 @@ describe('selectTailForCompaction', () => {
     })
 
     expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['write release notes', 'y'.repeat(2400)])
+  })
+
+  it('keeps the latest filesystem tool cluster turn as a working-set anchor for keep_combo', () => {
+    const history: PromptMessage[] = [
+      txt('user', 'grep the auth routes'),
+      grepToolUse('grep-1', 'redirect'),
+      toolResult('grep-1'),
+      globToolUse('glob-1', '**/*auth*'),
+      toolResult('glob-1'),
+      txt('assistant', 'Found redirect handling in auth routes.'),
+      txt('user', 'rename the CTA'),
+      txt('assistant', 'x'.repeat(2400)),
+    ]
+
+    const tail = selectTailForCompaction(history, {
+      kind: 'keep_combo',
+      keepLastTurns: 1,
+      keepMinTokens: 0,
+      keepMinUserTurns: 1,
+    })
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text ?? (m.content as any[])[0]?.name ?? (m.content as any[])[0]?.type)).toEqual([
+      'grep the auth routes',
+      'Grep',
+      'tool_result',
+      'Glob',
+      'tool_result',
+      'Found redirect handling in auth routes.',
+      'rename the CTA',
+      'x'.repeat(2400),
+    ])
   })
 })
 
@@ -401,6 +446,9 @@ describe('compaction summary helpers', () => {
       modeState: 'plan',
       keepMinTokensBoost: 1050,
       keepMinUserTurnsBoost: 1,
+      anchorKind: 'none',
+      anchorToolNames: [],
+      anchorBacktrackTurns: 0,
     })
   })
 

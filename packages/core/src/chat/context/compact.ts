@@ -12,6 +12,8 @@ const AUTO_COMPACT_PLAN_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_TODO_STATE_TOKEN_BOOST = 250
 const AUTO_COMPACT_MODE_STATE_TOKEN_BOOST = 150
 const READ_WORKING_SET_MAX_BACKTRACK_TURNS = 1
+export const AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS = READ_WORKING_SET_MAX_BACKTRACK_TURNS
+const WORKING_SET_ANCHOR_TOOL_NAMES = new Set(['Read', 'Grep', 'Glob'])
 
 export type CompactBoundaryTrigger = 'manual' | 'auto' | 'reactive'
 export type CompactTriggerReasonKind = 'auto_threshold' | 'manual' | 'reactive_error'
@@ -39,6 +41,15 @@ export type AutoCompactWorkingSetSignals = {
   modeState: 'normal' | 'acceptEdits' | 'plan'
   keepMinTokensBoost: number
   keepMinUserTurnsBoost: number
+  anchorKind: 'none' | 'read' | 'filesystem_cluster'
+  anchorToolNames: string[]
+  anchorBacktrackTurns: number
+}
+
+export type WorkingSetAnchorInfo = {
+  kind: 'read' | 'filesystem_cluster'
+  toolNames: string[]
+  turnPosition: number
 }
 
 export type CompactRehydrationItemKind = 'recent_files' | 'plan_state' | 'todo_state' | 'mode_state'
@@ -139,6 +150,11 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     planExcerpt?: string | null
     todoSummary?: string | null
   }
+  workingSetAnchor?: {
+    kind: WorkingSetAnchorInfo['kind']
+    toolNames: string[]
+    backtrackTurns: number
+  } | null
 }): AutoCompactWorkingSetSignals {
   const recentFileCount = Math.min(
     3,
@@ -167,6 +183,9 @@ export function deriveAutoCompactWorkingSetSignals(args: {
     modeState: args.mode,
     keepMinTokensBoost,
     keepMinUserTurnsBoost,
+    anchorKind: args.workingSetAnchor?.kind ?? 'none',
+    anchorToolNames: args.workingSetAnchor?.toolNames ?? [],
+    anchorBacktrackTurns: args.workingSetAnchor?.backtrackTurns ?? 0,
   }
 }
 
@@ -218,11 +237,12 @@ export function selectTailForCompaction(
     startTurnPosition = Math.max(0, userTurnIndices.length - requiredTurns)
   }
 
-  const workingSetTurnPosition = findLatestReadWorkingSetTurnPosition(messages, userTurnIndices)
+  const workingSetAnchor = findLatestWorkingSetAnchor(messages, userTurnIndices)
+  const workingSetTurnPosition = workingSetAnchor?.turnPosition ?? null
   if (
     workingSetTurnPosition != null &&
     workingSetTurnPosition < startTurnPosition &&
-    startTurnPosition - workingSetTurnPosition <= READ_WORKING_SET_MAX_BACKTRACK_TURNS
+    startTurnPosition - workingSetTurnPosition <= AUTO_COMPACT_WORKING_SET_MAX_BACKTRACK_TURNS
   ) {
     startTurnPosition = workingSetTurnPosition
   }
@@ -602,7 +622,10 @@ function sliceTailFromUserTurn(messages: PromptMessage[], userTurnIndices: numbe
   return typeof startUserIndex === 'number' ? messages.slice(startUserIndex) : []
 }
 
-function findLatestReadWorkingSetTurnPosition(messages: PromptMessage[], userTurnIndices: number[]): number | null {
+export function findLatestWorkingSetAnchor(
+  messages: PromptMessage[],
+  userTurnIndices: number[],
+): WorkingSetAnchorInfo | null {
   if (messages.length === 0 || userTurnIndices.length === 0) return null
   const successfulToolResultIds = collectSuccessfulToolResultIds(messages)
   if (successfulToolResultIds.size === 0) return null
@@ -611,15 +634,56 @@ function findLatestReadWorkingSetTurnPosition(messages: PromptMessage[], userTur
     const message = messages[messageIndex]
     if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
 
+    let matched = false
     for (const block of message.content as any[]) {
       if (block?.type !== 'tool_use') continue
-      if (block?.name !== 'Read') continue
+      if (!WORKING_SET_ANCHOR_TOOL_NAMES.has(String(block?.name ?? ''))) continue
       if (!successfulToolResultIds.has(String(block?.id ?? ''))) continue
-      return findUserTurnPositionAtOrBeforeIndex(userTurnIndices, messageIndex)
+      matched = true
+      break
+    }
+
+    if (!matched) continue
+
+    const turnPosition = findUserTurnPositionAtOrBeforeIndex(userTurnIndices, messageIndex)
+    if (turnPosition == null) return null
+    const toolNames = collectWorkingSetAnchorToolNames(messages, userTurnIndices, turnPosition, successfulToolResultIds)
+    if (toolNames.length === 0) return null
+
+    return {
+      kind: toolNames.length === 1 && toolNames[0] === 'Read' ? 'read' : 'filesystem_cluster',
+      toolNames,
+      turnPosition,
     }
   }
 
   return null
+}
+
+function collectWorkingSetAnchorToolNames(
+  messages: PromptMessage[],
+  userTurnIndices: number[],
+  turnPosition: number,
+  successfulToolResultIds: Set<string>,
+): string[] {
+  const startIndex = userTurnIndices[turnPosition]
+  if (typeof startIndex !== 'number') return []
+  const endIndex = turnPosition + 1 < userTurnIndices.length ? (userTurnIndices[turnPosition + 1] as number) : messages.length
+  const names = new Set<string>()
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const message = messages[index]
+    if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_use') continue
+      const toolName = String(block?.name ?? '')
+      if (!WORKING_SET_ANCHOR_TOOL_NAMES.has(toolName)) continue
+      if (!successfulToolResultIds.has(String(block?.id ?? ''))) continue
+      names.add(toolName)
+    }
+  }
+
+  return Array.from(names).sort()
 }
 
 function findUserTurnPositionAtOrBeforeIndex(userTurnIndices: number[], messageIndex: number): number | null {

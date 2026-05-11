@@ -102,3 +102,4 @@
 - [2026-05-11 - Microcompact strategy v2](./2026-05-11-microcompact-strategy-v2.md)
 - [2026-05-11 - Reactive compact shaping v2](./2026-05-11-reactive-compact-shaping-v2.md)
 - [2026-05-11 - Web right rail collapse summary](./2026-05-11-web-right-rail-collapse-summary.md)
+- [2026-05-11 - Working-set selector v3](./2026-05-11-working-set-selector-v3.md)
