@@ -131,7 +131,9 @@ export function createContextCompressionService(deps: {
       messages: args.history,
       eligibleToolNames: policy.eligibleToolNames,
       keepRecentToolResults: policy.keepRecentToolResults,
+      keepRecentToolResultsByName: policy.keepRecentToolResultsByName,
       minResultChars: policy.minResultChars,
+      minResultCharsByName: policy.minResultCharsByName,
     }).messages
   }
 

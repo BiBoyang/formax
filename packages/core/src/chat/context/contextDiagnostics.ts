@@ -3,7 +3,7 @@ import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
-import { microCompactHistory, type MicroCompactImpact } from './microCompact'
+import { microCompactHistory, resolveAdaptiveMicroCompactPolicy, type MicroCompactImpact } from './microCompact'
 import { collapseRequestHistory, CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { pruneForPromptBudget } from './prune'
 import {
@@ -280,15 +280,43 @@ export function analyzeNextTurnFixedContext(args: {
     }))
     .filter((group) => group.blocks.length > 0)
 
-  const microCompactResult = microCompactHistory({ messages: promptMessages })
-  const microCompactedHistory = microCompactResult.messages
-  const fixedUserMessage =
+  const preMicrocompactFixedMessage =
     fixedGroups.length > 0
       ? ({
           role: 'user' as const,
           content: fixedGroups.flatMap((group) => group.blocks),
         } satisfies PromptMessage)
       : null
+  const preMicrocompactMessages = preMicrocompactFixedMessage
+    ? [...promptMessages, preMicrocompactFixedMessage]
+    : [...promptMessages]
+  const microCompactPressureRatio = args.budgetConfig
+    ? (() => {
+        const stats = computeContextStats({
+          config: args.budgetConfig,
+          usedTokens: estimatePromptTokens({
+            system: args.system,
+            messages: preMicrocompactMessages,
+          }),
+        })
+        if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
+        return stats.usedTokens / stats.effectiveLimitTokens
+      })()
+    : null
+  const microCompactPolicy = resolveAdaptiveMicroCompactPolicy({
+    pressureRatio: microCompactPressureRatio,
+  })
+
+  const microCompactResult = microCompactHistory({
+    messages: promptMessages,
+    eligibleToolNames: microCompactPolicy.eligibleToolNames,
+    keepRecentToolResults: microCompactPolicy.keepRecentToolResults,
+    keepRecentToolResultsByName: microCompactPolicy.keepRecentToolResultsByName,
+    minResultChars: microCompactPolicy.minResultChars,
+    minResultCharsByName: microCompactPolicy.minResultCharsByName,
+  })
+  const microCompactedHistory = microCompactResult.messages
+  const fixedUserMessage = preMicrocompactFixedMessage
 
   const rawPreparedMessages = fixedUserMessage ? [...microCompactedHistory, fixedUserMessage] : [...microCompactedHistory]
   const fallbackRehydration = buildPostCompactRehydration({

@@ -327,10 +327,10 @@ describe('contextDiagnostics', () => {
         },
       ],
       budgetConfig: {
-        contextWindowTokens: 100_000,
+        contextWindowTokens: 6_000,
         effectiveContextWindowPercent: 0.95,
         autoCompactLimitPercent: 0.9,
-        baselineTokens: 12_000,
+        baselineTokens: 0,
       },
     })
 
@@ -468,6 +468,49 @@ describe('contextDiagnostics', () => {
       ),
     ).toBe(true)
     expect(out.topAssembledContributors.some((row) => row.label.includes('Older analysis'))).toBe(false)
+  })
+
+  it('uses adaptive microcompact thresholds in next-turn diagnostics for medium Grep results under tighter pressure', () => {
+    const out = analyzeNextTurnFixedContext({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      enableAutoCompact: true,
+      system: [{ type: 'text', text: 'system instructions' }],
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'grep-1', name: 'Grep', input: { pattern: 'login', path: '/repo/src' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'grep-1', content: 'match\n'.repeat(180) }] as any,
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'grep-2', name: 'Grep', input: { pattern: 'redirect', path: '/repo/src' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'grep-2', content: 'match\n'.repeat(180) }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Review auth flow and isolate the regression.' }] as any,
+        },
+      ],
+      fixedGroups: [],
+      budgetConfig: {
+        contextWindowTokens: 300,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(out.microCompactImpact.compactedBlocks).toBe(1)
+    expect(out.microCompactImpact.compactedToolNames).toEqual(['Grep'])
+    expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
   })
 
   it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {

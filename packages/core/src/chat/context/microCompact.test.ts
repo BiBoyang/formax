@@ -257,32 +257,87 @@ describe('microCompactHistory', () => {
       pressureTier: 'default',
       eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill'],
       keepRecentToolResults: 3,
+      keepRecentToolResultsByName: { Read: 2, Skill: 1 },
       minResultChars: 1200,
+      minResultCharsByName: {},
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.3 })).toEqual({
       pressureTier: 'relaxed',
       eligibleToolNames: ['Read', 'Skill'],
       keepRecentToolResults: 4,
+      keepRecentToolResultsByName: { Read: 2, Skill: 2 },
       minResultChars: 2400,
+      minResultCharsByName: {},
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.6 })).toEqual({
       pressureTier: 'steady',
       eligibleToolNames: ['Read', 'Grep', 'Skill'],
       keepRecentToolResults: 3,
+      keepRecentToolResultsByName: { Read: 2, Grep: 1, Skill: 1 },
       minResultChars: 1600,
+      minResultCharsByName: { Grep: 1000 },
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.8 })).toEqual({
       pressureTier: 'tight',
       eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill'],
       keepRecentToolResults: 2,
+      keepRecentToolResultsByName: { Read: 1, Skill: 1 },
       minResultChars: 1200,
+      minResultCharsByName: { Grep: 900, Glob: 900 },
     })
     expect(resolveAdaptiveMicroCompactPolicy({ pressureRatio: 0.95 })).toEqual({
       pressureTier: 'critical',
       eligibleToolNames: ['Read', 'Grep', 'Glob', 'Skill', 'Bash', 'WebFetch'],
       keepRecentToolResults: 1,
+      keepRecentToolResultsByName: { Read: 1 },
       minResultChars: 800,
+      minResultCharsByName: { Grep: 600, Glob: 600, Bash: 1200, WebFetch: 1200 },
     })
+  })
+
+  it('prefers recent Read blocks over newer low-value search/list results when recent budgets are tight', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'b'.repeat(4000)),
+      assistantToolUse('glob-1', 'Glob', { pattern: '**/*.ts', path: '/repo/src' }),
+      userToolResult('glob-1', 'c'.repeat(4000)),
+      assistantToolUse('grep-2', 'Grep', { pattern: 'redirect', path: '/repo/src' }),
+      userToolResult('grep-2', 'd'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 2,
+      keepRecentToolResultsByName: { Read: 1 },
+      minResultChars: 1,
+      eligibleToolNames: ['Read', 'Grep', 'Glob'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
+    expect((out.messages[3]!.content[0] as any).content).toContain('[Older tool result cleared by microcompact: Grep')
+    expect((out.messages[5]!.content[0] as any).content).toContain('[Older tool result cleared by microcompact: Glob')
+    expect((out.messages[7]!.content[0] as any).content).toBe('d'.repeat(4000))
+  })
+
+  it('allows lower per-tool size thresholds for medium Grep results under tighter strategies', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'match\n'.repeat(180)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1600,
+      minResultCharsByName: { Grep: 900 },
+      eligibleToolNames: ['Grep'],
+    })
+
+    expect((out.messages[1]!.content[0] as any).content).toBe(
+      '[Older tool result cleared by microcompact: Grep "login" in /repo/src (180 hits)]',
+    )
   })
 
   it('allows safe Bash and stable WebFetch results to microcompact', () => {

@@ -48,6 +48,7 @@ type EligibleToolResultRef = {
   blockIndex: number
   toolUseId: string
   tool: ToolUseMeta
+  rawResultChars: number
   compactToolResult: boolean
   companionTextBlockIndex?: number
   companionText?: string
@@ -64,7 +65,9 @@ export type AdaptiveMicroCompactPolicy = {
   pressureTier: 'default' | 'relaxed' | 'steady' | 'tight' | 'critical'
   eligibleToolNames: string[]
   keepRecentToolResults: number
+  keepRecentToolResultsByName: Record<string, number>
   minResultChars: number
+  minResultCharsByName: Record<string, number>
 }
 
 export function resolveAdaptiveMicroCompactPolicy(args: {
@@ -76,7 +79,12 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       pressureTier: 'default',
       eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
       keepRecentToolResults: DEFAULT_KEEP_RECENT_TOOL_RESULTS,
+      keepRecentToolResultsByName: {
+        Read: 2,
+        Skill: 1,
+      },
       minResultChars: DEFAULT_MIN_RESULT_CHARS,
+      minResultCharsByName: {},
     }
   }
   if (ratio < 0.5) {
@@ -84,7 +92,12 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       pressureTier: 'relaxed',
       eligibleToolNames: ['Read', 'Skill'],
       keepRecentToolResults: 4,
+      keepRecentToolResultsByName: {
+        Read: 2,
+        Skill: 2,
+      },
       minResultChars: 2400,
+      minResultCharsByName: {},
     }
   }
   if (ratio < 0.75) {
@@ -92,7 +105,15 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       pressureTier: 'steady',
       eligibleToolNames: ['Read', 'Grep', 'Skill'],
       keepRecentToolResults: 3,
+      keepRecentToolResultsByName: {
+        Read: 2,
+        Grep: 1,
+        Skill: 1,
+      },
       minResultChars: 1600,
+      minResultCharsByName: {
+        Grep: 1000,
+      },
     }
   }
   if (ratio < 0.9) {
@@ -100,21 +121,40 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       pressureTier: 'tight',
       eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
       keepRecentToolResults: 2,
+      keepRecentToolResultsByName: {
+        Read: 1,
+        Skill: 1,
+      },
       minResultChars: 1200,
+      minResultCharsByName: {
+        Grep: 900,
+        Glob: 900,
+      },
     }
   }
   return {
     pressureTier: 'critical',
     eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES, 'Bash', 'WebFetch'],
     keepRecentToolResults: 1,
+    keepRecentToolResultsByName: {
+      Read: 1,
+    },
     minResultChars: 800,
+    minResultCharsByName: {
+      Grep: 600,
+      Glob: 600,
+      Bash: 1200,
+      WebFetch: 1200,
+    },
   }
 }
 
 export function microCompactHistory(args: {
   messages: PromptMessage[]
   keepRecentToolResults?: number
+  keepRecentToolResultsByName?: Record<string, number>
   minResultChars?: number
+  minResultCharsByName?: Record<string, number>
   eligibleToolNames?: Iterable<string>
 }): {
   messages: PromptMessage[]
@@ -125,13 +165,16 @@ export function microCompactHistory(args: {
   keptRecentBlocks: number
 } {
   const keepRecentToolResults = clampCount(args.keepRecentToolResults, DEFAULT_KEEP_RECENT_TOOL_RESULTS)
+  const keepRecentToolResultsByName = normalizeNamedCountMap(args.keepRecentToolResultsByName)
   const minResultChars = clampCount(args.minResultChars, DEFAULT_MIN_RESULT_CHARS)
+  const minResultCharsByName = normalizeNamedCountMap(args.minResultCharsByName)
   const eligibleToolNames = new Set(args.eligibleToolNames ?? DEFAULT_ELIGIBLE_TOOL_NAMES)
   const toolUsesById = collectToolUsesById(args.messages)
   const eligibleBlocks = collectEligibleToolResults({
     messages: args.messages,
     eligibleToolNames,
     minResultChars,
+    minResultCharsByName,
     toolUsesById,
   })
 
@@ -146,7 +189,11 @@ export function microCompactHistory(args: {
     }
   }
 
-  const refsToCompact = eligibleBlocks.slice(0, eligibleBlocks.length - keepRecentToolResults)
+  const refsToCompact = selectRefsToCompact({
+    eligibleBlocks,
+    keepRecentToolResults,
+    keepRecentToolResultsByName,
+  })
   const patchedMessages = [...args.messages]
   const patchedByIndex = new Map<number, PromptMessage>()
   const compactedToolNames: string[] = []
@@ -245,6 +292,7 @@ function collectEligibleToolResults(args: {
   messages: PromptMessage[]
   eligibleToolNames: Set<string>
   minResultChars: number
+  minResultCharsByName: Record<string, number>
   toolUsesById: Map<string, ToolUseMeta>
 }): EligibleToolResultRef[] {
   const out: EligibleToolResultRef[] = []
@@ -264,14 +312,18 @@ function collectEligibleToolResults(args: {
       if (!args.eligibleToolNames.has(tool.name)) continue
 
       const raw = toolResultContentToText(block.content)
+      const minCharsForTool = Math.max(
+        0,
+        clampCount(args.minResultCharsByName[tool.name], args.minResultChars),
+      )
       const companion = getEligibleCompanionTextBlock({
         blocks: message.content as any[],
         tool,
         toolResultBlockIndex: blockIndex,
-        minChars: args.minResultChars,
+        minChars: minCharsForTool,
       })
       const compactToolResult =
-        raw.length >= args.minResultChars &&
+        raw.length >= minCharsForTool &&
         !isAlreadyMicroCompacted(block.content) &&
         isSafeToolResultToMicroCompact(tool, raw)
 
@@ -282,6 +334,7 @@ function collectEligibleToolResults(args: {
         blockIndex,
         toolUseId: block.tool_use_id,
         tool,
+        rawResultChars: raw.length,
         compactToolResult,
         companionTextBlockIndex: companion?.blockIndex,
         companionText: companion?.text,
@@ -461,4 +514,43 @@ function clipMiddle(value: string, maxChars: number): string {
 function clampCount(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback
   return Math.max(0, Math.floor(value!))
+}
+
+function normalizeNamedCountMap(value: Record<string, number> | undefined): Record<string, number> {
+  if (!value) return {}
+  const out: Record<string, number> = {}
+  for (const [key, count] of Object.entries(value)) {
+    const normalized = clampCount(count, 0)
+    if (normalized > 0) out[key] = normalized
+  }
+  return out
+}
+
+function selectRefsToCompact(args: {
+  eligibleBlocks: EligibleToolResultRef[]
+  keepRecentToolResults: number
+  keepRecentToolResultsByName: Record<string, number>
+}): EligibleToolResultRef[] {
+  const protectedRefs = new Set<EligibleToolResultRef>()
+  const protectedCountByTool = new Map<string, number>()
+
+  for (let i = args.eligibleBlocks.length - 1; i >= 0; i--) {
+    const ref = args.eligibleBlocks[i]!
+    const allowed = args.keepRecentToolResultsByName[ref.tool.name] ?? 0
+    if (allowed <= 0) continue
+    const current = protectedCountByTool.get(ref.tool.name) ?? 0
+    if (current >= allowed) continue
+    protectedRefs.add(ref)
+    protectedCountByTool.set(ref.tool.name, current + 1)
+  }
+
+  if (protectedRefs.size < args.keepRecentToolResults) {
+    for (let i = args.eligibleBlocks.length - 1; i >= 0 && protectedRefs.size < args.keepRecentToolResults; i--) {
+      const ref = args.eligibleBlocks[i]!
+      if (protectedRefs.has(ref)) continue
+      protectedRefs.add(ref)
+    }
+  }
+
+  return args.eligibleBlocks.filter((ref) => !protectedRefs.has(ref))
 }
