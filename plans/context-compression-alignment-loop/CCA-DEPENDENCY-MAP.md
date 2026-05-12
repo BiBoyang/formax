@@ -168,7 +168,9 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. post-`CCA-172` mainline re-rank
+1. `CCA-180` deferred-task restore utility v7
+2. `CCA-181` preserved-segment relink parity
+3. `CCA-182` reactive compact shaping v3
 
 对应含义：
 
@@ -176,7 +178,7 @@ flowchart TD
 2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
 3. `CCA-151` / `CCA-161` / `CCA-171` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface，并开始覆盖 higher-order task utility
 4. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，post-`CCA-163` mainline re-rank 也已完成；`CCA-170` / `CCA-171` / `CCA-172` 也已收口，当前新的动作应先切到 post-`CCA-172` mainline re-rank
+5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，post-`CCA-163` mainline re-rank 也已完成；`CCA-170` / `CCA-171` / `CCA-172` 也已收口，post-`CCA-172` mainline re-rank 也已完成；当前新的动作应先切到 `CCA-180`
 
 ## 新主线为什么这样排
 

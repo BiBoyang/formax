@@ -10,7 +10,7 @@
 
 如果把 Claude Code 在上下文压缩这块的成熟度看作 `100`，那么当前 Formax 大约已经走到：
 
-- **85 ~ 89 / 100**
+- **86 ~ 90 / 100**
 
 更准确地说：
 
@@ -191,7 +191,7 @@ Claude Code 的 compact 强，不只是摘要 prompt，而是 compact 后仍能�
 
 ## 3. 当前和 Claude Code 仍然差距明显的部分
 
-## 3.1 当前最大差距：还没有真正 task-minimal working context
+## 3.1 当前最大差距：还没有真正稳定的 deferred-task continuity
 
 Claude Code 的真正强项之一，不只是 reducer 多，而是它更接近：
 
@@ -202,20 +202,20 @@ Claude Code 的真正强项之一，不只是 reducer 多，而是它更接近�
 当前 Formax 已经有：
 
 - working-set selector v5
-- session-memory restore consumption v4
+- higher-order restore utility v6
 - canonical owner convergence
-- compact protocol remote / restore alignment
+- compact protocol deeper inspection parity
 
 但还缺：
 
-1. 更广义的任务相关 working-set 识别
-2. 更稳定的 session-memory restore utility
-3. replay / inspection 对 compact protocol 的更深消费
+1. deferred-task / async-agent / prompt-exposure 一类更高阶恢复项
+2. preserved-segment relink 的更完整语义
+3. 更成熟的 reactive compact shaping / telemetry
 
 这意味着：
 
 > Formax 现在已经不再缺 middle-layer stack 的第一版骨架，  
-> 真正最大的差距已经转向“如何稳定保住当前任务上下文”。
+> 真正最大的差距已经转向“如何在 compact / restore 之后稳定保住更高阶任务连续性”。
 
 ---
 
@@ -376,12 +376,12 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ### P0：最值得继续补
 
-1. **manual compact task-minimal parity**
+1. **deferred-task restore utility**
 
 ### P1：继续补齐剩余体系差距
 
-2. **higher-order restore utility**
-3. **compact protocol deeper inspection parity**
+2. **preserved-segment relink parity**
+3. **reactive compact shaping v3**
 
 ### P2：明确先不做
 
@@ -415,9 +415,15 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 1. **`CCA-170`：让 manual `/compact` 也获得 task-minimal keep parity**（已完成）
 2. **`CCA-171`：把 restore utility 扩到更高阶任务状态**（已完成）
 3. **`CCA-172`：继续补 compact protocol 在 inspection 面的深消费**（已完成）
+4. **`CCA-180`：继续补 deferred-task restore utility**
+5. **`CCA-181`：推进 preserved-segment relink parity**
 
 新的判断是：
 
 - 16x 已经把 auto keep strategy、restore utility、replay parity、time-aware microcompact 这一波补齐
+- 17x 已经把 manual compact、higher-order restore utility、compact protocol deeper inspection 这一波补齐
 - 当前最大收益不在“再做一个新 reducer”
-- 而在“把 task-minimal working context 贯通到手动 compact、恢复 utility、以及 compact inspection 这三条更接近用户任务完成的路径”
+- 而在：
+  - 继续补 deferred-task continuity
+  - 把 preserved-segment metadata 推进到更可靠的 relink parity
+  - 再回头补 reactive compact 的成熟度

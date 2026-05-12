@@ -214,7 +214,11 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-170` 已完成：manual `/compact` 现在也会复用 task-minimal `keep_combo` selector，不再退回固定 `keep_last_turns`
    - `CCA-171` 已完成：higher-order restore utility 现在会沿 canonical restore-artifacts 路径额外暴露 bounded 的 `recentSkills` 与 `recentSubagentTypes`，并让 `thread/resume` / `thread/replay` / next-turn reminder 共用这份扩展后的 task utility
    - `CCA-172` 已完成：Web `thread/messages` inspection path 当前也会保留 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 这组 deeper compact-boundary fields；thread-scoped compact-boundary cache 也已改成用 shared deep equality 刷新
-   - 当前 17x 主线已收口；下一步应先做 post-`CCA-172` mainline re-rank
+   - post-`CCA-172` mainline re-rank 已完成
+   - 当前新的 18x 主线已切到：
+     1. `CCA-180` deferred-task restore utility v7
+     2. `CCA-181` preserved-segment relink parity
+     3. `CCA-182` reactive compact shaping v3
 
 刚完成的上一轮主线：
 
@@ -234,8 +238,8 @@ Formax 当前：
 - 已有 `microcompact + tool-result budget + snip + request-time collapse + prune + compact` 多层主链。
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
-  - restore utility 虽已结构化，但仍缺 skills / async-agent / deferred instructions 等更高阶任务状态
-  - compact protocol 虽已进入 replay / restore parity，但 inspection 面仍缺更深消费 preserved segment / rehydration 语义
+  - restore utility 虽已结构化，但仍缺 deferred-task / async-agent 一类更高阶任务状态
+  - compact protocol 虽已进入 replay / restore / inspection deeper parity，但 preserved-segment relink 仍停在最小 metadata / validation 钩子
 
 ### 下一阶段切法
 
@@ -281,8 +285,9 @@ Formax 当前：
 - post-`CCA-163` mainline re-rank 已完成
 - `CCA-170` 已完成
 - `CCA-172` 已完成
+- post-`CCA-172` mainline re-rank 已完成
 - 当前主线应先切到：
-  - post-`CCA-172` mainline re-rank
+  - `CCA-180` deferred-task restore utility v7
 
 ## B. `microcompact` 能力深度
 
@@ -297,7 +302,7 @@ Formax 当前：
   - 主要处理 `Read` / `Grep` / `Glob`
   - 只对已知安全的 `Skill` companion block 做窄范围命中
   - `Bash` / `WebFetch` 仅在高压力档位 + 保守 allow/deny 下参与
-  - 没有缓存感知路径
+  - 当前已经有 cache-aware 与 time-aware path，但仍缺更广的 tool-family 覆盖与更成熟的 API-view 协作
 
 ## C. compact 协议层
 
@@ -316,7 +321,7 @@ Formax 当前：
 - app-server `thread/resume` 现在也会直接返回 canonical `latestCompactBoundary`，Web restore path 会立刻消费它并更新 thread-scoped compact boundary cache
 - 缺：
   - preserved segment relink
-  - replay / inspection 对 compact protocol 的更深消费
+  - 更强的 continuation validation / relink parity
 
 ## D. compact 后恢复能力
 
@@ -335,7 +340,7 @@ Formax 当前：
   - 当前 `planPath` / `planExcerpt` / `todoSummary` / `mode` rehydrate
   - compact boundary `rehydrationPlan` 与 `rehydrationCost`
 - 仍缺：
-  - skills / async agent / deferred instructions 等更高阶恢复项
+  - deferred-task / async agent / prompt-exposure 一类更高阶恢复项
   - 更接近 Claude Code 的完整 continuation 恢复层
 
 ## E. keep 策略
@@ -346,8 +351,8 @@ Claude Code：
 Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
-  - 当前 working-set selector 已达到 task-minimal v5 第一版：除了 filesystem cluster，当前也会把 `task_execution_cluster` 与 recent planning/todo state 一起纳入 keep strategy；但 session-memory restore utility 与 replay/inspection parity 仍然落后
-  - 还没有更广义的“任务最小工作集”选择
+  - 当前 working-set selector 已达到 task-minimal v5 第一版；manual `/compact`、restore utility、compact inspection 这三条主线也已补齐第一阶段
+  - 但 higher-order deferred-task continuity 与 preserved-segment relink 仍然落后
 
 这也是 post-`CCA-153` 之后新的第一优先级来源：
 
