@@ -10,7 +10,7 @@
 
 如果把 Claude Code 在上下文压缩这块的成熟度看作 `100`，那么当前 Formax 大约已经走到：
 
-- **84 ~ 88 / 100**
+- **85 ~ 89 / 100**
 
 更准确地说：
 
@@ -376,18 +376,16 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 ### P0：最值得继续补
 
-1. **task-minimal working-set selector**
-2. **session-memory restore utility**
-3. **compact protocol replay / inspection parity**
+1. **manual compact task-minimal parity**
 
 ### P1：继续补齐剩余体系差距
 
-4. **time-aware / stale-aware `microcompact`**
-5. **compact protocol ecosystem deeper relink / replay semantics**
+2. **higher-order restore utility**
+3. **compact protocol deeper inspection parity**
 
 ### P2：明确先不做
 
-6. **完整 persisted collapse store / archived spans / replay-time collapse rebuild**
+4. **完整 persisted collapse store / archived spans / replay-time collapse rebuild**
 
 ---
 
@@ -414,11 +412,12 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 如果下一轮还继续沿着“向 Claude Code 靠拢”这条主线走，我建议优先顺序是：
 
-1. **`CCA-160`：升级 keep strategy / task-minimal working-set selector**（已完成）
-2. **`CCA-161`：让 session memory 进入更强的 restore utility**（已完成）
-3. **`CCA-162`：继续补 compact protocol 的 replay / inspection parity**（已完成）
-4. **`CCA-163`：再考虑 time-aware / stale-aware `microcompact`**（已完成）
+1. **`CCA-170`：让 manual `/compact` 也获得 task-minimal keep parity**
+2. **`CCA-171`：把 restore utility 扩到更高阶任务状态**
+3. **`CCA-172`：继续补 compact protocol 在 inspection 面的深消费**
 
-这四项完成后，下一步不应继续惯性扩张 reducer；应先做 post-`CCA-163` mainline re-rank，再决定新的 17x 主线。
+新的判断是：
 
-当前最大收益，已经不在“再多做一个压缩技巧”，而在“重新判断还剩下哪些真正值得做的系统差距”。
+- 16x 已经把 auto keep strategy、restore utility、replay parity、time-aware microcompact 这一波补齐
+- 当前最大收益不在“再做一个新 reducer”
+- 而在“把 task-minimal working context 贯通到手动 compact、恢复 utility、以及 compact inspection 这三条更接近用户任务完成的路径”

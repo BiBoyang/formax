@@ -168,7 +168,9 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. post-`CCA-163` mainline re-rank
+1. `CCA-170` manual compact task-minimal parity
+2. `CCA-171` higher-order restore utility v6
+3. `CCA-172` compact protocol deeper inspection parity
 
 对应含义：
 
@@ -176,7 +178,7 @@ flowchart TD
 2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
 3. `CCA-151` 与 `CCA-161` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface
 4. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，当前新的动作应先切到 post-`CCA-163` mainline re-rank
+5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，post-`CCA-163` mainline re-rank 也已完成，当前新的动作应先切到 `CCA-170`
 
 ## 新主线为什么这样排
 
@@ -227,6 +229,20 @@ time-aware / stale-aware `microcompact` 仍然值得做，但现在它已经不�
 3. 当前最明显的剩余 gap 更偏“工作集质量”和“restore 实用性”
 
 所以 `CCA-163` 当时应视为策略深度增强项，而不是新的 P0 主线。
+
+## post-`CCA-163` mainline re-rank
+
+16x 波段收口后，最值得继续补的已经不再是 reducer 深度，而是：
+
+1. manual `/compact` 与 task-minimal keep strategy 之间的语义落差
+2. restore utility 对更高阶任务状态的缺口
+3. compact protocol 在 inspection 面的更深消费
+
+因此新的 17x 主线应当切成：
+
+1. `CCA-170` manual compact task-minimal parity
+2. `CCA-171` higher-order restore utility v6
+3. `CCA-172` compact protocol deeper inspection parity
 
 ## 已完成波段为什么可以收口
 

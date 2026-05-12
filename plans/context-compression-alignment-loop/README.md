@@ -210,7 +210,11 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-161` 已完成
    - `CCA-162` 已完成：`thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，Web replay runtime 会消费它并在 replay source 下继续显示 compact header
    - `CCA-163` 已完成：`microcompact` 当前已补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser
-   - 当前 16x 波段已完成，下一步先做 post-`CCA-163` mainline re-rank
+   - post-`CCA-163` mainline re-rank 已完成
+   - 当前新的 17x 主线已切到：
+     1. `CCA-170` manual compact task-minimal parity
+     2. `CCA-171` higher-order restore utility v6
+     3. `CCA-172` compact protocol deeper inspection parity
 
 刚完成的上一轮主线：
 
@@ -230,8 +234,9 @@ Formax 当前：
 - 已有 `microcompact + tool-result budget + snip + request-time collapse + prune + compact` 多层主链。
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
-  - task-minimal working context、restore utility、compact protocol parity、以及 time-aware microcompact 这几条主线做完之后，下一步要重新判断真正剩余的产品型差距
-  - 还缺后续 re-rank，而不是继续惯性扩张 reducer
+  - auto compact 已具备 task-minimal working-set v5，但 **manual `/compact` 仍然停留在 fixed `keep_last_turns` 语义**
+  - restore utility 虽已结构化，但仍缺 skills / async-agent / deferred instructions 等更高阶任务状态
+  - compact protocol 虽已进入 replay / restore parity，但 inspection 面仍缺更深消费 preserved segment / rehydration 语义
 
 ### 下一阶段切法
 
@@ -266,11 +271,16 @@ Formax 当前：
 - `CCA-145` 已完成
 - `CCA-146` 已完成
 - `CCA-150` 已完成
+- `CCA-160` 已完成
+- `CCA-161` 已完成
+- `CCA-162` 已完成
+- `CCA-163` 已完成
 - `CCA-152` 已完成
 - `CCA-153` 已完成
 - post-`CCA-153` mainline re-rank 已完成
+- post-`CCA-163` mainline re-rank 已完成
 - 当前主线已经切到：
-  - `CCA-161` session-memory restore utility v5
+  - `CCA-170` manual compact task-minimal parity
 
 ## B. `microcompact` 能力深度
 

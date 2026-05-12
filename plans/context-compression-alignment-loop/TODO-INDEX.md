@@ -11,7 +11,9 @@
 
 ## 当前推荐顺序
 
-1. post-`CCA-163` mainline re-rank
+1. `CCA-170` manual compact task-minimal parity
+2. `CCA-171` higher-order restore utility v6
+3. `CCA-172` compact protocol deeper inspection parity
 
 ## 说明
 
@@ -30,5 +32,9 @@
 - `CCA-161` 已完成，session-memory restore utility 现在会通过 canonical restore-artifacts 路径生成结构化 `pendingSessionMemoryRestore` 摘要，并让 `thread/resume` / `thread/replay` 在 next-turn-only pending 窗口内共用这份 utility surface。
 - `CCA-162` 已完成，`thread/replay` 现在会直接返回 canonical `latestCompactBoundary`，Web replay runtime 也会消费这份 compact protocol fact，并在 replay source 下继续显示 compact header。
 - `CCA-163` 已完成，`microcompact` 现在已有基于 stale user-turn age 的 time-aware path：较旧且达到更低 time-aware 阈值的结果会更早进入 request-time stub，同时通过 `timeAware*` facts 暴露到 `/context` / app-server / Web strict parser。
-- 当前 16x 波段已经完成，下一步先做 post-`CCA-163` mainline re-rank。
+- post-`CCA-163` mainline re-rank 已完成。
+- 新的 17x 主线不再继续扩 reducer，而是切到：
+  - manual compact 的 task-minimal keep parity
+  - higher-order restore utility
+  - compact protocol deeper inspection parity
 - 仍然不建议直接进入完整 collapse store / archived span 设计。
