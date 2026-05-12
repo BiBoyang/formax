@@ -414,7 +414,7 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 1. **`CCA-170`：让 manual `/compact` 也获得 task-minimal keep parity**（已完成）
 2. **`CCA-171`：把 restore utility 扩到更高阶任务状态**（已完成）
-3. **`CCA-172`：继续补 compact protocol 在 inspection 面的深消费**
+3. **`CCA-172`：继续补 compact protocol 在 inspection 面的深消费**（已完成）
 
 新的判断是：
 

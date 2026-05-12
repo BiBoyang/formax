@@ -1519,6 +1519,28 @@ describe('rpcContracts', () => {
         triggerReason: { kind: 'auto_threshold' },
         preTokens: 1024,
         summaryKind: 'session_memory',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 3,
+          keepMinTokens: 900,
+          keepMinUserTurns: 2,
+        },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [{ kind: 'recent_files', priority: 'high', status: 'applied' }],
+        },
+        rehydrationCost: {
+          sectionCount: 1,
+          estimatedTokens: 64,
+        },
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 5,
+          preservedTailMessageCount: 3,
+          summaryFingerprint: 'summary-fp',
+          headFingerprint: 'head-fp',
+          tailFingerprint: 'tail-fp',
+        },
       },
       latestRequestCollapse: {
         phase: 'initial',
@@ -1535,6 +1557,28 @@ describe('rpcContracts', () => {
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 1024,
       summaryKind: 'session_memory',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 3,
+        keepMinTokens: 900,
+        keepMinUserTurns: 2,
+      },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [{ kind: 'recent_files', priority: 'high', status: 'applied' }],
+      },
+      rehydrationCost: {
+        sectionCount: 1,
+        estimatedTokens: 64,
+      },
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 5,
+        preservedTailMessageCount: 3,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
     })
     expect(messages.latestRequestCollapse).toEqual({
       phase: 'initial',

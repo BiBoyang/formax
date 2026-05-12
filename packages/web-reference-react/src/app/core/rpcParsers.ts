@@ -11,6 +11,7 @@ import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
 import type { ThreadRuntimeState } from '../../semantics'
 import type { SemanticsInvariantIssue } from '../../semantics'
+import { parseCompactBoundarySummary } from './compactBoundarySummary'
 
 export type ReplayNotification = {
   replaySeq: number
@@ -140,48 +141,7 @@ export function asThreadMessages(value: unknown): {
   const latestCompactBoundaryRaw = root.latestCompactBoundary
   const latestCompactBoundary: CompactBoundarySummary | null | undefined =
     latestCompactBoundaryRaw && typeof latestCompactBoundaryRaw === 'object'
-      ? (() => {
-          const record = latestCompactBoundaryRaw as Record<string, unknown>
-          if (record.schemaVersion !== 1) return undefined
-          const trigger =
-            record.trigger === 'manual' || record.trigger === 'auto' || record.trigger === 'reactive'
-              ? record.trigger
-              : undefined
-          const triggerReason =
-            record.triggerReason && typeof record.triggerReason === 'object'
-                ? (() => {
-                  const raw = record.triggerReason as Record<string, unknown>
-                  const kind: NonNullable<CompactBoundarySummary['triggerReason']>['kind'] | null =
-                    raw.kind === 'auto_threshold' || raw.kind === 'manual' || raw.kind === 'reactive_error'
-                      ? raw.kind
-                      : null
-                  const detail =
-                    raw.detail === undefined
-                      ? undefined
-                      : typeof raw.detail === 'string' && raw.detail.trim()
-                        ? raw.detail
-                        : null
-                  if (!kind || detail === null) return undefined
-                  return detail ? { kind, detail } : { kind }
-                })()
-              : record.triggerReason === undefined
-                ? undefined
-                : null
-          const preTokens =
-            typeof record.preTokens === 'number' && Number.isFinite(record.preTokens) ? record.preTokens : undefined
-          const summaryKind =
-            record.summaryKind === 'model_summary' || record.summaryKind === 'session_memory'
-              ? record.summaryKind
-              : undefined
-          if (record.triggerReason !== undefined && !triggerReason) return undefined
-          return {
-            schemaVersion: 1 as const,
-            ...(trigger ? { trigger } : {}),
-            ...(triggerReason ? { triggerReason } : {}),
-            ...(preTokens !== undefined ? { preTokens } : {}),
-            ...(summaryKind ? { summaryKind } : {}),
-          }
-        })()
+      ? parseCompactBoundarySummary(latestCompactBoundaryRaw) ?? undefined
       : latestCompactBoundaryRaw === null
         ? null
         : undefined

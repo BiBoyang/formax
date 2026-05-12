@@ -25,6 +25,31 @@ describe('rpcParsers', () => {
         triggerReason: { kind: 'auto_threshold' },
         preTokens: 1200,
         summaryKind: 'session_memory',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 3,
+          keepMinTokens: 800,
+          keepMinUserTurns: 2,
+        },
+        rehydrationPlan: {
+          schemaVersion: 1,
+          items: [
+            { kind: 'recent_files', priority: 'high', status: 'applied' },
+            { kind: 'plan_state', priority: 'medium', status: 'planned' },
+          ],
+        },
+        rehydrationCost: {
+          sectionCount: 2,
+          estimatedTokens: 144,
+        },
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 4,
+          preservedTailMessageCount: 2,
+          summaryFingerprint: 'summary-fp',
+          headFingerprint: 'head-fp',
+          tailFingerprint: 'tail-fp',
+        },
       },
     })
 
@@ -36,6 +61,31 @@ describe('rpcParsers', () => {
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 1200,
       summaryKind: 'session_memory',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 3,
+        keepMinTokens: 800,
+        keepMinUserTurns: 2,
+      },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [
+          { kind: 'recent_files', priority: 'high', status: 'applied' },
+          { kind: 'plan_state', priority: 'medium', status: 'planned' },
+        ],
+      },
+      rehydrationCost: {
+        sectionCount: 2,
+        estimatedTokens: 144,
+      },
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 4,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
     })
     expect(parsed.data[0]).toMatchObject({ kind: 'message', text: 'hello' })
     expect(parsed.data[1]).toMatchObject({

@@ -85,6 +85,7 @@
     - `triggerReason?`
     - `preTokens?`
     - `summaryKind?`
+  - 当同一 thread 已有更深的 compact protocol facts 时，`thread/read` SHOULD 继续沿用 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得因为 read / messages / replay / resume surface 不同而降级为另一套较浅摘要
   - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
     - `phase`（`initial` 或 `reactive_retry`）
     - `collapsedHeadMessageCount`
@@ -111,6 +112,7 @@
     - `triggerReason?`
     - `preTokens?`
     - `summaryKind?`
+  - 当同一 thread 已有更深的 compact protocol facts 时，`thread/messages` SHOULD 继续沿用 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得因为 history / replay / resume / read surface 不同而降级为另一套较浅摘要
   - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
     - `phase`（`initial` 或 `reactive_retry`）
     - `collapsedHeadMessageCount`

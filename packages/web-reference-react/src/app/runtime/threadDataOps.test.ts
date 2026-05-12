@@ -175,6 +175,58 @@ describe('threadDataOps', () => {
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
   })
 
+  it('refreshes cached compact boundary when deeper inspection fields change under the same shallow summary', async () => {
+    const cachedBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const latestCompactBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 3,
+        keepMinTokens: 900,
+        keepMinUserTurns: 2,
+      },
+      rehydrationCost: {
+        sectionCount: 2,
+        estimatedTokens: 144,
+      },
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 4,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      latestCompactBoundaryByThreadIdRef: {
+        current: { 'thread-1': cachedBoundary },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+      latestCompactBoundary,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.setLatestCompactBoundaryByThreadId).toHaveBeenCalled()
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
+  })
+
   it('preserves cached latest request collapse when response omits the field', async () => {
     const requestCollapse = {
       phase: 'initial',

@@ -196,6 +196,7 @@ Formax 的“上下文管理”分两条线：
   - 当前该摘要除了 `mode / files / plan / todo`，也会带上 bounded 的 higher-order task utility（如最近 skills 与最近 subagent types）
 - app-server `thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，这样 replay / inspection path 能继续消费 compact protocol fact，而不必改走新的 summary 组装路径
   - app-server `thread/resume` 当前也会直接返回 `latestCompactBoundary`，让 restore surface 与 `thread/read` / `thread/messages` 共用同一份 canonical compact protocol facts
+  - Web strict/permissive parser 与 thread-scoped compact-boundary cache 当前也会保留 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 这组 deeper inspection fields，避免 history / replay / resume / read 因消费路径不同而退化成第二套较浅的 compact summary
   - 当前恢复链不会因为 sidecar 刷新失败而中断；JSONL replay 仍然是唯一权威历史来源
 
 ---

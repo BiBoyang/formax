@@ -6,6 +6,7 @@ import {
   asThreadSummaries,
   type ReplayStateSnapshot,
 } from './rpcParsers'
+import { parseCompactBoundarySummary } from './compactBoundarySummary'
 
 export type RpcStartedThread = {
   id: string
@@ -1069,18 +1070,6 @@ function parseCollapseMeta(value: unknown): RpcContextCollapseMeta | null {
   }
 }
 
-function parseCompactTriggerReason(value: unknown): RpcCompactTriggerReason | null {
-  const record = asOptionalRecord(value)
-  if (!record) return null
-  const kind =
-    record.kind === 'auto_threshold' || record.kind === 'manual' || record.kind === 'reactive_error'
-      ? record.kind
-      : null
-  const detail = typeof record.detail === 'string' && record.detail.trim() ? record.detail : undefined
-  if (!kind) return null
-  return detail ? { kind, detail } : { kind }
-}
-
 function parseContextDiagnosticsSnapshot(value: unknown): RpcContextDiagnosticsSnapshot | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -1351,34 +1340,7 @@ function parseAssembledLedger(value: unknown): RpcAssembledLedgerRow[] | null {
 }
 
 function parseLatestCompactBoundary(value: unknown): RpcLatestCompactBoundary | null {
-  if (value == null) return null
-  const record = asOptionalRecord(value)
-  if (!record || record.schemaVersion !== 1) return null
-
-  const keepStrategy = parseKeepStrategy(record.keepStrategy)
-  const rehydrationPlan = parseRehydrationPlan(record.rehydrationPlan)
-  const rehydrationCost = parseRehydrationCost(record.rehydrationCost)
-  const preservedSegment = parsePreservedSegment(record.preservedSegment)
-  const triggerReason = record.triggerReason == null ? undefined : parseCompactTriggerReason(record.triggerReason)
-  if (record.triggerReason != null && !triggerReason) return null
-  const trigger =
-    record.trigger === 'manual' || record.trigger === 'auto' || record.trigger === 'reactive' ? record.trigger : undefined
-  const summaryKind =
-    record.summaryKind === 'model_summary' || record.summaryKind === 'session_memory'
-      ? record.summaryKind
-      : undefined
-
-  return {
-    schemaVersion: 1,
-    ...(trigger ? { trigger } : {}),
-    ...(triggerReason ? { triggerReason } : {}),
-    ...(asFiniteNumber(record.preTokens) != null ? { preTokens: asFiniteNumber(record.preTokens)! } : {}),
-    ...(summaryKind ? { summaryKind } : {}),
-    ...(keepStrategy ? { keepStrategy } : {}),
-    ...(rehydrationPlan ? { rehydrationPlan } : {}),
-    ...(rehydrationCost ? { rehydrationCost } : {}),
-    ...(preservedSegment ? { preservedSegment } : {}),
-  }
+  return parseCompactBoundarySummary(value)
 }
 
 function parseStrictLatestCompactBoundaryField(
@@ -1441,79 +1403,4 @@ function parseOptionalNullableStringField(
   const value = record[key]
   if (value === null) return { present: true, value: null }
   return typeof value === 'string' ? { present: true, value } : null
-}
-
-function parseKeepStrategy(value: unknown): RpcCompactBoundaryKeepStrategy | null {
-  const record = asOptionalRecord(value)
-  if (!record || typeof record.kind !== 'string') return null
-  if (record.kind === 'keep_last_turns') {
-    const keepLastTurns = asFiniteNumber(record.keepLastTurns)
-    return keepLastTurns == null ? null : { kind: 'keep_last_turns', keepLastTurns }
-  }
-  if (record.kind === 'keep_combo') {
-    const keepLastTurns = asFiniteNumber(record.keepLastTurns)
-    const keepMinTokens = asFiniteNumber(record.keepMinTokens)
-    const keepMinUserTurns = asFiniteNumber(record.keepMinUserTurns)
-    if (keepLastTurns == null || keepMinTokens == null || keepMinUserTurns == null) return null
-    return { kind: 'keep_combo', keepLastTurns, keepMinTokens, keepMinUserTurns }
-  }
-  return null
-}
-
-function parseRehydrationPlan(value: unknown): RpcCompactRehydrationPlan | null {
-  const record = asOptionalRecord(value)
-  if (!record || record.schemaVersion !== 1 || !Array.isArray(record.items)) return null
-  const items: RpcCompactRehydrationPlan['items'] = []
-  for (const row of record.items) {
-    const item = asOptionalRecord(row)
-    if (!item) return null
-    const kind =
-      item.kind === 'recent_files' || item.kind === 'plan_state' || item.kind === 'todo_state' || item.kind === 'mode_state'
-        ? item.kind
-        : null
-    const priority = item.priority === 'high' || item.priority === 'medium' ? item.priority : null
-    const status = item.status === 'planned' || item.status === 'applied' ? item.status : null
-    if (!kind || !priority || !status) return null
-    items.push({ kind, priority, status })
-  }
-  return { schemaVersion: 1, items }
-}
-
-function parseRehydrationCost(value: unknown): RpcCompactRehydrationCost | null {
-  const record = asOptionalRecord(value)
-  if (!record) return null
-  const sectionCount = asFiniteNumber(record.sectionCount)
-  const estimatedTokens = asFiniteNumber(record.estimatedTokens)
-  if (sectionCount == null || estimatedTokens == null) return null
-  return { sectionCount, estimatedTokens }
-}
-
-function parsePreservedSegment(value: unknown): RpcCompactPreservedSegment | null {
-  const record = asOptionalRecord(value)
-  if (!record || record.schemaVersion !== 1) return null
-  const continuationMessageCount = asFiniteNumber(record.continuationMessageCount)
-  const preservedTailMessageCount = asFiniteNumber(record.preservedTailMessageCount)
-  const summaryFingerprint =
-    typeof record.summaryFingerprint === 'string' && record.summaryFingerprint ? record.summaryFingerprint : null
-  const headFingerprint =
-    record.headFingerprint == null
-      ? null
-      : typeof record.headFingerprint === 'string'
-        ? record.headFingerprint
-        : null
-  const tailFingerprint =
-    record.tailFingerprint == null
-      ? null
-      : typeof record.tailFingerprint === 'string'
-        ? record.tailFingerprint
-        : null
-  if (continuationMessageCount == null || preservedTailMessageCount == null || !summaryFingerprint) return null
-  return {
-    schemaVersion: 1,
-    continuationMessageCount,
-    preservedTailMessageCount,
-    summaryFingerprint,
-    headFingerprint,
-    tailFingerprint,
-  }
 }

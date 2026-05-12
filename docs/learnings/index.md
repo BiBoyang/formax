@@ -115,6 +115,7 @@
 - [2026-05-11 - Working-set selector v3](./2026-05-11-working-set-selector-v3.md)
 - [2026-05-12 - App-server session-memory restore consumption v4](./2026-05-12-app-server-session-memory-restore-consumption-v4.md)
 - [2026-05-12 - Compact protocol replay / inspection parity](./2026-05-12-compact-protocol-replay-parity.md)
+- [2026-05-12 - Compact protocol deeper inspection parity](./2026-05-12-compact-protocol-deeper-inspection-parity.md)
 - [2026-05-12 - Compact protocol restore alignment](./2026-05-12-compact-protocol-restore-alignment.md)
 - [2026-05-12 - Higher-order restore utility v6](./2026-05-12-higher-order-restore-utility-v6.md)
 - [2026-05-12 - Manual compact task-minimal parity](./2026-05-12-manual-compact-task-minimal-parity.md)

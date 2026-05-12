@@ -5,6 +5,7 @@ import {
   parseThreadListResponse,
   parseThreadMessagesResponse,
 } from '../core/rpcContracts'
+import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey } from '../core/threadCache'
 import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
@@ -74,18 +75,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
   const areLatestCompactBoundaryEqual = (
     left: CompactBoundarySummary | null | undefined,
     right: CompactBoundarySummary | null | undefined,
-  ) => {
-    if (!left && !right) return true
-    if (!left || !right) return false
-    return (
-      left.schemaVersion === right.schemaVersion &&
-      (left.trigger ?? null) === (right.trigger ?? null) &&
-      (left.triggerReason?.kind ?? null) === (right.triggerReason?.kind ?? null) &&
-      (left.triggerReason?.detail ?? null) === (right.triggerReason?.detail ?? null) &&
-      (left.preTokens ?? null) === (right.preTokens ?? null) &&
-      (left.summaryKind ?? null) === (right.summaryKind ?? null)
-    )
-  }
+  ) => areCompactBoundarySummariesEqual(left, right)
 
   const setThreadLatestCompactBoundary = (
     threadId: string,

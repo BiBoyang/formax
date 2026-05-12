@@ -20,6 +20,7 @@ import {
   type ThreadArchivedHandlerDeps,
 } from './notifications/handleThreadArchived'
 import { withDevPerformanceSync } from '../core/devPerformance'
+import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
 import { withRecordValue } from '../core/threadCache'
 
 export type UseRuntimeEventOrchestratorArgs = {
@@ -99,37 +100,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     (
       left: CompactBoundarySummary | null | undefined,
       right: CompactBoundarySummary | null | undefined,
-    ): boolean => {
-      if (!left && !right) return true
-      if (!left || !right) return false
-      const leftKeepMinTokens = left.keepStrategy?.kind === 'keep_combo' ? left.keepStrategy.keepMinTokens : null
-      const rightKeepMinTokens = right.keepStrategy?.kind === 'keep_combo' ? right.keepStrategy.keepMinTokens : null
-      const leftKeepMinUserTurns = left.keepStrategy?.kind === 'keep_combo' ? left.keepStrategy.keepMinUserTurns : null
-      const rightKeepMinUserTurns = right.keepStrategy?.kind === 'keep_combo' ? right.keepStrategy.keepMinUserTurns : null
-      return (
-        left.schemaVersion === right.schemaVersion &&
-        (left.trigger ?? null) === (right.trigger ?? null) &&
-        (left.triggerReason?.kind ?? null) === (right.triggerReason?.kind ?? null) &&
-        (left.triggerReason?.detail ?? null) === (right.triggerReason?.detail ?? null) &&
-        (left.preTokens ?? null) === (right.preTokens ?? null) &&
-        (left.summaryKind ?? null) === (right.summaryKind ?? null) &&
-        (left.keepStrategy?.kind ?? null) === (right.keepStrategy?.kind ?? null) &&
-        (left.keepStrategy?.keepLastTurns ?? null) === (right.keepStrategy?.keepLastTurns ?? null) &&
-        leftKeepMinTokens === rightKeepMinTokens &&
-        leftKeepMinUserTurns === rightKeepMinUserTurns &&
-        (left.rehydrationCost?.sectionCount ?? null) === (right.rehydrationCost?.sectionCount ?? null) &&
-        (left.rehydrationCost?.estimatedTokens ?? null) === (right.rehydrationCost?.estimatedTokens ?? null) &&
-        JSON.stringify(left.rehydrationPlan?.items ?? null) === JSON.stringify(right.rehydrationPlan?.items ?? null) &&
-        (left.preservedSegment?.continuationMessageCount ?? null) ===
-          (right.preservedSegment?.continuationMessageCount ?? null) &&
-        (left.preservedSegment?.preservedTailMessageCount ?? null) ===
-          (right.preservedSegment?.preservedTailMessageCount ?? null) &&
-        (left.preservedSegment?.summaryFingerprint ?? null) ===
-          (right.preservedSegment?.summaryFingerprint ?? null) &&
-        (left.preservedSegment?.headFingerprint ?? null) === (right.preservedSegment?.headFingerprint ?? null) &&
-        (left.preservedSegment?.tailFingerprint ?? null) === (right.preservedSegment?.tailFingerprint ?? null)
-      )
-    },
+    ): boolean => areCompactBoundarySummariesEqual(left, right),
     [],
   )
 

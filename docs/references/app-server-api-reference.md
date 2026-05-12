@@ -452,6 +452,7 @@ AskUserQuestion payload：
 - `toolName` 以 `toolUseId` 为维度保持粘性（sticky）；服务端会在 `update/end` 缺省时补齐，客户端可以按同一 `toolUseId` 视为同一工具。
 - `toolUseId` 可能缺失（历史数据或降级路径）。当缺失时，这条 tool 记录只保证自身字段完整，不承诺跨记录合并；客户端应按该条记录的 `id` 作为本地渲染键。
 - `latestCompactBoundary` 为可选最小 compact boundary 摘要；它让 thread surfaces 能在不调用 `/context` 的情况下感知最近一次 compact 的关键事实。
+- 当同一 thread 已有更深 compact protocol facts 时，`thread/read` / `thread/messages` / `thread/replay` / `thread/resume` 都应继续沿用同一份 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段，而不是按 surface 降级成不同深度的 compact summary。
 - `latestRequestCollapse` 为可选最小摘要；它描述最近一次 request-time collapse 事实，便于 timeline 或 inspection surface 感知该状态，但不会改写 `data[]` 现有 item 语义。
 
 ## 5.4.2 `thread/replay`
