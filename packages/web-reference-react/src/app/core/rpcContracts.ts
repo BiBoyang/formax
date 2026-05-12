@@ -296,6 +296,8 @@ export type RpcSessionMemoryRestoreSummary = {
   mode: 'normal' | 'acceptEdits' | 'plan'
   recentFiles: string[]
   recentUserPrompts: string[]
+  recentSkills: string[]
+  recentSubagentTypes: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -596,10 +598,13 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
   const mode = record.mode === 'normal' || record.mode === 'acceptEdits' || record.mode === 'plan' ? record.mode : null
   const recentFiles = parseRequiredStringList(record.recentFiles)
   const recentUserPrompts = parseRequiredStringList(record.recentUserPrompts)
+  const recentSkills = record.recentSkills === undefined ? { value: [] } : parseRequiredStringList(record.recentSkills)
+  const recentSubagentTypes =
+    record.recentSubagentTypes === undefined ? { value: [] } : parseRequiredStringList(record.recentSubagentTypes)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
-  if (!mode || !recentFiles || !recentUserPrompts || !planPath || !planExcerpt || !todoSummary) {
+  if (!mode || !recentFiles || !recentUserPrompts || !recentSkills || !recentSubagentTypes || !planPath || !planExcerpt || !todoSummary) {
     return null
   }
   return {
@@ -607,6 +612,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
     mode,
     recentFiles: recentFiles.value,
     recentUserPrompts: recentUserPrompts.value,
+    recentSkills: recentSkills.value,
+    recentSubagentTypes: recentSubagentTypes.value,
     planPath: planPath.value,
     planExcerpt: planExcerpt.value,
     todoSummary: todoSummary.value,

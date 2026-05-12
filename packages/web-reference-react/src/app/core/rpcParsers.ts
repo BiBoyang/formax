@@ -397,10 +397,22 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
   const mode = record.mode === 'normal' || record.mode === 'acceptEdits' || record.mode === 'plan' ? record.mode : null
   const recentFiles = parseRequiredStringList(record.recentFiles)
   const recentUserPrompts = parseRequiredStringList(record.recentUserPrompts)
+  const recentSkills = record.recentSkills === undefined ? [] : parseRequiredStringList(record.recentSkills)
+  const recentSubagentTypes =
+    record.recentSubagentTypes === undefined ? [] : parseRequiredStringList(record.recentSubagentTypes)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
-  if (!mode || !recentFiles || !recentUserPrompts || planPath === undefined || planExcerpt === undefined || todoSummary === undefined) {
+  if (
+    !mode ||
+    !recentFiles ||
+    !recentUserPrompts ||
+    !recentSkills ||
+    !recentSubagentTypes ||
+    planPath === undefined ||
+    planExcerpt === undefined ||
+    todoSummary === undefined
+  ) {
     return null
   }
   return {
@@ -408,6 +420,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
     mode,
     recentFiles,
     recentUserPrompts,
+    recentSkills,
+    recentSubagentTypes,
     planPath,
     planExcerpt,
     todoSummary,

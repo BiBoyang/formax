@@ -1433,6 +1433,8 @@ describe('rpcContracts', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts'],
         recentUserPrompts: ['Recover plan context'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Finish restore utility',
         todoSummary: null,
@@ -1463,6 +1465,38 @@ describe('rpcContracts', () => {
       mode: 'plan',
       recentFiles: ['/repo/src/session.ts'],
       recentUserPrompts: ['Recover plan context'],
+      recentSkills: ['formax-dev-loop-workflow'],
+      recentSubagentTypes: ['Explore'],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    })
+  })
+
+  it('keeps schema-v1 restore summaries compatible when higher-order fields are absent', () => {
+    const replay = parseThreadReplayResponse({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
+    })
+
+    expect(replay.pendingSessionMemoryRestore).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
@@ -1581,6 +1615,8 @@ describe('rpcContracts', () => {
           mode: 'plan',
           recentFiles: ['/repo/src/session.ts'],
           recentUserPrompts: ['Recover plan context'],
+          recentSkills: ['formax-dev-loop-workflow'],
+          recentSubagentTypes: ['Explore'],
           planPath: '/repo/.formax/plan.md',
           planExcerpt: 'Finish restore utility',
           todoSummary: null,
@@ -1609,6 +1645,8 @@ describe('rpcContracts', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts'],
         recentUserPrompts: ['Recover plan context'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Finish restore utility',
         todoSummary: null,

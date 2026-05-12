@@ -20,8 +20,14 @@ import { buildPostCompactRehydration } from './postCompactRehydration'
 
 const SESSION_MEMORY_RECENT_FILES_LIMIT = 5
 const SESSION_MEMORY_RECENT_PROMPTS_LIMIT = 3
+const SESSION_MEMORY_RECENT_SKILLS_LIMIT = 3
+const SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT = 3
 const SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT = 3
+const SESSION_MEMORY_SUMMARY_RECENT_SKILLS_LIMIT = 2
+const SESSION_MEMORY_SUMMARY_RECENT_SUBAGENT_TYPES_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS = 160
+const SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS = 80
+const SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS = 80
 const SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS = 180
 const SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS = 180
 const SESSION_MEMORY_SUMMARY_PLAN_EXCERPT_MAX_CHARS = 240
@@ -39,6 +45,8 @@ export type SessionMemoryDraft = {
     mode: 'normal' | 'acceptEdits' | 'plan'
     recentFiles: string[]
     recentUserPrompts: string[]
+    recentSkills: string[]
+    recentSubagentTypes: string[]
     planPath: string | null
     planExcerpt: string | null
     todoSummary: string | null
@@ -62,6 +70,8 @@ export type SessionMemoryRestoreSummary = {
   mode: SessionMemoryDraft['activeTask']['mode']
   recentFiles: string[]
   recentUserPrompts: string[]
+  recentSkills: string[]
+  recentSubagentTypes: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -122,6 +132,16 @@ export function buildSessionMemoryDraft(args: {
       mode: args.mode,
       recentFiles: rehydration.recentFiles.slice(0, SESSION_MEMORY_RECENT_FILES_LIMIT),
       recentUserPrompts: collectRecentUserPrompts(args.previousHistory, SESSION_MEMORY_RECENT_PROMPTS_LIMIT),
+      recentSkills: collectRecentSuccessfulToolInputStrings(args.previousHistory, {
+        toolName: 'Skill',
+        inputKey: 'skill',
+        limit: SESSION_MEMORY_RECENT_SKILLS_LIMIT,
+      }),
+      recentSubagentTypes: collectRecentSuccessfulToolInputStrings(args.previousHistory, {
+        toolName: 'Task',
+        inputKey: 'subagent_type',
+        limit: SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT,
+      }),
       planPath: rehydration.planPath,
       planExcerpt: rehydration.planExcerpt,
       todoSummary: rehydration.todoSummary,
@@ -158,6 +178,16 @@ export function mergeSessionMemoryDraft(base: SessionMemoryDraft, patch: Session
         older: base.activeTask.recentUserPrompts,
         limit: SESSION_MEMORY_RECENT_PROMPTS_LIMIT,
       }),
+      recentSkills: mergeRecentStrings({
+        newer: nextActiveTask.recentSkills,
+        older: base.activeTask.recentSkills,
+        limit: SESSION_MEMORY_RECENT_SKILLS_LIMIT,
+      }),
+      recentSubagentTypes: mergeRecentStrings({
+        newer: nextActiveTask.recentSubagentTypes,
+        older: base.activeTask.recentSubagentTypes,
+        limit: SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT,
+      }),
       planPath: readNullableString(nextActiveTask.planPath, base.activeTask.planPath),
       planExcerpt: readNullableString(nextActiveTask.planExcerpt, base.activeTask.planExcerpt),
       todoSummary: readNullableString(nextActiveTask.todoSummary, base.activeTask.todoSummary),
@@ -174,9 +204,7 @@ export function mergeSessionMemoryDraft(base: SessionMemoryDraft, patch: Session
 export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): string {
   const lines = ['Session memory recap:']
 
-  const recentPrompts = draft.activeTask.recentUserPrompts
-    .map((value) => readNonEmptyString(value))
-    .filter((value): value is string => Boolean(value))
+  const recentPrompts = normalizeStringList(draft.activeTask.recentUserPrompts)
   if (recentPrompts.length > 0) {
     lines.push('Recent user requests:')
     for (const prompt of recentPrompts.slice(0, SESSION_MEMORY_RECENT_PROMPTS_LIMIT)) {
@@ -184,14 +212,28 @@ export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): 
     }
   }
 
-  const recentFiles = draft.activeTask.recentFiles
-    .map((value) => readNonEmptyString(value))
-    .filter((value): value is string => Boolean(value))
+  const recentFiles = normalizeStringList(draft.activeTask.recentFiles)
   if (recentFiles.length > 0) {
     lines.push('Working-set files:')
     for (const filePath of recentFiles.slice(0, SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT)) {
       lines.push(`- ${truncateForSummary(filePath, SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS)}`)
     }
+  }
+
+  const recentSkills = normalizeStringList(draft.activeTask.recentSkills)
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_SKILLS_LIMIT)
+  if (recentSkills.length > 0) {
+    lines.push(`Recent skills: ${recentSkills.map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS)).join(', ')}`)
+  }
+
+  const recentSubagentTypes = normalizeStringList(draft.activeTask.recentSubagentTypes)
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_SUBAGENT_TYPES_LIMIT)
+  if (recentSubagentTypes.length > 0) {
+    lines.push(
+      `Recent subagent types: ${recentSubagentTypes
+        .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS))
+        .join(', ')}`,
+    )
   }
 
   if (draft.activeTask.mode !== 'normal') {
@@ -243,23 +285,29 @@ export function buildSessionMemoryRestoreReminderBlock(draft: SessionMemoryDraft
 }
 
 export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): SessionMemoryRestoreSummary {
-  const recentFiles = draft.activeTask.recentFiles
-    .map((value) => readNonEmptyString(value))
-    .filter((value): value is string => Boolean(value))
+  const recentFiles = normalizeStringList(draft.activeTask.recentFiles)
     .slice(0, SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT)
     .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_FILE_MAX_CHARS))
 
-  const recentUserPrompts = draft.activeTask.recentUserPrompts
-    .map((value) => readNonEmptyString(value))
-    .filter((value): value is string => Boolean(value))
+  const recentUserPrompts = normalizeStringList(draft.activeTask.recentUserPrompts)
     .slice(0, SESSION_MEMORY_RECENT_PROMPTS_LIMIT)
     .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS))
+
+  const recentSkills = normalizeStringList(draft.activeTask.recentSkills)
+    .slice(0, SESSION_MEMORY_RECENT_SKILLS_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS))
+
+  const recentSubagentTypes = normalizeStringList(draft.activeTask.recentSubagentTypes)
+    .slice(0, SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS))
 
   return {
     schemaVersion: 1,
     mode: draft.activeTask.mode,
     recentFiles,
     recentUserPrompts,
+    recentSkills,
+    recentSubagentTypes,
     planPath: truncateNullableSummaryField(draft.activeTask.planPath, SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS),
     planExcerpt: truncateNullableSummaryField(
       draft.activeTask.planExcerpt,
@@ -340,6 +388,57 @@ function collectRecentUserPrompts(messages: PromptMessage[], limit: number): str
   return prompts
 }
 
+function collectSuccessfulToolResultIds(messages: PromptMessage[]): Set<string> {
+  const out = new Set<string>()
+  for (const message of messages) {
+    if (message?.role !== 'user' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type !== 'tool_result') continue
+      if (block?.is_error === true) continue
+      if (typeof block?.tool_use_id === 'string' && block.tool_use_id.length > 0) {
+        out.add(block.tool_use_id)
+      }
+    }
+  }
+  return out
+}
+
+function collectRecentSuccessfulToolInputStrings(
+  messages: PromptMessage[],
+  args: {
+    toolName: string
+    inputKey: string
+    limit: number
+  },
+): string[] {
+  const keep = Math.max(0, Math.floor(args.limit))
+  if (keep <= 0) return []
+
+  const successfulToolIds = collectSuccessfulToolResultIds(messages)
+  if (successfulToolIds.size === 0) return []
+
+  const values: string[] = []
+  const seen = new Set<string>()
+  for (let index = messages.length - 1; index >= 0 && values.length < keep; index -= 1) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (let blockIndex = message.content.length - 1; blockIndex >= 0 && values.length < keep; blockIndex -= 1) {
+      const block = (message.content as any[])[blockIndex]
+      if (block?.type !== 'tool_use' || block?.name !== args.toolName) continue
+      if (typeof block?.id !== 'string' || !successfulToolIds.has(block.id)) continue
+      const inputValue =
+        block?.input && typeof block.input === 'object'
+          ? readNonEmptyString((block.input as Record<string, unknown>)[args.inputKey])
+          : null
+      if (!inputValue || seen.has(inputValue)) continue
+      seen.add(inputValue)
+      values.push(inputValue)
+    }
+  }
+
+  return values
+}
+
 function formatStrategyLines(strategy: SessionMemoryDraft['currentStrategy']): string[] {
   const out: string[] = []
   if (strategy.lastCompactTrigger) {
@@ -413,6 +512,11 @@ function mergeRecentStrings(args: {
     if (merged.length >= limit) break
   }
   return merged
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((entry) => readNonEmptyString(entry)).filter((entry): entry is string => Boolean(entry))
 }
 
 function readNonEmptyString(value: unknown): string | null {

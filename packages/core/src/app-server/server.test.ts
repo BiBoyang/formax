@@ -821,6 +821,8 @@ describe('AppServer', () => {
       mode: 'plan',
       recentFiles: ['/repo/src/session.ts'],
       recentUserPrompts: ['Recover plan context'],
+      recentSkills: ['formax-dev-loop-workflow'],
+      recentSubagentTypes: ['Explore'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,

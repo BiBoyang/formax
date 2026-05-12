@@ -58,6 +58,8 @@ describe('rpcParsers', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts'],
         recentUserPrompts: ['Recover plan context'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Finish restore utility',
         todoSummary: null,
@@ -125,6 +127,8 @@ describe('rpcParsers', () => {
       mode: 'plan',
       recentFiles: ['/repo/src/session.ts'],
       recentUserPrompts: ['Recover plan context'],
+      recentSkills: ['formax-dev-loop-workflow'],
+      recentSubagentTypes: ['Explore'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
@@ -138,6 +142,36 @@ describe('rpcParsers', () => {
       { kind: 'running_tool_after_terminal_turn', turnId: 'turn-1', toolUseId: 'tool-1' },
       { kind: 'pending_input_after_terminal_turn', turnId: 'turn-1', inputId: 'i-1', toolUseId: 'tool-1' },
     ])
+  })
+
+  it('keeps schema-v1 restore summaries compatible when higher-order fields are absent', () => {
+    const parsed = asThreadReplay({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
+    })
+
+    expect(parsed.pendingSessionMemoryRestore).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    })
   })
 
   it('preserves user/system projection segments from replay state snapshots', () => {

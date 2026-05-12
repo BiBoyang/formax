@@ -51,6 +51,8 @@
     - `mode`
     - `recentFiles`
     - `recentUserPrompts`
+    - `recentSkills`
+    - `recentSubagentTypes`
     - `planPath`
     - `planExcerpt`
     - `todoSummary`

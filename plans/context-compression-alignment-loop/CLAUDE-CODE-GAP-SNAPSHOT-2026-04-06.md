@@ -412,8 +412,8 @@ Claude Code 的 `microcompact` 更成熟的地方包括：
 
 如果下一轮还继续沿着“向 Claude Code 靠拢”这条主线走，我建议优先顺序是：
 
-1. **`CCA-170`：让 manual `/compact` 也获得 task-minimal keep parity**
-2. **`CCA-171`：把 restore utility 扩到更高阶任务状态**
+1. **`CCA-170`：让 manual `/compact` 也获得 task-minimal keep parity**（已完成）
+2. **`CCA-171`：把 restore utility 扩到更高阶任务状态**（已完成）
 3. **`CCA-172`：继续补 compact protocol 在 inspection 面的深消费**
 
 新的判断是：

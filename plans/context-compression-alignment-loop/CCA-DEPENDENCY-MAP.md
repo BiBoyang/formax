@@ -168,16 +168,15 @@ flowchart TD
 
 当前推荐执行顺序不是按编号，而是按依赖：
 
-1. `CCA-171` higher-order restore utility v6
-2. `CCA-172` compact protocol deeper inspection parity
+1. `CCA-172` compact protocol deeper inspection parity
 
 对应含义：
 
 1. `CCA-140 ~ 146` 已完成，middle-layer stack 的第一阶段已经成型
 2. `CCA-150` 与 `CCA-160` 已完成，working-set selector 已从 anchor-kind-aware window 推进到 task-minimal v5
-3. `CCA-151` 与 `CCA-161` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface
+3. `CCA-151` / `CCA-161` / `CCA-171` 已完成，session-memory restore 已从 one-turn reminder 扩到结构化 utility surface，并开始覆盖 higher-order task utility
 4. 当前这条 compact protocol 的 remote / restore ecosystem 对齐主线已完成
-5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，post-`CCA-163` mainline re-rank 也已完成；`CCA-170` 也已收口，当前新的动作应先切到 `CCA-171`
+5. post-`CCA-153` mainline re-rank 已完成，`CCA-162` 与 `CCA-163` 也已收口，post-`CCA-163` mainline re-rank 也已完成；`CCA-170` 与 `CCA-171` 也已收口，当前新的动作应先切到 `CCA-172`
 
 ## 新主线为什么这样排
 
@@ -238,8 +237,7 @@ time-aware / stale-aware `microcompact` 仍然值得做，但现在它已经不�
 
 因此新的 17x 主线应当切成：
 
-1. `CCA-171` higher-order restore utility v6
-2. `CCA-172` compact protocol deeper inspection parity
+1. `CCA-172` compact protocol deeper inspection parity
 
 ## 已完成波段为什么可以收口
 

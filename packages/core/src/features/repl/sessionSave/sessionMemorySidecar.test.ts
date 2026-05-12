@@ -20,6 +20,8 @@ function createDraft(): SessionMemoryDraft {
       mode: 'plan',
       recentFiles: ['/repo/src/auth.ts'],
       recentUserPrompts: ['fix auth redirect'],
+      recentSkills: ['formax-dev-loop-workflow'],
+      recentSubagentTypes: ['Explore'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Investigate auth flow',
       todoSummary: 'todo summary',

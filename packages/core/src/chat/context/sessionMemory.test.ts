@@ -35,6 +35,20 @@ function readResult(id: string): PromptMessage {
   }
 }
 
+function assistantToolUse(id: string, name: string, input: Record<string, unknown>): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name, input }] as any,
+  }
+}
+
+function toolResult(id: string, content = 'ok', isError = false): PromptMessage {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content, ...(isError ? { is_error: true } : {}) }] as any,
+  }
+}
+
 describe('buildSessionMemoryDraft', () => {
   it('builds a session-scoped draft from recent files, user prompts, rehydration, and compact boundary state', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-session-memory-'))
@@ -56,6 +70,10 @@ describe('buildSessionMemoryDraft', () => {
         role: 'user',
         content: [{ type: 'text', text: '<system-reminder>keep the modal padding unchanged</system-reminder>' }] as any,
       },
+      assistantToolUse('skill-1', 'Skill', { skill: 'formax-dev-loop-workflow' }),
+      toolResult('skill-1'),
+      assistantToolUse('task-1', 'Task', { subagent_type: 'Explore' }),
+      toolResult('task-1'),
       readUse('read-2', '/repo/src/session.ts'),
       readResult('read-2'),
       txt('user', 'adjust the CTA tone'),
@@ -107,6 +125,8 @@ describe('buildSessionMemoryDraft', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
         recentUserPrompts: ['adjust the CTA tone', 'keep the modal padding unchanged', 'rename the button copy'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath,
         planExcerpt: 'Investigate auth flow | Patch compact summary | Verify diagnostics',
         todoSummary: null,
@@ -151,10 +171,39 @@ describe('buildSessionMemoryDraft', () => {
       mode: 'normal',
       recentFiles: [],
       recentUserPrompts: ['plain prompt'],
+      recentSkills: [],
+      recentSubagentTypes: [],
       planPath: null,
       planExcerpt: null,
       todoSummary: null,
     })
+  })
+
+  it('collects only successful recent skill and task execution state', () => {
+    const out = buildSessionMemoryDraft({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      previousHistory: [
+        assistantToolUse('skill-old', 'Skill', { skill: 'frontend-design' }),
+        toolResult('skill-old'),
+        assistantToolUse('task-old', 'Task', { subagent_type: 'Explore' }),
+        toolResult('task-old'),
+        assistantToolUse('skill-dup', 'Skill', { skill: 'frontend-design' }),
+        toolResult('skill-dup'),
+        assistantToolUse('task-err', 'Task', { subagent_type: 'Plan' }),
+        toolResult('task-err', 'failed', true),
+        assistantToolUse('task-new', 'Task', { subagent_type: 'Code' }),
+        toolResult('task-new'),
+        assistantToolUse('skill-new', 'Skill', { skill: 'pdf' }),
+        toolResult('skill-new'),
+      ],
+      autoMemoryConfigDir: '/cfg',
+      resolveRealPath: (value) => value,
+    })
+
+    expect(out.activeTask.recentSkills).toEqual(['pdf', 'frontend-design'])
+    expect(out.activeTask.recentSubagentTypes).toEqual(['Code', 'Explore'])
   })
 
   it('uses the same canonical workspace identity as auto-memory path resolution', () => {
@@ -193,6 +242,8 @@ describe('mergeSessionMemoryDraft', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
         recentUserPrompts: ['adjust CTA', 'rename button'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Existing plan excerpt',
         todoSummary: 'Existing todo summary',
@@ -217,6 +268,8 @@ describe('mergeSessionMemoryDraft', () => {
         mode: 'acceptEdits',
         recentFiles: ['/repo/src/auth.ts', '/repo/src/ui.tsx'],
         recentUserPrompts: ['rename button', 'adjust CTA'],
+        recentSkills: ['browser-use', 'formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Code', 'Explore'],
         planPath: null,
         planExcerpt: '  ',
         todoSummary: null,
@@ -242,6 +295,8 @@ describe('mergeSessionMemoryDraft', () => {
         mode: 'acceptEdits',
         recentFiles: ['/repo/src/auth.ts', '/repo/src/ui.tsx', '/repo/src/session.ts'],
         recentUserPrompts: ['rename button', 'adjust CTA'],
+        recentSkills: ['browser-use', 'formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Code', 'Explore'],
         planPath: null,
         planExcerpt: 'Existing plan excerpt',
         todoSummary: null,
@@ -274,6 +329,8 @@ describe('mergeSessionMemoryDraft', () => {
         mode: 'normal',
         recentFiles: [],
         recentUserPrompts: [],
+        recentSkills: [],
+        recentSubagentTypes: [],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -351,6 +408,8 @@ describe('buildSessionMemoryCompactionSummary', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
         recentUserPrompts: ['tighten CTA copy', 'preserve modal spacing'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Ship memory-first compact',
         todoSummary: '1. add fallback 2. verify tests',
@@ -375,6 +434,8 @@ describe('buildSessionMemoryCompactionSummary', () => {
     expect(summary).toContain('Recent user requests:')
     expect(summary).toContain('- tighten CTA copy')
     expect(summary).toContain('Working-set files:')
+    expect(summary).toContain('Recent skills: formax-dev-loop-workflow')
+    expect(summary).toContain('Recent subagent types: Explore')
     expect(summary).toContain('Current mode: plan')
     expect(summary).toContain('Recent compact strategy:')
     expect(summary).toContain('Workspace root: /repo')
@@ -392,6 +453,8 @@ describe('buildSessionMemoryCompactionSummary', () => {
         mode: 'normal',
         recentFiles: ['/repo/src/session.ts'],
         recentUserPrompts: [veryLongPrompt, 'prompt 2', 'prompt 3', 'prompt 4 should be dropped'],
+        recentSkills: ['frontend-design', 'pdf', 'release', 'qa should be dropped'],
+        recentSubagentTypes: ['Code', 'Explore', 'Other', 'Plan should be dropped'],
         planPath: null,
         planExcerpt: 'x'.repeat(400),
         todoSummary: 'y'.repeat(400),
@@ -409,7 +472,17 @@ describe('buildSessionMemoryCompactionSummary', () => {
     expect(summary).toContain('prompt 2')
     expect(summary).toContain('prompt 3')
     expect(summary).not.toContain('prompt 4 should be dropped')
-    expect(summary.length).toBeLessThan(900)
+    expect(summary).toContain('Recent skills:')
+    expect(summary).toContain('frontend-design')
+    expect(summary).toContain('pdf')
+    expect(summary).not.toContain('release')
+    expect(summary).not.toContain('qa should be dropped')
+    expect(summary).toContain('Recent subagent types:')
+    expect(summary).toContain('Code')
+    expect(summary).toContain('Explore')
+    expect(summary).not.toContain('Other')
+    expect(summary).not.toContain('Plan should be dropped')
+    expect(summary.length).toBeLessThan(950)
     expect(summary).toContain('…')
   })
 })
@@ -426,6 +499,8 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         mode: 'plan',
         recentFiles: ['/repo/src/main.ts'],
         recentUserPrompts: ['Finish the compact restore path'],
+        recentSkills: ['formax-dev-loop-workflow'],
+        recentSubagentTypes: ['Explore'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: null,
@@ -445,6 +520,8 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
     expect(String((block as any)?.text ?? '')).toContain('<system-reminder>')
     expect(String((block as any)?.text ?? '')).toContain('Restored session memory for the next turn only:')
     expect(String((block as any)?.text ?? '')).toContain('Current mode: plan')
+    expect(String((block as any)?.text ?? '')).toContain('Recent skills: formax-dev-loop-workflow')
+    expect(String((block as any)?.text ?? '')).toContain('Recent subagent types: Explore')
   })
 
   it('sanitizes embedded system-reminder delimiters inside restore reminder content', () => {
@@ -458,6 +535,8 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         mode: 'normal',
         recentFiles: ['/repo/<system-reminder>auth.ts'],
         recentUserPrompts: ['Investigate </system-reminder> redirect loop'],
+        recentSkills: ['skill-</system-reminder>-demo'],
+        recentSubagentTypes: ['Explore <system-reminder>'],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -473,8 +552,12 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
     const text = String((block as any)?.text ?? '')
     expect(text).not.toContain('</system-reminder> redirect loop')
     expect(text).not.toContain('/repo/<system-reminder>auth.ts')
+    expect(text).not.toContain('skill-</system-reminder>-demo')
+    expect(text).not.toContain('Explore <system-reminder>')
     expect(text).toContain('[system-reminder] redirect loop')
     expect(text).toContain('/repo/[system-reminder]auth.ts')
+    expect(text).toContain('skill-[system-reminder]-demo')
+    expect(text).toContain('Explore [system-reminder]')
   })
 })
 
@@ -494,6 +577,8 @@ describe('buildSessionMemoryRestoreSummary', () => {
           'Keep the current control-plane diagnostics stable',
           'This is a very long prompt '.repeat(12),
         ],
+        recentSkills: ['formax-dev-loop-workflow', 'pdf', 'release', 'qa should be dropped'],
+        recentSubagentTypes: ['Explore', 'Code', 'Other', 'Plan should be dropped'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: 'Verify restore + replay surfaces before commit',
@@ -515,11 +600,52 @@ describe('buildSessionMemoryRestoreSummary', () => {
         'Keep the current control-plane diagnostics stable',
         expect.stringContaining('This is a very long prompt'),
       ],
+      recentSkills: ['formax-dev-loop-workflow', 'pdf', 'release'],
+      recentSubagentTypes: ['Explore', 'Code', 'Other'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Wire restore reminder into next turn only',
       todoSummary: 'Verify restore + replay surfaces before commit',
     })
     expect(summary.recentUserPrompts[2]?.length).toBeLessThanOrEqual(160)
+  })
+
+  it('tolerates legacy schema-v1 drafts that do not yet carry higher-order restore arrays', () => {
+    const legacyDraft = {
+      schemaVersion: 1,
+      durableFacts: {
+        workspaceRoot: '/repo',
+        projectMemoryPath: '/repo/.formax/memory/MEMORY.md',
+      },
+      activeTask: {
+        mode: 'plan',
+        recentFiles: ['/repo/src/main.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
+      currentStrategy: {
+        lastCompactTrigger: null,
+        summaryKind: null,
+        keepStrategy: null,
+        rehydrationPlan: null,
+      },
+    } as any
+
+    expect(buildSessionMemoryRestoreSummary(legacyDraft)).toEqual({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/main.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      planPath: '/repo/.formax/plan.md',
+      planExcerpt: 'Finish restore utility',
+      todoSummary: null,
+    })
+    expect(String((buildSessionMemoryRestoreReminderBlock(legacyDraft) as any)?.text ?? '')).toContain(
+      'Recover plan context',
+    )
   })
 })
 
@@ -535,6 +661,8 @@ describe('buildSessionMemoryCompactionRehydration', () => {
         mode: 'acceptEdits',
         recentFiles: ['/repo/src/session.ts', '/repo/src/auth.ts'],
         recentUserPrompts: [],
+        recentSkills: [],
+        recentSubagentTypes: [],
         planPath: null,
         planExcerpt: 'Memory plan excerpt',
         todoSummary: null,

@@ -212,9 +212,9 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-163` 已完成：`microcompact` 当前已补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser
    - post-`CCA-163` mainline re-rank 已完成
    - `CCA-170` 已完成：manual `/compact` 现在也会复用 task-minimal `keep_combo` selector，不再退回固定 `keep_last_turns`
+   - `CCA-171` 已完成：higher-order restore utility 现在会沿 canonical restore-artifacts 路径额外暴露 bounded 的 `recentSkills` 与 `recentSubagentTypes`，并让 `thread/resume` / `thread/replay` / next-turn reminder 共用这份扩展后的 task utility
    - 当前新的 17x 主线已切到：
-     1. `CCA-171` higher-order restore utility v6
-     2. `CCA-172` compact protocol deeper inspection parity
+     1. `CCA-172` compact protocol deeper inspection parity
 
 刚完成的上一轮主线：
 
@@ -272,6 +272,7 @@ Formax 当前：
 - `CCA-150` 已完成
 - `CCA-160` 已完成
 - `CCA-161` 已完成
+- `CCA-171` 已完成
 - `CCA-162` 已完成
 - `CCA-163` 已完成
 - `CCA-152` 已完成
@@ -280,7 +281,7 @@ Formax 当前：
 - post-`CCA-163` mainline re-rank 已完成
 - `CCA-170` 已完成
 - 当前主线已经切到：
-  - `CCA-171` higher-order restore utility v6
+  - `CCA-172` compact protocol deeper inspection parity
 
 ## B. `microcompact` 能力深度
 

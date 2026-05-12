@@ -91,6 +91,8 @@ export type SessionMemoryRestoreSummary = {
   mode: 'normal' | 'acceptEdits' | 'plan'
   recentFiles: string[]
   recentUserPrompts: string[]
+  recentSkills: string[]
+  recentSubagentTypes: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null

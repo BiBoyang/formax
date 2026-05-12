@@ -93,7 +93,7 @@ app-server `thread/start` 当前 MUST 返回 provisional thread。
 1. MUST 基于与 next-turn-only reminder block 相同的 canonical restore-artifacts 路径派生
 2. MUST NOT 重新引入第二套 reminder 组装路径
 3. MUST NOT 升级 sidecar 成为新的 persisted authority
-4. SHOULD 只暴露恢复当前任务语义真正有用的最小 structured task state（如 `mode`、`planPath`、`recentFiles`、`recentUserPrompts`、`planExcerpt`、`todoSummary`）
+4. SHOULD 只暴露恢复当前任务语义真正有用的最小 structured task state（如 `mode`、`planPath`、`recentFiles`、`recentUserPrompts`、`recentSkills`、`recentSubagentTypes`、`planExcerpt`、`todoSummary`）
 
 ## 3. SDK Resume 语义
 
