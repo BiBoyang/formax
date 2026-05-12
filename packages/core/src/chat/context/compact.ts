@@ -219,7 +219,7 @@ export function deriveAutoCompactWorkingSetSignals(args: {
   }
 }
 
-export function buildWorkingSetAwareAutoCompactKeepStrategy(args: {
+export function buildWorkingSetAwareCompactKeepStrategy(args: {
   keepLastTurns: number
   mode: 'normal' | 'acceptEdits' | 'plan'
   history?: PromptMessage[]
@@ -533,26 +533,32 @@ export function buildActiveHistoryFromSessionReplay(messages: PromptMessage[]): 
 export function resolveHistoryForCompaction(args: {
   previousHistory: PromptMessage[]
   allowPartial: boolean
+  preferLatestBoundaryTailSource?: boolean
 }): {
   history: PromptMessage[]
   tailSourceHistory: PromptMessage[]
   partial: boolean
 } {
+  const latestBoundaryIndex = findLatestCompactBoundaryIndex(args.previousHistory)
+  const continuation = getContinuationMessagesAfterLatestCompactBoundary(args.previousHistory)
+  const boundaryTailSource =
+    continuation.length > 0 && continuation[0]?.role === 'user' ? continuation.slice(1) : continuation
+
   if (!args.allowPartial) {
     return {
       history: args.previousHistory,
-      tailSourceHistory: args.previousHistory,
+      tailSourceHistory:
+        args.preferLatestBoundaryTailSource && latestBoundaryIndex >= 0 && boundaryTailSource.length > 0
+          ? boundaryTailSource
+          : args.previousHistory,
       partial: false,
     }
   }
 
-  const latestBoundaryIndex = findLatestCompactBoundaryIndex(args.previousHistory)
-  const continuation = getContinuationMessagesAfterLatestCompactBoundary(args.previousHistory)
   const partial = latestBoundaryIndex >= 0 && continuation.length > 0
-  const tailSourceHistory = partial && continuation[0]?.role === 'user' ? continuation.slice(1) : continuation
   return {
     history: partial ? continuation : args.previousHistory,
-    tailSourceHistory: partial ? tailSourceHistory : args.previousHistory,
+    tailSourceHistory: partial ? boundaryTailSource : args.previousHistory,
     partial,
   }
 }

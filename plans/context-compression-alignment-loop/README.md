@@ -139,7 +139,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
 7. keep 策略第一版升级
    - auto compact 不再只由固定 `keepLastTurns` 驱动。
    - 当前 auto compact 会使用组合 keep 策略：`keepLastTurns + keepMinTokens + keepMinUserTurns`。
-   - 手动 `/compact` 仍保持 `keep_last_turns` 语义，先避免把用户显式触发的激进 compact 改得过大。
+   - `CCA-170` 完成后，手动 `/compact` 也已复用同一条 task-minimal `keep_combo` 选择器，不再退回固定 `keep_last_turns`。
 8. 最小工作集选择器第一版
    - `keep_combo` 不再只看 turn 数和 token floor。
    - 当前会把“最近成功 `Read` 所在 turn”当成 working-set anchor，但只允许回卷最近 1 个额外 user turn。
@@ -211,10 +211,10 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-162` 已完成：`thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，Web replay runtime 会消费它并在 replay source 下继续显示 compact header
    - `CCA-163` 已完成：`microcompact` 当前已补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser
    - post-`CCA-163` mainline re-rank 已完成
+   - `CCA-170` 已完成：manual `/compact` 现在也会复用 task-minimal `keep_combo` selector，不再退回固定 `keep_last_turns`
    - 当前新的 17x 主线已切到：
-     1. `CCA-170` manual compact task-minimal parity
-     2. `CCA-171` higher-order restore utility v6
-     3. `CCA-172` compact protocol deeper inspection parity
+     1. `CCA-171` higher-order restore utility v6
+     2. `CCA-172` compact protocol deeper inspection parity
 
 刚完成的上一轮主线：
 
@@ -234,7 +234,6 @@ Formax 当前：
 - 已有 `microcompact + tool-result budget + snip + request-time collapse + prune + compact` 多层主链。
 - request-time `context collapse` 已真实进入 runtime，但它仍然主要是 request projection 层，不是完整的 collapse store / projection subsystem。
 - 当前最大差距已经不再是“有没有中间层步骤”，而是：
-  - auto compact 已具备 task-minimal working-set v5，但 **manual `/compact` 仍然停留在 fixed `keep_last_turns` 语义**
   - restore utility 虽已结构化，但仍缺 skills / async-agent / deferred instructions 等更高阶任务状态
   - compact protocol 虽已进入 replay / restore parity，但 inspection 面仍缺更深消费 preserved segment / rehydration 语义
 
@@ -279,8 +278,9 @@ Formax 当前：
 - `CCA-153` 已完成
 - post-`CCA-153` mainline re-rank 已完成
 - post-`CCA-163` mainline re-rank 已完成
+- `CCA-170` 已完成
 - 当前主线已经切到：
-  - `CCA-170` manual compact task-minimal parity
+  - `CCA-171` higher-order restore utility v6
 
 ## B. `microcompact` 能力深度
 
@@ -345,7 +345,6 @@ Formax 当前：
 - keep 策略仍偏固定 turn 数
 - 缺：
   - 当前 working-set selector 已达到 task-minimal v5 第一版：除了 filesystem cluster，当前也会把 `task_execution_cluster` 与 recent planning/todo state 一起纳入 keep strategy；但 session-memory restore utility 与 replay/inspection parity 仍然落后
-  - manual compact 还没有组合 keep 策略
   - 还没有更广义的“任务最小工作集”选择
 
 这也是 post-`CCA-153` 之后新的第一优先级来源：

@@ -17,7 +17,7 @@ import {
 } from './middleLayerStrategyStack'
 import { pruneForPromptBudget } from './prune'
 import {
-  buildWorkingSetAwareAutoCompactKeepStrategy,
+  buildWorkingSetAwareCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   countNonToolUserTurns,
   deriveAutoCompactWorkingSetSignals,
@@ -1215,7 +1215,7 @@ function buildPostCompactAssembledMessages(args: {
     draft,
     fallback: fallbackRehydration,
   })
-  const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
+  const keepStrategy = buildWorkingSetAwareCompactKeepStrategy({
     keepLastTurns: args.keepLastTurns,
     mode: args.mode,
     history: compactionScope.tailSourceHistory,

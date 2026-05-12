@@ -254,6 +254,7 @@ slash command 解析 MUST 对 command 名做小写归一化，并保留剩余参
 当前 `keepStrategy` MAY 为：
  - `keep_last_turns`
  - `keep_combo`（`keepLastTurns`、`keepMinTokens`、`keepMinUserTurns`）
+当前 manual `/compact` SHOULD 复用 task-minimal keep strategy；即使用户显式传入的 `keepLastTurns=0`，latest compact boundary 中的 `keepStrategy` 也 MAY 为 `keep_combo`，只要它仍遵守 canonical working-set selector 与 compact boundary authority model。
 
 `CMD-204`  
 当前 `commandRouting.shouldUseCommandDispatch` 基线 MUST 仅对以下命令返回 true：

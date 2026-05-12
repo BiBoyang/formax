@@ -54,8 +54,10 @@ describe('runCompactFlow', () => {
       trigger: 'manual',
       summaryKind: 'model_summary',
       keepStrategy: {
-        kind: 'keep_last_turns',
+        kind: 'keep_combo',
         keepLastTurns: 0,
+        keepMinTokens: 1200,
+        keepMinUserTurns: 1,
       },
       rehydrationPlan: {
         schemaVersion: 1,
@@ -65,11 +67,11 @@ describe('runCompactFlow', () => {
     expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.preservedSegment).toEqual({
       schemaVersion: 1,
-      continuationMessageCount: 1,
-      preservedTailMessageCount: 0,
+      continuationMessageCount: 2,
+      preservedTailMessageCount: 1,
       summaryFingerprint: expect.any(String),
-      headFingerprint: null,
-      tailFingerprint: null,
+      headFingerprint: expect.any(String),
+      tailFingerprint: expect.any(String),
     })
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })
     expect(onLifecycle).toHaveBeenNthCalledWith(2, { type: 'compact_succeeded', source: 'manual' })
@@ -169,7 +171,7 @@ describe('runCompactFlow', () => {
     )
   })
 
-  it('uses keep_combo metadata for auto compact while preserving manual keep_last_turns behavior', async () => {
+  it('uses keep_combo metadata for auto compact', async () => {
     const out = await runCompactFlow(
       baseArgs({
         source: 'auto',
@@ -195,6 +197,110 @@ describe('runCompactFlow', () => {
       keepMinUserTurns: 1,
     })
     expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('u2')
+  })
+
+  it('uses task-minimal keep_combo metadata for manual compact and preserves the current execution cluster', async () => {
+    const out = await runCompactFlow(
+      baseArgs({
+        source: 'manual',
+        keepLastTurns: 0,
+        mode: 'plan',
+        getReplMode: () => 'plan',
+        previousHistory: [
+          { role: 'user', content: [{ type: 'text', text: 'inspect auth routes and patch the redirect copy' }] },
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/src/auth.ts' } }],
+          },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'auth contents' }] },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'edit-1', name: 'Edit', input: { file_path: '/repo/src/auth.ts', old_string: 'old', new_string: 'new' } },
+            ],
+          },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'edit-1', content: 'patched' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'Updated auth.ts and patched the redirect copy.' }] },
+          { role: 'user', content: [{ type: 'text', text: 'rename the CTA copy' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'assistant note' }] },
+          { role: 'user', content: [{ type: 'text', text: 'rewrite the empty state' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'assistant note 2' }] },
+          { role: 'user', content: [{ type: 'text', text: 'write release notes' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'assistant note 3' }] },
+        ] as ChatHistory,
+        engine: {
+          runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] }] as ChatHistory),
+        } as any,
+      }),
+    )
+
+    expect((out.compactedHistory[0] as any)?.meta?.compactBoundary?.keepStrategy).toEqual({
+      kind: 'keep_combo',
+      keepLastTurns: 0,
+      keepMinTokens: 2050,
+      keepMinUserTurns: 3,
+    })
+    expect(
+      out.compactedHistory.slice(2).map((message) => (message.content as any[])[0]?.text ?? (message.content as any[])[0]?.name ?? (message.content as any[])[0]?.type),
+    ).toEqual([
+      'inspect auth routes and patch the redirect copy',
+      'Read',
+      'tool_result',
+      'Edit',
+      'tool_result',
+      'Updated auth.ts and patched the redirect copy.',
+      'rename the CTA copy',
+      'assistant note',
+      'rewrite the empty state',
+      'assistant note 2',
+      'write release notes',
+      'assistant note 3',
+    ])
+  })
+
+  it('does not reintroduce stale pre-boundary turns when manual compact runs on an already compacted session', async () => {
+    const existingBoundary = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '' }],
+      meta: {
+        compactBoundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          preTokens: 600,
+          summaryKind: 'model_summary',
+          keepStrategy: {
+            kind: 'keep_combo',
+            keepLastTurns: 0,
+            keepMinTokens: 1200,
+            keepMinUserTurns: 1,
+          },
+        },
+      },
+    } as any
+
+    const out = await runCompactFlow(
+      baseArgs({
+        source: 'manual',
+        keepLastTurns: 0,
+        previousHistory: [
+          { role: 'user', content: [{ type: 'text', text: 'very old turn' }] },
+          existingBoundary,
+          { role: 'user', content: [{ type: 'text', text: 'old compact summary' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'carry working set' }] },
+          { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
+        ] as ChatHistory,
+        engine: {
+          runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'manual summary' }] }] as ChatHistory),
+        } as any,
+      }),
+    )
+
+    expect((out.compactedHistory[1] as any)?.content?.[0]?.text).toContain('manual summary')
+    expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('latest user')
+    expect((out.compactedHistory[3] as any)?.content?.[0]?.text).toBe('latest assistant')
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('very old turn')
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('old compact summary')
   })
 
   it('uses only the latest continuation segment for auto partial compact when a boundary already exists', async () => {

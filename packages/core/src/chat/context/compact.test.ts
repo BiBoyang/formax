@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { PromptMessage } from '../../prompts'
 import {
-  buildWorkingSetAwareAutoCompactKeepStrategy,
+  buildWorkingSetAwareCompactKeepStrategy,
   buildAutoCompactKeepStrategy,
   buildCompactPreservedSegmentMeta,
   buildDefaultCompactRehydrationPlan,
@@ -495,6 +495,38 @@ describe('compaction summary helpers', () => {
     })
   })
 
+  it('uses only the latest continuation tail as the preserved-tail source for manual re-compaction', () => {
+    const history = [
+      txt('user', 'very old turn'),
+      buildCompactBoundaryMessage({
+        trigger: 'manual',
+        preTokens: 456,
+        summaryKind: 'model_summary',
+        keepStrategy: buildAutoCompactKeepStrategy(2),
+      }),
+      txt('user', 'previous compact summary'),
+      txt('assistant', 'carry working set'),
+      txt('user', 'latest user'),
+      txt('assistant', 'latest assistant'),
+    ]
+
+    expect(
+      resolveHistoryForCompaction({
+        previousHistory: history,
+        allowPartial: false,
+        preferLatestBoundaryTailSource: true,
+      }),
+    ).toEqual({
+      history,
+      tailSourceHistory: [
+        txt('assistant', 'carry working set'),
+        txt('user', 'latest user'),
+        txt('assistant', 'latest assistant'),
+      ],
+      partial: false,
+    })
+  })
+
   it('reports preserved segment mismatches when continuation messages drift', () => {
     const summary = txt('user', 'summary')
     const preservedTail = [txt('assistant', 'tail one'), txt('user', 'tail two')]
@@ -575,9 +607,9 @@ describe('compaction summary helpers', () => {
     })
   })
 
-  it('builds a working-set-aware auto-compact keep strategy', () => {
+  it('builds a working-set-aware compact keep strategy', () => {
     expect(
-      buildWorkingSetAwareAutoCompactKeepStrategy({
+      buildWorkingSetAwareCompactKeepStrategy({
         keepLastTurns: 3,
         mode: 'acceptEdits',
         history: [
@@ -603,7 +635,7 @@ describe('compaction summary helpers', () => {
 
   it('does not apply task-execution boosts from stale execution clusters', () => {
     expect(
-      buildWorkingSetAwareAutoCompactKeepStrategy({
+      buildWorkingSetAwareCompactKeepStrategy({
         keepLastTurns: 1,
         mode: 'plan',
         history: [

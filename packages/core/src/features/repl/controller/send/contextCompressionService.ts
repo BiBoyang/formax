@@ -1,7 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
 import {
-  buildWorkingSetAwareAutoCompactKeepStrategy,
+  buildWorkingSetAwareCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
   estimateCompactRehydrationCost,
   markCompactRehydrationApplied,
@@ -186,7 +186,7 @@ export function createContextCompressionService(deps: {
         draft,
         fallback: fallbackRehydration,
       })
-      const keepStrategy = buildWorkingSetAwareAutoCompactKeepStrategy({
+      const keepStrategy = buildWorkingSetAwareCompactKeepStrategy({
         keepLastTurns: args.keepLastTurns,
         mode: deps.mode,
         history: compactionScope.tailSourceHistory,
