@@ -369,18 +369,9 @@ export function createChatEngine(deps: {
             throw new Error('Tool loop produced no tool_results (stream bug)')
           }
 
-          loopMessages.push(
-            ...toolResults.map((r) => ({
-              role: 'user' as const,
-              content: buildToolResultMessageBlocks(r),
-            })),
-          )
-          requestLoopMessages.push(
-            ...toolResults.map((r) => ({
-              role: 'user' as const,
-              content: buildToolResultMessageBlocks(r),
-            })),
-          )
+          const toolResultMessage = buildToolResultMessage(toolResults)
+          loopMessages.push(toolResultMessage)
+          requestLoopMessages.push(toolResultMessage)
 
           for (const b of toolUseBlocks) {
             recentTools.push(String(b.name))
@@ -420,6 +411,27 @@ function buildToolResultMessageBlocks(result: ToolResult): PromptBlock[] {
   return blocks
 }
 
+function buildToolResultMessage(results: ToolResult[]): PromptMessage {
+  const toolResultBlocks: PromptBlock[] = []
+  const extraTextBlocks: PromptBlock[] = []
+
+  for (const result of results) {
+    const blocks = buildToolResultMessageBlocks(result)
+    for (const block of blocks) {
+      if ((block as any)?.type === 'tool_result') {
+        toolResultBlocks.push(block)
+      } else {
+        extraTextBlocks.push(block)
+      }
+    }
+  }
+
+  return {
+    role: 'user',
+    content: [...toolResultBlocks, ...extraTextBlocks],
+  }
+}
+
 function buildMessagesWithPostToolUseText(
   messages: ChatHistory,
   pendingByToolUseId: Map<string, string[]>,
@@ -432,11 +444,9 @@ function buildMessagesWithPostToolUseText(
     if (m.role !== 'user' || !Array.isArray(m.content)) return m
 
     let changed = false
-    const nextBlocks: PromptBlock[] = []
+    const immediateTextBlocks: PromptBlock[] = []
 
     for (const block of m.content) {
-      nextBlocks.push(block)
-
       const toolUseId = (block as any)?.type === 'tool_result' ? String((block as any)?.tool_use_id ?? '') : ''
       if (!toolUseId) continue
 
@@ -444,7 +454,7 @@ function buildMessagesWithPostToolUseText(
       if (!extra || extra.length === 0) continue
 
       for (const text of extra) {
-        nextBlocks.push({ type: 'text', text })
+        immediateTextBlocks.push({ type: 'text', text })
       }
 
       used.add(toolUseId)
@@ -452,6 +462,9 @@ function buildMessagesWithPostToolUseText(
     }
 
     if (!changed) return m
+    const toolResultBlocks = m.content.filter((block) => (block as any)?.type === 'tool_result')
+    const otherBlocks = m.content.filter((block) => (block as any)?.type !== 'tool_result')
+    const nextBlocks = [...toolResultBlocks, ...immediateTextBlocks, ...otherBlocks]
     return { ...m, content: nextBlocks }
   })
 

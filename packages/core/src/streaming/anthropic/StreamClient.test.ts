@@ -195,6 +195,79 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect((system[0] as any).cache_control).toBeUndefined()
   })
 
+  it('groups split historical tool_result messages immediately after multi-tool assistant turns', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'done' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'run both' }] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_1', name: 'Bash', input: { command: 'pwd' } },
+            { type: 'tool_use', id: 'call_2', name: 'Read', input: { file_path: '/tmp/a' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'call_1', content: '/repo' },
+            { type: 'text', text: 'post-tool context 1' },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'call_2', content: 'file' },
+            { type: 'text', text: 'post-tool context 2' },
+          ],
+        },
+      ],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+
+    expect(body.messages).toHaveLength(3)
+    expect(body.messages[2].role).toBe('user')
+    expect(body.messages[2].content.map((block: any) => block.type)).toEqual([
+      'tool_result',
+      'tool_result',
+      'text',
+      'text',
+    ])
+    expect(body.messages[2].content[0].tool_use_id).toBe('call_1')
+    expect(body.messages[2].content[1].tool_use_id).toBe('call_2')
+    expect(body.messages[2].content[2].text).toBe('post-tool context 1')
+    expect(body.messages[2].content[3].text).toBe('post-tool context 2')
+  })
+
   it('normalizes empty baseUrl and falls back model from client config when args model is blank', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 

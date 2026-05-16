@@ -223,20 +223,26 @@ describe('ChatEngine', () => {
 
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
     let callCount = 0
+    let secondCallMessages: PromptMessage[] | null = null
 
     const client: LlmStreamClient = {
-      async streamOnce(_args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
         callCount++
         if (callCount === 1) {
           return {
             assistantBlocks: [
               { type: 'text', text: 'hi' },
               { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/tmp/a' } },
+              { type: 'tool_use', id: 't2', name: 'Read', input: { file_path: '/tmp/b' } },
             ],
             stopReason: 'tool_use',
-            toolResults: [{ tool_use_id: 't1', content: 'ok' }],
+            toolResults: [
+              { tool_use_id: 't1', content: 'ok-1' },
+              { tool_use_id: 't2', content: 'ok-2' },
+            ],
           }
         }
+        secondCallMessages = args.messages
         return {
           assistantBlocks: [{ type: 'text', text: 'done' }],
           stopReason: 'end_turn',
@@ -268,6 +274,11 @@ describe('ChatEngine', () => {
     expect(out[1]!.role).toBe('assistant')
     expect(out[2]!.role).toBe('user')
     expect((out[2]!.content[0] as any).type).toBe('tool_result')
+    expect((out[2]!.content[0] as any).tool_use_id).toBe('t1')
+    expect((out[2]!.content[1] as any).type).toBe('tool_result')
+    expect((out[2]!.content[1] as any).tool_use_id).toBe('t2')
+    expect(secondCallMessages?.at(-2)?.role).toBe('assistant')
+    expect(secondCallMessages?.at(-1)).toEqual(out[2])
     expect(events.some((e) => e.type === 'complete')).toBe(true)
   })
 
@@ -1244,8 +1255,9 @@ describe('ChatEngine', () => {
     const blocks = msg.content as any[]
     const t1Index = blocks.findIndex((b: any) => b?.type === 'tool_result' && b?.tool_use_id === 't1')
     const t2Index = blocks.findIndex((b: any) => b?.type === 'tool_result' && b?.tool_use_id === 't2')
-    expect(String(blocks[t1Index + 1]?.text || '')).toContain('CTX_T1')
-    expect(String(blocks[t2Index + 1]?.text || '')).not.toContain('CTX_T1')
+    expect(t1Index).toBe(0)
+    expect(t2Index).toBe(1)
+    expect(String(blocks[2]?.text || '')).toContain('CTX_T1')
     expect(events.some((ev) => ev.type === 'tool_update')).toBe(true)
   })
 

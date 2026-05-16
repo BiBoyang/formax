@@ -20,7 +20,8 @@ function normalizeSystemCacheControl(system: PromptBlock[]): PromptBlock[] {
 }
 
 function normalizeMessageCacheControl(messages: PromptMessage[]): PromptMessage[] {
-  const normalized = messages.map((message) => {
+  const adjacencyNormalized = normalizeToolResultAdjacency(messages)
+  const normalized = adjacencyNormalized.map((message) => {
     if (!Array.isArray(message.content) || message.content.length === 0) return message
 
     const content = message.content.map((block) => {
@@ -65,6 +66,77 @@ function normalizeMessageCacheControl(messages: PromptMessage[]): PromptMessage[
   })
 }
 
+function getToolUseIds(message: PromptMessage): string[] {
+  if (message.role !== 'assistant' || !Array.isArray(message.content)) return []
+  const ids: string[] = []
+  for (const block of message.content as any[]) {
+    if (block?.type === 'tool_use' && typeof block.id === 'string' && block.id.length > 0) {
+      ids.push(block.id)
+    }
+  }
+  return ids
+}
+
+function hasToolResultBlock(message: PromptMessage | undefined): boolean {
+  if (!message || message.role !== 'user' || !Array.isArray(message.content)) return false
+  return message.content.some((block: any) => block?.type === 'tool_result')
+}
+
+export function normalizeToolResultAdjacency(messages: PromptMessage[]): PromptMessage[] {
+  const normalized: PromptMessage[] = []
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (!message) continue
+
+    normalized.push(message)
+
+    const toolUseIds = getToolUseIds(message)
+    if (toolUseIds.length === 0) continue
+
+    const toolUseIdSet = new Set(toolUseIds)
+    const toolResultsById = new Map<string, PromptBlock>()
+    const extraToolResults: PromptBlock[] = []
+    const trailingBlocks: PromptBlock[] = []
+    let scan = index + 1
+    let consumed = 0
+
+    while (scan < messages.length && hasToolResultBlock(messages[scan])) {
+      const candidate = messages[scan]!
+      consumed += 1
+
+      for (const block of candidate.content) {
+        if ((block as any)?.type !== 'tool_result') {
+          trailingBlocks.push(block)
+          continue
+        }
+
+        const toolUseId = String((block as any)?.tool_use_id ?? '')
+        if (toolUseIdSet.has(toolUseId) && !toolResultsById.has(toolUseId)) {
+          toolResultsById.set(toolUseId, block)
+        } else {
+          extraToolResults.push(block)
+        }
+      }
+
+      scan += 1
+      if (toolUseIds.every((id) => toolResultsById.has(id))) break
+    }
+
+    if (consumed === 0) continue
+    if (!toolUseIds.every((id) => toolResultsById.has(id))) continue
+
+    const orderedToolResults = toolUseIds.map((id) => toolResultsById.get(id)!)
+    normalized.push({
+      role: 'user',
+      content: [...orderedToolResults, ...extraToolResults, ...trailingBlocks],
+    })
+    index += consumed
+  }
+
+  return normalized
+}
+
 export function normalizeAnthropicPromptCachingLayout(args: {
   system: PromptBlock[]
   messages: PromptMessage[]
@@ -77,4 +149,3 @@ export function normalizeAnthropicPromptCachingLayout(args: {
     messages: normalizeMessageCacheControl(args.messages),
   }
 }
-
