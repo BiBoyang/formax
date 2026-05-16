@@ -8,7 +8,7 @@ import {
   recordRequestCollapseEvent,
 } from './sessionEvents'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
-import type { ReactiveCompactErrorKind } from '../send/reactiveCompact'
+import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
 
 type CompactLifecycleEvent =
   | { type: 'compact_started'; source: string }

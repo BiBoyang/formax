@@ -1,13 +1,5 @@
-export type ReactiveCompactErrorKind =
-  | 'http_413'
-  | 'request_too_large'
-  | 'input_too_long'
-  | 'prompt_too_long'
-  | 'maximum_context_length'
-  | 'context_length_exceeded'
-  | 'context_limit'
-  | 'too_many_tokens'
-  | 'reduce_messages_length'
+import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
+export type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
 
 const REACTIVE_COMPACT_PATTERNS: ReadonlyArray<{
   kind: ReactiveCompactErrorKind

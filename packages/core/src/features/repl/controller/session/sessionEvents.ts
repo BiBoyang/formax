@@ -3,7 +3,7 @@ import { getLocalCommandInjectionStats } from './localCommandInjection'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import type { SessionWriter } from '../../sessionSave/writer'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
-import type { ReactiveCompactErrorKind } from '../send/reactiveCompact'
+import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
 
 type SessionEventWriter = Pick<SessionWriter, 'appendEvent'> | null
 

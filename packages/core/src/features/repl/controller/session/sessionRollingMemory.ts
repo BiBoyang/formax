@@ -1,13 +1,6 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { ReplMode } from '../../mode'
-import {
-  persistSessionMemoryFromHistory,
-  waitForSessionMemoryWriteFlush,
-} from '../../sessionSave/sessionMemoryRefresh'
-
-export async function waitForRollingSessionMemoryFlush(sessionFilePath: string): Promise<void> {
-  await waitForSessionMemoryWriteFlush(sessionFilePath)
-}
+import { persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
 
 export async function persistRollingSessionMemory(args: {
   sessionFilePath: string
