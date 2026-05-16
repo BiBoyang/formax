@@ -50,7 +50,7 @@ bun run check:root-script-governance
 Gate implementation:
 
 - `scripts/check-root-script-governance.mjs`
-- `scripts/root-script-governance-lib.mjs`
+- `packages/core/src/shared/utils/rootScriptGovernance.mjs`
 - baseline config: `scripts/baselines/root-script-governance.json`
 
 CI must treat this gate as blocking for code changes.

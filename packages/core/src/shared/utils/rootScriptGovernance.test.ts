@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateRootScriptGovernance } from '../../../../../scripts/root-script-governance-lib.mjs'
+import { evaluateRootScriptGovernance } from './rootScriptGovernance.mjs'
 
 function baseConfig() {
   return {

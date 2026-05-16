@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { evaluateRootScriptGovernance } from './root-script-governance-lib.mjs'
+import { evaluateRootScriptGovernance } from '../packages/core/src/shared/utils/rootScriptGovernance.mjs'
 
 function parseArgs(argv) {
   const options = {
