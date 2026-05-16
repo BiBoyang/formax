@@ -30,26 +30,26 @@ Last verified: 2026-04-03
 
 主要阅读的 Claude Code 文件：
 
-- `src/query.ts`
-- `src/commands/compact/compact.ts`
-- `src/services/compact/compact.ts`
-- `src/services/compact/autoCompact.ts`
-- `src/services/compact/microCompact.ts`
-- `src/services/compact/apiMicrocompact.ts`
-- `src/services/compact/prompt.ts`
-- `src/services/compact/sessionMemoryCompact.ts`
-- `src/services/compact/postCompactCleanup.ts`
-- `src/services/compact/grouping.ts`
-- `src/utils/messages.ts`
-- `src/utils/messages/mappers.ts`
-- `src/utils/sessionStorage.ts`
-- `src/utils/analyzeContext.ts`
-- `src/services/api/claude.ts`
-- `src/entrypoints/sdk/coreSchemas.ts`
-- `src/entrypoints/sdk/controlSchemas.ts`
-- `src/remote/sdkMessageAdapter.ts`
-- `src/remote/SessionsWebSocket.ts`
-- `src/components/TokenWarning.tsx`
+- `claude-code/src/query.ts`
+- `claude-code/src/commands/compact/compact.ts`
+- `claude-code/src/services/compact/compact.ts`
+- `claude-code/src/services/compact/autoCompact.ts`
+- `claude-code/src/services/compact/microCompact.ts`
+- `claude-code/src/services/compact/apiMicrocompact.ts`
+- `claude-code/src/services/compact/prompt.ts`
+- `claude-code/src/services/compact/sessionMemoryCompact.ts`
+- `claude-code/src/services/compact/postCompactCleanup.ts`
+- `claude-code/src/services/compact/grouping.ts`
+- `claude-code/src/utils/messages.ts`
+- `claude-code/src/utils/messages/mappers.ts`
+- `claude-code/src/utils/sessionStorage.ts`
+- `claude-code/src/utils/analyzeContext.ts`
+- `claude-code/src/services/api/claude.ts`
+- `claude-code/src/entrypoints/sdk/coreSchemas.ts`
+- `claude-code/src/entrypoints/sdk/controlSchemas.ts`
+- `claude-code/src/remote/sdkMessageAdapter.ts`
+- `claude-code/src/remote/SessionsWebSocket.ts`
+- `claude-code/src/components/TokenWarning.tsx`
 
 主要阅读的 Formax 文件：
 
@@ -74,7 +74,7 @@ Last verified: 2026-04-03
 - `snipProjection`
 - `cachedMicrocompact`
 - `contextCollapse`
-- 一些类型文件（例如导入路径指向的 `src/types/message.ts` 在快照中未找到）
+- 一些类型文件（例如导入路径指向的 `claude-code/src/types/message.ts` 在快照中未找到）
 
 因此：
 
@@ -83,7 +83,7 @@ Last verified: 2026-04-03
 
 ## 2. Claude Code 的整体架构图
 
-从 `src/query.ts` 看，Claude Code 在一次正常 query 里并不是直接“拿 messages 去调模型”，而是会在模型调用前走一条 context-pressure 管线：
+从 `claude-code/src/query.ts` 看，Claude Code 在一次正常 query 里并不是直接“拿 messages 去调模型”，而是会在模型调用前走一条 context-pressure 管线：
 
 1. 从最后一个 compact boundary 后取上下文视图。
 2. 对超大的 tool result 先做预算替换。
@@ -106,7 +106,7 @@ Claude Code 的上下文压缩不是靠“把历史数组直接替换掉”这�
 
 ### 3.1 compact boundary 是显式系统消息
 
-`src/utils/messages.ts` 里有：
+`claude-code/src/utils/messages.ts` 里有：
 
 - `createCompactBoundaryMessage(trigger, preTokens, lastPreCompactMessageUuid?, userContext?, messagesSummarized?)`
 - `isCompactBoundaryMessage(...)`
@@ -167,7 +167,7 @@ message 上的关键标记：
 - `anchorUuid`
 - `tailUuid`
 
-这套 metadata 被 `src/utils/sessionStorage.ts` 的 `applyPreservedSegmentRelinks(...)` 使用。
+这套 metadata 被 `claude-code/src/utils/sessionStorage.ts` 的 `applyPreservedSegmentRelinks(...)` 使用。
 
 设计目的：
 
@@ -183,16 +183,16 @@ message 上的关键标记：
 
 外围配套也很完整：
 
-- `src/entrypoints/sdk/coreSchemas.ts` 为 `compact_boundary` 定义了 schema
-- `src/utils/messages/mappers.ts` 负责 internal <-> SDK metadata 映射
-- `src/remote/sdkMessageAdapter.ts` 把 SDK 的 compact boundary 转成内部消息
-- `src/remote/SessionsWebSocket.ts` 还专门处理 compaction 期间的短暂 `4001 session not found`
+- `claude-code/src/entrypoints/sdk/coreSchemas.ts` 为 `compact_boundary` 定义了 schema
+- `claude-code/src/utils/messages/mappers.ts` 负责 internal <-> SDK metadata 映射
+- `claude-code/src/remote/sdkMessageAdapter.ts` 把 SDK 的 compact boundary 转成内部消息
+- `claude-code/src/remote/SessionsWebSocket.ts` 还专门处理 compaction 期间的短暂 `4001 session not found`
 
 说明 compact 已经不是 REPL 内部私有实现，而是远端协议的一部分。
 
 ## 4. Claude Code 的阈值与触发模型
 
-Claude Code 在 `src/services/compact/autoCompact.ts` 里把阈值逻辑拆得很明确。
+Claude Code 在 `claude-code/src/services/compact/autoCompact.ts` 里把阈值逻辑拆得很明确。
 
 ### 4.1 有效窗口不是模型原始窗口
 
@@ -252,7 +252,7 @@ Claude Code 里和 compact 相关的重要常量包括：
 
 ### 4.5 blocking limit 也和 compact 有协作
 
-`src/query.ts` 里还有一个 hard blocking limit 检查：
+`claude-code/src/query.ts` 里还有一个 hard blocking limit 检查：
 
 - 当 auto-compact 关闭时，如果已经到 blocking limit，直接报 synthetic prompt-too-long
 - 但会为手动 `/compact` 预留空间
@@ -264,7 +264,7 @@ Claude Code 里和 compact 相关的重要常量包括：
 
 ## 5. Claude Code 在 query 主路径里的分层压缩
 
-`src/query.ts` 是 Claude Code 上下文压缩的总调度器。
+`claude-code/src/query.ts` 是 Claude Code 上下文压缩的总调度器。
 
 一次 query 开始后，关键顺序是：
 
@@ -287,7 +287,7 @@ Claude Code 里和 compact 相关的重要常量包括：
 
 ## 6. Claude Code 的 microcompact
 
-`src/services/compact/microCompact.ts` 是 Claude Code 最值得借鉴的一层。
+`claude-code/src/services/compact/microCompact.ts` 是 Claude Code 最值得借鉴的一层。
 
 它处理的是：
 
@@ -384,7 +384,7 @@ cached microcompact 的核心特征：
 
 ## 7. API 原生 context management
 
-`src/services/compact/apiMicrocompact.ts` 和 `src/services/api/claude.ts` 表明 Claude Code 还预留了一条更靠近后端的路径：
+`claude-code/src/services/compact/apiMicrocompact.ts` 和 `claude-code/src/services/api/claude.ts` 表明 Claude Code 还预留了一条更靠近后端的路径：
 
 - `clear_tool_uses_20250919`
 - `clear_thinking_20251015`
@@ -404,7 +404,7 @@ cached microcompact 的核心特征：
 
 ## 8. Claude Code 的 full compactConversation
 
-`src/services/compact/compact.ts` 是 full compact 的核心。
+`claude-code/src/services/compact/compact.ts` 是 full compact 的核心。
 
 ### 8.1 compact 前的准备
 
@@ -417,7 +417,7 @@ cached microcompact 的核心特征：
 
 ### 8.2 summary prompt 设计得非常强
 
-`src/services/compact/prompt.ts` 的 prompt 不是一句“请总结一下”。
+`claude-code/src/services/compact/prompt.ts` 的 prompt 不是一句“请总结一下”。
 
 它有这些特点：
 
@@ -547,7 +547,7 @@ compact 后它会异步重建很多状态：
 
 ## 9. Claude Code 的 manual `/compact`
 
-`src/commands/compact/compact.ts` 的手动命令流程是：
+`claude-code/src/commands/compact/compact.ts` 的手动命令流程是：
 
 1. 先把上下文投影到最后一个 compact boundary 之后。
 2. 无 custom instructions 时，优先尝试 session-memory compact。
@@ -562,7 +562,7 @@ compact 后它会异步重建很多状态：
 
 ## 10. Claude Code 的 session memory compaction
 
-`src/services/compact/sessionMemoryCompact.ts` 是另一条很强的路线。
+`claude-code/src/services/compact/sessionMemoryCompact.ts` 是另一条很强的路线。
 
 它的本质不是“现场让模型总结”，而是：
 
@@ -642,7 +642,7 @@ compact 后它会异步重建很多状态：
 
 ### 12.1 `/context` 不是简单 token 数字，而是完整拆解
 
-`src/utils/analyzeContext.ts` 和 `/context` 命令会给出：
+`claude-code/src/utils/analyzeContext.ts` 和 `/context` 命令会给出：
 
 - system prompt tokens
 - system tools
@@ -664,7 +664,7 @@ compact 后它会异步重建很多状态：
 
 ### 12.2 TokenWarning 和 suppression
 
-`src/components/TokenWarning.tsx` + `compactWarningState.ts` 的作用：
+`claude-code/src/components/TokenWarning.tsx` + `compactWarningState.ts` 的作用：
 
 - 在接近阈值时提示
 - compact 成功后暂时 suppress warning
@@ -674,7 +674,7 @@ compact 后它会异步重建很多状态：
 
 ### 12.3 remote session 明确考虑 compaction 短暂断连
 
-`src/remote/SessionsWebSocket.ts` 专门处理：
+`claude-code/src/remote/SessionsWebSocket.ts` 专门处理：
 
 - compaction 期间可能短暂出现 `4001 session not found`
 - 给出有限重试窗口
