@@ -7,6 +7,11 @@ type DesktopWindowAppearanceState = {
   revision: number
   windowTransparencyEnabled: boolean
 }
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: {
+    platform?: string
+  }
+}
 
 const DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE: DesktopWindowAppearanceState = {
   revision: 0,
@@ -57,10 +62,13 @@ export function useDesktopBridge(args: UseDesktopBridgeArgs) {
   const desktopBridge = useMemo(() => readDesktopBridge(), [])
   const terminalBridge = useMemo(() => readDesktopTerminalBridge(desktopBridge), [desktopBridge])
   const isDesktopClient = desktopBridge != null
+  const navigatorWithUserAgentData =
+    typeof navigator !== 'undefined' ? (navigator as NavigatorWithUserAgentData) : null
   const isMacDesktopClient =
     isDesktopClient &&
-    typeof navigator !== 'undefined' &&
-    (navigator.userAgentData?.platform?.toLowerCase() === 'macos' || /mac/i.test(navigator.platform))
+    navigatorWithUserAgentData != null &&
+    (navigatorWithUserAgentData.userAgentData?.platform?.toLowerCase() === 'macos' ||
+      /mac/i.test(navigatorWithUserAgentData.platform))
   const [desktopWindowAppearanceState, setDesktopWindowAppearanceState] = useState<DesktopWindowAppearanceState>(
     DEFAULT_DESKTOP_WINDOW_APPEARANCE_STATE,
   )
