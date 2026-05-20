@@ -50,7 +50,8 @@
   - Fixed in this batch: app-server manual `/compact` now delegates to shared `runCompactFlow`, preserving latest-boundary handling, working-set-aware `keep_combo`, rehydration, and compact request prompt behavior.
 - [x] Terminal prune may persist a truncated current user message.
   - Fixed in this batch: `ChatEngine.runTurn` now separates persisted `user` from request-only `requestUser`, and TUI/app-server pass prepared trailing messages only as request payload.
-- [ ] Request-only injected prompt blocks may persist after prune force-fit.
+- [x] Request-only injected prompt blocks may persist after prune force-fit.
+  - Fixed by the `requestUser` split: force-fit/request-pruned current-user payloads are sent only as `requestUser`, while persisted `user` is stripped of request-only injected blocks after the turn.
 - [ ] `microcompact` is run outside the canonical stack and then again inside it.
 - [x] `microcompact` may be persisted despite contract language describing it as request-time.
   - Fixed in this batch: `persistedHistoryCandidate` now preserves the canonical baseline while `microCompactedHistory` / `requestHistory` carry request-time reducer effects.
@@ -59,8 +60,8 @@
 
 - [x] Add app-server turn test: long history produces distinct `requestHistory` and non-null `promptBudget`.
 - [x] Add SDK query test: resume/continue with long history uses canonical stack projection.
-- [ ] Add `sendMainTurn` test: force-fit user request persists original user content, not pruned request text.
-- [ ] Add injected-block test: request-only reminders are absent from persisted history after tiny-budget force-fit.
+- [x] Add `sendMainTurn` test: force-fit user request persists original user content, not pruned request text.
+- [x] Add injected-block test: request-only reminders are absent from persisted history after tiny-budget force-fit.
 - [ ] Add middle-layer invariant test: request-time stages affect `requestHistory` / assembled envelope, not persisted baseline.
 - [x] Add `microcompact` contract test once Batch 0 decision is made.
 
@@ -69,7 +70,7 @@
 - [ ] Introduce or extract a shared adapter for app-server and SDK to call the canonical middle-layer stack.
 - [x] Pass `requestHistory` and `promptBudget` into app-server / SDK engine turns.
 - [x] Separate persisted user from request-projected user where terminal prune can alter the current turn.
-- [ ] Keep terminal prune scoped to assembled request envelope.
+- [x] Keep terminal prune scoped to assembled request envelope.
 - [ ] Remove duplicate pre-stack `microcompact` execution if canonical stack already owns the stage.
 - [x] If `microcompact` remains request-only, stop using microcompacted messages as `persistedHistoryCandidate`.
 - [ ] If `microcompact` is intentionally persisted, update `docs/contracts/context-strategy-stack-contract.md` first and add explicit persisted-stub tests.

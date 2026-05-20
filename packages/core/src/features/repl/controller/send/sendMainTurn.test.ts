@@ -440,6 +440,81 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('keeps terminal-pruned current user request-only while persisting the original user message', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      requestHistory: [],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'request-fit-user' }] },
+      context: {
+        usedTokens: 8900,
+        limitTokens: 9000,
+        percentRemaining: 1,
+        source: 'estimate',
+      },
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+
+    await runMainSendTurn(harness as any)
+
+    const callArgs = harness._spies.engine.runTurn.mock.calls[0]?.[0]
+    expect(callArgs.requestUser).toEqual({ role: 'user', content: [{ type: 'text', text: 'request-fit-user' }] })
+    expect(callArgs.user.content).toEqual([
+      { type: 'text', text: 'reminder' },
+      { type: 'text', text: 'style-block' },
+      { type: 'text', text: 'semantic-block' },
+      { type: 'text', text: 'user-block' },
+    ])
+    expect(harness.refs.historyRef.current[0]).toMatchObject({
+      role: 'user',
+      content: [{ type: 'text', text: 'user-block' }],
+    })
+    expect(JSON.stringify(harness.refs.historyRef.current)).not.toContain('request-fit-user')
+  })
+
+  it('keeps request-only injected blocks out of persisted history after request user force-fit', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      requestHistory: [],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'force-fit-without-injected-blocks' }] },
+      context: {
+        usedTokens: 8990,
+        limitTokens: 9000,
+        percentRemaining: 1,
+        source: 'estimate',
+      },
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+    harness.refs.pendingInjectedBlocksRef.current = [{ type: 'text', text: 'pending-restore-only' }]
+
+    await runMainSendTurn(harness as any)
+
+    const callArgs = harness._spies.engine.runTurn.mock.calls[0]?.[0]
+    expect(JSON.stringify(callArgs.requestUser)).toContain('force-fit-without-injected-blocks')
+    expect(JSON.stringify(callArgs.user)).toContain('pending-restore-only')
+    expect(harness.refs.historyRef.current[0]).toMatchObject({
+      role: 'user',
+      content: [{ type: 'text', text: 'user-block' }],
+    })
+    expect(JSON.stringify(harness.refs.historyRef.current)).not.toContain('pending-restore-only')
+    expect(JSON.stringify(harness.refs.historyRef.current)).not.toContain('force-fit-without-injected-blocks')
+  })
+
   it('emits auto-compact notice only when prepare step reports it should be shown', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],
