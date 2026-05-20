@@ -451,6 +451,33 @@ describe('microCompactHistory', () => {
     expect((out.messages[1]!.content[0] as any).content).toBe(mediumRead)
   })
 
+  it('uses subsequent user turns, not assistant-only drift, for time-aware staleness', () => {
+    const mediumRead = 'line\n'.repeat(170)
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', mediumRead),
+      { role: 'assistant', content: [{ type: 'text', text: 'Checking auth flow.' }] as any },
+      { role: 'assistant', content: [{ type: 'text', text: 'Inspecting redirect logic.' }] as any },
+      { role: 'assistant', content: [{ type: 'text', text: 'Confirming stale guard.' }] as any },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1600,
+      minResultCharsByName: {},
+      eligibleToolNames: ['Read'],
+      timeAwareEligibleToolNames: ['Read'],
+      timeAwareMinResultChars: 600,
+      timeAwareMinResultCharsByName: {},
+      timeAwareMinStaleUserTurns: 1,
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.timeAwareCompactedBlocks).toBe(0)
+    expect((out.messages[1]!.content[0] as any).content).toBe(mediumRead)
+  })
+
   it('prefers recent Read blocks over newer low-value search/list results when recent budgets are tight', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),

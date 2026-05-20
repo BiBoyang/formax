@@ -71,4 +71,31 @@ describe('toolResultBudget', () => {
     expect(out.impact.replacedBlocks).toBe(0)
     expect(out.messages).toEqual(messages)
   })
+
+  it('continues to later candidates when an earlier replacement would save no tokens', () => {
+    const messages = [
+      assistantToolUse('read-short', 'Read', { file_path: '/repo/short.ts' }),
+      userToolResult('read-short', 'x'),
+      assistantToolUse('read-large', 'Read', { file_path: '/repo/large.ts' }),
+      userToolResult('read-large', 'line\n'.repeat(1200)),
+    ] as any
+
+    const out = applyToolResultBudget({
+      messages,
+      policy: {
+        pressureTier: 'critical',
+        eligibleToolNames: ['Read'],
+        keepRecentToolResults: 0,
+        minResultChars: 1,
+        minResultCharsByName: {},
+        maxToolResultTokens: 1,
+      },
+    })
+
+    expect(out.applied).toBe(true)
+    expect(out.impact.replacedBlocks).toBe(1)
+    expect(out.impact.replacedToolNames).toEqual(['Read'])
+    expect((out.messages[1]!.content[0] as any).content).toBe('x')
+    expect((out.messages[3]!.content[0] as any).content).toContain('[Tool result replaced by budget: Read /repo/large.ts')
+  })
 })

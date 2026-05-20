@@ -161,8 +161,9 @@
 - [x] Working-set anchor behavior with `keepLastTurns=0` may drop a recent execution cluster.
   - Classified as covered intentional behavior: existing `runCompactFlow` test locks manual `keepLastTurns=0` preserving the current execution cluster through `keep_combo`.
 - [x] `sanitizeReminderText` already handles basic mixed-case tags, but not tagged variants with attributes.
-- [ ] Time-aware microcompact stale-turn definition may be too narrow if assistant-only drift should count.
-  - Classification: intentionally left unchanged in this batch. Claude Code's time-based microcompact uses wall-clock gap since the last main-loop assistant message; Formax currently uses subsequent non-tool user turns. Aligning this would be a context-strategy semantic change and should be decided separately.
+- [x] Time-aware microcompact stale-turn definition may be too narrow if assistant-only drift should count.
+  - Classification: intentionally unchanged in this batch. Claude Code's time-based microcompact uses wall-clock gap since the last main-loop assistant message; Formax currently uses subsequent non-tool user turns. Aligning this would be a context-strategy semantic change and should be decided separately.
+  - Covered by test: assistant-only drift does not make a tool result stale under the current Formax policy.
 
 ### Tests First
 
@@ -170,7 +171,8 @@
 - [x] Add collapse test: compaction summary is not counted as normal user turn.
 - [x] Add working-set test: manual compact with `keepLastTurns=0` preserves recent execution cluster if contract requires it.
 - [x] Add sanitize test for `<system-reminder attr="x">`.
-- [ ] Decide whether assistant-only staleness should count for time-aware microcompact.
+- [x] Decide whether assistant-only staleness should count for time-aware microcompact.
+  - Decision for this fix loop: no. Preserve current Formax user-turn-based staleness; open a separate semantic-design task before switching to Claude Code's wall-clock assistant-gap trigger.
 
 ### Implementation
 
@@ -182,9 +184,12 @@
 ## Known False Positives / Low Confidence
 
 - [x] `sanitizeReminderText` already handles basic mixed-case tags via `/gi`; only attribute variants remain a possible gap.
-- [ ] `toolResultBudget savedTokens <= 0` does continue to the next candidate; the WebGPT finding that it stops early appears false.
-- [ ] Manual compact vs auto/reactive partial compaction may be intentional; confirm via contract before changing behavior.
-- [ ] Time-aware microcompact counting only subsequent non-tool user turns may be intended; do not change without a clear product/contract decision.
+- [x] `toolResultBudget savedTokens <= 0` does continue to the next candidate; the WebGPT finding that it stops early appears false.
+  - Covered by test: an earlier zero-savings replacement candidate is skipped and a later eligible candidate is still replaced.
+- [x] Manual compact vs auto/reactive partial compaction may be intentional; confirm via contract before changing behavior.
+  - Confirmed intentional: manual `/compact` uses task-minimal `keep_combo` and has preserved execution-cluster coverage.
+- [x] Time-aware microcompact counting only subsequent non-tool user turns may be intended; do not change without a clear product/contract decision.
+  - Confirmed as the current loop decision; changing to wall-clock assistant-gap behavior should be tracked outside this WebGPT fix TODO.
 
 ## Suggested Execution Order
 
