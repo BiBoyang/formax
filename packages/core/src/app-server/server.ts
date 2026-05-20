@@ -377,13 +377,14 @@ export class AppServer {
           ...params,
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
           ...(nextTurnInjectedBlocks.length > 0 ? { pendingInjectedBlocks: nextTurnInjectedBlocks } : {}),
+          ...(nextTurnInjectedBlocks.length > 0
+            ? {
+                onPendingInjectedBlocksConsumed: () => this.consumePendingInjectedBlocksForDispatch(params.threadId),
+              }
+            : {}),
         })
         if (exitPlanReminder.consumePendingOnSuccess) {
           this.pendingExitPlanReminderByThreadId.delete(params.threadId)
-        }
-        if (nextTurnInjectedBlocks.length > 0) {
-          this.clearPendingInjectedBlocks(params.threadId)
-          this.clearPendingSessionMemoryRestore(params.threadId)
         }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
@@ -477,13 +478,14 @@ export class AppServer {
           ...(params.cwd ? { cwd: params.cwd } : {}),
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
           ...(nextTurnInjectedBlocks.length > 0 ? { pendingInjectedBlocks: nextTurnInjectedBlocks } : {}),
+          ...(nextTurnInjectedBlocks.length > 0
+            ? {
+                onPendingInjectedBlocksConsumed: () => this.consumePendingInjectedBlocksForDispatch(params.threadId),
+              }
+            : {}),
         })
         if (exitPlanReminder.consumePendingOnSuccess) {
           this.pendingExitPlanReminderByThreadId.delete(params.threadId)
-        }
-        if (nextTurnInjectedBlocks.length > 0) {
-          this.clearPendingInjectedBlocks(params.threadId)
-          this.clearPendingSessionMemoryRestore(params.threadId)
         }
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
@@ -610,6 +612,11 @@ export class AppServer {
 
   private clearPendingSessionMemoryRestore(threadId: string): void {
     this.pendingSessionMemoryRestoreByThreadId.delete(threadId)
+  }
+
+  private consumePendingInjectedBlocksForDispatch(threadId: string): void {
+    this.clearPendingInjectedBlocks(threadId)
+    this.clearPendingSessionMemoryRestore(threadId)
   }
 
   private rememberLatestCompactBoundary(threadId: string, boundary?: CompactBoundaryMeta | null): void {

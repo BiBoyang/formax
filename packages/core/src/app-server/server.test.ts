@@ -858,6 +858,10 @@ describe('AppServer', () => {
       turnRunner: {
         async startTurn(params) {
           received.push(params)
+          await params.onPendingInjectedBlocksConsumed?.({
+            threadId: params.threadId,
+            turnId: `turn-${received.length}`,
+          })
           return { turn: { id: `turn-${received.length}`, threadId: params.threadId, status: 'running' as const } }
         },
         async interruptTurn() {
@@ -903,6 +907,7 @@ describe('AppServer', () => {
       threadId: 'thread-1',
       input: { text: 'first turn after resume' },
       pendingInjectedBlocks: [reminderBlock],
+      onPendingInjectedBlocksConsumed: expect.any(Function),
     })
     expect(received[1]).toEqual({
       threadId: 'thread-1',
@@ -911,6 +916,86 @@ describe('AppServer', () => {
 
     const replayAfterConsumption = await server.handleMessage(request(45, 'thread/replay', { threadId: 'thread-1' }))
     expect((replayAfterConsumption[0] as any).result.pendingSessionMemoryRestore).toBeNull()
+  })
+
+  it('retains pending restore after turn/start accepts until injected blocks are consumed by dispatch', async () => {
+    const received: unknown[] = []
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only.\n</system-reminder>',
+    }
+    const pendingSessionMemoryRestore = {
+      schemaVersion: 1,
+      mode: 'normal',
+      recentFiles: [],
+      recentUserPrompts: ['Recover context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      planPath: null,
+      planExcerpt: null,
+      todoSummary: null,
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            staleInputs: [],
+            pendingSessionMemoryRestore,
+            nextTurnInjectedBlocks: [reminderBlock as any],
+          }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 'thread-1',
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      turnRunner: {
+        async startTurn(params) {
+          received.push(params)
+          return { turn: { id: `turn-${received.length}`, threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/resume', { threadId: 'thread-1' }))
+    await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'accepted but not dispatched' },
+      }),
+    )
+
+    const replayAfterAccepted = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterAccepted[0] as any).result.pendingSessionMemoryRestore).toEqual(pendingSessionMemoryRestore)
+
+    await (received[0] as any).onPendingInjectedBlocksConsumed({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+    })
+
+    const replayAfterDispatch = await server.handleMessage(request(5, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterDispatch[0] as any).result.pendingSessionMemoryRestore).toBeNull()
   })
 
   it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {

@@ -815,10 +815,13 @@ describe('TurnRunner', () => {
       text: '<system-reminder>\nRestored session memory for the next turn only:\n- Plan path: /repo/.formax/plan.md\n</system-reminder>',
     } as const
     let capturedUserContent: unknown[] = []
+    let consumedBeforeDispatch = false
+    const consumed: Array<{ threadId: string; turnId: string }> = []
 
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
+          consumedBeforeDispatch = consumed.length === 1
           if (capturedUserContent.length === 0) {
             capturedUserContent = Array.isArray(args.user.content) ? [...args.user.content] : []
           }
@@ -843,9 +846,18 @@ describe('TurnRunner', () => {
       threadId: fixture.threadId,
       input: { text: 'resume-aware turn' },
       pendingInjectedBlocks: [reminderBlock],
+      onPendingInjectedBlocksConsumed: (payload) => {
+        consumed.push(payload)
+      },
     })
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
 
+    expect(consumed).toHaveLength(1)
+    expect(consumed[0]).toEqual({
+      threadId: fixture.threadId,
+      turnId: expect.any(String),
+    })
+    expect(consumedBeforeDispatch).toBe(true)
     expect(JSON.stringify(capturedUserContent)).toContain('Restored session memory for the next turn only:')
 
     const filePath = await findSessionFileBySessionId({

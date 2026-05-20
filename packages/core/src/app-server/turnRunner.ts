@@ -53,6 +53,7 @@ type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 type TurnStartRuntimeParams = TurnStartParams & {
   includeExitPlanReminder?: boolean
   pendingInjectedBlocks?: PromptBlock[]
+  onPendingInjectedBlocksConsumed?: (args: { threadId: string; turnId: string }) => void | Promise<void>
 }
 
 export type TurnRunnerNotificationEmitter = (method: string, params?: unknown) => void
@@ -87,6 +88,7 @@ type RunningTurn = {
   modelUserContent: PromptBlock[]
   semanticBlockCount: number
   pendingInjectedBlockCount: number
+  onPendingInjectedBlocksConsumed: ((args: { threadId: string; turnId: string }) => void | Promise<void>) | null
   replMode: ReplMode
   planSession: PlanSessionManager | null
   planPath: string | null
@@ -311,6 +313,7 @@ export class TurnRunner {
       modelUserContent: [...turnInput.semanticBlocks, ...pendingInjectedBlocks, ...turnInput.userBlocks],
       semanticBlockCount: turnInput.semanticBlocks.length,
       pendingInjectedBlockCount: pendingInjectedBlocks.length,
+      onPendingInjectedBlocksConsumed: params.onPendingInjectedBlocksConsumed ?? null,
       replMode: initialMode,
       planSession,
       planPath,
@@ -698,6 +701,7 @@ export class TurnRunner {
           summaryChars: summary.length,
         })
       } else {
+        await this.consumePendingInjectedBlocksForDispatch(running)
         const nextHistory = await this.engine.runTurn({
           history,
           user,
@@ -837,6 +841,17 @@ export class TurnRunner {
     for (const input of resolved) {
       this.emitResolvedInput(running, input)
     }
+  }
+
+  private async consumePendingInjectedBlocksForDispatch(running: RunningTurn): Promise<void> {
+    if (running.pendingInjectedBlockCount <= 0) return
+    const callback = running.onPendingInjectedBlocksConsumed
+    if (!callback) return
+    running.onPendingInjectedBlocksConsumed = null
+    await callback({
+      threadId: running.threadId,
+      turnId: running.turnId,
+    })
   }
 
   private emitResolvedInput(running: RunningTurn, input: InputResolvedPayload): void {
