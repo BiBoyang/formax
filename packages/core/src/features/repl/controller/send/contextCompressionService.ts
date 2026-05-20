@@ -261,7 +261,8 @@ export function createContextCompressionService(deps: {
       showAutoCompactNotice: boolean
     }> {
       let stack: ReturnType<typeof runCanonicalMiddleLayerStack> | null = null
-      let nextHistory = microCompactMessages({
+      let nextHistory = args.history
+      const microCompactedHistoryForAutoCompact = microCompactMessages({
         history: args.history,
         system: args.system,
         contextWindowTokens: args.contextWindowTokens,
@@ -273,8 +274,8 @@ export function createContextCompressionService(deps: {
       const canAttemptAutoCompact =
         deps.cfg.context.enableAutoCompact &&
         !!args.contextWindowTokens &&
-        nextHistory.length > 0 &&
-        countNonToolUserTurns(nextHistory) >= 2 &&
+        microCompactedHistoryForAutoCompact.length > 0 &&
+        countNonToolUserTurns(microCompactedHistoryForAutoCompact) >= 2 &&
         args.sendSeq - args.lastAutoCompactSeqRef.current >= deps.cfg.context.autoCompactMinTurnsBetweenRuns
 
       if (canAttemptAutoCompact) {
@@ -282,7 +283,7 @@ export function createContextCompressionService(deps: {
           config: buildBudgetConfig(args.contextWindowTokens!),
           usedTokens: estimatePromptTokens({
             system: args.system,
-            messages: [...nextHistory, args.user],
+            messages: [...microCompactedHistoryForAutoCompact, args.user],
           }),
         })
 
@@ -295,7 +296,7 @@ export function createContextCompressionService(deps: {
             const sessionMemoryCompactedHistory = await tryRunSessionMemoryCompact({
               source: 'auto',
               triggerReason: autoTriggerReason,
-              previousHistory: nextHistory,
+              previousHistory: args.history,
               keepLastTurns: deps.cfg.context.compactKeepLastTurns,
               system: args.system,
             })
@@ -307,7 +308,7 @@ export function createContextCompressionService(deps: {
                   triggerReason: autoTriggerReason,
                   instructions: '',
                   engine: deps.engine,
-                  previousHistory: nextHistory,
+                  previousHistory: args.history,
                   keepLastTurns: deps.cfg.context.compactKeepLastTurns,
                   system: args.system,
                   cwd: deps.cwd,

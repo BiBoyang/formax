@@ -48,7 +48,8 @@
 - [ ] Terminal prune may persist a truncated current user message.
 - [ ] Request-only injected prompt blocks may persist after prune force-fit.
 - [ ] `microcompact` is run outside the canonical stack and then again inside it.
-- [ ] `microcompact` may be persisted despite contract language describing it as request-time.
+- [x] `microcompact` may be persisted despite contract language describing it as request-time.
+  - Fixed in this batch: `persistedHistoryCandidate` now preserves the canonical baseline while `microCompactedHistory` / `requestHistory` carry request-time reducer effects.
 
 ### Tests First
 
@@ -57,7 +58,7 @@
 - [ ] Add `sendMainTurn` test: force-fit user request persists original user content, not pruned request text.
 - [ ] Add injected-block test: request-only reminders are absent from persisted history after tiny-budget force-fit.
 - [ ] Add middle-layer invariant test: request-time stages affect `requestHistory` / assembled envelope, not persisted baseline.
-- [ ] Add `microcompact` contract test once Batch 0 decision is made.
+- [x] Add `microcompact` contract test once Batch 0 decision is made.
 
 ### Implementation
 
@@ -66,7 +67,7 @@
 - [ ] Separate persisted user from request-projected user where terminal prune can alter the current turn.
 - [ ] Keep terminal prune scoped to assembled request envelope.
 - [ ] Remove duplicate pre-stack `microcompact` execution if canonical stack already owns the stage.
-- [ ] If `microcompact` remains request-only, stop using microcompacted messages as `persistedHistoryCandidate`.
+- [x] If `microcompact` remains request-only, stop using microcompacted messages as `persistedHistoryCandidate`.
 - [ ] If `microcompact` is intentionally persisted, update `docs/contracts/context-strategy-stack-contract.md` first and add explicit persisted-stub tests.
 
 ## Batch 2: Session Persistence / Resume Authority

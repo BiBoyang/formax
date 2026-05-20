@@ -207,7 +207,7 @@ export function executeMiddleLayerStrategyStack(args: {
     toolBudgetedHistory: toolResultBudgetResult.messages,
     snippedHistory: snipResult.messages,
     collapsedHistory: collapseResult.messages,
-    persistedHistoryCandidate: microCompactResult.messages,
+    persistedHistoryCandidate: args.history,
     preparedMessages,
     preparedTrailingMessage,
     requestHistory,
@@ -237,7 +237,7 @@ export function executeMiddleLayerStrategyStack(args: {
       microCompact: {
         stage: 'microcompact',
         role: 'budget_reducer',
-        scope: 'persisted_history_candidate',
+        scope: 'request_history_projection',
         disposition: microCompactResult.compacted ? 'applied' : 'skipped',
         terminal: false,
         advisory: true,

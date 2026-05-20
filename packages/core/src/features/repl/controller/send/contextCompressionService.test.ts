@@ -630,16 +630,10 @@ describe('createContextCompressionService', () => {
     })
 
     expect(runCompactFlow).not.toHaveBeenCalled()
-    expect(out.history[1]).toEqual({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: 'read-1',
-          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
-        },
-      ],
-    })
+    expect((out.history[1] as any).content[0].content).toBe('a'.repeat(4000))
+    expect((out.requestHistory[1] as any).content[0].content).toBe(
+      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
+    )
     expect(out.context).toEqual({
       usedTokens: 800,
       limitTokens: 9000,
@@ -714,16 +708,18 @@ describe('createContextCompressionService', () => {
     expect(JSON.stringify(relaxed.history)).not.toContain('Glob "**/*.ts"')
     expect(JSON.stringify(relaxed.history)).not.toContain('[Older tool result cleared by microcompact:')
 
-    expect((critical.history[1] as any).content[0].content).toBe(
+    expect((critical.history[1] as any).content[0].content).toBe('a'.repeat(4000))
+    expect((critical.history[3] as any).content[0].content).toBe('b'.repeat(4000))
+    expect((critical.history[7] as any).content[0].content).toBe('d'.repeat(4000))
+    expect((critical.requestHistory[1] as any).content[0].content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
     )
-    expect((critical.history[3] as any).content[0].content).toBe(
+    expect((critical.requestHistory[3] as any).content[0].content).toBe(
       '[Older tool result cleared by microcompact: Grep "login" in /repo/src (1 hits)]',
     )
-    expect(String((critical.history[5] as any).content[0].content)).toContain(
+    expect(String((critical.requestHistory[5] as any).content[0].content)).toContain(
       '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (',
     )
-    expect((critical.history[7] as any).content[0].content).toBe('d'.repeat(4000))
   })
 
   it('swallows auto-compact failures and keeps turn preparation best-effort', async () => {
@@ -830,7 +826,7 @@ describe('createContextCompressionService', () => {
     })
   })
 
-  it('microcompacts older eligible tool results during post-turn finalization', () => {
+  it('keeps microcompact request-only during post-turn finalization', () => {
     vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
       messages,
       pruned: false,
@@ -864,16 +860,7 @@ describe('createContextCompressionService', () => {
       system: [{ type: 'text', text: 'sys' }],
     })
 
-    expect(out.history[1]).toEqual({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: 'read-1',
-          content: '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
-        },
-      ],
-    })
+    expect((out.history[1] as any).content[0].content).toBe('a'.repeat(4000))
     expect((out.history[7] as any).content[0].content).toBe('d'.repeat(4000))
   })
 

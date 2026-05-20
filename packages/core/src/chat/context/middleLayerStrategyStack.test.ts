@@ -190,7 +190,7 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(vi.mocked(collapseRequestHistory).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(pruneForPromptBudget).mock.invocationCallOrder[0]!,
     )
-    expect(result.persistedHistoryCandidate).toEqual(compactedHistory)
+    expect(result.persistedHistoryCandidate).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.toolBudgetedHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }])
     expect(result.snippedHistory).toEqual(snippedHistory)
     expect(result.collapsedHistory).toEqual(collapsedHistory)
@@ -231,7 +231,7 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(result.facts.microCompact).toMatchObject({
         stage: 'microcompact',
         role: 'budget_reducer',
-        scope: 'persisted_history_candidate',
+        scope: 'request_history_projection',
         disposition: 'applied',
         terminal: false,
         advisory: true,
@@ -468,7 +468,7 @@ describe('executeMiddleLayerStrategyStack', () => {
       expect.objectContaining({
         stage: 'microcompact',
         role: 'budget_reducer',
-        scope: 'persisted_history_candidate',
+        scope: 'request_history_projection',
         disposition: 'skipped',
         terminal: false,
         advisory: true,

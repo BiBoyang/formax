@@ -397,7 +397,7 @@ export function analyzeNextTurnFixedContext(args: {
   const lifecycleMarkers = buildLifecycleMarkers({
     system: args.system,
     snapshotHistory: promptMessages,
-    microCompactedHistory: persistedHistoryCandidate,
+    microCompactedHistory,
     postPruneMessages: assembledMessages,
     preparedFixedMessage,
     budgetConfig: args.budgetConfig ?? null,
@@ -486,7 +486,7 @@ export function analyzeNextTurnFixedContext(args: {
     autoCompactSkipReason: deriveAutoCompactSkipReason({
       enableAutoCompact: args.enableAutoCompact,
       budgetConfig: args.budgetConfig ?? null,
-      microCompactedHistory: persistedHistoryCandidate,
+      microCompactedHistory,
       totalTokensBeforePrune,
     }),
     pruneSkipReason: derivePruneSkipReason({

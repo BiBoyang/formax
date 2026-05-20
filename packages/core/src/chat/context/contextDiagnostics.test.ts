@@ -445,7 +445,7 @@ describe('contextDiagnostics', () => {
     expect(out.strategyCoordination[0]).toMatchObject({
       stage: 'microcompact',
       role: 'budget_reducer',
-      scope: 'persisted_history_candidate',
+      scope: 'request_history_projection',
       disposition: 'applied',
       terminal: false,
       advisory: true,
@@ -890,7 +890,7 @@ describe('contextDiagnostics', () => {
     expect(parsed.nextTurnFixed.strategyCoordination[0]).toMatchObject({
       stage: 'microcompact',
       role: 'budget_reducer',
-      scope: 'persisted_history_candidate',
+      scope: 'request_history_projection',
       terminal: false,
       advisory: true,
     })
