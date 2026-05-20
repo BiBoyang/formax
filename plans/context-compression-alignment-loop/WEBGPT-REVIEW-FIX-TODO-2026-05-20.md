@@ -91,7 +91,8 @@
   - Covered in this batch: `runResumeSessionTransition()` awaits sidecar refresh from restored active history before reading next-turn restore injected blocks.
 - [x] App-server `thread/resume` derives restore blocks from stale sidecar before refreshing from JSONL replay.
   - Fixed in this batch: `ThreadStore.resumeThread()` now refreshes sidecar from boundary-aware active history before deriving returned pending restore blocks when a restore block is pending.
-- [ ] App-server clears pending restore blocks before durable model dispatch.
+- [x] App-server clears pending restore blocks before durable model dispatch.
+  - Verified in this batch: app-server keeps pending restore through `turn/start` accept and pre-dispatch failures, then consumes it only when the runner invokes the durable dispatch-consumption callback.
 
 ### Tests First
 
@@ -99,7 +100,7 @@
 - [x] Add startup `resumeLast` test asserting compact boundary remains visible to `readSessionFile`.
 - [x] Add SDK resume persistence test asserting compact boundary survives after a resumed turn.
 - [x] Add restore sidecar freshness test using stale sidecar + newer JSONL replay.
-- [ ] Add app-server pending restore retry/failure test.
+- [x] Add app-server pending restore retry/failure test.
 - [ ] Add cross-interface consistency test for `latestCompactBoundary` after resume/read/messages/replay.
 
 ### Implementation
@@ -108,7 +109,7 @@
 - [x] Preserve session JSONL replay as authority; active continuation should be runtime view only.
 - [x] Resolve restore artifacts before sidecar refresh where needed.
 - [x] For app-server resume, derive next-turn restore blocks from fresh boundary-aware active history or refresh sidecar before consuming artifacts.
-- [ ] Move app-server pending restore consumption to a safer dispatch/success boundary, or update the contract if “turn accepted” is the intended consumption point.
+- [x] Move app-server pending restore consumption to a safer dispatch/success boundary, or update the contract if “turn accepted” is the intended consumption point.
 
 ## Batch 3: App-Server / Web Parity
 

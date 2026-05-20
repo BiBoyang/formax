@@ -998,6 +998,95 @@ describe('AppServer', () => {
     expect((replayAfterDispatch[0] as any).result.pendingSessionMemoryRestore).toBeNull()
   })
 
+  it('retains pending restore when turn/start fails before dispatch consumption and retries once', async () => {
+    let startAttempts = 0
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only.\n</system-reminder>',
+    }
+    const pendingSessionMemoryRestore = {
+      schemaVersion: 1,
+      mode: 'normal',
+      recentFiles: [],
+      recentUserPrompts: ['Retry restore context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      planPath: null,
+      planExcerpt: null,
+      todoSummary: null,
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            staleInputs: [],
+            pendingSessionMemoryRestore,
+            nextTurnInjectedBlocks: [reminderBlock as any],
+          }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 'thread-1',
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      turnRunner: {
+        async startTurn(params) {
+          startAttempts += 1
+          if (startAttempts === 1) {
+            throw new Error('pre-dispatch failure')
+          }
+          await params.onPendingInjectedBlocksConsumed?.({
+            threadId: params.threadId,
+            turnId: 'turn-retry',
+          })
+          return { turn: { id: 'turn-retry', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/resume', { threadId: 'thread-1' }))
+
+    const failed = await server.handleMessage(
+      request(3, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'first attempt' },
+      }),
+    )
+    expect((failed[0] as any).error.message).toContain('pre-dispatch failure')
+    const replayAfterFailure = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterFailure[0] as any).result.pendingSessionMemoryRestore).toEqual(pendingSessionMemoryRestore)
+
+    await server.handleMessage(
+      request(5, 'turn/start', {
+        threadId: 'thread-1',
+        input: { text: 'retry attempt' },
+      }),
+    )
+    const replayAfterRetryDispatch = await server.handleMessage(request(6, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterRetryDispatch[0] as any).result.pendingSessionMemoryRestore).toBeNull()
+  })
+
   it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {
     const received: unknown[] = []
     const server = new AppServer({
