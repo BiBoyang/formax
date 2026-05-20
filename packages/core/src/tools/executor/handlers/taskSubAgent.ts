@@ -381,6 +381,10 @@ function addUsage(total: TokenUsage, snapshot: TokenUsage): void {
     total.cache_creation_input_tokens =
       (total.cache_creation_input_tokens ?? 0) + snapshot.cache_creation_input_tokens
   }
+  if (typeof snapshot.cache_deleted_input_tokens === 'number') {
+    total.cache_deleted_input_tokens =
+      (total.cache_deleted_input_tokens ?? 0) + snapshot.cache_deleted_input_tokens
+  }
 }
 
 function compactInputForHeader(name: string, input: Record<string, any>): Record<string, any> {

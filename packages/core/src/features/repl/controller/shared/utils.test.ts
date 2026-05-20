@@ -54,6 +54,7 @@ describe('tool/token formatting', () => {
       output_tokens: 7,
       cache_read_input_tokens: 2,
       cache_creation_input_tokens: 1,
+      cache_deleted_input_tokens: 6,
     }
     expect(sumInputTokens(usage)).toBe(13)
     expect(sumTokens(usage)).toBe(20)

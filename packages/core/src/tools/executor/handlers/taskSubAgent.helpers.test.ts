@@ -237,11 +237,12 @@ describe('taskSubAgent helpers', () => {
     })
     expect(
       taskSubAgentTestExports.sumTokens({
-        input_tokens: 1,
-        output_tokens: 2,
-        cache_read_input_tokens: 3,
-        cache_creation_input_tokens: 4,
-      }),
+      input_tokens: 1,
+      output_tokens: 2,
+      cache_read_input_tokens: 3,
+      cache_creation_input_tokens: 4,
+      cache_deleted_input_tokens: 5,
+    }),
     ).toBe(10)
     expect(taskSubAgentTestExports.sumTokens(undefined)).toBe(0)
     expect(taskSubAgentTestExports.formatTokenCount(0)).toBe('')
@@ -262,12 +263,14 @@ describe('taskSubAgent helpers', () => {
       output_tokens: 3,
       cache_read_input_tokens: 4,
       cache_creation_input_tokens: 5,
+      cache_deleted_input_tokens: 6,
     })
     expect(usage).toMatchObject({
       input_tokens: 2,
       output_tokens: 3,
       cache_read_input_tokens: 4,
       cache_creation_input_tokens: 5,
+      cache_deleted_input_tokens: 6,
     })
 
     const arr = Array.from({ length: 205 }, (_, i) => ({ id: String(i) }))

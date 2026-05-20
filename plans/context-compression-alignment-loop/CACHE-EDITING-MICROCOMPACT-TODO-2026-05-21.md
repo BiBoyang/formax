@@ -43,15 +43,15 @@
 
 - [x] Add tool-result collection test: only compactable tool results receive delete candidates.
 - [x] Add recency test: recent tool results are kept and older candidates enter delete plan.
-- [ ] Add duplicate test: same `tool_use_id` is not deleted twice.
-- [ ] Add time-aware test: assistant-gap / wall-clock candidate logic is represented separately from current user-turn stale logic, or explicitly deferred if not included in this batch.
+- [ ] Add duplicate test: same `tool_use_id` is not deleted twice in the context planner.
+- [x] Add time-aware test: current user-turn stale logic remains covered; Claude Code wall-clock assistant-gap is explicitly deferred.
 
 ### Implementation
 
 - [x] Introduce cache-editing policy gate in context layer.
 - [x] Return `cacheEditPlan` alongside unchanged messages when cache editing is enabled.
 - [x] Preserve existing stub path when cache editing is disabled.
-- [ ] Keep tool eligibility conservative: start from current `Read` / `Grep` / `Glob` / safe `WebFetch` coverage unless Claude Code parity requires a narrower set.
+- [x] Keep tool eligibility conservative: start from current `Read` / `Grep` / `Glob` / safe `WebFetch` coverage unless Claude Code parity requires a narrower set.
 - [x] Add structured diagnostics/facts only for fields needed to debug whether cache editing was planned, skipped, or fallbacked.
 
 ### Validation
@@ -66,9 +66,9 @@
 
 - [x] Add payload test: `cache_reference` is cloned onto tool_result blocks without mutating original messages.
 - [x] Add payload test: `cache_edits` block is inserted after existing tool_result blocks in the selected user message.
-- [ ] Add payload test: placement stays before the last `cache_control` boundary required by Anthropic prompt caching layout.
-- [ ] Add payload test: duplicated delete refs are deduped across request blocks.
-- [ ] Add payload test: when cache editing is disabled, request payload contains no `cache_reference` / `cache_edits`.
+- [x] Add payload test: placement stays before the last `cache_control` boundary required by Anthropic prompt caching layout.
+- [x] Add payload test: duplicated delete refs are deduped across request blocks.
+- [x] Add payload test: when cache editing is disabled, request payload contains no `cache_reference` / `cache_edits`.
 - [x] Add fallback test: retry without beta headers must not resend beta-only cache editing blocks.
 
 ### Implementation
@@ -90,16 +90,16 @@
 
 ### Tests First
 
-- [ ] Add main-thread test: pending cache edit plan is consumed only by the matching request.
-- [ ] Add reset test: `/clear` clears cache editing state.
-- [ ] Add compact test: manual `/compact` clears or rebases cache editing state.
-- [ ] Add resume test: resumed sessions do not reuse stale in-memory cache edit refs unless a persisted design is explicitly added.
-- [ ] Add subagent/SDK test: non-main-thread query does not send cache editing body by default.
+- [x] Add main-thread test: pending cache edit plan is consumed only by the matching request.
+- [x] Add reset test: `/clear` clears cache editing state. Not applicable after review: no session/global pending state is stored.
+- [x] Add compact test: manual `/compact` clears or rebases cache editing state. Not applicable after review: no session/global pending state is stored.
+- [x] Add resume test: resumed sessions do not reuse stale in-memory cache edit refs unless a persisted design is explicitly added. Not applicable after review: plans are request-local only.
+- [x] Add subagent/SDK test: non-main-thread query does not send cache editing body by default.
 
 ### Implementation
 
-- [ ] Decide and implement owner for session-scoped cache editing state; avoid storing it as process-global Anthropic client state.
-- [ ] Wire reset hooks for `/clear`, `/compact`, and session transition boundaries.
+- [x] Decide and implement owner for session-scoped cache editing state; avoid storing it as process-global Anthropic client state. Decision: no session-scoped state; plans are request-local and consumed by the first model call.
+- [x] Wire reset hooks for `/clear`, `/compact`, and session transition boundaries. Not needed because no resettable cache-editing state exists.
 - [ ] Keep app-server and TUI behavior aligned through shared request projection rather than UI-specific wiring.
 
 ### Validation
@@ -115,17 +115,17 @@
 
 - [x] Add SSE parser test for `cache_deleted_input_tokens`.
 - [x] Add accumulated usage test if stream deltas report cache-deleted tokens in multiple events.
-- [ ] Add diagnostics test showing cache editing applied/skipped reason and deleted token count when available.
+- [ ] Add diagnostics test showing cache editing applied/skipped reason when available.
 
 ### Implementation
 
 - [x] Parse `cache_deleted_input_tokens` from Anthropic usage payloads.
-- [ ] Extend usage types and display/diagnostics surfaces where currently showing cache read/create tokens.
+- [ ] Extend usage display/diagnostics surfaces without folding `cache_deleted_input_tokens` into consumed-token totals.
 - [x] Add a learning note documenting the final cache editing boundary and fallback behavior.
 
 ### Validation
 
-- [ ] `bun run test -- packages/core/src/streaming/anthropic/sseParser.test.ts packages/core/src/features/repl/controller/shared/utils.test.ts packages/core/src/chat/context/contextDiagnostics.test.ts`
+- [x] `bun run test -- packages/core/src/streaming/anthropic/sseParser.test.ts packages/core/src/features/repl/controller/shared/utils.test.ts packages/core/src/chat/context/contextDiagnostics.test.ts`
 
 ## Batch 5: End-To-End Guard And Review
 
@@ -133,13 +133,13 @@
 
 ### Validation
 
-- [ ] `bun run test -- packages/core/src/chat/context packages/core/src/streaming/anthropic`
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send packages/core/src/features/repl/controller/session`
+- [x] `bun run test -- packages/core/src/chat/context packages/core/src/streaming/anthropic`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send packages/core/src/features/repl/controller/session`
 - [ ] `bun run test -- packages/core/src/sdk/query.test.ts packages/core/src/sdk/sessions.test.ts packages/core/src/sdk/v2.test.ts`
-- [ ] `bun run test:repl-semantic-gate`
-- [ ] `mkdir -p .tmp/codex-review-result`
-- [ ] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
-- [ ] Inspect `.tmp/codex-review-result/review-latest.txt` and fix all high/medium findings.
+- [x] `bun run test:repl-semantic-gate`
+- [x] `mkdir -p .tmp/codex-review-result`
+- [x] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
+- [x] Inspect `.tmp/codex-review-result/review-latest.txt` and fix all high/medium findings.
 
 ## Open Questions
 
