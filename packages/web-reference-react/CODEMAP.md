@@ -61,6 +61,7 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Thread actions: `src/app/runtime/threadActions.ts`, `src/app/runtime/threadUiHandlers.ts`
 - Connection/handshake: `src/app/runtime/connectRpcClient.ts`, `src/app/runtime/useInitializeHandshake.ts`
 - URL-thread sync: `src/app/runtime/useThreadUrlSync.ts`
+- Thread-scoped compact/collapse summary comparators: `src/app/core/compactBoundarySummary.ts`, `src/app/core/requestCollapseSummary.ts`
 
 ### Semantics / Parity Adapters
 

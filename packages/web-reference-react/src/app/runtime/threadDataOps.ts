@@ -6,6 +6,7 @@ import {
   parseThreadMessagesResponse,
 } from '../core/rpcContracts'
 import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
+import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey } from '../core/threadCache'
 import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
@@ -58,20 +59,6 @@ export type ThreadDataOpsContext = {
 }
 
 export function createThreadDataOps(ctx: ThreadDataOpsContext) {
-  const areLatestRequestCollapseEqual = (
-    left: RequestCollapseSummary | null | undefined,
-    right: RequestCollapseSummary | null | undefined,
-  ) => {
-    if (!left && !right) return true
-    if (!left || !right) return false
-    return (
-      left.phase === right.phase &&
-      left.collapsedHeadMessageCount === right.collapsedHeadMessageCount &&
-      left.estimatedTokensSaved === right.estimatedTokensSaved &&
-      (left.recapFingerprint ?? null) === (right.recapFingerprint ?? null)
-    )
-  }
-
   const areLatestCompactBoundaryEqual = (
     left: CompactBoundarySummary | null | undefined,
     right: CompactBoundarySummary | null | undefined,
@@ -110,7 +97,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     }
     const nextCollapse = collapse
     if (
-      areLatestRequestCollapseEqual(
+      areRequestCollapseSummariesEqual(
         ctx.latestRequestCollapseByThreadIdRef.current[threadId] ?? null,
         nextCollapse,
       )
@@ -234,6 +221,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       const parsed = parseThreadResumeResponse(resumeResult)
       const staleInputs = parsed?.staleInputs ?? []
       setThreadLatestCompactBoundary(threadId, parsed?.latestCompactBoundary)
+      setThreadLatestRequestCollapse(threadId, parsed?.latestRequestCollapse)
       for (const input of staleInputs) {
         if (ctx.seenStaleInputIdRef.current.has(input.inputId)) continue
         ctx.seenStaleInputIdRef.current.add(input.inputId)

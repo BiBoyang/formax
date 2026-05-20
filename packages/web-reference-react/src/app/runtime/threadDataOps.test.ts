@@ -314,12 +314,18 @@ describe('threadDataOps', () => {
     })
   })
 
-  it('caches latest compact boundary from thread/resume responses', async () => {
+  it('caches latest compact and collapse summaries from thread/resume responses', async () => {
     const latestCompactBoundary = {
       schemaVersion: 1,
       trigger: 'reactive',
       preTokens: 1536,
       summaryKind: 'model_summary',
+    } as const
+    const latestRequestCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 96,
+      recapFingerprint: 'fedcba9876543210',
     } as const
     const ctx = createBaseContext({
       request: vi.fn().mockResolvedValue({}),
@@ -334,6 +340,7 @@ describe('threadDataOps', () => {
       },
       staleInputs: [],
       latestCompactBoundary,
+      latestRequestCollapse,
     })
     const ops = createThreadDataOps(ctx)
 
@@ -341,5 +348,7 @@ describe('threadDataOps', () => {
 
     expect(ctx.setLatestCompactBoundaryByThreadId).toHaveBeenCalled()
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
+    expect(ctx.setLatestRequestCollapseByThreadId).toHaveBeenCalled()
+    expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(latestRequestCollapse)
   })
 })

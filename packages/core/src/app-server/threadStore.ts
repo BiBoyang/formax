@@ -64,7 +64,7 @@ export type ThreadReadResult = {
   } | null
 }
 
-type LatestRequestCollapseSummary = NonNullable<ThreadReadResult['latestRequestCollapse']>
+export type LatestRequestCollapseSummary = NonNullable<ThreadReadResult['latestRequestCollapse']>
 
 export type ThreadMessage = {
   id: string
@@ -111,6 +111,7 @@ export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
   latestCompactBoundary?: CompactBoundaryMeta | null
+  latestRequestCollapse?: LatestRequestCollapseSummary | null
   pendingSessionMemoryRestore?: SessionMemoryRestoreSummary | null
   nextTurnInjectedBlocks?: PromptBlock[]
 }
@@ -564,15 +565,17 @@ export class ThreadStore {
         thread: toThreadFromProvisional(provisional),
         staleInputs: [],
         latestCompactBoundary: null,
+        latestRequestCollapse: null,
         pendingSessionMemoryRestore: null,
       }
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs, replay] = await Promise.all([
+    const [summary, staleInputs, replay, latestRequestCollapse] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
       readSessionFile(filePath),
+      readLatestRequestCollapseEventFromSession({ filePath }),
     ])
     const activeHistory = buildActiveHistoryFromSessionReplay(replay.history)
     const initialRestoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
@@ -603,6 +606,7 @@ export class ThreadStore {
       thread: toThread(summary),
       staleInputs,
       latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
+      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapse),
       pendingSessionMemoryRestore: restoreArtifacts.pendingSessionMemoryRestore,
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
         ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }

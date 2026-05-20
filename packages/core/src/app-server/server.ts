@@ -28,6 +28,7 @@ import {
 } from './protocol.js'
 import {
   ThreadStore,
+  type LatestRequestCollapseSummary,
   type ThreadListResult,
   type ThreadMessagesResult,
   type ThreadReadResult,
@@ -127,6 +128,7 @@ export class AppServer {
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
+  private readonly latestRequestCollapseByThreadId = new Map<string, LatestRequestCollapseSummary | null>()
   private readonly liveCompactBoundaryByThreadId = new Map<
     string,
     { turnId: string; boundary: CompactBoundaryMeta; previousBoundary?: CompactBoundaryMeta | null }
@@ -233,6 +235,7 @@ export class AppServer {
         this.setPendingInjectedBlocks(params.threadId, result.nextTurnInjectedBlocks)
         this.setPendingSessionMemoryRestore(params.threadId, result.pendingSessionMemoryRestore)
         this.rememberLatestCompactBoundary(params.threadId, result.latestCompactBoundary)
+        this.rememberLatestRequestCollapse(params.threadId, result.latestRequestCollapse)
         for (const input of result.staleInputs) {
           this.staleInputIds.add(input.inputId)
           this.staleInputIdsByToolUseId.set(input.toolUseId, input.inputId)
@@ -241,7 +244,8 @@ export class AppServer {
           makeSuccessResponse(req.id, {
             thread: result.thread,
             staleInputs: result.staleInputs,
-            latestCompactBoundary: result.latestCompactBoundary,
+            latestCompactBoundary: result.latestCompactBoundary ?? null,
+            latestRequestCollapse: result.latestRequestCollapse ?? null,
             pendingSessionMemoryRestore: result.pendingSessionMemoryRestore ?? null,
           }),
         ]
@@ -265,6 +269,7 @@ export class AppServer {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadReadResult = await this.threadStore.readThread(params.threadId)
         this.rememberLatestCompactBoundary(params.threadId, result.latestCompactBoundary)
+        this.rememberLatestRequestCollapse(params.threadId, result.latestRequestCollapse)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -276,6 +281,7 @@ export class AppServer {
         const params = parseThreadMessagesParams(req.params)
         const result: ThreadMessagesResult = await this.threadStore.listThreadMessages(params)
         this.rememberLatestCompactBoundary(params.threadId, result.latestCompactBoundary)
+        this.rememberLatestRequestCollapse(params.threadId, result.latestRequestCollapse)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
@@ -654,6 +660,7 @@ export class AppServer {
     const paramsObj = params && typeof params === 'object' ? (params as Record<string, unknown>) : null
     const threadId = extractThreadIdFromNotificationParams(paramsObj)
     if (!threadId) return paramsObj ?? undefined
+    this.latestRequestCollapseByThreadId.delete(threadId)
 
     const replaySeq = this.replaySeq + 1
     this.replaySeq = replaySeq
@@ -769,6 +776,7 @@ export class AppServer {
     hasGap: boolean
     state: ReplayStateSnapshot | null
     latestCompactBoundary: CompactBoundaryMeta | null
+    latestRequestCollapse: LatestRequestCollapseSummary | null
     pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null
   }> {
     const entries = this.replayByThreadId.get(args.threadId) ?? []
@@ -803,6 +811,7 @@ export class AppServer {
     })
     const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
     const latestCompactBoundary = await this.resolveLatestCompactBoundaryForReplay(args.threadId)
+    const latestRequestCollapse = await this.resolveLatestRequestCollapseForReplay(args.threadId)
     const stableLatestCompactBoundary = pendingLiveCompactBoundary
       ? (pendingLiveCompactBoundary.previousBoundary ?? null)
       : latestCompactBoundary
@@ -815,6 +824,7 @@ export class AppServer {
         hasGap,
         state: stateSnapshot,
         latestCompactBoundary: stableLatestCompactBoundary,
+        latestRequestCollapse,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
@@ -827,6 +837,7 @@ export class AppServer {
         hasGap: false,
         state: stateSnapshot,
         latestCompactBoundary: stableLatestCompactBoundary,
+        latestRequestCollapse,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
@@ -856,7 +867,28 @@ export class AppServer {
         : hasGap
           ? latestCompactBoundary
           : stableLatestCompactBoundary,
+      latestRequestCollapse,
       pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
+    }
+  }
+
+  private rememberLatestRequestCollapse(threadId: string, collapse: LatestRequestCollapseSummary | null | undefined): void {
+    if (collapse === undefined) return
+    this.latestRequestCollapseByThreadId.set(threadId, collapse ?? null)
+  }
+
+  private async resolveLatestRequestCollapseForReplay(threadId: string): Promise<LatestRequestCollapseSummary | null> {
+    if (this.latestRequestCollapseByThreadId.has(threadId)) {
+      return this.latestRequestCollapseByThreadId.get(threadId) ?? null
+    }
+    try {
+      const thread = await this.threadStore.readThread(threadId)
+      const latestRequestCollapse = thread.latestRequestCollapse ?? null
+      this.rememberLatestRequestCollapse(threadId, latestRequestCollapse)
+      return latestRequestCollapse
+    } catch {
+      this.rememberLatestRequestCollapse(threadId, null)
+      return null
     }
   }
 
@@ -868,6 +900,7 @@ export class AppServer {
       const thread = await this.threadStore.readThread(threadId)
       const latestCompactBoundary = thread.latestCompactBoundary ?? null
       this.rememberLatestCompactBoundary(threadId, latestCompactBoundary)
+      this.rememberLatestRequestCollapse(threadId, thread.latestRequestCollapse)
       return latestCompactBoundary
     } catch {
       this.rememberLatestCompactBoundary(threadId, null)

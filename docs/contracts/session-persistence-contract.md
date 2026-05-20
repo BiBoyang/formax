@@ -87,6 +87,13 @@ app-server `thread/start` 当前 MUST 返回 provisional thread。
 2. MUST NOT 创建新的 persisted authority model
 3. 当前若不存在 compact boundary，MUST 显式返回 `null`
 
+`SES-105B`
+对 app-server `thread/resume` 而言，当前 SHOULD 同时暴露与该 session 最近一次 request-time collapse event 对齐的最小摘要（`latestRequestCollapse`）。
+该字段：
+1. MUST 来自同一 session 文件中的 persisted request-collapse event，而不是客户端从 restored history 或 timeline rows 反推
+2. MUST NOT 创建新的 persisted history rewrite 语义
+3. 当前若不存在 request-collapse event，MUST 显式返回 `null`
+
 `SES-106`
 对 app-server `thread/resume` 而言，当前 SHOULD 同时暴露 `pendingSessionMemoryRestore` 结构化摘要。
 该字段：
@@ -253,7 +260,8 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 2. reminder block MUST NOT 作为 `thread/resume` 的 persisted history 结果写回 session JSONL
 3. 服务端 MAY 在 `/context` 的 next-turn fixed groups 中把它暴露为 pending restore injected blocks，以便 diagnostics 解释当前 restore consumption 语义
 4. 服务端当前 SHOULD 同步把 `latestCompactBoundary` 暴露给 restore surface，这样客户端在 resume 后无需额外调用 `thread/read` 才能得到最近 compact 的 canonical protocol facts
-5. 服务端当前 SHOULD 同步把 `pendingSessionMemoryRestore` 暴露给 restore surface；若该 reminder 仍处于待消费窗口，`thread/replay` 也 SHOULD 暴露同一份摘要，直到下一次成功的 `turn/start` / turn-dispatch 消费掉它
+5. 服务端当前 SHOULD 同步把 `latestRequestCollapse` 暴露给 restore surface，这样客户端在 resume 后无需额外调用 `thread/read` / `thread/messages` 才能得到最近 request-time collapse fact
+6. 服务端当前 SHOULD 同步把 `pendingSessionMemoryRestore` 暴露给 restore surface；若该 reminder 仍处于待消费窗口，`thread/replay` 也 SHOULD 暴露同一份摘要，直到下一次成功的 `turn/start` / turn-dispatch 消费掉它
 
 ## 6. 变更流程
 

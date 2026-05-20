@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react'
-import type { CompactBoundarySummary, RpcNotification } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary, RpcNotification } from '../../types'
 import {
   createInitialThreadRuntimeState,
   isReplMode,
@@ -21,6 +21,7 @@ import {
 } from './notifications/handleThreadArchived'
 import { withDevPerformanceSync } from '../core/devPerformance'
 import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
+import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import { withRecordValue } from '../core/threadCache'
 
 export type UseRuntimeEventOrchestratorArgs = {
@@ -46,8 +47,12 @@ export type UseRuntimeEventOrchestratorArgs = {
   stateLogsRef: ReplayThreadEventsContext['stateLogsRef']
   transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef']
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
+  latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
   setLatestCompactBoundaryByThreadId: (
     updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>,
+  ) => void
+  setLatestRequestCollapseByThreadId: (
+    updater: (prev: Record<string, RequestCollapseSummary | null>) => Record<string, RequestCollapseSummary | null>,
   ) => void
   setThreadTranscriptSource: ReplayThreadEventsContext['setThreadTranscriptSource']
   clearThreadHistoryCursor: ReplayThreadEventsContext['clearThreadHistoryCursor']
@@ -88,7 +93,9 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     stateLogsRef,
     transcriptSourceByThreadRef,
     latestCompactBoundaryByThreadIdRef,
+    latestRequestCollapseByThreadIdRef,
     setLatestCompactBoundaryByThreadId,
+    setLatestRequestCollapseByThreadId,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,
@@ -130,6 +137,21 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, boundary))
     },
     [areLatestCompactBoundaryEqual, latestCompactBoundaryByThreadIdRef, setLatestCompactBoundaryByThreadId],
+  )
+
+  const cacheLatestRequestCollapse = useCallback(
+    (threadId: string, collapse: RequestCollapseSummary | null | undefined): void => {
+      if (collapse === undefined) return
+      const current = latestRequestCollapseByThreadIdRef.current[threadId] ?? null
+      if (areRequestCollapseSummariesEqual(current, collapse)) return
+      latestRequestCollapseByThreadIdRef.current = withRecordValue(
+        latestRequestCollapseByThreadIdRef.current,
+        threadId,
+        collapse,
+      )
+      setLatestRequestCollapseByThreadId((prev) => withRecordValue(prev, threadId, collapse))
+    },
+    [latestRequestCollapseByThreadIdRef, setLatestRequestCollapseByThreadId],
   )
 
   const cacheLiveCompactBoundary = useCallback(
@@ -283,6 +305,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         stateLogsRef,
         transcriptSourceByThreadRef,
         cacheLatestCompactBoundary,
+        cacheLatestRequestCollapse,
         dispatch,
         setMode,
         cacheThreadMode,
@@ -299,6 +322,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       cacheThreadMode,
       clearThreadHistoryCursor,
       cacheLatestCompactBoundary,
+      cacheLatestRequestCollapse,
       dispatch,
       handleNotification,
       loadThreadHistory,

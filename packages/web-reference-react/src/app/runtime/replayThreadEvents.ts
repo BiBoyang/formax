@@ -3,7 +3,7 @@ import type { AppAction } from '../../store'
 import type { RpcThreadReplayResult } from '../core/rpcContracts'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import type { CompactBoundarySummary } from '../../types'
+import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
@@ -56,6 +56,7 @@ export type ReplayThreadEventsContext = {
   stateLogsRef: { current: unknown[] }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
   cacheLatestCompactBoundary: (threadId: string, boundary: CompactBoundarySummary | null | undefined) => void
+  cacheLatestRequestCollapse: (threadId: string, collapse: RequestCollapseSummary | null | undefined) => void
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string, mode: ReplMode) => void
@@ -212,6 +213,7 @@ export async function replayThreadEvents(
 
     const baselineReplay = await fetchReplayBaseline()
     ctx.cacheLatestCompactBoundary(threadId, baselineReplay.latestCompactBoundary)
+    ctx.cacheLatestRequestCollapse(threadId, baselineReplay.latestRequestCollapse)
     if (baselineReplay.state) {
       maybeLogInvariantIssues(baselineReplay.state)
       observeCanonicalProtocolAnomalies(baselineReplay.state)
@@ -251,6 +253,7 @@ export async function replayThreadEvents(
 
     if (replay.hasGap) {
       ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
+      ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
       await handleHasGapReplay(replay)
       flushCanonicalProtocolAnomaliesLog()
       return true
@@ -258,6 +261,7 @@ export async function replayThreadEvents(
 
     if (shouldUseHistoryFallbackOnEmptyReplayPage({ fromStart, replay })) {
       ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
+      ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
       const loaded = await ctx.loadThreadHistory(threadId)
       if (!loaded) {
         flushCanonicalProtocolAnomaliesLog()
@@ -282,6 +286,7 @@ export async function replayThreadEvents(
       })
     }
     ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
+    ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
 
     const { nextAfter, shouldContinue } = resolveReplayCursorProgress({
       after,

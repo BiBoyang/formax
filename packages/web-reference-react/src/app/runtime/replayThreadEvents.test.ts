@@ -123,6 +123,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     stateLogsRef: { current: [{ id: 'active-log' }] },
     transcriptSourceByThreadRef: { current: { [TEST_THREAD_ID]: 'history' } },
     cacheLatestCompactBoundary: vi.fn(),
+    cacheLatestRequestCollapse: vi.fn(),
     dispatch: vi.fn(),
     setMode: vi.fn(),
     cacheThreadMode: vi.fn(),
@@ -147,7 +148,7 @@ function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
   } as ReplayPage
 }
 
-it('caches latest compact boundary from replay responses', async () => {
+it('caches latest compact and collapse summaries from replay responses', async () => {
   const latestCompactBoundary = {
     schemaVersion: 1 as const,
     trigger: 'auto' as const,
@@ -163,21 +164,30 @@ it('caches latest compact boundary from replay responses', async () => {
       tailFingerprint: 'tail-fp',
     },
   }
+  const latestRequestCollapse = {
+    phase: 'reactive_retry' as const,
+    collapsedHeadMessageCount: 2,
+    estimatedTokensSaved: 96,
+    recapFingerprint: 'fedcba9876543210',
+  }
   const request = createReplayPagesRequest(
     createReplayPage({
       nextCursor: 10,
       latestCursor: 10,
       latestCompactBoundary,
+      latestRequestCollapse,
       state: createReplayState(),
     }),
   )
   const cacheLatestCompactBoundary = vi.fn()
-  const ctx = createReplayContext({ request, cacheLatestCompactBoundary })
+  const cacheLatestRequestCollapse = vi.fn()
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary, cacheLatestRequestCollapse })
 
   const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
   expect(ok).toBe(true)
   expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+  expect(cacheLatestRequestCollapse).toHaveBeenCalledWith(TEST_THREAD_ID, latestRequestCollapse)
 })
 
 it('caches replay latest compact boundary while replaying the live compact event', async () => {

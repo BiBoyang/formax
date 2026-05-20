@@ -9,7 +9,7 @@ import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { classifyRpcMessage, JSON_RPC_ERRORS } from './jsonrpc.js'
 import type { Thread } from './protocol.js'
 import { AppServer } from './server.js'
-import { ThreadStore } from './threadStore.js'
+import { ThreadStore, type LatestRequestCollapseSummary } from './threadStore.js'
 import { TurnRunner } from './turnRunner.js'
 
 function request(id: string | number | null, method: string, params?: unknown) {
@@ -121,6 +121,12 @@ describe('AppServer', () => {
               preTokens: 1400,
               summaryKind: 'model_summary',
             },
+            latestRequestCollapse: {
+              phase: 'reactive_retry',
+              collapsedHeadMessageCount: 4,
+              estimatedTokensSaved: 256,
+              recapFingerprint: 'feedface01234567',
+            },
           }
         },
         async listThreads() {
@@ -221,6 +227,12 @@ describe('AppServer', () => {
       preTokens: 1400,
       summaryKind: 'model_summary',
     })
+    expect((resumeOut[0] as any).result.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 256,
+      recapFingerprint: 'feedface01234567',
+    })
 
     const listOut = await server.handleMessage(request(4, 'thread/list', { limit: 10 }))
     expect((listOut[0] as any).result.data).toHaveLength(1)
@@ -246,6 +258,12 @@ describe('AppServer', () => {
       trigger: 'manual',
       preTokens: 900,
       summaryKind: 'model_summary',
+    })
+    expect((replayOut[0] as any).result.latestRequestCollapse).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'abcdef0123456789',
     })
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
@@ -353,7 +371,60 @@ describe('AppServer', () => {
     expect(readThreadCount).toBe(1)
   })
 
-  it('keeps latestCompactBoundary consistent across resume, read, messages, and replay', async () => {
+  it('refreshes replay latestRequestCollapse after later turn notifications', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    let latestRequestCollapse: LatestRequestCollapseSummary | null = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, latestRequestCollapse }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: null,
+            latestRequestCollapse,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const staleReplay = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((staleReplay[0] as any).result.latestRequestCollapse).toBeNull()
+
+    latestRequestCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 96,
+      recapFingerprint: 'fedcba9876543210',
+    }
+    server.createTurnNotificationEmitter()('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'running' },
+    })
+
+    const refreshedReplay = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((refreshedReplay[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
+  })
+
+  it('keeps compact and collapse summaries consistent across resume, read, messages, and replay', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
     const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
@@ -364,6 +435,12 @@ describe('AppServer', () => {
       triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
       preTokens: 4096,
       summaryKind: 'model_summary',
+    }
+    const expectedCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 96,
+      recapFingerprint: 'fedcba9876543210',
     }
 
     const { writer } = await SessionWriter.createNew({ cwd, env, sessionId: threadId })
@@ -383,6 +460,7 @@ describe('AppServer', () => {
       { role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] },
       { role: 'user', content: [{ type: 'text', text: 'continue after compact' }] },
     ] as any)
+    await writer.appendEvent('request_collapse_applied', expectedCollapse)
     await writer.shutdown()
 
     const server = new AppServer({
@@ -400,6 +478,10 @@ describe('AppServer', () => {
     expect((readOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
     expect((messagesOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
+    expect((resumeOut[0] as any).result.latestRequestCollapse).toEqual(expectedCollapse)
+    expect((readOut[0] as any).result.latestRequestCollapse).toEqual(expectedCollapse)
+    expect((messagesOut[0] as any).result.latestRequestCollapse).toEqual(expectedCollapse)
+    expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(expectedCollapse)
   })
 
   it('updates replay latestCompactBoundary from live compact boundary turn events', async () => {
@@ -499,7 +581,7 @@ describe('AppServer', () => {
     )
     expect((emptyReplayAfterCursor[0] as any).result.data).toEqual([])
     expect((emptyReplayAfterCursor[0] as any).result.latestCompactBoundary).toEqual(newerBoundary)
-    expect(readThreadCount).toBe(1)
+    expect(readThreadCount).toBe(2)
 
     emit('turn/failed', {
       threadId: 'thread-1',
@@ -515,7 +597,7 @@ describe('AppServer', () => {
     expect((partialFailedPage[0] as any).result.latestCompactBoundary).toBeNull()
     const replayFailedPage = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1', after: 0 }))
     expect((replayFailedPage[0] as any).result.latestCompactBoundary).toBeNull()
-    expect(readThreadCount).toBe(2)
+    expect(readThreadCount).toBe(3)
   })
 
   it('keeps live compact boundary after stale storage reads when the compact turn completes', async () => {
@@ -580,7 +662,7 @@ describe('AppServer', () => {
 
     const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(boundary)
-    expect(readThreadCount).toBe(1)
+    expect(readThreadCount).toBe(2)
   })
 
   it('restores previous compact boundary when a later live compact turn fails', async () => {
@@ -652,7 +734,7 @@ describe('AppServer', () => {
 
     const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(previousBoundary)
-    expect(readThreadCount).toBe(1)
+    expect(readThreadCount).toBe(2)
   })
 
   it('maps thread store errors on start/resume/read to rpc errors', async () => {
@@ -1187,6 +1269,8 @@ describe('AppServer', () => {
         updatedAt: '2026-02-12T00:00:00.000Z',
       },
       staleInputs: [],
+      latestCompactBoundary: null,
+      latestRequestCollapse: null,
       pendingSessionMemoryRestore,
     })
 

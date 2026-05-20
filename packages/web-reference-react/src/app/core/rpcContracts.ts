@@ -315,6 +315,7 @@ export type RpcThreadReplayResult = {
   hasGap: boolean
   state: ReplayStateSnapshot | null
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
 
@@ -346,6 +347,7 @@ export type RpcThreadResumeResult = {
   }
   staleInputs: ResolvedInput[]
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
 
@@ -398,10 +400,12 @@ export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult
   const replay = asThreadReplay(value)
   const root = asRecord(value)
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
-  if (!latestCompactBoundary) return replay
+  const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
+  if (!latestCompactBoundary || !latestRequestCollapse) return replay
   return {
     ...replay,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
   }
 }
 
@@ -463,12 +467,24 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
   const updatedAt = typeof thread.updatedAt === 'string' && thread.updatedAt.trim() ? thread.updatedAt : null
   const staleInputs = asResolvedInputs(root)
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
   const pendingSessionMemoryRestore = parseOptionalNullableSessionMemoryRestoreField(root, 'pendingSessionMemoryRestore')
-  if (!id || !cwd || !createdAt || !updatedAt || !latestCompactBoundary || !pendingSessionMemoryRestore) return null
+  if (
+    !id ||
+    !cwd ||
+    !createdAt ||
+    !updatedAt ||
+    !latestCompactBoundary ||
+    !latestRequestCollapse ||
+    !pendingSessionMemoryRestore
+  ) {
+    return null
+  }
   return {
     thread: { id, cwd, createdAt, updatedAt },
     staleInputs,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
     ...(pendingSessionMemoryRestore.present
       ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore.value }
       : {}),

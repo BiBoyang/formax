@@ -42,7 +42,7 @@
 ## 2.2 thread/resume
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, staleInputs, latestCompactBoundary?, pendingSessionMemoryRestore? }`
+- 返回：`{ thread, staleInputs, latestCompactBoundary?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
 - 共享恢复语义：
   - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
   - 若 file-backed restore 同时恢复出 session-memory reminder block，app-server MAY 在服务端缓存它，并在下一次成功的 `turn/start` / turn-dispatch 上作为 next-turn-only injected blocks 消费一次；该 block MUST NOT 被写回 persisted history
@@ -64,6 +64,12 @@
     - `preTokens?`
     - `summaryKind?`
   - `thread/resume` 返回的 `latestCompactBoundary` MUST 与同一 session 的 `thread/read` / `thread/messages` 使用相同 canonical compact protocol 来源；客户端不得为 restore surface 自行推导第二套 compact summary
+  - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
+    - `phase`（`initial` 或 `reactive_retry`）
+    - `collapsedHeadMessageCount`
+    - `estimatedTokensSaved`
+    - `recapFingerprint?`
+  - `thread/resume` 返回的 `latestRequestCollapse` MUST 与同一 session 的 `thread/read` / `thread/messages` / `thread/replay` 使用相同 request-time collapse event 来源；客户端不得从 restored history 或 timeline rows 反推第二套 collapse summary
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 
@@ -123,13 +129,15 @@
 ## 2.4.2 thread/replay
 
 - 入参：`{ threadId: string, after?: number, limit?: number }`
-- 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, pendingSessionMemoryRestore? }`
+- 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
   - `latestCompactBoundary` 当前为可选 compact protocol 摘要。
   - 若存在，它 MUST 与同一 thread 的 canonical replay-backed compact boundary 对齐，并与 `thread/read` / `thread/messages` / `thread/resume` 共用同一 compact protocol 来源。
   - 该字段 SHOULD 继续沿用已有 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得为 replay / inspection surface 重新组装第二套 compact summary。
   - `pendingSessionMemoryRestore` 当前为可选 next-turn-only restore utility 摘要。
   - 若存在，它 MUST 与同一 thread 最近一次 `thread/resume` 缓存的 pending restore artifact 对齐，并在下一次成功的 `turn/start` / turn-dispatch 消费后消失。
   - 该字段 MUST NOT 被解释为新的 persisted authority；它只描述当前 server-side pending restore utility 窗口。
+  - `latestRequestCollapse` 当前为可选最小 request-time collapse 摘要。
+  - 若存在，它 MUST 与同一 thread 的 `thread/read` / `thread/messages` / `thread/resume` 使用相同 persisted request-collapse event 来源，且 MUST NOT 改写 replay `data[]` item 语义。
 
 ## 2.5 turn/start
 

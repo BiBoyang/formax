@@ -1428,6 +1428,12 @@ describe('rpcContracts', () => {
           tailFingerprint: 'tail-fp',
         },
       },
+      latestRequestCollapse: {
+        phase: 'reactive_retry',
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 96,
+        recapFingerprint: 'fedcba9876543210',
+      },
       pendingSessionMemoryRestore: {
         schemaVersion: 1,
         mode: 'plan',
@@ -1459,6 +1465,12 @@ describe('rpcContracts', () => {
         headFingerprint: 'head-fp',
         tailFingerprint: 'tail-fp',
       },
+    })
+    expect(replay.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 96,
+      recapFingerprint: 'fedcba9876543210',
     })
     expect(replay.pendingSessionMemoryRestore).toEqual({
       schemaVersion: 1,
@@ -1654,6 +1666,12 @@ describe('rpcContracts', () => {
           preTokens: 1400,
           summaryKind: 'model_summary',
         },
+        latestRequestCollapse: {
+          phase: 'reactive_retry',
+          collapsedHeadMessageCount: 2,
+          estimatedTokensSaved: 96,
+          recapFingerprint: 'fedcba9876543210',
+        },
         pendingSessionMemoryRestore: {
           schemaVersion: 1,
           mode: 'plan',
@@ -1683,6 +1701,12 @@ describe('rpcContracts', () => {
         },
         preTokens: 1400,
         summaryKind: 'model_summary',
+      },
+      latestRequestCollapse: {
+        phase: 'reactive_retry',
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 96,
+        recapFingerprint: 'fedcba9876543210',
       },
       pendingSessionMemoryRestore: {
         schemaVersion: 1,

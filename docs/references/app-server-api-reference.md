@@ -327,6 +327,12 @@ AskUserQuestion payload：
   thread: Thread
   staleInputs: InputResolvedPayload[]
   latestCompactBoundary: CompactBoundaryMeta | null
+  latestRequestCollapse: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    recapFingerprint?: string
+  } | null
   pendingSessionMemoryRestore: {
     schemaVersion: 1
     mode: 'normal' | 'acceptEdits' | 'plan'
@@ -347,6 +353,7 @@ AskUserQuestion payload：
 - `staleInputs` 表示服务重启后恢复出的“过期输入”（`status = "expired"`，`reason = "server_restart"`）。
 - 客户端应在恢复线程后把这些输入标记为不可提交。
 - `latestCompactBoundary` 为 restore surface 上可选的 canonical compact boundary 摘要；若 session 尚无 compact boundary，返回 `null`。
+- `latestRequestCollapse` 为 restore surface 上可选的 request-time collapse 摘要；若 session 尚无 request-collapse event，返回 `null`。
 - `pendingSessionMemoryRestore` 为 next-turn-only 的结构化 restore utility 摘要；它与服务端缓存的 session-memory reminder block 来自同一条 canonical restore-artifacts 路径，不是新的 persisted authority。
 
 ## 5.3 `thread/list`
@@ -511,6 +518,12 @@ AskUserQuestion payload：
       tailFingerprint: string | null
     }
   } | null
+  latestRequestCollapse: {
+    phase: 'initial' | 'reactive_retry'
+    collapsedHeadMessageCount: number
+    estimatedTokensSaved: number
+    recapFingerprint?: string
+  } | null
   pendingSessionMemoryRestore: {
     schemaVersion: 1
     mode: 'normal' | 'acceptEdits' | 'plan'
@@ -572,6 +585,8 @@ AskUserQuestion payload：
 - `hasGap = false` 且 `data` 为空，表示当前仅“无新增事件”，不是错误。
 - `latestCompactBoundary` 现在也会进入 `thread/replay`，这样 replay / inspection path 不需要先走 `thread/read` 或 `thread/resume` 才能拿到最近一次 compact protocol fact。
 - 该字段继续使用 canonical replay-backed compact boundary 来源，不允许为 replay surface 重新推导第二套 compact summary。
+- `latestRequestCollapse` 现在也会进入 `thread/replay`，这样 replay / inspection path 不需要先走 `thread/read` 或 `thread/messages` 才能拿到最近一次 request-time collapse fact。
+- 该字段继续使用 persisted request-collapse event 来源，不允许为 replay surface 重新推导第二套 collapse summary，也不会改写 `data[]` item 语义。
 - `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
 - `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
 - `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。

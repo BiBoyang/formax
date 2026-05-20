@@ -468,6 +468,28 @@ describe('ThreadStore', () => {
     })
   })
 
+  it('exposes latest request-time collapse summary in thread/resume', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+    await writer.shutdown()
+
+    const resumed = await store.resumeThread(thread.id)
+    expect(resumed.latestRequestCollapse).toEqual({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'fedcba9876543210',
+    })
+  })
+
   it('exposes latest request-time collapse summary in thread/read', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})

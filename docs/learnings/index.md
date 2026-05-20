@@ -124,3 +124,4 @@
 - [2026-05-12 - Task-minimal working-set selector v5](./2026-05-12-task-minimal-working-set-selector-v5.md)
 - [2026-05-12 - Time-aware microcompact v4](./2026-05-12-time-aware-microcompact-v4.md)
 - [2026-05-12 - Working-set selector v4](./2026-05-12-working-set-selector-v4.md)
+- [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)

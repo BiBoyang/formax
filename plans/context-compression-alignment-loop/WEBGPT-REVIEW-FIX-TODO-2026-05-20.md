@@ -147,7 +147,8 @@
 - [x] Pass latest compact boundary into diagnostics text formatting.
 - [x] Pass real plan path into app-server diagnostics, or expose an explicit unknown/unavailable state.
   - App-server `/context` text output now receives the same `latestCompactBoundary` as JSON diagnostics. Plan-mode diagnostics derive `planPath` from session memory restore context, falling back to the live TurnRunner plan path, instead of hardcoding `null`.
-- [ ] Align `thread/read`, `thread/messages`, `thread/resume`, `thread/replay`, and `/context` compact/collapse summaries.
+- [x] Align `thread/read`, `thread/messages`, `thread/resume`, `thread/replay`, and `/context` compact/collapse summaries.
+  - `thread/resume` and `thread/replay` now expose `latestRequestCollapse` from the same persisted request-collapse event source used by `thread/read`, `thread/messages`, and `/context`; Web parser/runtime caches the field from resume and replay surfaces.
 
 ## Batch 4: Algorithm Edge Cases
 
