@@ -122,7 +122,7 @@ describe('useTranscriptDisplayState', () => {
     expect(result.current.activeThreadLatestRequestCollapse).toEqual(latestRequestCollapse)
   })
 
-  it('hides cached latest request collapse summary when active transcript source is replay', () => {
+  it('keeps latest request collapse summary visible when active transcript source is replay', () => {
     const latestRequestCollapse: RequestCollapseSummary = {
       phase: 'initial',
       collapsedHeadMessageCount: 1,
@@ -143,7 +143,7 @@ describe('useTranscriptDisplayState', () => {
       }),
     )
 
-    expect(result.current.activeThreadLatestRequestCollapse).toBe(null)
+    expect(result.current.activeThreadLatestRequestCollapse).toEqual(latestRequestCollapse)
   })
 
   it('selects the active thread latest compact boundary summary', () => {

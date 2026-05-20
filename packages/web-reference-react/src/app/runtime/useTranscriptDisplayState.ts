@@ -75,7 +75,7 @@ export function useTranscriptDisplayState(args: UseTranscriptDisplayStateArgs): 
   )
   const activeThreadLatestRequestCollapse = useMemo(
     () =>
-      activeThreadId && activeTranscriptSource === 'history'
+      activeThreadId && (activeTranscriptSource === 'history' || activeTranscriptSource === 'replay')
         ? latestRequestCollapseByThreadId[activeThreadId] ?? null
         : null,
     [activeThreadId, activeTranscriptSource, latestRequestCollapseByThreadId],

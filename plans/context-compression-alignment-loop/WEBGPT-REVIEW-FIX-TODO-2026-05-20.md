@@ -118,7 +118,7 @@
 
 - [x] Live `compact_boundary` event does not update `latestCompactBoundaryByThreadId`.
 - [x] Projection drops compact boundary `messageKind`, producing empty transcript rows.
-- [ ] Replay source suppresses `latestRequestCollapse`.
+- [x] Replay source suppresses `latestRequestCollapse`.
 - [x] Optional RPC fields are treated as required.
 - [ ] App-server `/context` text omits latest compact boundary.
 - [ ] App-server `/context` plan mode uses `planPath: null`.
@@ -128,7 +128,7 @@
 
 - [x] Add `processNotification` test for live compact boundary cache update.
 - [x] Add projection/render test for compact boundary row or explicit suppression.
-- [ ] Add `useTranscriptDisplayState` test for replay + `latestRequestCollapse` intended behavior.
+- [x] Add `useTranscriptDisplayState` test for replay + `latestRequestCollapse` intended behavior.
 - [x] Add RPC parser tests for omitted optional compact/collapse/restore fields.
 - [ ] Add app-server `/context` text/json consistency test.
 - [ ] Add plan-mode `/context` diagnostics test.
@@ -142,6 +142,8 @@
   - Web render-model messages now preserve projection `messageKind`; empty `compact_boundary` system rows are explicitly suppressed so they do not render as blank assistant transcript rows.
 - [x] Relax optional field parsers for compact/collapse/restore fields.
   - Existing optional-field parser behavior already accepted omitted compact/collapse/restore fields while rejecting malformed explicit values; added RPC contract coverage for `thread/messages`, `thread/read`, `thread/resume`, and `thread/replay`.
+- [x] Keep replay-sourced request-collapse diagnostics visible in transcript display state.
+  - `latestRequestCollapse` now follows the same `history`/`replay` visibility rule as `latestCompactBoundary`.
 - [ ] Pass latest compact boundary into diagnostics text formatting.
 - [ ] Pass real plan path into app-server diagnostics, or expose an explicit unknown/unavailable state.
 - [ ] Align `thread/read`, `thread/messages`, `thread/resume`, `thread/replay`, and `/context` compact/collapse summaries.
