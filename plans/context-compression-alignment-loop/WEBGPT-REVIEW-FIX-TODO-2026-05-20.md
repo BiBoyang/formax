@@ -157,7 +157,7 @@
 - [ ] `resolveHistoryForCompaction` with boundary and empty continuation may recompact old summary.
 - [ ] Collapse tail selection counts compaction summary as a normal user turn.
 - [ ] Working-set anchor behavior with `keepLastTurns=0` may drop a recent execution cluster.
-- [ ] `sanitizeReminderText` already handles basic mixed-case tags, but not tagged variants with attributes.
+- [x] `sanitizeReminderText` already handles basic mixed-case tags, but not tagged variants with attributes.
 - [ ] Time-aware microcompact stale-turn definition may be too narrow if assistant-only drift should count.
 
 ### Tests First
@@ -165,7 +165,7 @@
 - [ ] Add compact test: boundary exists and continuation is empty.
 - [ ] Add collapse test: compaction summary is not counted as normal user turn.
 - [ ] Add working-set test: manual compact with `keepLastTurns=0` preserves recent execution cluster if contract requires it.
-- [ ] Add sanitize test for `<system-reminder attr="x">`.
+- [x] Add sanitize test for `<system-reminder attr="x">`.
 - [ ] Decide whether assistant-only staleness should count for time-aware microcompact.
 
 ### Implementation
@@ -176,7 +176,7 @@
 
 ## Known False Positives / Low Confidence
 
-- [ ] `sanitizeReminderText` already handles basic mixed-case tags via `/gi`; only attribute variants remain a possible gap.
+- [x] `sanitizeReminderText` already handles basic mixed-case tags via `/gi`; only attribute variants remain a possible gap.
 - [ ] `toolResultBudget savedTokens <= 0` does continue to the next candidate; the WebGPT finding that it stops early appears false.
 - [ ] Manual compact vs auto/reactive partial compaction may be intentional; confirm via contract before changing behavior.
 - [ ] Time-aware microcompact counting only subsequent non-tool user turns may be intended; do not change without a clear product/contract decision.

@@ -907,7 +907,7 @@ function buildRehydrationSections(args: {
 }
 
 export function sanitizeReminderText(value: string): string {
-  return String(value || '').replace(/<\/?system-reminder>/gi, '[system-reminder]')
+  return String(value || '').replace(/<\/?system-reminder\b[^>]*>/gi, '[system-reminder]')
 }
 
 function unwrapSystemReminder(text: string): string {
