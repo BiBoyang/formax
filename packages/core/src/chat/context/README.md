@@ -42,6 +42,7 @@ Formax 的“上下文管理”分两条线：
         │ canonical middle-layer stack
         │ - persistedHistoryCandidate
         │ - requestHistory projection
+        │ - requestUser projection
         v
 ┌──────────────────────────────┐
 │ ChatEngine.runTurn()         │
@@ -118,6 +119,7 @@ Formax 的“上下文管理”分两条线：
 ### 想改“轻量压缩 / microcompact（P2）”
 
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> snip -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
+- `packages/core/src/chat/context/turnRequestProjection.ts`：app-server / SDK 共享的 runtime request projection adapter，把 persisted `history`、request-only `requestHistory`、以及可能被 terminal prune 改写的 `requestUser` 分开返回
 - `packages/core/src/chat/context/toolResultBudget.ts`：独立的 request-time tool-result budget replacement 策略（`CCA-141` 起点；只改 request projection，不改 persisted `history`）
 - `packages/core/src/chat/context/snip.ts`：独立的 request-time snip reducer（`CCA-143` 起点；当前只裁短较老的 assistant 纯文本消息，不改 persisted `history`）
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要；v2 已把策略从“全局 keep N”扩成按 tool family 的 recent keep 配额 + per-tool size threshold；v3 已额外引入 cache-aware duplicate path，会对重复的 cache-like lookup 结果更早做 request-time stub replacement）

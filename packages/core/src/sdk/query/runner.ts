@@ -6,8 +6,8 @@ import { getDefaultModels, inferModelMetadata } from '../../core/models/models.j
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import type { ContextBudgetConfig } from '../../chat/context/budget.js'
-import { executeMiddleLayerStrategyStack } from '../../chat/context/middleLayerStrategyStack.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
+import { prepareTurnRequestProjection } from '../../chat/context/turnRequestProjection.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
@@ -1432,15 +1432,15 @@ async function* runQuery(
       for (let attempt = 0; attempt <= outputMaxRetries; attempt += 1) {
         const userForTurn = toUserPromptMessage(currentPrompt, injectedPromptBlocks)
         const promptBudget = resolvePromptBudgetConfig({ runtime, model })
-        const prepared = executeMiddleLayerStrategyStack({
+        const prepared = prepareTurnRequestProjection({
           system,
           history: currentHistory,
-          trailingMessage: userForTurn,
+          user: userForTurn,
           budgetConfig: promptBudget,
         })
-        const executionHistory = parsePromptHistory(prepared.persistedHistoryCandidate)
+        const executionHistory = parsePromptHistory(prepared.persistedHistory)
         const executionRequestHistory = parsePromptHistory(prepared.requestHistory)
-        const requestUserForTurn = parsePromptHistory([prepared.preparedTrailingMessage ?? userForTurn])[0] ?? userForTurn
+        const requestUserForTurn = parsePromptHistory([prepared.requestUser])[0] ?? userForTurn
         const nextHistoryRaw = await runtime.engine.runTurn({
           history: executionHistory,
           requestHistory: executionRequestHistory,

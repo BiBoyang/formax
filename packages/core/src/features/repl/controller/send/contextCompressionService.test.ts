@@ -238,7 +238,7 @@ describe('createContextCompressionService', () => {
       estimatedTokensSaved: 0,
       metadata: null,
     })
-    expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'after-auto' }] })
+    expect(out.user).toEqual({ role: 'user', content: [{ type: 'text', text: 'after-final' }] })
     expect(out.context).toEqual({
       usedTokens: 1234,
       limitTokens: 9000,
@@ -564,16 +564,20 @@ describe('createContextCompressionService', () => {
       },
     } as any)
 
-    let shouldThrowOnSingleMessage = true
+    let shouldThrowAfterLifecycleStart = false
     vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
-      if (Array.isArray(messages) && messages.length === 1 && shouldThrowOnSingleMessage) {
-        shouldThrowOnSingleMessage = false
+      if (Array.isArray(messages) && messages.length === 1 && shouldThrowAfterLifecycleStart) {
+        shouldThrowAfterLifecycleStart = false
         throw new Error('pre-token failed')
       }
       return 1234
     })
 
-    const onCompactLifecycle = vi.fn()
+    const onCompactLifecycle = vi.fn((ev: any) => {
+      if (ev?.type === 'compact_started' && ev?.source === 'auto') {
+        shouldThrowAfterLifecycleStart = true
+      }
+    })
     const { service } = createService({
       getSessionFilePath: () => '/tmp/formax/session.jsonl',
       onCompactLifecycle,

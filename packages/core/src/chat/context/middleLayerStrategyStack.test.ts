@@ -539,4 +539,95 @@ describe('executeMiddleLayerStrategyStack', () => {
     })
     expect(result.facts.stageOrder).toEqual(['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'])
   })
+
+  it('keeps request-time stages out of persisted history while projecting the request envelope', () => {
+    const originalHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'original-history' }] }] as any
+    const microCompactedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'micro-only' }] }] as any
+    const toolBudgetedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'budget-only' }] }] as any
+    const snippedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'snip-only' }] }] as any
+    const collapsedHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'collapse-only' }] }] as any
+    const prunedUser = { role: 'user', content: [{ type: 'text', text: 'terminal-pruned-user' }] } as any
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const text = JSON.stringify(messages ?? [])
+      if (text.includes('terminal-pruned-user')) return 450
+      if (text.includes('collapse-only')) return 500
+      if (text.includes('snip-only')) return 600
+      if (text.includes('budget-only')) return 700
+      return 800
+    })
+    vi.mocked(microCompactHistory).mockReturnValue({
+      messages: microCompactedHistory,
+      compacted: true,
+      compactedBlocks: 1,
+      compactedToolNames: ['Read'],
+      estimatedTokensSaved: 100,
+      keptRecentBlocks: 1,
+      cacheAwareEligibleToolNames: [],
+      cacheAwareMinResultChars: 400,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 800,
+      timeAwareMinStaleUserTurns: 3,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
+    } as any)
+    vi.mocked(applyToolResultBudget).mockReturnValue({
+      messages: toolBudgetedHistory,
+      applied: true,
+      impact: {
+        replacedBlocks: 1,
+        replacedToolNames: ['Read'],
+        estimatedTokensSaved: 100,
+        keptRecentBlocks: 1,
+        budgetTokens: 2600,
+        totalToolResultTokensBefore: 3000,
+        totalToolResultTokensAfter: 2900,
+      },
+    } as any)
+    vi.mocked(applyRequestSnip).mockReturnValue({
+      messages: snippedHistory,
+      applied: true,
+      impact: {
+        snippedMessages: 1,
+        snippedBlocks: 1,
+        estimatedTokensSaved: 100,
+        keptRecentMessages: 2,
+        minTextChars: 1400,
+      },
+    } as any)
+    vi.mocked(collapseRequestHistory).mockReturnValue({
+      messages: collapsedHistory,
+      collapsed: true,
+      collapsedHeadMessageCount: 1,
+      estimatedTokensSaved: 100,
+      metadata: null,
+    } as any)
+    vi.mocked(pruneForPromptBudget).mockReturnValue({
+      messages: [...collapsedHistory, prunedUser],
+      pruned: true,
+    } as any)
+
+    const result = executeMiddleLayerStrategyStack({
+      system: [{ type: 'text', text: 'sys' }],
+      history: originalHistory,
+      trailingMessage: { role: 'user', content: [{ type: 'text', text: 'original-user' }] } as any,
+      budgetConfig: {
+        contextWindowTokens: 10000,
+        effectiveContextWindowPercent: 0.9,
+        autoCompactLimitPercent: 0.85,
+        baselineTokens: 1000,
+      },
+    })
+
+    expect(result.persistedHistoryCandidate).toBe(originalHistory)
+    expect(result.microCompactedHistory).toBe(microCompactedHistory)
+    expect(result.toolBudgetedHistory).toBe(toolBudgetedHistory)
+    expect(result.snippedHistory).toBe(snippedHistory)
+    expect(result.collapsedHistory).toBe(collapsedHistory)
+    expect(result.requestHistory).toEqual(collapsedHistory)
+    expect(result.preparedTrailingMessage).toBe(prunedUser)
+    expect(JSON.stringify(result.persistedHistoryCandidate)).not.toContain('-only')
+    expect(JSON.stringify(result.persistedHistoryCandidate)).not.toContain('terminal-pruned-user')
+  })
 })

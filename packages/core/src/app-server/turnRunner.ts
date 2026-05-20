@@ -7,8 +7,8 @@ import {
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { ContextBudgetConfig } from '../chat/context/budget.js'
-import { executeMiddleLayerStrategyStack } from '../chat/context/middleLayerStrategyStack.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
+import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
@@ -650,15 +650,15 @@ export class TurnRunner {
         })
       } else {
         const promptBudget = await this.resolvePromptBudgetConfig(running.cwd)
-        const prepared = executeMiddleLayerStrategyStack({
+        const prepared = prepareTurnRequestProjection({
           system,
           history,
-          trailingMessage: user,
+          user,
           budgetConfig: promptBudget,
         })
-        const executionHistory = prepared.persistedHistoryCandidate as ChatHistory
+        const executionHistory = prepared.persistedHistory as ChatHistory
         const executionRequestHistory = prepared.requestHistory as ChatHistory
-        const executionUser = (prepared.preparedTrailingMessage ?? user) as typeof user
+        const executionUser = prepared.requestUser as typeof user
 
         await this.consumePendingInjectedBlocksForDispatch(running)
         const nextHistory = await this.engine.runTurn({

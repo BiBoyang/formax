@@ -10,7 +10,6 @@ import {
   type CompactTriggerReason,
 } from '../../../../chat/context/compact'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
-import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from '../../../../chat/context/microCompact'
 import {
   executeMiddleLayerStrategyStack,
   type MiddleLayerStrategyFacts,
@@ -105,46 +104,6 @@ export function createContextCompressionService(deps: {
       percentRemaining: stats.percentRemaining,
       source: 'estimate',
     }
-  }
-
-  const microCompactMessages = (args: {
-    history: ChatHistory
-    system: PromptBlock[]
-    contextWindowTokens: number | undefined
-    user?: PromptMessage
-  }): ChatHistory => {
-    const policy = resolveAdaptiveMicroCompactPolicy({
-      pressureRatio: resolveMicroCompactPressureRatio({
-        system: args.system,
-        contextWindowTokens: args.contextWindowTokens,
-        messages: args.user ? [...args.history, args.user] : args.history,
-      }),
-    })
-    return microCompactHistory({
-      messages: args.history,
-      eligibleToolNames: policy.eligibleToolNames,
-      keepRecentToolResults: policy.keepRecentToolResults,
-      keepRecentToolResultsByName: policy.keepRecentToolResultsByName,
-      minResultChars: policy.minResultChars,
-      minResultCharsByName: policy.minResultCharsByName,
-    }).messages
-  }
-
-  const resolveMicroCompactPressureRatio = (args: {
-    system: PromptBlock[]
-    messages: ChatHistory
-    contextWindowTokens: number | undefined
-  }): number | null => {
-    if (!args.contextWindowTokens) return null
-    const stats = computeContextStats({
-      config: buildBudgetConfig(args.contextWindowTokens),
-      usedTokens: estimatePromptTokens({
-        system: args.system,
-        messages: args.messages,
-      }),
-    })
-    if (!Number.isFinite(stats.effectiveLimitTokens) || stats.effectiveLimitTokens <= 0) return null
-    return stats.usedTokens / stats.effectiveLimitTokens
   }
 
   const tryRunSessionMemoryCompact = async (args: {
@@ -262,12 +221,13 @@ export function createContextCompressionService(deps: {
     }> {
       let stack: ReturnType<typeof runCanonicalMiddleLayerStack> | null = null
       let nextHistory = args.history
-      const microCompactedHistoryForAutoCompact = microCompactMessages({
-        history: args.history,
+      stack = runCanonicalMiddleLayerStack({
         system: args.system,
+        history: nextHistory,
+        trailingMessage: args.user,
         contextWindowTokens: args.contextWindowTokens,
-        user: args.user,
       })
+      const microCompactedHistoryForAutoCompact = stack.microCompactedHistory
       let autoCompacted = false
       let showAutoCompactNotice = false
 
