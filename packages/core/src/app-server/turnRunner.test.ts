@@ -40,6 +40,20 @@ async function createThreadFixture() {
   }
 }
 
+function assistantToolUse(id: string, name: string, input: Record<string, unknown>): ChatHistory[number] {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name, input }] as any,
+  }
+}
+
+function userToolResult(id: string, content: string): ChatHistory[number] {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content }] as any,
+  }
+}
+
 async function listThreadFilesById(args: { sessionsRoot: string; threadId: string }): Promise<string[]> {
   const out: string[] = []
   const walk = async (dir: string) => {
@@ -283,6 +297,74 @@ describe('TurnRunner', () => {
       expect(resolveToolsForCall().map((tool: any) => tool.name)).toEqual(['ToolSearch', 'Bash'])
       expect(resolveToolsForCall()[1]?.defer_loading).toBe(true)
     }
+  })
+
+  it('uses canonical middle-layer request history without persisting request-only reductions', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '6000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const originalOldRead = 'old auth file\n'.repeat(400)
+    const seededHistory: ChatHistory = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', originalOldRead),
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'grep result\n'.repeat(400)),
+      assistantToolUse('glob-1', 'Glob', { pattern: '**/*.ts', path: '/repo/src' }),
+      userToolResult('glob-1', 'glob result\n'.repeat(400)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/session.ts' }),
+      userToolResult('read-2', 'recent session file\n'.repeat(400)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/router.ts' }),
+      userToolResult('read-3', 'recent router file\n'.repeat(400)),
+    ] as ChatHistory
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot(seededHistory)
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: {
+        runTurn: engineRunTurn,
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue from old reads' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const callArgs = engineRunTurn.mock.calls.find(([args]) => Array.isArray(args?.requestHistory))?.[0]
+    expect(callArgs).toBeTruthy()
+    const hasOriginalOldRead = (messages: ChatHistory) =>
+      messages.some((message: any) =>
+        Array.isArray(message.content) && message.content.some((block: any) => block?.content === originalOldRead),
+      )
+    expect(callArgs.promptBudget).toMatchObject({ contextWindowTokens: 6000 })
+    expect(callArgs.requestHistory).not.toEqual(callArgs.history)
+    expect(hasOriginalOldRead(callArgs.history)).toBe(true)
+    expect(hasOriginalOldRead(callArgs.requestHistory)).toBe(false)
+
+    const replay = await readSessionFile(filePath!)
+    expect(hasOriginalOldRead(replay.history)).toBe(true)
+    expect(JSON.stringify(replay.history)).toContain('continue from old reads')
+    expect(JSON.stringify(replay.history)).not.toContain('Older tool result cleared by microcompact')
   })
 
   it('covers private runner utilities and guard branches', async () => {

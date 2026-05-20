@@ -222,11 +222,12 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     }
     const resolveToolsForCall = toolExposure.resolveToolsForCall
     const toolsForTurn = toolExposure.toolsForTurn
-    const runTurnWith = async (history: ChatHistory, requestHistory: ChatHistory, user: typeof prunedUser) =>
+    const runTurnWith = async (history: ChatHistory, requestHistory: ChatHistory, requestUser: typeof prunedUser) =>
       args.engine.runTurn({
         history,
         requestHistory,
         user,
+        requestUser,
         system,
         tools: toolsForTurn,
         resolveToolsForCall,

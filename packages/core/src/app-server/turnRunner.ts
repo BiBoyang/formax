@@ -10,7 +10,10 @@ import {
   rebuildHistoryAfterCompaction,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
+import type { ContextBudgetConfig } from '../chat/context/budget.js'
 import { estimatePromptTokens } from '../chat/context/estimate.js'
+import { executeMiddleLayerStrategyStack } from '../chat/context/middleLayerStrategyStack.js'
+import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { buildPostCompactRehydration } from '../chat/context/postCompactRehydration.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
@@ -701,16 +704,30 @@ export class TurnRunner {
           summaryChars: summary.length,
         })
       } else {
+        const promptBudget = await this.resolvePromptBudgetConfig(running.cwd)
+        const prepared = executeMiddleLayerStrategyStack({
+          system,
+          history,
+          trailingMessage: user,
+          budgetConfig: promptBudget,
+        })
+        const executionHistory = prepared.persistedHistoryCandidate as ChatHistory
+        const executionRequestHistory = prepared.requestHistory as ChatHistory
+        const executionUser = (prepared.preparedTrailingMessage ?? user) as typeof user
+
         await this.consumePendingInjectedBlocksForDispatch(running)
         const nextHistory = await this.engine.runTurn({
-          history,
+          history: executionHistory,
+          requestHistory: executionRequestHistory,
           user,
+          requestUser: executionUser,
           system,
           tools,
           ...(toolExposure.resolveToolsForCall ? { resolveToolsForCall: toolExposure.resolveToolsForCall } : {}),
           onEvent,
           cwd: running.cwd,
           signal: running.abortController.signal,
+          promptBudget,
           thinkingEnabled: this.thinkingEnabled,
           exec: {
             interactive: true,
@@ -732,7 +749,7 @@ export class TurnRunner {
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0
             ? stripInjectedBlocksFromHistory(
                 nextHistory as ChatHistory,
-                history.length,
+                executionHistory.length,
                 running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount,
               )
             : (nextHistory as ChatHistory)
@@ -831,6 +848,27 @@ export class TurnRunner {
       },
       error: String(errorMessage),
     })
+  }
+
+  private async resolvePromptBudgetConfig(cwd: string): Promise<ContextBudgetConfig | null> {
+    const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    const contextWindowTokens =
+      runtimeConfig.llm.contextWindowTokens ??
+      getKnownContextWindowTokens({
+        provider: runtimeConfig.llm.provider,
+        model: this.model,
+      })
+    if (!contextWindowTokens) return null
+
+    return {
+      contextWindowTokens,
+      effectiveContextWindowPercent: runtimeConfig.context.effectiveContextWindowPercent,
+      autoCompactLimitPercent: runtimeConfig.context.autoCompactTokenLimitPercent,
+      baselineTokens: runtimeConfig.context.baselineTokens,
+    }
   }
 
   private resolvePendingInputs(

@@ -107,7 +107,7 @@ describe('ChatEngine', () => {
     expect((capturedMessages[2]!.content[0] as any).text).toBe('continue')
   })
 
-  it('uses requestHistory for the model call while preserving persisted history in the returned loop', async () => {
+  it('uses requestHistory and requestUser for the model call while preserving persisted history in the returned loop', async () => {
     let capturedMessages: PromptMessage[] = []
 
     const client: LlmStreamClient = {
@@ -138,6 +138,7 @@ describe('ChatEngine', () => {
       history: persistedHistory,
       requestHistory,
       user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      requestUser: { role: 'user', content: [{ type: 'text', text: 'continue pruned for request' }] },
       system: [],
       tools: [],
       onEvent: () => undefined,
@@ -147,7 +148,7 @@ describe('ChatEngine', () => {
     expect(capturedMessages.map((message) => (message.content[0] as any)?.text)).toEqual([
       'collapsed recap',
       'recent working set',
-      'continue',
+      'continue pruned for request',
     ])
     expect(out.slice(0, persistedHistory.length)).toEqual(persistedHistory)
     expect((out[persistedHistory.length]!.content[0] as any).text).toBe('continue')

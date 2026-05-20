@@ -21,6 +21,7 @@ export interface ChatEngine {
     history: ChatHistory
     requestHistory?: ChatHistory
     user: PromptMessage
+    requestUser?: PromptMessage
     system: PromptBlock[]
     tools: ToolDefinition[]
     resolveToolsForCall?: () => ToolDefinition[]
@@ -84,6 +85,7 @@ export function createChatEngine(deps: {
       history,
       requestHistory,
       user,
+      requestUser,
       system,
       tools,
       resolveToolsForCall,
@@ -96,7 +98,7 @@ export function createChatEngine(deps: {
       exec,
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
-      const requestLoopMessages: ChatHistory = [...(requestHistory ?? history), user]
+      const requestLoopMessages: ChatHistory = [...(requestHistory ?? history), requestUser ?? user]
       const pendingPostToolUseTextByToolUseId = new Map<string, string[]>()
       let pendingUserPromptSubmitText: string[] | null = null
       const audit = deps.audit

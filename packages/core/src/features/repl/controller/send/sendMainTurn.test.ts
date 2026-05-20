@@ -288,7 +288,11 @@ describe('runMainSendTurn', () => {
       expect.objectContaining({
         history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
         requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
-        user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+        requestUser: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+        user: expect.objectContaining({
+          role: 'user',
+          content: expect.arrayContaining([{ type: 'text', text: 'user-block' }]),
+        }),
       }),
     )
     expect(harness._spies.setError).not.toHaveBeenCalledWith(
@@ -417,7 +421,11 @@ describe('runMainSendTurn', () => {
       expect.objectContaining({
         history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
         requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
-        user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+        requestUser: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+        user: expect.objectContaining({
+          role: 'user',
+          content: expect.arrayContaining([{ type: 'text', text: 'user-block' }]),
+        }),
       }),
     )
     expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith({
