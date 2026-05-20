@@ -340,6 +340,20 @@ describe('selectTailForCompaction', () => {
       'z'.repeat(2400),
     ])
   })
+
+  it('does not count a compact summary as a user turn when selecting the tail', () => {
+    const summary = buildCompactionSummaryUserText('Earlier compact summary')
+    const history: PromptMessage[] = [
+      txt('user', summary),
+      txt('assistant', 'carried context'),
+      txt('user', 'latest request'),
+      txt('assistant', 'latest answer'),
+    ]
+
+    const tail = selectTailForCompaction(history, 2)
+
+    expect(tail.map((m) => (m.content as any[])[0]?.text)).toEqual(['latest request', 'latest answer'])
+  })
 })
 
 describe('rebuildHistoryAfterCompaction', () => {
@@ -500,6 +514,27 @@ describe('compaction summary helpers', () => {
         txt('user', 'latest user'),
         txt('assistant', 'latest assistant'),
       ],
+      partial: true,
+    })
+  })
+
+  it('keeps an empty latest-boundary continuation empty instead of recompacting stale history', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 456,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+    })
+    const history = [txt('user', 'before compact'), boundary]
+
+    expect(
+      resolveHistoryForCompaction({
+        previousHistory: history,
+        allowPartial: true,
+      }),
+    ).toEqual({
+      history: [],
+      tailSourceHistory: [],
       partial: true,
     })
   })

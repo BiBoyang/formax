@@ -147,6 +147,46 @@ describe('collapseRequestHistory', () => {
     expect(out.metadata?.recapFingerprint).toMatch(/^[a-f0-9]{16}$/)
   })
 
+  it('does not count the compact summary as a preserved-tail user turn', () => {
+    const compactSummary = buildCompactionSummaryUserText('Earlier compact summary')
+    const history = [
+      buildCompactBoundaryMessage({
+        trigger: 'auto',
+        preTokens: 4096,
+        summaryKind: 'model_summary',
+        keepStrategy: {
+          kind: 'keep_combo',
+          keepLastTurns: 2,
+          keepMinTokens: 1200,
+          keepMinUserTurns: 1,
+        },
+      }),
+      textMessage('user', compactSummary),
+      textMessage('assistant', 'Older analysis '.repeat(1200)),
+      textMessage('user', 'Current task request.'),
+      textMessage('assistant', 'Current task answer.'),
+    ]
+
+    const out = collapseRequestHistory({
+      messages: history,
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+      minHeadTokens: 1,
+      minSavedTokens: 1,
+    })
+
+    expect(out.collapsed).toBe(true)
+    expect(out.metadata).toEqual(
+      expect.objectContaining({
+        preservedTailMessageCount: 2,
+        retainedCompactSummary: true,
+      }),
+    )
+    expect(out.messages.slice(1).map((message) => (message.content as any[])[0]?.text)).toEqual([
+      'Current task request.',
+      'Current task answer.',
+    ])
+  })
+
   it('skips collapse when the recap would not save enough tokens', () => {
     const history = [
       buildCompactBoundaryMessage({

@@ -194,6 +194,7 @@ function findLastNonToolUserIndices(messages: PromptMessage[]): number[] {
     const message = messages[index]
     if (!message || message.role !== 'user') continue
     if (!Array.isArray(message.content)) continue
+    if (isCompactionSummaryUserMessage(message)) continue
     if (message.content.some((block: any) => block?.type === 'tool_result')) continue
     out.push(index)
   }

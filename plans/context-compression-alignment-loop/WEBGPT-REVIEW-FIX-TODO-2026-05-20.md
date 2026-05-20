@@ -154,25 +154,30 @@
 
 ### Risks
 
-- [ ] `resolveHistoryForCompaction` with boundary and empty continuation may recompact old summary.
-- [ ] Collapse tail selection counts compaction summary as a normal user turn.
-- [ ] Working-set anchor behavior with `keepLastTurns=0` may drop a recent execution cluster.
+- [x] `resolveHistoryForCompaction` with boundary and empty continuation may recompact old summary.
+  - Fixed: when a latest compact boundary exists, partial compaction scope stays on the latest continuation even when that continuation is empty; it no longer falls back to stale pre-boundary history.
+- [x] Collapse tail selection counts compaction summary as a normal user turn.
+  - Fixed: compact summary user messages are excluded from preserved-tail user-turn selection in both full compact tail selection and request-collapse tail selection.
+- [x] Working-set anchor behavior with `keepLastTurns=0` may drop a recent execution cluster.
+  - Classified as covered intentional behavior: existing `runCompactFlow` test locks manual `keepLastTurns=0` preserving the current execution cluster through `keep_combo`.
 - [x] `sanitizeReminderText` already handles basic mixed-case tags, but not tagged variants with attributes.
 - [ ] Time-aware microcompact stale-turn definition may be too narrow if assistant-only drift should count.
+  - Classification: intentionally left unchanged in this batch. Claude Code's time-based microcompact uses wall-clock gap since the last main-loop assistant message; Formax currently uses subsequent non-tool user turns. Aligning this would be a context-strategy semantic change and should be decided separately.
 
 ### Tests First
 
-- [ ] Add compact test: boundary exists and continuation is empty.
-- [ ] Add collapse test: compaction summary is not counted as normal user turn.
-- [ ] Add working-set test: manual compact with `keepLastTurns=0` preserves recent execution cluster if contract requires it.
+- [x] Add compact test: boundary exists and continuation is empty.
+- [x] Add collapse test: compaction summary is not counted as normal user turn.
+- [x] Add working-set test: manual compact with `keepLastTurns=0` preserves recent execution cluster if contract requires it.
 - [x] Add sanitize test for `<system-reminder attr="x">`.
 - [ ] Decide whether assistant-only staleness should count for time-aware microcompact.
 
 ### Implementation
 
-- [ ] Patch only edge cases confirmed by failing tests.
-- [ ] Keep behavior unchanged where WebGPT finding was a false positive or intentional design.
-- [ ] Update `docs/contracts/context-strategy-stack-contract.md` if algorithm semantics change.
+- [x] Patch only edge cases confirmed by failing tests.
+- [x] Keep behavior unchanged where WebGPT finding was a false positive or intentional design.
+- [x] Update `docs/contracts/context-strategy-stack-contract.md` if algorithm semantics change.
+  - No contract update required in this batch: no middle-layer stage order, role, facts, or request/persisted scope changed. The time-aware microcompact semantic question remains open.
 
 ## Known False Positives / Low Confidence
 

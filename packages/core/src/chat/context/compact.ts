@@ -131,7 +131,7 @@ function findLastNonToolUserIndices(messages: PromptMessage[]): number[] {
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
     if (!msg) continue
-    if (msg.role === 'user' && !isToolResultMessage(msg)) out.push(i)
+    if (msg.role === 'user' && !isToolResultMessage(msg) && !isCompactionSummaryUserMessage(msg)) out.push(i)
   }
   return out
 }
@@ -564,11 +564,18 @@ export function resolveHistoryForCompaction(args: {
     }
   }
 
-  const partial = latestBoundaryIndex >= 0 && continuation.length > 0
+  if (latestBoundaryIndex >= 0) {
+    return {
+      history: continuation,
+      tailSourceHistory: boundaryTailSource,
+      partial: true,
+    }
+  }
+
   return {
-    history: partial ? continuation : args.previousHistory,
-    tailSourceHistory: partial ? boundaryTailSource : args.previousHistory,
-    partial,
+    history: args.previousHistory,
+    tailSourceHistory: args.previousHistory,
+    partial: false,
   }
 }
 
