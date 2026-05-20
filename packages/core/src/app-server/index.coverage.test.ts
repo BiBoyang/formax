@@ -13,15 +13,32 @@ const { state } = vi.hoisted(() => ({
     handleMessage: (async () => []) as (message: unknown, options: any) => Promise<unknown[]>,
     createRuntimeSpy: vi.fn(async (_args?: unknown) => ({
       engine: {},
-      tools: {},
+      tools: [],
       allowedSubagents: [],
       cfg: {
-        llm: { model: 'claude-3-5-sonnet', thinkingMode: true },
-        ui: { },
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet',
+          thinkingMode: true,
+          contextWindowTokens: null,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.9,
+          autoCompactTokenLimitPercent: 0.7,
+          baselineTokens: 0,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+        },
+        ui: {},
       },
+      runtimeFlags: {},
       userInputManager: {},
     })),
     turnRunnerCtorArgs: [] as any[],
+    sessionFilePath: null as string | null,
+    sessionReplay: null as any,
+    restoreContext: { mode: 'normal' as 'normal' | 'acceptEdits' | 'plan', planPath: null as string | null },
+    turnRunnerPlanPath: null as string | null,
   },
 }))
 
@@ -75,6 +92,45 @@ vi.mock('../runtime/createRuntime.js', () => ({
   createRuntime: (args: unknown) => state.createRuntimeSpy(args),
 }))
 
+vi.mock('../features/repl/sessionSave/index.js', () => ({
+  findSessionFileBySessionId: async () => state.sessionFilePath,
+  readSessionFile: async () =>
+    state.sessionReplay ?? {
+      meta: {
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-05-20T00:00:00.000Z',
+        sessionId: 'thread-1',
+        startedAt: '2026-05-20T00:00:00.000Z',
+        cwd: '/tmp/repo',
+        provider: 'anthropic',
+      },
+      messages: [],
+      history: [],
+      parseErrors: 0,
+    },
+}))
+
+vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
+  persistSessionMemoryFromHistory: async () => {},
+  resolveSessionMemoryRestoreContext: async () => state.restoreContext,
+  resolveSessionMemoryRestoreArtifacts: async (args: { fallbackMode: 'normal' | 'acceptEdits' | 'plan'; fallbackPlanPath: string | null }) => ({
+    mode: args.fallbackMode,
+    planPath: args.fallbackPlanPath,
+    nextTurnInjectedBlocks: [],
+    pendingSessionMemoryRestore: null,
+  }),
+  waitForSessionMemoryWriteFlush: async () => {},
+}))
+
+vi.mock('../features/repl/sessionSave/requestCollapseEvents.js', () => ({
+  readLatestRequestCollapseEventFromSession: async () => null,
+}))
+
+vi.mock('../features/repl/sessionSave/reactiveCompactEvents.js', () => ({
+  readLatestReactiveCompactEventFromSession: async () => null,
+}))
+
 vi.mock('./turnRunner.js', () => ({
   DEFAULT_INPUT_TTL_MS: 60_000,
   DEFAULT_MAX_PENDING_INPUTS_PER_THREAD: 5,
@@ -94,6 +150,10 @@ vi.mock('./turnRunner.js', () => ({
     async submitInput() {
       return { ok: true }
     }
+
+    getPlanPath() {
+      return state.turnRunnerPlanPath
+    }
   },
 }))
 
@@ -112,6 +172,10 @@ describe('runAppServer (coverage branches)', () => {
     state.handleMessage = async () => []
     state.createRuntimeSpy.mockClear()
     state.turnRunnerCtorArgs = []
+    state.sessionFilePath = null
+    state.sessionReplay = null
+    state.restoreContext = { mode: 'normal', planPath: null }
+    state.turnRunnerPlanPath = null
   })
 
   it('rethrows non-payload transport errors from safeSend', async () => {
@@ -127,6 +191,122 @@ describe('runAppServer (coverage branches)', () => {
     state.transport.lines = []
     await runAppServer()
     expect(state.appServerOptions).not.toBeNull()
+  })
+
+  it('keeps /context text and json diagnostics aligned with compact boundary and plan path', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}']
+    state.sessionFilePath = '/tmp/thread-1.jsonl'
+    state.restoreContext = { mode: 'plan', planPath: '/repo/.formax/plan.md' }
+    state.sessionReplay = {
+      meta: {
+        type: 'session_meta',
+        v: 1,
+        ts: '2026-05-20T00:00:00.000Z',
+        sessionId: 'thread-1',
+        startedAt: '2026-05-20T00:00:00.000Z',
+        cwd: '/repo',
+        provider: 'anthropic',
+      },
+      messages: [],
+      history: [
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '' }],
+          meta: {
+            compactBoundary: {
+              schemaVersion: 1,
+              trigger: 'manual',
+              preTokens: 2048,
+              summaryKind: 'session_memory',
+            },
+          },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      ],
+      parseErrors: 0,
+    }
+    let effects: any[] = []
+    state.handleMessage = async (_message, options) => {
+      effects = [
+        await options.resolveContextDiagnostics({
+          threadId: 'thread-1',
+          cwd: '/repo',
+          mode: 'normal',
+          modeExplicit: false,
+          includeExitPlanReminder: false,
+          nextTurnInjectedBlocks: [],
+          format: 'text',
+        }),
+        await options.resolveContextDiagnostics({
+          threadId: 'thread-1',
+          cwd: '/repo',
+          mode: 'normal',
+          modeExplicit: false,
+          includeExitPlanReminder: false,
+          nextTurnInjectedBlocks: [],
+          format: 'json',
+        }),
+        await options.resolveContextDiagnostics({
+          threadId: 'thread-1',
+          cwd: '/repo',
+          mode: 'normal',
+          modeExplicit: true,
+          includeExitPlanReminder: false,
+          nextTurnInjectedBlocks: [],
+          format: 'json',
+        }),
+      ]
+      await options.resolveTurnRunner()
+      state.sessionFilePath = null
+      state.turnRunnerPlanPath = '/repo/live-plan.md'
+      effects.push(
+        await options.resolveContextDiagnostics({
+          threadId: 'thread-1',
+          cwd: '/repo',
+          mode: 'normal',
+          modeExplicit: true,
+          includeExitPlanReminder: false,
+          nextTurnInjectedBlocks: [],
+          format: 'json',
+        }),
+      )
+      return []
+    }
+
+    await runAppServer({ cwd: '/repo', env: {} })
+
+    expect(effects[0].stdout).toContain('- Trigger: manual')
+    expect(effects[0].stdout).toContain('- Mode: plan')
+    expect(effects[0].diagnostics.latestCompactBoundary).toMatchObject({
+      schemaVersion: 1,
+      trigger: 'manual',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    })
+    const parsedJson = JSON.parse(effects[1].stdout)
+    expect(parsedJson.mode).toBe('plan')
+    expect(parsedJson.latestCompactBoundary).toMatchObject({
+      schemaVersion: 1,
+      trigger: 'manual',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    })
+    expect(parsedJson.nextTurnFixed.workingSetSignals).toMatchObject({
+      modeState: 'plan',
+      hasPlanState: true,
+    })
+    const explicitNormalJson = JSON.parse(effects[2].stdout)
+    expect(explicitNormalJson.mode).toBe('normal')
+    expect(explicitNormalJson.nextTurnFixed.workingSetSignals).toMatchObject({
+      modeState: 'normal',
+      hasPlanState: true,
+    })
+    const livePlanJson = JSON.parse(effects[3].stdout)
+    expect(livePlanJson.mode).toBe('normal')
+    expect(livePlanJson.nextTurnFixed.workingSetSignals).toMatchObject({
+      modeState: 'normal',
+      hasPlanState: true,
+    })
   })
 
   it('builds lazy turn runner, forwards limits, and emits notifications', async () => {

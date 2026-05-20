@@ -84,6 +84,7 @@ export type AppServerOptions = {
     threadId: string
     cwd: string
     mode: 'normal' | 'acceptEdits' | 'plan'
+    modeExplicit: boolean
     includeExitPlanReminder: boolean
     nextTurnInjectedBlocks?: PromptBlock[]
     format: 'text' | 'json'
@@ -412,6 +413,12 @@ export class AppServer {
         if (commandRouting.commandName === '/todos' || commandRouting.commandName === '/context') {
           const thread = await this.threadStore.readThread(params.threadId)
           const dispatchCwd = params.cwd ? path.resolve(params.cwd) : thread.thread.cwd
+          const rawParams = req.params && typeof req.params === 'object' && !Array.isArray(req.params) ? req.params : null
+          const modeExplicit = Boolean(
+            rawParams &&
+              Object.prototype.hasOwnProperty.call(rawParams, 'mode') &&
+              params.mode !== undefined,
+          )
 
           if (commandRouting.commandName === '/context') {
             const outputFormat = resolveContextDiagnosticsOutputFormat(commandRouting.commandArgs ?? '')
@@ -433,6 +440,7 @@ export class AppServer {
               threadId: params.threadId,
               cwd: dispatchCwd,
               mode: params.mode ?? 'normal',
+              modeExplicit,
               includeExitPlanReminder: this.resolveExitPlanReminder({
                 threadId: params.threadId,
                 requestedMode: params.mode,

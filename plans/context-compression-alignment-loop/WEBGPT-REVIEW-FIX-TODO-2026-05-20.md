@@ -120,8 +120,8 @@
 - [x] Projection drops compact boundary `messageKind`, producing empty transcript rows.
 - [x] Replay source suppresses `latestRequestCollapse`.
 - [x] Optional RPC fields are treated as required.
-- [ ] App-server `/context` text omits latest compact boundary.
-- [ ] App-server `/context` plan mode uses `planPath: null`.
+- [x] App-server `/context` text omits latest compact boundary.
+- [x] App-server `/context` plan mode uses `planPath: null`.
 - [x] Live/replay compact boundary cache may briefly return null or stale values after compact events.
 
 ### Tests First
@@ -130,8 +130,8 @@
 - [x] Add projection/render test for compact boundary row or explicit suppression.
 - [x] Add `useTranscriptDisplayState` test for replay + `latestRequestCollapse` intended behavior.
 - [x] Add RPC parser tests for omitted optional compact/collapse/restore fields.
-- [ ] Add app-server `/context` text/json consistency test.
-- [ ] Add plan-mode `/context` diagnostics test.
+- [x] Add app-server `/context` text/json consistency test.
+- [x] Add plan-mode `/context` diagnostics test.
 - [x] Add replay cache test: `turn/event compact_boundary` followed immediately by `thread/replay` returns the same boundary.
 
 ### Implementation
@@ -144,8 +144,9 @@
   - Existing optional-field parser behavior already accepted omitted compact/collapse/restore fields while rejecting malformed explicit values; added RPC contract coverage for `thread/messages`, `thread/read`, `thread/resume`, and `thread/replay`.
 - [x] Keep replay-sourced request-collapse diagnostics visible in transcript display state.
   - `latestRequestCollapse` now follows the same `history`/`replay` visibility rule as `latestCompactBoundary`.
-- [ ] Pass latest compact boundary into diagnostics text formatting.
-- [ ] Pass real plan path into app-server diagnostics, or expose an explicit unknown/unavailable state.
+- [x] Pass latest compact boundary into diagnostics text formatting.
+- [x] Pass real plan path into app-server diagnostics, or expose an explicit unknown/unavailable state.
+  - App-server `/context` text output now receives the same `latestCompactBoundary` as JSON diagnostics. Plan-mode diagnostics derive `planPath` from session memory restore context, falling back to the live TurnRunner plan path, instead of hardcoding `null`.
 - [ ] Align `thread/read`, `thread/messages`, `thread/resume`, `thread/replay`, and `/context` compact/collapse summaries.
 
 ## Batch 4: Algorithm Edge Cases

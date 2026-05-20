@@ -265,6 +265,12 @@ export class TurnRunner {
     this.runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(this.env ?? process.env)
   }
 
+  getPlanPath(threadId: string): string | null {
+    const running = this.runningByThreadId.get(threadId)
+    if (running?.planPath) return running.planPath
+    return this.planSessionByThreadId.get(threadId)?.getPlanPath() ?? null
+  }
+
   async startTurn(params: TurnStartRuntimeParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
     const existing = this.runningByThreadId.get(params.threadId)
     if (existing) throw new Error(`Turn already running for thread: ${params.threadId}`)

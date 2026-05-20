@@ -1,6 +1,7 @@
 import pkg from '../../package.json'
 import { buildContextDiagnosticsPayload, formatContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
 import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
+import { resolveSessionMemoryRestoreContext } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
@@ -27,6 +28,8 @@ type OutboundQueueItem = {
   payload: unknown
   swallowSendErrors: boolean
 }
+type AppServerRunner = Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> &
+  Partial<Pick<TurnRunner, 'getPlanPath'>>
 
 function normalizePositiveLimit(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
@@ -150,7 +153,7 @@ export async function runAppServer(args?: {
   homedir?: string
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'ensureThreadFile'>>
-  turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
+  turnRunner?: AppServerRunner
   maxRequestBytes?: number
   maxEventBytes?: number
   maxPendingInputsPerThread?: number
@@ -207,7 +210,7 @@ export async function runAppServer(args?: {
     await enqueueOutboundStrict(makeOverloadedError(id))
   }
 
-  let lazyTurnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null = args?.turnRunner ?? null
+  let lazyTurnRunner: AppServerRunner | null = args?.turnRunner ?? null
   const server = new AppServer({
     info: {
       name: 'formax',
@@ -243,6 +246,7 @@ export async function runAppServer(args?: {
       threadId,
       cwd: dispatchCwd,
       mode,
+      modeExplicit,
       includeExitPlanReminder,
       nextTurnInjectedBlocks = [],
       format,
@@ -256,6 +260,15 @@ export async function runAppServer(args?: {
         sessionId: threadId,
       })
       const replay = sessionFilePath ? await readSessionFile(sessionFilePath) : null
+      const livePlanPath = lazyTurnRunner?.getPlanPath?.(threadId) ?? null
+      const restoreContext = sessionFilePath
+        ? await resolveSessionMemoryRestoreContext({
+            sessionFilePath,
+            fallbackMode: mode,
+            fallbackPlanPath: livePlanPath,
+          })
+        : { mode, planPath: livePlanPath }
+      const diagnosticsMode = modeExplicit ? mode : restoreContext.mode
       const deferredToolExposureEnabled = runtime.runtimeFlags.deferredToolExposureEnabled === true
       const toolExposure = resolveDeferredToolExposureForTurn({
         cwd: dispatchCwd,
@@ -266,8 +279,8 @@ export async function runAppServer(args?: {
       })
       const turnInput = buildTurnInput({
         rawText: '',
-        mode,
-        planPath: null,
+        mode: diagnosticsMode,
+        planPath: restoreContext.planPath,
         includeExitPlanReminder,
       })
 
@@ -283,8 +296,8 @@ export async function runAppServer(args?: {
         cfg: runtime.cfg,
         runtimeFlags: runtime.runtimeFlags,
         allowedSubagents: runtime.allowedSubagents,
-        mode,
-        planPath: null,
+        mode: diagnosticsMode,
+        planPath: restoreContext.planPath,
         messages: replay?.history ?? [],
         latestRequestCollapse,
         latestReactiveCompact,
@@ -302,6 +315,7 @@ export async function runAppServer(args?: {
           format === 'json'
             ? JSON.stringify(diagnostics, null, 2)
             : formatContextDiagnosticsReport({
+                latestCompactBoundary: diagnostics.latestCompactBoundary,
                 latestRequestCollapse: diagnostics.latestRequestCollapse,
                 latestReactiveCompact: diagnostics.latestReactiveCompact,
                 diagnostics: diagnostics.snapshot,
