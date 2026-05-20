@@ -5,6 +5,9 @@ import { createSlashCommandRegistry } from '../../features/commands/registry.js'
 import { getDefaultModels, inferModelMetadata } from '../../core/models/models.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
+import type { ContextBudgetConfig } from '../../chat/context/budget.js'
+import { executeMiddleLayerStrategyStack } from '../../chat/context/middleLayerStrategyStack.js'
+import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
@@ -642,6 +645,23 @@ function buildFinalUsage(args: {
   if (args.eventCount > 0 && hasUsageValue(args.eventTotals)) return args.eventTotals
   if (args.streamCount > 0 && hasUsageValue(args.streamTotals)) return args.streamTotals
   return null
+}
+
+function resolvePromptBudgetConfig(args: { runtime: RuntimeBundle; model: string }): ContextBudgetConfig | null {
+  const contextWindowTokens =
+    args.runtime.cfg.llm.contextWindowTokens ??
+    getKnownContextWindowTokens({
+      provider: args.runtime.cfg.llm.provider,
+      model: args.model,
+    })
+  if (!contextWindowTokens) return null
+
+  return {
+    contextWindowTokens,
+    effectiveContextWindowPercent: args.runtime.cfg.context.effectiveContextWindowPercent,
+    autoCompactLimitPercent: args.runtime.cfg.context.autoCompactTokenLimitPercent,
+    baselineTokens: args.runtime.cfg.context.baselineTokens,
+  }
 }
 
 function patchClientStreamOnce(args: {
@@ -1411,15 +1431,28 @@ async function* runQuery(
 
       for (let attempt = 0; attempt <= outputMaxRetries; attempt += 1) {
         const userForTurn = toUserPromptMessage(currentPrompt, injectedPromptBlocks)
-        const nextHistoryRaw = await runtime.engine.runTurn({
+        const promptBudget = resolvePromptBudgetConfig({ runtime, model })
+        const prepared = executeMiddleLayerStrategyStack({
+          system,
           history: currentHistory,
+          trailingMessage: userForTurn,
+          budgetConfig: promptBudget,
+        })
+        const executionHistory = parsePromptHistory(prepared.persistedHistoryCandidate)
+        const executionRequestHistory = parsePromptHistory(prepared.requestHistory)
+        const requestUserForTurn = parsePromptHistory([prepared.preparedTrailingMessage ?? userForTurn])[0] ?? userForTurn
+        const nextHistoryRaw = await runtime.engine.runTurn({
+          history: executionHistory,
+          requestHistory: executionRequestHistory,
           user: userForTurn,
+          requestUser: requestUserForTurn,
           system,
           tools,
           ...(resolveToolsForCall ? { resolveToolsForCall } : {}),
           onEvent,
           cwd,
           signal: runSignal,
+          promptBudget,
           model,
           thinkingEnabled: thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
           exec: {
@@ -1434,7 +1467,7 @@ async function* runQuery(
         })
         nextHistory = stripInjectedBlocksFromHistory(
           parsePromptHistory(nextHistoryRaw),
-          currentHistory.length,
+          executionHistory.length,
           injectedPromptBlocks.length,
         )
         assistantBlocks = extractLastAssistantMessage(nextHistory)

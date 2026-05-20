@@ -43,6 +43,20 @@ function createTool(name: string): ToolDefinition {
   }
 }
 
+function assistantToolUse(id: string, name: string, input: Record<string, unknown>): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name, input }] as any,
+  }
+}
+
+function userToolResult(id: string, content: string): PromptMessage {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content }] as any,
+  }
+}
+
 function createSessionWriterFixture() {
   return {
     appendEvent: vi.fn(async () => {}),
@@ -337,6 +351,58 @@ describe('sdk query option alignment regressions', () => {
       expect(result.subtype).toBe('success')
       expect(result.session_id).toBe('session-abc')
     }
+  })
+
+  it('projects SDK query request history without mutating persisted history', async () => {
+    const originalOldRead = 'old sdk read\n'.repeat(400)
+    const hasOriginalOldRead = (messages: PromptMessage[]) =>
+      messages.some((message: any) =>
+        Array.isArray(message.content) && message.content.some((block: any) => block?.content === originalOldRead),
+      )
+    const history: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', originalOldRead),
+      assistantToolUse('grep-1', 'Grep', { pattern: 'login', path: '/repo/src' }),
+      userToolResult('grep-1', 'grep result\n'.repeat(400)),
+      assistantToolUse('glob-1', 'Glob', { pattern: '**/*.ts', path: '/repo/src' }),
+      userToolResult('glob-1', 'glob result\n'.repeat(400)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/session.ts' }),
+      userToolResult('read-2', 'recent session file\n'.repeat(400)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/router.ts' }),
+      userToolResult('read-3', 'recent router file\n'.repeat(400)),
+    ]
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-latest',
+      contextWindowTokens: 6000,
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk projection',
+      history,
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const callArgs = runTurn.mock.calls[0]?.[0]
+    expect(callArgs.promptBudget).toMatchObject({ contextWindowTokens: 6000 })
+    expect(callArgs.requestHistory).not.toEqual(callArgs.history)
+    expect(hasOriginalOldRead(callArgs.history)).toBe(true)
+    expect(hasOriginalOldRead(callArgs.requestHistory)).toBe(false)
+    expect(callArgs.requestUser).toBeTruthy()
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('success')
+    expect(hasOriginalOldRead(result?.history ?? [])).toBe(true)
   })
 
   it('keeps debug compatibility behavior via hook-debug env wiring', async () => {

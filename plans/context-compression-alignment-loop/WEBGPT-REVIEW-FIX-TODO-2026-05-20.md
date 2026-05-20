@@ -43,8 +43,9 @@
 - [x] App-server normal turn bypasses canonical middle-layer stack.
   - Evidence: `packages/core/src/app-server/turnRunner.ts` calls `engine.runTurn` without `requestHistory`, `promptBudget`, or `executeMiddleLayerStrategyStack`.
   - Fixed in this batch: app-server normal turns now run the canonical stack before model dispatch and pass separate `history`, `requestHistory`, and `promptBudget` into `engine.runTurn`.
-- [ ] SDK query bypasses canonical middle-layer stack.
+- [x] SDK query bypasses canonical middle-layer stack.
   - Evidence: `packages/core/src/sdk/query/runner.ts` calls `runtime.engine.runTurn` directly with only `history` and `user`.
+  - Fixed in this batch: SDK query attempts now run the canonical stack and pass separate `history`, `requestHistory`, `user`, `requestUser`, and `promptBudget` into `engine.runTurn`.
 - [ ] App-server `/compact` uses hardcoded keep strategy instead of canonical manual compact flow.
 - [x] Terminal prune may persist a truncated current user message.
   - Fixed in this batch: `ChatEngine.runTurn` now separates persisted `user` from request-only `requestUser`, and TUI/app-server pass prepared trailing messages only as request payload.
@@ -56,7 +57,7 @@
 ### Tests First
 
 - [x] Add app-server turn test: long history produces distinct `requestHistory` and non-null `promptBudget`.
-- [ ] Add SDK query test: resume/continue with long history uses canonical stack projection.
+- [x] Add SDK query test: resume/continue with long history uses canonical stack projection.
 - [ ] Add `sendMainTurn` test: force-fit user request persists original user content, not pruned request text.
 - [ ] Add injected-block test: request-only reminders are absent from persisted history after tiny-budget force-fit.
 - [ ] Add middle-layer invariant test: request-time stages affect `requestHistory` / assembled envelope, not persisted baseline.
@@ -65,8 +66,7 @@
 ### Implementation
 
 - [ ] Introduce or extract a shared adapter for app-server and SDK to call the canonical middle-layer stack.
-- [ ] Pass `requestHistory` and `promptBudget` into app-server / SDK engine turns.
-  - App-server normal turns fixed in this batch; SDK query remains open.
+- [x] Pass `requestHistory` and `promptBudget` into app-server / SDK engine turns.
 - [x] Separate persisted user from request-projected user where terminal prune can alter the current turn.
 - [ ] Keep terminal prune scoped to assembled request envelope.
 - [ ] Remove duplicate pre-stack `microcompact` execution if canonical stack already owns the stage.
