@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import * as commandRegistryModule from '../features/commands/registry.js'
+import { SessionWriter } from '../features/repl/sessionSave/index.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { classifyRpcMessage, JSON_RPC_ERRORS } from './jsonrpc.js'
 import type { Thread } from './protocol.js'
@@ -350,6 +351,55 @@ describe('AppServer', () => {
       summaryKind: 'session_memory',
     })
     expect(readThreadCount).toBe(1)
+  })
+
+  it('keeps latestCompactBoundary consistent across resume, read, messages, and replay', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadId = 'thread-compact-parity'
+    const expectedBoundary = {
+      schemaVersion: 1,
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+    }
+
+    const { writer } = await SessionWriter.createNew({ cwd, env, sessionId: threadId })
+    await writer.appendStableMsg({
+      id: 'm1',
+      role: 'user',
+      content: 'continue after compact',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: { compactBoundary: expectedBoundary },
+      },
+      { role: 'assistant', content: [{ type: 'text', text: 'compact summary' }] },
+      { role: 'user', content: [{ type: 'text', text: 'continue after compact' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: new ThreadStore({ cwd, env }),
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const resumeOut = await server.handleMessage(request(2, 'thread/resume', { threadId }))
+    const readOut = await server.handleMessage(request(3, 'thread/read', { threadId }))
+    const messagesOut = await server.handleMessage(request(4, 'thread/messages', { threadId, limit: 10 }))
+    const replayOut = await server.handleMessage(request(5, 'thread/replay', { threadId }))
+
+    expect((resumeOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
+    expect((readOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
+    expect((messagesOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
   })
 
   it('maps thread store errors on start/resume/read to rpc errors', async () => {

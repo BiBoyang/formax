@@ -96,12 +96,13 @@
 
 ### Tests First
 
-- [ ] Add resume transition integration test with compact-boundary session fixture.
+- [x] Add resume transition integration test with compact-boundary session fixture.
+  - Covered by an app-server integration fixture that writes a real JSONL session with a compact boundary, resumes it, and verifies the same boundary remains visible across Web-facing thread surfaces.
 - [x] Add startup `resumeLast` test asserting compact boundary remains visible to `readSessionFile`.
 - [x] Add SDK resume persistence test asserting compact boundary survives after a resumed turn.
 - [x] Add restore sidecar freshness test using stale sidecar + newer JSONL replay.
 - [x] Add app-server pending restore retry/failure test.
-- [ ] Add cross-interface consistency test for `latestCompactBoundary` after resume/read/messages/replay.
+- [x] Add cross-interface consistency test for `latestCompactBoundary` after resume/read/messages/replay.
 
 ### Implementation
 
