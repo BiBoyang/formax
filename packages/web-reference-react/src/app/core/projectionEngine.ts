@@ -31,16 +31,21 @@ export function toTranscriptItemFromProjectionSegment(args: {
       role: 'user',
       turnId: segment.turnId,
       text: segment.text,
+      ...(segment.messageKind ? { messageKind: segment.messageKind } : {}),
     }
   }
 
   if (segment.kind === 'system') {
+    if (segment.messageKind === 'compact_boundary' && !segment.text.trim()) {
+      return null
+    }
     return {
       id: segment.id,
       kind: 'message',
       role: segment.role,
       turnId: segment.turnId,
       text: segment.text,
+      ...(segment.messageKind ? { messageKind: segment.messageKind } : {}),
     }
   }
 

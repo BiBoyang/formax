@@ -120,6 +120,8 @@ export type ThreadHistoryTool = {
 
 export type ThreadMessage = ThreadHistoryMessage | ThreadHistoryTool
 
+export type TranscriptMessageKind = 'command_subline' | 'compact_boundary' | 'compact_banner' | 'compact_summary'
+
 export type PendingInput = {
   inputId: string
   threadId: string
@@ -149,7 +151,14 @@ export type TranscriptItem =
   | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
   | { id: string; kind: 'notice'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
   | { id: string; kind: 'thinking'; text: string; status: 'running' | 'finalized'; turnId?: string }
-  | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string; turnId?: string }
+  | {
+      id: string
+      kind: 'message'
+      role: 'user' | 'assistant'
+      text: string
+      turnId?: string
+      messageKind?: TranscriptMessageKind
+    }
   | {
       id: string
       kind: 'turn_footer'

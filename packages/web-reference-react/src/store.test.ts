@@ -473,6 +473,81 @@ describe('appReducer', () => {
     })
 
     expect(state.logs.some((item) => item.kind === 'message' && item.text === '(system) command accepted')).toBe(true)
+    expect(state.logs.find((item) => item.id === 'turn-1:system:0')).toMatchObject({
+      kind: 'message',
+      messageKind: 'command_subline',
+    })
+  })
+
+  it('suppresses empty compact boundary projection rows', () => {
+    let state = appReducer(initialAppState, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'compact-boundary-1' },
+        {
+          kind: 'system_message',
+          turnId: 'turn-compact',
+          role: 'assistant',
+          text: '',
+          uiKind: 'compact_boundary',
+        },
+      ),
+    })
+
+    expect(state.logs).toHaveLength(0)
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 2, eventId: 'assistant-delta-after-boundary' },
+        { kind: 'assistant_delta', turnId: 'turn-compact', textDelta: 'after compact' },
+      ),
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'message',
+      role: 'assistant',
+      text: 'after compact',
+    })
+    expect(state.logs.some((item) => item.kind === 'message' && item.text === '')).toBe(false)
+  })
+
+  it('suppresses empty compact boundary rows when hydrating projection snapshots', () => {
+    const state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          {
+            id: 'turn-compact:system:1',
+            kind: 'system',
+            turnId: 'turn-compact',
+            role: 'assistant',
+            text: '',
+            messageKind: 'compact_boundary',
+          },
+          {
+            id: 'turn-compact:assistant:2',
+            kind: 'assistant',
+            turnId: 'turn-compact',
+            text: 'after compact',
+          },
+        ],
+        lastReplaySeq: 2,
+        toolNameByUseId: {},
+        openAssistantSegmentIdByTurn: { 'turn-compact': 'turn-compact:assistant:2' },
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      id: 'turn-compact:assistant:2',
+      kind: 'message',
+      role: 'assistant',
+      text: 'after compact',
+    })
   })
 
   it('does not duplicate user-role system rows after canonical updates', () => {
