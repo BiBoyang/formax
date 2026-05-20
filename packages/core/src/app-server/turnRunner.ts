@@ -2,26 +2,20 @@ import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import {
-  buildDefaultCompactRehydrationPlan,
-  estimateCompactRehydrationCost,
   isCompactBoundaryMessage,
-  markCompactRehydrationApplied,
   readCompactBoundaryMeta,
-  rebuildHistoryAfterCompaction,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { ContextBudgetConfig } from '../chat/context/budget.js'
-import { estimatePromptTokens } from '../chat/context/estimate.js'
 import { executeMiddleLayerStrategyStack } from '../chat/context/middleLayerStrategyStack.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
-import { buildPostCompactRehydration } from '../chat/context/postCompactRehydration.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
   resolveSystemPromptVariant,
 } from '../prompts/index.js'
-import { buildCompactRequest } from '../prompts/compact.js'
 import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { runCompactFlow } from '../features/repl/controller/send/compactFlow.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
 import { sourceFromInputKind } from '../shared/inputContracts.js'
 import { sourceFromRuntimeEventType } from '../shared/runtimeEventSource.js'
@@ -622,77 +616,28 @@ export class TurnRunner {
 
       if (running.compact.isCommand) {
         await writer.appendEvent('compact_started', { source: 'manual' })
-        const compactPrompt: ChatHistory[number] = {
-          role: 'user',
-          content: [{ type: 'text', text: buildCompactRequest(running.compact.instructions) }],
-        }
-        const compactHistory = await this.engine.runTurn({
-          history,
-          user: compactPrompt,
+        const compactResult = await runCompactFlow({
+          source: 'manual',
+          instructions: running.compact.instructions,
+          engine: this.engine as ChatEngine,
+          previousHistory: history,
+          keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
           system,
-          tools: [],
-          onEvent: (event) => {
-            if (event.type === 'thinking_delta' || event.type === 'thinking_stop' || event.type === 'usage') {
-              emitStreamTurnEvent(event)
-            }
-          },
           cwd: running.cwd,
           signal: running.abortController.signal,
+          promptBudget: await this.resolvePromptBudgetConfig(running.cwd),
+          model: this.model,
           thinkingEnabled: this.thinkingEnabled,
-          exec: {
-            interactive: true,
-            replMode: running.replMode,
-            getReplMode,
-            setReplMode,
-            getPlanPath: () => running.planPath,
-            planPath: running.planPath,
-            trace: turnTrace,
-          },
+          mode: running.replMode,
+          getReplMode,
+          setReplMode,
+          getPlanPath: () => running.planPath,
+          onStreamEvent: emitStreamTurnEvent,
         })
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
         }
-        const summary = extractAssistantText(compactHistory).trim()
-        if (!summary) {
-          throw new Error('Compact failed: empty summary')
-        }
-        const rehydration = buildPostCompactRehydration({
-          cwd: running.cwd,
-          mode: running.replMode,
-          planPath: running.planPath,
-          previousHistory: history,
-        })
-        const rehydrationPlan = markCompactRehydrationApplied(
-          buildDefaultCompactRehydrationPlan({
-            mode: running.replMode,
-            planPath: running.planPath,
-            hasTodoState: rehydration.hasTodoState,
-          }),
-          rehydration.appliedKinds,
-        )
-        nextHistoryForSnapshot = rebuildHistoryAfterCompaction({
-          summary,
-          previousHistory: history,
-          keepStrategy: {
-            kind: 'keep_last_turns',
-            keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
-          },
-          rehydration,
-          boundaryMeta: {
-            trigger: 'manual',
-            preTokens: estimatePromptTokens({
-              system,
-              messages: history,
-            }),
-            summaryKind: 'model_summary',
-            keepStrategy: {
-              kind: 'keep_last_turns',
-              keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
-            },
-            rehydrationPlan,
-            rehydrationCost: estimateCompactRehydrationCost(rehydration),
-          },
-        })
+        nextHistoryForSnapshot = compactResult.compactedHistory
         const compactBoundary = readCompactBoundaryMeta(nextHistoryForSnapshot[0] ?? null)
         if (compactBoundary) {
           emitStreamTurnEvent({ type: 'compact_boundary', boundary: compactBoundary })
@@ -701,7 +646,7 @@ export class TurnRunner {
         emitStreamTurnEvent({ type: 'assistant_delta', text: assistantText })
         await writer.appendEvent('compact_succeeded', {
           source: 'manual',
-          summaryChars: summary.length,
+          summaryChars: compactResult.summary.length,
         })
       } else {
         const promptBudget = await this.resolvePromptBudgetConfig(running.cwd)

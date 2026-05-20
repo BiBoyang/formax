@@ -46,7 +46,8 @@
 - [x] SDK query bypasses canonical middle-layer stack.
   - Evidence: `packages/core/src/sdk/query/runner.ts` calls `runtime.engine.runTurn` directly with only `history` and `user`.
   - Fixed in this batch: SDK query attempts now run the canonical stack and pass separate `history`, `requestHistory`, `user`, `requestUser`, and `promptBudget` into `engine.runTurn`.
-- [ ] App-server `/compact` uses hardcoded keep strategy instead of canonical manual compact flow.
+- [x] App-server `/compact` uses hardcoded keep strategy instead of canonical manual compact flow.
+  - Fixed in this batch: app-server manual `/compact` now delegates to shared `runCompactFlow`, preserving latest-boundary handling, working-set-aware `keep_combo`, rehydration, and compact request prompt behavior.
 - [x] Terminal prune may persist a truncated current user message.
   - Fixed in this batch: `ChatEngine.runTurn` now separates persisted `user` from request-only `requestUser`, and TUI/app-server pass prepared trailing messages only as request payload.
 - [ ] Request-only injected prompt blocks may persist after prune force-fit.

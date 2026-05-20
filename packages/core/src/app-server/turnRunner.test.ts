@@ -1965,14 +1965,16 @@ describe('TurnRunner', () => {
     const replay = await readSessionFile(filePath!)
     const summary = await readSessionSummary(filePath!)
 
-    expect(replay.history).toHaveLength(2)
+    expect(replay.history).toHaveLength(4)
     expect(replay.history[0]?.role).toBe('assistant')
     expect((replay.history[0] as any)?.meta?.compactBoundary?.schemaVersion).toBe(1)
     expect((replay.history[0] as any)?.meta?.compactBoundary?.trigger).toBe('manual')
     expect((replay.history[0] as any)?.meta?.compactBoundary?.summaryKind).toBe('model_summary')
     expect((replay.history[0] as any)?.meta?.compactBoundary?.keepStrategy).toEqual({
-      kind: 'keep_last_turns',
+      kind: 'keep_combo',
       keepLastTurns: 0,
+      keepMinTokens: 1600,
+      keepMinUserTurns: 2,
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.rehydrationPlan).toEqual({
       schemaVersion: 1,
@@ -1988,15 +1990,15 @@ describe('TurnRunner', () => {
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preservedSegment).toEqual({
       schemaVersion: 1,
-      continuationMessageCount: 1,
-      preservedTailMessageCount: 0,
+      continuationMessageCount: 3,
+      preservedTailMessageCount: 2,
       summaryFingerprint: expect.any(String),
-      headFingerprint: null,
-      tailFingerprint: null,
+      headFingerprint: expect.any(String),
+      tailFingerprint: expect.any(String),
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
-    expect(summary.messageCount).toBe(1)
+    expect(summary.messageCount).toBe(3)
     const summaryText = Array.isArray(replay.history[1]?.content)
       ? String((replay.history[1]!.content[0] as { text?: string } | undefined)?.text ?? '')
       : ''
