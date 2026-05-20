@@ -119,7 +119,7 @@
 - [x] Live `compact_boundary` event does not update `latestCompactBoundaryByThreadId`.
 - [x] Projection drops compact boundary `messageKind`, producing empty transcript rows.
 - [ ] Replay source suppresses `latestRequestCollapse`.
-- [ ] Optional RPC fields are treated as required.
+- [x] Optional RPC fields are treated as required.
 - [ ] App-server `/context` text omits latest compact boundary.
 - [ ] App-server `/context` plan mode uses `planPath: null`.
 - [x] Live/replay compact boundary cache may briefly return null or stale values after compact events.
@@ -129,7 +129,7 @@
 - [x] Add `processNotification` test for live compact boundary cache update.
 - [x] Add projection/render test for compact boundary row or explicit suppression.
 - [ ] Add `useTranscriptDisplayState` test for replay + `latestRequestCollapse` intended behavior.
-- [ ] Add RPC parser tests for omitted optional compact/collapse/restore fields.
+- [x] Add RPC parser tests for omitted optional compact/collapse/restore fields.
 - [ ] Add app-server `/context` text/json consistency test.
 - [ ] Add plan-mode `/context` diagnostics test.
 - [x] Add replay cache test: `turn/event compact_boundary` followed immediately by `thread/replay` returns the same boundary.
@@ -140,7 +140,8 @@
   - Compact boundary cache is now refreshed from live `turn/event compact_boundary` in both app-server replay metadata and Web runtime notification handling. Collapse remains sourced from RPC/replay diagnostics because there is no live collapse event in the current protocol.
 - [x] Extend `TranscriptItem` / projection model to preserve compact boundary UI kind or explicitly suppress it with a documented rule.
   - Web render-model messages now preserve projection `messageKind`; empty `compact_boundary` system rows are explicitly suppressed so they do not render as blank assistant transcript rows.
-- [ ] Relax optional field parsers for compact/collapse/restore fields.
+- [x] Relax optional field parsers for compact/collapse/restore fields.
+  - Existing optional-field parser behavior already accepted omitted compact/collapse/restore fields while rejecting malformed explicit values; added RPC contract coverage for `thread/messages`, `thread/read`, `thread/resume`, and `thread/replay`.
 - [ ] Pass latest compact boundary into diagnostics text formatting.
 - [ ] Pass real plan path into app-server diagnostics, or expose an explicit unknown/unavailable state.
 - [ ] Align `thread/read`, `thread/messages`, `thread/resume`, `thread/replay`, and `/context` compact/collapse summaries.

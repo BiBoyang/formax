@@ -1698,6 +1698,73 @@ describe('rpcContracts', () => {
     })
   })
 
+  it('accepts omitted optional compact/collapse/restore fields on thread RPC payloads', () => {
+    const messages = parseThreadMessagesResponse({
+      data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
+      nextCursor: 'cursor-1',
+    })
+    expect(messages).toEqual({
+      data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'hello' }],
+      nextCursor: 'cursor-1',
+    })
+
+    expect(
+      parseThreadReadResponse({
+        thread: {
+          id: 'thread-1',
+          cwd: '/repo',
+          createdAt: '2026-04-07T00:00:00.000Z',
+          updatedAt: '2026-04-07T00:01:00.000Z',
+        },
+        transcriptPreview: [{ role: 'user', text: 'hello' }],
+      }),
+    ).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-04-07T00:00:00.000Z',
+        updatedAt: '2026-04-07T00:01:00.000Z',
+      },
+      transcriptPreview: [{ role: 'user', text: 'hello' }],
+    })
+
+    expect(
+      parseThreadResumeResponse({
+        thread: {
+          id: 'thread-1',
+          cwd: '/repo',
+          createdAt: '2026-05-12T00:00:00.000Z',
+          updatedAt: '2026-05-12T00:01:00.000Z',
+        },
+        staleInputs: [],
+      }),
+    ).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-05-12T00:00:00.000Z',
+        updatedAt: '2026-05-12T00:01:00.000Z',
+      },
+      staleInputs: [],
+    })
+
+    expect(
+      parseThreadReplayResponse({
+        data: [],
+        nextCursor: 0,
+        latestCursor: 0,
+        hasGap: false,
+        state: null,
+      }),
+    ).toEqual({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      state: null,
+    })
+  })
+
   it('rejects malformed explicit latest request collapse in thread/read payload', () => {
     expect(
       parseThreadReadResponse({
