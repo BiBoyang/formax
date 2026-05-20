@@ -14,7 +14,7 @@
 - 每个切片结束都执行：
   - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx`
   - `npm --prefix packages/web-reference-react run test -- src/components/LeftRail.test.tsx`
-  - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+  - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
 
 ## 现状基线（2026-03）
 
@@ -295,7 +295,7 @@
   2. ...
 - 验收命令：
   - npm --prefix packages/web-reference-react run test -- <target-test>
-  - codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"
+  - codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"
 - 最近一次执行：
   - YYYY-MM-DD: <结果>
 ```

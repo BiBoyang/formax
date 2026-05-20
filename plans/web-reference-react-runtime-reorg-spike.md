@@ -54,7 +54,7 @@ src/
    - `npm --prefix packages/web-reference-react run test -- src/App.test.tsx`
    - `npm --prefix packages/web-reference-react run test -- src/components/TranscriptPane.test.tsx`
    - `npm --prefix packages/web-reference-react run test -- src/components/LeftRail.test.tsx`
-   - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+   - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
 
 ## 风险与守护
 

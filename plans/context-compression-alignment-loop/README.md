@@ -441,7 +441,7 @@ Formax 当前：
 5. 所有切片默认循环：
    - 实现
    - 定向测试
-   - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="high"`
+   - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
    - 提交
 
 ## 范围约束（严格）

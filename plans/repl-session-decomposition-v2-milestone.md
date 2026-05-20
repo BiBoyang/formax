@@ -73,7 +73,7 @@ Executed as milestone close gate:
 - `bun run type-check`
 - `bun run ui:boundaries`
 - `bun run check:partial-stage`
-- `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+- `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
 
 ## Remaining Non-Blocking Polish
 - Optional: further reduce tiny residual wiring wrappers in `useReplController` if they become noisy again.

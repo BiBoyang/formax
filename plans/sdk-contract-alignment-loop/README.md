@@ -58,4 +58,4 @@
 - 阶段门禁：
   - `bun run test -- <targeted files>`
   - `bun run type-check`
-  - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+  - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
