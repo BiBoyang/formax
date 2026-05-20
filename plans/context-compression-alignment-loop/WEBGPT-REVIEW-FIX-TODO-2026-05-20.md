@@ -87,8 +87,10 @@
   - Fixed in this batch: startup writer open now records resume metadata without rewriting `history_state`, and `resolveInitialSession()` carries `replayHistory` so later turn snapshots can preserve compact-boundary authority.
 - [x] SDK resume persistence appends boundary-stripped active history.
   - Fixed in this batch: file-backed SDK resume/continue stores `replayHistory` and persists post-turn snapshots via `buildSessionReplayHistoryWithActiveContinuation()`.
-- [ ] REPL `/resume` refreshes `.memory.json` before reading restore injected blocks.
-- [ ] App-server `thread/resume` derives restore blocks from stale sidecar before refreshing from JSONL replay.
+- [x] REPL `/resume` refreshes `.memory.json` before reading restore injected blocks.
+  - Covered in this batch: `runResumeSessionTransition()` awaits sidecar refresh from restored active history before reading next-turn restore injected blocks.
+- [x] App-server `thread/resume` derives restore blocks from stale sidecar before refreshing from JSONL replay.
+  - Fixed in this batch: `ThreadStore.resumeThread()` now refreshes sidecar from boundary-aware active history before deriving returned pending restore blocks when a restore block is pending.
 - [ ] App-server clears pending restore blocks before durable model dispatch.
 
 ### Tests First
@@ -96,7 +98,7 @@
 - [ ] Add resume transition integration test with compact-boundary session fixture.
 - [x] Add startup `resumeLast` test asserting compact boundary remains visible to `readSessionFile`.
 - [x] Add SDK resume persistence test asserting compact boundary survives after a resumed turn.
-- [ ] Add restore sidecar freshness test using stale sidecar + newer JSONL replay.
+- [x] Add restore sidecar freshness test using stale sidecar + newer JSONL replay.
 - [ ] Add app-server pending restore retry/failure test.
 - [ ] Add cross-interface consistency test for `latestCompactBoundary` after resume/read/messages/replay.
 
@@ -104,8 +106,8 @@
 
 - [x] Stop writing boundary-stripped active history as the latest authoritative snapshot.
 - [x] Preserve session JSONL replay as authority; active continuation should be runtime view only.
-- [ ] Resolve restore artifacts before sidecar refresh where needed.
-- [ ] For app-server resume, derive next-turn restore blocks from fresh boundary-aware active history or refresh sidecar before consuming artifacts.
+- [x] Resolve restore artifacts before sidecar refresh where needed.
+- [x] For app-server resume, derive next-turn restore blocks from fresh boundary-aware active history or refresh sidecar before consuming artifacts.
 - [ ] Move app-server pending restore consumption to a safer dispatch/success boundary, or update the contract if “turn accepted” is the intended consumption point.
 
 ## Batch 3: App-Server / Web Parity

@@ -366,8 +366,13 @@ describe('ThreadStore', () => {
     expect(resumed.thread.id).toBe(thread.id)
     expect(resumed.staleInputs).toEqual([])
     expect(resumed.latestCompactBoundary).toBeNull()
-    expect(resumed.pendingSessionMemoryRestore).toBeNull()
-    expect(resumed.nextTurnInjectedBlocks).toBeUndefined()
+    expect(resumed.pendingSessionMemoryRestore).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        mode: 'normal',
+      }),
+    )
+    expect(resumed.nextTurnInjectedBlocks).toHaveLength(1)
 
     const readOut = await store.readThread(thread.id)
     expect(readOut.thread.id).toBe(thread.id)
@@ -669,6 +674,115 @@ describe('ThreadStore', () => {
         history: [{ role: 'assistant', content: [{ type: 'text', text: 'hello thread' }] }],
       })
     })
+  })
+
+  it('refreshes session memory before deriving thread/resume restore blocks', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'fresh user prompt from replay' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'fresh assistant answer from replay' }] },
+    ] as any)
+    await writer.shutdown()
+    await writeSessionMemoryFile({
+      sessionFilePath: filePath,
+      draft: {
+        schemaVersion: 1,
+        durableFacts: {
+          workspaceRoot: cwd,
+          projectMemoryPath: path.join(cwd, '.formax-memory', 'MEMORY.md'),
+        },
+        activeTask: {
+          mode: 'normal',
+          recentFiles: [],
+          recentUserPrompts: ['stale prompt from sidecar'],
+          recentSkills: [],
+          recentSubagentTypes: [],
+          planPath: null,
+          planExcerpt: null,
+          todoSummary: null,
+        },
+        currentStrategy: {
+          lastCompactTrigger: null,
+          summaryKind: null,
+          keepStrategy: null,
+          rehydrationPlan: null,
+        },
+      },
+    })
+
+    const persistSpy = vi.fn(async (args: any) => {
+      await writeSessionMemoryFile({
+        sessionFilePath: args.sessionFilePath,
+        draft: {
+          schemaVersion: 1,
+          durableFacts: {
+            workspaceRoot: cwd,
+            projectMemoryPath: path.join(cwd, '.formax-memory', 'MEMORY.md'),
+          },
+          activeTask: {
+            mode: args.mode,
+            recentFiles: [],
+            recentUserPrompts: ['fresh user prompt from replay'],
+            recentSkills: [],
+            recentSubagentTypes: [],
+            planPath: args.planPath,
+            planExcerpt: null,
+            todoSummary: null,
+          },
+          currentStrategy: {
+            lastCompactTrigger: null,
+            summaryKind: null,
+            keepStrategy: null,
+            rehydrationPlan: null,
+          },
+        },
+      })
+    })
+    const storeWithPersist = new ThreadStore({
+      cwd,
+      env,
+      persistSessionMemoryForRestore: persistSpy,
+    })
+
+    const resumed = await storeWithPersist.resumeThread(thread.id)
+
+    expect(persistSpy).toHaveBeenCalledWith({
+      sessionFilePath: filePath,
+      cwd,
+      mode: 'normal',
+      planPath: null,
+      history: [
+        { role: 'user', content: [{ type: 'text', text: 'fresh user prompt from replay' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'fresh assistant answer from replay' }] },
+      ],
+    })
+    expect(resumed.pendingSessionMemoryRestore?.recentUserPrompts).toEqual(['fresh user prompt from replay'])
+    expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain('fresh user prompt from replay')
+    expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).not.toContain(
+      'stale prompt from sidecar',
+    )
+  })
+
+  it('returns restore blocks on first thread/resume when the sidecar is missing', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'first resume prompt from jsonl' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'first resume answer from jsonl' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const resumed = await store.resumeThread(thread.id)
+
+    expect(resumed.pendingSessionMemoryRestore?.recentUserPrompts).toEqual(['first resume prompt from jsonl'])
+    expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
+      'first resume prompt from jsonl',
+    )
   })
 
   it('supports pagination in thread/list', async () => {

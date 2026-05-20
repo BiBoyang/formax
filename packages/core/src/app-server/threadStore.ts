@@ -569,25 +569,35 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs, restoreArtifacts, replay] = await Promise.all([
+    const [summary, staleInputs, replay] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
-      resolveSessionMemoryRestoreArtifacts({
-        sessionFilePath: filePath,
-        fallbackMode: 'normal',
-        fallbackPlanPath: null,
-      }),
       readSessionFile(filePath),
     ])
-
-    void this.persistSessionMemoryForRestore({
+    const activeHistory = buildActiveHistoryFromSessionReplay(replay.history)
+    const initialRestoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
       sessionFilePath: filePath,
-      cwd: replay.meta.cwd,
-      mode: restoreArtifacts.mode,
-      planPath: restoreArtifacts.planPath,
-      history: buildActiveHistoryFromSessionReplay(replay.history),
+      fallbackMode: 'normal',
+      fallbackPlanPath: null,
     })
-      .catch(() => undefined)
+
+    let restoreArtifacts = initialRestoreArtifacts
+    try {
+      await this.persistSessionMemoryForRestore({
+        sessionFilePath: filePath,
+        cwd: replay.meta.cwd,
+        mode: initialRestoreArtifacts.mode,
+        planPath: initialRestoreArtifacts.planPath,
+        history: activeHistory,
+      })
+      restoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
+        sessionFilePath: filePath,
+        fallbackMode: initialRestoreArtifacts.mode,
+        fallbackPlanPath: initialRestoreArtifacts.planPath,
+      })
+    } catch {
+      // Best-effort: if refresh fails, keep the pre-refresh restore artifacts.
+    }
 
     return {
       thread: toThread(summary),

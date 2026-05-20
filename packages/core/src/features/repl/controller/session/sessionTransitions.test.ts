@@ -852,4 +852,44 @@ describe('runResumeSessionTransition (save-enabled)', () => {
       'Restored session memory for the next turn only:',
     )
   })
+
+  it('refreshes session memory before reading next-turn restore injected blocks', async () => {
+    const order: string[] = []
+    const replayHistory: ChatHistory = [{ role: 'user', content: [{ type: 'text', text: 'fresh replay prompt' }] }] as any
+    const pendingInjectedBlocksRef = { current: [] as any[] }
+
+    await runResumeSessionTransition({
+      filePath: '/tmp/session.jsonl',
+      readSessionFile: async () => ({ messages: [createMsg('m1', 'x')], history: replayHistory }),
+      beginNewSession: () => undefined,
+      sessionSaveEnabled: true,
+      sessionWriterRef: { current: null },
+      lastPersistedSigByMsgIdRef: { current: new Map() },
+      lastPersistedMsgByIdRef: { current: new Map() },
+      resetSessionState: () => undefined,
+      historyRef: { current: [] as any },
+      pendingInjectedBlocksRef,
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      persistSessionMemoryForRestore: async ({ history }) => {
+        order.push(`refresh:${String((history[0] as any)?.content?.[0]?.text ?? '')}`)
+      },
+      buildRestoreInjectedBlocks: async () => {
+        order.push('read-restore-blocks')
+        return [{ type: 'text', text: 'fresh restore block' }] as any
+      },
+      replaceTranscript: async () => undefined,
+      openExistingSessionWriter: async () => ({
+        appendEvent: vi.fn(async () => undefined),
+        shutdown: vi.fn(async () => undefined),
+        appendHistorySnapshot: vi.fn(async () => undefined),
+      }),
+      buildPersistedSigMap: () => new Map(),
+      buildPersistedMsgRefMap: () => new Map(),
+    })
+
+    expect(order).toEqual(['refresh:fresh replay prompt', 'read-restore-blocks'])
+    expect(pendingInjectedBlocksRef.current).toEqual([{ type: 'text', text: 'fresh restore block' }])
+  })
 })
