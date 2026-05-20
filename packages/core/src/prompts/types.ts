@@ -28,6 +28,21 @@ export type ThinkingBlock = {
   signature?: string
 }
 
+export type AnthropicCacheEditDelete = {
+  type: 'delete'
+  cacheReference: string
+  toolUseId: string
+  toolName: string
+  messageIndex: number
+  blockIndex: number
+}
+
+export type AnthropicCacheEditPlan = {
+  provider: 'anthropic'
+  deletes: AnthropicCacheEditDelete[]
+  fallbackMessages?: PromptMessage[]
+}
+
 export type PromptBlock =
   | TextBlock
   | ToolUseBlock

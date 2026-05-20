@@ -83,6 +83,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Budget + stats: `packages/core/src/chat/context/budget.ts`
 - Token estimate fallback: `packages/core/src/chat/context/estimate.ts`
 - Context diagnostics snapshot/report builder (`/context`): `packages/core/src/chat/context/contextDiagnostics.ts`
+- Anthropic cache editing capability gate: `packages/core/src/chat/context/cacheEditing.ts`
 - Shared query-time middle-layer strategy stack (`microcompact` / `prune` / `collapse` execution + facts): `packages/core/src/chat/context/middleLayerStrategyStack.ts`
 - Shared runtime request projection adapter (persisted history vs request history/user for app-server + SDK): `packages/core/src/chat/context/turnRequestProjection.ts`
 - Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`

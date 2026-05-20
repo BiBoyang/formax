@@ -195,6 +195,255 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect((system[0] as any).cache_control).toBeUndefined()
   })
 
+  it('projects cache edit plans into Anthropic cache editing request blocks without mutating input messages', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+      cacheEditingBetaHeader: 'cache-editing-test',
+    })
+
+    const messages = [
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'old result' }],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'text', text: 'next question', cache_control: { type: 'ephemeral' as const } }],
+      },
+    ]
+
+    await client.streamOnce({
+      messages,
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      cacheEditPlan: {
+        provider: 'anthropic',
+        deletes: [
+          {
+            type: 'delete',
+            cacheReference: 'read-1',
+            toolUseId: 'read-1',
+            toolName: 'Read',
+            messageIndex: 1,
+            blockIndex: 0,
+          },
+        ],
+      },
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(init.headers['anthropic-beta']).toContain('cache-editing-test')
+    expect(body.messages[1].content[0]).toMatchObject({
+      type: 'tool_result',
+      tool_use_id: 'read-1',
+      cache_reference: 'read-1',
+    })
+    expect(body.messages[2].content).toEqual([
+      {
+        type: 'cache_edits',
+        edits: [{ type: 'delete', cache_reference: 'read-1' }],
+      },
+      {
+        type: 'text',
+        text: 'next question',
+        cache_control: { type: 'ephemeral' },
+      },
+    ])
+    expect((messages[1] as any).content[0].cache_reference).toBeUndefined()
+    expect((messages[2] as any).content).toHaveLength(1)
+  })
+
+  it('projects cache edits by tool_use_id after request normalization changes message positions', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+      cacheEditingBetaHeader: 'cache-editing-test',
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_1', name: 'Bash', input: { command: 'pwd' } },
+            { type: 'tool_use', id: 'call_2', name: 'Read', input: { file_path: '/tmp/a' } },
+          ],
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_1', content: '/repo' }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_2', content: 'file content' }] },
+        { role: 'user', content: [{ type: 'text', text: 'next', cache_control: { type: 'ephemeral' as const } }] },
+      ] as any,
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      cacheEditPlan: {
+        provider: 'anthropic',
+        deletes: [
+          {
+            type: 'delete',
+            cacheReference: 'call_2',
+            toolUseId: 'call_2',
+            toolName: 'Read',
+            // These positions describe the pre-normalized history; the client
+            // must still find the stable tool_result after normalization merges
+            // split tool_result messages.
+            messageIndex: 2,
+            blockIndex: 0,
+          },
+        ],
+      },
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    const toolResults = body.messages.flatMap((message: any) =>
+      Array.isArray(message.content) ? message.content.filter((block: any) => block?.type === 'tool_result') : [],
+    )
+    expect(toolResults.find((block: any) => block.tool_use_id === 'call_2')).toMatchObject({
+      cache_reference: 'call_2',
+    })
+    expect(JSON.stringify(body.messages)).toContain('"cache_edits"')
+    expect(JSON.stringify(body.messages)).toContain('"cache_reference":"call_2"')
+  })
+
+  it('strips cache editing blocks when retrying without beta headers', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'unknown beta',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+      cacheEditingBetaHeader: 'cache-editing-test',
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'old result' }],
+        },
+        { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      ] as any,
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      cacheEditPlan: {
+        provider: 'anthropic',
+        deletes: [
+          {
+            type: 'delete',
+            cacheReference: 'read-1',
+            toolUseId: 'read-1',
+            toolName: 'Read',
+            messageIndex: 1,
+            blockIndex: 0,
+          },
+        ],
+        fallbackMessages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }],
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'read-1',
+                content: '[Older tool result cleared by microcompact: Read /repo/a.ts (~10 chars)]',
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    const [, retryInit] = (globalThis.fetch as any).mock.calls[1]
+    const retryBody = JSON.parse(retryInit.body)
+    expect(retryInit.headers['anthropic-beta']).toBeUndefined()
+    expect(JSON.stringify(retryBody.messages)).not.toContain('cache_edits')
+    expect(JSON.stringify(retryBody.messages)).not.toContain('cache_reference')
+    expect(retryBody.messages[1].content[0].content).toBe(
+      '[Older tool result cleared by microcompact: Read /repo/a.ts (~10 chars)]',
+    )
+    expect(retryBody.messages[2].content[0]).toMatchObject({ type: 'text', text: 'next' })
+  })
+
   it('groups split historical tool_result messages immediately after multi-tool assistant turns', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 

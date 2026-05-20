@@ -16,7 +16,7 @@ import {
   type ToolResultBudgetImpact,
 } from './toolResultBudget'
 import { applyRequestSnip, resolveAdaptiveSnipPolicy, type AdaptiveSnipPolicy, type SnipImpact } from './snip'
-import type { PromptBlock, PromptMessage } from '../../prompts'
+import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../prompts'
 
 export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'
 export type MiddleLayerStageRole = 'budget_reducer' | 'semantic_projection' | 'terminal_fallback'
@@ -100,6 +100,7 @@ export type MiddleLayerStrategyStackResult = {
   preparedMessages: PromptMessage[]
   preparedTrailingMessage: PromptMessage | null
   requestHistory: PromptMessage[]
+  cacheEditPlan: AnthropicCacheEditPlan | null
   facts: MiddleLayerStrategyFacts
 }
 
@@ -111,6 +112,7 @@ export function executeMiddleLayerStrategyStack(args: {
   allowBoundarylessContinuation?: boolean
   enableToolResultBudget?: boolean
   enableCollapse?: boolean
+  enableCacheEditing?: boolean
 }): MiddleLayerStrategyStackResult {
   const trailingMessage = args.trailingMessage ?? null
   const preMicrocompactMessages = trailingMessage ? [...args.history, trailingMessage] : [...args.history]
@@ -133,6 +135,7 @@ export function executeMiddleLayerStrategyStack(args: {
     timeAwareMinResultChars: policy.timeAwareMinResultChars,
     timeAwareMinResultCharsByName: policy.timeAwareMinResultCharsByName,
     timeAwareMinStaleUserTurns: policy.timeAwareMinStaleUserTurns,
+    enableCacheEditing: args.enableCacheEditing,
   })
   const inputHistoryTokens = estimatePromptTokens({ system: [], messages: args.history })
   const microCompactedHistoryTokens = estimatePromptTokens({ system: [], messages: microCompactResult.messages })
@@ -211,6 +214,7 @@ export function executeMiddleLayerStrategyStack(args: {
     preparedMessages,
     preparedTrailingMessage,
     requestHistory,
+    cacheEditPlan: microCompactResult.cacheEditPlan,
     facts: {
       stageOrder: [...MIDDLE_LAYER_STAGE_ORDER],
       toolResultBudget: {
@@ -265,6 +269,7 @@ export function executeMiddleLayerStrategyStack(args: {
           timeAwareMinStaleUserTurns: microCompactResult.timeAwareMinStaleUserTurns,
           timeAwareCompactedBlocks: microCompactResult.timeAwareCompactedBlocks,
           timeAwareToolNames: microCompactResult.timeAwareToolNames,
+          cacheEditingPlannedBlocks: microCompactResult.cacheEditingPlannedBlocks,
         },
       },
       snip: {

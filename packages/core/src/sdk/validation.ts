@@ -131,6 +131,7 @@ const tokenUsageSchema = z
     output_tokens: z.number().int().nonnegative().optional(),
     cache_read_input_tokens: z.number().int().nonnegative().optional(),
     cache_creation_input_tokens: z.number().int().nonnegative().optional(),
+    cache_deleted_input_tokens: z.number().int().nonnegative().optional(),
   })
   .strict()
 

@@ -52,6 +52,47 @@ describe('microCompactHistory', () => {
     expect((out.messages[7]!.content[0] as any).content).toBe('d'.repeat(4000))
   })
 
+  it('plans cache edits without mutating message content when cache editing is enabled', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/session.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 1,
+      enableCacheEditing: true,
+    })
+
+    expect(out.compacted).toBe(true)
+    expect(out.compactedBlocks).toBe(1)
+    expect(out.compactedToolNames).toEqual(['Read'])
+    expect(out.cacheEditPlan).toEqual({
+      provider: 'anthropic',
+      deletes: [
+        {
+          type: 'delete',
+          cacheReference: 'read-1',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+          messageIndex: 1,
+          blockIndex: 0,
+        },
+      ],
+      fallbackMessages: [
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+        userToolResult('read-1', '[Older tool result cleared by microcompact: Read /repo/src/auth.ts (~4,000 chars)]'),
+        assistantToolUse('read-2', 'Read', { file_path: '/repo/src/session.ts' }),
+        userToolResult('read-2', 'b'.repeat(4000)),
+      ],
+    })
+    expect(out.messages).toBe(messages)
+    expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
+    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
+  })
+
   it('skips ineligible, small, error, and already microcompacted results', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('task-1', 'Task', { description: 'delegate' }),
@@ -142,6 +183,55 @@ describe('microCompactHistory', () => {
       `[Older companion block cleared by microcompact: Skill(frontend-design) body (~${oldCompanionText.length.toLocaleString('en-US')} chars)]`,
     )
     expect((out.messages[3]!.content[1] as any).text).toContain('Base directory for this skill')
+  })
+
+  it('preserves Skill companion block microcompaction when cache editing is enabled', () => {
+    const oldCompanionText = `Base directory for this skill: /repo/.formax/skills/frontend-design\n\n${'A'.repeat(4000)}`
+    const messages: PromptMessage[] = [
+      assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
+      userToolResult('skill-1', 'Launching skill: frontend-design', [
+        {
+          type: 'text',
+          text: oldCompanionText,
+        },
+      ]),
+      assistantToolUse('skill-2', 'Skill', { skill: 'pdf' }),
+      userToolResult('skill-2', 'Launching skill: pdf', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/pdf\n\n${'B'.repeat(4000)}`,
+        },
+      ]),
+      assistantToolUse('skill-3', 'Skill', { skill: 'release' }),
+      userToolResult('skill-3', 'Launching skill: release', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/release\n\n${'C'.repeat(4000)}`,
+        },
+      ]),
+      assistantToolUse('skill-4', 'Skill', { skill: 'qa' }),
+      userToolResult('skill-4', 'Launching skill: qa', [
+        {
+          type: 'text',
+          text: `Base directory for this skill: /repo/.formax/skills/qa\n\n${'D'.repeat(4000)}`,
+        },
+      ]),
+    ]
+
+    const out = microCompactHistory({ messages, enableCacheEditing: true })
+    const oldMessage = out.messages[1]!
+
+    expect(out.compacted).toBe(true)
+    expect(out.compactedBlocks).toBe(1)
+    expect(out.compactedToolNames).toEqual(['Skill'])
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.cacheEditingPlannedBlocks).toBe(0)
+    expect(out.estimatedTokensSaved).toBeGreaterThan(0)
+    expect((oldMessage.content[0] as any).content).toBe('Launching skill: frontend-design')
+    expect((oldMessage.content[1] as any).text).toBe(
+      `[Older companion block cleared by microcompact: Skill(frontend-design) body (~${oldCompanionText.length.toLocaleString('en-US')} chars)]`,
+    )
+    expect((messages[1]!.content[1] as any).text).toBe(oldCompanionText)
   })
 
   it('keeps ordinary trailing text blocks intact even for Skill tool results', () => {

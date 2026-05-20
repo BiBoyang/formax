@@ -355,12 +355,15 @@ function extractTokenUsage(raw: unknown): TokenUsage | null {
   const output = r.output_tokens
   const cacheRead = r.cache_read_input_tokens
   const cacheCreate = r.cache_creation_input_tokens
+  const cacheDeleted = r.cache_deleted_input_tokens
 
   if (typeof input === 'number' && Number.isFinite(input)) out.input_tokens = input
   if (typeof output === 'number' && Number.isFinite(output)) out.output_tokens = output
   if (typeof cacheRead === 'number' && Number.isFinite(cacheRead)) out.cache_read_input_tokens = cacheRead
   if (typeof cacheCreate === 'number' && Number.isFinite(cacheCreate))
     out.cache_creation_input_tokens = cacheCreate
+  if (typeof cacheDeleted === 'number' && Number.isFinite(cacheDeleted))
+    out.cache_deleted_input_tokens = cacheDeleted
 
   return Object.keys(out).length > 0 ? out : null
 }
@@ -379,6 +382,12 @@ function mergeUsageMax(target: TokenUsage, next: TokenUsage): void {
     target.cache_creation_input_tokens = Math.max(
       target.cache_creation_input_tokens ?? 0,
       next.cache_creation_input_tokens,
+    )
+  }
+  if (typeof next.cache_deleted_input_tokens === 'number') {
+    target.cache_deleted_input_tokens = Math.max(
+      target.cache_deleted_input_tokens ?? 0,
+      next.cache_deleted_input_tokens,
     )
   }
 }

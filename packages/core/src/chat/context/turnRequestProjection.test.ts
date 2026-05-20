@@ -20,6 +20,7 @@ describe('prepareTurnRequestProjection', () => {
       persistedHistoryCandidate: persistedHistory,
       requestHistory,
       preparedTrailingMessage: requestUser,
+      cacheEditPlan: { provider: 'anthropic', deletes: [] },
       facts,
     } as any)
 
@@ -29,6 +30,7 @@ describe('prepareTurnRequestProjection', () => {
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
       user,
       budgetConfig: null,
+      enableCacheEditing: true,
     } as any)
 
     expect(executeMiddleLayerStrategyStack).toHaveBeenCalledWith({
@@ -36,10 +38,12 @@ describe('prepareTurnRequestProjection', () => {
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }],
       trailingMessage: user,
       budgetConfig: null,
+      enableCacheEditing: true,
     })
     expect(out.persistedHistory).toBe(persistedHistory)
     expect(out.requestHistory).toBe(requestHistory)
     expect(out.requestUser).toBe(requestUser)
+    expect(out.cacheEditPlan).toEqual({ provider: 'anthropic', deletes: [] })
     expect(out.strategyFacts).toBe(facts)
   })
 

@@ -1,5 +1,6 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import { computeContextStats, type ContextBudgetConfig } from '../../../../chat/context/budget'
+import { isAnthropicCacheEditingEnabled } from '../../../../chat/context/cacheEditing'
 import {
   buildWorkingSetAwareCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
@@ -21,7 +22,7 @@ import {
   type SessionMemoryDraft,
 } from '../../../../chat/context/sessionMemory'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
-import type { PromptBlock, PromptMessage } from '../../../../prompts'
+import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { ReplMode } from '../../mode'
@@ -85,6 +86,10 @@ export function createContextCompressionService(deps: {
       history: args.history,
       trailingMessage: args.trailingMessage,
       budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+      enableCacheEditing: isAnthropicCacheEditingEnabled({
+        provider: deps.cfg.llm.provider,
+        baseUrl: deps.cfg.llm.baseUrl,
+      }),
     })
 
   const estimateContext = (args: {
@@ -212,6 +217,7 @@ export function createContextCompressionService(deps: {
     }): Promise<{
       history: ChatHistory
       requestHistory: ChatHistory
+      cacheEditPlan: AnthropicCacheEditPlan | null
       collapseState: RequestCollapseState
       strategyFacts: MiddleLayerStrategyFacts
       user: PromptMessage
@@ -313,6 +319,7 @@ export function createContextCompressionService(deps: {
       return {
         history: persistedHistoryCandidate,
         requestHistory: stack.requestHistory,
+        cacheEditPlan: stack.cacheEditPlan,
         collapseState: {
           applied: stack.facts.collapse.applied,
           collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
@@ -415,6 +422,7 @@ export function createContextCompressionService(deps: {
     }): Promise<{
       history: ChatHistory
       requestHistory: ChatHistory
+      cacheEditPlan: AnthropicCacheEditPlan | null
       collapseState: RequestCollapseState
       strategyFacts: MiddleLayerStrategyFacts
       reactiveCompactState: ReactiveCompactState
@@ -464,6 +472,7 @@ export function createContextCompressionService(deps: {
       return {
         history: persistedHistoryCandidate,
         requestHistory: stack.requestHistory,
+        cacheEditPlan: stack.cacheEditPlan,
         collapseState: {
           applied: stack.facts.collapse.applied,
           collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,

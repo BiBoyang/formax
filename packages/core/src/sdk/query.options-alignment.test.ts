@@ -405,6 +405,66 @@ describe('sdk query option alignment regressions', () => {
     expect(hasOriginalOldRead(result?.history ?? [])).toBe(true)
   })
 
+  it('uses explicit options.env when gating SDK cache editing projection', async () => {
+    const history: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+      userToolResult('read-3', 'c'.repeat(4000)),
+      assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+      userToolResult('read-4', 'd'.repeat(4000)),
+      assistantToolUse('read-5', 'Read', { file_path: '/repo/src/e.ts' }),
+      userToolResult('read-5', 'e'.repeat(4000)),
+      assistantToolUse('read-6', 'Read', { file_path: '/repo/src/f.ts' }),
+      userToolResult('read-6', 'f'.repeat(4000)),
+    ]
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      model: 'claude-3-5-sonnet-latest',
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk cache editing',
+      history,
+      options: {
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+          FORMAX_ANTHROPIC_CACHE_EDITING_BETA_HEADER: 'cache-editing-test',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const callArgs = runTurn.mock.calls[0]?.[0]
+    expect(callArgs.cacheEditPlan).toMatchObject({
+      provider: 'anthropic',
+      deletes: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'delete',
+          cacheReference: 'read-1',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+        }),
+      ]),
+    })
+    expect(callArgs.requestHistory).toEqual(callArgs.history)
+  })
+
   it('keeps debug compatibility behavior via hook-debug env wiring', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]

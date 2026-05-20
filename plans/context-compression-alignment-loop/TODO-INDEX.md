@@ -2,10 +2,12 @@
 
 只保留未完成项。已完成项不回填，历史以 Git commit 为准。
 
-更新时间：2026-05-20
+更新时间：2026-05-21
 
 ## 当前主线
 
+- Claude Code cache editing microcompact 迁移清单：
+  - [CACHE-EDITING-MICROCOMPACT-TODO-2026-05-21.md](./CACHE-EDITING-MICROCOMPACT-TODO-2026-05-21.md)
 - WebGPT / subagent 审查收敛修复清单：
   - [WEBGPT-REVIEW-FIX-TODO-2026-05-20.md](./WEBGPT-REVIEW-FIX-TODO-2026-05-20.md)
 - 下一阶段执行清单：
@@ -15,16 +17,19 @@
 
 ## 当前推荐顺序
 
-1. WebGPT review convergence: Batch 0 triage decisions
-2. WebGPT review convergence: Batch 1 runtime stack ownership tests-first
-3. WebGPT review convergence: Batch 2 session persistence / resume authority tests-first
-4. `CCA-180` deferred-task restore utility v7
-5. `CCA-181` preserved-segment relink parity
-6. `CCA-182` reactive compact shaping v3
+1. Cache editing microcompact: Batch 0 contract and tests first
+2. Cache editing microcompact: Batch 1 context cache edit plan
+3. Cache editing microcompact: Batch 2 Anthropic request projection
+4. Cache editing microcompact: Batch 3 session-scoped state and reset boundaries
+5. Cache editing microcompact: Batch 4 usage accounting and diagnostics
+6. `CCA-180` deferred-task restore utility v7
+7. `CCA-181` preserved-segment relink parity
+8. `CCA-182` reactive compact shaping v3
 
 ## 说明
 
 - 当前建议：暂停在 post-`CCA-172` / pre-`CCA-180`。
+- 2026-05-21 新增 Claude Code cache editing microcompact 迁移清单；在恢复 `CCA-180` 前，建议先完成 Batch 0~2，把 request-only side-channel 与 Anthropic payload 语义锁住。
 - 2026-05-20 新增 WebGPT / subagent 审查收敛清单；建议先完成 Batch 0~2 的测试优先收敛，再恢复原 `CCA-180` 主线。
 - 当前暂停理由、剩余工作量估算、恢复顺序见：
   - [PAUSE-STATE-2026-05-16.md](./PAUSE-STATE-2026-05-16.md)

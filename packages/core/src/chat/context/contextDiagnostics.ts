@@ -464,6 +464,7 @@ export function analyzeNextTurnFixedContext(args: {
       timeAwareMinStaleUserTurns: stack.facts.microCompact.impact.timeAwareMinStaleUserTurns,
       timeAwareCompactedBlocks: stack.facts.microCompact.impact.timeAwareCompactedBlocks,
       timeAwareToolNames: stack.facts.microCompact.impact.timeAwareToolNames,
+      cacheEditingPlannedBlocks: stack.facts.microCompact.impact.cacheEditingPlannedBlocks,
     },
     snipImpact: stack.facts.snip.impact,
     collapseImpact: {

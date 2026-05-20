@@ -1,4 +1,4 @@
-import type { PromptBlock, PromptMessage } from '../prompts'
+import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../tools/types'
 import type { ExecutionContext, ToolExecutor } from '../tools/executor'
 import type { LlmStreamClient, StreamSink } from '../streaming/types'
@@ -22,6 +22,7 @@ export interface ChatEngine {
     requestHistory?: ChatHistory
     user: PromptMessage
     requestUser?: PromptMessage
+    cacheEditPlan?: AnthropicCacheEditPlan | null
     system: PromptBlock[]
     tools: ToolDefinition[]
     resolveToolsForCall?: () => ToolDefinition[]
@@ -86,6 +87,7 @@ export function createChatEngine(deps: {
       requestHistory,
       user,
       requestUser,
+      cacheEditPlan,
       system,
       tools,
       resolveToolsForCall,
@@ -304,18 +306,22 @@ export function createChatEngine(deps: {
                 }).messages
               : injectedWithUserPromptSubmit
           const toolsForCall = resolveToolsForCall?.() ?? tools
+          const cacheEditPlanForCall = iteration === 0 ? cacheEditPlan : null
           executorCtxBase.allowTools = intersectAllowTools({
             requestedAllowTools: exec?.allowTools,
             exposedTools: toolsForCall,
           })
           if (runtimeFlags.requestDryRunEnabled) {
+            const dryRunMessages = cacheEditPlanForCall
+              ? projectCacheEditingDryRunMessages(messagesForCall, cacheEditPlanForCall)
+              : messagesForCall
             const dump = await writeRequestDryRunSnapshot({
               cwd,
               outputDir: runtimeFlags.requestDryRunOutputDir,
               model,
               thinkingEnabled,
               system: systemForThisCall,
-              messages: messagesForCall,
+              messages: dryRunMessages,
               tools: toolsForCall,
               iteration,
             })
@@ -354,6 +360,7 @@ export function createChatEngine(deps: {
               signal,
               model,
               thinkingEnabled,
+              cacheEditPlan: cacheEditPlanForCall,
             })
 
           const toolUseBlocks = assistantBlocks.filter(isToolUseBlock)
@@ -548,4 +555,89 @@ function resolveRequestDryRunOutputDir(cwd: string, outputDir: string | null): s
   const explicit = String(outputDir || '').trim()
   if (explicit) return path.resolve(cwd, explicit)
   return path.resolve(cwd, 'proxy', 'request-dry-run')
+}
+
+function projectCacheEditingDryRunMessages(messages: PromptMessage[], plan: AnthropicCacheEditPlan): PromptMessage[] {
+  if (plan.provider !== 'anthropic' || plan.deletes.length === 0) return messages
+  const projected = messages.map((message) => ({
+    ...message,
+    content: Array.isArray(message.content)
+      ? message.content.map((block) => (block && typeof block === 'object' ? { ...(block as any) } : block))
+      : message.content,
+  }))
+  const refsToDelete: string[] = []
+  const seenRefs = new Set<string>()
+  const maxMessageIndexExclusive = resolveCacheEditDryRunSearchLimit(projected)
+
+  for (const edit of plan.deletes) {
+    const cacheReference = String(edit.cacheReference || edit.toolUseId || '').trim()
+    if (!cacheReference || seenRefs.has(cacheReference)) continue
+    const match = findDryRunToolResultBlock(projected, edit.toolUseId, maxMessageIndexExclusive)
+    if (!match) continue
+    match.message.content[match.blockIndex] = {
+      ...match.block,
+      cache_reference: cacheReference,
+    } as any
+    seenRefs.add(cacheReference)
+    refsToDelete.push(cacheReference)
+  }
+
+  if (refsToDelete.length === 0) return messages
+  const userMessage = findLastDryRunUserMessage(projected)
+  if (userMessage) {
+    insertDryRunCacheEditsBlock(userMessage.content, {
+      type: 'cache_edits',
+      edits: refsToDelete.map((cacheReference) => ({ type: 'delete', cache_reference: cacheReference })),
+    } as any)
+  }
+  return projected
+}
+
+function resolveCacheEditDryRunSearchLimit(messages: PromptMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (!message || !Array.isArray(message.content)) continue
+    if (message.content.some((block: any) => block && typeof block === 'object' && 'cache_control' in block)) return i
+  }
+  return messages.length
+}
+
+function findDryRunToolResultBlock(
+  messages: PromptMessage[],
+  toolUseId: string,
+  maxMessageIndexExclusive: number,
+): { message: PromptMessage; block: PromptBlock; blockIndex: number } | null {
+  for (let i = 0; i < Math.min(messages.length, maxMessageIndexExclusive); i++) {
+    const message = messages[i]
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+    for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
+      const block = message.content[blockIndex]
+      if ((block as any)?.type === 'tool_result' && (block as any).tool_use_id === toolUseId) {
+        return { message, block, blockIndex }
+      }
+    }
+  }
+  return null
+}
+
+function findLastDryRunUserMessage(messages: PromptMessage[]): PromptMessage | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.role === 'user' && Array.isArray(message.content)) return message
+  }
+  return null
+}
+
+function insertDryRunCacheEditsBlock(content: PromptBlock[], block: PromptBlock): void {
+  const cacheControlIndex = content.findIndex(
+    (candidate: any) => candidate && typeof candidate === 'object' && 'cache_control' in candidate,
+  )
+  let insertAt = cacheControlIndex >= 0 ? cacheControlIndex : content.length
+  for (let i = insertAt - 1; i >= 0; i--) {
+    if ((content[i] as any)?.type === 'tool_result') {
+      insertAt = i + 1
+      break
+    }
+  }
+  content.splice(insertAt, 0, block)
 }

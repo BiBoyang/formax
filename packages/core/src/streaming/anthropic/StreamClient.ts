@@ -3,7 +3,7 @@ import {
   type ContentBlock,
   type SSECallbacks,
 } from './sseParser'
-import type { PromptBlock, PromptMessage } from '../../prompts'
+import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../prompts'
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamTurnResult } from '../types'
 import { normalizeAnthropicPromptCachingLayout } from './promptCachingLayout'
@@ -40,6 +40,7 @@ export interface StreamClientConfig {
   baseUrl: string
   model: string
   timeoutMs?: number
+  cacheEditingBetaHeader?: string | null
 }
 
 export type StreamOnceArgs = LlmStreamOnceArgs
@@ -117,11 +118,15 @@ const THINKING_BETA_FEATURES = [
 
 function addAnthropicBetaHeaders(
   headers: Record<string, string>,
-  args: { thinkingEnabled: boolean },
+  args: { thinkingEnabled: boolean; extraFeatures?: string[] },
 ): Record<string, string> {
   const features = args.thinkingEnabled
     ? [BASE_BETA_FEATURES[0], THINKING_BETA_FEATURES[0], BASE_BETA_FEATURES[1], BASE_BETA_FEATURES[2]]
     : [...BASE_BETA_FEATURES]
+  for (const feature of args.extraFeatures ?? []) {
+    const trimmed = String(feature || '').trim()
+    if (trimmed && !features.includes(trimmed as any)) features.push(trimmed as any)
+  }
 
   return {
     ...headers,
@@ -133,6 +138,157 @@ function stripAnthropicBetaHeaders(headers: Record<string, string>): Record<stri
   const next: Record<string, string> = { ...headers }
   delete next['anthropic-beta']
   return next
+}
+
+function applyAnthropicCacheEditPlan(args: {
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  plan: AnthropicCacheEditPlan
+}): { system: PromptBlock[]; messages: PromptMessage[] } {
+  const messages = clonePromptMessages(args.messages)
+  const refsToDelete: string[] = []
+  const seenRefs = new Set<string>()
+  const lastCacheControlMessageIndex = findLastCacheControlMessageIndex(messages)
+
+  for (const edit of args.plan.deletes) {
+    if (edit.type !== 'delete') continue
+    const cacheReference = String(edit.cacheReference || edit.toolUseId || '').trim()
+    if (!cacheReference || seenRefs.has(cacheReference)) continue
+    const match = findToolResultBlockByToolUseId({
+      messages,
+      toolUseId: edit.toolUseId,
+      maxMessageIndexExclusive: lastCacheControlMessageIndex >= 0 ? lastCacheControlMessageIndex : messages.length,
+    })
+    if (!match) continue
+
+    match.message.content[match.blockIndex] = {
+      ...match.block,
+      cache_reference: cacheReference,
+    } as any
+    seenRefs.add(cacheReference)
+    refsToDelete.push(cacheReference)
+  }
+
+  if (refsToDelete.length === 0) {
+    return { system: args.system, messages }
+  }
+
+  const cacheEditsBlock = {
+    type: 'cache_edits',
+    edits: refsToDelete.map((cacheReference) => ({
+      type: 'delete',
+      cache_reference: cacheReference,
+    })),
+  }
+  const insertionMessage = findLastUserMessage(messages)
+  if (insertionMessage) {
+    insertBlockAfterToolResults(insertionMessage.content, cacheEditsBlock)
+  }
+
+  return { system: args.system, messages }
+}
+
+function applyAnthropicCacheEditFallback(args: {
+  system: PromptBlock[]
+  messages: PromptMessage[]
+  plan: AnthropicCacheEditPlan
+}): { system: PromptBlock[]; messages: PromptMessage[] } {
+  const fallbackContentByToolUseId = collectFallbackToolResultContent(args.plan.fallbackMessages ?? [])
+  if (fallbackContentByToolUseId.size === 0) {
+    return { system: args.system, messages: args.messages }
+  }
+
+  const messages = clonePromptMessages(args.messages)
+  let changed = false
+  for (const message of messages) {
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+    for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
+      const block = message.content[blockIndex] as any
+      if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue
+      if (!fallbackContentByToolUseId.has(block.tool_use_id)) continue
+      message.content[blockIndex] = {
+        ...block,
+        content: fallbackContentByToolUseId.get(block.tool_use_id),
+      } as any
+      changed = true
+    }
+  }
+
+  return changed ? { system: args.system, messages } : { system: args.system, messages: args.messages }
+}
+
+function collectFallbackToolResultContent(messages: PromptMessage[]): Map<string, unknown> {
+  const out = new Map<string, unknown>()
+  for (const message of messages) {
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+    for (const block of message.content as any[]) {
+      if (block?.type === 'tool_result' && typeof block.tool_use_id === 'string') {
+        out.set(block.tool_use_id, block.content)
+      }
+    }
+  }
+  return out
+}
+
+function clonePromptMessages(messages: PromptMessage[]): PromptMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    content: Array.isArray(message.content)
+      ? message.content.map((block) => (block && typeof block === 'object' ? { ...(block as any) } : block))
+      : message.content,
+  }))
+}
+
+function findLastCacheControlMessageIndex(messages: PromptMessage[]): number {
+  let index = -1
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i]
+    if (!message || !Array.isArray(message.content)) continue
+    if (message.content.some((block: any) => block && typeof block === 'object' && 'cache_control' in block)) {
+      index = i
+    }
+  }
+  return index
+}
+
+function findLastUserMessage(messages: PromptMessage[]): PromptMessage | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.role === 'user' && Array.isArray(message.content)) return message
+  }
+  return null
+}
+
+function findToolResultBlockByToolUseId(args: {
+  messages: PromptMessage[]
+  toolUseId: string
+  maxMessageIndexExclusive: number
+}): { message: PromptMessage; block: PromptBlock; blockIndex: number } | null {
+  for (let i = 0; i < Math.min(args.messages.length, args.maxMessageIndexExclusive); i++) {
+    const message = args.messages[i]
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+    for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
+      const block = message.content[blockIndex]
+      if ((block as any)?.type === 'tool_result' && (block as any).tool_use_id === args.toolUseId) {
+        return { message, block, blockIndex }
+      }
+    }
+  }
+  return null
+}
+
+function insertBlockAfterToolResults(content: PromptBlock[], block: PromptBlock): void {
+  const cacheControlIndex = content.findIndex(
+    (candidate: any) => candidate && typeof candidate === 'object' && 'cache_control' in candidate,
+  )
+  let insertAt = cacheControlIndex >= 0 ? cacheControlIndex : content.length
+  for (let i = insertAt - 1; i >= 0; i--) {
+    if ((content[i] as any)?.type === 'tool_result') {
+      insertAt = i + 1
+      break
+    }
+  }
+  content.splice(insertAt, 0, block)
 }
 
 export class AnthropicStreamClient implements LlmStreamClient {
@@ -155,14 +311,36 @@ export class AnthropicStreamClient implements LlmStreamClient {
       system: args.system,
       messages: args.messages,
     })
-    const basePayload = {
+    const cacheEditingBetaHeader = String(this.config.cacheEditingBetaHeader || '').trim()
+    const cacheEditingEnabled =
+      cacheEditingBetaHeader.length > 0 &&
+      args.cacheEditPlan?.provider === 'anthropic' &&
+      (args.cacheEditPlan.deletes?.length ?? 0) > 0
+    const requestPrompt = cacheEditingEnabled
+      ? applyAnthropicCacheEditPlan({
+          system: normalizedPrompt.system,
+          messages: normalizedPrompt.messages,
+          plan: args.cacheEditPlan!,
+        })
+      : normalizedPrompt
+    const fallbackPrompt =
+      cacheEditingEnabled && Array.isArray(args.cacheEditPlan?.fallbackMessages)
+        ? applyAnthropicCacheEditFallback({
+            system: normalizedPrompt.system,
+            messages: normalizedPrompt.messages,
+            plan: args.cacheEditPlan,
+          })
+        : normalizedPrompt
+    const buildBasePayload = (prompt: { system: PromptBlock[]; messages: PromptMessage[] }) => ({
       stream: true,
       model: modelForRequest,
       max_tokens: args.maxTokens ?? 16000,
-      messages: normalizedPrompt.messages,
-      system: normalizedPrompt.system,
+      messages: prompt.messages,
+      system: prompt.system,
       tools: args.tools,
-    }
+    })
+    const basePayload = buildBasePayload(requestPrompt)
+    const fallbackBasePayload = buildBasePayload(fallbackPrompt)
 
     const payload = thinkingEnabled
       ? {
@@ -173,6 +351,15 @@ export class AnthropicStreamClient implements LlmStreamClient {
           },
         }
       : basePayload
+    const fallbackPayload = thinkingEnabled
+      ? {
+          ...fallbackBasePayload,
+          thinking: {
+            type: 'enabled',
+            budget_tokens: Math.min(4096, fallbackBasePayload.max_tokens),
+          },
+        }
+      : fallbackBasePayload
 
     const controller = new AbortController()
     const timeoutId = setTimeout(
@@ -191,9 +378,11 @@ export class AnthropicStreamClient implements LlmStreamClient {
     try {
       const requestHeaders = addAnthropicBetaHeaders(this.headers, {
         thinkingEnabled,
+        extraFeatures: cacheEditingEnabled ? [cacheEditingBetaHeader] : [],
       })
       const noThinkingHeaders = addAnthropicBetaHeaders(this.headers, {
         thinkingEnabled: false,
+        extraFeatures: cacheEditingEnabled ? [cacheEditingBetaHeader] : [],
       })
 
       let response = await fetch(`${this.config.baseUrl}/messages`, {
@@ -227,7 +416,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
               response = await fetch(`${this.config.baseUrl}/messages`, {
                 method: 'POST',
                 headers: stripAnthropicBetaHeaders(this.headers),
-                body: JSON.stringify(basePayload),
+                body: JSON.stringify(fallbackBasePayload),
                 signal: combinedSignal,
               })
               if (!response.ok) {
@@ -242,7 +431,6 @@ export class AnthropicStreamClient implements LlmStreamClient {
           status: response.status,
           errorText,
         })) {
-          const fallbackPayload = payload
           response = await fetch(`${this.config.baseUrl}/messages`, {
             method: 'POST',
             headers: stripAnthropicBetaHeaders(this.headers),
@@ -255,7 +443,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
               response = await fetch(`${this.config.baseUrl}/messages`, {
                 method: 'POST',
                 headers: stripAnthropicBetaHeaders(this.headers),
-                body: JSON.stringify(basePayload),
+                body: JSON.stringify(fallbackBasePayload),
                 signal: combinedSignal,
               })
               if (!response.ok) {

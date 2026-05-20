@@ -914,6 +914,7 @@ describe('contextDiagnostics', () => {
       timeAwareMinStaleUserTurns: 4,
       timeAwareCompactedBlocks: 0,
       timeAwareToolNames: [],
+      cacheEditingPlannedBlocks: 0,
     })
     expect(parsed.nextTurnFixed.toolResultBudgetImpact).toMatchObject({
       replacedBlocks: 0,

@@ -212,6 +212,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     const prunedHistory = prepared.history
     const prunedRequestHistory = prepared.requestHistory
     const prunedUser = prepared.user
+    let executionCacheEditPlan = prepared.cacheEditPlan
 
     const exec = {
       replMode: args.mode,
@@ -228,6 +229,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         requestHistory,
         user,
         requestUser,
+        cacheEditPlan: executionCacheEditPlan,
         system,
         tools: toolsForTurn,
         resolveToolsForCall,
@@ -295,6 +297,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         executionHistory = reactivePrepared.history
         executionRequestHistory = reactivePrepared.requestHistory
         executionUser = reactivePrepared.user
+        executionCacheEditPlan = reactivePrepared.cacheEditPlan
         recordReactiveCompact(
           reactiveErrorInfo.kind,
           reactiveErrorInfo.detail,

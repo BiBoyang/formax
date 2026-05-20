@@ -8,6 +8,7 @@ import { createRuntime } from '../../runtime/createRuntime.js'
 import type { ContextBudgetConfig } from '../../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../../chat/context/turnRequestProjection.js'
+import { isAnthropicCacheEditingEnabled } from '../../chat/context/cacheEditing.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
@@ -71,6 +72,7 @@ const USAGE_KEYS: Array<keyof TokenUsage> = [
   'output_tokens',
   'cache_read_input_tokens',
   'cache_creation_input_tokens',
+  'cache_deleted_input_tokens',
 ]
 
 const STRUCTURED_OUTPUT_TOOL_NAME = 'StructuredOutput'
@@ -1437,6 +1439,11 @@ async function* runQuery(
           history: currentHistory,
           user: userForTurn,
           budgetConfig: promptBudget,
+          enableCacheEditing: isAnthropicCacheEditingEnabled({
+            provider: runtime.cfg.llm.provider,
+            baseUrl: runtime.cfg.llm.baseUrl,
+            env,
+          }),
         })
         const executionHistory = parsePromptHistory(prepared.persistedHistory)
         const executionRequestHistory = parsePromptHistory(prepared.requestHistory)
@@ -1446,6 +1453,7 @@ async function* runQuery(
           requestHistory: executionRequestHistory,
           user: userForTurn,
           requestUser: requestUserForTurn,
+          cacheEditPlan: prepared.cacheEditPlan,
           system,
           tools,
           ...(resolveToolsForCall ? { resolveToolsForCall } : {}),

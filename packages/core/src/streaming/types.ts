@@ -1,4 +1,4 @@
-import type { PromptBlock, PromptMessage, PromptMessageMeta } from '../prompts/types'
+import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage, PromptMessageMeta } from '../prompts/types'
 import type { ToolCall, ToolDefinition, ToolResult } from '../shared/toolContracts'
 
 export type TokenUsage = Partial<{
@@ -6,6 +6,7 @@ export type TokenUsage = Partial<{
   output_tokens: number
   cache_read_input_tokens: number
   cache_creation_input_tokens: number
+  cache_deleted_input_tokens: number
 }>
 
 export type StopReason = string | null
@@ -82,6 +83,8 @@ export type LlmStreamOnceArgs = {
   model?: string
   /** When false, omit thinking fields/headers (no thinking_delta expected). */
   thinkingEnabled?: boolean
+  /** Anthropic-only request-time cache editing plan. Non-Anthropic clients ignore it. */
+  cacheEditPlan?: AnthropicCacheEditPlan | null
 }
 
 export interface LlmStreamClient {

@@ -630,4 +630,68 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(JSON.stringify(result.persistedHistoryCandidate)).not.toContain('-only')
     expect(JSON.stringify(result.persistedHistoryCandidate)).not.toContain('terminal-pruned-user')
   })
+
+  it('keeps cache edit plans request-only while preserving persisted history', () => {
+    vi.mocked(estimatePromptTokens).mockReset()
+    vi.mocked(estimatePromptTokens).mockReturnValue(400)
+    const originalHistory = [{ role: 'user', content: [{ type: 'text', text: 'original-history' }] }] as any
+    const cacheEditPlan = {
+      provider: 'anthropic' as const,
+      deletes: [
+        {
+          type: 'delete' as const,
+          cacheReference: 'read-1',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+          messageIndex: 0,
+          blockIndex: 0,
+        },
+      ],
+    }
+    vi.mocked(microCompactHistory).mockReturnValue({
+      messages: originalHistory,
+      cacheEditPlan,
+      compacted: true,
+      compactedBlocks: 1,
+      compactedToolNames: ['Read'],
+      estimatedTokensSaved: 100,
+      keptRecentBlocks: 0,
+      cacheAwareEligibleToolNames: ['Read'],
+      cacheAwareMinResultChars: 400,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: [],
+      timeAwareMinResultChars: 800,
+      timeAwareMinStaleUserTurns: 3,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
+      cacheEditingPlannedBlocks: 1,
+    } as any)
+    vi.mocked(applyRequestSnip).mockReturnValue({
+      messages: originalHistory,
+      applied: false,
+      impact: {
+        snippedMessages: 0,
+        snippedBlocks: 0,
+        estimatedTokensSaved: 0,
+        keptRecentMessages: 0,
+        minTextChars: 1400,
+      },
+    } as any)
+
+    const result = executeMiddleLayerStrategyStack({
+      system: [{ type: 'text', text: 'sys' }],
+      history: originalHistory,
+      budgetConfig: null,
+      enableCacheEditing: true,
+      enableToolResultBudget: false,
+      enableCollapse: false,
+    })
+
+    expect(microCompactHistory).toHaveBeenCalledWith(expect.objectContaining({ enableCacheEditing: true }))
+    expect(result.cacheEditPlan).toEqual(cacheEditPlan)
+    expect(result.persistedHistoryCandidate).toBe(originalHistory)
+    expect(result.requestHistory).toEqual(originalHistory)
+    expect(result.facts.microCompact.impact.cacheEditingPlannedBlocks).toBe(1)
+  })
 })

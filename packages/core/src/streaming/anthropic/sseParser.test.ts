@@ -652,6 +652,32 @@ describe('SSE Streaming Parser', () => {
       })
     })
 
+    it('extracts and merges cache deleted token usage with max semantics', async () => {
+      const callbacks = createMockCallbacks()
+      const events = [
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_1',
+            usage: { input_tokens: 1, cache_deleted_input_tokens: 12 },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 1, cache_deleted_input_tokens: 20 },
+        },
+        { type: 'message_stop' },
+      ]
+
+      const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+      expect(result.usage).toEqual({
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_deleted_input_tokens: 20,
+      })
+    })
+
     it('captures usage from trailing unflushed data buffer', async () => {
       const callbacks = createMockCallbacks()
       const encoder = new TextEncoder()

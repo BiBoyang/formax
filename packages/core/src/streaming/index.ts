@@ -8,6 +8,7 @@ export type CreateStreamClientArgs = {
   baseUrl: string
   model: string
   timeoutMs?: number
+  cacheEditingBetaHeader?: string | null
 }
 
 export type AnthropicCompatibleStreamClient = AnthropicStreamClient | OpenAIStreamClient
@@ -21,6 +22,7 @@ export function createAnthropicCompatibleStreamClient(
       baseUrl: args.baseUrl,
       model: args.model,
       timeoutMs: args.timeoutMs,
+      cacheEditingBetaHeader: args.cacheEditingBetaHeader,
     })
   }
 

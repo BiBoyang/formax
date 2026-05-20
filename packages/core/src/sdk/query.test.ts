@@ -248,6 +248,40 @@ describe('sdk query()', () => {
     }
   })
 
+  it('accepts and aggregates cache-deleted usage from stream events', async () => {
+    const runtime = createRuntimeFixture({
+      streamOnce: async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+        onEvent({
+          type: 'usage',
+          usage: { input_tokens: 2, output_tokens: 3, cache_deleted_input_tokens: 5 },
+          model: 'claude-test',
+        })
+        return {
+          assistantBlocks: [{ type: 'text', text: 'hello from model' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+          usage: { input_tokens: 2, output_tokens: 3, cache_deleted_input_tokens: 5 },
+        }
+      },
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({ prompt: 'hello' })
+
+    const assistant = messages.find((message) => message.type === 'assistant')
+    expect(assistant?.type).toBe('assistant')
+    if (assistant?.type === 'assistant') {
+      expect(assistant.usage).toEqual({ input_tokens: 2, output_tokens: 3, cache_deleted_input_tokens: 5 })
+    }
+
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+      expect(result.usage).toEqual({ input_tokens: 2, output_tokens: 3, cache_deleted_input_tokens: 5 })
+    }
+  })
+
   it('supports async iterable prompt input and folds prior streamed messages into history', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.history).toHaveLength(1)

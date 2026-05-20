@@ -155,6 +155,49 @@ describe('ChatEngine', () => {
     expect((out[persistedHistory.length + 1]!.content[0] as any).text).toBe('done')
   })
 
+  it('passes request-only cache edit plans to the stream client', async () => {
+    const cacheEditPlan = {
+      provider: 'anthropic' as const,
+      deletes: [
+        {
+          type: 'delete' as const,
+          cacheReference: 'read-1',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+          messageIndex: 0,
+          blockIndex: 0,
+        },
+      ],
+    }
+    let seenPlan: unknown
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        seenPlan = args.cacheEditPlan
+        return {
+          assistantBlocks: [{ type: 'text', text: 'done' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+    const engine = createChatEngine({
+      client,
+      executor: async () => ({ tool_use_id: 'unused', content: 'unused' }),
+    })
+
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'continue' }] },
+      cacheEditPlan,
+      system: [],
+      tools: [],
+      onEvent: () => undefined,
+      cwd: '/tmp',
+    })
+
+    expect(seenPlan).toBe(cacheEditPlan)
+  })
+
   it('captures request payload and skips network when request dry-run is enabled', async () => {
     const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-'))
     let streamCalls = 0
@@ -222,13 +265,95 @@ describe('ChatEngine', () => {
     }
   })
 
+  it('captures cache-editing request projection in dry-run payloads', async () => {
+    const outputDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-request-dry-run-cache-edit-'))
+    let streamCalls = 0
+
+    const client: LlmStreamClient = {
+      async streamOnce(): Promise<StreamTurnResult> {
+        streamCalls += 1
+        return {
+          assistantBlocks: [{ type: 'text', text: 'should-not-run' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({
+      client,
+      executor,
+      runtimeFlags: {
+        sessionSaveEnabled: true,
+        isVitest: true,
+        hooksDebugEnabled: false,
+        userShellPath: null,
+        deferredToolExposureEnabled: false,
+        deferredToolSoftFallbackEnabled: true,
+        toolSearchEngine: null,
+        showInternalToolsInTui: false,
+        requestDryRunEnabled: true,
+        requestDryRunOutputDir: outputDir,
+      },
+    })
+
+    try {
+      await engine.runTurn({
+        history: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }],
+          },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'old result' }] },
+        ],
+        user: { role: 'user', content: [{ type: 'text', text: 'next', cache_control: { type: 'ephemeral' } }] },
+        cacheEditPlan: {
+          provider: 'anthropic',
+          deletes: [
+            {
+              type: 'delete',
+              cacheReference: 'read-1',
+              toolUseId: 'read-1',
+              toolName: 'Read',
+              messageIndex: 1,
+              blockIndex: 0,
+            },
+          ],
+        },
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        cwd: '/tmp',
+      })
+
+      expect(streamCalls).toBe(0)
+      const files = await fsp.readdir(outputDir)
+      expect(files.length).toBe(1)
+      const saved = JSON.parse(await fsp.readFile(path.join(outputDir, files[0]!), 'utf8'))
+      expect(saved.messages[1].content[0]).toMatchObject({
+        type: 'tool_result',
+        tool_use_id: 'read-1',
+        cache_reference: 'read-1',
+      })
+      expect(saved.messages[2].content).toEqual([
+        { type: 'cache_edits', edits: [{ type: 'delete', cache_reference: 'read-1' }] },
+        { type: 'text', text: 'next', cache_control: { type: 'ephemeral' } },
+      ])
+    } finally {
+      await fsp.rm(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('loops on stopReason=tool_use and appends tool_result messages', async () => {
     let callCount = 0
     let secondCallMessages: PromptMessage[] | null = null
+    const seenCacheEditPlans: Array<LlmStreamOnceArgs['cacheEditPlan']> = []
 
     const client: LlmStreamClient = {
       async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
         callCount++
+        seenCacheEditPlans.push(args.cacheEditPlan)
         if (callCount === 1) {
           return {
             assistantBlocks: [
@@ -263,6 +388,19 @@ describe('ChatEngine', () => {
     const out = await engine.runTurn({
       history,
       user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      cacheEditPlan: {
+        provider: 'anthropic',
+        deletes: [
+          {
+            type: 'delete',
+            cacheReference: 'read-old',
+            toolUseId: 'read-old',
+            toolName: 'Read',
+            messageIndex: 1,
+            blockIndex: 0,
+          },
+        ],
+      },
       system: [],
       tools: [],
       onEvent: (ev) => events.push(ev),
@@ -270,6 +408,8 @@ describe('ChatEngine', () => {
     })
 
     expect(callCount).toBe(2)
+    expect(seenCacheEditPlans[0]).toMatchObject({ provider: 'anthropic' })
+    expect(seenCacheEditPlans[1]).toBeNull()
     expect(out).toHaveLength(4)
     expect(out[0]!.role).toBe('user')
     expect(out[1]!.role).toBe('assistant')

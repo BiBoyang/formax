@@ -1,4 +1,4 @@
-import type { PromptMessage } from '../../prompts'
+import type { AnthropicCacheEditDelete, AnthropicCacheEditPlan, PromptMessage } from '../../prompts'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
@@ -77,6 +77,7 @@ export type MicroCompactImpact = {
   timeAwareMinStaleUserTurns: number
   timeAwareCompactedBlocks: number
   timeAwareToolNames: string[]
+  cacheEditingPlannedBlocks: number
 }
 
 export type AdaptiveMicroCompactPolicy = {
@@ -225,8 +226,10 @@ export function microCompactHistory(args: {
   timeAwareMinResultChars?: number
   timeAwareMinResultCharsByName?: Record<string, number>
   timeAwareMinStaleUserTurns?: number
+  enableCacheEditing?: boolean
 }): {
   messages: PromptMessage[]
+  cacheEditPlan: AnthropicCacheEditPlan | null
   compacted: boolean
   compactedBlocks: number
   compactedToolNames: string[]
@@ -241,6 +244,7 @@ export function microCompactHistory(args: {
   timeAwareMinStaleUserTurns: number
   timeAwareCompactedBlocks: number
   timeAwareToolNames: string[]
+  cacheEditingPlannedBlocks: number
 } {
   const keepRecentToolResults = clampCount(args.keepRecentToolResults, DEFAULT_KEEP_RECENT_TOOL_RESULTS)
   const keepRecentToolResultsByName = normalizeNamedCountMap(args.keepRecentToolResultsByName)
@@ -274,6 +278,7 @@ export function microCompactHistory(args: {
   if (eligibleBlocks.length <= keepRecentToolResults) {
     return {
       messages: args.messages,
+      cacheEditPlan: null,
       compacted: false,
       compactedBlocks: 0,
       compactedToolNames: [],
@@ -288,6 +293,7 @@ export function microCompactHistory(args: {
       timeAwareMinStaleUserTurns,
       timeAwareCompactedBlocks: 0,
       timeAwareToolNames: [],
+      cacheEditingPlannedBlocks: 0,
     }
   }
 
@@ -296,6 +302,18 @@ export function microCompactHistory(args: {
     keepRecentToolResults,
     keepRecentToolResultsByName,
   })
+  if (args.enableCacheEditing) {
+    return buildCacheEditingMicroCompactResult({
+      messages: args.messages,
+      refsToCompact,
+      eligibleBlockCount: eligibleBlocks.length,
+      cacheAwareEligibleToolNames,
+      cacheAwareMinResultChars,
+      timeAwareEligibleToolNames,
+      timeAwareMinResultChars,
+      timeAwareMinStaleUserTurns,
+    })
+  }
   const patchedMessages = [...args.messages]
   const patchedByIndex = new Map<number, PromptMessage>()
   const compactedToolNames: string[] = []
@@ -379,6 +397,7 @@ export function microCompactHistory(args: {
 
   return {
     messages: patchedMessages,
+    cacheEditPlan: null,
     compacted: compactedBlocks > 0,
     compactedBlocks,
     compactedToolNames,
@@ -393,7 +412,177 @@ export function microCompactHistory(args: {
     timeAwareMinStaleUserTurns,
     timeAwareCompactedBlocks,
     timeAwareToolNames,
+    cacheEditingPlannedBlocks: 0,
   }
+}
+
+function buildCacheEditingMicroCompactResult(args: {
+  messages: PromptMessage[]
+  refsToCompact: EligibleToolResultRef[]
+  eligibleBlockCount: number
+  cacheAwareEligibleToolNames: Set<string>
+  cacheAwareMinResultChars: number
+  timeAwareEligibleToolNames: Set<string>
+  timeAwareMinResultChars: number
+  timeAwareMinStaleUserTurns: number
+}): ReturnType<typeof microCompactHistory> {
+  const deletes: AnthropicCacheEditDelete[] = []
+  const compactedToolNames: string[] = []
+  const compactedToolNameSet = new Set<string>()
+  const cacheAwareToolNames: string[] = []
+  const cacheAwareToolNameSet = new Set<string>()
+  const timeAwareToolNames: string[] = []
+  const timeAwareToolNameSet = new Set<string>()
+  const patchedMessages = [...args.messages]
+  const patchedByIndex = new Map<number, PromptMessage>()
+  const fallbackMessages = buildStubMicroCompactMessages(args.messages, args.refsToCompact)
+  let estimatedTokensSaved = 0
+  let compactedBlocks = 0
+  let cacheAwareCompactedBlocks = 0
+  let timeAwareCompactedBlocks = 0
+
+  for (const ref of args.refsToCompact) {
+    let compacted = false
+
+    if (ref.compactToolResult) {
+      deletes.push({
+        type: 'delete',
+        cacheReference: ref.toolUseId,
+        toolUseId: ref.toolUseId,
+        toolName: ref.tool.name,
+        messageIndex: ref.messageIndex,
+        blockIndex: ref.blockIndex,
+      })
+      estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.rawResultText))
+      compacted = true
+    }
+
+    if (
+      ref.companionTextBlockIndex != null &&
+      typeof ref.companionText === 'string' &&
+      ref.companionTextBlockIndex > ref.blockIndex
+    ) {
+      const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
+      if (sourceMessage && Array.isArray(sourceMessage.content) && ref.companionTextBlockIndex < sourceMessage.content.length) {
+        const nextBlocks = [...sourceMessage.content]
+        const companionBlock = nextBlocks[ref.companionTextBlockIndex] as any
+        if (companionBlock?.type === 'text') {
+          const replacementText = buildCompanionMicrocompactStub(ref.tool, ref.companionText)
+          nextBlocks[ref.companionTextBlockIndex] = {
+            ...companionBlock,
+            text: replacementText,
+          }
+          const patchedMessage = {
+            ...sourceMessage,
+            content: nextBlocks as any,
+          }
+          patchedByIndex.set(ref.messageIndex, patchedMessage)
+          patchedMessages[ref.messageIndex] = patchedMessage
+          estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.companionText) - estimateTextTokens(replacementText))
+          compacted = true
+        }
+      }
+    }
+
+    if (!compacted) continue
+    compactedBlocks += 1
+
+    if (!compactedToolNameSet.has(ref.tool.name)) {
+      compactedToolNameSet.add(ref.tool.name)
+      compactedToolNames.push(ref.tool.name)
+    }
+    if (ref.compactionReason === 'cache_aware') {
+      cacheAwareCompactedBlocks += 1
+      if (!cacheAwareToolNameSet.has(ref.tool.name)) {
+        cacheAwareToolNameSet.add(ref.tool.name)
+        cacheAwareToolNames.push(ref.tool.name)
+      }
+    }
+    if (ref.compactionReason === 'time_aware') {
+      timeAwareCompactedBlocks += 1
+      if (!timeAwareToolNameSet.has(ref.tool.name)) {
+        timeAwareToolNameSet.add(ref.tool.name)
+        timeAwareToolNames.push(ref.tool.name)
+      }
+    }
+  }
+
+  return {
+    messages: patchedByIndex.size > 0 ? patchedMessages : args.messages,
+    cacheEditPlan:
+      deletes.length > 0
+        ? {
+            provider: 'anthropic',
+            deletes,
+            fallbackMessages,
+          }
+        : null,
+    compacted: compactedBlocks > 0,
+    compactedBlocks,
+    compactedToolNames,
+    estimatedTokensSaved,
+    keptRecentBlocks: Math.max(0, args.eligibleBlockCount - compactedBlocks),
+    cacheAwareEligibleToolNames: [...args.cacheAwareEligibleToolNames],
+    cacheAwareMinResultChars: args.cacheAwareMinResultChars,
+    cacheAwareCompactedBlocks,
+    cacheAwareToolNames,
+    timeAwareEligibleToolNames: [...args.timeAwareEligibleToolNames],
+    timeAwareMinResultChars: args.timeAwareMinResultChars,
+    timeAwareMinStaleUserTurns: args.timeAwareMinStaleUserTurns,
+    timeAwareCompactedBlocks,
+    timeAwareToolNames,
+    cacheEditingPlannedBlocks: deletes.length,
+  }
+}
+
+function buildStubMicroCompactMessages(messages: PromptMessage[], refsToCompact: EligibleToolResultRef[]): PromptMessage[] {
+  const patchedMessages = [...messages]
+  const patchedByIndex = new Map<number, PromptMessage>()
+
+  for (const ref of refsToCompact) {
+    const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
+    if (!sourceMessage || !Array.isArray(sourceMessage.content)) continue
+
+    const nextBlocks = [...sourceMessage.content]
+    let patched = false
+    const currentBlock = nextBlocks[ref.blockIndex]
+    if (ref.compactToolResult && currentBlock && typeof currentBlock === 'object') {
+      if ((currentBlock as any).type === 'tool_result') {
+        const rawResultText = toolResultContentToText((currentBlock as any).content)
+        nextBlocks[ref.blockIndex] = {
+          ...currentBlock,
+          content: buildMicrocompactStub(ref.tool, rawResultText),
+        } as any
+        patched = true
+      }
+    }
+
+    if (
+      ref.companionTextBlockIndex != null &&
+      typeof ref.companionText === 'string' &&
+      ref.companionTextBlockIndex > ref.blockIndex &&
+      ref.companionTextBlockIndex < nextBlocks.length
+    ) {
+      const companionBlock = nextBlocks[ref.companionTextBlockIndex] as any
+      if (companionBlock?.type === 'text') {
+        nextBlocks[ref.companionTextBlockIndex] = {
+          ...companionBlock,
+          text: buildCompanionMicrocompactStub(ref.tool, ref.companionText),
+        }
+        patched = true
+      }
+    }
+
+    if (!patched) continue
+    const patchedMessage = {
+      ...sourceMessage,
+      content: nextBlocks as any,
+    }
+    patchedByIndex.set(ref.messageIndex, patchedMessage)
+    patchedMessages[ref.messageIndex] = patchedMessage
+  }
+
+  return patchedByIndex.size > 0 ? patchedMessages : messages
 }
 
 function estimateTextTokens(value: string): number {

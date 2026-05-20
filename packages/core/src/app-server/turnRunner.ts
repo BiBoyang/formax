@@ -9,6 +9,7 @@ import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { ContextBudgetConfig } from '../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
+import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
@@ -656,11 +657,20 @@ export class TurnRunner {
         })
       } else {
         const promptBudget = await this.resolvePromptBudgetConfig(running.cwd)
+        const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, running.cwd, {
+          platform: this.platform,
+          homedir: this.homedir,
+        })
         const prepared = prepareTurnRequestProjection({
           system,
           history,
           user,
           budgetConfig: promptBudget,
+          enableCacheEditing: isAnthropicCacheEditingEnabled({
+            provider: runtimeConfig.llm.provider,
+            baseUrl: runtimeConfig.llm.baseUrl,
+            env: this.env ?? process.env,
+          }),
         })
         const executionHistory = prepared.persistedHistory as ChatHistory
         const executionRequestHistory = prepared.requestHistory as ChatHistory
@@ -672,6 +682,7 @@ export class TurnRunner {
           requestHistory: executionRequestHistory,
           user,
           requestUser: executionUser,
+          cacheEditPlan: prepared.cacheEditPlan,
           system,
           tools,
           ...(toolExposure.resolveToolsForCall ? { resolveToolsForCall: toolExposure.resolveToolsForCall } : {}),
