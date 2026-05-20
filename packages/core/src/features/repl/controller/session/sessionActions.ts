@@ -15,6 +15,7 @@ export function queueSessionTransition(args: {
 
 export async function runNewSessionAction(args: {
   initialSessionFilePathRef: { current: string | undefined }
+  historySnapshotBaseRef?: { current: ChatHistory | null }
   sessionTransitionQueueRef: { current: Promise<void> }
   sessionTransitionPendingCountRef: { current: number }
   runNewSessionTransition: (args: {
@@ -37,6 +38,7 @@ export async function runNewSessionAction(args: {
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
 }): Promise<void> {
   args.initialSessionFilePathRef.current = undefined
+  if (args.historySnapshotBaseRef) args.historySnapshotBaseRef.current = null
   await queueSessionTransition({
     sessionTransitionQueueRef: args.sessionTransitionQueueRef,
     sessionTransitionPendingCountRef: args.sessionTransitionPendingCountRef,
@@ -79,6 +81,7 @@ export async function runResumeSessionAction(args: {
     lastPersistedMsgByIdRef: { current: Map<string, Msg> }
     resetSessionState: () => void
     historyRef: { current: ChatHistory }
+    historySnapshotBaseRef?: { current: ChatHistory | null }
     pendingInjectedBlocksRef?: { current: PromptBlock[] }
     cwd: string
     mode: ReplMode
@@ -96,6 +99,7 @@ export async function runResumeSessionAction(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
+  historySnapshotBaseRef?: { current: ChatHistory | null }
   pendingInjectedBlocksRef?: { current: PromptBlock[] }
   cwd: string
   mode: ReplMode
@@ -126,6 +130,7 @@ export async function runResumeSessionAction(args: {
           lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
           resetSessionState: args.resetSessionState,
           historyRef: args.historyRef,
+          historySnapshotBaseRef: args.historySnapshotBaseRef,
           pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
           cwd: args.cwd,
           mode: args.mode,

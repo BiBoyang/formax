@@ -112,7 +112,13 @@ export function useReplController(deps: {
   tools: ToolDefinition[]
   cfg: RuntimeConfig
   onClearTerminal?: () => void | Promise<void>
-  initialSession?: { filePath?: string; messages?: Msg[]; history?: ChatHistory; nextTurnInjectedBlocks?: PromptBlock[] }
+  initialSession?: {
+    filePath?: string
+    messages?: Msg[]
+    history?: ChatHistory
+    replayHistory?: ChatHistory
+    nextTurnInjectedBlocks?: PromptBlock[]
+  }
   allowedSubagents?: SubAgentListItem[]
   reloadSubagents?: () => Promise<SubAgentListItem[]>
   mode: ReplMode
@@ -171,6 +177,7 @@ export function useReplController(deps: {
   const canonicalRefs = useCanonicalRefs(CANONICAL_THREAD_ID)
   const modeRefs = useModeRefs(deps.mode)
   const turnFlowRefs = useTurnFlowRefs(deps.initialSession?.nextTurnInjectedBlocks ?? [])
+  const historySnapshotBaseRef = useRef<ChatHistory | null>(deps.initialSession?.replayHistory ?? null)
   const runtimeStateRefs = useRuntimeStateRefs()
   const deferredToolExposureSessionKeyRef = useRef<string>(randomUUID())
   // Local bash mode (`! <cmd>`) runs outside the LLM turn and must not overlap with other sends.
@@ -219,7 +226,8 @@ export function useReplController(deps: {
 
   useEffect(() => {
     initialSessionFilePathRef.current = deps.initialSession?.filePath
-  }, [deps.initialSession?.filePath])
+    historySnapshotBaseRef.current = deps.initialSession?.replayHistory ?? null
+  }, [deps.initialSession?.filePath, deps.initialSession?.replayHistory])
 
   const { closeConfigDialogWithInjection } = useConfigDialogInjection({
     closeConfigDialog,
@@ -345,6 +353,7 @@ export function useReplController(deps: {
   useSessionPersistence({
     sessionSaveEnabled,
     initialSessionFilePath: deps.initialSession?.filePath,
+    historySnapshotBaseRef,
     ensureSessionWriter,
     messages,
     previousMessagesRef,
@@ -449,6 +458,7 @@ export function useReplController(deps: {
     sessionTransitionPendingCountRef,
     sessionWriterRef,
     sessionWriterInitPromiseRef,
+    historySnapshotBaseRef,
     lastPersistedSigByMsgIdRef,
     lastPersistedMsgByIdRef,
     resetSessionState,

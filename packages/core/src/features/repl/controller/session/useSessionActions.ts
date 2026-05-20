@@ -20,6 +20,7 @@ function useSessionActions(args: {
   sessionTransitionPendingCountRef: { current: number }
   sessionWriterRef: { current: SessionWriter | null }
   sessionWriterInitPromiseRef: { current: Promise<void> | null }
+  historySnapshotBaseRef?: { current: ChatHistory | null }
   lastPersistedSigByMsgIdRef: { current: Map<string, string> }
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
@@ -46,6 +47,7 @@ function useSessionActions(args: {
   const runNewSession = useCallback(async (): Promise<void> => {
     await runNewSessionAction({
       initialSessionFilePathRef: args.initialSessionFilePathRef,
+      historySnapshotBaseRef: args.historySnapshotBaseRef,
       sessionTransitionQueueRef: args.sessionTransitionQueueRef,
       sessionTransitionPendingCountRef: args.sessionTransitionPendingCountRef,
       runNewSessionTransition: args.runNewSessionTransition,
@@ -61,6 +63,7 @@ function useSessionActions(args: {
   }, [
     args.engine,
     args.initialSessionFilePathRef,
+    args.historySnapshotBaseRef,
     args.lastPersistedMsgByIdRef,
     args.lastPersistedSigByMsgIdRef,
     args.replaceTranscript,
@@ -100,6 +103,7 @@ function useSessionActions(args: {
         lastPersistedMsgByIdRef: args.lastPersistedMsgByIdRef,
         resetSessionState: args.resetSessionState,
         historyRef: args.historyRef,
+        historySnapshotBaseRef: args.historySnapshotBaseRef,
         pendingInjectedBlocksRef: args.pendingInjectedBlocksRef,
         cwd: args.cwd,
           mode: args.mode,
@@ -117,6 +121,7 @@ function useSessionActions(args: {
       args.engine,
       args.cwd,
       args.historyRef,
+      args.historySnapshotBaseRef,
       args.pendingInjectedBlocksRef,
       args.initialSessionFilePathRef,
       args.isLoading,

@@ -297,7 +297,7 @@ describe('sessionLifecycle', () => {
     createSpy.mockRestore()
   })
 
-  it('openInitialSessionWriter opens existing session and persists resume metadata', async () => {
+  it('openInitialSessionWriter opens existing session and persists resume metadata without rewriting history', async () => {
     const writer = {
       appendEvent: vi.fn(async () => undefined),
       appendHistorySnapshot: vi.fn(async () => undefined),
@@ -319,7 +319,7 @@ describe('sessionLifecycle', () => {
     expect(openSpy).toHaveBeenCalledWith({ filePath: '/tmp/existing.jsonl' })
     expect(startNewWriter).not.toHaveBeenCalled()
     expect(writer.appendEvent).toHaveBeenCalledWith('resume')
-    expect(writer.appendHistorySnapshot).toHaveBeenCalledWith(historyRef.current)
+    expect(writer.appendHistorySnapshot).not.toHaveBeenCalled()
     openSpy.mockRestore()
   })
 

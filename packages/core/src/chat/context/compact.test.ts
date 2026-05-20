@@ -14,6 +14,7 @@ import {
   findLatestCompactBoundary,
   findLatestCompactBoundaryIndex,
   getContinuationMessagesAfterLatestCompactBoundary,
+  buildSessionReplayHistoryWithActiveContinuation,
   isCompactBoundaryMessage,
   isCompactionSummaryUserMessage,
   markCompactRehydrationApplied,
@@ -443,6 +444,28 @@ describe('compaction summary helpers', () => {
       txt('user', 'second summary'),
       txt('assistant', 'tail two'),
     ])
+  })
+
+  it('rebuilds authoritative replay history from active continuation without dropping the latest boundary', () => {
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 1 },
+    })
+    const activeHistory = [
+      txt('user', 'summary'),
+      txt('assistant', 'tail'),
+      txt('user', 'new prompt'),
+      txt('assistant', 'new answer'),
+    ]
+
+    expect(
+      buildSessionReplayHistoryWithActiveContinuation({
+        replayHistory: [txt('user', 'pre-boundary'), boundary, txt('user', 'old summary')],
+        activeHistory,
+      }),
+    ).toEqual([txt('user', 'pre-boundary'), boundary, ...activeHistory])
   })
 
   it('uses the latest boundary continuation as the partial compaction scope', () => {

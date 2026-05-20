@@ -1572,6 +1572,7 @@ async function* runQuery(
           prompt: normalizedPrompt.prompt,
           assistantText: assistantMessage?.text ?? '',
           history: nextHistory,
+          replayHistory: resumeResolution.replayHistory,
         })
       }
       await appendDebugFileLine(

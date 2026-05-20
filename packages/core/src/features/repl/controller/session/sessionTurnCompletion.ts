@@ -1,6 +1,7 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { ReplMode } from '../../mode'
+import { buildSessionReplayHistoryWithActiveContinuation } from '../../../../chat/context/compact'
 import {
   extractLastAssistantTextFromHistory,
   maybeAutoGenerateSessionTitle,
@@ -49,6 +50,7 @@ export function runSessionTurnCompletionSideEffects(args: {
   wasLoading: boolean
   isLoading: boolean
   history: ChatHistory
+  historySnapshotBase?: ChatHistory | null
   messages: Msg[]
   engine: Pick<ChatEngine, 'runTurn'>
   cwd: string
@@ -66,7 +68,13 @@ export function runSessionTurnCompletionSideEffects(args: {
   if (!args.wasLoading || args.isLoading) return
 
   const { uiMsgCount, firstUserPrompt, lastUserPrompt } = collectUiStatsForTurnCompletion(args.messages)
-  void args.writer.appendHistorySnapshot(args.history)
+  const historySnapshot = args.historySnapshotBase
+    ? buildSessionReplayHistoryWithActiveContinuation({
+        replayHistory: args.historySnapshotBase,
+        activeHistory: args.history,
+      })
+    : args.history
+  void args.writer.appendHistorySnapshot(historySnapshot)
   void args.writer.appendEvent('ui_stats', { uiMsgCount, lastUserPrompt, firstUserPrompt })
 
   const assistantText = (args.extractAssistantText ?? extractLastAssistantTextFromHistory)(args.history)

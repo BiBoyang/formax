@@ -723,6 +723,7 @@ describe('runResumeSessionTransition (save-enabled)', () => {
       appendHistorySnapshot: vi.fn(async () => undefined),
     }
     const historyRef = { current: [] as ChatHistory }
+    const historySnapshotBaseRef = { current: null as ChatHistory | null }
     const lastPersistedSigByMsgIdRef = { current: new Map<string, string>() }
     const lastPersistedMsgByIdRef = { current: new Map<string, Msg>() }
 
@@ -736,6 +737,7 @@ describe('runResumeSessionTransition (save-enabled)', () => {
       lastPersistedMsgByIdRef,
       resetSessionState: () => undefined,
       historyRef,
+      historySnapshotBaseRef,
       replaceTranscript: async () => undefined,
       openExistingSessionWriter: async () => newWriter,
       buildPersistedSigMap: (messages) => new Map(messages.map((m) => [m.id, 'sig'])),
@@ -748,8 +750,9 @@ describe('runResumeSessionTransition (save-enabled)', () => {
     expect(lastPersistedSigByMsgIdRef.current.get('m1')).toBe('sig')
     expect(lastPersistedMsgByIdRef.current.get('m1')?.id).toBe('m1')
     expect(historyRef.current).toBe(replayHistory)
+    expect(historySnapshotBaseRef.current).toBe(replayHistory)
     expect(newWriter.appendEvent).toHaveBeenCalledWith('resume')
-    expect(newWriter.appendHistorySnapshot).toHaveBeenCalledWith(replayHistory)
+    expect(newWriter.appendHistorySnapshot).not.toHaveBeenCalled()
   })
 
   it('skips old-writer shutdown flow when no current writer exists', async () => {

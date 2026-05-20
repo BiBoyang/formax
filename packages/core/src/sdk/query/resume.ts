@@ -20,6 +20,7 @@ import {
 type QueryResumeResolution = {
   sessionId: string | null
   history: PromptMessage[]
+  replayHistory: PromptMessage[] | null
   sessionFilePath: string | null
   nextTurnInjectedBlocks: PromptBlock[]
 }
@@ -53,7 +54,8 @@ async function loadReplayFromFile(args: {
 
   try {
     const replay = parseRawSessionReplayOutput(rawReplay)
-    const history = buildActiveHistoryFromSessionReplay(clonePromptHistory(replay.history))
+    const replayHistory = clonePromptHistory(replay.history)
+    const history = buildActiveHistoryFromSessionReplay(replayHistory)
     const restoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
       sessionFilePath: args.filePath,
       fallbackMode: args.replMode ?? 'normal',
@@ -69,6 +71,7 @@ async function loadReplayFromFile(args: {
     return {
       sessionId: replay.sessionId,
       history,
+      replayHistory,
       sessionFilePath: args.filePath,
       nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks,
     }
@@ -112,6 +115,7 @@ export async function resolveQueryResumeResolution(args: {
       return {
         sessionId: requestedSessionId,
         history: [],
+        replayHistory: null,
         sessionFilePath: null,
         nextTurnInjectedBlocks: [],
       }
@@ -138,6 +142,7 @@ export async function resolveQueryResumeResolution(args: {
     return {
       sessionId: forkSession ? requestedSessionId : requestedSessionId ?? continued.sessionId,
       history: continued.history,
+      replayHistory: forkSession ? null : continued.replayHistory,
       sessionFilePath: forkSession ? null : continued.sessionFilePath,
       nextTurnInjectedBlocks: continued.nextTurnInjectedBlocks,
     }
@@ -147,6 +152,7 @@ export async function resolveQueryResumeResolution(args: {
     return {
       sessionId: requestedSessionId,
       history: [],
+      replayHistory: null,
       sessionFilePath: null,
       nextTurnInjectedBlocks: [],
     }
@@ -188,6 +194,7 @@ export async function resolveQueryResumeResolution(args: {
   return {
     sessionId: forkSession ? requestedSessionId : requestedSessionId ?? resumeSessionId,
     history: resumed.history,
+    replayHistory: forkSession ? null : resumed.replayHistory,
     sessionFilePath: forkSession ? null : resumed.sessionFilePath,
     nextTurnInjectedBlocks: resumed.nextTurnInjectedBlocks,
   }

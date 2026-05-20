@@ -142,7 +142,6 @@ export async function openInitialSessionWriter(args: {
   args.refs.lastPersistedSigByMsgIdRef.current = buildPersistedSigMap(args.initialSession?.messages ?? [])
   args.refs.lastPersistedMsgByIdRef.current = buildPersistedMsgRefMap(args.initialSession?.messages ?? [])
   await writer.appendEvent('resume')
-  await writer.appendHistorySnapshot(args.historyRef.current)
 }
 
 export async function shutdownSessionWriter(refs: SessionWriterRefs): Promise<void> {

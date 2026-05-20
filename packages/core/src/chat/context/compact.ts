@@ -530,6 +530,15 @@ export function buildActiveHistoryFromSessionReplay(messages: PromptMessage[]): 
   return getContinuationMessagesAfterLatestCompactBoundary(messages)
 }
 
+export function buildSessionReplayHistoryWithActiveContinuation(args: {
+  replayHistory: PromptMessage[]
+  activeHistory: PromptMessage[]
+}): PromptMessage[] {
+  const latestBoundaryIndex = findLatestCompactBoundaryIndex(args.replayHistory)
+  if (latestBoundaryIndex < 0) return args.activeHistory
+  return [...args.replayHistory.slice(0, latestBoundaryIndex + 1), ...args.activeHistory]
+}
+
 export function resolveHistoryForCompaction(args: {
   previousHistory: PromptMessage[]
   allowPartial: boolean

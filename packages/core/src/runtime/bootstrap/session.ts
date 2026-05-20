@@ -18,6 +18,7 @@ export async function resolveInitialSession(args: {
       filePath: string
       messages: Awaited<ReturnType<typeof readSessionFile>>['messages']
       history: Awaited<ReturnType<typeof readSessionFile>>['history']
+      replayHistory: Awaited<ReturnType<typeof readSessionFile>>['history']
       nextTurnInjectedBlocks?: PromptBlock[]
     }
   | null
@@ -45,6 +46,7 @@ export async function resolveInitialSession(args: {
       filePath,
       messages: replay.messages,
       history,
+      replayHistory: replay.history,
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
         ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
         : {}),

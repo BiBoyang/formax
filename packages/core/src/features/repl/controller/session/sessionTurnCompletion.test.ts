@@ -212,6 +212,51 @@ describe('runSessionTurnCompletionSideEffects', () => {
     })
   })
 
+  it('preserves replay compact boundary when persisting a resumed active continuation', () => {
+    const writer = createWriter()
+    const compactBoundary = {
+      role: 'assistant',
+      content: [],
+      meta: {
+        compactBoundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          preTokens: 1200,
+          summaryKind: 'model_summary',
+        },
+      },
+    } as any
+    const activeHistory = [
+      { role: 'user', content: [{ type: 'text', text: 'summary' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'new answer' }] },
+    ] as any
+
+    runSessionTurnCompletionSideEffects({
+      writer,
+      wasLoading: true,
+      isLoading: false,
+      history: activeHistory,
+      historySnapshotBase: [{ role: 'user', content: [{ type: 'text', text: 'before boundary' }] } as any, compactBoundary],
+      messages: [createMsg({ id: 'u1', role: 'user', content: 'summary' })],
+      engine: createEngine(),
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      attemptedSessionIds: new Set(),
+      checkedTopicPromptKeys: new Set(),
+      model: 'claude-3-5-sonnet-latest',
+      autoGenerateSessionTitle: vi.fn(async () => null),
+      persistRollingMemory: vi.fn(async () => undefined),
+      scheduleBackgroundTask: vi.fn(),
+    })
+
+    expect(writer.appendHistorySnapshot).toHaveBeenCalledWith([
+      { role: 'user', content: [{ type: 'text', text: 'before boundary' }] },
+      compactBoundary,
+      ...activeHistory,
+    ])
+  })
+
   it('swallows auto-title rejection', async () => {
     const writer = createWriter()
     const autoGenerateSessionTitle = vi.fn(async () => {

@@ -2766,6 +2766,10 @@ describe('sdk query()', () => {
 
   it('appends to resumed session file when persistSession is true', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.history.map((message: any) => message.content?.[0]?.text)).toEqual([
+        'compact summary',
+        'preserved assistant',
+      ])
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'resume persisted' }] }]
     })
     const runtime = createRuntimeFixture({ runTurn })
@@ -2774,8 +2778,21 @@ describe('sdk query()', () => {
     state.readSessionFile.mockResolvedValue({
       meta: { sessionId: 'session-abc', cwd: '/repo' },
       history: [
-        { role: 'user', content: [{ type: 'text', text: 'persisted user' }] },
-        { role: 'assistant', content: [{ type: 'text', text: 'persisted assistant' }] },
+        { role: 'user', content: [{ type: 'text', text: 'pre-boundary user' }] },
+        {
+          role: 'assistant',
+          content: [],
+          meta: {
+            compactBoundary: {
+              schemaVersion: 1,
+              trigger: 'manual',
+              preTokens: 1234,
+              summaryKind: 'model_summary',
+            },
+          },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
       ],
     })
     const writer = createSessionWriterFixture()
@@ -2794,6 +2811,16 @@ describe('sdk query()', () => {
     })
     expect(state.createSessionWriter).not.toHaveBeenCalled()
     expect(writer.appendHistorySnapshot).toHaveBeenCalledTimes(1)
+    const snapshot = (writer.appendHistorySnapshot as any).mock.calls[0]?.[0] as any[]
+    expect(snapshot[0]?.content?.[0]?.text).toBe('pre-boundary user')
+    expect(snapshot[1]?.meta?.compactBoundary?.schemaVersion).toBe(1)
+    expect(snapshot.map((message: any) => message.content?.[0]?.text).filter(Boolean)).toEqual([
+      'pre-boundary user',
+      'compact summary',
+      'preserved assistant',
+      'resume and persist',
+      'resume persisted',
+    ])
     expect(writer.shutdown).toHaveBeenCalledTimes(1)
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')

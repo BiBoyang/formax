@@ -130,6 +130,7 @@ export async function runResumeSessionTransition(args: {
   lastPersistedMsgByIdRef: { current: Map<string, Msg> }
   resetSessionState: () => void
   historyRef: { current: ChatHistory }
+  historySnapshotBaseRef?: { current: ChatHistory | null }
   pendingInjectedBlocksRef?: { current: PromptBlock[] }
   buildRestoreInjectedBlocks?: (args: { sessionFilePath: string }) => Promise<PromptBlock[]>
   replaceTranscript: (nextMessages: Msg[]) => Promise<void>
@@ -167,6 +168,7 @@ export async function runResumeSessionTransition(args: {
   // Reset transient runtime state, then restore persisted state.
   args.resetSessionState()
   args.historyRef.current = buildActiveHistoryFromSessionReplay(replay.history)
+  if (args.historySnapshotBaseRef) args.historySnapshotBaseRef.current = replay.history
 
   if (args.sessionSaveEnabled && args.cwd) {
     const mode = args.mode ?? 'normal'
@@ -194,6 +196,5 @@ export async function runResumeSessionTransition(args: {
     const writer = await args.openExistingSessionWriter(args.filePath)
     args.sessionWriterRef.current = writer
     await writer.appendEvent('resume')
-    await writer.appendHistorySnapshot(args.historyRef.current)
   }
 }

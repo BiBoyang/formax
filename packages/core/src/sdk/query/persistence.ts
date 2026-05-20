@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { SessionWriter } from '../../features/repl/sessionSave/writer.js'
 import type { PromptMessage } from '../../prompts/index.js'
-import { isCompactBoundaryMessage } from '../../chat/context/compact.js'
+import {
+  buildSessionReplayHistoryWithActiveContinuation,
+  isCompactBoundaryMessage,
+} from '../../chat/context/compact.js'
 
 type QuerySessionWriter = Pick<
   SessionWriter,
@@ -86,6 +89,7 @@ export async function persistQueryTurn(args: {
   prompt: string
   assistantText: string
   history: PromptMessage[]
+  replayHistory?: PromptMessage[] | null
 }): Promise<void> {
   const userPrompt = args.prompt.trim()
   const timestamp = new Date()
@@ -115,7 +119,13 @@ export async function persistQueryTurn(args: {
     })
   }
 
-  await args.persistence.writer.appendHistorySnapshot(args.history)
+  const historySnapshot = args.replayHistory
+    ? buildSessionReplayHistoryWithActiveContinuation({
+        replayHistory: args.replayHistory,
+        activeHistory: args.history,
+      })
+    : args.history
+  await args.persistence.writer.appendHistorySnapshot(historySnapshot)
 
   const firstUserPrompt = firstUserPromptFromHistory(args.history) ?? userPrompt
   await args.persistence.writer.appendEvent('ui_stats', {

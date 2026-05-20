@@ -29,6 +29,7 @@ function useSessionPersistence(args: {
   isLoading: boolean
   previousIsLoadingRef: MutableRefObject<boolean>
   historyRef: MutableRefObject<ChatHistory>
+  historySnapshotBaseRef?: MutableRefObject<ChatHistory | null>
   engine: ChatEngine
   cwd: string
   mode: ReplMode
@@ -90,6 +91,7 @@ function useSessionPersistence(args: {
       wasLoading,
       isLoading: args.isLoading,
       history: args.historyRef.current,
+      historySnapshotBase: args.historySnapshotBaseRef?.current ?? null,
       messages: args.messages,
       engine: args.engine,
       cwd: args.cwd,
@@ -104,6 +106,7 @@ function useSessionPersistence(args: {
     args.cwd,
     args.engine,
     args.historyRef,
+    args.historySnapshotBaseRef,
     args.isLoading,
     args.messages,
     args.mode,

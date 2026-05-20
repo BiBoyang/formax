@@ -22,25 +22,26 @@ describe('resolveInitialSession', () => {
 
   it('returns continuation history after the latest compact boundary', async () => {
     findLatestSessionFile.mockResolvedValue('/tmp/latest-session.jsonl')
-    readSessionFile.mockResolvedValue({
-      messages: [{ id: 'ui-1', role: 'assistant', content: 'hello', timestamp: new Date() }],
-      history: [
-        { role: 'user', content: [{ type: 'text', text: 'old user before boundary' }] },
-        {
-          role: 'assistant',
-          content: [{ type: 'text', text: '' }],
-          meta: {
-            compactBoundary: {
-              schemaVersion: 1,
-              trigger: 'manual',
-              preTokens: 1200,
-              summaryKind: 'model_summary',
-            },
+    const replayHistory = [
+      { role: 'user', content: [{ type: 'text', text: 'old user before boundary' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'manual',
+            preTokens: 1200,
+            summaryKind: 'model_summary',
           },
         },
-        { role: 'user', content: [{ type: 'text', text: 'restored summary' }] },
-        { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
-      ],
+      },
+      { role: 'user', content: [{ type: 'text', text: 'restored summary' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
+    ]
+    readSessionFile.mockResolvedValue({
+      messages: [{ id: 'ui-1', role: 'assistant', content: 'hello', timestamp: new Date() }],
+      history: replayHistory,
     })
 
     const { resolveInitialSession } = await import('./session.js')
@@ -56,6 +57,7 @@ describe('resolveInitialSession', () => {
       { role: 'user', content: [{ type: 'text', text: 'restored summary' }] },
       { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant' }] },
     ])
+    expect(resolved?.replayHistory).toBe(replayHistory)
   })
 
   it('best-effort refreshes rolling session memory for resumeLast restores', async () => {
