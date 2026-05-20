@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { AppAction } from '../../store'
-import type { PendingInput, ResolvedInput, RpcNotification } from '../../types'
+import type { CompactBoundarySummary, PendingInput, ResolvedInput, RpcNotification } from '../../types'
 import { isNotificationForActiveThread } from '../core/appEventMachine'
+import { parseCompactBoundarySummary } from '../core/compactBoundarySummary'
 import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
 import type { ReplMode } from '../../semantics'
 import { mapTurnNotificationToCanonicalEvents } from '../../semantics'
@@ -25,6 +26,9 @@ export type ProcessNotificationContext = {
   setAskDraftByInputId: Dispatch<SetStateAction<Record<string, Record<string, string>>>>
   setSubmitStatusByInputId: Dispatch<SetStateAction<Record<string, { status: string; kind: 'success' | 'error'; message?: string }>>>
   reduceThreadRuntimeState: typeof reduceThreadRuntimeState
+  cacheLiveCompactBoundary?: (args: { threadId: string; turnId: string; boundary: CompactBoundarySummary }) => void
+  commitLiveCompactBoundary?: (args: { threadId: string; turnId: string }) => void
+  clearLiveCompactBoundary?: (args: { threadId: string; turnId: string }) => void
   onThreadArchivedNotification?: (params: unknown) => void
 }
 
@@ -114,13 +118,16 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     }
 
     case 'turn/completed': {
+      const turn = asObject(params.turn)
+      const turnId = typeof turn.id === 'string' ? turn.id : ''
+      if (threadId && turnId) {
+        ctx.commitLiveCompactBoundary?.({ threadId, turnId })
+      }
       if (!isActiveThread()) {
         void ctx.refreshThreads().catch(() => undefined)
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      const turn = asObject(params.turn)
-      const turnId = typeof turn.id === 'string' ? turn.id : ''
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       if (turnId) {
         ctx.commandByTurnRef.current.delete(turnId)
@@ -131,12 +138,15 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     }
 
     case 'turn/failed': {
+      const turn = asObject(params.turn)
+      const turnId = typeof turn.id === 'string' ? turn.id : ''
+      if (threadId && turnId) {
+        ctx.clearLiveCompactBoundary?.({ threadId, turnId })
+      }
       if (!isActiveThread()) {
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      const turn = asObject(params.turn)
-      const turnId = typeof turn.id === 'string' ? turn.id : ''
       ctx.dispatch({ type: 'set_active_turn', turnId: null })
       const command = turnId ? ctx.commandByTurnRef.current.get(turnId) : undefined
       if (command) {
@@ -149,6 +159,16 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     }
 
     case 'turn/event': {
+      if (threadId) {
+        const event = asObject(params.event)
+        if (event.type === 'compact_boundary') {
+          const boundary = parseCompactBoundarySummary(event.boundary)
+          const turnId = typeof params.turnId === 'string' ? params.turnId : ''
+          if (boundary && turnId) {
+            ctx.cacheLiveCompactBoundary?.({ threadId, turnId, boundary })
+          }
+        }
+      }
       if (!isActiveThread()) break
       const turnId = typeof params.turnId === 'string' ? params.turnId : ''
       if (!turnId) break

@@ -116,27 +116,28 @@
 
 ### Risks
 
-- [ ] Live `compact_boundary` event does not update `latestCompactBoundaryByThreadId`.
+- [x] Live `compact_boundary` event does not update `latestCompactBoundaryByThreadId`.
 - [ ] Projection drops compact boundary `messageKind`, producing empty transcript rows.
 - [ ] Replay source suppresses `latestRequestCollapse`.
 - [ ] Optional RPC fields are treated as required.
 - [ ] App-server `/context` text omits latest compact boundary.
 - [ ] App-server `/context` plan mode uses `planPath: null`.
-- [ ] Live/replay compact boundary cache may briefly return null or stale values after compact events.
+- [x] Live/replay compact boundary cache may briefly return null or stale values after compact events.
 
 ### Tests First
 
-- [ ] Add `processNotification` test for live compact boundary cache update.
+- [x] Add `processNotification` test for live compact boundary cache update.
 - [ ] Add projection/render test for compact boundary row or explicit suppression.
 - [ ] Add `useTranscriptDisplayState` test for replay + `latestRequestCollapse` intended behavior.
 - [ ] Add RPC parser tests for omitted optional compact/collapse/restore fields.
 - [ ] Add app-server `/context` text/json consistency test.
 - [ ] Add plan-mode `/context` diagnostics test.
-- [ ] Add replay cache test: `turn/event compact_boundary` followed immediately by `thread/replay` returns the same boundary.
+- [x] Add replay cache test: `turn/event compact_boundary` followed immediately by `thread/replay` returns the same boundary.
 
 ### Implementation
 
-- [ ] Update live event handling to write compact/collapse caches.
+- [x] Update live event handling to write compact/collapse caches.
+  - Compact boundary cache is now refreshed from live `turn/event compact_boundary` in both app-server replay metadata and Web runtime notification handling. Collapse remains sourced from RPC/replay diagnostics because there is no live collapse event in the current protocol.
 - [ ] Extend `TranscriptItem` / projection model to preserve compact boundary UI kind or explicitly suppress it with a documented rule.
 - [ ] Relax optional field parsers for compact/collapse/restore fields.
 - [ ] Pass latest compact boundary into diagnostics text formatting.

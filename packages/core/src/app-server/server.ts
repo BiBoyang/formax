@@ -126,6 +126,10 @@ export class AppServer {
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
+  private readonly liveCompactBoundaryByThreadId = new Map<
+    string,
+    { turnId: string; boundary: CompactBoundaryMeta; previousBoundary?: CompactBoundaryMeta | null }
+  >()
   private readonly pendingExitPlanReminderByThreadId = new Map<string, true>()
   private readonly pendingInjectedBlocksByThreadId = new Map<string, PromptBlock[]>()
   private readonly pendingSessionMemoryRestoreByThreadId = new Map<string, SessionMemoryRestoreSummary | null>()
@@ -623,10 +627,6 @@ export class AppServer {
     this.latestCompactBoundaryByThreadId.set(threadId, boundary ?? null)
   }
 
-  private clearLatestCompactBoundary(threadId: string): void {
-    this.latestCompactBoundaryByThreadId.delete(threadId)
-  }
-
   createTurnNotificationEmitter(): (method: string, params?: unknown) => void {
     return (method, params) => {
       this.emitServerNotification(method, params)
@@ -715,8 +715,40 @@ export class AppServer {
       this.pendingExitPlanReminderByThreadId.delete(threadId)
     }
 
-    if (method.startsWith('turn/')) {
-      this.clearLatestCompactBoundary(threadId)
+    const turnId = readTurnIdFromNotificationParams(paramsObj)
+    const latestCompactBoundaryFromEvent = readCompactBoundaryFromTurnEvent(paramsObj)
+    if (latestCompactBoundaryFromEvent) {
+      const existingPending = turnId ? this.liveCompactBoundaryByThreadId.get(threadId) : null
+      const previousBoundary =
+        existingPending?.turnId === turnId
+          ? existingPending.previousBoundary
+          : this.latestCompactBoundaryByThreadId.has(threadId)
+            ? (this.latestCompactBoundaryByThreadId.get(threadId) ?? null)
+            : undefined
+      this.rememberLatestCompactBoundary(threadId, latestCompactBoundaryFromEvent)
+      if (turnId) {
+        this.liveCompactBoundaryByThreadId.set(threadId, {
+          turnId,
+          boundary: latestCompactBoundaryFromEvent,
+          ...(previousBoundary !== undefined ? { previousBoundary } : {}),
+        })
+      }
+    } else if (method === 'turn/completed' && turnId) {
+      const pending = this.liveCompactBoundaryByThreadId.get(threadId)
+      if (pending?.turnId === turnId) {
+        this.rememberLatestCompactBoundary(threadId, pending.boundary)
+        this.liveCompactBoundaryByThreadId.delete(threadId)
+      }
+    } else if (method === 'turn/failed' && turnId) {
+      const pending = this.liveCompactBoundaryByThreadId.get(threadId)
+      if (pending?.turnId === turnId) {
+        this.liveCompactBoundaryByThreadId.delete(threadId)
+        if (pending.previousBoundary === undefined) {
+          this.latestCompactBoundaryByThreadId.delete(threadId)
+        } else {
+          this.rememberLatestCompactBoundary(threadId, pending.previousBoundary)
+        }
+      }
     }
 
     return wrapped
@@ -761,7 +793,11 @@ export class AppServer {
       includeProjectionSnapshot: shouldIncludeProjectionSnapshot,
       canonicalProtocolAnomalyCount,
     })
+    const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
     const latestCompactBoundary = await this.resolveLatestCompactBoundaryForReplay(args.threadId)
+    const stableLatestCompactBoundary = pendingLiveCompactBoundary
+      ? (pendingLiveCompactBoundary.previousBoundary ?? null)
+      : latestCompactBoundary
 
     if (entries.length === 0) {
       return {
@@ -770,7 +806,7 @@ export class AppServer {
         latestCursor: 0,
         hasGap,
         state: stateSnapshot,
-        latestCompactBoundary,
+        latestCompactBoundary: stableLatestCompactBoundary,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
@@ -782,7 +818,7 @@ export class AppServer {
         latestCursor,
         hasGap: false,
         state: stateSnapshot,
-        latestCompactBoundary,
+        latestCompactBoundary: stableLatestCompactBoundary,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
     }
@@ -793,6 +829,9 @@ export class AppServer {
 
     const page = entries.slice(startIndex, startIndex + args.limit)
     const nextCursor = page.length > 0 ? page[page.length - 1]!.replaySeq : Math.min(args.after, latestCursor)
+    const replayCoversTail = nextCursor === latestCursor
+    const liveCompactBoundaryFromPage = replayCoversTail ? readCompactBoundaryFromReplayEntries(page) : null
+    const pendingLiveCompactBoundaryFromTail = replayCoversTail ? pendingLiveCompactBoundary?.boundary : null
 
     return {
       data: page.map((entry) => ({
@@ -804,7 +843,11 @@ export class AppServer {
       latestCursor,
       hasGap,
       state: stateSnapshot,
-      latestCompactBoundary,
+      latestCompactBoundary: replayCoversTail
+        ? (liveCompactBoundaryFromPage ?? pendingLiveCompactBoundaryFromTail ?? latestCompactBoundary)
+        : hasGap
+          ? latestCompactBoundary
+          : stableLatestCompactBoundary,
       pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
     }
   }
@@ -827,4 +870,42 @@ export class AppServer {
 
 function stripAnsiSgr(text: string): string {
   return String(text ?? '').replace(ANSI_SGR_RE, '')
+}
+
+function readCompactBoundaryFromTurnEvent(params: Record<string, unknown> | null): CompactBoundaryMeta | null {
+  if (!params) return null
+  const event = params.event
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return null
+  const eventRecord = event as Record<string, unknown>
+  if (eventRecord.type !== 'compact_boundary') return null
+  const boundary = eventRecord.boundary
+  if (!boundary || typeof boundary !== 'object' || Array.isArray(boundary)) return null
+  if ((boundary as Record<string, unknown>).schemaVersion !== 1) return null
+  return boundary as CompactBoundaryMeta
+}
+
+function readCompactBoundaryFromReplayEntries(entries: ReplayEntry[]): CompactBoundaryMeta | null {
+  const failedTurnIds = new Set<string>()
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (!entry) continue
+    const turnId = readTurnIdFromNotificationParams(entry.params ?? null)
+    if (entry.method === 'turn/failed' && turnId) {
+      failedTurnIds.add(turnId)
+      continue
+    }
+    const boundary = readCompactBoundaryFromTurnEvent(entry.params ?? null)
+    if (boundary && turnId && failedTurnIds.has(turnId)) continue
+    if (boundary) return boundary
+  }
+  return null
+}
+
+function readTurnIdFromNotificationParams(params: Record<string, unknown> | null): string | null {
+  if (!params) return null
+  if (typeof params.turnId === 'string' && params.turnId.trim()) return params.turnId
+  const turn = params.turn
+  if (!turn || typeof turn !== 'object' || Array.isArray(turn)) return null
+  const turnId = (turn as Record<string, unknown>).id
+  return typeof turnId === 'string' && turnId.trim() ? turnId : null
 }

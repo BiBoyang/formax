@@ -153,6 +153,89 @@ describe('processNotification', () => {
     )
   })
 
+  it('caches latest compact boundary from live turn events', () => {
+    const cacheLiveCompactBoundary = vi.fn()
+    const ctx = createContext({ cacheLiveCompactBoundary })
+    const boundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: createReplayTurnEventEnvelope({
+        replaySeq: 13,
+        eventId: 'evt-13',
+        event: {
+          type: 'compact_boundary',
+          boundary,
+        } as any,
+      }),
+    }
+
+    processNotification(notification, ctx)
+
+    expect(cacheLiveCompactBoundary).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      boundary,
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'apply_canonical_event',
+        event: expect.objectContaining({
+          kind: 'system_message',
+          uiKind: 'compact_boundary',
+          compactBoundary: boundary,
+        }),
+      }),
+    )
+  })
+
+  it('confirms or clears pending live compact boundaries when the turn ends', () => {
+    const commitLiveCompactBoundary = vi.fn()
+    const clearLiveCompactBoundary = vi.fn()
+    const ctx = createContext({ commitLiveCompactBoundary, clearLiveCompactBoundary })
+
+    processNotification(
+      {
+        jsonrpc: '2.0',
+        method: 'turn/completed',
+        params: {
+          replaySeq: 14,
+          eventId: 'evt-14',
+          ts: '2026-02-18T00:00:00.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
+        },
+      },
+      ctx,
+    )
+    processNotification(
+      {
+        jsonrpc: '2.0',
+        method: 'turn/failed',
+        params: {
+          replaySeq: 15,
+          eventId: 'evt-15',
+          ts: '2026-02-18T00:00:01.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-2', threadId: 'thread-1', status: 'failed' },
+          error: 'failed',
+        },
+      },
+      ctx,
+    )
+
+    expect(commitLiveCompactBoundary).toHaveBeenCalledWith({ threadId: 'thread-1', turnId: 'turn-1' })
+    expect(clearLiveCompactBoundary).toHaveBeenCalledWith({ threadId: 'thread-1', turnId: 'turn-2' })
+  })
+
   it('skips canonical projection when schemaVersion is invalid and logs invalid fields', () => {
     const ctx = createContext()
     const notification: RpcNotification = {

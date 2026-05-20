@@ -402,6 +402,259 @@ describe('AppServer', () => {
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(expectedBoundary)
   })
 
+  it('updates replay latestCompactBoundary from live compact boundary turn events', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: null,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const boundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const newerBoundary = {
+      schemaVersion: 1,
+      trigger: 'manual',
+      triggerReason: { kind: 'manual_command' },
+      preTokens: 4096,
+      summaryKind: 'transcript',
+    }
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'compact_boundary',
+        boundary,
+      },
+    })
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'assistant_delta',
+        text: 'Conversation compacted.',
+      },
+    })
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'compact_boundary',
+        boundary: newerBoundary,
+      },
+    })
+
+    const pendingBaselineReplayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((pendingBaselineReplayOut[0] as any).result.latestCompactBoundary).toBeNull()
+
+    const staleReadOut = await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    expect((staleReadOut[0] as any).result.latestCompactBoundary).toBeNull()
+
+    const baselineReplayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((baselineReplayOut[0] as any).result.latestCompactBoundary).toBeNull()
+
+    const partialReplayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1', after: 0, limit: 1 }))
+    expect((partialReplayOut[0] as any).result.latestCompactBoundary).toBeNull()
+
+    const replayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1', after: 0 }))
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(newerBoundary)
+    const nextCursor = (replayOut[0] as any).result.nextCursor
+    expect(nextCursor).toBe(3)
+    const emptyReplayAfterCursor = await server.handleMessage(
+      request(2, 'thread/replay', { threadId: 'thread-1', after: nextCursor }),
+    )
+    expect((emptyReplayAfterCursor[0] as any).result.data).toEqual([])
+    expect((emptyReplayAfterCursor[0] as any).result.latestCompactBoundary).toEqual(newerBoundary)
+    expect(readThreadCount).toBe(1)
+
+    emit('turn/failed', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'failed' },
+      error: 'compact failed before history persisted',
+    })
+
+    const replayAfterFailure = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterFailure[0] as any).result.latestCompactBoundary).toBeNull()
+    const partialFailedPage = await server.handleMessage(
+      request(3, 'thread/replay', { threadId: 'thread-1', after: 0, limit: 1 }),
+    )
+    expect((partialFailedPage[0] as any).result.latestCompactBoundary).toBeNull()
+    const replayFailedPage = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1', after: 0 }))
+    expect((replayFailedPage[0] as any).result.latestCompactBoundary).toBeNull()
+    expect(readThreadCount).toBe(2)
+  })
+
+  it('keeps live compact boundary after stale storage reads when the compact turn completes', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: null,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const boundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'compact_boundary',
+        boundary,
+      },
+    })
+
+    const staleReadOut = await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    expect((staleReadOut[0] as any).result.latestCompactBoundary).toBeNull()
+    emit('turn/completed', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
+    })
+
+    const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(boundary)
+    expect(readThreadCount).toBe(1)
+  })
+
+  it('restores previous compact boundary when a later live compact turn fails', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const previousBoundary = {
+      schemaVersion: 1,
+      trigger: 'manual',
+      triggerReason: { kind: 'manual' },
+      preTokens: 1024,
+      summaryKind: 'model_summary',
+    } as const
+    let persistedBoundary: typeof previousBoundary | null = previousBoundary
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: persistedBoundary,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    persistedBoundary = null
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      event: {
+        type: 'compact_boundary',
+        boundary: {
+          schemaVersion: 1,
+          trigger: 'auto',
+          triggerReason: { kind: 'auto_threshold' },
+          preTokens: 2048,
+          summaryKind: 'session_memory',
+        },
+      },
+    })
+    emit('turn/failed', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'failed' },
+      error: 'compact failed before history persisted',
+    })
+
+    const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(previousBoundary)
+    expect(readThreadCount).toBe(1)
+  })
+
   it('maps thread store errors on start/resume/read to rpc errors', async () => {
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -2254,6 +2507,21 @@ describe('AppServer', () => {
         event: { type: 'assistant_delta', text: `delta-${index}` },
       })
     }
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 4096,
+      summaryKind: 'session_memory',
+    }
+    emit('turn/event', {
+      threadId: 'thread-1',
+      turnId: 'turn-compact-tail',
+      eventId: 'gap-compact-tail',
+      source: 'engine',
+      ts: '2026-02-10T00:01:00.000Z',
+      event: { type: 'compact_boundary', boundary: latestCompactBoundary },
+    })
 
     const out = await server.handleMessage(
       request(2, 'thread/replay', {
@@ -2266,6 +2534,7 @@ describe('AppServer', () => {
     expect(result.hasGap).toBe(true)
     expect(result.data).toHaveLength(10)
     expect((result.data[0] as any).replaySeq).toBeGreaterThan(1)
+    expect(result.latestCompactBoundary).toEqual(latestCompactBoundary)
     expect(result.state).toEqual(
       expect.objectContaining({
         projection: expect.objectContaining({

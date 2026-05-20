@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import type { CompactBoundarySummary, RpcNotification } from '../../types'
 import {
   createInitialThreadRuntimeState,
@@ -103,16 +103,86 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     ): boolean => areCompactBoundarySummariesEqual(left, right),
     [],
   )
+  const liveCompactBoundaryByThreadRef = useRef<
+    Record<string, { turnId: string; boundary: CompactBoundarySummary; previousBoundary?: CompactBoundarySummary | null }>
+  >({})
 
   const cacheLatestCompactBoundary = useCallback(
     (threadId: string, boundary: CompactBoundarySummary | null | undefined): void => {
       if (boundary === undefined) return
       const current = latestCompactBoundaryByThreadIdRef.current[threadId] ?? null
       if (areLatestCompactBoundaryEqual(current, boundary)) return
+      const pending = liveCompactBoundaryByThreadRef.current[threadId]
+      if (
+        pending &&
+        pending.previousBoundary === undefined &&
+        !areLatestCompactBoundaryEqual(boundary, pending.boundary)
+      ) {
+        liveCompactBoundaryByThreadRef.current = {
+          ...liveCompactBoundaryByThreadRef.current,
+          [threadId]: {
+            ...pending,
+            previousBoundary: boundary,
+          },
+        }
+      }
       latestCompactBoundaryByThreadIdRef.current = withRecordValue(latestCompactBoundaryByThreadIdRef.current, threadId, boundary)
       setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, boundary))
     },
     [areLatestCompactBoundaryEqual, latestCompactBoundaryByThreadIdRef, setLatestCompactBoundaryByThreadId],
+  )
+
+  const cacheLiveCompactBoundary = useCallback(
+    (input: { threadId: string; turnId: string; boundary: CompactBoundarySummary }): void => {
+      const existing = liveCompactBoundaryByThreadRef.current[input.threadId]
+      const hasCurrentBoundary = Object.prototype.hasOwnProperty.call(
+        latestCompactBoundaryByThreadIdRef.current,
+        input.threadId,
+      )
+      const currentBoundary = hasCurrentBoundary ? (latestCompactBoundaryByThreadIdRef.current[input.threadId] ?? null) : undefined
+      const previousBoundary =
+        existing && existing.turnId === input.turnId
+          ? existing.previousBoundary
+          : currentBoundary
+      liveCompactBoundaryByThreadRef.current = {
+        ...liveCompactBoundaryByThreadRef.current,
+        [input.threadId]: {
+          turnId: input.turnId,
+          boundary: input.boundary,
+          previousBoundary,
+        },
+      }
+      cacheLatestCompactBoundary(input.threadId, input.boundary)
+    },
+    [cacheLatestCompactBoundary, latestCompactBoundaryByThreadIdRef],
+  )
+
+  const commitLiveCompactBoundary = useCallback((input: { threadId: string; turnId: string }): void => {
+    const existing = liveCompactBoundaryByThreadRef.current[input.threadId]
+    if (!existing || existing.turnId !== input.turnId) return
+    const next = { ...liveCompactBoundaryByThreadRef.current }
+    delete next[input.threadId]
+    liveCompactBoundaryByThreadRef.current = next
+    cacheLatestCompactBoundary(input.threadId, existing.boundary)
+  }, [cacheLatestCompactBoundary])
+
+  const clearLiveCompactBoundary = useCallback(
+    (input: { threadId: string; turnId: string }): void => {
+      const existing = liveCompactBoundaryByThreadRef.current[input.threadId]
+      if (!existing || existing.turnId !== input.turnId) return
+      const next = { ...liveCompactBoundaryByThreadRef.current }
+      delete next[input.threadId]
+      liveCompactBoundaryByThreadRef.current = next
+      const currentBoundary = latestCompactBoundaryByThreadIdRef.current[input.threadId] ?? null
+      const rollbackBoundary =
+        existing.previousBoundary !== undefined
+          ? existing.previousBoundary
+          : areLatestCompactBoundaryEqual(currentBoundary, existing.boundary)
+            ? null
+            : currentBoundary
+      cacheLatestCompactBoundary(input.threadId, rollbackBoundary)
+    },
+    [areLatestCompactBoundaryEqual, cacheLatestCompactBoundary, latestCompactBoundaryByThreadIdRef],
   )
 
   const handleThreadArchivedNotification = useMemo(
@@ -168,6 +238,9 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
             setAskDraftByInputId,
             setSubmitStatusByInputId,
             reduceThreadRuntimeState,
+            cacheLiveCompactBoundary,
+            commitLiveCompactBoundary,
+            clearLiveCompactBoundary,
             onThreadArchivedNotification: handleThreadArchivedNotification,
           }),
       })
@@ -175,6 +248,9 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     [
       activeThreadIdRef,
       cacheThreadMode,
+      cacheLiveCompactBoundary,
+      clearLiveCompactBoundary,
+      commitLiveCompactBoundary,
       commandByTurnRef,
       devPerfEnabled,
       dispatch,

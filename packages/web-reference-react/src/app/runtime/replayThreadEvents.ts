@@ -242,7 +242,6 @@ export async function replayThreadEvents(
     pageCount += 1
     const replay = await fetchReplayPage(after)
     latestCursor = replay.latestCursor
-    ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
     if (replay.state) {
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)
@@ -251,12 +250,14 @@ export async function replayThreadEvents(
     }
 
     if (replay.hasGap) {
+      ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
       await handleHasGapReplay(replay)
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
 
     if (shouldUseHistoryFallbackOnEmptyReplayPage({ fromStart, replay })) {
+      ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
       const loaded = await ctx.loadThreadHistory(threadId)
       if (!loaded) {
         flushCanonicalProtocolAnomaliesLog()
@@ -280,6 +281,7 @@ export async function replayThreadEvents(
         ...(entry.params === undefined ? {} : { params: entry.params }),
       })
     }
+    ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
 
     const { nextAfter, shouldContinue } = resolveReplayCursorProgress({
       after,

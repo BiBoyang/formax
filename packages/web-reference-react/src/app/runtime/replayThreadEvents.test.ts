@@ -180,6 +180,119 @@ it('caches latest compact boundary from replay responses', async () => {
   expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
 })
 
+it('caches replay latest compact boundary while replaying the live compact event', async () => {
+  const latestCompactBoundary = {
+    schemaVersion: 1 as const,
+    trigger: 'auto' as const,
+    triggerReason: { kind: 'auto_threshold' as const },
+    preTokens: 1536,
+    summaryKind: 'session_memory' as const,
+  }
+  const compactEventParams = createReplayTurnEventEnvelope({
+    replaySeq: 11,
+    eventId: 'evt-11',
+    event: {
+      type: 'compact_boundary',
+      boundary: latestCompactBoundary,
+    } as any,
+  })
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      data: [{ replaySeq: 11, method: 'turn/event', params: compactEventParams }],
+      nextCursor: 11,
+      latestCursor: 11,
+      latestCompactBoundary,
+      state: createReplayState(),
+    }),
+  )
+  const cacheLatestCompactBoundary = vi.fn()
+  const handleNotification = vi.fn()
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary, handleNotification })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+  expect(handleNotification).toHaveBeenCalledWith({
+    jsonrpc: '2.0',
+    method: 'turn/event',
+    params: compactEventParams,
+  })
+})
+
+it('keeps replay compact metadata when it differs from an in-flight compact event', async () => {
+  const previousCompactBoundary = {
+    schemaVersion: 1 as const,
+    trigger: 'manual' as const,
+    triggerReason: { kind: 'manual' as const },
+    preTokens: 1024,
+    summaryKind: 'model_summary' as const,
+  }
+  const liveCompactBoundary = {
+    schemaVersion: 1 as const,
+    trigger: 'auto' as const,
+    triggerReason: { kind: 'auto_threshold' as const },
+    preTokens: 1536,
+    summaryKind: 'session_memory' as const,
+  }
+  const compactEventParams = createReplayTurnEventEnvelope({
+    replaySeq: 11,
+    eventId: 'evt-11',
+    event: {
+      type: 'compact_boundary',
+      boundary: liveCompactBoundary,
+    } as any,
+  })
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      data: [{ replaySeq: 11, method: 'turn/event', params: compactEventParams }],
+      nextCursor: 11,
+      latestCursor: 11,
+      latestCompactBoundary: previousCompactBoundary,
+      state: createReplayState(),
+    }),
+  )
+  const cacheLatestCompactBoundary = vi.fn()
+  const handleNotification = vi.fn()
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary, handleNotification })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, previousCompactBoundary)
+  expect(handleNotification).toHaveBeenCalledWith({
+    jsonrpc: '2.0',
+    method: 'turn/event',
+    params: compactEventParams,
+  })
+})
+
+it('caches replay compact metadata before empty replay history fallback returns', async () => {
+  const latestCompactBoundary = {
+    schemaVersion: 1 as const,
+    trigger: 'manual' as const,
+    triggerReason: { kind: 'manual' as const },
+    preTokens: 1024,
+    summaryKind: 'model_summary' as const,
+  }
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      latestCompactBoundary,
+      state: createReplayState(),
+    }),
+  )
+  const cacheLatestCompactBoundary = vi.fn()
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+})
+
 function createReplayTurnEvent(replaySeq: number, method: ReplayTurnEventMethod = 'turn/started'): ReplayTurnEventPayload {
   return {
     replaySeq,
