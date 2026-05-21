@@ -6,6 +6,7 @@ import {
   getContinuationMessagesAfterLatestCompactBoundary,
 } from './compact'
 import { CONTEXT_COLLAPSE_PREFIX, collapseRequestHistory } from './contextCollapse'
+import { buildCompressionProjectionGoldenFixture } from './compressionProjectionFixture'
 import { buildContextProjection } from './contextProjection'
 import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
 import { SNIP_STUB_PREFIX } from './snip'
@@ -126,5 +127,35 @@ describe('context compression projection baseline', () => {
         keepLastTurns: 1,
       }),
     )
+  })
+
+  it('builds a reusable golden fixture for compression surface parity', () => {
+    const fixture = buildCompressionProjectionGoldenFixture()
+
+    const projection = buildContextProjection({
+      history: fixture.rawTranscript,
+      durableState: fixture.durableState,
+    })
+
+    expect(projection.rawTranscript).toBe(fixture.rawTranscript)
+    expect(projection.uiScrollback).toBe(fixture.rawTranscript)
+    expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fixture.compactBoundaryFingerprint)
+    expect(projection.facts.appliedDurableStages).toEqual(['snip'])
+    expect(projection.modelFacingBaseline).toEqual([
+      textMessage('user', buildCompactionSummaryUserText('Fixture compact summary')),
+      textMessage('user', 'recent user request'),
+      textMessage('assistant', 'recent assistant answer'),
+    ])
+    expect(fixture.requestCollapseEvent).toEqual({
+      phase: 'initial',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 256,
+      recapFingerprint: 'fixture-collapse-recap',
+    })
+    expect(fixture.pendingSessionMemoryRestore).toMatchObject({
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/context.ts'],
+    })
   })
 })

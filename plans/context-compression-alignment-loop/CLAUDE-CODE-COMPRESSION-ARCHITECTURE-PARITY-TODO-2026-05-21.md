@@ -94,7 +94,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 Tests first:
 
-- [ ] Add fixture helper for raw transcript + compact boundary + request collapse event + pending restore event.
+- [x] Add fixture helper for raw transcript + compact boundary + request collapse event + pending restore event.
 - [x] Add current-baseline test: model-facing projection starts after latest compact boundary.
 - [x] Add current-baseline test: request-only snip changes request history but not persisted history.
 - [x] Add current-baseline test: request collapse metadata remains diagnostics-only and does not insert transcript rows.
@@ -104,8 +104,8 @@ Tests first:
 
 Implementation:
 
-- [ ] Keep runtime behavior unchanged unless a test exposes an already-decided bug.
-- [ ] Put fixture helpers near existing context/session tests; avoid Web-only semantics in core helpers.
+- [x] Keep runtime behavior unchanged unless a test exposes an already-decided bug.
+- [x] Put fixture helpers near existing context/session tests; avoid Web-only semantics in core helpers.
 
 Validation:
 
