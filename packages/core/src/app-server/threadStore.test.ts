@@ -4,7 +4,13 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import * as sessionSave from '../features/repl/sessionSave/index.js'
 import { findSessionFileBySessionId, SessionWriter } from '../features/repl/sessionSave/index.js'
+import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../features/repl/sessionSave/durableSnipStoreEvents.js'
 import { writeSessionMemoryFile } from '../features/repl/sessionSave/sessionMemorySidecar.js'
+import {
+  buildAutoCompactKeepStrategy,
+  buildCompactBoundaryMessage,
+  fingerprintCompactBoundaryMessage,
+} from '../chat/context/compact.js'
 import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
 async function createStore() {
@@ -983,6 +989,54 @@ describe('ThreadStore', () => {
     expect(String((resumed.nextTurnInjectedBlocks?.[0] as any)?.text ?? '')).toContain(
       'first resume prompt from jsonl',
     )
+  })
+
+  it('replays durable snip events into thread projection facts', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+    })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      boundary,
+      { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'older assistant detail' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'recent assistant detail' }] },
+    ] as any)
+    await writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+      schemaVersion: 1,
+      source: 'request_snip',
+      compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(boundary),
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'remove older assistant detail',
+          removedMessageFingerprints: ['older-assistant-fingerprint'],
+        },
+      ],
+    })
+    await writer.shutdown()
+
+    const read = await store.readThread(thread.id)
+    const messages = await store.listThreadMessages({ threadId: thread.id, limit: 20 })
+
+    expect(read.durableSnip).toEqual({
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
+      removalRangeCount: 1,
+    })
+    expect(messages.durableSnip).toEqual(read.durableSnip)
   })
 
   it('supports pagination in thread/list', async () => {

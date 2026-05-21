@@ -36,10 +36,13 @@ export type DurableSnipRemoval = {
   startIndex: number
   endIndexExclusive: number
   reason?: string
+  removedMessageIds?: string[]
+  removedMessageFingerprints?: string[]
 }
 
 export type DurableSnipState = {
   schemaVersion: 1
+  activeCompactBoundaryFingerprint?: string | null
   removals: DurableSnipRemoval[]
 }
 
@@ -306,6 +309,10 @@ function normalizeDurableSnipRemovals(args: {
       startIndex,
       endIndexExclusive,
       ...(removal.reason ? { reason: removal.reason } : {}),
+      ...(Array.isArray(removal.removedMessageIds) ? { removedMessageIds: removal.removedMessageIds } : {}),
+      ...(Array.isArray(removal.removedMessageFingerprints)
+        ? { removedMessageFingerprints: removal.removedMessageFingerprints }
+        : {}),
     })
   }
   return out

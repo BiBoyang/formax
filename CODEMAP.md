@@ -36,6 +36,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Session event recovery for stale inputs: `packages/core/src/app-server/store/sessionEventReader.ts`
 - Shared persisted tool-event reconstruction (used by app-server + REPL resume): `packages/core/src/features/repl/sessionSave/persistedToolEvents.ts`
 - Durable context-collapse store replay reader: `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
+- Durable snip removal replay reader: `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
 - Primary tests: `packages/core/src/app-server/*.test.ts`, `packages/core/src/app-server/store/*.test.ts`, `packages/core/src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)

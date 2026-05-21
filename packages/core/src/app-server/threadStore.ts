@@ -15,7 +15,11 @@ import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.
 import type { PromptBlock } from '../prompts/index.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { buildActiveHistoryFromSessionReplay, type CompactBoundaryMeta } from '../chat/context/compact.js'
-import { buildContextProjection, type DurableSnipProjectionFact } from '../chat/context/contextProjection.js'
+import {
+  buildContextProjection,
+  type DurableSnipProjectionFact,
+  type DurableSnipState,
+} from '../chat/context/contextProjection.js'
 import type { InputResolvedPayload } from './protocol/input.js'
 import type {
   Thread,
@@ -31,6 +35,7 @@ import {
   readLatestRequestCollapseEventFromSession,
   readStaleInputsFromSession,
 } from './store/sessionEventReader.js'
+import { readDurableSnipStateFromSession } from '../features/repl/sessionSave/durableSnipStoreEvents.js'
 import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
 import {
   FileThreadGroupVisibilityStore,
@@ -510,8 +515,12 @@ function toThreadDurableSnipSummary(fact: DurableSnipProjectionFact): ThreadDura
 function buildThreadProjectionFacts(args: {
   replay: Awaited<ReturnType<typeof readSessionFile>>
   latestRequestCollapseEvent: Awaited<ReturnType<typeof readLatestRequestCollapseEventFromSession>>
+  durableSnipState?: DurableSnipState | null
 }): ThreadProjectionFacts {
-  const projection = buildContextProjection({ history: args.replay.history as any })
+  const projection = buildContextProjection({
+    history: args.replay.history as any,
+    ...(args.durableSnipState ? { durableState: { snip: args.durableSnipState } } : {}),
+  })
   return {
     latestCompactBoundary: projection.facts.latestCompactBoundary,
     durableSnip: toThreadDurableSnipSummary(projection.durableState.snip),
@@ -616,11 +625,12 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs, replay, latestRequestCollapse] = await Promise.all([
+    const [summary, staleInputs, replay, latestRequestCollapse, durableSnipState] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
       readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
+      readDurableSnipStateFromSession({ filePath }),
     ])
     const activeHistory = buildActiveHistoryFromSessionReplay(replay.history)
     const initialRestoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
@@ -650,6 +660,7 @@ export class ThreadStore {
     const projectionFacts = buildThreadProjectionFacts({
       replay,
       latestRequestCollapseEvent: latestRequestCollapse,
+      durableSnipState,
     })
 
     return {
@@ -745,16 +756,18 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, transcriptPreview, replay, latestRequestCollapse] = await Promise.all([
+    const [summary, transcriptPreview, replay, latestRequestCollapse, durableSnipState] = await Promise.all([
       readSessionSummary(filePath),
       readSessionPreview(filePath),
       readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
+      readDurableSnipStateFromSession({ filePath }),
     ])
 
     const projectionFacts = buildThreadProjectionFacts({
       replay,
       latestRequestCollapseEvent: latestRequestCollapse,
+      durableSnipState,
     })
 
     return {
@@ -787,9 +800,10 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(params.threadId)
 
-    const [replay, latestRequestCollapseEvent] = await Promise.all([
+    const [replay, latestRequestCollapseEvent, durableSnipState] = await Promise.all([
       readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
+      readDurableSnipStateFromSession({ filePath }),
     ])
     const toolUseInputById = extractToolUseInputById(
       replay.history as Array<{ role?: unknown; content?: unknown }>,
@@ -901,6 +915,7 @@ export class ThreadStore {
     const projectionFacts = buildThreadProjectionFacts({
       replay,
       latestRequestCollapseEvent,
+      durableSnipState,
     })
 
     return {

@@ -67,7 +67,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 ### 明显未对齐
 
-- [ ] `snip` 缺 durable boundary / metadata / removed UUID replay / parent relink。
+- [ ] `snip` 已补 durable event replay skeleton 与 removed id/fingerprint metadata；仍缺 request snip 写入 durable boundary、完整 removed UUID replay、parent relink。
 - [x] `context collapse` 已补 committed store / snapshot / restore replay / overflow drain；后续剩余为 surface convergence 与更细策略对齐。
 - [ ] `tool_result_budget` / content replacement 缺 Claude Code-style durable side-state；当前明确 deferred，不阻塞 Batch 1/2。
 - [x] 已有最小统一 durable compression projection owner：`buildContextProjection()` 当前收敛 raw transcript、UI scrollback、latest compact continuation model-facing baseline、diagnostics projection、durable-state 占位 facts；后续还需把 runtime callers 逐步迁入。
