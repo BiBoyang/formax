@@ -367,6 +367,72 @@ describe('TurnRunner', () => {
     expect(JSON.stringify(replay.history)).not.toContain('Older tool result cleared by microcompact')
   })
 
+  it('uses compact-boundary continuation for app-server request history while preserving raw replay history', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seededHistory: ChatHistory = [
+      { role: 'user', content: [{ type: 'text', text: 'pre-boundary prompt' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'pre-boundary answer' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'manual',
+            preTokens: 4096,
+            summaryKind: 'model_summary',
+          },
+        },
+      } as any,
+      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'post-boundary answer' }] },
+    ]
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot(seededHistory)
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue after compact' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const callArgs = engineRunTurn.mock.calls.find(([args]) => Array.isArray(args?.requestHistory))?.[0]
+    expect(callArgs).toBeTruthy()
+    expect(JSON.stringify(callArgs.history)).toContain('pre-boundary prompt')
+    expect(JSON.stringify(callArgs.requestHistory)).not.toContain('pre-boundary prompt')
+    expect(JSON.stringify(callArgs.requestHistory)).not.toContain('pre-boundary answer')
+    expect(JSON.stringify(callArgs.requestHistory)).toContain('compacted summary')
+    expect(JSON.stringify(callArgs.requestHistory)).toContain('post-boundary answer')
+
+    const replay = await readSessionFile(filePath!)
+    expect(JSON.stringify(replay.history)).toContain('pre-boundary prompt')
+    expect(JSON.stringify(replay.history)).toContain('continue after compact')
+  })
+
   it('covers private runner utilities and guard branches', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

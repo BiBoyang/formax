@@ -181,7 +181,7 @@ Implementation:
 - [x] Add durable snip state shape.
 - [x] Add replay/load projection support.
 - [x] Route model-facing request projection through durable snip state before request-only reducers.
-- [ ] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
+- [x] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
 
 Validation:
 
@@ -190,7 +190,10 @@ Validation:
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/prune.test.ts`
 - [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
 - [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- [ ] Context/session/app-server/Web replay targeted tests.
+- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts`
+- [x] `bun run test -- packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/replayStateSnapshot.test.ts packages/core/src/app-server/threadStateReducer.test.ts`
+- [x] `cd packages/web-reference-react && bun run test -- src/app/core/replayMachine.test.ts src/app/core/threadCache.test.ts src/store.test.ts src/eventAdapters.test.ts`
+- [x] Context/session/app-server/Web replay targeted tests.
 - [x] `bun run type-check`
 - [ ] Mandatory codex review before commit.
 
