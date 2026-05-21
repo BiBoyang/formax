@@ -129,25 +129,25 @@ Validation:
 
 Tests first:
 
-- [ ] `thread/resume` 返回 fixture-derived `latestCompactBoundary`。
-- [ ] `thread/read` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [ ] `thread/messages` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [ ] `thread/replay` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [ ] 四个 surface 返回同一份 durable snip summary。
-- [ ] 四个 surface 返回同一份 latest request-collapse fact。
-- [ ] `thread/resume` 返回 pending session-memory restore summary。
-- [ ] Replay pagination / cached facts 不把 omitted durable snip 当 authoritative null。
-- [ ] Web 只缓存 RPC compression facts，不从 transcript rows 反推 compact/snip/collapse state。
-- [ ] Web 遇到 transcript rows 中 compact-looking text 但 RPC facts 为 null 时，不自行推导 compression facts。
-- [ ] Web 遇到 omitted durable snip 时，不覆盖已有 authoritative durable snip fact。
+- [x] `thread/resume` 返回 fixture-derived `latestCompactBoundary`。
+- [x] `thread/read` 返回同一份 fixture-derived `latestCompactBoundary`。
+- [x] `thread/messages` 返回同一份 fixture-derived `latestCompactBoundary`。
+- [x] `thread/replay` 返回同一份 fixture-derived `latestCompactBoundary`。
+- [x] 四个 surface 返回同一份 durable snip summary。
+- [x] 四个 surface 返回同一份 latest request-collapse fact。
+- [x] `thread/resume` 返回 pending session-memory restore summary。
+- [x] Replay pagination / cached facts 不把 omitted durable snip 当 authoritative null。
+- [x] Web 只缓存 RPC compression facts，不从 transcript rows 反推 compact/snip/collapse state。
+- [x] Web 遇到 transcript rows 中 compact-looking text 但 RPC facts 为 null 时，不自行推导 compression facts。
+- [x] Web 遇到 omitted durable snip 时，不覆盖已有 authoritative durable snip fact。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts`
-- [ ] Web targeted tests covering RPC/cache compression facts if Web compression facts remain in Gate 1 scope.
-- [ ] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [ ] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [ ] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
+- [x] `bun run test -- packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts`
+- [x] Web targeted tests covering RPC/cache compression facts if Web compression facts remain in Gate 1 scope.
+- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
+- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
+- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
 - [ ] commit。
 
 ## Gate 2A: Message Identity Groundwork

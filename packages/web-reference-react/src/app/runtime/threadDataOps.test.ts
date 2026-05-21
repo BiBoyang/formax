@@ -337,6 +337,87 @@ describe('threadDataOps', () => {
     expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(requestCollapse)
   })
 
+  it('preserves cached durable snip when a history response omits the field', async () => {
+    const durableSnip = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 2,
+      droppedOrphanToolBlockCount: 1,
+      removalRangeCount: 1,
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      durableSnipByThreadIdRef: {
+        current: { 'thread-1': durableSnip },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.setDurableSnipByThreadId).not.toHaveBeenCalled()
+    expect(ctx.durableSnipByThreadIdRef.current['thread-1']).toEqual(durableSnip)
+  })
+
+  it('does not infer compression facts from compact-looking transcript text when RPC facts are null', async () => {
+    const cachedBoundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'model_summary',
+    } as const
+    const cachedDurableSnip = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
+      removalRangeCount: 1,
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
+      activeThreadIdRef: { current: 'thread-1' },
+      latestCompactBoundaryByThreadIdRef: {
+        current: { 'thread-1': cachedBoundary },
+      },
+      durableSnipByThreadIdRef: {
+        current: { 'thread-1': cachedDurableSnip },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [
+        {
+          id: 'm1',
+          kind: 'message',
+          role: 'assistant',
+          text: 'metadata-looking compactBoundary durable_snip_applied request_collapse_applied',
+        },
+      ],
+      nextCursor: null,
+      latestCompactBoundary: null,
+      durableSnip: null,
+      latestRequestCollapse: null,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toBeNull()
+    expect(ctx.durableSnipByThreadIdRef.current['thread-1']).toBeNull()
+    expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1'] ?? null).toBeNull()
+    expect(JSON.stringify(ctx.logsByThreadIdRef.current['thread-1'])).not.toContain('latestCompactBoundary')
+  })
+
   it('loads earlier history from refs when transcript source is history', async () => {
     const ctx = createBaseContext({
       request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
