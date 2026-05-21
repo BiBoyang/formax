@@ -62,7 +62,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 - [ ] Compact preserved segment 仍主要依赖 snapshot/fingerprint，缺少 Claude Code-style parent-chain relink；已补 full continuation `messageFingerprints` 作为 crash-safety guard。
 - [x] App-server/Web/replay 对 compact boundary 的展示与缓存已打通，并已补 golden projection fixture 覆盖 RPC facts。
-- [ ] Pending session-memory restore 大体有 dispatch-time consumption，但 `/compact` command path 仍需要专项确认。
+- [x] Pending session-memory restore 已覆盖 dispatch-time consumption 与 `/compact` command path 清理语义；对应 contract、learning note、app-server tests 已存在。
 - [x] Request-collapse event 按 latest compact boundary generation 过滤/清理，避免 compact 后继续暴露 pre-compact collapse metadata。
 
 ### 明显未对齐
