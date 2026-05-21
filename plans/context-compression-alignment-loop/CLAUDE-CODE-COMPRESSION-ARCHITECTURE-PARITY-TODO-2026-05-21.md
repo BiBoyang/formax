@@ -86,7 +86,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 验证：
 
-- [ ] docs-only diff review。
+- [x] docs-only diff review。
 
 ### Batch 1: Golden Projection Fixture Skeleton
 
@@ -115,7 +115,7 @@ Validation:
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts`
 - [x] `bun run test -- packages/core/src/app-server/server.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
 - [x] `npm --prefix packages/web-reference-react run test -- src/app/core/rpcContracts.test.ts`
-- [ ] `bun run test -- packages/core/src/chat/context packages/core/src/features/repl/sessionSave packages/core/src/app-server`
+- [x] `bun run test -- packages/core/src/chat/context packages/core/src/features/repl/sessionSave packages/core/src/app-server`
 
 ### Batch 2: Durable Projection Owner Design
 
