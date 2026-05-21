@@ -89,7 +89,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Durable context-collapse committed entry/snapshot schema: `packages/core/src/chat/context/contextCollapseStore.ts`
 - Shared query-time middle-layer strategy stack (`microcompact` / `prune` / `collapse` execution + facts): `packages/core/src/chat/context/middleLayerStrategyStack.ts`
 - Shared runtime request projection adapter (persisted history vs request history/user for app-server + SDK): `packages/core/src/chat/context/turnRequestProjection.ts`
-- Message identity / fingerprint helpers for compression projection diagnostics and compact preserved segments: `packages/core/src/chat/context/compact.ts`
+- Message identity / fingerprint helpers for compression projection diagnostics, compact preserved segments, and preserved-tail relink: `packages/core/src/chat/context/compact.ts`
 - Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`
 - Independent request-time snip reducer for older assistant text messages + durable identity/fingerprint removal metadata: `packages/core/src/chat/context/snip.ts`
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`

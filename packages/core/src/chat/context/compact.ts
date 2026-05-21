@@ -99,6 +99,10 @@ export type CompactPreservedSegment = {
   tailFingerprint: string | null
   messageFingerprints?: string[]
   messageIdentities?: PromptMessageIdentity[]
+  summaryIdentity?: PromptMessageIdentity
+  headIdentity?: PromptMessageIdentity | null
+  anchorIdentity?: PromptMessageIdentity | null
+  tailIdentity?: PromptMessageIdentity | null
 }
 
 export type PromptMessageIdentitySource = 'explicit' | 'legacy_fallback'
@@ -535,7 +539,11 @@ export function stripCompactBoundaryMessages(messages: PromptMessage[]): PromptM
 export function getContinuationMessagesAfterLatestCompactBoundary(messages: PromptMessage[]): PromptMessage[] {
   const latestBoundaryIndex = findLatestCompactBoundaryIndex(messages)
   if (latestBoundaryIndex < 0) return stripCompactBoundaryMessages(messages)
-  return stripCompactBoundaryMessages(messages.slice(latestBoundaryIndex + 1))
+  return relinkLatestCompactPreservedContinuation({
+    history: messages,
+    boundaryIndex: latestBoundaryIndex,
+    continuationMessages: stripCompactBoundaryMessages(messages.slice(latestBoundaryIndex + 1)),
+  })
 }
 
 export function buildActiveHistoryFromSessionReplay(messages: PromptMessage[]): PromptMessage[] {
@@ -604,8 +612,10 @@ export function buildCompactPreservedSegmentMeta(args: {
   preservedTail: PromptMessage[]
 }): CompactPreservedSegment {
   const head = args.preservedTail[0] ?? null
+  const anchor = args.preservedTail.length > 0 ? args.preservedTail[Math.floor((args.preservedTail.length - 1) / 2)]! : null
   const tail = args.preservedTail[args.preservedTail.length - 1] ?? null
   const continuationMessages = [args.summaryMessage, ...args.preservedTail]
+  const messageIdentities = continuationMessages.map((message, index) => buildPromptMessageIdentity({ message, index }))
   return {
     schemaVersion: 1,
     continuationMessageCount: 1 + args.preservedTail.length,
@@ -614,8 +624,116 @@ export function buildCompactPreservedSegmentMeta(args: {
     headFingerprint: head ? fingerprintPromptMessage(head) : null,
     tailFingerprint: tail ? fingerprintPromptMessage(tail) : null,
     messageFingerprints: continuationMessages.map((message) => fingerprintPromptMessage(message)),
-    messageIdentities: continuationMessages.map((message, index) => buildPromptMessageIdentity({ message, index })),
+    messageIdentities,
+    summaryIdentity: messageIdentities[0]!,
+    headIdentity: head ? messageIdentities[1]! : null,
+    anchorIdentity: anchor ? buildPromptMessageIdentity({ message: anchor, index: args.preservedTail.indexOf(anchor) + 1 }) : null,
+    tailIdentity: tail ? messageIdentities[messageIdentities.length - 1]! : null,
   }
+}
+
+function relinkLatestCompactPreservedContinuation(args: {
+  history: PromptMessage[]
+  boundaryIndex: number
+  continuationMessages: PromptMessage[]
+}): PromptMessage[] {
+  const boundary = readCompactBoundaryMeta(args.history[args.boundaryIndex])
+  const preservedSegment = boundary?.preservedSegment
+  if (!preservedSegment || preservedSegment.preservedTailMessageCount <= 0) return args.continuationMessages
+
+  const preservedPrefix = args.continuationMessages.slice(0, preservedSegment.continuationMessageCount)
+  if (continuationMatchesPreservedSegment({ boundary, continuationMessages: preservedPrefix })) {
+    return args.continuationMessages
+  }
+
+  const summaryMessage = args.continuationMessages[0]
+  if (!summaryMessage || fingerprintPromptMessage(summaryMessage) !== preservedSegment.summaryFingerprint) {
+    return args.continuationMessages
+  }
+  const expectedTailRefs = resolvePreservedTailRefs(preservedSegment)
+
+  const preBoundaryMessages = args.history.slice(0, args.boundaryIndex)
+  const relinkedTail =
+    expectedTailRefs.length === preservedSegment.preservedTailMessageCount
+      ? resolveTailMessagesByRefs({ refs: expectedTailRefs, preBoundaryMessages })
+      : resolveLegacyHeadTailRange({ preservedSegment, preBoundaryMessages })
+  if (!relinkedTail) return args.continuationMessages
+
+  const existingAfterSummary = args.continuationMessages.slice(1)
+  const presenceRefs =
+    expectedTailRefs.length === preservedSegment.preservedTailMessageCount
+      ? expectedTailRefs
+      : relinkedTail.map((message) => ({ fingerprint: fingerprintPromptMessage(message) }))
+  if (existingAfterSummary.some((message) => presenceRefs.some((ref) => messageHasPreservedRef(message, ref)))) {
+    return args.continuationMessages
+  }
+
+  return [summaryMessage, ...relinkedTail, ...existingAfterSummary]
+}
+
+type PreservedMessageRef = PromptMessageIdentity | { fingerprint: string }
+
+function resolveTailMessagesByRefs(args: {
+  refs: PreservedMessageRef[]
+  preBoundaryMessages: PromptMessage[]
+}): PromptMessage[] | null {
+  const out: PromptMessage[] = []
+  for (const ref of args.refs) {
+    const matches = args.preBoundaryMessages.filter((message) => messageMatchesPreservedRef(message, ref))
+    if (matches.length !== 1) return null
+    out.push(matches[0]!)
+  }
+  return out
+}
+
+function resolveLegacyHeadTailRange(args: {
+  preservedSegment: CompactPreservedSegment
+  preBoundaryMessages: PromptMessage[]
+}): PromptMessage[] | null {
+  const count = args.preservedSegment.preservedTailMessageCount
+  if (count <= 0 || !args.preservedSegment.headFingerprint || !args.preservedSegment.tailFingerprint) return null
+  const matches: PromptMessage[][] = []
+  for (let start = 0; start <= args.preBoundaryMessages.length - count; start += 1) {
+    const candidate = args.preBoundaryMessages.slice(start, start + count)
+    if (
+      fingerprintPromptMessage(candidate[0]!) === args.preservedSegment.headFingerprint &&
+      fingerprintPromptMessage(candidate[candidate.length - 1]!) === args.preservedSegment.tailFingerprint
+    ) {
+      matches.push(candidate)
+    }
+  }
+  return matches.length === 1 ? matches[0]! : null
+}
+
+function resolvePreservedTailRefs(preservedSegment: CompactPreservedSegment): PreservedMessageRef[] {
+  const identities = preservedSegment.messageIdentities?.slice(1)
+  if (Array.isArray(identities) && identities.length > 0) return identities
+  const fingerprints = preservedSegment.messageFingerprints?.slice(1)
+  if (Array.isArray(fingerprints) && fingerprints.length > 0) {
+    return fingerprints.map((fingerprint) => ({ fingerprint }))
+  }
+  return []
+}
+
+function messageMatchesPreservedRef(message: PromptMessage, ref: PreservedMessageRef): boolean {
+  if ('id' in ref && ref.source === 'explicit') {
+    const identity = readPromptMessageIdentity(message)
+    return Boolean(
+      identity &&
+        identity.source === 'explicit' &&
+        identity.id === ref.id &&
+        ref.fingerprint === fingerprintPromptMessage(message),
+    )
+  }
+  return fingerprintPromptMessage(message) === ref.fingerprint
+}
+
+function messageHasPreservedRef(message: PromptMessage, ref: PreservedMessageRef): boolean {
+  if ('id' in ref && ref.source === 'explicit') {
+    const identity = readPromptMessageIdentity(message)
+    return Boolean(identity && identity.source === 'explicit' && identity.id === ref.id)
+  }
+  return messageMatchesPreservedRef(message, ref)
 }
 
 export function continuationMatchesPreservedSegment(args: {
@@ -628,6 +746,14 @@ export function continuationMatchesPreservedSegment(args: {
   const summaryMessage = args.continuationMessages[0]
   if (!summaryMessage) return false
   if (fingerprintPromptMessage(summaryMessage) !== preservedSegment.summaryFingerprint) return false
+
+  const messageIdentities = preservedSegment.messageIdentities
+  if (Array.isArray(messageIdentities)) {
+    if (messageIdentities.length !== args.continuationMessages.length) return false
+    return args.continuationMessages.every((message, index) =>
+      messageMatchesPreservedRef(message, messageIdentities[index]!),
+    )
+  }
 
   const messageFingerprints = preservedSegment.messageFingerprints
   if (Array.isArray(messageFingerprints)) {

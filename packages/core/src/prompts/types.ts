@@ -103,6 +103,34 @@ export type PromptMessageMeta = {
         fingerprint: string
         source: 'explicit' | 'legacy_fallback'
       }>
+      summaryIdentity?: {
+        schemaVersion: 1
+        id: string
+        parentId?: string | null
+        fingerprint: string
+        source: 'explicit' | 'legacy_fallback'
+      }
+      headIdentity?: {
+        schemaVersion: 1
+        id: string
+        parentId?: string | null
+        fingerprint: string
+        source: 'explicit' | 'legacy_fallback'
+      } | null
+      anchorIdentity?: {
+        schemaVersion: 1
+        id: string
+        parentId?: string | null
+        fingerprint: string
+        source: 'explicit' | 'legacy_fallback'
+      } | null
+      tailIdentity?: {
+        schemaVersion: 1
+        id: string
+        parentId?: string | null
+        fingerprint: string
+        source: 'explicit' | 'legacy_fallback'
+      } | null
     }
   }
 }

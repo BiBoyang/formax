@@ -73,6 +73,14 @@ describe('runCompactFlow', () => {
       headFingerprint: expect.any(String),
       tailFingerprint: expect.any(String),
       messageFingerprints: [expect.any(String), expect.any(String)],
+      messageIdentities: [
+        expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+        expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      ],
+      summaryIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      headIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      anchorIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      tailIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
     })
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })
     expect(onLifecycle).toHaveBeenNthCalledWith(2, { type: 'compact_succeeded', source: 'manual' })

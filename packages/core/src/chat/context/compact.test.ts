@@ -13,6 +13,7 @@ import {
   estimateCompactRehydrationCost,
   findLatestCompactBoundary,
   findLatestCompactBoundaryIndex,
+  fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
   buildSessionReplayHistoryWithActiveContinuation,
   isCompactBoundaryMessage,
@@ -460,6 +461,154 @@ describe('compaction summary helpers', () => {
     ])
   })
 
+  it('relinks a missing preserved tail from pre-boundary history before later continuation messages', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved assistant'), txt('user', 'preserved user')]
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail }),
+    })
+    const nextPrompt = txt('user', 'next prompt')
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, summary, nextPrompt])).toEqual([
+      summary,
+      ...preservedTail,
+      nextPrompt,
+    ])
+  })
+
+  it('falls back to preserved fingerprints for old boundaries without identity metadata', () => {
+    const summary = txt('user', 'compact summary')
+    const tail = txt('assistant', 'old boundary tail')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: fingerprintPromptMessage(summary),
+        headFingerprint: fingerprintPromptMessage(tail),
+        tailFingerprint: fingerprintPromptMessage(tail),
+        messageFingerprints: [fingerprintPromptMessage(summary), fingerprintPromptMessage(tail)],
+      },
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([tail, boundary, summary, txt('user', 'after compact')])).toEqual([
+      summary,
+      tail,
+      txt('user', 'after compact'),
+    ])
+  })
+
+  it('falls back to head/tail fingerprints for old multi-message boundaries', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'legacy head'), txt('user', 'legacy middle'), txt('assistant', 'legacy tail')]
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 4,
+        preservedTailMessageCount: 3,
+        summaryFingerprint: fingerprintPromptMessage(summary),
+        headFingerprint: fingerprintPromptMessage(preservedTail[0]!),
+        tailFingerprint: fingerprintPromptMessage(preservedTail[2]!),
+      },
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, summary, txt('assistant', 'same role after compact')])).toEqual([
+      summary,
+      ...preservedTail,
+      txt('assistant', 'same role after compact'),
+    ])
+  })
+
+  it('uses explicit identities before treating same-content continuation messages as preserved tail', () => {
+    const summary = txt('user', 'compact summary')
+    const tail: PromptMessage = {
+      ...txt('assistant', 'repeat content'),
+      meta: {
+        messageIdentity: {
+          schemaVersion: 1,
+          id: 'preserved-tail-id',
+          parentId: null,
+          fingerprint: fingerprintPromptMessage(txt('assistant', 'repeat content')),
+          source: 'explicit',
+        },
+      },
+    }
+    const sameContentLater = txt('assistant', 'repeat content')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail: [tail] }),
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([tail, boundary, summary, sameContentLater])).toEqual([
+      summary,
+      tail,
+      sameContentLater,
+    ])
+  })
+
+  it('skips relink when a drifted continuation message already carries the preserved explicit identity', () => {
+    const summary = txt('user', 'compact summary')
+    const identity = {
+      schemaVersion: 1 as const,
+      id: 'preserved-tail-id',
+      parentId: null,
+      fingerprint: fingerprintPromptMessage(txt('assistant', 'original tail')),
+      source: 'explicit' as const,
+    }
+    const tail: PromptMessage = {
+      ...txt('assistant', 'original tail'),
+      meta: { messageIdentity: identity },
+    }
+    const driftedTail: PromptMessage = {
+      ...txt('assistant', 'drifted tail'),
+      meta: { messageIdentity: identity },
+    }
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail: [tail] }),
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([tail, boundary, summary, driftedTail])).toEqual([
+      summary,
+      driftedTail,
+    ])
+  })
+
+  it('does not relink when the preserved tail anchor is missing', () => {
+    const summary = txt('user', 'compact summary')
+    const tail = txt('assistant', 'preserved tail')
+    const missingBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail: [tail] }),
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([missingBoundary, summary, txt('user', 'after compact')])).toEqual([
+      summary,
+      txt('user', 'after compact'),
+    ])
+  })
+
   it('rebuilds authoritative replay history from active continuation without dropping the latest boundary', () => {
     const boundary = buildCompactBoundaryMessage({
       trigger: 'manual',
@@ -650,6 +799,10 @@ describe('compaction summary helpers', () => {
         source: 'legacy_fallback',
       },
     ])
+    expect(preservedSegment.summaryIdentity).toEqual(preservedSegment.messageIdentities?.[0])
+    expect(preservedSegment.headIdentity).toEqual(preservedSegment.messageIdentities?.[1])
+    expect(preservedSegment.anchorIdentity).toEqual(preservedSegment.messageIdentities?.[1])
+    expect(preservedSegment.tailIdentity).toEqual(preservedSegment.messageIdentities?.[1])
   })
 
   it('builds a default rehydration plan from mode and plan-path state', () => {

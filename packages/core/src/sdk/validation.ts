@@ -92,6 +92,10 @@ const promptMessageSchema = z
               tailFingerprint: z.string().nullable(),
               messageFingerprints: z.array(z.string()).optional(),
               messageIdentities: z.array(compactPreservedSegmentMessageIdentitySchema).optional(),
+              summaryIdentity: compactPreservedSegmentMessageIdentitySchema.optional(),
+              headIdentity: compactPreservedSegmentMessageIdentitySchema.nullable().optional(),
+              anchorIdentity: compactPreservedSegmentMessageIdentitySchema.nullable().optional(),
+              tailIdentity: compactPreservedSegmentMessageIdentitySchema.nullable().optional(),
             }).optional(),
           })
           .optional(),

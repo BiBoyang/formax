@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
+  buildCompactPreservedSegmentMeta,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
@@ -499,6 +500,46 @@ describe('buildContextProjection', () => {
       applied: true,
       reason: 'applied durable snip removals',
       removedMessageCount: 1,
+    })
+  })
+
+  it('relinks compact preserved segment before applying durable snip replay', () => {
+    const summary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const preservedTail = textMessage('assistant', 'preserved tail recovered from pre-boundary history')
+    const laterUser = textMessage('user', 'later request')
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({
+        summaryMessage: summary,
+        preservedTail: [preservedTail],
+      }),
+    })
+    const projection = buildContextProjection({
+      history: [preservedTail, compactBoundary, summary, laterUser],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              removedMessageFingerprints: [fingerprintPromptMessage(preservedTail)],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(projection.rawTranscript).toEqual([preservedTail, compactBoundary, summary, laterUser])
+    expect(projection.modelFacingBaseline).toEqual([summary, laterUser])
+    expect(projection.durableState.snip).toMatchObject({
+      applied: true,
+      removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
     })
   })
 

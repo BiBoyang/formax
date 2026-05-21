@@ -217,14 +217,20 @@ Validation:
 
 Tasks:
 
-- [ ] 更新 `session-persistence-contract.md`，定义 preserved segment identity / relink 语义与旧 boundary fallback。
-- [ ] 扩展 compact boundary metadata，记录 summary/head/anchor/tail identity。
-- [ ] 明确最终 replay/load order：compact preserved segment relink 先于 snip removal/relink，即使工程交付顺序是先 Gate 2B 后 Gate 2C。
-- [ ] 写 tests：preserved tail resume 后不丢、不重复、不截断。
-- [ ] 写 tests：old boundary 缺新 identity 字段时 fallback 到 fingerprint guard。
-- [ ] 写 tests：anchor 缺失时不 relink，不重复 preserved tail，fallback 到 fingerprint/count guard。
-- [ ] 写 tests：head/tail fingerprint mismatch 时 skip relink 或 fallback，但不能产生重复 tail。
-- [ ] 写 tests：compact preserved segment + later durable snip 组合。
+- [x] 更新 `session-persistence-contract.md`，定义 preserved segment identity / relink 语义与旧 boundary fallback。
+- [x] 扩展 compact boundary metadata，记录 summary/head/anchor/tail identity。
+- [x] 明确最终 replay/load order：compact preserved segment relink 先于 snip removal/relink，即使工程交付顺序是先 Gate 2B 后 Gate 2C。
+- [x] 写 tests：preserved tail resume 后不丢、不重复、不截断。
+- [x] 写 tests：old boundary 缺新 identity 字段时 fallback 到 fingerprint guard。
+- [x] 写 tests：anchor 缺失时不 relink，不重复 preserved tail，fallback 到 fingerprint/count guard。
+- [x] 写 tests：head/tail fingerprint mismatch 时 skip relink 或 fallback，但不能产生重复 tail。
+- [x] 写 tests：compact preserved segment + later durable snip 组合。
+
+Validation:
+
+- [x] `bun run test -- packages/core/src/chat/context/compact.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/sdk/validation.test.ts packages/core/src/features/repl/controller/send/compactFlow.test.ts packages/core/src/features/repl/controller/session/sessionTransitions.test.ts packages/core/src/features/repl/controller/session/sessionTurnCompletion.test.ts packages/core/src/app-server/turnRunner.test.ts`
+- [x] `bun run type-check`
+- [x] Codex review before commit
 
 ## Gate 4: Collapse-Active Durable Snip Rebase
 

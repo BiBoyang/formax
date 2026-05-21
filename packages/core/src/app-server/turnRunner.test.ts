@@ -2367,6 +2367,10 @@ describe('TurnRunner', () => {
         expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
         expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
       ],
+      summaryIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      headIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      anchorIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      tailIdentity: expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')
