@@ -257,12 +257,12 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 客户端在收到 `thread/resume.staleInputs` 后，MUST 以服务端恢复结果为准更新本地 pending-input 状态；不得继续把这些输入视为可提交。
 
 当 app-server `thread/resume` 同时恢复出 session-memory reminder block 时：
-1. reminder block MUST 仅对下一次成功的 turn 启动生效
+1. reminder block MUST 仅对下一次成功的 turn 启动或 materializing `/compact` dispatch 生效；`/compact` MUST consume/clear the pending restore state without injecting the reminder into the compact summary prompt
 2. reminder block MUST NOT 作为 `thread/resume` 的 persisted history 结果写回 session JSONL
 3. 服务端 MAY 在 `/context` 的 next-turn fixed groups 中把它暴露为 pending restore injected blocks，以便 diagnostics 解释当前 restore consumption 语义
 4. 服务端当前 SHOULD 同步把 `latestCompactBoundary` 暴露给 restore surface，这样客户端在 resume 后无需额外调用 `thread/read` 才能得到最近 compact 的 canonical protocol facts
 5. 服务端当前 SHOULD 同步把 `latestRequestCollapse` 暴露给 restore surface，这样客户端在 resume 后无需额外调用 `thread/read` / `thread/messages` 才能得到最近 request-time collapse fact
-6. 服务端当前 SHOULD 同步把 `pendingSessionMemoryRestore` 暴露给 restore surface；若该 reminder 仍处于待消费窗口，`thread/replay` 也 SHOULD 暴露同一份摘要，直到下一次成功的 `turn/start` / turn-dispatch 消费掉它
+6. 服务端当前 SHOULD 同步把 `pendingSessionMemoryRestore` 暴露给 restore surface；若该 reminder 仍处于待消费窗口，`thread/replay` 也 SHOULD 暴露同一份摘要，直到下一次成功的 `turn/start` / turn-dispatch / materializing `/compact` 消费掉它
 
 ## 6. 变更流程
 

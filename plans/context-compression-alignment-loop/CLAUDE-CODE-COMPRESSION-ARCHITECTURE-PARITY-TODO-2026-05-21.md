@@ -148,9 +148,9 @@ Validation:
 
 Tests first:
 
-- [ ] App-server resume + `/compact` command consumes or clears pending restore at the durable dispatch/compact ownership point.
+- [x] App-server resume + `/compact` command consumes or clears pending restore at the durable dispatch/compact ownership point.
 - [x] `latestRequestCollapse` ignores pre-compact collapse events when a newer compact boundary exists.
-- [ ] Compact boundary event without matching `history_state` safe-degrades with diagnostics instead of silently restoring huge pre-compact history.
+- [x] Compact boundary event without matching `history_state` safe-degrades with diagnostics instead of silently restoring huge pre-compact history. Existing `AppServer` live compact boundary replay tests cover stale read hiding, full replay tail exposure, failure rollback, and completed-turn retention.
 
 Implementation:
 
@@ -160,6 +160,7 @@ Implementation:
 Validation:
 
 - [x] `bun run test -- packages/core/src/app-server/store/sessionEventReader.test.ts packages/core/src/app-server/threadStore.test.ts`
+- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
 - [ ] `bun run test:repl-semantic-gate` if `packages/core/src/features/repl/**` semantic flow changes.
 
 ### Batch 4: Durable Snip Migration

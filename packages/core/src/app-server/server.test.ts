@@ -1542,6 +1542,88 @@ describe('AppServer', () => {
     expect((replayAfterRetryDispatch[0] as any).result.pendingSessionMemoryRestore).toBeNull()
   })
 
+  it('clears pending restore when /compact dispatch consumes restore blocks', async () => {
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only.\n</system-reminder>',
+    }
+    const pendingSessionMemoryRestore = {
+      schemaVersion: 1,
+      mode: 'normal',
+      recentFiles: [],
+      recentUserPrompts: ['Compact after restore'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      recentDeferredToolNames: [],
+      recentTaskHints: [],
+      planPath: null,
+      planExcerpt: null,
+      todoSummary: null,
+    }
+    let received: unknown = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async resumeThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            staleInputs: [],
+            pendingSessionMemoryRestore,
+            nextTurnInjectedBlocks: [reminderBlock as any],
+          }
+        },
+        async readThread() {
+          return {
+            thread: {
+              id: 'thread-1',
+              cwd: '/repo',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              updatedAt: '2026-02-12T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      turnRunner: {
+        async startTurn(params) {
+          received = params
+          await params.onPendingInjectedBlocksConsumed?.({
+            threadId: params.threadId,
+            turnId: 'turn-compact',
+          })
+          return { turn: { id: 'turn-compact', threadId: params.threadId, status: 'running' as const } }
+        },
+        async interruptTurn() {
+          return {}
+        },
+        async submitInput() {
+          return { accepted: true, status: 'accepted' as const }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/resume', { threadId: 'thread-1' }))
+    const replayBeforeCompact = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayBeforeCompact[0] as any).result.pendingSessionMemoryRestore).toEqual(pendingSessionMemoryRestore)
+
+    await server.handleMessage(request(4, 'command/dispatch', { threadId: 'thread-1', command: '/compact' }))
+
+    expect(received).toEqual({
+      threadId: 'thread-1',
+      input: { text: '/compact' },
+      pendingInjectedBlocks: [reminderBlock],
+      onPendingInjectedBlocksConsumed: expect.any(Function),
+    })
+    const replayAfterCompact = await server.handleMessage(request(5, 'thread/replay', { threadId: 'thread-1' }))
+    expect((replayAfterCompact[0] as any).result.pendingSessionMemoryRestore).toBeNull()
+  })
+
   it('adds exit-plan reminder flag after tool-driven turn/modeChanged transition', async () => {
     const received: unknown[] = []
     const server = new AppServer({

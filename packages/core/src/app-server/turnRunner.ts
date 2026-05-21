@@ -624,6 +624,7 @@ export class TurnRunner {
 
       let cacheEditingEnabledForSnapshot = false
       if (running.compact.isCommand) {
+        await this.consumePendingInjectedBlocksForDispatch(running)
         await writer.appendEvent('compact_started', { source: 'manual' })
         const compactResult = await runCompactFlow({
           source: 'manual',

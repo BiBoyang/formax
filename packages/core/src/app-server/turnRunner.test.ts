@@ -1874,11 +1874,18 @@ describe('TurnRunner', () => {
     let compactToolsLength = -1
     let compactReplMode: string | undefined
     let compactPromptText = ''
+    let consumedBeforeCompactModelRun = false
+    const consumedPendingRestore: Array<{ threadId: string; turnId: string }> = []
+    const reminderBlock = {
+      type: 'text',
+      text: '<system-reminder>\nRestored session memory for the next turn only.\n</system-reminder>',
+    } as const
 
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
           if (args.tools.length === 0) {
+            consumedBeforeCompactModelRun = consumedPendingRestore.length === 1
             compactToolsLength = args.tools.length
             compactReplMode = args.exec?.replMode as string | undefined
             compactPromptText = Array.isArray(args.user.content)
@@ -1927,6 +1934,10 @@ describe('TurnRunner', () => {
       threadId: fixture.threadId,
       input: { text: '/compact keep the intent only' },
       mode: 'plan',
+      pendingInjectedBlocks: [reminderBlock],
+      onPendingInjectedBlocksConsumed: (payload) => {
+        consumedPendingRestore.push(payload)
+      },
     })
     await waitForNotification(
       notifications,
@@ -1953,8 +1964,16 @@ describe('TurnRunner', () => {
     ).toBe(true)
     expect(compactToolsLength).toBe(0)
     expect(compactReplMode).toBe('plan')
+    expect(consumedPendingRestore).toEqual([
+      {
+        threadId: fixture.threadId,
+        turnId: compactStarted.turn.id,
+      },
+    ])
+    expect(consumedBeforeCompactModelRun).toBe(true)
     expect(compactPromptText).toContain('Additional user instructions:')
     expect(compactPromptText).toContain('keep the intent only')
+    expect(compactPromptText).not.toContain('Restored session memory for the next turn only.')
 
     const filePath = await findSessionFileBySessionId({
       cwd: fixture.cwd,
