@@ -43,7 +43,7 @@
 
 - [x] Add tool-result collection test: only compactable tool results receive delete candidates.
 - [x] Add recency test: recent tool results are kept and older candidates enter delete plan.
-- [ ] Add duplicate test: same `tool_use_id` is not deleted twice in the context planner.
+- [x] Add duplicate test: same `tool_use_id` is not deleted twice in the context planner.
 - [x] Add time-aware test: current user-turn stale logic remains covered; Claude Code wall-clock assistant-gap is explicitly deferred.
 
 ### Implementation

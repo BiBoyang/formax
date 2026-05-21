@@ -433,6 +433,7 @@ function buildCacheEditingMicroCompactResult(args: {
   const cacheAwareToolNameSet = new Set<string>()
   const timeAwareToolNames: string[] = []
   const timeAwareToolNameSet = new Set<string>()
+  const seenDeleteRefs = new Set<string>()
   const patchedMessages = [...args.messages]
   const patchedByIndex = new Map<number, PromptMessage>()
   const fallbackMessages = buildStubMicroCompactMessages(args.messages, args.refsToCompact)
@@ -445,16 +446,20 @@ function buildCacheEditingMicroCompactResult(args: {
     let compacted = false
 
     if (ref.compactToolResult) {
-      deletes.push({
-        type: 'delete',
-        cacheReference: ref.toolUseId,
-        toolUseId: ref.toolUseId,
-        toolName: ref.tool.name,
-        messageIndex: ref.messageIndex,
-        blockIndex: ref.blockIndex,
-      })
-      estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.rawResultText))
-      compacted = true
+      const cacheReference = ref.toolUseId
+      if (!seenDeleteRefs.has(cacheReference)) {
+        seenDeleteRefs.add(cacheReference)
+        deletes.push({
+          type: 'delete',
+          cacheReference,
+          toolUseId: ref.toolUseId,
+          toolName: ref.tool.name,
+          messageIndex: ref.messageIndex,
+          blockIndex: ref.blockIndex,
+        })
+        estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.rawResultText))
+        compacted = true
+      }
     }
 
     if (

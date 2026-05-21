@@ -93,6 +93,32 @@ describe('microCompactHistory', () => {
     expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
   })
 
+  it('does not plan duplicate cache edit deletes for the same tool_use_id', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      userToolResult('read-1', 'b'.repeat(4000)),
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      enableCacheEditing: true,
+    })
+
+    expect(out.cacheEditPlan?.deletes).toEqual([
+      {
+        type: 'delete',
+        cacheReference: 'read-1',
+        toolUseId: 'read-1',
+        toolName: 'Read',
+        messageIndex: 1,
+        blockIndex: 0,
+      },
+    ])
+    expect(out.cacheEditingPlannedBlocks).toBe(1)
+  })
+
   it('skips ineligible, small, error, and already microcompacted results', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('task-1', 'Task', { description: 'delegate' }),
