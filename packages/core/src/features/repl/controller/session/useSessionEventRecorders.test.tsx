@@ -10,11 +10,13 @@ const {
   recordLocalCommandInjectionEventMock,
   recordReactiveCompactEventMock,
   recordRequestCollapseEventMock,
+  recordRequestSnipEventMock,
 } = vi.hoisted(() => ({
   recordCompactRequestedEventMock: vi.fn(),
   recordLocalCommandInjectionEventMock: vi.fn(),
   recordReactiveCompactEventMock: vi.fn(),
   recordRequestCollapseEventMock: vi.fn(),
+  recordRequestSnipEventMock: vi.fn(),
 }))
 
 vi.mock('./sessionEvents', () => ({
@@ -22,6 +24,7 @@ vi.mock('./sessionEvents', () => ({
   recordLocalCommandInjectionEvent: recordLocalCommandInjectionEventMock,
   recordReactiveCompactEvent: recordReactiveCompactEventMock,
   recordRequestCollapseEvent: recordRequestCollapseEventMock,
+  recordRequestSnipEvent: recordRequestSnipEventMock,
 }))
 
 type RecorderApi = ReturnType<typeof useSessionEventRecorders>
@@ -183,6 +186,41 @@ describe('useSessionEventRecorders', () => {
         recapFingerprint: 'abcdef0123456789',
       },
       commit: null,
+    })
+
+    app.unmount()
+  })
+
+  it('delegates request-time snip events to session helpers', async () => {
+    const appendEvent = vi.fn(async () => undefined)
+    const writer = { appendEvent }
+    const writerRef = { current: writer }
+    const apiRef = { current: null as RecorderApi | null }
+
+    const app = render(<Harness apiRef={apiRef} sessionSaveEnabled={true} writerRef={writerRef} />)
+
+    const state = {
+      applied: true,
+      removedMessageCount: 1,
+      estimatedTokensSaved: 120,
+      compactBoundaryFingerprint: 'compact-fp',
+      removals: [
+        {
+          kind: 'model_facing_index_range' as const,
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'request snip removed older assistant text message',
+          removedMessageFingerprints: ['removed-fp'],
+        },
+      ],
+    }
+    await apiRef.current?.onRequestSnip({ phase: 'initial', state })
+
+    expect(recordRequestSnipEventMock).toHaveBeenCalledWith({
+      sessionSaveEnabled: true,
+      writer,
+      phase: 'initial',
+      state,
     })
 
     app.unmount()

@@ -67,7 +67,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 ### 明显未对齐
 
-- [ ] `snip` 已补 durable event replay skeleton 与 removed id/fingerprint metadata；仍缺 request snip 写入 durable boundary、完整 removed UUID replay、parent relink。
+- [ ] `snip` 已补 durable event replay skeleton、removed fingerprint metadata、request snip success-only durable event 写入；仍缺完整 removed UUID replay、parent relink，以及 collapse-active 投影下的 snip removal rebase 后再持久化。
 - [x] `context collapse` 已补 committed store / snapshot / restore replay / overflow drain；后续剩余为 surface convergence 与更细策略对齐。
 - [ ] `tool_result_budget` / content replacement 缺 Claude Code-style durable side-state；当前明确 deferred，不阻塞 Batch 1/2。
 - [x] 已有最小统一 durable compression projection owner：`buildContextProjection()` 当前收敛 raw transcript、UI scrollback、latest compact continuation model-facing baseline、diagnostics projection、durable-state 占位 facts；后续还需把 runtime callers 逐步迁入。
@@ -183,6 +183,8 @@ Implementation:
 - [x] Add durable snip state shape.
 - [x] Add replay/load projection support.
 - [x] Route model-facing request projection through durable snip state before request-only reducers.
+- [x] Write successful request snip removals as `durable_snip_applied` session snapshots in TUI and app-server.
+- [ ] Rebase request snip removals through active durable collapse before persisting; current safe behavior is request-only snip with no durable snip event while collapse is active.
 - [x] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
 
 Validation:
@@ -197,6 +199,7 @@ Validation:
 - [x] `cd packages/web-reference-react && bun run test -- src/app/core/replayMachine.test.ts src/app/core/threadCache.test.ts src/store.test.ts src/eventAdapters.test.ts`
 - [x] Context/session/app-server/Web replay targeted tests.
 - [x] `bun run type-check`
+- [x] `bun run test:repl-semantic-gate`
 - [x] Mandatory codex review before commit.
 
 ### Batch 5: Durable Context Collapse Store

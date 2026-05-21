@@ -4,8 +4,10 @@ import {
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
   recordRequestCollapseEvent,
+  recordRequestSnipEvent,
 } from './sessionEvents'
 import { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME } from '../../../../chat/context/contextCollapseStore'
+import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../../sessionSave/durableSnipStoreEvents'
 
 const EMPTY_CLAUDE_MD_META = { capChars: 200_000, global: null, project: null, memory: null } as const
 
@@ -136,6 +138,86 @@ describe('sessionEvents', () => {
         recapMessage,
       }),
     )
+  })
+
+  it('records durable request snip snapshots when applied', async () => {
+    const appendEvent = vi.fn()
+    await recordRequestSnipEvent({
+      sessionSaveEnabled: true,
+      writer: { appendEvent },
+      phase: 'initial',
+      state: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 120,
+        compactBoundaryFingerprint: 'compact-generation',
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            reason: 'request snip removed older assistant text message',
+            removedMessageFingerprints: ['removed-fp'],
+          },
+        ],
+      },
+    })
+
+    expect(appendEvent).toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+      schemaVersion: 1,
+      source: 'request_snip',
+      phase: 'initial',
+      estimatedTokensSaved: 120,
+      removedMessageCount: 1,
+      compactBoundaryFingerprint: 'compact-generation',
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'request snip removed older assistant text message',
+          removedMessageFingerprints: ['removed-fp'],
+        },
+      ],
+    })
+  })
+
+  it('skips durable request snip snapshots when disabled or not applied', async () => {
+    const appendEvent = vi.fn()
+    await recordRequestSnipEvent({
+      sessionSaveEnabled: false,
+      writer: { appendEvent },
+      phase: 'initial',
+      state: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 120,
+        compactBoundaryFingerprint: null,
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            reason: 'request snip removed older assistant text message',
+            removedMessageFingerprints: ['removed-fp'],
+          },
+        ],
+      },
+    })
+    await recordRequestSnipEvent({
+      sessionSaveEnabled: true,
+      writer: { appendEvent },
+      phase: 'initial',
+      state: {
+        applied: false,
+        removedMessageCount: 0,
+        estimatedTokensSaved: 0,
+        compactBoundaryFingerprint: null,
+        removals: [],
+      },
+    })
+
+    expect(appendEvent).not.toHaveBeenCalled()
   })
 
   it('records claude_md_injection only for full profile with changed non-empty meta', async () => {

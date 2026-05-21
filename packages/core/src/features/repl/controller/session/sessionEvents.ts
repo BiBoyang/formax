@@ -9,7 +9,17 @@ import {
   type ContextCollapseCommitState,
 } from '../../../../chat/context/contextCollapseStore'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { DurableSnipRemoval } from '../../../../chat/context/contextProjection'
 import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
+import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../../sessionSave/durableSnipStoreEvents'
+
+type RequestSnipEventState = {
+  applied: boolean
+  removedMessageCount: number
+  estimatedTokensSaved: number
+  compactBoundaryFingerprint: string | null
+  removals: DurableSnipRemoval[]
+}
 
 type SessionEventWriter = Pick<SessionWriter, 'appendEvent'> | null
 
@@ -98,6 +108,26 @@ export async function recordRequestCollapseEvent(args: {
   })
   await args.writer?.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
   return entry
+}
+
+export async function recordRequestSnipEvent(args: {
+  sessionSaveEnabled: boolean
+  writer: SessionEventWriter
+  phase: 'initial' | 'reactive_retry'
+  state: RequestSnipEventState | null | undefined
+}): Promise<void> {
+  if (!args.sessionSaveEnabled) return
+  if (!args.state?.applied || args.state.removals.length === 0) return
+
+  await args.writer?.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+    schemaVersion: 1,
+    source: 'request_snip',
+    phase: args.phase,
+    estimatedTokensSaved: args.state.estimatedTokensSaved,
+    removedMessageCount: args.state.removedMessageCount,
+    compactBoundaryFingerprint: args.state.compactBoundaryFingerprint,
+    removals: args.state.removals,
+  })
 }
 
 export function recordReactiveCompactEvent(args: {

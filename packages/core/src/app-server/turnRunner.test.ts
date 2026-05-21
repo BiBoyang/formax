@@ -4,7 +4,19 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
-import { findSessionFileBySessionId, readSessionFile, readSessionSummary, SessionWriter } from '../features/repl/sessionSave/index.js'
+import {
+  CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  DURABLE_SNIP_COMMITTED_EVENT_NAME,
+  findSessionFileBySessionId,
+  readSessionFile,
+  readSessionSummary,
+  SessionWriter,
+} from '../features/repl/sessionSave/index.js'
+import {
+  buildCompactBoundaryMessage,
+  buildCompactionSummaryUserText,
+  fingerprintCompactBoundaryMessage,
+} from '../chat/context/compact.js'
 import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure.js'
@@ -365,6 +377,266 @@ describe('TurnRunner', () => {
     expect(hasOriginalOldRead(replay.history)).toBe(true)
     expect(JSON.stringify(replay.history)).toContain('continue from old reads')
     expect(JSON.stringify(replay.history)).not.toContain('Older tool result cleared by microcompact')
+  })
+
+  it('persists request snip removals as durable session events', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const seededHistory: ChatHistory = [
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot(seededHistory)
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(JSON.stringify(args.history)).toContain('old-a')
+      expect(JSON.stringify(args.requestHistory)).toContain('[Older assistant text snipped for this request:')
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const raw = await fs.readFile(filePath!, 'utf8')
+    const durableSnipEvent = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .find((record: any) => record.type === 'event' && record.name === DURABLE_SNIP_COMMITTED_EVENT_NAME)
+
+    expect(durableSnipEvent?.data).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        source: 'request_snip',
+        phase: 'initial',
+        removedMessageCount: 2,
+        compactBoundaryFingerprint: null,
+        removals: [
+          expect.objectContaining({
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+            removedMessageFingerprints: [expect.any(String)],
+          }),
+          expect.objectContaining({
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            removedMessageFingerprints: [expect.any(String)],
+          }),
+        ],
+      }),
+    )
+  })
+
+  it('preserves prior durable snip removals when persisting app-server snapshots', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const seededHistory: ChatHistory = [
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot(seededHistory)
+    await seedWriter.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+      schemaVersion: 1,
+      source: 'request_snip',
+      phase: 'initial',
+      estimatedTokensSaved: 900,
+      removedMessageCount: 1,
+      compactBoundaryFingerprint: null,
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+          reason: 'previous request snip',
+          removedMessageFingerprints: ['old-a-fp'],
+        },
+      ],
+    })
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(JSON.stringify(args.requestHistory)).not.toContain('old-a')
+      expect(JSON.stringify(args.requestHistory)).toContain('[Older assistant text snipped for this request:')
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const raw = await fs.readFile(filePath!, 'utf8')
+    const durableSnipEvents = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((record: any) => record.type === 'event' && record.name === DURABLE_SNIP_COMMITTED_EVENT_NAME)
+    const latestDurableSnipEvent = durableSnipEvents.at(-1)
+
+    expect(latestDurableSnipEvent?.data).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        source: 'request_snip',
+        phase: 'initial',
+        removedMessageCount: 2,
+        compactBoundaryFingerprint: null,
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+            reason: 'previous request snip',
+            removedMessageFingerprints: ['old-a-fp'],
+          },
+          expect.objectContaining({
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            removedMessageFingerprints: [expect.any(String)],
+          }),
+        ],
+      }),
+    )
+  })
+
+  it('does not persist app-server request snip snapshots while durable collapse is active', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 2,
+        keepMinTokens: 1200,
+        keepMinUserTurns: 1,
+      },
+    })
+    const seededHistory: ChatHistory = [
+      compactBoundary,
+      { role: 'user', content: [{ type: 'text', text: buildCompactionSummaryUserText('compact summary') }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot(seededHistory)
+    await seedWriter.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, {
+      id: 'collapse-snip-guard-app-server-1',
+      createdAtMs: Date.parse('2026-05-21T00:00:00.000Z'),
+      source: 'request_collapse',
+      collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 2 },
+      compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+      recapMessage: {
+        role: 'user',
+        content: [{ type: 'text', text: '<system-reminder>durable collapse recap</system-reminder>' }],
+      },
+      metadata: {
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 1,
+        preservedTailMessageCount: 2,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 1,
+        recentFileCount: 0,
+        earlierToolResultBlockCount: 0,
+        recapFingerprint: 'collapse-snip-guard-app-server-fingerprint',
+      },
+    })
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(JSON.stringify(args.requestHistory)).toContain('durable collapse recap')
+      expect(JSON.stringify(args.requestHistory)).toContain('[Older assistant text snipped for this request:')
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const raw = await fs.readFile(filePath!, 'utf8')
+    const durableSnipEvents = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((record: any) => record.type === 'event' && record.name === DURABLE_SNIP_COMMITTED_EVENT_NAME)
+
+    expect(durableSnipEvents).toEqual([])
   })
 
   it('uses compact-boundary continuation for app-server request history while preserving raw replay history', async () => {

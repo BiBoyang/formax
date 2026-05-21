@@ -5,7 +5,7 @@ import {
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
 } from './compact'
-import { buildContextProjection } from './contextProjection'
+import { buildContextProjection, mergeDurableSnipSnapshot, scopeDurableSnipStateToHistory } from './contextProjection'
 import { createContextCollapseCommittedEntry } from './contextCollapseStore'
 import type { PromptMessage } from '../../prompts'
 
@@ -658,5 +658,116 @@ describe('buildContextProjection', () => {
 
     expect(first.facts.modelFacingBaselineFingerprint).toMatch(/^[a-f0-9]{16}$/)
     expect(second.facts.modelFacingBaselineFingerprint).toBe(first.facts.modelFacingBaselineFingerprint)
+  })
+})
+
+describe('mergeDurableSnipSnapshot', () => {
+  it('translates new removals from the already-snipped baseline into the original baseline', () => {
+    const snapshot = mergeDurableSnipSnapshot({
+      existingState: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: null,
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+            reason: 'previous request snip',
+            removedMessageFingerprints: ['fp-0'],
+          },
+        ],
+      },
+      newRemovals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+          reason: 'next request snip',
+          removedMessageFingerprints: ['fp-1'],
+        },
+      ],
+      compactBoundaryFingerprint: null,
+    })
+
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: null,
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+          reason: 'previous request snip',
+          removedMessageFingerprints: ['fp-0'],
+        },
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'next request snip',
+          removedMessageFingerprints: ['fp-1'],
+        },
+      ],
+    })
+  })
+
+  it('drops prior unscoped removals when a compact boundary becomes active', () => {
+    const snapshot = mergeDurableSnipSnapshot({
+      existingState: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: null,
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+          },
+        ],
+      },
+      newRemovals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+        },
+      ],
+      compactBoundaryFingerprint: 'boundary-a',
+    })
+
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: 'boundary-a',
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+        },
+      ],
+    })
+  })
+})
+
+describe('scopeDurableSnipStateToHistory', () => {
+  it('clears unscoped durable snip removals when the in-memory history has a fresh compact boundary', () => {
+    const compactBoundary = boundary()
+    const scoped = scopeDurableSnipStateToHistory({
+      state: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: null,
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      history: [
+        compactBoundary,
+        textMessage('user', buildCompactionSummaryUserText('compact summary')),
+        textMessage('assistant', 'preserved tail'),
+      ],
+    })
+
+    expect(scoped).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+      removals: [],
+    })
   })
 })

@@ -140,6 +140,7 @@ function createHarness(overrides?: Record<string, unknown>): any {
       lastAutoCompactSeqRef: { current: 0 },
       onCompactLifecycle: vi.fn(),
       onRequestCollapse: vi.fn(),
+      onRequestSnip: vi.fn(),
       onReactiveCompact: vi.fn(),
     },
     state: {
@@ -193,6 +194,13 @@ describe('runMainSendTurn', () => {
         estimatedTokensSaved: 0,
         metadata: null,
         commit: null,
+      },
+      snipState: {
+        applied: false,
+        removedMessageCount: 0,
+        estimatedTokensSaved: 0,
+        compactBoundaryFingerprint: null,
+        removals: [],
       },
       user,
       context:
@@ -514,6 +522,53 @@ describe('runMainSendTurn', () => {
         keepLastTurns: 2,
       }),
       commit: null,
+    })
+  })
+
+  it('records request snip after a successful initial turn', async () => {
+    const snipState = {
+      applied: true,
+      removedMessageCount: 1,
+      estimatedTokensSaved: 120,
+      compactBoundaryFingerprint: 'compact-generation',
+      removals: [
+        {
+          kind: 'model_facing_index_range' as const,
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'request snip removed older assistant text message',
+          removedMessageFingerprints: ['removed-fp'],
+        },
+      ],
+    }
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+        commit: null,
+      },
+      snipState,
+      user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      context: {
+        usedTokens: 1234,
+        limitTokens: 9000,
+        percentRemaining: 86,
+        source: 'estimate',
+      },
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+
+    await runMainSendTurn(harness as any)
+
+    expect(harness.refs.onRequestSnip).toHaveBeenCalledWith({
+      phase: 'initial',
+      state: snipState,
     })
   })
 

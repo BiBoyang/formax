@@ -6,13 +6,23 @@ import {
   recordLocalCommandInjectionEvent,
   recordReactiveCompactEvent,
   recordRequestCollapseEvent,
+  recordRequestSnipEvent,
 } from './sessionEvents'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import type {
   ContextCollapseCommittedEntry,
   ContextCollapseCommitState,
 } from '../../../../chat/context/contextCollapseStore'
+import type { DurableSnipRemoval } from '../../../../chat/context/contextProjection'
 import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
+
+type RequestSnipEventState = {
+  applied: boolean
+  removedMessageCount: number
+  estimatedTokensSaved: number
+  compactBoundaryFingerprint: string | null
+  removals: DurableSnipRemoval[]
+}
 
 type CompactLifecycleEvent =
   | { type: 'compact_started'; source: string }
@@ -31,6 +41,10 @@ function useSessionEventRecorders(args: {
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
     commit: ContextCollapseCommitState | null
+  }) => Promise<void>
+  onRequestSnip: (event: {
+    phase: 'initial' | 'reactive_retry'
+    state: RequestSnipEventState | null
   }) => Promise<void>
   onReactiveCompact: (event: {
     triggerKind: ReactiveCompactErrorKind
@@ -86,6 +100,21 @@ function useSessionEventRecorders(args: {
     [args.sessionSaveEnabled, args.writerRef, args.onContextCollapseCommitted],
   )
 
+  const onRequestSnip = useCallback(
+    async (event: {
+      phase: 'initial' | 'reactive_retry'
+      state: RequestSnipEventState | null
+    }) => {
+      await recordRequestSnipEvent({
+        sessionSaveEnabled: args.sessionSaveEnabled,
+        writer: args.writerRef.current,
+        phase: event.phase,
+        state: event.state,
+      })
+    },
+    [args.sessionSaveEnabled, args.writerRef],
+  )
+
   const onReactiveCompact = useCallback(
     (event: {
       triggerKind: ReactiveCompactErrorKind
@@ -130,6 +159,7 @@ function useSessionEventRecorders(args: {
   return {
     onCompactLifecycle,
     onRequestCollapse,
+    onRequestSnip,
     onReactiveCompact,
     onCompactRequested,
     onSlashLocalAsyncRecordForNextTurn,

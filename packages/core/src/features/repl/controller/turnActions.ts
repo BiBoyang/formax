@@ -11,7 +11,7 @@ import type { PlanSessionManager } from '../planSession'
 import type { RuntimeFlags } from '../../../config/runtimeFlags'
 import type { UserInputManager } from '../../../tools/runtime/userInputManager'
 import type { CompactLifecycleEvent } from './send/compactFlow'
-import type { RequestCollapseCommitState } from './send/contextCompressionService'
+import type { RequestCollapseCommitState, RequestSnipState } from './send/contextCompressionService'
 import type { ContextCollapseMeta } from '../../../chat/context/contextCollapse'
 import type { ContextCollapseStoreSnapshot } from '../../../chat/context/contextCollapseStore'
 import type { ReactiveCompactErrorKind } from './send/reactiveCompact'
@@ -195,6 +195,10 @@ export type SendFlowCallbacks = {
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
     commit: RequestCollapseCommitState | null
+  }) => void | Promise<void>
+  onRequestSnip?: (event: {
+    phase: 'initial' | 'reactive_retry'
+    state: RequestSnipState | null
   }) => void | Promise<void>
   onReactiveCompact?: (event: {
     triggerKind: ReactiveCompactErrorKind
@@ -409,6 +413,7 @@ export async function runSendAction(args: {
       handleEvent: args.callbacks.handleEvent,
       onCompactLifecycle: args.callbacks.onCompactLifecycle,
       onRequestCollapse: args.callbacks.onRequestCollapse,
+      onRequestSnip: args.callbacks.onRequestSnip,
       onReactiveCompact: args.callbacks.onReactiveCompact,
       onCompactRequested: args.callbacks.onCompactRequested,
       onSlashLocalAsyncRecordForNextTurn: args.callbacks.onSlashLocalAsyncRecordForNextTurn,

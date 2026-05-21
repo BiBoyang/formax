@@ -24,7 +24,7 @@ import { isAbortLikeError } from '../shared/utils'
 import { createContextCompressionService } from './contextCompressionService'
 import { classifyReactiveCompactError, isReactiveCompactEligibleError, type ReactiveCompactErrorKind } from './reactiveCompact'
 import type { CompactTriggerReason } from '../../../../chat/context/compact'
-import type { ReactiveCompactState, RequestCollapseState } from './contextCompressionService'
+import type { ReactiveCompactState, RequestCollapseState, RequestSnipState } from './contextCompressionService'
 
 const AUTO_COMPACT_NOTICE_TEXT = 'Conversation history auto-compacted (summary kept for future turns).'
 
@@ -59,6 +59,10 @@ type RunMainSendTurnArgs = {
       estimatedTokensSaved: number
       metadata: RequestCollapseState['metadata']
       commit: RequestCollapseState['commit']
+    }) => void | Promise<void>
+    onRequestSnip?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      state: RequestSnipState | null
     }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
@@ -259,6 +263,13 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         commit: collapseState.commit,
       })
     }
+    const recordRequestSnip = async (
+      phase: 'initial' | 'reactive_retry',
+      snipState: RequestSnipState | undefined,
+    ) => {
+      if (!snipState?.applied) return
+      await args.onRequestSnip?.({ phase, state: snipState })
+    }
     const recordReactiveCompact = (
       triggerKind: ReactiveCompactErrorKind,
       triggerDetail: string,
@@ -278,6 +289,8 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     let nextHistory: ChatHistory
     let successfulCollapsePhase: 'initial' | 'reactive_retry' = 'initial'
     let successfulCollapseState = prepared.collapseState
+    let successfulSnipPhase: 'initial' | 'reactive_retry' = 'initial'
+    let successfulSnipState = prepared.snipState
     try {
       nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
     } catch (error) {
@@ -317,12 +330,15 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         )
         successfulCollapsePhase = 'reactive_retry'
         successfulCollapseState = reactivePrepared.collapseState
+        successfulSnipPhase = 'reactive_retry'
+        successfulSnipState = reactivePrepared.snipState
         nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
       } else {
         throw error
       }
     }
     await recordRequestCollapse(successfulCollapsePhase, successfulCollapseState)
+    await recordRequestSnip(successfulSnipPhase, successfulSnipState)
 
     args.pendingExitPlanReminderRef.current = false
 

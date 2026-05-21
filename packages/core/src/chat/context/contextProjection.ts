@@ -96,6 +96,67 @@ export type ContextProjection = {
   facts: ContextProjectionFacts
 }
 
+export function mergeDurableSnipSnapshot(args: {
+  existingState?: DurableSnipState | null
+  newRemovals: DurableSnipRemoval[]
+  compactBoundaryFingerprint: string | null
+}): DurableSnipState {
+  const existingFingerprint = args.existingState?.activeCompactBoundaryFingerprint ?? null
+  const shouldCarryExisting = args.compactBoundaryFingerprint
+    ? existingFingerprint === args.compactBoundaryFingerprint
+    : existingFingerprint === null
+  const existingRemovals = shouldCarryExisting ? cloneDurableSnipRemovals(args.existingState?.removals ?? []) : []
+  if (existingRemovals.length === 0) {
+    return {
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: args.compactBoundaryFingerprint,
+      removals: cloneDurableSnipRemovals(args.newRemovals),
+    }
+  }
+
+  const removedOriginalIndexes = new Set<number>()
+  for (const removal of existingRemovals) {
+    for (let index = removal.startIndex; index < removal.endIndexExclusive; index += 1) {
+      removedOriginalIndexes.add(index)
+    }
+  }
+
+  return {
+    schemaVersion: 1,
+    activeCompactBoundaryFingerprint: args.compactBoundaryFingerprint,
+    removals: [
+      ...existingRemovals,
+      ...translateProjectedSnipRemovals({
+        removals: args.newRemovals,
+        removedOriginalIndexes,
+      }),
+    ],
+  }
+}
+
+export function scopeDurableSnipStateToHistory(args: {
+  state?: DurableSnipState | null
+  history: PromptMessage[]
+}): DurableSnipState | null {
+  if (!args.state) return null
+  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
+  const activeCompactBoundaryFingerprint =
+    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
+  const stateFingerprint = args.state.activeCompactBoundaryFingerprint ?? null
+  if (activeCompactBoundaryFingerprint !== stateFingerprint) {
+    return {
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint,
+      removals: [],
+    }
+  }
+  return {
+    schemaVersion: 1,
+    activeCompactBoundaryFingerprint,
+    removals: cloneDurableSnipRemovals(args.state.removals),
+  }
+}
+
 export function buildContextProjection(args: {
   history: PromptMessage[]
   durableState?: ContextProjectionDurableInputState
@@ -314,6 +375,94 @@ function normalizeDurableSnipRemovals(args: {
         ? { removedMessageFingerprints: removal.removedMessageFingerprints }
         : {}),
     })
+  }
+  return out
+}
+
+function cloneDurableSnipRemovals(removals: DurableSnipRemoval[]): DurableSnipRemoval[] {
+  return removals.map((removal) => ({
+    kind: 'model_facing_index_range',
+    startIndex: removal.startIndex,
+    endIndexExclusive: removal.endIndexExclusive,
+    ...(removal.reason ? { reason: removal.reason } : {}),
+    ...(Array.isArray(removal.removedMessageIds) ? { removedMessageIds: removal.removedMessageIds.slice() } : {}),
+    ...(Array.isArray(removal.removedMessageFingerprints)
+      ? { removedMessageFingerprints: removal.removedMessageFingerprints.slice() }
+      : {}),
+  }))
+}
+
+function translateProjectedSnipRemovals(args: {
+  removals: DurableSnipRemoval[]
+  removedOriginalIndexes: Set<number>
+}): DurableSnipRemoval[] {
+  const translated: DurableSnipRemoval[] = []
+  for (const removal of args.removals) {
+    const originalIndexes: number[] = []
+    for (let index = removal.startIndex; index < removal.endIndexExclusive; index += 1) {
+      originalIndexes.push(projectedIndexToOriginalIndex({
+        projectedIndex: index,
+        removedOriginalIndexes: args.removedOriginalIndexes,
+      }))
+    }
+    translated.push(
+      ...groupTranslatedSnipRemoval({
+        removal,
+        originalIndexes,
+      }),
+    )
+  }
+  return translated
+}
+
+function projectedIndexToOriginalIndex(args: {
+  projectedIndex: number
+  removedOriginalIndexes: Set<number>
+}): number {
+  let projectedCursor = 0
+  for (let originalIndex = 0; originalIndex <= args.projectedIndex + args.removedOriginalIndexes.size; originalIndex += 1) {
+    if (args.removedOriginalIndexes.has(originalIndex)) continue
+    if (projectedCursor === args.projectedIndex) return originalIndex
+    projectedCursor += 1
+  }
+  return args.projectedIndex + args.removedOriginalIndexes.size
+}
+
+function groupTranslatedSnipRemoval(args: {
+  removal: DurableSnipRemoval
+  originalIndexes: number[]
+}): DurableSnipRemoval[] {
+  if (args.originalIndexes.length === 0) return []
+  const out: DurableSnipRemoval[] = []
+  let groupStartOffset = 0
+  while (groupStartOffset < args.originalIndexes.length) {
+    let groupEndOffset = groupStartOffset + 1
+    while (
+      groupEndOffset < args.originalIndexes.length &&
+      args.originalIndexes[groupEndOffset] === args.originalIndexes[groupEndOffset - 1]! + 1
+    ) {
+      groupEndOffset += 1
+    }
+    const startIndex = args.originalIndexes[groupStartOffset]!
+    const endIndexExclusive = args.originalIndexes[groupEndOffset - 1]! + 1
+    out.push({
+      kind: 'model_facing_index_range',
+      startIndex,
+      endIndexExclusive,
+      ...(args.removal.reason ? { reason: args.removal.reason } : {}),
+      ...(Array.isArray(args.removal.removedMessageIds)
+        ? { removedMessageIds: args.removal.removedMessageIds.slice(groupStartOffset, groupEndOffset) }
+        : {}),
+      ...(Array.isArray(args.removal.removedMessageFingerprints)
+        ? {
+            removedMessageFingerprints: args.removal.removedMessageFingerprints.slice(
+              groupStartOffset,
+              groupEndOffset,
+            ),
+          }
+        : {}),
+    })
+    groupStartOffset = groupEndOffset
   }
   return out
 }

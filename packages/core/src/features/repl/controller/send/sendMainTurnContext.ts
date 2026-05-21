@@ -9,7 +9,7 @@ import type { PlanSessionManager } from '../../planSession'
 import type { ReminderService } from '../../reminders/ReminderService'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
-import type { RequestCollapseCommitState } from './contextCompressionService'
+import type { RequestCollapseCommitState, RequestSnipState } from './contextCompressionService'
 import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import type { ReplModeAccess, SendTurnSharedRefs } from './sendTypes'
 
@@ -36,6 +36,10 @@ type MainTurnContextArgs = {
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
     commit: RequestCollapseCommitState | null
+  }) => void | Promise<void>) | undefined
+  onRequestSnip?: ((event: {
+    phase: 'initial' | 'reactive_retry'
+    state: RequestSnipState | null
   }) => void | Promise<void>) | undefined
   onReactiveCompact?: ((event: {
     triggerKind: ReactiveCompactErrorKind
@@ -73,6 +77,10 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       metadata: ContextCollapseMeta | null
       commit: RequestCollapseCommitState | null
     }) => void | Promise<void>
+    onRequestSnip?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      state: RequestSnipState | null
+    }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
       triggerDetail: string
@@ -103,6 +111,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       lastAutoCompactSeqRef: args.lastAutoCompactSeqRef,
       onCompactLifecycle: args.onCompactLifecycle,
       onRequestCollapse: args.onRequestCollapse,
+      onRequestSnip: args.onRequestSnip,
       onReactiveCompact: args.onReactiveCompact,
       getSessionFilePath: args.getSessionFilePath,
       getContextCollapseStoreSnapshot: args.getContextCollapseStoreSnapshot,

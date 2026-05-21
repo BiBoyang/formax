@@ -1369,9 +1369,11 @@ describe('useReplController', () => {
     await waitFor(() => Boolean(controller))
 
     await controller.actions.send('hello after restore')
-    await tick()
+    await waitFor(() => calls.length === 1)
+    await waitFor(() => controller.state.isLoading === false)
     await controller.actions.send('next turn')
-    await tick()
+    await waitFor(() => calls.length === 2)
+    await waitFor(() => controller.state.isLoading === false)
 
     expect(calls).toHaveLength(2)
     expect(JSON.stringify(calls[0]?.user?.content ?? [])).toContain('Restored session memory for the next turn only:')
@@ -2255,7 +2257,7 @@ describe('useReplController /clear', () => {
     try {
       const historyLens: number[] = []
       const runTurn = vi.fn(async (args: any) => {
-        historyLens.push((args.history ?? []).length)
+        if (Array.isArray(args.requestHistory)) historyLens.push((args.history ?? []).length)
         return [
           ...(args.history ?? []),
           args.user,
@@ -2298,7 +2300,7 @@ describe('useReplController /clear', () => {
       const filesAfterThirdTurn = await waitForSessionFiles(2)
       expect(filesAfterThirdTurn.length).toBeGreaterThanOrEqual(2)
       expect(historyLens[2]).toBe(0)
-      expect(runTurn).toHaveBeenCalledTimes(3)
+      expect(runTurn.mock.calls.filter(([args]) => Array.isArray(args?.requestHistory))).toHaveLength(3)
     } finally {
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
       restoreStubbedEnv('FORMAX_SESSION_SAVE', prevSessionSave)
@@ -2653,7 +2655,7 @@ describe('useReplController sessionSave resume', () => {
       await waitFor(() => readSpy.mock.calls.length === 1)
 
       await controller.actions.send('during-resume')
-      expect(runTurn).toHaveBeenCalledTimes(0)
+      expect(runTurn.mock.calls.filter(([args]) => Array.isArray(args?.requestHistory))).toHaveLength(0)
 
       releaseRead()
       await resumePromise
@@ -2661,7 +2663,7 @@ describe('useReplController sessionSave resume', () => {
 
       await controller.actions.send('after-resume')
       await waitFor(() => controller.state.isLoading === false)
-      expect(runTurn).toHaveBeenCalledTimes(1)
+      expect(runTurn.mock.calls.filter(([args]) => Array.isArray(args?.requestHistory))).toHaveLength(1)
     } finally {
       releaseRead?.()
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)
@@ -2721,8 +2723,9 @@ describe('useReplController sessionSave resume', () => {
       await controller.actions.send('after-resume')
       await waitFor(() => controller.state.isLoading === false)
 
-      expect(runTurn).toHaveBeenCalledTimes(2)
-      const secondArgs = runTurn.mock.calls[1]?.[0] as any
+      const mainTurnCalls = runTurn.mock.calls.filter(([args]) => Array.isArray(args?.requestHistory))
+      expect(mainTurnCalls).toHaveLength(2)
+      const secondArgs = mainTurnCalls[1]?.[0] as any
       expect((secondArgs.history[0] as any)?.content?.[0]?.text).toBe('resume-history')
     } finally {
       restoreStubbedEnv('FORMAX_CONFIG_DIR', prevConfigDir)

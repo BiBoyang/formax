@@ -20,6 +20,7 @@ import {
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
+import { mergeDurableSnipSnapshot, scopeDurableSnipStateToHistory } from '../chat/context/contextProjection.js'
 import { stampMissingAssistantMessageTimestamps } from '../chat/context/promptMessageTimestamps.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
@@ -29,6 +30,8 @@ import {
 import {
   findSessionFileBySessionId,
   readContextCollapseStoreSnapshotFromSession,
+  DURABLE_SNIP_COMMITTED_EVENT_NAME,
+  readDurableSnipStateFromSession,
   readSessionFile,
   SessionWriter,
 } from '../features/repl/sessionSave/index.js'
@@ -483,6 +486,10 @@ export class TurnRunner {
       const replay = await readSessionFile(running.filePath)
       const history = replay.history
       const initialCollapseStoreSnapshot = await this.getContextCollapseStoreSnapshot(running.filePath)
+      const initialDurableSnipState = scopeDurableSnipStateToHistory({
+        state: await readDurableSnipStateFromSession({ filePath: running.filePath }).catch(() => null),
+        history,
+      })
 
       const userMsg: Msg = {
         id: `user-${Date.now()}-${running.turnId}`,
@@ -719,6 +726,7 @@ export class TurnRunner {
           user,
           budgetConfig: promptBudget,
           durableState: {
+            ...(initialDurableSnipState ? { snip: initialDurableSnipState } : {}),
             collapse: initialCollapseStoreSnapshot,
           },
           enableCacheEditing: cacheEditingEnabled,
@@ -728,8 +736,10 @@ export class TurnRunner {
         const executionRequestHistory = prepared.requestHistory as ChatHistory
         const executionUser = prepared.requestUser as typeof user
         const collapseFact = prepared.strategyFacts.collapse
+        const snipFact = prepared.strategyFacts.snip
         const collapseCompactBoundaryFingerprint =
           prepared.contextProjection.durableState.collapse.compactBoundaryFingerprint
+        const activeCompactBoundaryFingerprint = prepared.contextProjection.facts.activeCompactBoundaryFingerprint
         const collapseRecapMessage = prepared.stack.collapsedHistory[0]
         const collapseRecapSurvivedRequestProjection = collapseRecapMessage
           ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: collapseRecapMessage })
@@ -791,6 +801,34 @@ export class TurnRunner {
             snapshot: this.contextCollapseStoreByFilePath.get(running.filePath) ?? initialCollapseStoreSnapshot,
             entry,
           }))
+        }
+        const canPersistDurableSnip =
+          !prepared.contextProjection.durableState.collapse.applied && !collapseFact.applied
+        if (canPersistDurableSnip && snipFact.applied && prepared.stack.snipRemovals.length > 0) {
+          const newRemovals = prepared.stack.snipRemovals.map((removal) => ({
+            kind: removal.kind,
+            startIndex: removal.startIndex,
+            endIndexExclusive: removal.endIndexExclusive,
+            reason: removal.reason,
+            removedMessageFingerprints: removal.removedMessageFingerprints,
+          }))
+          const snipSnapshot = mergeDurableSnipSnapshot({
+            existingState: initialDurableSnipState,
+            newRemovals,
+            compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+          })
+          await writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+            schemaVersion: 1,
+            source: 'request_snip',
+            phase: 'initial',
+            estimatedTokensSaved: snipFact.estimatedTokensSaved,
+            removedMessageCount: snipSnapshot.removals.reduce(
+              (sum, removal) => sum + removal.endIndexExclusive - removal.startIndex,
+              0,
+            ),
+            compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+            removals: snipSnapshot.removals,
+          })
         }
         nextHistoryForSnapshot =
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0

@@ -29,6 +29,12 @@ import {
   type ContextCollapseCommitState,
   type ContextCollapseStoreSnapshot,
 } from '../../../../chat/context/contextCollapseStore'
+import {
+  mergeDurableSnipSnapshot,
+  scopeDurableSnipStateToHistory,
+  type DurableSnipRemoval,
+  type DurableSnipState,
+} from '../../../../chat/context/contextProjection'
 import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
@@ -37,6 +43,7 @@ import { waitForRollingSessionMemoryFlush } from '../shared/sessionMemoryFlush'
 import { countNonToolUserTurns } from '../shared/utils'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { readContextCollapseStoreSnapshotFromSession } from '../../sessionSave/contextCollapseStoreEvents'
+import { readDurableSnipStateFromSession } from '../../sessionSave/durableSnipStoreEvents'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 export type EstimatedContextState = {
@@ -54,6 +61,14 @@ export type RequestCollapseState = {
   commit: ContextCollapseCommitState | null
 }
 export type RequestCollapseCommitState = ContextCollapseCommitState
+
+export type RequestSnipState = {
+  applied: boolean
+  removedMessageCount: number
+  estimatedTokensSaved: number
+  compactBoundaryFingerprint: string | null
+  removals: DurableSnipRemoval[]
+}
 
 export type ReactiveCompactState = {
   applied: boolean
@@ -95,7 +110,6 @@ export function createContextCompressionService(deps: {
   let fallbackCollapseStoreFilePath: string | null = null
   let fallbackCollapseStoreSnapshot: ContextCollapseStoreSnapshot | null = null
   let fallbackCollapseStoreLoading: Promise<ContextCollapseStoreSnapshot | null> | null = null
-
   const getFallbackContextCollapseStoreSnapshot = async (): Promise<ContextCollapseStoreSnapshot | null> => {
     const sessionFilePath = deps.getSessionFilePath?.() ?? null
     if (!sessionFilePath) {
@@ -122,6 +136,12 @@ export function createContextCompressionService(deps: {
     return snapshot
   }
 
+  const getFallbackDurableSnipState = async (): Promise<DurableSnipState | null> => {
+    const sessionFilePath = deps.getSessionFilePath?.() ?? null
+    if (!sessionFilePath) return null
+    return readDurableSnipStateFromSession({ filePath: sessionFilePath }).catch(() => null)
+  }
+
   const runCanonicalMiddleLayerStack = (args: {
     system: PromptBlock[]
     history: ChatHistory
@@ -145,17 +165,23 @@ export function createContextCompressionService(deps: {
     const collapseSnapshot = deps.getContextCollapseStoreSnapshot
       ? await deps.getContextCollapseStoreSnapshot()
       : await getFallbackContextCollapseStoreSnapshot()
-    return prepareTurnRequestProjection({
+    const durableSnipState = scopeDurableSnipStateToHistory({
+      state: await getFallbackDurableSnipState(),
+      history: args.history,
+    })
+    const prepared = prepareTurnRequestProjection({
       system: args.system,
       history: args.history,
       user: args.user,
       budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       durableState: {
+        ...(durableSnipState ? { snip: durableSnipState } : {}),
         collapse: collapseSnapshot,
       },
       enableCacheEditing: isCacheEditingEnabled(),
       enableTimeBasedMicroCompact: isCacheEditingEnabled(),
     })
+    return { ...prepared, durableSnipState }
   }
 
   const estimateContext = (args: {
@@ -174,6 +200,33 @@ export function createContextCompressionService(deps: {
       limitTokens: stats.effectiveLimitTokens,
       percentRemaining: stats.percentRemaining,
       source: 'estimate',
+    }
+  }
+
+  const buildRequestSnipState = (prepared: Awaited<ReturnType<typeof prepareCanonicalTurnProjection>>): RequestSnipState => {
+    const newRemovals = prepared.stack.snipRemovals.map((removal) => ({
+      kind: removal.kind,
+      startIndex: removal.startIndex,
+      endIndexExclusive: removal.endIndexExclusive,
+      reason: removal.reason,
+      removedMessageFingerprints: removal.removedMessageFingerprints,
+    }))
+    const snapshot = mergeDurableSnipSnapshot({
+      existingState: prepared.durableSnipState,
+      newRemovals,
+      compactBoundaryFingerprint: prepared.contextProjection.facts.activeCompactBoundaryFingerprint,
+    })
+    const canPersistDurableSnip =
+      !prepared.contextProjection.durableState.collapse.applied && !prepared.strategyFacts.collapse.applied
+    return {
+      applied: canPersistDurableSnip && prepared.strategyFacts.snip.applied && newRemovals.length > 0,
+      removedMessageCount: snapshot.removals.reduce(
+        (sum, removal) => sum + removal.endIndexExclusive - removal.startIndex,
+        0,
+      ),
+      estimatedTokensSaved: prepared.strategyFacts.snip.estimatedTokensSaved,
+      compactBoundaryFingerprint: prepared.contextProjection.facts.activeCompactBoundaryFingerprint,
+      removals: snapshot.removals,
     }
   }
 
@@ -318,6 +371,7 @@ export function createContextCompressionService(deps: {
       requestHistory: ChatHistory
       cacheEditPlan: AnthropicCacheEditPlan | null
       collapseState: RequestCollapseState
+      snipState: RequestSnipState
       strategyFacts: MiddleLayerStrategyFacts
       user: PromptMessage
       context: EstimatedContextState
@@ -411,6 +465,7 @@ export function createContextCompressionService(deps: {
         requestHistory: prepared.requestHistory,
         cacheEditPlan: prepared.cacheEditPlan,
         collapseState: buildRequestCollapseState(prepared),
+        snipState: buildRequestSnipState(prepared),
         strategyFacts: prepared.strategyFacts,
         user: preparedUser,
         context: estimateContext({
@@ -512,6 +567,7 @@ export function createContextCompressionService(deps: {
       requestHistory: ChatHistory
       cacheEditPlan: AnthropicCacheEditPlan | null
       collapseState: RequestCollapseState
+      snipState: RequestSnipState
       strategyFacts: MiddleLayerStrategyFacts
       reactiveCompactState: ReactiveCompactState
       user: PromptMessage
@@ -562,6 +618,7 @@ export function createContextCompressionService(deps: {
         requestHistory: prepared.requestHistory,
         cacheEditPlan: prepared.cacheEditPlan,
         collapseState: buildRequestCollapseState(prepared),
+        snipState: buildRequestSnipState(prepared),
         strategyFacts: prepared.strategyFacts,
         reactiveCompactState: {
           applied: true,

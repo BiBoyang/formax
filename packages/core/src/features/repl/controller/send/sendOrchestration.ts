@@ -15,7 +15,7 @@ import { applyProviderErrorToState } from '../shared'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
-import type { RequestCollapseCommitState } from './contextCompressionService'
+import type { RequestCollapseCommitState, RequestSnipState } from './contextCompressionService'
 import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import { createMainTurnExecutionContext } from './sendMainTurnContext'
 import { runMainSendTurn } from './sendMainTurn'
@@ -70,6 +70,10 @@ type RunReplModelSendFlowArgs = {
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
       commit: RequestCollapseCommitState | null
+    }) => void | Promise<void>
+    onRequestSnip?: (event: {
+      phase: 'initial' | 'reactive_retry'
+      state: RequestSnipState | null
     }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
@@ -156,6 +160,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     lastAutoCompactSeqRef: args.turnRefs.autoCompactSeqRef,
     onCompactLifecycle: args.callbacks.onCompactLifecycle,
     onRequestCollapse: args.callbacks.onRequestCollapse,
+    onRequestSnip: args.callbacks.onRequestSnip,
     onReactiveCompact: args.callbacks.onReactiveCompact,
     getSessionFilePath: args.turnRefs.getSessionFilePath,
     getContextCollapseStoreSnapshot: args.turnRefs.getContextCollapseStoreSnapshot,
