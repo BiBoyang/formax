@@ -234,7 +234,7 @@ Validation:
 - [ ] Web runtime caches compact/snip/collapse facts from a single RPC shape.
   - [x] Compact/collapse display facts cached from one parsed RPC facts object per `thread/messages` / `thread/resume` / `thread/replay` response.
   - [ ] Snip remains `/context` diagnostics-only until app-server exposes a canonical thread-level snip fact.
-- [ ] `/context` diagnostics displays projection layers without redefining stage semantics.
+- [x] `/context` diagnostics displays projection layers without redefining stage semantics.
 - [ ] CODEMAP / README / contracts updated if entrypoints move.
 
 ## Commit Strategy

@@ -8,6 +8,7 @@ import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToo
 import { AppServer } from './server.js'
 import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
 import { readLatestReactiveCompactEventFromSession } from '../features/repl/sessionSave/reactiveCompactEvents.js'
+import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionSave/contextCollapseStoreEvents.js'
 import {
   classifyRpcMessage,
   JSON_RPC_ERRORS,
@@ -290,6 +291,9 @@ export async function runAppServer(args?: {
       const latestReactiveCompact = sessionFilePath
         ? await readLatestReactiveCompactEventFromSession({ filePath: sessionFilePath })
         : null
+      const contextCollapseStoreSnapshot = sessionFilePath
+        ? await readContextCollapseStoreSnapshotFromSession({ filePath: sessionFilePath }).catch(() => null)
+        : null
 
       const diagnostics = buildContextDiagnosticsPayload({
         cwd: dispatchCwd,
@@ -301,6 +305,7 @@ export async function runAppServer(args?: {
         messages: replay?.history ?? [],
         latestRequestCollapse,
         latestReactiveCompact,
+        durableState: contextCollapseStoreSnapshot ? { collapse: contextCollapseStoreSnapshot } : undefined,
         nextTurnFixedGroups: [
           { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
           { label: 'Mode semantic blocks', blocks: turnInput.semanticBlocks },
@@ -320,6 +325,7 @@ export async function runAppServer(args?: {
                 latestReactiveCompact: diagnostics.latestReactiveCompact,
                 diagnostics: diagnostics.snapshot,
                 nextTurn: diagnostics.nextTurnFixed,
+                projectionLayers: diagnostics.projectionLayers,
                 mode: diagnostics.mode,
                 model: diagnostics.model,
                 notes: diagnostics.notes,

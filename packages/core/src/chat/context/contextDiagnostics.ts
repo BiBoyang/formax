@@ -41,6 +41,12 @@ import { buildPostCompactRehydration } from './postCompactRehydration'
 import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 import type { ReactiveCompactErrorKind } from '../../features/repl/controller/send/reactiveCompact'
+import {
+  buildContextProjection,
+  type ContextProjectionDurableState,
+  type ContextProjectionDurableInputState,
+  type DurableProjectionStage,
+} from './contextProjection'
 
 export type ContextDiagnostics = {
   totalTokens: number
@@ -193,6 +199,17 @@ export type ContextStrategyControlPlane = {
   dominantSavingTokens: number
 }
 
+export type ContextProjectionLayerDiagnostics = {
+  rawTranscriptMessageCount: number
+  uiScrollbackMessageCount: number
+  modelFacingBaselineMessageCount: number
+  diagnosticsProjectionMessageCount: number
+  activeCompactBoundaryFingerprint: string | null
+  modelFacingBaselineFingerprint: string
+  appliedDurableStages: DurableProjectionStage[]
+  durableStages: ContextProjectionDurableState
+}
+
 export type ContextDiagnosticsPayload = {
   kind: 'formax.context_diagnostics'
   schemaVersion: 1
@@ -201,6 +218,7 @@ export type ContextDiagnosticsPayload = {
   latestCompactBoundary: CompactBoundaryMeta | null
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  projectionLayers: ContextProjectionLayerDiagnostics
   snapshot: ContextDiagnostics
   nextTurnFixed: NextTurnFixedContextDiagnostics
   notes: string[]
@@ -229,6 +247,51 @@ function normalizeLatestReactiveCompact(
   }
 }
 
+function buildProjectionLayerDiagnostics(args: {
+  messages: PromptMessage[]
+  durableState?: ContextProjectionDurableInputState
+}): ContextProjectionLayerDiagnostics {
+  const contextProjection = buildContextProjection({
+    history: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
+  })
+  return {
+    rawTranscriptMessageCount: contextProjection.rawTranscript.length,
+    uiScrollbackMessageCount: contextProjection.uiScrollback.length,
+    modelFacingBaselineMessageCount: contextProjection.modelFacingBaseline.length,
+    diagnosticsProjectionMessageCount: contextProjection.diagnosticsProjection.length,
+    activeCompactBoundaryFingerprint: contextProjection.facts.activeCompactBoundaryFingerprint,
+    modelFacingBaselineFingerprint: contextProjection.facts.modelFacingBaselineFingerprint,
+    appliedDurableStages: [...contextProjection.facts.appliedDurableStages],
+    durableStages: contextProjection.durableState,
+  }
+}
+
+function formatProjectionLayers(value: ContextProjectionLayerDiagnostics | null): string[] {
+  if (!value) return ['- Projection layers: unavailable']
+  return [
+    `- Raw transcript messages: ${formatInt(value.rawTranscriptMessageCount)}`,
+    `- UI scrollback messages: ${formatInt(value.uiScrollbackMessageCount)}`,
+    `- Model-facing baseline messages: ${formatInt(value.modelFacingBaselineMessageCount)}`,
+    `- Diagnostics projection messages: ${formatInt(value.diagnosticsProjectionMessageCount)}`,
+    `- Active compact boundary fingerprint: ${value.activeCompactBoundaryFingerprint ?? 'none'}`,
+    `- Model-facing baseline fingerprint: ${value.modelFacingBaselineFingerprint}`,
+    `- Durable stages applied: ${formatToolNames(value.appliedDurableStages)}`,
+    `- Durable snip: ${formatDurableProjectionStage(value.durableStages.snip)}`,
+    `- Durable collapse: ${formatDurableProjectionStage(value.durableStages.collapse)}`,
+    `- Durable tool-result content replacement: ${formatDurableProjectionStage(value.durableStages.toolResultContentReplacement)}`,
+  ]
+}
+
+function formatDurableProjectionStage(value: {
+  stage: string
+  status: string
+  applied: boolean
+  reason: string
+}): string {
+  return `status=${value.status}; applied=${formatMaybeBool(value.applied)}; ${value.reason}`
+}
+
 export type ContextDiagnosticsOutputFormat = 'text' | 'json'
 
 const DEFAULT_CONTEXT_DIAGNOSTICS_NOTES = [
@@ -250,8 +313,12 @@ export function analyzeContextDiagnostics(args: {
   system: PromptBlock[]
   messages: PromptMessage[]
   budgetConfig?: ContextBudgetConfig | null
+  durableState?: ContextProjectionDurableInputState
 }): ContextDiagnostics {
-  const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
+  const promptMessages = buildContextProjection({
+    history: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
+  }).diagnosticsProjection
   const toolUsesById = collectToolUsesById(promptMessages)
   const systemSectionBreakdown = buildSystemSectionContributors(args.system)
   const systemTokens = estimatePromptTokens({ system: args.system, messages: [] })
@@ -343,9 +410,14 @@ export function analyzeNextTurnFixedContext(args: {
   keepLastTurns?: number
   enableAutoCompact?: boolean
   enableCacheEditing?: boolean
+  durableState?: ContextProjectionDurableInputState
 }): NextTurnFixedContextDiagnostics {
-  const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
-  const hasLatestCompactBoundary = findLatestCompactBoundary(args.messages) != null
+  const contextProjection = buildContextProjection({
+    history: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
+  })
+  const promptMessages = contextProjection.diagnosticsProjection
+  const hasActiveCompactBoundary = contextProjection.facts.activeCompactBoundaryFingerprint != null
   const fixedGroups = args.fixedGroups
     .map((group) => ({
       label: group.label,
@@ -366,7 +438,7 @@ export function analyzeNextTurnFixedContext(args: {
     history: promptMessages,
     trailingMessage: fixedUserMessage,
     budgetConfig: args.budgetConfig ?? null,
-    allowBoundarylessContinuation: hasLatestCompactBoundary,
+    allowBoundarylessContinuation: hasActiveCompactBoundary,
     enableCacheEditing: args.enableCacheEditing,
   })
   const microCompactedHistory = stack.microCompactedHistory
@@ -663,6 +735,7 @@ export function buildContextDiagnosticsReport(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  durableState?: ContextProjectionDurableInputState
   env?: NodeJS.ProcessEnv
 }): string {
   const payload = buildContextDiagnosticsPayload(args)
@@ -672,6 +745,7 @@ export function buildContextDiagnosticsReport(args: {
     latestReactiveCompact: payload.latestReactiveCompact,
     diagnostics: payload.snapshot,
     nextTurn: payload.nextTurnFixed,
+    projectionLayers: payload.projectionLayers,
     mode: payload.mode,
     model: payload.model,
     notes: payload.notes,
@@ -689,6 +763,7 @@ export function buildContextDiagnosticsJson(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  durableState?: ContextProjectionDurableInputState
   env?: NodeJS.ProcessEnv
 }): string {
   return JSON.stringify(buildContextDiagnosticsPayload(args), null, 2)
@@ -705,6 +780,7 @@ export function buildContextDiagnosticsPayload(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  durableState?: ContextProjectionDurableInputState
   env?: NodeJS.ProcessEnv
 }): ContextDiagnosticsPayload {
   const system = buildSystemPrompt({
@@ -723,9 +799,15 @@ export function buildContextDiagnosticsPayload(args: {
       model: args.cfg.llm.model,
     })
 
+  const projectionLayers = buildProjectionLayerDiagnostics({
+    messages: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
+  })
+
   const diagnostics = analyzeContextDiagnostics({
     system,
     messages: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
@@ -739,6 +821,7 @@ export function buildContextDiagnosticsPayload(args: {
   const nextTurn = analyzeNextTurnFixedContext({
     system,
     messages: args.messages,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
     fixedGroups: args.nextTurnFixedGroups ?? [],
     cwd: args.cwd,
     mode: args.mode,
@@ -768,6 +851,7 @@ export function buildContextDiagnosticsPayload(args: {
     latestCompactBoundary: findLatestCompactBoundary(args.messages),
     latestRequestCollapse: normalizeLatestRequestCollapse(args.latestRequestCollapse),
     latestReactiveCompact: normalizeLatestReactiveCompact(args.latestReactiveCompact),
+    projectionLayers,
     snapshot: diagnostics,
     nextTurnFixed: nextTurn,
     notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],
@@ -780,6 +864,7 @@ export function formatContextDiagnosticsReport(args: {
   latestReactiveCompact?: ContextLatestReactiveCompact | null
   diagnostics: ContextDiagnostics
   nextTurn?: NextTurnFixedContextDiagnostics | null
+  projectionLayers?: ContextProjectionLayerDiagnostics | null
   mode: string
   model: string
   notes?: string[]
@@ -812,6 +897,9 @@ export function formatContextDiagnosticsReport(args: {
     `- Trigger kind: ${args.latestReactiveCompact?.triggerKind ?? 'none'}`,
     `- Trigger detail: ${args.latestReactiveCompact?.triggerDetail ?? 'none'}`,
     `- Fallback strategy: ${args.latestReactiveCompact?.strategy ?? 'none'}`,
+    '',
+    'Projection layers',
+    ...formatProjectionLayers(args.projectionLayers ?? null),
     '',
     'Budget',
     `- Context window: ${formatMaybeInt(diagnostics.contextWindowTokens)}`,

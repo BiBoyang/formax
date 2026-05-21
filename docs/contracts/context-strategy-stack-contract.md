@@ -197,6 +197,9 @@ middle-layer stack SHOULD 为每个 stage 暴露结构化 facts；这些 facts M
 diagnostics / app-server / Web surface 对 middle-layer 的展示 SHOULD 优先消费 runtime 产生的 canonical stage facts，而不是各自重新推导另一套 stage 语义。
 
 `CSS-404`  
+/context diagnostics MUST expose projection-layer facts from `buildContextProjection()` when reporting raw transcript, UI scrollback, model-facing baseline, diagnostics projection, durable stage status, and durable stage fingerprints. `/context` MAY run the request-only middle-layer stack to show next-turn estimates, but it MUST feed that stack from the diagnostics projection produced by the durable projection owner rather than independently rediscovering compact/snip/collapse projection boundaries.
+
+`CSS-405`
 若 diagnostics / app-server / Web surface 需要展示 stack-level control-plane summary，则该 summary MUST 建立在 canonical stage facts 之上；不得引入一套与 `stageOrder` / `role` / `scope` / `disposition` 不一致的独立推导逻辑。
 
 ## 6. 变更流程

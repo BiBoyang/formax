@@ -14,6 +14,7 @@ import {
   buildCompactionSummaryUserText,
   buildDefaultCompactRehydrationPlan,
   estimateCompactRehydrationCost,
+  fingerprintCompactBoundaryMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
   markCompactRehydrationApplied,
   rebuildHistoryAfterCompaction,
@@ -23,6 +24,7 @@ import { estimatePromptTokens } from './estimate'
 import { buildPostCompactRehydration } from './postCompactRehydration'
 import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 import { CACHE_EDITING_BETA_HEADER } from './cacheEditing'
+import { createContextCollapseCommittedEntry } from './contextCollapseStore'
 
 describe('contextDiagnostics', () => {
   it('analyzes prompt slices, counts tool results, and detects microcompacted stubs', () => {
@@ -855,6 +857,25 @@ describe('contextDiagnostics', () => {
       tailFingerprint: 'tail-fingerprint',
     })
     expect(parsed.mode).toBe('normal')
+    expect(parsed.projectionLayers).toMatchObject({
+      rawTranscriptMessageCount: 1,
+      uiScrollbackMessageCount: 1,
+      modelFacingBaselineMessageCount: 0,
+      diagnosticsProjectionMessageCount: 0,
+      appliedDurableStages: [],
+    })
+    expect(parsed.projectionLayers.activeCompactBoundaryFingerprint).toEqual(expect.any(String))
+    expect(parsed.projectionLayers.modelFacingBaselineFingerprint).toEqual(expect.any(String))
+    expect(parsed.projectionLayers.durableStages.snip).toMatchObject({
+      stage: 'snip',
+      status: 'no_state',
+      applied: false,
+    })
+    expect(parsed.projectionLayers.durableStages.collapse).toMatchObject({
+      stage: 'collapse',
+      status: 'no_state',
+      applied: false,
+    })
     expect(parsed.snapshot).toBeTruthy()
     expect(parsed.nextTurnFixed).toBeTruthy()
     expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
@@ -1035,6 +1056,197 @@ describe('contextDiagnostics', () => {
     expect(resolveContextDiagnosticsOutputFormat('--json')).toBe('json')
     expect(resolveContextDiagnosticsOutputFormat(' --json ')).toBe('json')
     expect(resolveContextDiagnosticsOutputFormat('--yaml')).toBe(null)
+  })
+
+  it('includes projection layer facts in the generated text report', () => {
+    const report = buildContextDiagnosticsReport({
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: '',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 100_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 12_000,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: { logsDir: '', subagentsDir: '', planDir: '' },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      messages: [
+        buildCompactBoundaryMessage({
+          trigger: 'manual',
+          preTokens: 10,
+          summaryKind: 'model_summary',
+          keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+        }),
+      ],
+    })
+
+    expect(report).toContain('Projection layers')
+    expect(report).toContain('- Raw transcript messages: 1')
+    expect(report).toContain('- UI scrollback messages: 1')
+    expect(report).toContain('- Model-facing baseline messages: 0')
+    expect(report).toContain('- Diagnostics projection messages: 0')
+    expect(report).toContain('- Durable stages applied: none')
+  })
+
+  it('feeds durable collapse state into projection layer diagnostics', () => {
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 10,
+      summaryKind: 'model_summary',
+      keepStrategy: { kind: 'keep_last_turns', keepLastTurns: 2 },
+    })
+    const raw = buildContextDiagnosticsJson({
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: '',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 100_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 12_000,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: { logsDir: '', subagentsDir: '', planDir: '' },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      messages: [
+        compactBoundary,
+        { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'older answer' }] },
+        { role: 'user', content: [{ type: 'text', text: 'older request' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'recent answer' }] },
+      ],
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          entries: [
+            createContextCollapseCommittedEntry({
+              id: 'collapse-1',
+              createdAtMs: 1000,
+              source: 'request_collapse',
+              collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 3 },
+              compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+              recapMessage: { role: 'user', content: [{ type: 'text', text: '<system-reminder>recap</system-reminder>' }] },
+              metadata: {
+                schemaVersion: 1,
+                kind: 'request_recap',
+                keepLastTurns: 1,
+                preservedTailMessageCount: 1,
+                retainedCompactSummary: true,
+                recentUserPromptCount: 1,
+                recentFileCount: 0,
+                earlierToolResultBlockCount: 0,
+                recapFingerprint: 'collapse-fingerprint',
+              },
+            }),
+          ],
+        },
+      },
+    })
+
+    const parsed = JSON.parse(raw)
+    expect(parsed.projectionLayers.appliedDurableStages).toEqual(['collapse'])
+    expect(parsed.projectionLayers.modelFacingBaselineMessageCount).toBe(3)
+    expect(parsed.projectionLayers.diagnosticsProjectionMessageCount).toBe(3)
+    expect(parsed.projectionLayers.durableStages.collapse).toMatchObject({
+      stage: 'collapse',
+      status: 'active',
+      applied: true,
+      committedEntryCount: 1,
+      replacedMessageCount: 2,
+    })
+    expect(JSON.stringify(parsed.nextTurnFixed)).not.toContain('older answer')
+  })
+
+  it('uses durable active compact fingerprint for boundaryless next-turn collapse estimates', () => {
+    const raw = buildContextDiagnosticsJson({
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: '',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 100_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 12_000,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: { logsDir: '', subagentsDir: '', planDir: '' },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      messages: [
+        { role: 'assistant', content: [{ type: 'text', text: 'old analysis '.repeat(5000) }] },
+        { role: 'user', content: [{ type: 'text', text: 'old request '.repeat(3000) }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'middle analysis '.repeat(2000) }] },
+        { role: 'user', content: [{ type: 'text', text: 'recent request' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'recent answer' }] },
+      ],
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          activeCompactBoundaryFingerprint: 'active-compact-fingerprint',
+          entries: [],
+        },
+      },
+    })
+
+    const parsed = JSON.parse(raw)
+    expect(parsed.projectionLayers.activeCompactBoundaryFingerprint).toBe('active-compact-fingerprint')
+    expect(parsed.nextTurnFixed.collapseImpact.collapsed).toBe(true)
+    expect(parsed.nextTurnFixed.collapseImpact.collapsedHeadMessageCount).toBeGreaterThan(0)
   })
 
   it('formats latest compact rehydration plan in the text report', () => {

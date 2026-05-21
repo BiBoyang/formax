@@ -31,6 +31,7 @@ import { createContextCompressionService } from './contextCompressionService'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { readLatestRequestCollapseEventFromSessionSync } from '../../sessionSave/requestCollapseEvents'
 import { readLatestReactiveCompactEventFromSessionSync } from '../../sessionSave/reactiveCompactEvents'
+import { readContextCollapseStoreSnapshotFromSessionSync } from '../../sessionSave/contextCollapseStoreEvents'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'
@@ -296,6 +297,9 @@ export function maybeBuildContextSlashEffect(args: {
   const latestReactiveCompact = sessionFilePath
     ? readLatestReactiveCompactEventFromSessionSync({ filePath: sessionFilePath })
     : null
+  const contextCollapseStoreSnapshot = sessionFilePath
+    ? readContextCollapseStoreSnapshotFromSessionSync({ filePath: sessionFilePath })
+    : null
 
   return {
     kind: 'local',
@@ -311,6 +315,7 @@ export function maybeBuildContextSlashEffect(args: {
             messages: args.historyRef.current,
             latestRequestCollapse,
             latestReactiveCompact,
+            durableState: contextCollapseStoreSnapshot ? { collapse: contextCollapseStoreSnapshot } : undefined,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
               { label: 'Reminder blocks', blocks: reminderBlocks },
@@ -329,6 +334,7 @@ export function maybeBuildContextSlashEffect(args: {
             messages: args.historyRef.current,
             latestRequestCollapse,
             latestReactiveCompact,
+            durableState: contextCollapseStoreSnapshot ? { collapse: contextCollapseStoreSnapshot } : undefined,
             nextTurnFixedGroups: [
               { label: 'Deferred tool exposure', blocks: toolExposure.injectedPromptBlocks },
               { label: 'Reminder blocks', blocks: reminderBlocks },
