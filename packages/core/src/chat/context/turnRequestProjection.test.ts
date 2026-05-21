@@ -167,6 +167,7 @@ describe('prepareTurnRequestProjection', () => {
       status: 'active',
       applied: true,
       removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
     })
   })
 })

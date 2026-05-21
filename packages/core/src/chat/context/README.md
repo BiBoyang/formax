@@ -115,6 +115,7 @@ Formax 的“上下文管理”分两条线：
 ### 想改“硬截断兜底（P3）”
 
 - `packages/core/src/chat/context/prune.ts`：`pruneForPromptBudget()`（安全兜底，保持 tool 对）
+- `packages/core/src/chat/context/toolPairProjection.ts`：durable projection / prune 共用的 tool-use/tool-result orphan-block 归一化，避免模型请求出现不成对的工具父链
 - `packages/core/src/chat/context/prune.test.ts`：单测覆盖（预算 fit + tool 对不变量）
 
 ### 想改“轻量压缩 / microcompact（P2）”

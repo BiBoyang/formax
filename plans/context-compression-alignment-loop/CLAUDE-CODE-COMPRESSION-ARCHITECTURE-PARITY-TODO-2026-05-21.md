@@ -172,7 +172,7 @@ Tests first:
 - [x] Snip emits durable metadata/boundary identifying removed message IDs or ranges.
 - [x] Resume/load applies snip removals to model-facing projection.
 - [x] UI scrollback can still show raw transcript or explicitly documented view.
-- [ ] Parent-chain / continuation relink stays valid across removed middle ranges.
+- [x] Parent-chain / continuation relink stays valid across removed middle ranges.
 - [x] Subsequent request uses stable snipped projection and does not repeatedly resurrect unsnipped history.
 - [x] Keep schema abstract until Claude Code `snipCompact` / `snipProjection` internals are available; tests should require durable IDs/ranges and replay behavior, not exact field names.
 
@@ -186,6 +186,8 @@ Implementation:
 Validation:
 
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/prune.test.ts`
 - [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
 - [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
 - [ ] Context/session/app-server/Web replay targeted tests.

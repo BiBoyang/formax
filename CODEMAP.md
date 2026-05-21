@@ -91,6 +91,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
 - Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
 - Hard pruning rules (tool pair invariants + truncation): `packages/core/src/chat/context/prune.ts`
+- Tool-use/tool-result orphan-block normalization shared by durable projection and prune: `packages/core/src/chat/context/toolPairProjection.ts`
 - Compaction tail selection (keep last N turns): `packages/core/src/chat/context/compact.ts`
 - Tool-loop pruning (pre-`streamOnce`): `packages/core/src/chat/engine.ts` (`promptBudget`)
 - Config knobs (defaults + env): `packages/core/src/config/settings/schema.ts`, `packages/core/src/config/settings/resolve.ts`, `packages/core/src/config/config.ts`

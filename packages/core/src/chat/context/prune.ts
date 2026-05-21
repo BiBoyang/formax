@@ -1,6 +1,7 @@
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import { computeContextBudget } from './budget'
 import { estimatePromptTokens } from './estimate'
+import { dropOrphanToolBlocks } from './toolPairProjection'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 const MAX_TOOL_RESULT_CHARS = 8_000
@@ -19,61 +20,6 @@ function findLastNonToolUserIndex(messages: PromptMessage[]): number {
     if (msg.role === 'user' && !isToolResultMessage(msg)) return i
   }
   return -1
-}
-
-function getToolUseIds(msg: PromptMessage | undefined): string[] {
-  if (!msg || msg.role !== 'assistant' || !Array.isArray(msg.content)) return []
-  const ids: string[] = []
-  for (const b of msg.content as any[]) {
-    if (b?.type === 'tool_use' && typeof b.id === 'string') ids.push(b.id)
-  }
-  return ids
-}
-
-function getToolResultIds(msg: PromptMessage | undefined): string[] {
-  if (!msg || msg.role !== 'user' || !Array.isArray(msg.content)) return []
-  const ids: string[] = []
-  for (const b of msg.content as any[]) {
-    if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') ids.push(b.tool_use_id)
-  }
-  return ids
-}
-
-function normalizeToolPairs(messages: PromptMessage[]): PromptMessage[] {
-  const toolUses = new Set<string>()
-  const toolResults = new Set<string>()
-
-  for (const msg of messages) {
-    for (const id of getToolUseIds(msg)) toolUses.add(id)
-    for (const id of getToolResultIds(msg)) toolResults.add(id)
-  }
-
-  const paired = new Set<string>()
-  for (const id of toolUses) {
-    if (toolResults.has(id)) paired.add(id)
-  }
-
-  const out: PromptMessage[] = []
-  for (const msg of messages) {
-    if (!msg) continue
-    if (!Array.isArray(msg.content) || msg.content.length === 0) continue
-
-    if (msg.role === 'assistant') {
-      const next = msg.content.filter((b: any) => b?.type !== 'tool_use' || paired.has(String(b.id)))
-      if (next.length > 0) out.push({ ...msg, content: next as any })
-      continue
-    }
-
-    if (msg.role === 'user') {
-      const next = msg.content.filter((b: any) => b?.type !== 'tool_result' || paired.has(String(b.tool_use_id)))
-      if (next.length > 0) out.push({ ...msg, content: next as any })
-      continue
-    }
-
-    out.push(msg)
-  }
-
-  return out
 }
 
 function dropLeadingToolResultMessages(messages: PromptMessage[]): PromptMessage[] {
@@ -110,6 +56,10 @@ function reduceToEssentialTail(messages: PromptMessage[]): PromptMessage[] {
   }
 
   return dropLeadingToolResultMessages(normalizeToolPairs(essential))
+}
+
+function normalizeToolPairs(messages: PromptMessage[]): PromptMessage[] {
+  return dropOrphanToolBlocks(messages).messages
 }
 
 function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): PromptMessage {

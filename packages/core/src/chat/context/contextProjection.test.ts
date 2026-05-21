@@ -14,6 +14,20 @@ function textMessage(role: 'user' | 'assistant', text: string): PromptMessage {
   }
 }
 
+function assistantToolUse(id: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Read', input: { file_path: `/repo/${id}.ts` } }] as any,
+  }
+}
+
+function userToolResult(id: string): PromptMessage {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content: `${id} result` }] as any,
+  }
+}
+
 function boundary(preTokens = 8192): PromptMessage {
   return buildCompactBoundaryMessage({
     trigger: 'auto',
@@ -88,6 +102,7 @@ describe('buildContextProjection', () => {
       applied: false,
       reason: 'no durable snip state',
       removedMessageCount: 0,
+      droppedOrphanToolBlockCount: 0,
       removals: [],
     })
     expect(projection.durableState.collapse).toEqual({
@@ -139,6 +154,7 @@ describe('buildContextProjection', () => {
       applied: true,
       reason: 'applied durable snip removals',
       removedMessageCount: 2,
+      droppedOrphanToolBlockCount: 0,
       removals: [
         {
           kind: 'model_facing_index_range',
@@ -150,6 +166,38 @@ describe('buildContextProjection', () => {
     })
     expect(projection.facts.appliedDurableStages).toEqual(['snip'])
     expect(projection.facts.modelFacingBaselineMessageCount).toBe(2)
+  })
+
+  it('drops orphan tool blocks after durable snip removes the other side of a tool pair', () => {
+    const toolUse = assistantToolUse('read-1')
+    const toolResult = userToolResult('read-1')
+    const history: PromptMessage[] = [
+      textMessage('user', 'start'),
+      toolUse,
+      toolResult,
+      textMessage('assistant', 'done'),
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [{ kind: 'model_facing_index_range', startIndex: 2, endIndexExclusive: 3 }],
+        },
+      },
+    })
+
+    expect(projection.rawTranscript).toBe(history)
+    expect(JSON.stringify(projection.rawTranscript)).toContain('"tool_use_id":"read-1"')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('"tool_use_id":"read-1"')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('"id":"read-1"')
+    expect(projection.modelFacingBaseline).toEqual([
+      textMessage('user', 'start'),
+      textMessage('assistant', 'done'),
+    ])
+    expect(projection.durableState.snip.removedMessageCount).toBe(2)
+    expect(projection.durableState.snip.droppedOrphanToolBlockCount).toBe(1)
   })
 
   it('keeps durable snip projection stable across repeated requests', () => {

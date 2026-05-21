@@ -5,6 +5,7 @@ import {
   getContinuationMessagesAfterLatestCompactBoundary,
   type CompactBoundaryMeta,
 } from './compact'
+import { dropOrphanToolBlocks } from './toolPairProjection'
 import type { PromptMessage } from '../../prompts'
 
 export type ContextProjectionViewKind =
@@ -39,6 +40,7 @@ export type DurableSnipProjectionFact = DurableProjectionStageFact & {
   stage: 'snip'
   status: 'no_state' | 'active'
   removedMessageCount: number
+  droppedOrphanToolBlockCount: number
   removals: DurableSnipRemoval[]
 }
 
@@ -137,6 +139,7 @@ function applyDurableSnipProjection(args: {
         applied: false,
         reason: 'no durable snip state',
         removedMessageCount: 0,
+        droppedOrphanToolBlockCount: 0,
         removals: [],
       },
     }
@@ -148,16 +151,21 @@ function applyDurableSnipProjection(args: {
       removedIndexes.add(index)
     }
   }
-  const messages = args.messages.filter((_, index) => !removedIndexes.has(index))
+  const messagesAfterRangeRemoval = args.messages.filter((_, index) => !removedIndexes.has(index))
+  const relinked = dropOrphanToolBlocks(messagesAfterRangeRemoval)
 
   return {
-    messages,
+    messages: relinked.messages,
     fact: {
       stage: 'snip',
       status: 'active',
-      applied: removedIndexes.size > 0,
-      reason: removedIndexes.size > 0 ? 'applied durable snip removals' : 'durable snip state removed no messages',
-      removedMessageCount: removedIndexes.size,
+      applied: removedIndexes.size > 0 || relinked.droppedOrphanToolBlockCount > 0,
+      reason:
+        removedIndexes.size > 0 || relinked.droppedOrphanToolBlockCount > 0
+          ? 'applied durable snip removals'
+          : 'durable snip state removed no messages',
+      removedMessageCount: removedIndexes.size + relinked.droppedMessageCount,
+      droppedOrphanToolBlockCount: relinked.droppedOrphanToolBlockCount,
       removals: normalizedRemovals,
     },
   }
