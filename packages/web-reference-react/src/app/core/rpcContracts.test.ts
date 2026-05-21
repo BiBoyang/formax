@@ -58,6 +58,51 @@ const DURABLE_SNIP = {
   removalRangeCount: 1,
 }
 
+const COMPRESSION_GOLDEN_COMPACT_BOUNDARY = {
+  schemaVersion: 1 as const,
+  trigger: 'auto' as const,
+  triggerReason: { kind: 'auto_threshold' as const, detail: 'used=8192 limit=7200' },
+  preTokens: 8192,
+  summaryKind: 'model_summary' as const,
+  keepStrategy: {
+    kind: 'keep_combo' as const,
+    keepLastTurns: 2,
+    keepMinTokens: 1200,
+    keepMinUserTurns: 1,
+  },
+}
+
+const COMPRESSION_GOLDEN_DURABLE_SNIP = {
+  stage: 'snip' as const,
+  status: 'active' as const,
+  applied: true,
+  reason: 'applied durable snip removals',
+  removedMessageCount: 1,
+  droppedOrphanToolBlockCount: 0,
+  removalRangeCount: 1,
+}
+
+const COMPRESSION_GOLDEN_REQUEST_COLLAPSE = {
+  phase: 'initial' as const,
+  collapsedHeadMessageCount: 2,
+  estimatedTokensSaved: 256,
+  recapFingerprint: 'fixture-collapse-recap',
+}
+
+const COMPRESSION_GOLDEN_PENDING_RESTORE = {
+  schemaVersion: 1 as const,
+  mode: 'plan' as const,
+  recentFiles: ['/repo/src/context.ts'],
+  recentUserPrompts: ['continue the context compression migration'],
+  recentSkills: ['formax-dev-loop-workflow'],
+  recentSubagentTypes: ['explorer'],
+  recentDeferredToolNames: ['Read'],
+  recentTaskHints: ['Check projection parity surfaces'],
+  planPath: '/repo/plans/context-compression-alignment-loop/CLAUDE-CODE-COMPRESSION-ARCHITECTURE-PARITY-TODO-2026-05-21.md',
+  planExcerpt: 'Surface and recovery convergence',
+  todoSummary: 'Cache compact/snip/collapse facts from one projection shape',
+}
+
 describe('rpcContracts', () => {
   it('parses thread/start response and rejects invalid payload', () => {
     expect(parseThreadStartResponse({ thread: { id: 'thread-1', cwd: '/repo' } })).toEqual({
@@ -1664,6 +1709,56 @@ describe('rpcContracts', () => {
         recapFingerprint: 'abcdef0123456789',
       },
     })
+  })
+
+  it('parses compression golden projection facts across thread surfaces', () => {
+    const thread = {
+      id: 'thread-1',
+      cwd: '/repo',
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:01:00.000Z',
+    }
+
+    const read = parseThreadReadResponse({
+      thread,
+      transcriptPreview: [{ role: 'user', text: 'recent user request' }],
+      latestCompactBoundary: COMPRESSION_GOLDEN_COMPACT_BOUNDARY,
+      durableSnip: COMPRESSION_GOLDEN_DURABLE_SNIP,
+      latestRequestCollapse: COMPRESSION_GOLDEN_REQUEST_COLLAPSE,
+    })
+    const messages = parseThreadMessagesResponse({
+      data: [{ id: 'm1', kind: 'message', role: 'assistant', text: 'recent assistant answer' }],
+      nextCursor: null,
+      latestCompactBoundary: COMPRESSION_GOLDEN_COMPACT_BOUNDARY,
+      durableSnip: COMPRESSION_GOLDEN_DURABLE_SNIP,
+      latestRequestCollapse: COMPRESSION_GOLDEN_REQUEST_COLLAPSE,
+    })
+    const replay = parseThreadReplayResponse({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      latestCompactBoundary: COMPRESSION_GOLDEN_COMPACT_BOUNDARY,
+      durableSnip: COMPRESSION_GOLDEN_DURABLE_SNIP,
+      latestRequestCollapse: COMPRESSION_GOLDEN_REQUEST_COLLAPSE,
+      pendingSessionMemoryRestore: COMPRESSION_GOLDEN_PENDING_RESTORE,
+    })
+    const resume = parseThreadResumeResponse({
+      thread,
+      staleInputs: [],
+      latestCompactBoundary: COMPRESSION_GOLDEN_COMPACT_BOUNDARY,
+      durableSnip: COMPRESSION_GOLDEN_DURABLE_SNIP,
+      latestRequestCollapse: COMPRESSION_GOLDEN_REQUEST_COLLAPSE,
+      pendingSessionMemoryRestore: COMPRESSION_GOLDEN_PENDING_RESTORE,
+    })
+
+    for (const result of [read, messages, replay, resume]) {
+      expect(result?.latestCompactBoundary).toEqual(COMPRESSION_GOLDEN_COMPACT_BOUNDARY)
+      expect(result?.durableSnip).toEqual(COMPRESSION_GOLDEN_DURABLE_SNIP)
+      expect(result?.latestRequestCollapse).toEqual(COMPRESSION_GOLDEN_REQUEST_COLLAPSE)
+    }
+    expect(replay.pendingSessionMemoryRestore).toEqual(COMPRESSION_GOLDEN_PENDING_RESTORE)
+    expect(resume?.pendingSessionMemoryRestore).toEqual(COMPRESSION_GOLDEN_PENDING_RESTORE)
   })
 
   it('parses thread/resume payload with latest compact boundary summary', () => {

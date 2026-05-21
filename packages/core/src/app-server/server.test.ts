@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
+import { buildCompressionProjectionGoldenFixture } from '../chat/context/compressionProjectionFixture.js'
+import { buildContextProjection } from '../chat/context/contextProjection.js'
 import * as commandRegistryModule from '../features/commands/registry.js'
 import { SessionWriter } from '../features/repl/sessionSave/index.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
@@ -19,6 +21,24 @@ function request(id: string | number | null, method: string, params?: unknown) {
     method,
     ...(params === undefined ? {} : { params }),
   })
+}
+
+function durableSnipSummaryFromGoldenFixture(): ThreadDurableSnipSummary {
+  const fixture = buildCompressionProjectionGoldenFixture()
+  const projection = buildContextProjection({
+    history: fixture.rawTranscript,
+    durableState: fixture.durableState,
+  })
+  const snip = projection.durableState.snip
+  return {
+    stage: 'snip',
+    status: snip.status,
+    applied: snip.applied,
+    reason: snip.reason,
+    removedMessageCount: snip.removedMessageCount,
+    droppedOrphanToolBlockCount: snip.droppedOrphanToolBlockCount,
+    removalRangeCount: snip.removals.length,
+  }
 }
 
 async function waitForNotification(
@@ -1004,6 +1024,75 @@ describe('AppServer', () => {
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
     expect((replayOut[0] as any).result.durableSnip).toEqual(durableSnip)
     expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
+  })
+
+  it('keeps compression golden fixture facts identical across read, messages, and replay', async () => {
+    const fixture = buildCompressionProjectionGoldenFixture()
+    const projection = buildContextProjection({
+      history: fixture.rawTranscript,
+      durableState: fixture.durableState,
+    })
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const latestCompactBoundary = projection.facts.latestCompactBoundary
+    const durableSnip = durableSnipSummaryFromGoldenFixture()
+    const latestRequestCollapse = fixture.requestCollapseEvent
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return {
+            thread: baseThread,
+            staleInputs: [],
+            latestCompactBoundary,
+            durableSnip,
+            latestRequestCollapse,
+            pendingSessionMemoryRestore: fixture.pendingSessionMemoryRestore,
+          }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          return {
+            thread: baseThread,
+            transcriptPreview: [{ role: 'user' as const, text: 'recent user request' }],
+            latestCompactBoundary,
+            durableSnip,
+            latestRequestCollapse,
+          }
+        },
+        async listThreadMessages() {
+          return {
+            data: [{ id: 'm1', kind: 'message' as const, role: 'assistant' as const, text: 'recent assistant answer' }],
+            nextCursor: null,
+            latestCompactBoundary,
+            durableSnip,
+            latestRequestCollapse,
+          }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const readOut = await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    const messagesOut = await server.handleMessage(request(3, 'thread/messages', { threadId: 'thread-1' }))
+    const replayOut = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-1' }))
+    const resumeOut = await server.handleMessage(request(5, 'thread/resume', { threadId: 'thread-1' }))
+
+    for (const out of [readOut, messagesOut, replayOut, resumeOut]) {
+      expect((out[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+      expect((out[0] as any).result.durableSnip).toEqual(durableSnip)
+      expect((out[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
+    }
+    expect((resumeOut[0] as any).result.pendingSessionMemoryRestore).toEqual(fixture.pendingSessionMemoryRestore)
   })
 
   it('maps thread store errors on start/resume/read to rpc errors', async () => {

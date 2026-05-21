@@ -61,7 +61,7 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 ### 架构半对齐
 
 - [ ] Compact preserved segment 仍主要依赖 snapshot/fingerprint，缺少 Claude Code-style parent-chain relink / crash-safety guard。
-- [ ] App-server/Web/replay 对 compact boundary 的展示与缓存已打通，但还缺统一的 projection fixture 锁定所有 surface。
+- [x] App-server/Web/replay 对 compact boundary 的展示与缓存已打通，并已补 golden projection fixture 覆盖 RPC facts。
 - [ ] Pending session-memory restore 大体有 dispatch-time consumption，但 `/compact` command path 仍需要专项确认。
 - [x] Request-collapse event 按 latest compact boundary generation 过滤/清理，避免 compact 后继续暴露 pre-compact collapse metadata。
 
@@ -113,6 +113,8 @@ Validation:
 - [x] `bun run test -- packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
 - [x] `npm --prefix packages/web-reference-react run test -- src/app/runtime/threadDataOps.test.ts src/app/runtime/useTranscriptDisplayState.test.tsx src/app/ui/AppShellHeader.test.tsx`
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts`
+- [x] `bun run test -- packages/core/src/app-server/server.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] `npm --prefix packages/web-reference-react run test -- src/app/core/rpcContracts.test.ts`
 - [ ] `bun run test -- packages/core/src/chat/context packages/core/src/features/repl/sessionSave packages/core/src/app-server`
 
 ### Batch 2: Durable Projection Owner Design
