@@ -264,12 +264,18 @@ Validation:
 
 Tasks:
 
-- [ ] 先更新 contract：定义 request-only `tool_result_budget` 与新增 durable tool-result content replacement side-state 的边界；不要把 `tool_result_budget` 本身改写成 durable stage。
-- [ ] 定义 content replacement event / snapshot schema。
-- [ ] 支持 main thread 与 agent/sidechain 最小 scope 隔离；不做完整 agent transcript 架构改造。
-- [ ] projection owner 应用 durable replacement，但 raw transcript 不变。
-- [ ] request-only `tool_result_budget` 与 durable replacement 不重复替换。
-- [ ] Anthropic `cache_reference/cache_edits` 仍保持 provider side effect，不成为 durable authority。
+- [x] 先更新 contract：定义 request-only `tool_result_budget` 与新增 durable tool-result content replacement side-state 的边界；不要把 `tool_result_budget` 本身改写成 durable stage。
+- [x] 定义 content replacement event / snapshot schema。
+- [x] 支持 main thread 与 agent/sidechain 最小 scope 隔离；不做完整 agent transcript 架构改造。
+- [x] projection owner 应用 durable replacement，但 raw transcript 不变。
+- [x] request-only `tool_result_budget` 与 durable replacement 不重复替换。
+- [x] Anthropic `cache_reference/cache_edits` 仍保持 provider side effect，不成为 durable authority。
+
+Validation:
+
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts packages/core/src/chat/context/toolResultBudget.test.ts packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/middleLayerStrategyStack.test.ts packages/core/src/sdk/query.options-alignment.test.ts`
+- [x] `bun run type-check`
+- [x] Codex review before commit
 
 ## Global Review Checklist
 

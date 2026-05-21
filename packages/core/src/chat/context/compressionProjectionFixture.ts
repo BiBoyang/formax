@@ -4,6 +4,7 @@ import {
   buildCompactPreservedSegmentMeta,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from './compact'
 import type { ContextProjectionDurableInputState } from './contextProjection'
 import type { SessionMemoryRestoreSummary } from './sessionMemory'
@@ -106,6 +107,7 @@ export function buildCompressionProjectionGoldenFixture(): CompressionProjection
             startIndex: 2,
             endIndexExclusive: 3,
             reason: 'golden durable snip removes tool result so projection drops orphan tool_use',
+            removedMessageFingerprints: [fingerprintPromptMessage(toolResultMessage)],
           },
         ],
       },

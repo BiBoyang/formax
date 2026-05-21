@@ -37,6 +37,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Shared persisted tool-event reconstruction (used by app-server + REPL resume): `packages/core/src/features/repl/sessionSave/persistedToolEvents.ts`
 - Durable context-collapse store replay reader: `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
 - Durable snip snapshot replay reader / event name: `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
+- Durable tool-result content replacement replay reader / event name: `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.ts`
 - Primary tests: `packages/core/src/app-server/*.test.ts`, `packages/core/src/app-server/store/*.test.ts`, `packages/core/src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)
@@ -91,6 +92,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Shared runtime request projection adapter (persisted history vs request history/user for app-server + SDK): `packages/core/src/chat/context/turnRequestProjection.ts`
 - Message identity / fingerprint helpers for compression projection diagnostics, compact preserved segments, and preserved-tail relink: `packages/core/src/chat/context/compact.ts`
 - Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`
+- Durable tool-result content replacement projection stage: `packages/core/src/chat/context/contextProjection.ts`
 - Independent request-time snip reducer for older assistant text messages + durable identity/fingerprint removal metadata: `packages/core/src/chat/context/snip.ts`
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
 - Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`

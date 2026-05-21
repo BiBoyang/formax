@@ -4,6 +4,8 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
+import { fingerprintToolResultContent } from '../chat/context/contextProjection.js'
+import { DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME } from '../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
 import { query } from './query.js'
 import type { QueryArgs, QueryMessage } from './types.js'
 
@@ -403,6 +405,77 @@ describe('sdk query option alignment regressions', () => {
     const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
     expect(result?.subtype).toBe('success')
     expect(hasOriginalOldRead(result?.history ?? [])).toBe(true)
+  })
+
+  it('applies durable tool-result content replacement on SDK resume', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-sdk-durable-tool-result-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    const originalContent = `large sdk durable tool output ${'x'.repeat(2200)}`
+    const history: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
+      userToolResult('read-1', originalContent),
+      { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
+    ]
+    await fs.writeFile(
+      sessionFilePath,
+      JSON.stringify({
+        type: 'event',
+        ts: '2026-05-21T00:00:00.000Z',
+        name: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+        data: {
+          schemaVersion: 1,
+          source: 'tool_result_content_replacement',
+          sourceScope: { kind: 'main_thread' },
+          compactBoundaryFingerprint: null,
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'read-1',
+              replacementContent: '[sdk durable tool result replacement]',
+              originalContentFingerprint: fingerprintToolResultContent(originalContent),
+            },
+          ],
+        },
+      }),
+      'utf8',
+    )
+
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(JSON.stringify(turnArgs.history)).toContain('large sdk durable tool output')
+      expect(JSON.stringify(turnArgs.requestHistory)).not.toContain('large sdk durable tool output')
+      expect(JSON.stringify(turnArgs.requestHistory)).toContain('[sdk durable tool result replacement]')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-latest',
+      contextWindowTokens: 100000,
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue(sessionFilePath)
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-durable-tool-result', cwd: '/repo' },
+      history,
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk durable replacement',
+      options: {
+        resume: 'session-durable-tool-result',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('success')
   })
 
   it('uses explicit options.env when gating SDK cache editing projection', async () => {

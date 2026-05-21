@@ -9,9 +9,11 @@ import {
 } from './compact'
 import {
   buildContextProjection,
+  fingerprintToolResultContent,
   mergeDurableSnipSnapshot,
   rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
+  scopeDurableToolResultContentReplacementStateToHistory,
 } from './contextProjection'
 import { createContextCollapseCommittedEntry } from './contextCollapseStore'
 import type { PromptMessage } from '../../prompts'
@@ -548,7 +550,7 @@ describe('buildContextProjection', () => {
     })
   })
 
-  it('reserves a deferred tool-result content replacement state without replacing content', () => {
+  it('keeps tool-result content unchanged when no durable replacement state exists', () => {
     const history: PromptMessage[] = [
       textMessage('assistant', 'before tool'),
       {
@@ -569,10 +571,61 @@ describe('buildContextProjection', () => {
     expect(JSON.stringify(projection.modelFacingBaseline)).toContain('large tool output')
     expect(projection.durableState.toolResultContentReplacement).toEqual({
       stage: 'tool_result_content_replacement',
-      status: 'deferred',
+      status: 'no_state',
       applied: false,
-      reason: 'Claude Code-style durable tool-result content replacement is deferred',
+      reason: 'no durable tool-result content replacement state',
+      replacementCount: 0,
+      skippedReplacementCount: 0,
+      replacements: [],
     })
+  })
+
+  it('applies durable tool-result content replacement to model-facing projection only', () => {
+    const toolResultContent = [{ type: 'text', text: 'large tool output' }]
+    const history: PromptMessage[] = [
+      assistantToolUse('tool-1'),
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-1',
+            content: toolResultContent,
+          },
+        ],
+      },
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'tool-1',
+              replacementContent: '[Tool result replaced by durable state]',
+              originalContentFingerprint: fingerprintToolResultContent(toolResultContent),
+            },
+          ],
+        },
+      },
+    })
+
+    expect(JSON.stringify(projection.rawTranscript)).toContain('large tool output')
+    expect(JSON.stringify(projection.uiScrollback)).toContain('large tool output')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('large tool output')
+    expect(JSON.stringify(projection.modelFacingBaseline)).toContain('[Tool result replaced by durable state]')
+    expect(projection.durableState.toolResultContentReplacement).toMatchObject({
+      status: 'active',
+      applied: true,
+      replacementCount: 1,
+      skippedReplacementCount: 0,
+    })
+    expect(projection.facts.appliedDurableStages).toEqual(['tool_result_content_replacement'])
   })
 
   it('applies committed collapse entries to the model-facing projection while preserving raw scrollback', () => {
@@ -1148,6 +1201,65 @@ describe('scopeDurableSnipStateToHistory', () => {
       activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
       removals: [],
     })
+  })
+})
+
+describe('scopeDurableToolResultContentReplacementStateToHistory', () => {
+  it('clears replacement snapshots when the compact-boundary generation changes', () => {
+    const oldBoundary = boundary(4096)
+    const latestBoundary = boundary(8192)
+
+    const scoped = scopeDurableToolResultContentReplacementStateToHistory({
+      state: {
+        schemaVersion: 1,
+        sourceScope: { kind: 'main_thread' },
+        activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(oldBoundary),
+        replacements: [
+          {
+            kind: 'tool_result_block',
+            toolUseId: 'tool-1',
+            replacementContent: '[durable replacement]',
+          },
+        ],
+      },
+      history: [oldBoundary, textMessage('user', 'old summary'), latestBoundary, textMessage('user', 'new summary')],
+    })
+
+    expect(scoped).toEqual({
+      schemaVersion: 1,
+      sourceScope: { kind: 'main_thread' },
+      activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
+      replacements: [],
+    })
+  })
+
+  it('preserves replacement snapshots for boundaryless compact resumes', () => {
+    const activeBoundary = boundary(4096)
+
+    const scoped = scopeDurableToolResultContentReplacementStateToHistory({
+      state: {
+        schemaVersion: 1,
+        sourceScope: { kind: 'main_thread' },
+        activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(activeBoundary),
+        replacements: [
+          {
+            kind: 'tool_result_block',
+            toolUseId: 'tool-1',
+            replacementContent: '[durable replacement]',
+          },
+        ],
+      },
+      history: [textMessage('user', 'compacted summary without boundary row'), textMessage('assistant', 'tail')],
+    })
+
+    expect(scoped?.activeCompactBoundaryFingerprint).toBe(fingerprintCompactBoundaryMessage(activeBoundary))
+    expect(scoped?.replacements).toEqual([
+      {
+        kind: 'tool_result_block',
+        toolUseId: 'tool-1',
+        replacementContent: '[durable replacement]',
+      },
+    ])
   })
 })
 

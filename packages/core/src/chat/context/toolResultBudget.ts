@@ -264,6 +264,7 @@ function collectEligibleToolResults(args: {
       const block = message.content[blockIndex] as any
       if (block?.type !== 'tool_result' || block?.is_error === true) continue
       if (typeof block.tool_use_id !== 'string' || block.tool_use_id.length === 0) continue
+      if (isDurableToolResultContentReplacement(message, block.tool_use_id)) continue
 
       const tool = args.toolUsesById.get(block.tool_use_id)
       if (!tool || !args.eligibleToolNames.has(tool.name)) continue
@@ -287,6 +288,11 @@ function collectEligibleToolResults(args: {
     }
   }
   return out
+}
+
+function isDurableToolResultContentReplacement(message: PromptMessage, toolUseId: string): boolean {
+  const ids = (message.meta as any)?.durableToolResultContentReplacementToolUseIds
+  return Array.isArray(ids) && ids.some((value) => value === toolUseId)
 }
 
 function buildToolResultBudgetStub(tool: ToolUseMeta, rawResultText: string): string {

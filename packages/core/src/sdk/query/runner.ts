@@ -9,6 +9,7 @@ import type { ContextBudgetConfig } from '../../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../../chat/context/cacheEditing.js'
+import { scopeDurableToolResultContentReplacementStateToHistory } from '../../chat/context/contextProjection.js'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   appendContextCollapseStoreEntry,
@@ -17,6 +18,9 @@ import {
   type ContextCollapseStoreSnapshot,
 } from '../../chat/context/contextCollapseStore.js'
 import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionSave/contextCollapseStoreEvents.js'
+import {
+  readDurableToolResultContentReplacementStateFromSession,
+} from '../../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
@@ -1434,6 +1438,11 @@ async function* runQuery(
       let collapseStoreSnapshot: ContextCollapseStoreSnapshot | null = resumeResolution.sessionFilePath
         ? await readContextCollapseStoreSnapshotFromSession({ filePath: resumeResolution.sessionFilePath }).catch(() => null)
         : null
+      const durableToolResultContentReplacementState = resumeResolution.sessionFilePath
+        ? await readDurableToolResultContentReplacementStateFromSession({
+            filePath: resumeResolution.sessionFilePath,
+          }).catch(() => null)
+        : null
       let currentHistory = history
       let currentPrompt = normalizedPrompt.prompt
       let lastStructuredValidationError: string | null = null
@@ -1452,6 +1461,14 @@ async function* runQuery(
           budgetConfig: promptBudget,
           durableState: {
             collapse: collapseStoreSnapshot,
+            ...(durableToolResultContentReplacementState
+              ? {
+                  toolResultContentReplacement: scopeDurableToolResultContentReplacementStateToHistory({
+                    state: durableToolResultContentReplacementState,
+                    history: currentHistory,
+                  }),
+                }
+              : {}),
           },
           enableCacheEditing: isAnthropicCacheEditingEnabled({
             provider: runtime.cfg.llm.provider,

@@ -131,7 +131,7 @@ middle-layer stack MUST 区分以下三个 envelope：
 `microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。`microcompact` 当前只允许 Claude Code-aligned 子路径：cold-cache time-based content clearing 与 Anthropic cache-editing delete planning；这些子路径同样 MUST 保持 request-time reducer 语义，不得把“较旧结果更早 stub”扩展成 persisted baseline 改写。
 
 `CSS-303a`
-Claude Code exposes a durable side-state pattern for tool-result content replacement in some query sources. Formax does not implement that durable side-state yet. Until an explicit migration changes this contract, Formax `tool_result_budget` remains request-only; durable content-replacement state is a deferred architecture gap and MUST NOT be inferred from current `tool_result_budget` facts.
+Claude Code exposes a durable side-state pattern for tool-result content replacement in some query sources. Formax `tool_result_budget` remains request-only and MUST NOT be inferred as durable state. Durable tool-result content replacement, when supplied as explicit side-state, is a separate projection-owner stage that rewrites only model-facing tool-result block content while preserving raw transcript and UI scrollback.
 
 `CSS-304`  
 `prune` 的规范语义 MUST 是 terminal fallback：它的职责是保证最终 request-time payload 进入预算，而不是抢在前置 reducers/projection 之前充当普通变换步骤。
@@ -175,6 +175,9 @@ When a materializing compact writes a new compact-boundary generation, durable c
 
 `CSS-310`
 Provider cache side effects are not durable projection state. Anthropic `cache_reference` / `cache_edits` may alter server-side cached prefix behavior for one request, but they MUST NOT be interpreted as transcript mutation, compact boundary, snip boundary, collapse commit, or resume authority.
+
+`CSS-310a`
+Durable tool-result content replacement MUST be represented by explicit replacement snapshots, for example `durable_tool_result_content_replacement_applied` events with `schemaVersion: 1`, `source: "tool_result_content_replacement"`, `sourceScope`, optional compact-boundary / base-projection fingerprints, `sourceProjectionKind: "model_facing_baseline"`, and replacement entries keyed by `toolUseId`. Main-thread replacement state MUST ignore sidechain / agent-scoped events unless that source scope is explicitly requested. Projection replay MUST replace only a uniquely matched `tool_result` block and SHOULD verify `originalContentFingerprint` when present; drifted, missing, or ambiguous targets MUST be skipped rather than destructively rewritten. This durable stage runs before request-only `tool_result_budget`, so already-replaced tool results are not budget-stubbed a second time.
 
 `CSS-311`
 App-server and diagnostics surfaces that expose `latestRequestCollapse` MUST scope that fact to the current compact-boundary generation. If the latest persisted `request_collapse_applied` event predates the latest compact boundary's first appearance in session history, the surface MUST return `null` for `latestRequestCollapse` rather than showing stale pre-compact collapse metadata. Repeated history snapshots that contain the same current compact boundary MUST NOT invalidate a later request-collapse event.

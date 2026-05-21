@@ -18,6 +18,7 @@ import {
 } from './contextCollapseStore'
 import { dropOrphanToolBlocks } from './toolPairProjection'
 import type { PromptMessage } from '../../prompts'
+import { toolResultContentToText } from '../../shared/utils/toolResultContent'
 
 export type ContextProjectionViewKind =
   | 'raw_transcript'
@@ -53,6 +54,27 @@ export type DurableSnipState = {
   baseProjectionFingerprint?: string | null
   sourceProjectionKind?: DurableSnipSourceProjectionKind | null
   removals: DurableSnipRemoval[]
+}
+
+export type DurableToolResultContentReplacementSourceScope =
+  | { kind: 'main_thread' }
+  | { kind: 'sidechain'; id: string }
+
+export type DurableToolResultContentReplacement = {
+  kind: 'tool_result_block'
+  toolUseId: string
+  replacementContent: string
+  originalContentFingerprint?: string
+  reason?: string
+}
+
+export type DurableToolResultContentReplacementState = {
+  schemaVersion: 1
+  sourceScope: DurableToolResultContentReplacementSourceScope
+  activeCompactBoundaryFingerprint?: string | null
+  baseProjectionFingerprint?: string | null
+  sourceProjectionKind?: DurableSnipSourceProjectionKind | null
+  replacements: DurableToolResultContentReplacement[]
 }
 
 export function rebaseCollapseHeadCountAfterDurableSnip(args: {
@@ -115,19 +137,24 @@ export type DurableCollapseProjectionFact = DurableProjectionStageFact & {
   compactBoundaryFingerprint: string | null
 }
 
+export type DurableToolResultContentReplacementProjectionFact = DurableProjectionStageFact & {
+  stage: 'tool_result_content_replacement'
+  status: 'no_state' | 'active'
+  replacementCount: number
+  skippedReplacementCount: number
+  replacements: DurableToolResultContentReplacement[]
+}
+
 export type ContextProjectionDurableState = {
   snip: DurableSnipProjectionFact
   collapse: DurableCollapseProjectionFact
-  toolResultContentReplacement: DurableProjectionStageFact & {
-    stage: 'tool_result_content_replacement'
-    status: 'deferred'
-  }
+  toolResultContentReplacement: DurableToolResultContentReplacementProjectionFact
 }
 
 export type ContextProjectionDurableInputState = {
   snip?: DurableSnipState | null
   collapse?: ContextCollapseStoreSnapshot | null
-  toolResultContentReplacement?: null
+  toolResultContentReplacement?: DurableToolResultContentReplacementState | null
 }
 
 export type ContextProjectionFacts = {
@@ -225,6 +252,37 @@ export function scopeDurableSnipStateToHistory(args: {
   }
 }
 
+export function scopeDurableToolResultContentReplacementStateToHistory(args: {
+  state?: DurableToolResultContentReplacementState | null
+  history: PromptMessage[]
+}): DurableToolResultContentReplacementState | null {
+  if (!args.state) return null
+  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
+  const observedCompactBoundaryFingerprint =
+    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
+  const stateFingerprint = args.state.activeCompactBoundaryFingerprint ?? null
+  const activeCompactBoundaryFingerprint =
+    observedCompactBoundaryFingerprint ?? (stateFingerprint ? stateFingerprint : null)
+  if (observedCompactBoundaryFingerprint && observedCompactBoundaryFingerprint !== stateFingerprint) {
+    return {
+      schemaVersion: 1,
+      sourceScope: args.state.sourceScope,
+      activeCompactBoundaryFingerprint: observedCompactBoundaryFingerprint,
+      ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
+      ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
+      replacements: [],
+    }
+  }
+  return {
+    schemaVersion: 1,
+    sourceScope: args.state.sourceScope,
+    activeCompactBoundaryFingerprint,
+    ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
+    ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
+    replacements: cloneDurableToolResultContentReplacements(args.state.replacements),
+  }
+}
+
 export function buildContextProjection(args: {
   history: PromptMessage[]
   durableState?: ContextProjectionDurableInputState
@@ -244,11 +302,16 @@ export function buildContextProjection(args: {
     snapshot: args.durableState?.collapse ?? null,
     compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
   })
-  const modelFacingBaseline = collapseProjection.messages
+  const toolResultContentReplacementProjection = applyDurableToolResultContentReplacementProjection({
+    messages: collapseProjection.messages,
+    state: args.durableState?.toolResultContentReplacement ?? null,
+  })
+  const modelFacingBaseline = toolResultContentReplacementProjection.messages
   const uiScrollback = buildUiScrollback(args.history)
   const durableState = buildDurableProjectionState({
     snip: snipProjection.fact,
     collapse: collapseProjection.fact,
+    toolResultContentReplacement: toolResultContentReplacementProjection.fact,
   })
 
   return {
@@ -269,6 +332,9 @@ export function buildContextProjection(args: {
       appliedDurableStages: [
         ...(snipProjection.fact.applied ? (['snip'] as const) : []),
         ...(collapseProjection.fact.applied ? (['collapse'] as const) : []),
+        ...(toolResultContentReplacementProjection.fact.applied
+          ? (['tool_result_content_replacement'] as const)
+          : []),
       ],
     },
   }
@@ -290,16 +356,12 @@ function buildUiScrollback(history: PromptMessage[]): PromptMessage[] {
 function buildDurableProjectionState(args: {
   snip: DurableSnipProjectionFact
   collapse: DurableCollapseProjectionFact
+  toolResultContentReplacement: DurableToolResultContentReplacementProjectionFact
 }): ContextProjectionDurableState {
   return {
     snip: args.snip,
     collapse: args.collapse,
-    toolResultContentReplacement: {
-      stage: 'tool_result_content_replacement',
-      status: 'deferred',
-      applied: false,
-      reason: 'Claude Code-style durable tool-result content replacement is deferred',
-    },
+    toolResultContentReplacement: args.toolResultContentReplacement,
   }
 }
 
@@ -378,6 +440,119 @@ function applyDurableCollapseProjection(args: {
       compactBoundaryFingerprint: args.compactBoundaryFingerprint,
     },
   }
+}
+
+function applyDurableToolResultContentReplacementProjection(args: {
+  messages: PromptMessage[]
+  state: DurableToolResultContentReplacementState | null
+}): { messages: PromptMessage[]; fact: DurableToolResultContentReplacementProjectionFact } {
+  const replacements = cloneDurableToolResultContentReplacements(args.state?.replacements ?? [])
+  if (replacements.length === 0) {
+    return {
+      messages: args.messages,
+      fact: {
+        stage: 'tool_result_content_replacement',
+        status: 'no_state',
+        applied: false,
+        reason: 'no durable tool-result content replacement state',
+        replacementCount: 0,
+        skippedReplacementCount: 0,
+        replacements: [],
+      },
+    }
+  }
+
+  const nextMessages = args.messages.slice()
+  const patchedByMessageIndex = new Map<number, PromptMessage>()
+  const appliedReplacements: DurableToolResultContentReplacement[] = []
+  let skippedReplacementCount = 0
+  for (const replacement of replacements) {
+    const matches = findToolResultBlocksByToolUseId({
+      messages: nextMessages,
+      toolUseId: replacement.toolUseId,
+    })
+    if (matches.length !== 1) {
+      skippedReplacementCount += 1
+      continue
+    }
+    const match = matches[0]!
+    const sourceMessage = patchedByMessageIndex.get(match.messageIndex) ?? nextMessages[match.messageIndex]
+    if (!sourceMessage || !Array.isArray(sourceMessage.content)) {
+      skippedReplacementCount += 1
+      continue
+    }
+    const currentBlock = (sourceMessage.content as any[])[match.blockIndex]
+    if (!currentBlock || currentBlock.type !== 'tool_result') {
+      skippedReplacementCount += 1
+      continue
+    }
+    if (
+      replacement.originalContentFingerprint &&
+      replacement.originalContentFingerprint !== fingerprintToolResultContent(currentBlock.content)
+    ) {
+      skippedReplacementCount += 1
+      continue
+    }
+    const nextBlocks = [...(sourceMessage.content as any[])]
+    nextBlocks[match.blockIndex] = {
+      ...currentBlock,
+      content: replacement.replacementContent,
+    }
+    const previousReplacementIds = Array.isArray((sourceMessage.meta as any)?.durableToolResultContentReplacementToolUseIds)
+      ? ((sourceMessage.meta as any).durableToolResultContentReplacementToolUseIds as unknown[])
+          .filter((value): value is string => typeof value === 'string')
+      : []
+    const patchedMessage = {
+      ...sourceMessage,
+      meta: {
+        ...(sourceMessage.meta ?? {}),
+        durableToolResultContentReplacementToolUseIds: Array.from(new Set([
+          ...previousReplacementIds,
+          replacement.toolUseId,
+        ])),
+      },
+      content: nextBlocks as any,
+    }
+    patchedByMessageIndex.set(match.messageIndex, patchedMessage)
+    nextMessages[match.messageIndex] = patchedMessage
+    appliedReplacements.push(replacement)
+  }
+
+  return {
+    messages: nextMessages,
+    fact: {
+      stage: 'tool_result_content_replacement',
+      status: appliedReplacements.length > 0 ? 'active' : 'no_state',
+      applied: appliedReplacements.length > 0,
+      reason:
+        appliedReplacements.length > 0
+          ? skippedReplacementCount > 0
+            ? 'applied durable tool-result content replacements with skipped drifted replacements'
+            : 'applied durable tool-result content replacements'
+          : 'skipped durable tool-result content replacements due to drift or missing tool results',
+      replacementCount: appliedReplacements.length,
+      skippedReplacementCount,
+      replacements: appliedReplacements,
+    },
+  }
+}
+
+function findToolResultBlocksByToolUseId(args: {
+  messages: PromptMessage[]
+  toolUseId: string
+}): Array<{ messageIndex: number; blockIndex: number }> {
+  const out: Array<{ messageIndex: number; blockIndex: number }> = []
+  for (let messageIndex = 0; messageIndex < args.messages.length; messageIndex += 1) {
+    const message = args.messages[messageIndex]
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+    for (let blockIndex = 0; blockIndex < (message.content as any[]).length; blockIndex += 1) {
+      const block = (message.content as any[])[blockIndex]
+      if (block?.type === 'tool_result' && block.tool_use_id === args.toolUseId) {
+        out.push({ messageIndex, blockIndex })
+      }
+    }
+  }
+  return out
 }
 
 function normalizeCollapseEntryRange(args: {
@@ -561,6 +736,20 @@ function cloneDurableSnipRemovals(removals: DurableSnipRemoval[]): DurableSnipRe
   }))
 }
 
+function cloneDurableToolResultContentReplacements(
+  replacements: DurableToolResultContentReplacement[],
+): DurableToolResultContentReplacement[] {
+  return replacements.map((replacement) => ({
+    kind: 'tool_result_block',
+    toolUseId: replacement.toolUseId,
+    replacementContent: replacement.replacementContent,
+    ...(replacement.originalContentFingerprint
+      ? { originalContentFingerprint: replacement.originalContentFingerprint }
+      : {}),
+    ...(replacement.reason ? { reason: replacement.reason } : {}),
+  }))
+}
+
 function clonePromptMessageIdentity(identity: PromptMessageIdentity): PromptMessageIdentity {
   return {
     schemaVersion: 1,
@@ -651,6 +840,13 @@ function groupTranslatedSnipRemoval(args: {
     groupStartOffset = groupEndOffset
   }
   return out
+}
+
+export function fingerprintToolResultContent(content: unknown): string {
+  return createHash('sha1')
+    .update(toolResultContentToText(content as any))
+    .digest('hex')
+    .slice(0, 16)
 }
 
 function fingerprintPromptMessages(messages: PromptMessage[]): string {

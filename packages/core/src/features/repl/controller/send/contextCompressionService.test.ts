@@ -18,6 +18,8 @@ import {
 } from '../../../../chat/context/compact'
 import { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME } from '../../sessionSave/contextCollapseStoreEvents'
 import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../../sessionSave/durableSnipStoreEvents'
+import { DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME } from '../../sessionSave/durableToolResultContentReplacementEvents'
+import { fingerprintToolResultContent } from '../../../../chat/context/contextProjection'
 
 vi.mock('../../../../chat/context/budget', () => ({
   computeContextBudget: vi.fn((config: any) => ({
@@ -1321,6 +1323,69 @@ describe('createContextCompressionService', () => {
     expect(JSON.stringify(out.history)).toContain('old assistant detail')
     expect(JSON.stringify(out.requestHistory)).not.toContain('old assistant detail')
     expect(JSON.stringify(out.requestHistory)).toContain('recent assistant state')
+  })
+
+  it('replays durable tool-result content replacement before request-only tool-result budget', async () => {
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 1000,
+      autoCompactLimitTokens: 850,
+      percentRemaining: 5,
+      shouldAutoCompact: false,
+    }))
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      if (serialized.includes('[durable tool result replacement]')) return 2400
+      return serialized.includes('large durable tool output') ? 2400 : 900
+    })
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-runtime-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    const originalContent = `large durable tool output ${'x'.repeat(2200)}`
+    await fs.writeFile(
+      sessionFilePath,
+      JSON.stringify({
+        type: 'event',
+        ts: '2026-05-21T00:00:00.000Z',
+        name: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+        data: {
+          schemaVersion: 1,
+          source: 'tool_result_content_replacement',
+          sourceScope: { kind: 'main_thread' },
+          compactBoundaryFingerprint: null,
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'tool-1',
+              replacementContent: `[durable tool result replacement] ${'y'.repeat(2200)}`,
+              originalContentFingerprint: fingerprintToolResultContent(originalContent),
+            },
+          ],
+        },
+      }),
+      'utf8',
+    )
+
+    const { service } = createService({ getSessionFilePath: () => sessionFilePath })
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        assistantToolUse('tool-1', 'Read', { file_path: '/repo/a.ts' }),
+        userToolResult('tool-1', originalContent),
+        { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
+      ] as any,
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(JSON.stringify(out.history)).toContain('large durable tool output')
+    expect(JSON.stringify(out.requestHistory)).not.toContain('large durable tool output')
+    expect(JSON.stringify(out.requestHistory)).toContain('[durable tool result replacement]')
+    expect(JSON.stringify(out.requestHistory)).not.toContain('[Tool result replaced by budget:')
   })
 
   it('clears stale unscoped durable snip state for freshly compacted in-memory history', async () => {

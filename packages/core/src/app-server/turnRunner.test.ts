@@ -7,11 +7,13 @@ import type { ChatHistory } from '../chat/engine.js'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   DURABLE_SNIP_COMMITTED_EVENT_NAME,
+  DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
   findSessionFileBySessionId,
   readSessionFile,
   readSessionSummary,
   SessionWriter,
 } from '../features/repl/sessionSave/index.js'
+import { fingerprintToolResultContent } from '../chat/context/contextProjection.js'
 import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
@@ -646,6 +648,66 @@ describe('TurnRunner', () => {
       .filter((record: any) => record.type === 'event' && record.name === DURABLE_SNIP_COMMITTED_EVENT_NAME)
 
     expect(durableSnipEvents).toEqual([])
+  })
+
+  it('applies durable tool-result content replacement to app-server request history', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '100000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const originalContent = `large durable tool output ${'x'.repeat(2200)}`
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot([
+      assistantToolUse('tool-1', 'Read', { file_path: '/repo/a.ts' }),
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: originalContent }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
+    ] as ChatHistory)
+    await seedWriter.appendEvent(DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME, {
+      schemaVersion: 1,
+      source: 'tool_result_content_replacement',
+      sourceScope: { kind: 'main_thread' },
+      compactBoundaryFingerprint: null,
+      sourceProjectionKind: 'model_facing_baseline',
+      replacements: [
+        {
+          kind: 'tool_result_block',
+          toolUseId: 'tool-1',
+          replacementContent: '[durable tool result replacement]',
+          originalContentFingerprint: fingerprintToolResultContent(originalContent),
+        },
+      ],
+    })
+    await seedWriter.shutdown()
+
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(JSON.stringify(args.history)).toContain('large durable tool output')
+      expect(JSON.stringify(args.requestHistory)).not.toContain('large durable tool output')
+      expect(JSON.stringify(args.requestHistory)).toContain('[durable tool result replacement]')
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+      ] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
   })
 
   it('uses compact-boundary continuation for app-server request history while preserving raw replay history', async () => {

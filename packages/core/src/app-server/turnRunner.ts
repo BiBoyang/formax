@@ -24,6 +24,7 @@ import {
   mergeDurableSnipSnapshot,
   rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
+  scopeDurableToolResultContentReplacementStateToHistory,
 } from '../chat/context/contextProjection.js'
 import { stampMissingAssistantMessageTimestamps } from '../chat/context/promptMessageTimestamps.js'
 import type { PromptBlock } from '../prompts/index.js'
@@ -36,6 +37,7 @@ import {
   readContextCollapseStoreSnapshotFromSession,
   DURABLE_SNIP_COMMITTED_EVENT_NAME,
   readDurableSnipStateFromSession,
+  readDurableToolResultContentReplacementStateFromSession,
   readSessionFile,
   SessionWriter,
 } from '../features/repl/sessionSave/index.js'
@@ -494,6 +496,13 @@ export class TurnRunner {
         state: await readDurableSnipStateFromSession({ filePath: running.filePath }).catch(() => null),
         history,
       })
+      const initialDurableToolResultContentReplacementState =
+        scopeDurableToolResultContentReplacementStateToHistory({
+          state: await readDurableToolResultContentReplacementStateFromSession({ filePath: running.filePath }).catch(
+            () => null,
+          ),
+          history,
+        })
 
       const userMsg: Msg = {
         id: `user-${Date.now()}-${running.turnId}`,
@@ -732,6 +741,9 @@ export class TurnRunner {
           durableState: {
             ...(initialDurableSnipState ? { snip: initialDurableSnipState } : {}),
             collapse: initialCollapseStoreSnapshot,
+            ...(initialDurableToolResultContentReplacementState
+              ? { toolResultContentReplacement: initialDurableToolResultContentReplacementState }
+              : {}),
           },
           enableCacheEditing: cacheEditingEnabled,
           enableTimeBasedMicroCompact: cacheEditingEnabled,

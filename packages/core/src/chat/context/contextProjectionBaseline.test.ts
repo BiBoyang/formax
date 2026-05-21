@@ -175,7 +175,7 @@ describe('context compression projection baseline', () => {
       applied: false,
       committedEntryCount: 0,
     })
-    expect(projection.durableState.toolResultContentReplacement.status).toBe('deferred')
+    expect(projection.durableState.toolResultContentReplacement.status).toBe('no_state')
     expect(fixture.requestCollapseEvent).toEqual({
       phase: 'initial',
       collapsedHeadMessageCount: 2,

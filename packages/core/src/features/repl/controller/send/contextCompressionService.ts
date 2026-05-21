@@ -33,6 +33,8 @@ import {
   mergeDurableSnipSnapshot,
   rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
+  scopeDurableToolResultContentReplacementStateToHistory,
+  type DurableToolResultContentReplacementState,
   type DurableSnipRemoval,
   type DurableSnipState,
 } from '../../../../chat/context/contextProjection'
@@ -45,6 +47,9 @@ import { countNonToolUserTurns } from '../shared/utils'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { readContextCollapseStoreSnapshotFromSession } from '../../sessionSave/contextCollapseStoreEvents'
 import { readDurableSnipStateFromSession } from '../../sessionSave/durableSnipStoreEvents'
+import {
+  readDurableToolResultContentReplacementStateFromSession,
+} from '../../sessionSave/durableToolResultContentReplacementEvents'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 export type EstimatedContextState = {
@@ -144,6 +149,12 @@ export function createContextCompressionService(deps: {
     if (!sessionFilePath) return null
     return readDurableSnipStateFromSession({ filePath: sessionFilePath }).catch(() => null)
   }
+  const getFallbackDurableToolResultContentReplacementState =
+    async (): Promise<DurableToolResultContentReplacementState | null> => {
+      const sessionFilePath = deps.getSessionFilePath?.() ?? null
+      if (!sessionFilePath) return null
+      return readDurableToolResultContentReplacementStateFromSession({ filePath: sessionFilePath }).catch(() => null)
+    }
 
   const runCanonicalMiddleLayerStack = (args: {
     system: PromptBlock[]
@@ -172,6 +183,10 @@ export function createContextCompressionService(deps: {
       state: await getFallbackDurableSnipState(),
       history: args.history,
     })
+    const durableToolResultContentReplacementState = scopeDurableToolResultContentReplacementStateToHistory({
+      state: await getFallbackDurableToolResultContentReplacementState(),
+      history: args.history,
+    })
     const prepared = prepareTurnRequestProjection({
       system: args.system,
       history: args.history,
@@ -180,6 +195,9 @@ export function createContextCompressionService(deps: {
       durableState: {
         ...(durableSnipState ? { snip: durableSnipState } : {}),
         collapse: collapseSnapshot,
+        ...(durableToolResultContentReplacementState
+          ? { toolResultContentReplacement: durableToolResultContentReplacementState }
+          : {}),
       },
       enableCacheEditing: isCacheEditingEnabled(),
       enableTimeBasedMicroCompact: isCacheEditingEnabled(),

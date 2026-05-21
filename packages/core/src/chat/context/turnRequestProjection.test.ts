@@ -4,6 +4,7 @@ import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from './compact'
 import { buildCompressionProjectionGoldenFixture } from './compressionProjectionFixture'
 import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
@@ -194,7 +195,14 @@ describe('prepareTurnRequestProjection', () => {
       durableState: {
         snip: {
           schemaVersion: 1,
-          removals: [{ kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 2 }],
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              removedMessageFingerprints: [fingerprintPromptMessage(history[1]!)],
+            },
+          ],
         },
       },
     })

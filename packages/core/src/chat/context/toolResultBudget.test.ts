@@ -98,4 +98,32 @@ describe('toolResultBudget', () => {
     expect((out.messages[1]!.content[0] as any).content).toBe('x')
     expect((out.messages[3]!.content[0] as any).content).toContain('[Tool result replaced by budget: Read /repo/large.ts')
   })
+
+  it('does not re-stub durable tool-result content replacements', () => {
+    const messages = [
+      assistantToolUse('read-durable', 'Read', { file_path: '/repo/durable.ts' }),
+      {
+        ...userToolResult('read-durable', '[durable replacement] '.repeat(500)),
+        meta: {
+          durableToolResultContentReplacementToolUseIds: ['read-durable'],
+        },
+      },
+    ] as any
+
+    const out = applyToolResultBudget({
+      messages,
+      policy: {
+        pressureTier: 'critical',
+        eligibleToolNames: ['Read'],
+        keepRecentToolResults: 0,
+        minResultChars: 1,
+        minResultCharsByName: {},
+        maxToolResultTokens: 1,
+      },
+    })
+
+    expect(out.applied).toBe(false)
+    expect(out.impact.replacedBlocks).toBe(0)
+    expect((out.messages[1]!.content[0] as any).content).toContain('[durable replacement]')
+  })
 })
