@@ -1,5 +1,10 @@
 import type { ContextBudgetConfig } from './budget'
 import {
+  buildContextProjection,
+  type ContextProjection,
+  type ContextProjectionDurableInputState,
+} from './contextProjection'
+import {
   executeMiddleLayerStrategyStack,
   type MiddleLayerStrategyFacts,
   type MiddleLayerStrategyStackResult,
@@ -11,6 +16,7 @@ export type PreparedTurnRequestProjection = {
   requestHistory: PromptMessage[]
   requestUser: PromptMessage
   cacheEditPlan: AnthropicCacheEditPlan | null
+  contextProjection: ContextProjection
   stack: MiddleLayerStrategyStackResult
   strategyFacts: MiddleLayerStrategyFacts
 }
@@ -20,14 +26,20 @@ export function prepareTurnRequestProjection(args: {
   history: PromptMessage[]
   user: PromptMessage
   budgetConfig: ContextBudgetConfig | null
+  durableState?: ContextProjectionDurableInputState
   enableCacheEditing?: boolean
   enableTimeBasedMicroCompact?: boolean
 }): PreparedTurnRequestProjection {
+  const contextProjection = buildContextProjection({
+    history: args.history,
+    ...(args.durableState !== undefined ? { durableState: args.durableState } : {}),
+  })
   const stack = executeMiddleLayerStrategyStack({
     system: args.system,
-    history: args.history,
+    history: contextProjection.modelFacingBaseline,
     trailingMessage: args.user,
     budgetConfig: args.budgetConfig,
+    ...(contextProjection.facts.latestCompactBoundary ? { allowBoundarylessContinuation: true } : {}),
     ...(args.enableCacheEditing !== undefined ? { enableCacheEditing: args.enableCacheEditing } : {}),
     ...(args.enableTimeBasedMicroCompact !== undefined
       ? { enableTimeBasedMicroCompact: args.enableTimeBasedMicroCompact }
@@ -35,10 +47,11 @@ export function prepareTurnRequestProjection(args: {
   })
 
   return {
-    persistedHistory: stack.persistedHistoryCandidate,
+    persistedHistory: args.history,
     requestHistory: stack.requestHistory,
     requestUser: stack.preparedTrailingMessage ?? args.user,
     cacheEditPlan: stack.cacheEditPlan ?? null,
+    contextProjection,
     stack,
     strategyFacts: stack.facts,
   }

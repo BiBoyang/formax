@@ -119,9 +119,9 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
-- `packages/core/src/chat/context/contextProjection.ts`：architecture parity 主线的 durable projection owner；当前先把 raw transcript、UI scrollback、latest compact continuation 的 model-facing baseline、diagnostics projection、durable snip/collapse/content-replacement 占位 facts 收敛到一个入口，不迁移现有 request-only reducer 行为
+- `packages/core/src/chat/context/contextProjection.ts`：architecture parity 主线的 durable projection owner；当前把 raw transcript、UI scrollback、latest compact continuation 的 model-facing baseline、durable snip state replay、diagnostics projection、durable collapse/content-replacement 占位 facts 收敛到一个入口，不迁移现有 request-only snip reducer 启发式
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> snip -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
-- `packages/core/src/chat/context/turnRequestProjection.ts`：app-server / SDK 共享的 runtime request projection adapter，把 persisted `history`、request-only `requestHistory`、以及可能被 terminal prune 改写的 `requestUser` 分开返回
+- `packages/core/src/chat/context/turnRequestProjection.ts`：app-server / SDK 共享的 runtime request projection adapter，先通过 `buildContextProjection()` 生成 model-facing baseline，再进入 request-only reducers；返回时把 persisted `history`、request-only `requestHistory`、以及可能被 terminal prune 改写的 `requestUser` 分开
 - `packages/core/src/chat/context/toolResultBudget.ts`：独立的 request-time tool-result budget replacement 策略（`CCA-141` 起点；只改 request projection，不改 persisted `history`）
 - `packages/core/src/chat/context/snip.ts`：独立的 request-time snip reducer（`CCA-143` 起点；当前只裁短较老的 assistant 纯文本消息，不改 persisted `history`）
 - `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()` 当前按 Claude Code-aligned 子路径工作：Anthropic cache editing 可用时产出 request/API-only `cache_reference` / `cache_edits` delete plan；main-thread cold-cache wall-clock assistant gap 触发时允许 request-only 清旧 `tool_result`；cache editing 不可用且 cold-cache trigger 未触发时 no-op，不再走旧的 user-turn/stub fallback。

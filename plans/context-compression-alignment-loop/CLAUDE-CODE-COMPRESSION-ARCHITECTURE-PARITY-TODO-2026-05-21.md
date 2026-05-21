@@ -180,14 +180,16 @@ Implementation:
 
 - [x] Add durable snip state shape.
 - [x] Add replay/load projection support.
-- [ ] Route model-facing request projection through durable snip state before request-only reducers.
+- [x] Route model-facing request projection through durable snip state before request-only reducers.
 - [ ] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
 
 Validation:
 
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
 - [ ] Context/session/app-server/Web replay targeted tests.
-- [ ] `bun run type-check`
+- [x] `bun run type-check`
 - [ ] Mandatory codex review before commit.
 
 ### Batch 5: Durable Context Collapse Store
