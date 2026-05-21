@@ -204,7 +204,7 @@ Validation:
 Tests first:
 
 - [x] Collapse commit persists outside transcript rows or as explicit durable event.
-- [ ] Resume/load rebuilds collapse store.
+- [x] Resume/load rebuilds collapse store.
 - [ ] Next-turn projection applies committed collapse entries.
 - [ ] Provider overflow path drains pending collapse before reactive full compact.
 - [ ] Materializing compact clears/rebases stale collapse entries before the new compact boundary.
@@ -212,13 +212,14 @@ Tests first:
 Implementation:
 
 - [x] Define collapse committed entry / snapshot schema.
-- [ ] Add replay/load owner.
+- [x] Add replay/load owner.
 - [ ] Integrate projection owner.
 - [ ] Add overflow drain before reactive compact.
 
 Validation:
 
 - [x] `bun run test -- packages/core/src/chat/context/contextCollapseStore.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts packages/core/src/chat/context/contextCollapseStore.test.ts`
 - [ ] Context/session/send/app-server/Web targeted tests.
 - [ ] `bun run type-check`
 - [ ] Mandatory codex review before commit.
