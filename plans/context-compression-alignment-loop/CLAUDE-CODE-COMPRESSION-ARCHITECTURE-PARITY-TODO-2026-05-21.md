@@ -63,12 +63,12 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 - [ ] Compact preserved segment 仍主要依赖 snapshot/fingerprint，缺少 Claude Code-style parent-chain relink / crash-safety guard。
 - [ ] App-server/Web/replay 对 compact boundary 的展示与缓存已打通，但还缺统一的 projection fixture 锁定所有 surface。
 - [ ] Pending session-memory restore 大体有 dispatch-time consumption，但 `/compact` command path 仍需要专项确认。
-- [ ] Request-collapse event 可能需要按 latest compact boundary 之后过滤，避免 compact 后继续暴露 pre-compact collapse metadata。
+- [x] Request-collapse event 按 latest compact boundary generation 过滤/清理，避免 compact 后继续暴露 pre-compact collapse metadata。
 
 ### 明显未对齐
 
 - [ ] `snip` 缺 durable boundary / metadata / removed UUID replay / parent relink。
-- [ ] `context collapse` 缺 committed store / snapshot / restore replay / overflow drain。
+- [x] `context collapse` 已补 committed store / snapshot / restore replay / overflow drain；后续剩余为 surface convergence 与更细策略对齐。
 - [ ] `tool_result_budget` / content replacement 缺 Claude Code-style durable side-state；当前明确 deferred，不阻塞 Batch 1/2。
 - [x] 已有最小统一 durable compression projection owner：`buildContextProjection()` 当前收敛 raw transcript、UI scrollback、latest compact continuation model-facing baseline、diagnostics projection、durable-state 占位 facts；后续还需把 runtime callers 逐步迁入。
 - [ ] 缺一个 Claude Code compression golden fixture，统一锁定 resume、next request projection、UI scrollback、app-server replay、Web replay 的差异。
@@ -221,9 +221,9 @@ Validation:
 - [x] `bun run test -- packages/core/src/chat/context/contextCollapseStore.test.ts`
 - [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts packages/core/src/chat/context/contextCollapseStore.test.ts`
 - [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextCollapseStore.test.ts packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/features/repl/controller/session/sessionEvents.test.ts packages/core/src/features/repl/controller/session/useSessionEventRecorders.test.tsx packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
-- [ ] Context/session/send/app-server/Web targeted tests.
+- [x] Context/session/send/app-server/Web targeted tests.
 - [x] `bun run type-check`
-- [ ] Mandatory codex review before commit.
+- [x] Mandatory codex review before commit.
 
 ### Batch 6: Surface And Recovery Convergence
 
