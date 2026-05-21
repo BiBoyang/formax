@@ -207,7 +207,7 @@ Tests first:
 - [x] Resume/load rebuilds collapse store.
 - [x] Next-turn projection applies committed collapse entries.
 - [x] Provider overflow path drains pending collapse before reactive full compact.
-- [ ] Materializing compact clears/rebases stale collapse entries before the new compact boundary.
+- [x] Materializing compact clears/rebases stale collapse entries before the new compact boundary.
 
 Implementation:
 

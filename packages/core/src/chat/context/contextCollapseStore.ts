@@ -84,9 +84,14 @@ export function setContextCollapseStoreActiveCompactBoundaryFingerprint(args: {
   snapshot: ContextCollapseStoreSnapshot | null
   activeCompactBoundaryFingerprint: string | null
 }): ContextCollapseStoreSnapshot {
+  const activeCompactBoundaryFingerprint = normalizeOptionalFingerprint(args.activeCompactBoundaryFingerprint)
   return buildContextCollapseStoreSnapshot({
-    entries: args.snapshot?.entries ?? [],
-    activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
+    entries: activeCompactBoundaryFingerprint
+      ? (args.snapshot?.entries ?? []).filter(
+          (entry) => entry.compactBoundaryFingerprint === activeCompactBoundaryFingerprint,
+        )
+      : [],
+    activeCompactBoundaryFingerprint,
   })
 }
 

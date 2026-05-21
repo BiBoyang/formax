@@ -116,6 +116,15 @@ describe('contextCollapseStore', () => {
     })
     expect(next).toMatchObject({
       activeCompactBoundaryFingerprint: 'compact-generation-2',
+      entries: [],
+    })
+
+    const sameGeneration = setContextCollapseStoreActiveCompactBoundaryFingerprint({
+      snapshot: withEntry,
+      activeCompactBoundaryFingerprint: 'compact-generation-1',
+    })
+    expect(sameGeneration).toMatchObject({
+      activeCompactBoundaryFingerprint: 'compact-generation-1',
       entries: [entry],
     })
   })

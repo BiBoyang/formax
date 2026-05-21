@@ -19,6 +19,7 @@ function committedEvent(args: {
   startIndex: number
   endIndexExclusive: number
   recapFingerprint: string
+  compactBoundaryFingerprint?: string | null
 }) {
   return {
     type: 'event',
@@ -28,6 +29,7 @@ function committedEvent(args: {
       id: args.id,
       createdAtMs: args.createdAtMs,
       source: 'request_collapse',
+      compactBoundaryFingerprint: args.compactBoundaryFingerprint,
       collapsedRange: {
         kind: 'model_facing_index_range',
         startIndex: args.startIndex,
@@ -122,6 +124,7 @@ describe('contextCollapseStoreEvents', () => {
           startIndex: 0,
           endIndexExclusive: 1,
           recapFingerprint: 'current-fingerprint',
+          compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(boundary),
         })),
       ].join('\n'),
       'utf8',
@@ -131,13 +134,14 @@ describe('contextCollapseStoreEvents', () => {
 
     await expect(readContextCollapseStoreSnapshotFromSession({ filePath })).resolves.toMatchObject({
       activeCompactBoundaryFingerprint: expectedFingerprint,
+      entries: [expect.objectContaining({ id: 'collapse-current' })],
     })
     expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).activeCompactBoundaryFingerprint).toBe(
       expectedFingerprint,
     )
   })
 
-  it('clears the active compact-boundary generation on later boundaryless history snapshots', async () => {
+  it('preserves the active compact-boundary generation on later boundaryless history snapshots', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-boundary-clear-'))
     const filePath = path.join(dir, 'session.jsonl')
     const boundary = buildCompactBoundaryMessage({
@@ -154,24 +158,76 @@ describe('contextCollapseStoreEvents', () => {
           type: 'history_state',
           messages: [boundary, { role: 'user', content: [{ type: 'text', text: 'summary' }] }],
         }),
-        JSON.stringify({
-          type: 'history_state',
-          messages: [{ role: 'user', content: [{ type: 'text', text: 'fresh boundaryless prompt' }] }],
-        }),
         JSON.stringify(committedEvent({
           id: 'collapse-stale',
           createdAtMs: Date.parse('2026-05-21T00:04:00.000Z'),
           startIndex: 0,
           endIndexExclusive: 1,
           recapFingerprint: 'stale-fingerprint',
+          compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(boundary),
         })),
+        JSON.stringify({
+          type: 'history_state',
+          messages: [{ role: 'user', content: [{ type: 'text', text: 'fresh boundaryless prompt' }] }],
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    const expectedFingerprint = fingerprintCompactBoundaryMessage(boundary)
+    await expect(readContextCollapseStoreSnapshotFromSession({ filePath })).resolves.toMatchObject({
+      activeCompactBoundaryFingerprint: expectedFingerprint,
+      entries: [expect.objectContaining({ id: 'collapse-stale' })],
+    })
+    expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).activeCompactBoundaryFingerprint).toBe(
+      expectedFingerprint,
+    )
+  })
+
+  it('clears stale collapse entries when a materialized compact creates a new boundary generation', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-boundary-rebase-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const oldBoundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+    })
+    const newBoundary = buildCompactBoundaryMessage({
+      trigger: 'reactive',
+      triggerReason: { kind: 'reactive_error', detail: 'HTTP 413' },
+      preTokens: 8192,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+    })
+
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify({
+          type: 'history_state',
+          messages: [oldBoundary, { role: 'user', content: [{ type: 'text', text: 'old summary' }] }],
+        }),
+        JSON.stringify(committedEvent({
+          id: 'collapse-old',
+          createdAtMs: Date.parse('2026-05-21T00:05:00.000Z'),
+          startIndex: 0,
+          endIndexExclusive: 1,
+          recapFingerprint: 'old-fingerprint',
+          compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(oldBoundary),
+        })),
+        JSON.stringify({
+          type: 'history_state',
+          messages: [newBoundary, { role: 'user', content: [{ type: 'text', text: 'new summary' }] }],
+        }),
       ].join('\n'),
       'utf8',
     )
 
     await expect(readContextCollapseStoreSnapshotFromSession({ filePath })).resolves.toMatchObject({
-      activeCompactBoundaryFingerprint: null,
+      activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(newBoundary),
+      entries: [],
     })
-    expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).activeCompactBoundaryFingerprint).toBeNull()
+    expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).entries).toEqual([])
   })
 })

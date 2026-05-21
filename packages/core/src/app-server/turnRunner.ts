@@ -297,8 +297,9 @@ export class TurnRunner {
 
   private updateContextCollapseStoreActiveGeneration(filePath: string, history: ChatHistory): void {
     const boundaryIndex = findLatestCompactBoundaryIndex(history)
+    if (boundaryIndex < 0) return
     const activeCompactBoundaryFingerprint =
-      boundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(history[boundaryIndex]!) : null
+      fingerprintCompactBoundaryMessage(history[boundaryIndex]!)
     this.contextCollapseStoreByFilePath.set(
       filePath,
       setContextCollapseStoreActiveCompactBoundaryFingerprint({
