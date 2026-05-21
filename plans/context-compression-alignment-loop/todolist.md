@@ -72,18 +72,18 @@ Validation:
 
 Tests first:
 
-- [ ] `prepareTurnRequestProjection()` 断言 `persistedHistory` 仍是 raw transcript。
-- [ ] `prepareTurnRequestProjection()` 断言 middle-layer stack 输入来自 `contextProjection.modelFacingBaseline`。
-- [ ] `prepareTurnRequestProjection()` 断言 reducers no-op 时 `requestHistory` 等于 model-facing baseline。
-- [ ] `prepareTurnRequestProjection()` 断言 pending session-memory restore 不进入 raw transcript 或 durable model-facing baseline；它只属于 restore surface fact / next-turn restore context。
-- [ ] `prepareTurnRequestProjection()` 断言 request-only reducer output 不被反推成 durable state。
+- [x] `prepareTurnRequestProjection()` 断言 `persistedHistory` 仍是 raw transcript。
+- [x] `prepareTurnRequestProjection()` 断言 middle-layer stack 输入来自 `contextProjection.modelFacingBaseline`。
+- [x] `prepareTurnRequestProjection()` 断言 reducers no-op 时 `requestHistory` 等于 model-facing baseline。
+- [x] `prepareTurnRequestProjection()` 断言 pending session-memory restore 不进入 raw transcript 或 durable model-facing baseline；它只属于 restore surface fact / next-turn restore context。
+- [x] `prepareTurnRequestProjection()` 断言 request-only reducer output 不被反推成 durable state。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
-- [ ] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [ ] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [ ] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
+- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
+- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
+- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
 - [ ] commit。
 
 ## Gate 1C: Generation Reset Fixture

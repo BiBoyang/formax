@@ -5,6 +5,7 @@ import {
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
 } from './compact'
+import { buildCompressionProjectionGoldenFixture } from './compressionProjectionFixture'
 import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
 import { prepareTurnRequestProjection } from './turnRequestProjection'
 import type { PromptMessage } from '../../prompts'
@@ -213,5 +214,49 @@ describe('prepareTurnRequestProjection', () => {
       removedMessageCount: 1,
       droppedOrphanToolBlockCount: 0,
     })
+  })
+
+  it('projects the compression golden fixture into the next request without promoting request-only output', () => {
+    const fixture = buildCompressionProjectionGoldenFixture()
+    const user = textMessage('user', 'next request')
+    const requestOnlyHistory = [...fixture.modelFacingBaseline, textMessage('assistant', 'request-only reducer output')]
+    vi.mocked(executeMiddleLayerStrategyStack).mockReturnValue({
+      persistedHistoryCandidate: requestOnlyHistory,
+      requestHistory: requestOnlyHistory,
+      preparedTrailingMessage: null,
+      cacheEditPlan: null,
+      facts: {
+        stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
+        requestOnly: true,
+      },
+    } as any)
+
+    const out = prepareTurnRequestProjection({
+      system: [],
+      history: fixture.rawTranscript,
+      user,
+      budgetConfig: null,
+      durableState: fixture.durableState,
+    })
+
+    expect(executeMiddleLayerStrategyStack).toHaveBeenCalledWith({
+      system: [],
+      history: fixture.modelFacingBaseline,
+      trailingMessage: user,
+      budgetConfig: null,
+      allowBoundarylessContinuation: true,
+    })
+    expect(out.persistedHistory).toBe(fixture.rawTranscript)
+    expect(out.requestHistory).toBe(requestOnlyHistory)
+    expect(out.requestUser).toBe(user)
+    expect(out.contextProjection.rawTranscript).toBe(fixture.rawTranscript)
+    expect(out.contextProjection.modelFacingBaseline).toEqual(fixture.modelFacingBaseline)
+    expect(out.contextProjection.diagnosticsProjection).toEqual(fixture.modelFacingBaseline)
+    expect(out.contextProjection.facts.appliedDurableStages).toEqual(['snip'])
+    expect(JSON.stringify(out.contextProjection.modelFacingBaseline)).not.toContain('request-only reducer output')
+    expect(JSON.stringify(out.persistedHistory)).not.toContain(fixture.pendingSessionMemoryRestore.recentFiles[0]!)
+    expect(JSON.stringify(out.contextProjection.modelFacingBaseline)).not.toContain(
+      fixture.pendingSessionMemoryRestore.todoSummary,
+    )
   })
 })
