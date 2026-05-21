@@ -606,7 +606,7 @@ describe('createContextCompressionService', () => {
     expect(runCompactFlow).toHaveBeenCalledTimes(1)
   })
 
-  it('microcompacts old heavy tool results before auto-compact is decided', async () => {
+  it('does not content-stub old heavy tool results before auto-compact without cache editing', async () => {
     vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
       const serialized = JSON.stringify(messages)
       return serialized.includes('[Older tool result cleared by microcompact:') ? 800 : 7000
@@ -639,20 +639,18 @@ describe('createContextCompressionService', () => {
       system: [{ type: 'text', text: 'sys' }],
     })
 
-    expect(runCompactFlow).not.toHaveBeenCalled()
-    expect((out.history[1] as any).content[0].content).toBe('a'.repeat(4000))
-    expect((out.requestHistory[1] as any).content[0].content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
-    )
+    expect(runCompactFlow).toHaveBeenCalledTimes(1)
+    expect((out.history[0] as any).content[0].text).toBe('compacted')
+    expect((out.requestHistory[0] as any).content[0].text).toBe('compacted')
     expect(out.context).toEqual({
-      usedTokens: 800,
+      usedTokens: 7000,
       limitTokens: 9000,
       percentRemaining: 86,
       source: 'estimate',
     })
   })
 
-  it('adapts microcompact aggressiveness based on pressure tiers', async () => {
+  it('keeps request history unchanged by microcompact without cache editing across pressure tiers', async () => {
     vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
       messages,
       pruned: false,
@@ -721,15 +719,9 @@ describe('createContextCompressionService', () => {
     expect((critical.history[1] as any).content[0].content).toBe('a'.repeat(4000))
     expect((critical.history[3] as any).content[0].content).toBe('b'.repeat(4000))
     expect((critical.history[7] as any).content[0].content).toBe('d'.repeat(4000))
-    expect((critical.requestHistory[1] as any).content[0].content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
-    )
-    expect((critical.requestHistory[3] as any).content[0].content).toBe(
-      '[Older tool result cleared by microcompact: Grep "login" in /repo/src (1 hits)]',
-    )
-    expect(String((critical.requestHistory[5] as any).content[0].content)).toContain(
-      '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (',
-    )
+    expect((critical.requestHistory[1] as any).content[0].content).toBe('a'.repeat(4000))
+    expect((critical.requestHistory[3] as any).content[0].content).toBe('b'.repeat(4000))
+    expect((critical.requestHistory[5] as any).content[0].content).toBe('src/a.ts\nsrc/b.ts\nsrc/c.ts'.repeat(300))
   })
 
   it('swallows auto-compact failures and keeps turn preparation best-effort', async () => {

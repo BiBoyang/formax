@@ -394,15 +394,15 @@ describe('contextDiagnostics', () => {
       kind: 'assembled_total',
       tokens: out.totalTokens,
     })
-    expect(out.microCompactImpact.compactedBlocks).toBe(1)
-    expect(out.microCompactImpact.compactedToolNames).toEqual(['Read'])
-    expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
-    expect(out.microCompactImpact.keptRecentBlocks).toBe(3)
+    expect(out.microCompactImpact.compactedBlocks).toBe(0)
+    expect(out.microCompactImpact.compactedToolNames).toEqual([])
+    expect(out.microCompactImpact.estimatedTokensSaved).toBe(0)
+    expect(out.microCompactImpact.keptRecentBlocks).toBe(0)
     expect(out.microCompactImpact.cacheAwareEligibleToolNames).toEqual(['Read', 'Grep', 'Glob', 'WebFetch'])
     expect(out.microCompactImpact.cacheAwareMinResultChars).toBe(500)
     expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBe(0)
     expect(out.microCompactImpact.cacheAwareToolNames).toEqual([])
-    expect(out.microCompactImpact.timeAwareEligibleToolNames).toEqual(['Read', 'Grep', 'Glob'])
+    expect(out.microCompactImpact.timeAwareEligibleToolNames).toEqual([])
     expect(out.microCompactImpact.timeAwareMinResultChars).toBe(1000)
     expect(out.microCompactImpact.timeAwareMinStaleUserTurns).toBe(4)
     expect(out.microCompactImpact.timeAwareCompactedBlocks).toBe(0)
@@ -437,18 +437,18 @@ describe('contextDiagnostics', () => {
     ])
     expect(out.strategyControlPlane).toEqual({
       stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
-      appliedStages: ['microcompact'],
-      skippedStages: ['tool_result_budget', 'snip', 'collapse', 'prune'],
+      appliedStages: ['tool_result_budget'],
+      skippedStages: ['microcompact', 'snip', 'collapse', 'prune'],
       terminalStage: 'prune',
       terminalDisposition: 'skipped',
-      dominantSavingStage: 'microcompact',
-      dominantSavingTokens: out.microCompactImpact.estimatedTokensSaved,
+      dominantSavingStage: 'tool_result_budget',
+      dominantSavingTokens: out.toolResultBudgetImpact.estimatedTokensSaved,
     })
     expect(out.strategyCoordination[0]).toMatchObject({
       stage: 'microcompact',
       role: 'budget_reducer',
       scope: 'request_history_projection',
-      disposition: 'applied',
+      disposition: 'skipped',
       terminal: false,
       advisory: true,
     })
@@ -558,7 +558,7 @@ describe('contextDiagnostics', () => {
     expect(out.topAssembledContributors.some((row) => row.label.includes('Older analysis'))).toBe(false)
   })
 
-  it('uses adaptive microcompact thresholds in next-turn diagnostics for medium Grep results under tighter pressure', () => {
+  it('does not report adaptive microcompact savings when cache editing is unavailable', () => {
     const out = analyzeNextTurnFixedContext({
       cwd: '/repo',
       mode: 'normal',
@@ -596,10 +596,10 @@ describe('contextDiagnostics', () => {
       },
     })
 
-    expect(out.microCompactImpact.compactedBlocks).toBe(1)
-    expect(out.microCompactImpact.compactedToolNames).toEqual(['Grep'])
-    expect(out.microCompactImpact.estimatedTokensSaved).toBeGreaterThan(0)
-    expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBeGreaterThanOrEqual(0)
+    expect(out.microCompactImpact.compactedBlocks).toBe(0)
+    expect(out.microCompactImpact.compactedToolNames).toEqual([])
+    expect(out.microCompactImpact.estimatedTokensSaved).toBe(0)
+    expect(out.microCompactImpact.cacheAwareCompactedBlocks).toBe(0)
   })
 
   it('excludes the synthetic compact-boundary marker from post-compact lifecycle history tokens', () => {

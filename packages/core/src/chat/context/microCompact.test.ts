@@ -28,8 +28,12 @@ function userToolResult(id: string, content: string, extraBlocks: any[] = [], is
   }
 }
 
+function fallbackBlock(out: ReturnType<typeof microCompactHistory>, messageIndex: number, blockIndex = 0): any {
+  return (out.cacheEditPlan?.fallbackMessages?.[messageIndex]?.content as any[])?.[blockIndex]
+}
+
 describe('microCompactHistory', () => {
-  it('microcompacts older eligible tool results while keeping recent results intact', () => {
+  it('no-ops when cache editing is unavailable and assistant-gap microcompact does not fire', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
       userToolResult('read-1', 'a'.repeat(4000)),
@@ -43,17 +47,11 @@ describe('microCompactHistory', () => {
 
     const out = microCompactHistory({ messages })
 
-    expect(out.compacted).toBe(true)
-    expect(out.compactedBlocks).toBe(1)
-    expect(out.compactedToolNames).toEqual(['Read'])
-    expect(out.estimatedTokensSaved).toBeGreaterThan(0)
-    expect(out.keptRecentBlocks).toBe(3)
-    expect((out.messages[1]!.content[0] as any).content).toBe(
-      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts (~4,000 chars)]',
-    )
-    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
-    expect((out.messages[5]!.content[0] as any).content).toBe('c'.repeat(4000))
-    expect((out.messages[7]!.content[0] as any).content).toBe('d'.repeat(4000))
+    expect(out.compacted).toBe(false)
+    expect(out.compactedBlocks).toBe(0)
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.estimatedTokensSaved).toBe(0)
+    expect(out.messages).toBe(messages)
   })
 
   it('plans cache edits without mutating message content when cache editing is enabled', () => {
@@ -148,6 +146,28 @@ describe('microCompactHistory', () => {
     expect(out.timeAwareToolNames).toEqual(['Read'])
   })
 
+  it('does not time-based microcompact when cache editing is unavailable', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+      { role: 'assistant', content: [{ type: 'text', text: 'done' }] as any, meta: { timestamp: '2026-05-21T00:00:00.000Z' } },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 60,
+      timeBasedKeepRecentToolResults: 1,
+      nowMs: new Date('2026-05-21T02:01:00.000Z').getTime(),
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.messages).toBe(messages)
+  })
+
   it('does not time-based microcompact when the assistant timestamp gap is below threshold', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
@@ -216,7 +236,7 @@ describe('microCompactHistory', () => {
     expect(out.messages).toBe(messages)
   })
 
-  it('preserves non-tool text blocks while clearing only the tool_result payload', () => {
+  it('keeps non-tool text blocks intact in cache-editing fallback messages', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
       userToolResult('read-1', 'a'.repeat(4000), [{ type: 'text', text: 'extra reminder' }]),
@@ -228,8 +248,8 @@ describe('microCompactHistory', () => {
       userToolResult('read-4', 'd'.repeat(4000)),
     ]
 
-    const out = microCompactHistory({ messages })
-    const oldMessage = out.messages[1]!
+    const out = microCompactHistory({ messages, enableCacheEditing: true })
+    const oldMessage = out.cacheEditPlan!.fallbackMessages![1]!
 
     expect(oldMessage.content[0]).toMatchObject({
       type: 'tool_result',
@@ -239,7 +259,7 @@ describe('microCompactHistory', () => {
     expect(oldMessage.content[1]).toEqual({ type: 'text', text: 'extra reminder' })
   })
 
-  it('microcompacts older machine-generated Skill companion blocks without touching the launch stub', () => {
+  it('leaves Skill companion blocks unchanged when cache editing is unavailable', () => {
     const oldCompanionText = `Base directory for this skill: /repo/.formax/skills/frontend-design\n\n${'A'.repeat(4000)}`
     const messages: PromptMessage[] = [
       assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
@@ -275,18 +295,16 @@ describe('microCompactHistory', () => {
     const out = microCompactHistory({ messages })
     const oldMessage = out.messages[1]!
 
-    expect(out.compacted).toBe(true)
-    expect(out.compactedBlocks).toBe(1)
-    expect(out.compactedToolNames).toEqual(['Skill'])
-    expect(out.estimatedTokensSaved).toBeGreaterThan(0)
+    expect(out.compacted).toBe(false)
+    expect(out.compactedBlocks).toBe(0)
+    expect(out.compactedToolNames).toEqual([])
+    expect(out.estimatedTokensSaved).toBe(0)
     expect((oldMessage.content[0] as any).content).toBe('Launching skill: frontend-design')
-    expect((oldMessage.content[1] as any).text).toBe(
-      `[Older companion block cleared by microcompact: Skill(frontend-design) body (~${oldCompanionText.length.toLocaleString('en-US')} chars)]`,
-    )
+    expect((oldMessage.content[1] as any).text).toBe(oldCompanionText)
     expect((out.messages[3]!.content[1] as any).text).toContain('Base directory for this skill')
   })
 
-  it('preserves Skill companion block microcompaction when cache editing is enabled', () => {
+  it('does not mutate Skill companion blocks when cache editing is enabled', () => {
     const oldCompanionText = `Base directory for this skill: /repo/.formax/skills/frontend-design\n\n${'A'.repeat(4000)}`
     const messages: PromptMessage[] = [
       assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
@@ -322,20 +340,18 @@ describe('microCompactHistory', () => {
     const out = microCompactHistory({ messages, enableCacheEditing: true })
     const oldMessage = out.messages[1]!
 
-    expect(out.compacted).toBe(true)
-    expect(out.compactedBlocks).toBe(1)
-    expect(out.compactedToolNames).toEqual(['Skill'])
+    expect(out.compacted).toBe(false)
+    expect(out.compactedBlocks).toBe(0)
+    expect(out.compactedToolNames).toEqual([])
     expect(out.cacheEditPlan).toBeNull()
     expect(out.cacheEditingPlannedBlocks).toBe(0)
-    expect(out.estimatedTokensSaved).toBeGreaterThan(0)
+    expect(out.estimatedTokensSaved).toBe(0)
     expect((oldMessage.content[0] as any).content).toBe('Launching skill: frontend-design')
-    expect((oldMessage.content[1] as any).text).toBe(
-      `[Older companion block cleared by microcompact: Skill(frontend-design) body (~${oldCompanionText.length.toLocaleString('en-US')} chars)]`,
-    )
+    expect((oldMessage.content[1] as any).text).toBe(oldCompanionText)
     expect((messages[1]!.content[1] as any).text).toBe(oldCompanionText)
   })
 
-  it('keeps ordinary trailing text blocks intact even for Skill tool results', () => {
+  it('keeps ordinary trailing text blocks intact in cache-editing fallback messages', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('skill-1', 'Skill', { skill: 'frontend-design' }),
       userToolResult('skill-1', 'Launching skill: frontend-design', [{ type: 'text', text: 'human note '.repeat(300) }]),
@@ -349,15 +365,15 @@ describe('microCompactHistory', () => {
       userToolResult('read-4', 'd'.repeat(4000)),
     ]
 
-    const out = microCompactHistory({ messages })
+    const out = microCompactHistory({ messages, enableCacheEditing: true })
 
     expect((out.messages[1]!.content[1] as any).text).toBe('human note '.repeat(300))
-    expect((out.messages[3]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 3).content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
     )
   })
 
-  it('keeps Bash and WebFetch results intact by default', () => {
+  it('keeps Bash and WebFetch results intact in cache-editing fallback unless eligible', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
       userToolResult('read-1', 'a'.repeat(4000)),
@@ -373,21 +389,21 @@ describe('microCompactHistory', () => {
       userToolResult('fetch-1', 'f'.repeat(4000)),
     ]
 
-    const out = microCompactHistory({ messages, keepRecentToolResults: 0 })
+    const out = microCompactHistory({ messages, keepRecentToolResults: 0, enableCacheEditing: true })
 
     expect(out.compactedToolNames).toEqual(['Read'])
     expect(out.keptRecentBlocks).toBe(0)
     expect(out.estimatedTokensSaved).toBeGreaterThan(0)
-    expect((out.messages[1]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 1).content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/a.ts (~4,000 chars)]',
     )
-    expect((out.messages[3]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 3).content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/b.ts (~4,000 chars)]',
     )
-    expect((out.messages[5]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 5).content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/c.ts (~4,000 chars)]',
     )
-    expect((out.messages[7]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 7).content).toBe(
       '[Older tool result cleared by microcompact: Read /repo/src/d.ts (~4,000 chars)]',
     )
     expect((out.messages[9]!.content[0] as any).content).toBe('e'.repeat(4000))
@@ -400,8 +416,8 @@ describe('microCompactHistory', () => {
       userToolResult('read-1', 'a'.repeat(4000)),
     ]
 
-    const out = microCompactHistory({ messages, keepRecentToolResults: 0 })
-    const stub = String((out.messages[1]!.content[0] as any).content)
+    const out = microCompactHistory({ messages, keepRecentToolResults: 0, enableCacheEditing: true })
+    const stub = String(fallbackBlock(out, 1).content)
 
     expect(stub).toContain('...')
     expect(stub.length).toBeLessThanOrEqual(120)
@@ -417,7 +433,7 @@ describe('microCompactHistory', () => {
       userToolResult('glob-1', 'c'.repeat(4000)),
     ]
 
-    const out = microCompactHistory({ messages, keepRecentToolResults: 0 })
+    const out = microCompactHistory({ messages, keepRecentToolResults: 0, enableCacheEditing: true })
 
     expect(out.compactedBlocks).toBe(3)
     expect(out.compactedToolNames).toEqual(['Read', 'Grep', 'Glob'])
@@ -433,12 +449,12 @@ describe('microCompactHistory', () => {
       userToolResult('glob-1', 'src/a.ts\nsrc/b.ts\nsrc/c.ts'),
     ]
 
-    const out = microCompactHistory({ messages, keepRecentToolResults: 0, minResultChars: 1 })
+    const out = microCompactHistory({ messages, keepRecentToolResults: 0, minResultChars: 1, enableCacheEditing: true })
 
-    expect((out.messages[1]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 1).content).toBe(
       '[Older tool result cleared by microcompact: Grep "login" in /repo/src (3 hits)]',
     )
-    expect((out.messages[3]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 3).content).toBe(
       '[Older tool result cleared by microcompact: Glob "**/*.ts" in /repo/src (3 paths)]',
     )
   })
@@ -461,6 +477,7 @@ describe('microCompactHistory', () => {
       cacheAwareMinResultChars: 400,
       minResultChars: 2000,
       eligibleToolNames: ['Read'],
+      enableCacheEditing: true,
     })
 
     expect(out.compacted).toBe(true)
@@ -472,10 +489,10 @@ describe('microCompactHistory', () => {
     expect(out.cacheAwareMinResultChars).toBe(400)
     expect(out.timeAwareCompactedBlocks).toBe(0)
     expect(out.timeAwareToolNames).toEqual([])
-    expect((out.messages[1]!.content[0] as any).content).toContain(
+    expect(fallbackBlock(out, 1).content).toContain(
       '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
     )
-    expect((out.messages[3]!.content[0] as any).content).toContain(
+    expect(fallbackBlock(out, 3).content).toContain(
       '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
     )
     expect((out.messages[5]!.content[0] as any).content).toBe('z'.repeat(5000))
@@ -546,7 +563,7 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 1000 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 500,
-      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareEligibleToolNames: [],
       timeAwareMinResultChars: 1000,
       timeAwareMinResultCharsByName: { Grep: 700, Glob: 700 },
       timeAwareMinStaleUserTurns: 4,
@@ -560,7 +577,7 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 900, Glob: 900 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 400,
-      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareEligibleToolNames: [],
       timeAwareMinResultChars: 800,
       timeAwareMinResultCharsByName: { Grep: 600, Glob: 600 },
       timeAwareMinStaleUserTurns: 3,
@@ -574,14 +591,14 @@ describe('microCompactHistory', () => {
       minResultCharsByName: { Grep: 600, Glob: 600, Bash: 1200, WebFetch: 1200 },
       cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
       cacheAwareMinResultChars: 300,
-      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'Bash', 'WebFetch'],
+      timeAwareEligibleToolNames: [],
       timeAwareMinResultChars: 600,
       timeAwareMinResultCharsByName: { Bash: 900, WebFetch: 900 },
       timeAwareMinStaleUserTurns: 2,
     })
   })
 
-  it('time-aware microcompacts stale medium results once enough user turns have passed', () => {
+  it('does not run user-turn-based time-aware microcompact', () => {
     const mediumRead = 'line\n'.repeat(170)
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/auth.ts' }),
@@ -605,14 +622,12 @@ describe('microCompactHistory', () => {
       timeAwareMinStaleUserTurns: 3,
     })
 
-    expect(out.compacted).toBe(true)
-    expect(out.compactedBlocks).toBe(1)
-    expect(out.timeAwareCompactedBlocks).toBe(1)
-    expect(out.timeAwareToolNames).toEqual(['Read'])
+    expect(out.compacted).toBe(false)
+    expect(out.compactedBlocks).toBe(0)
+    expect(out.timeAwareCompactedBlocks).toBe(0)
+    expect(out.timeAwareToolNames).toEqual([])
     expect(out.cacheAwareCompactedBlocks).toBe(0)
-    expect((out.messages[1]!.content[0] as any).content).toContain(
-      '[Older tool result cleared by microcompact: Read /repo/src/auth.ts',
-    )
+    expect((out.messages[1]!.content[0] as any).content).toBe(mediumRead)
   })
 
   it('does not time-aware microcompact medium results before they become stale enough', () => {
@@ -687,11 +702,12 @@ describe('microCompactHistory', () => {
       keepRecentToolResultsByName: { Read: 1 },
       minResultChars: 1,
       eligibleToolNames: ['Read', 'Grep', 'Glob'],
+      enableCacheEditing: true,
     })
 
     expect((out.messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
-    expect((out.messages[3]!.content[0] as any).content).toContain('[Older tool result cleared by microcompact: Grep')
-    expect((out.messages[5]!.content[0] as any).content).toContain('[Older tool result cleared by microcompact: Glob')
+    expect(fallbackBlock(out, 3).content).toContain('[Older tool result cleared by microcompact: Grep')
+    expect(fallbackBlock(out, 5).content).toContain('[Older tool result cleared by microcompact: Glob')
     expect((out.messages[7]!.content[0] as any).content).toBe('d'.repeat(4000))
   })
 
@@ -707,9 +723,10 @@ describe('microCompactHistory', () => {
       minResultChars: 1600,
       minResultCharsByName: { Grep: 900 },
       eligibleToolNames: ['Grep'],
+      enableCacheEditing: true,
     })
 
-    expect((out.messages[1]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 1).content).toBe(
       '[Older tool result cleared by microcompact: Grep "login" in /repo/src (180 hits)]',
     )
   })
@@ -727,12 +744,13 @@ describe('microCompactHistory', () => {
       keepRecentToolResults: 0,
       minResultChars: 1,
       eligibleToolNames: ['Bash', 'WebFetch'],
+      enableCacheEditing: true,
     })
 
-    expect((out.messages[1]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 1).content).toBe(
       '[Older tool result cleared by microcompact: Bash "cat /repo/README.md"]',
     )
-    expect((out.messages[3]!.content[0] as any).content).toBe(
+    expect(fallbackBlock(out, 3).content).toBe(
       '[Older tool result cleared by microcompact: WebFetch https://developer.mozilla.org/en-US/docs/Web/JavaScript]',
     )
   })

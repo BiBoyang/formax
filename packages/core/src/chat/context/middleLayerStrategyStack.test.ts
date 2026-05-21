@@ -472,7 +472,7 @@ describe('executeMiddleLayerStrategyStack', () => {
         disposition: 'skipped',
         terminal: false,
         advisory: true,
-        reason: 'no eligible older blocks exceeded microcompact thresholds',
+        reason: 'cache editing unavailable; legacy microcompact disabled',
         estimatedTokensSaved: 0,
         inputTokens: 400,
         outputTokens: 400,

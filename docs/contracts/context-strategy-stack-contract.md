@@ -105,7 +105,7 @@ middle-layer stack MUST 区分以下三个 envelope：
 `snip` 与 `collapse` MUST 只作用于 `request_history_projection`；MUST NOT 改写 persisted `history` 语义。
 
 `CSS-303`  
-`microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。`microcompact` 当前允许存在 cache-aware 与 time-aware / stale-aware 子路径，但这些子路径同样 MUST 保持 request-time reducer 语义，不得把“较旧结果更早 stub”扩展成 persisted baseline 改写。
+`microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。`microcompact` 当前只允许 Claude Code-aligned 子路径：cold-cache time-based content clearing 与 Anthropic cache-editing delete planning；这些子路径同样 MUST 保持 request-time reducer 语义，不得把“较旧结果更早 stub”扩展成 persisted baseline 改写。
 
 `CSS-304`  
 `prune` 的规范语义 MUST 是 terminal fallback：它的职责是保证最终 request-time payload 进入预算，而不是抢在前置 reducers/projection 之前充当普通变换步骤。
@@ -118,6 +118,9 @@ request-time reducers MAY 产生 provider-specific request-envelope side-effect 
 
 `CSS-305b`
 Claude Code-style time-based microcompact MAY run before cache-editing projection when main-thread Anthropic cache editing is enabled and the wall-clock gap since the last assistant message exceeds the configured prompt-cache TTL threshold. This path MUST treat the cache as cold: it MAY content-clear older compactable `tool_result` blocks in the request projection, MUST keep at least the most recent compactable tool result, and MUST NOT emit `cache_edits` for that same turn. Persisted history MAY carry assistant timestamp metadata needed to evaluate the wall-clock gap, but time-based tool-result clearing itself remains request-only.
+
+`CSS-305c`
+When Anthropic cache editing is unavailable and the cold-cache time-based trigger has not fired, `microcompact` MUST be a no-op. It MUST NOT fall back to Formax's legacy content-stub microcompact or user-turn-based stale-result compaction because changing a warm prompt prefix can reduce prompt-cache reuse. Context pressure in this case MUST be handled by later stack stages such as `tool_result_budget`, `snip`, `collapse`, `prune`, or full auto-compact.
 
 `CSS-306`  
 post-turn finalization、manual compact 后的 persisted baseline materialization、以及 reactive/auto compact 后的 persisted-history normalization SHOULD 复用 canonical middle-layer stack owner，而不是在调用侧继续手工串联 `microcompact` / `prune` helper。

@@ -254,6 +254,7 @@ export function executeMiddleLayerStrategyStack(args: {
         terminal: false,
         advisory: true,
         reason: buildMicroCompactReason({
+          cacheEditingEnabled: args.enableCacheEditing === true,
           applied: microCompactResult.compacted,
           compactedBlocks: microCompactResult.compactedBlocks,
         }),
@@ -366,8 +367,9 @@ function resolvePressureRatio(args: {
   return stats.usedTokens / stats.effectiveLimitTokens
 }
 
-function buildMicroCompactReason(args: { applied: boolean; compactedBlocks: number }): string {
+function buildMicroCompactReason(args: { cacheEditingEnabled: boolean; applied: boolean; compactedBlocks: number }): string {
   if (args.applied) return `compacted ${args.compactedBlocks} eligible older block(s)`
+  if (!args.cacheEditingEnabled) return 'cache editing unavailable; legacy microcompact disabled'
   return 'no eligible older blocks exceeded microcompact thresholds'
 }
 

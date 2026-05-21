@@ -12,7 +12,6 @@ const SKILL_COMPANION_PREFIX = 'Base directory for this skill: '
 const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'Skill'] as const
 const DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'WebFetch'] as const
 const DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS = 400
-const DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob'] as const
 const DEFAULT_TIME_AWARE_MIN_RESULT_CHARS = 900
 const DEFAULT_TIME_AWARE_MIN_STALE_USER_TURNS = 3
 const DEFAULT_TIME_BASED_ASSISTANT_GAP_THRESHOLD_MINUTES = 60
@@ -57,12 +56,10 @@ type EligibleToolResultRef = {
   blockIndex: number
   toolUseId: string
   tool: ToolUseMeta
-  staleUserTurns: number
   rawResultChars: number
   rawResultText: string
   compactToolResult: boolean
   compactionReason: 'standard' | 'cache_aware' | 'time_aware' | null
-  timeAwareCandidate: boolean
   companionTextBlockIndex?: number
   companionText?: string
 }
@@ -147,7 +144,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       eligibleToolNames: ['Read', 'Grep', 'Skill'],
       cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
       cacheAwareMinResultChars: 500,
-      timeAwareEligibleToolNames: [...DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES],
+      timeAwareEligibleToolNames: [],
       timeAwareMinResultChars: 1000,
       timeAwareMinResultCharsByName: {
         Grep: 700,
@@ -172,7 +169,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
       eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES],
       cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
       cacheAwareMinResultChars: 400,
-      timeAwareEligibleToolNames: [...DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES],
+      timeAwareEligibleToolNames: [],
       timeAwareMinResultChars: 800,
       timeAwareMinResultCharsByName: {
         Grep: 600,
@@ -196,7 +193,7 @@ export function resolveAdaptiveMicroCompactPolicy(args: {
     eligibleToolNames: [...DEFAULT_ELIGIBLE_TOOL_NAMES, 'Bash', 'WebFetch'],
     cacheAwareEligibleToolNames: [...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES],
     cacheAwareMinResultChars: 300,
-    timeAwareEligibleToolNames: [...DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES, 'Bash', 'WebFetch'],
+    timeAwareEligibleToolNames: [],
     timeAwareMinResultChars: 600,
     timeAwareMinResultCharsByName: {
       Bash: 900,
@@ -263,12 +260,22 @@ export function microCompactHistory(args: {
   const cacheAwareMinResultChars = clampCount(args.cacheAwareMinResultChars, DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS)
   const timeAwareEligibleToolNames = new Set(args.timeAwareEligibleToolNames ?? [])
   const timeAwareMinResultChars = clampCount(args.timeAwareMinResultChars, DEFAULT_TIME_AWARE_MIN_RESULT_CHARS)
-  const timeAwareMinResultCharsByName = normalizeNamedCountMap(args.timeAwareMinResultCharsByName)
   const timeAwareMinStaleUserTurns = clampCount(
     args.timeAwareMinStaleUserTurns,
     DEFAULT_TIME_AWARE_MIN_STALE_USER_TURNS,
   )
   const toolUsesById = collectToolUsesById(args.messages)
+  if (args.enableCacheEditing !== true) {
+    return buildNoopMicroCompactResult({
+      messages: args.messages,
+      cacheAwareEligibleToolNames,
+      cacheAwareMinResultChars,
+      timeAwareEligibleToolNames,
+      timeAwareMinResultChars,
+      timeAwareMinStaleUserTurns,
+    })
+  }
+
   const timeBasedResult = maybeTimeBasedAssistantGapMicroCompact({
     messages: args.messages,
     toolUsesById,
@@ -289,10 +296,6 @@ export function microCompactHistory(args: {
     eligibleToolNames,
     cacheAwareEligibleToolNames,
     cacheAwareMinResultChars,
-    timeAwareEligibleToolNames,
-    timeAwareMinResultChars,
-    timeAwareMinResultCharsByName,
-    timeAwareMinStaleUserTurns,
     minResultChars,
     minResultCharsByName,
     toolUsesById,
@@ -325,116 +328,43 @@ export function microCompactHistory(args: {
     keepRecentToolResults,
     keepRecentToolResultsByName,
   })
-  if (args.enableCacheEditing) {
-    return buildCacheEditingMicroCompactResult({
-      messages: args.messages,
-      refsToCompact,
-      eligibleBlockCount: eligibleBlocks.length,
-      cacheAwareEligibleToolNames,
-      cacheAwareMinResultChars,
-      timeAwareEligibleToolNames,
-      timeAwareMinResultChars,
-      timeAwareMinStaleUserTurns,
-    })
-  }
-  const patchedMessages = [...args.messages]
-  const patchedByIndex = new Map<number, PromptMessage>()
-  const compactedToolNames: string[] = []
-  const compactedToolNameSet = new Set<string>()
-  const cacheAwareToolNames: string[] = []
-  const cacheAwareToolNameSet = new Set<string>()
-  const timeAwareToolNames: string[] = []
-  const timeAwareToolNameSet = new Set<string>()
-  let estimatedTokensSaved = 0
-  let compactedBlocks = 0
-  let cacheAwareCompactedBlocks = 0
-  let timeAwareCompactedBlocks = 0
-
-  for (const ref of refsToCompact) {
-    const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
-    if (!sourceMessage || !Array.isArray(sourceMessage.content)) continue
-
-    const nextBlocks = [...sourceMessage.content]
-    const currentBlock = nextBlocks[ref.blockIndex]
-    if (!currentBlock || typeof currentBlock !== 'object') continue
-    if ((currentBlock as any).type !== 'tool_result') continue
-
-    if (ref.compactToolResult) {
-      const rawResultText = toolResultContentToText((currentBlock as any).content)
-      const replacementBlock = {
-        ...currentBlock,
-        content: buildMicrocompactStub(ref.tool, rawResultText),
-      } as any
-
-      nextBlocks[ref.blockIndex] = replacementBlock
-      estimatedTokensSaved += Math.max(
-        0,
-        estimateTextTokens(rawResultText) - estimateTextTokens(toolResultContentToText(replacementBlock.content)),
-      )
-    }
-
-    if (
-      ref.companionTextBlockIndex != null &&
-      typeof ref.companionText === 'string' &&
-      ref.companionTextBlockIndex > ref.blockIndex &&
-      ref.companionTextBlockIndex < nextBlocks.length
-    ) {
-      const companionBlock = nextBlocks[ref.companionTextBlockIndex] as any
-      if (companionBlock?.type === 'text') {
-        const replacementText = buildCompanionMicrocompactStub(ref.tool, ref.companionText)
-        nextBlocks[ref.companionTextBlockIndex] = {
-          ...companionBlock,
-          text: replacementText,
-        }
-        estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.companionText) - estimateTextTokens(replacementText))
-      }
-    }
-
-    const patchedMessage = {
-      ...sourceMessage,
-      content: nextBlocks as any,
-    }
-    patchedByIndex.set(ref.messageIndex, patchedMessage)
-    patchedMessages[ref.messageIndex] = patchedMessage
-
-    compactedBlocks += 1
-    if (!compactedToolNameSet.has(ref.tool.name)) {
-      compactedToolNameSet.add(ref.tool.name)
-      compactedToolNames.push(ref.tool.name)
-    }
-    if (ref.compactionReason === 'cache_aware') {
-      cacheAwareCompactedBlocks += 1
-      if (!cacheAwareToolNameSet.has(ref.tool.name)) {
-        cacheAwareToolNameSet.add(ref.tool.name)
-        cacheAwareToolNames.push(ref.tool.name)
-      }
-    }
-    if (ref.compactionReason === 'time_aware') {
-      timeAwareCompactedBlocks += 1
-      if (!timeAwareToolNameSet.has(ref.tool.name)) {
-        timeAwareToolNameSet.add(ref.tool.name)
-        timeAwareToolNames.push(ref.tool.name)
-      }
-    }
-  }
-
-  return {
-    messages: patchedMessages,
-    cacheEditPlan: null,
-    compacted: compactedBlocks > 0,
-    compactedBlocks,
-    compactedToolNames,
-    estimatedTokensSaved,
-    keptRecentBlocks: Math.max(0, eligibleBlocks.length - compactedBlocks),
-    cacheAwareEligibleToolNames: [...cacheAwareEligibleToolNames],
+  return buildCacheEditingMicroCompactResult({
+    messages: args.messages,
+    refsToCompact,
+    eligibleBlockCount: eligibleBlocks.length,
+    cacheAwareEligibleToolNames,
     cacheAwareMinResultChars,
-    cacheAwareCompactedBlocks,
-    cacheAwareToolNames,
-    timeAwareEligibleToolNames: [...timeAwareEligibleToolNames],
+    timeAwareEligibleToolNames,
     timeAwareMinResultChars,
     timeAwareMinStaleUserTurns,
-    timeAwareCompactedBlocks,
-    timeAwareToolNames,
+  })
+}
+
+function buildNoopMicroCompactResult(args: {
+  messages: PromptMessage[]
+  cacheAwareEligibleToolNames: Set<string>
+  cacheAwareMinResultChars: number
+  timeAwareEligibleToolNames: Set<string>
+  timeAwareMinResultChars: number
+  timeAwareMinStaleUserTurns: number
+}): ReturnType<typeof microCompactHistory> {
+  return {
+    messages: args.messages,
+    cacheEditPlan: null,
+    compacted: false,
+    compactedBlocks: 0,
+    compactedToolNames: [],
+    estimatedTokensSaved: 0,
+    keptRecentBlocks: 0,
+    cacheAwareEligibleToolNames: [...args.cacheAwareEligibleToolNames],
+    cacheAwareMinResultChars: args.cacheAwareMinResultChars,
+    cacheAwareCompactedBlocks: 0,
+    cacheAwareToolNames: [],
+    timeAwareEligibleToolNames: [...args.timeAwareEligibleToolNames],
+    timeAwareMinResultChars: args.timeAwareMinResultChars,
+    timeAwareMinStaleUserTurns: args.timeAwareMinStaleUserTurns,
+    timeAwareCompactedBlocks: 0,
+    timeAwareToolNames: [],
     cacheEditingPlannedBlocks: 0,
   }
 }
@@ -567,7 +497,6 @@ function collectTimeBasedToolResultRefs(args: {
   const compactableToolNames = new Set<string>([
     ...DEFAULT_ELIGIBLE_TOOL_NAMES,
     ...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES,
-    ...DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES,
     'Bash',
     'WebFetch',
   ])
@@ -595,12 +524,10 @@ function collectTimeBasedToolResultRefs(args: {
         blockIndex,
         toolUseId: block.tool_use_id,
         tool,
-        staleUserTurns: 0,
         rawResultChars: raw.length,
         rawResultText: raw,
         compactToolResult: true,
         compactionReason: 'time_aware',
-        timeAwareCandidate: true,
       })
     }
   }
@@ -626,8 +553,6 @@ function buildCacheEditingMicroCompactResult(args: {
   const timeAwareToolNames: string[] = []
   const timeAwareToolNameSet = new Set<string>()
   const seenDeleteRefs = new Set<string>()
-  const patchedMessages = [...args.messages]
-  const patchedByIndex = new Map<number, PromptMessage>()
   const fallbackMessages = buildStubMicroCompactMessages(args.messages, args.refsToCompact)
   let estimatedTokensSaved = 0
   let compactedBlocks = 0
@@ -651,33 +576,6 @@ function buildCacheEditingMicroCompactResult(args: {
         })
         estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.rawResultText))
         compacted = true
-      }
-    }
-
-    if (
-      ref.companionTextBlockIndex != null &&
-      typeof ref.companionText === 'string' &&
-      ref.companionTextBlockIndex > ref.blockIndex
-    ) {
-      const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
-      if (sourceMessage && Array.isArray(sourceMessage.content) && ref.companionTextBlockIndex < sourceMessage.content.length) {
-        const nextBlocks = [...sourceMessage.content]
-        const companionBlock = nextBlocks[ref.companionTextBlockIndex] as any
-        if (companionBlock?.type === 'text') {
-          const replacementText = buildCompanionMicrocompactStub(ref.tool, ref.companionText)
-          nextBlocks[ref.companionTextBlockIndex] = {
-            ...companionBlock,
-            text: replacementText,
-          }
-          const patchedMessage = {
-            ...sourceMessage,
-            content: nextBlocks as any,
-          }
-          patchedByIndex.set(ref.messageIndex, patchedMessage)
-          patchedMessages[ref.messageIndex] = patchedMessage
-          estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.companionText) - estimateTextTokens(replacementText))
-          compacted = true
-        }
       }
     }
 
@@ -705,7 +603,7 @@ function buildCacheEditingMicroCompactResult(args: {
   }
 
   return {
-    messages: patchedByIndex.size > 0 ? patchedMessages : args.messages,
+    messages: args.messages,
     cacheEditPlan:
       deletes.length > 0
         ? {
@@ -810,10 +708,6 @@ function collectEligibleToolResults(args: {
   eligibleToolNames: Set<string>
   cacheAwareEligibleToolNames: Set<string>
   cacheAwareMinResultChars: number
-  timeAwareEligibleToolNames: Set<string>
-  timeAwareMinResultChars: number
-  timeAwareMinResultCharsByName: Record<string, number>
-  timeAwareMinStaleUserTurns: number
   minResultChars: number
   minResultCharsByName: Record<string, number>
   toolUsesById: Map<string, ToolUseMeta>
@@ -834,16 +728,11 @@ function collectEligibleToolResults(args: {
       if (!tool) continue
 
       const raw = toolResultContentToText(block.content)
-      const staleUserTurns = countSubsequentNonToolUserTurns(args.messages, messageIndex)
       if (isAlreadyMicroCompacted(block.content)) continue
       if (!isSafeToolResultToMicroCompact(tool, raw)) continue
       const minCharsForTool = Math.max(
         0,
         clampCount(args.minResultCharsByName[tool.name], args.minResultChars),
-      )
-      const timeAwareMinCharsForTool = Math.max(
-        0,
-        clampCount(args.timeAwareMinResultCharsByName[tool.name], args.timeAwareMinResultChars),
       )
       const companion = getEligibleCompanionTextBlock({
         blocks: message.content as any[],
@@ -857,24 +746,18 @@ function collectEligibleToolResults(args: {
         true
       const cacheAwareCandidate =
         args.cacheAwareEligibleToolNames.has(tool.name) && raw.length >= args.cacheAwareMinResultChars
-      const timeAwareCandidate =
-        args.timeAwareEligibleToolNames.has(tool.name) &&
-        staleUserTurns >= args.timeAwareMinStaleUserTurns &&
-        raw.length >= timeAwareMinCharsForTool
 
-      if (!compactToolResult && !companion && !cacheAwareCandidate && !timeAwareCandidate) continue
+      if (!compactToolResult && !companion && !cacheAwareCandidate) continue
 
       candidates.push({
         messageIndex,
         blockIndex,
         toolUseId: block.tool_use_id,
         tool,
-        staleUserTurns,
         rawResultChars: raw.length,
         rawResultText: raw,
         compactToolResult,
         compactionReason: compactToolResult ? 'standard' : null,
-        timeAwareCandidate,
         companionTextBlockIndex: companion?.blockIndex,
         companionText: companion?.text,
       })
@@ -896,13 +779,6 @@ function collectEligibleToolResults(args: {
           ...ref,
           compactToolResult: true,
           compactionReason: 'cache_aware' as const,
-        }
-      }
-      if (ref.timeAwareCandidate) {
-        return {
-          ...ref,
-          compactToolResult: true,
-          compactionReason: 'time_aware' as const,
         }
       }
       return ref
@@ -1134,22 +1010,6 @@ function normalizeNamedCountMap(value: Record<string, number> | undefined): Reco
     if (normalized > 0) out[key] = normalized
   }
   return out
-}
-
-function countSubsequentNonToolUserTurns(messages: PromptMessage[], messageIndex: number): number {
-  let count = 0
-  for (let i = messageIndex + 1; i < messages.length; i++) {
-    const message = messages[i]
-    if (!message || message.role !== 'user') continue
-    const content = (message as any).content
-    if (!Array.isArray(content)) {
-      count += 1
-      continue
-    }
-    const hasToolResult = content.some((block: any) => block?.type === 'tool_result')
-    if (!hasToolResult) count += 1
-  }
-  return count
 }
 
 function selectRefsToCompact(args: {
