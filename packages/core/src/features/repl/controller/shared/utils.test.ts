@@ -6,6 +6,7 @@ import {
   extractAssistantText,
   formatDuration,
   formatTokenTotal,
+  formatTokenUsageSummary,
   formatTokens,
   formatToolUses,
   isAbortLikeError,
@@ -65,6 +66,20 @@ describe('tool/token formatting', () => {
   it('formats token totals and returns null when non-positive', () => {
     expect(formatTokenTotal(undefined)).toBeNull()
     expect(formatTokenTotal({ input_tokens: 999 })).toBe('999')
+  })
+
+  it('formats cache-deleted usage separately from consumed token totals', () => {
+    expect(formatTokenUsageSummary(undefined)).toBeNull()
+    expect(formatTokenUsageSummary({ cache_deleted_input_tokens: 5 })).toBe('5 cache-deleted tokens')
+    expect(
+      formatTokenUsageSummary({
+        input_tokens: 10,
+        output_tokens: 7,
+        cache_read_input_tokens: 2,
+        cache_creation_input_tokens: 1,
+        cache_deleted_input_tokens: 6,
+      }),
+    ).toBe('20 tokens · 6 cache-deleted tokens')
   })
 
   it('formats token ranges with k/m units', () => {

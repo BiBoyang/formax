@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatTokens, sumTokens, truncate } from './format'
+import { formatTokenUsageSummary, formatTokens, sumTokens, truncate } from './format'
 
 describe('repl format helpers', () => {
   it('formats token counts across ranges', () => {
@@ -28,9 +28,24 @@ describe('repl format helpers', () => {
         output_tokens: 20,
         cache_read_input_tokens: 30,
         cache_creation_input_tokens: 40,
+        cache_deleted_input_tokens: 50,
       }),
     ).toBe(100)
     expect(sumTokens({ input_tokens: 5 })).toBe(5)
+  })
+
+  it('formats cache-deleted usage as a separate display-only bucket', () => {
+    expect(formatTokenUsageSummary(undefined)).toBeNull()
+    expect(formatTokenUsageSummary({ cache_deleted_input_tokens: 50 })).toBe('50 cache-deleted tokens')
+    expect(
+      formatTokenUsageSummary({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 30,
+        cache_creation_input_tokens: 40,
+        cache_deleted_input_tokens: 50,
+      }),
+    ).toBe('100 tokens · 50 cache-deleted tokens')
   })
 
   it('truncates long strings and preserves short strings', () => {

@@ -3,7 +3,7 @@ import type { TranscriptSegment } from '../../../semantics/projection/transcript
 import { selectTailSegmentsForTurn } from '../../../semantics/selectors/transcriptSegments'
 import { selectToolPresentation } from '../../../semantics/selectors/toolPresentation'
 import { parseToolParamsText } from '../../../tools/presentation/paramsText'
-import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
+import { formatDuration, formatTokenUsageSummary, formatToolUses } from '../shared/utils'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'
 import { parseTaskTranscript } from '../../../semantics/selectors/taskResultParsing'
 
@@ -141,7 +141,7 @@ export function canonicalTurnSegmentsToMessages(args: {
     const summary = selectToolPresentation(segment)
 
     if (segment.toolName === 'Task') {
-      const tokens = formatTokenTotal(segment.usage)
+      const usageSummary = formatTokenUsageSummary(segment.usage)
       const summaryText =
         segment.status === 'running'
           ? summary.taskSummaryLine
@@ -149,7 +149,7 @@ export function canonicalTurnSegmentsToMessages(args: {
             ? summary.taskSummaryLine
             : summary.taskCompletion?.kind === 'started'
               ? `Started (task_id: ${summary.taskCompletion.taskId})`
-              : `Done (${formatToolUses(segment.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(
+              : `Done (${formatToolUses(segment.toolUses ?? 0)}${usageSummary ? ` · ${usageSummary}` : ''} · ${formatDuration(
                 segment.durationMs ?? 0,
               )})`
       const transcriptLines = parseTaskTranscript(rawResult ?? '') ?? segment.transcriptLines ?? undefined

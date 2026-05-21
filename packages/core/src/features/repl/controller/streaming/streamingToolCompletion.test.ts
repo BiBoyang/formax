@@ -25,6 +25,34 @@ describe('buildCompletedToolMessage', () => {
     }
   })
 
+  it('shows cache-deleted usage without adding it to consumed token totals', () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
+    try {
+      const message = buildCompletedToolMessage({
+        toolMessage: undefined,
+        toolUseId: 'task-cache',
+        toolNameFromStart: 'Task',
+        toolInputFromStart: { description: 'run checks' },
+        result: { tool_use_id: 'task-cache', content: 'ok', is_error: false },
+        taskStats: {
+          startedAt: 2_000,
+          toolUses: 2,
+          usage: {
+            input_tokens: 12,
+            output_tokens: 8,
+            cache_deleted_input_tokens: 30,
+          },
+        },
+        editPatchStartLineNumber: null,
+      })
+      expect(message.content).toContain('20 tokens')
+      expect(message.content).toContain('30 cache-deleted tokens')
+      expect(message.content).not.toContain('50 tokens')
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
   it('renders Skill success with empty content', () => {
     const prior: Msg = {
       id: 'tool-skill',

@@ -120,7 +120,7 @@
 ### Implementation
 
 - [x] Parse `cache_deleted_input_tokens` from Anthropic usage payloads.
-- [ ] Extend usage display/diagnostics surfaces without folding `cache_deleted_input_tokens` into consumed-token totals.
+- [x] Extend usage display/diagnostics surfaces without folding `cache_deleted_input_tokens` into consumed-token totals.
 - [x] Add a learning note documenting the final cache editing boundary and fallback behavior.
 
 ### Validation

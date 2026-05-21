@@ -28,6 +28,17 @@ export function formatTokenTotal(usage: TokenUsage | undefined): string | null {
   return formatTokens(total)
 }
 
+export function formatTokenUsageSummary(usage: TokenUsage | undefined): string | null {
+  const parts: string[] = []
+  const total = formatTokenTotal(usage)
+  if (total) parts.push(`${total} tokens`)
+
+  const cacheDeleted = usage?.cache_deleted_input_tokens ?? 0
+  if (cacheDeleted > 0) parts.push(`${formatTokens(cacheDeleted)} cache-deleted tokens`)
+
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 export function sumInputTokens(usage: TokenUsage | undefined): number {
   const u = usage || {}
   return (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)

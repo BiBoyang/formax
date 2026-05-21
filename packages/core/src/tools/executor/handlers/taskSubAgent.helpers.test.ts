@@ -237,13 +237,22 @@ describe('taskSubAgent helpers', () => {
     })
     expect(
       taskSubAgentTestExports.sumTokens({
-      input_tokens: 1,
-      output_tokens: 2,
-      cache_read_input_tokens: 3,
-      cache_creation_input_tokens: 4,
-      cache_deleted_input_tokens: 5,
-    }),
+        input_tokens: 1,
+        output_tokens: 2,
+        cache_read_input_tokens: 3,
+        cache_creation_input_tokens: 4,
+        cache_deleted_input_tokens: 5,
+      }),
     ).toBe(10)
+    expect(
+      taskSubAgentTestExports.formatTokenUsageSummary({
+        input_tokens: 1,
+        output_tokens: 2,
+        cache_read_input_tokens: 3,
+        cache_creation_input_tokens: 4,
+        cache_deleted_input_tokens: 5,
+      }),
+    ).toBe('10 tokens · 5 cache-deleted tokens')
     expect(taskSubAgentTestExports.sumTokens(undefined)).toBe(0)
     expect(taskSubAgentTestExports.formatTokenCount(0)).toBe('')
     expect(taskSubAgentTestExports.formatTokenCount(999)).toBe('999')

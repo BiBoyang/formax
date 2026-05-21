@@ -92,6 +92,24 @@ describe('panels', () => {
     expect(frame).toContain('Error')
   })
 
+  it('ExploreAgentsPanel renders cache-deleted usage without adding it to token stats', () => {
+    const tasks = [
+      makeTaskMsg({
+        id: 'cache',
+        status: 'completed',
+        toolUses: 1,
+        usage: { input_tokens: 12, output_tokens: 8, cache_deleted_input_tokens: 30 },
+        input: { description: 'cache task' },
+      }),
+    ]
+
+    const { lastFrame } = render(<ExploreAgentsPanel tasks={tasks} />)
+    const frame = lastFrame() || ''
+    expect(frame).toContain('20 tokens')
+    expect(frame).toContain('30 cache-deleted tokens')
+    expect(frame).not.toContain('50 tokens')
+  })
+
   it('ExploreAgentsPanel prefers description then prompt then Task for labels', () => {
     const tasks = [
       makeTaskMsg({ id: 'd', input: { description: 'Formax architecture' } }),

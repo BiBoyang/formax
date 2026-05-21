@@ -18,6 +18,17 @@ export function sumTokens(usage: TokenUsage | undefined): number {
   )
 }
 
+export function formatTokenUsageSummary(usage: TokenUsage | undefined): string | null {
+  const parts: string[] = []
+  const total = sumTokens(usage)
+  if (total > 0) parts.push(`${formatTokens(total)} tokens`)
+
+  const cacheDeleted = usage?.cache_deleted_input_tokens ?? 0
+  if (cacheDeleted > 0) parts.push(`${formatTokens(cacheDeleted)} cache-deleted tokens`)
+
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 export function truncate(s: string, max: number): string {
   const str = String(s || '')
   if (str.length <= max) return str

@@ -2,7 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import type { Msg } from '../../shared/toolMessageTypes'
 import { getTheme } from '../../tui/theme'
-import { formatTokens, sumTokens, truncate } from './format'
+import { formatTokenUsageSummary, truncate } from './format'
 import { formatSubagentDisplayName } from '../../shared/subagentPresentation'
 
 export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.ReactNode {
@@ -26,11 +26,11 @@ export function ExploreAgentsPanel({ tasks }: { tasks: Msg[] | null }): React.Re
           const pipe = last ? ' ' : '│'
 
           const toolUses = typeof t.toolInfo?.toolUses === 'number' ? t.toolInfo.toolUses : null
-          const tokens = formatTokens(sumTokens(t.toolInfo?.usage))
+          const usageSummary = formatTokenUsageSummary(t.toolInfo?.usage)
 
           const statsParts: string[] = []
           if (toolUses !== null) statsParts.push(`${toolUses} tool use${toolUses === 1 ? '' : 's'}`)
-          if (tokens !== '0') statsParts.push(`${tokens} tokens`)
+          if (usageSummary) statsParts.push(usageSummary)
 
           const stats = statsParts.length ? ` · ${statsParts.join(' · ')}` : ''
 

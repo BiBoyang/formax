@@ -3,7 +3,7 @@ import type { TokenUsage } from '../../../../streaming/types'
 import type { ToolResult } from '../../../../tools/types'
 import { formatToolResult } from '../../../../shared/utils/toolFormatting'
 import { parseBackgroundTaskId, parseTaskTranscript } from '../../../semantics/selectors/taskResultParsing'
-import { formatDuration, formatTokenTotal, formatToolUses } from '../shared/utils'
+import { formatDuration, formatTokenUsageSummary, formatToolUses } from '../shared/utils'
 import { toolResultContentToText } from '../../../../shared/utils/toolResultContent'
 
 export type TaskToolCompletionStats = {
@@ -33,14 +33,14 @@ export function buildCompletedToolMessage(args: {
   if (toolName === 'Task') {
     const startedAt = args.taskStats?.startedAt ?? Date.now()
     const durationMs = Date.now() - startedAt
-    const tokens = formatTokenTotal(args.taskStats?.usage)
+    const usageSummary = formatTokenUsageSummary(args.taskStats?.usage)
     const backgroundTaskId = parseBackgroundTaskId(rawResult)
     const parsedTranscript = parseTaskTranscript(rawResult)
     const doneText = args.result.is_error
       ? displayResult || 'Error'
       : backgroundTaskId
         ? `Started (task_id: ${backgroundTaskId})`
-        : `Done (${formatToolUses(args.taskStats?.toolUses ?? 0)}${tokens ? ` · ${tokens} tokens` : ''} · ${formatDuration(durationMs)})`
+        : `Done (${formatToolUses(args.taskStats?.toolUses ?? 0)}${usageSummary ? ` · ${usageSummary}` : ''} · ${formatDuration(durationMs)})`
 
     return {
       id: baseId,

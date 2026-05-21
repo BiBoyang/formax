@@ -576,8 +576,7 @@ function renderDoneLine(args: { toolUses: number; usage: TokenUsage; durationMs:
 
   const toolUses = args.toolUses
   const toolUsesPart = `${toolUses} tool use${toolUses === 1 ? '' : 's'}`
-  const tokens = formatTokenCount(sumTokens(args.usage))
-  const tokensPart = tokens ? `${tokens} tokens` : ''
+  const tokensPart = formatTokenUsageSummary(args.usage) ?? ''
   const duration = formatDuration(args.durationMs)
 
   const parts = [toolUsesPart, tokensPart, duration].filter(Boolean).join(' · ')
@@ -602,6 +601,18 @@ function sumTokens(usage: TokenUsage | undefined): number {
     (u.cache_read_input_tokens ?? 0) +
     (u.cache_creation_input_tokens ?? 0)
   )
+}
+
+function formatTokenUsageSummary(usage: TokenUsage | undefined): string | null {
+  const parts: string[] = []
+  const total = formatTokenCount(sumTokens(usage))
+  if (total) parts.push(`${total} tokens`)
+
+  const cacheDeleted = usage?.cache_deleted_input_tokens ?? 0
+  const cacheDeletedFormatted = formatTokenCount(cacheDeleted)
+  if (cacheDeletedFormatted) parts.push(`${cacheDeletedFormatted} cache-deleted tokens`)
+
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function formatTokenCount(n: number): string {
@@ -640,6 +651,7 @@ export const taskSubAgentTestExports = {
   splitLines,
   truncateTextByChars,
   sumTokens,
+  formatTokenUsageSummary,
   formatTokenCount,
   formatDuration,
 }

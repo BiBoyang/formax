@@ -192,7 +192,7 @@ describe('canonicalTurnSegmentsToMessages', () => {
         detailLines: [],
         result: '{"transcript":["t1","t2"]}',
         toolUses: 2,
-        usage: { input_tokens: 10, output_tokens: 5 },
+        usage: { input_tokens: 10, output_tokens: 5, cache_deleted_input_tokens: 25 },
         durationMs: 1200,
         nestedTools: [{ id: 'n1', name: 'Bash', input: { command: 'pwd' }, status: 'completed' }],
       },
@@ -211,6 +211,9 @@ describe('canonicalTurnSegmentsToMessages', () => {
       },
     })
     expect(msgs[0]?.content).toContain('Done (2 tool uses')
+    expect(msgs[0]?.content).toContain('15 tokens')
+    expect(msgs[0]?.content).toContain('25 cache-deleted tokens')
+    expect(msgs[0]?.content).not.toContain('40 tokens')
   })
 
   it('renders Task as Started when task_id JSON has trailing system reminder block', () => {
