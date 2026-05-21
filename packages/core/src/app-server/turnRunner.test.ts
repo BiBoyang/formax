@@ -2080,6 +2080,7 @@ describe('TurnRunner', () => {
       summaryFingerprint: expect.any(String),
       headFingerprint: expect.any(String),
       tailFingerprint: expect.any(String),
+      messageFingerprints: [expect.any(String), expect.any(String), expect.any(String)],
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')

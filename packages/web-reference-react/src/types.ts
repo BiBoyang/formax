@@ -93,6 +93,7 @@ export type CompactBoundarySummary = {
     summaryFingerprint: string
     headFingerprint: string | null
     tailFingerprint: string | null
+    messageFingerprints?: string[]
   }
 }
 

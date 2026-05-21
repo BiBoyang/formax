@@ -97,6 +97,7 @@ export type CompactPreservedSegment = {
   summaryFingerprint: string
   headFingerprint: string | null
   tailFingerprint: string | null
+  messageFingerprints?: string[]
 }
 
 export type CompactBoundaryMeta = {
@@ -593,6 +594,7 @@ export function buildCompactPreservedSegmentMeta(args: {
 }): CompactPreservedSegment {
   const head = args.preservedTail[0] ?? null
   const tail = args.preservedTail[args.preservedTail.length - 1] ?? null
+  const continuationMessages = [args.summaryMessage, ...args.preservedTail]
   return {
     schemaVersion: 1,
     continuationMessageCount: 1 + args.preservedTail.length,
@@ -600,6 +602,7 @@ export function buildCompactPreservedSegmentMeta(args: {
     summaryFingerprint: fingerprintPromptMessage(args.summaryMessage),
     headFingerprint: head ? fingerprintPromptMessage(head) : null,
     tailFingerprint: tail ? fingerprintPromptMessage(tail) : null,
+    messageFingerprints: continuationMessages.map((message) => fingerprintPromptMessage(message)),
   }
 }
 
@@ -613,6 +616,14 @@ export function continuationMatchesPreservedSegment(args: {
   const summaryMessage = args.continuationMessages[0]
   if (!summaryMessage) return false
   if (fingerprintPromptMessage(summaryMessage) !== preservedSegment.summaryFingerprint) return false
+
+  const messageFingerprints = preservedSegment.messageFingerprints
+  if (Array.isArray(messageFingerprints)) {
+    if (messageFingerprints.length !== args.continuationMessages.length) return false
+    return args.continuationMessages.every(
+      (message, index) => fingerprintPromptMessage(message) === messageFingerprints[index],
+    )
+  }
 
   const preservedTail = args.continuationMessages.slice(1)
   if (preservedTail.length !== preservedSegment.preservedTailMessageCount) return false

@@ -72,6 +72,7 @@ describe('runCompactFlow', () => {
       summaryFingerprint: expect.any(String),
       headFingerprint: expect.any(String),
       tailFingerprint: expect.any(String),
+      messageFingerprints: [expect.any(String), expect.any(String)],
     })
     expect(onLifecycle).toHaveBeenNthCalledWith(1, { type: 'compact_started', source: 'manual' })
     expect(onLifecycle).toHaveBeenNthCalledWith(2, { type: 'compact_succeeded', source: 'manual' })

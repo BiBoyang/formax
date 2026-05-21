@@ -1290,7 +1290,9 @@ describe('contextDiagnostics', () => {
 
     expect(out).toContain('- Rehydration plan: recent_files(high/planned), plan_state(high/planned)')
     expect(out).toContain('- Rehydration cost: 2 sections / 48 tokens')
-    expect(out).toContain('- Preserved segment: continuation=3, preserved_tail=2, head=head-abc, tail=tail-abc')
+    expect(out).toContain(
+      '- Preserved segment: continuation=3, preserved_tail=2, message_fingerprints=0, head=head-abc, tail=tail-abc',
+    )
     expect(out).toContain('- Keep strategy: keep_combo(turns=2, min_tokens=1,200, min_user_turns=1)')
   })
 

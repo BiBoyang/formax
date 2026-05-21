@@ -516,6 +516,7 @@ AskUserQuestion payload：
       summaryFingerprint: string
       headFingerprint: string | null
       tailFingerprint: string | null
+      messageFingerprints?: string[]
     }
   } | null
   latestRequestCollapse: {

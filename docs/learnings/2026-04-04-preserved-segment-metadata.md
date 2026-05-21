@@ -25,6 +25,7 @@
 - `summaryFingerprint`
 - `headFingerprint`
 - `tailFingerprint`
+- `messageFingerprints`（新写入 boundary 会包含，旧 boundary 可缺省）
 
 它挂在 compact boundary metadata 上，由 `rebuildHistoryAfterCompaction(...)` 自动生成。
 
@@ -45,6 +46,8 @@
 1. 先让 compact output 能标识 preserved segment
 2. 先让 continuation view 有最小可校验能力
 3. 后续再在 `CCA-071` / `CCA-061` 里决定是否升级到更强的 relink 标识
+
+2026-05-21 的收敛补丁把校验从“summary + head/tail”扩展到了可选的 full continuation fingerprint 列表。这样即使 preserved tail 的首尾没变，中间消息漂移也能被发现；旧 session 仍走 head/tail fallback。
 
 ## 这轮新增的最小恢复能力
 

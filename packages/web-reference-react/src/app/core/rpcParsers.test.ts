@@ -49,6 +49,7 @@ describe('rpcParsers', () => {
           summaryFingerprint: 'summary-fp',
           headFingerprint: 'head-fp',
           tailFingerprint: 'tail-fp',
+          messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
         },
       },
     })
@@ -85,6 +86,7 @@ describe('rpcParsers', () => {
         summaryFingerprint: 'summary-fp',
         headFingerprint: 'head-fp',
         tailFingerprint: 'tail-fp',
+        messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
       },
     })
     expect(parsed.data[0]).toMatchObject({ kind: 'message', text: 'hello' })

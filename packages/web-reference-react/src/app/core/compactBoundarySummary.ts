@@ -58,6 +58,17 @@ function parseRehydrationCost(value: unknown): CompactBoundarySummary['rehydrati
   return { sectionCount, estimatedTokens }
 }
 
+function parseOptionalStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) return undefined
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string' || !item.trim()) return undefined
+    out.push(item)
+  }
+  return out
+}
+
 function parsePreservedSegment(value: unknown): CompactBoundarySummary['preservedSegment'] | undefined {
   const record = asOptionalRecord(value)
   if (!record || record.schemaVersion !== 1) return undefined
@@ -77,6 +88,8 @@ function parsePreservedSegment(value: unknown): CompactBoundarySummary['preserve
       : typeof record.tailFingerprint === 'string' && record.tailFingerprint.trim()
         ? record.tailFingerprint
         : undefined
+  const messageFingerprints = parseOptionalStringArray(record.messageFingerprints)
+  if (record.messageFingerprints !== undefined && !messageFingerprints) return undefined
   if (
     continuationMessageCount == null ||
     preservedTailMessageCount == null ||
@@ -93,6 +106,7 @@ function parsePreservedSegment(value: unknown): CompactBoundarySummary['preserve
     summaryFingerprint,
     headFingerprint,
     tailFingerprint,
+    ...(messageFingerprints ? { messageFingerprints } : {}),
   }
 }
 
@@ -174,6 +188,8 @@ export function areCompactBoundarySummariesEqual(
       (right.preservedSegment?.preservedTailMessageCount ?? null) &&
     (left.preservedSegment?.summaryFingerprint ?? null) === (right.preservedSegment?.summaryFingerprint ?? null) &&
     (left.preservedSegment?.headFingerprint ?? null) === (right.preservedSegment?.headFingerprint ?? null) &&
-    (left.preservedSegment?.tailFingerprint ?? null) === (right.preservedSegment?.tailFingerprint ?? null)
+    (left.preservedSegment?.tailFingerprint ?? null) === (right.preservedSegment?.tailFingerprint ?? null) &&
+    JSON.stringify(left.preservedSegment?.messageFingerprints ?? null) ===
+      JSON.stringify(right.preservedSegment?.messageFingerprints ?? null)
   )
 }

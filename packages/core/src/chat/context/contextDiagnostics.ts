@@ -1024,7 +1024,7 @@ function formatRehydrationCost(value: CompactBoundaryMeta['rehydrationCost'] | n
 
 function formatPreservedSegment(value: CompactBoundaryMeta['preservedSegment'] | null): string {
   if (!value) return 'none'
-  return `continuation=${formatInt(value.continuationMessageCount)}, preserved_tail=${formatInt(value.preservedTailMessageCount)}, head=${value.headFingerprint ?? 'none'}, tail=${value.tailFingerprint ?? 'none'}`
+  return `continuation=${formatInt(value.continuationMessageCount)}, preserved_tail=${formatInt(value.preservedTailMessageCount)}, message_fingerprints=${formatInt(value.messageFingerprints?.length ?? 0)}, head=${value.headFingerprint ?? 'none'}, tail=${value.tailFingerprint ?? 'none'}`
 }
 
 function splitHistorySlices(

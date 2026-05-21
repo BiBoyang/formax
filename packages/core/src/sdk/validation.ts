@@ -69,6 +69,7 @@ const promptMessageSchema = z
               summaryFingerprint: z.string(),
               headFingerprint: z.string().nullable(),
               tailFingerprint: z.string().nullable(),
+              messageFingerprints: z.array(z.string()).optional(),
             }).optional(),
           })
           .optional(),

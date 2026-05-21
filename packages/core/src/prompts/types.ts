@@ -88,6 +88,7 @@ export type PromptMessageMeta = {
       summaryFingerprint: string
       headFingerprint: string | null
       tailFingerprint: string | null
+      messageFingerprints?: string[]
     }
   }
 }

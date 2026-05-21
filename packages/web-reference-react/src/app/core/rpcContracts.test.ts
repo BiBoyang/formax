@@ -1481,6 +1481,7 @@ describe('rpcContracts', () => {
           summaryFingerprint: 'summary-fp',
           headFingerprint: 'head-fp',
           tailFingerprint: 'tail-fp',
+          messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
         },
       },
       latestRequestCollapse: {
@@ -1522,6 +1523,7 @@ describe('rpcContracts', () => {
         summaryFingerprint: 'summary-fp',
         headFingerprint: 'head-fp',
         tailFingerprint: 'tail-fp',
+        messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
       },
     })
     expect(replay.latestRequestCollapse).toEqual({

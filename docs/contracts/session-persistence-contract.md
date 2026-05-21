@@ -173,7 +173,8 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 7. 当前当 compact summary 已实际注入 plan excerpt、todo summary、mode text 时，对应 `plan_state`、`todo_state`、`mode_state` 的 `status` SHOULD 升为 `applied`
 8. 当前若 compact 已注入 rehydration 文本，boundary SHOULD 额外记录 `rehydrationCost`，至少包含 `sectionCount` 与 `estimatedTokens`
 9. 当前 boundary SHOULD 允许携带最小 `preservedSegment` metadata，至少包含 `continuationMessageCount`、`preservedTailMessageCount`、`summaryFingerprint`、`headFingerprint`、`tailFingerprint`
-10. 当前 `preservedSegment` metadata SHOULD 足以支撑最小 continuation-view 校验与后续 relink / resume 扩展；若没有 preserved tail，`headFingerprint` 与 `tailFingerprint` MAY 为 `null`
+10. 新写入的 `preservedSegment` SHOULD 额外携带 `messageFingerprints`，按 compact summary + preserved tail 的 continuation 顺序记录每条消息 fingerprint，用于检测 head/tail 之间的中间消息漂移；旧 boundary MAY 缺省该字段并退回 head/tail 校验。
+11. 当前 `preservedSegment` metadata SHOULD 足以支撑最小 continuation-view 校验与后续 relink / resume 扩展；若没有 preserved tail，`headFingerprint` 与 `tailFingerprint` MAY 为 `null`
 
 `SES-304B`
 会话持久化当前 MAY 额外维护一个与 session JSONL 相邻的 rolling session memory sidecar。

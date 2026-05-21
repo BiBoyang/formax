@@ -175,6 +175,7 @@ export type RpcCompactPreservedSegment = {
   summaryFingerprint: string
   headFingerprint: string | null
   tailFingerprint: string | null
+  messageFingerprints?: string[]
 }
 
 export type RpcCompactTriggerReason = {

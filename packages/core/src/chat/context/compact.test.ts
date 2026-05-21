@@ -587,7 +587,7 @@ describe('compaction summary helpers', () => {
 
   it('reports preserved segment mismatches when continuation messages drift', () => {
     const summary = txt('user', 'summary')
-    const preservedTail = [txt('assistant', 'tail one'), txt('user', 'tail two')]
+    const preservedTail = [txt('assistant', 'tail one'), txt('user', 'tail middle'), txt('assistant', 'tail two')]
     const preservedSegment = buildCompactPreservedSegmentMeta({
       summaryMessage: summary,
       preservedTail,
@@ -603,7 +603,14 @@ describe('compaction summary helpers', () => {
     expect(
       continuationMatchesPreservedSegment({
         boundary: { schemaVersion: 1, preservedSegment },
-        continuationMessages: [summary, txt('assistant', 'mutated tail'), preservedTail[1]!],
+        continuationMessages: [summary, txt('assistant', 'mutated tail'), preservedTail[1]!, preservedTail[2]!],
+      }),
+    ).toBe(false)
+
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: { schemaVersion: 1, preservedSegment },
+        continuationMessages: [summary, preservedTail[0]!, txt('user', 'mutated middle'), preservedTail[2]!],
       }),
     ).toBe(false)
   })
