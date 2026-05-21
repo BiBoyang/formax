@@ -65,9 +65,9 @@
 - Preferred local wrapper when running review manually or from agents:
   - `mkdir -p .tmp/codex-review-result`
   - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
-  - Then inspect the summary instead of streaming the whole raw output into the active context:
-    - `tail -n 80 .tmp/codex-review-result/review-latest.txt`
-    - or `rg -n "Review comment:|I did not find|I did not identify|actionable" .tmp/codex-review-result/review-latest.txt`
+  - Then inspect the saved output with a full-file finding/no-finding search instead of relying on the last lines:
+    - `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
+  - If extra surrounding context is needed after the `rg` scan, use a local `sed`/`tail` view around the relevant line numbers; do not treat a fixed tail length as sufficient.
 - Goal: keep mandatory review behavior unchanged while reducing noisy stdout/stderr in the active agent context.
 - Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 
