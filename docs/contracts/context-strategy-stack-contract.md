@@ -163,6 +163,9 @@ Current Formax `snip.ts` heuristic remains a request-only reducer unless durable
 `CSS-309a`
 If `snip` is promoted to durable projection behavior, the contract MUST decide whether a separate request-only fallback snip stage remains in the middle-layer stack or whether `snip` is removed from the layer-4 reducer list and represented only as layer-2/3 durable projection. The durable migration MUST NOT silently keep both semantics under one ambiguous `snip` label.
 
+`CSS-309b`
+Durable context collapse MUST use explicit committed entries / snapshots before it changes runtime projection behavior. A committed collapse entry MUST identify a model-facing index range, carry the recap message that replaces that range, carry the original request-collapse metadata, and remain serializable as an explicit session event or store snapshot. Snapshot replay MUST be deterministic so resume/load and Web/app-server surfaces can rebuild the same durable collapse store before constructing request-only reductions.
+
 `CSS-310`
 Provider cache side effects are not durable projection state. Anthropic `cache_reference` / `cache_edits` may alter server-side cached prefix behavior for one request, but they MUST NOT be interpreted as transcript mutation, compact boundary, snip boundary, collapse commit, or resume authority.
 

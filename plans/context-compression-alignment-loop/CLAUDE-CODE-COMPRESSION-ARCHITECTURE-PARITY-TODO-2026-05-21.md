@@ -195,7 +195,7 @@ Validation:
 - [x] `cd packages/web-reference-react && bun run test -- src/app/core/replayMachine.test.ts src/app/core/threadCache.test.ts src/store.test.ts src/eventAdapters.test.ts`
 - [x] Context/session/app-server/Web replay targeted tests.
 - [x] `bun run type-check`
-- [ ] Mandatory codex review before commit.
+- [x] Mandatory codex review before commit.
 
 ### Batch 5: Durable Context Collapse Store
 
@@ -203,7 +203,7 @@ Validation:
 
 Tests first:
 
-- [ ] Collapse commit persists outside transcript rows or as explicit durable event.
+- [x] Collapse commit persists outside transcript rows or as explicit durable event.
 - [ ] Resume/load rebuilds collapse store.
 - [ ] Next-turn projection applies committed collapse entries.
 - [ ] Provider overflow path drains pending collapse before reactive full compact.
@@ -211,13 +211,14 @@ Tests first:
 
 Implementation:
 
-- [ ] Define collapse committed entry / snapshot schema.
+- [x] Define collapse committed entry / snapshot schema.
 - [ ] Add replay/load owner.
 - [ ] Integrate projection owner.
 - [ ] Add overflow drain before reactive compact.
 
 Validation:
 
+- [x] `bun run test -- packages/core/src/chat/context/contextCollapseStore.test.ts`
 - [ ] Context/session/send/app-server/Web targeted tests.
 - [ ] `bun run type-check`
 - [ ] Mandatory codex review before commit.

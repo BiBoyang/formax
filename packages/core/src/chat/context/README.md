@@ -133,6 +133,7 @@ Formax 的“上下文管理”分两条线：
 ### 想改“request-time context collapse（P2.5 / MVP）”
 
 - `packages/core/src/chat/context/contextCollapse.ts`：`collapseRequestHistory()`（当前是保守 MVP，只在已有 latest compact boundary 时尝试把 continuation 头部折叠成 request-only recap）
+- `packages/core/src/chat/context/contextCollapseStore.ts`：durable context-collapse migration 的 committed entry / snapshot schema；先定义可 replay 的 store 形状，后续再接 projection owner
 - `packages/core/src/chat/context/contextCollapse.test.ts`：单测覆盖（无 boundary 不生效、collapse recap 生成、最小节省阈值）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前接线点（只改 `requestHistory`，不改 persisted `history`）
 - `packages/core/src/features/repl/controller/session/useSessionEventRecorders.ts`：当前最小 runtime 消费点（真实模型请求若用了 request-time collapse，会追加 `request_collapse_applied` session event）
