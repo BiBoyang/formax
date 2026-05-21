@@ -8,7 +8,7 @@ import {
 import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
 import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import { withRecordValue, withoutRecordKey } from '../core/threadCache'
+import { withRecordValue, withoutRecordKey, type ThreadCompressionProjectionFacts } from '../core/threadCache'
 import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 
@@ -112,6 +112,14 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     ctx.setLatestRequestCollapseByThreadId((prev) => withRecordValue(prev, threadId, nextCollapse))
   }
 
+  const setThreadCompressionProjectionFacts = (
+    threadId: string,
+    facts: ThreadCompressionProjectionFacts,
+  ): void => {
+    setThreadLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    setThreadLatestRequestCollapse(threadId, facts.latestRequestCollapse)
+  }
+
   const refreshThreads = async () => {
     const result = await ctx.request('thread/list', { limit: 50 })
     ctx.dispatch({ type: 'set_threads', threads: parseThreadListResponse(result) })
@@ -201,8 +209,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       ctx.dispatch({ type: 'clear_pending_inputs' })
       ctx.dispatch({ type: 'replace_logs', logs })
       ctx.setLogsByThreadId((prev) => withRecordValue(prev, threadId, logs))
-      setThreadLatestCompactBoundary(threadId, parsed.latestCompactBoundary)
-      setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
+      setThreadCompressionProjectionFacts(threadId, parsed)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
       setThreadTranscriptSource(threadId, 'history')
       return true
@@ -220,8 +227,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       const resumeResult = await ctx.request('thread/resume', { threadId })
       const parsed = parseThreadResumeResponse(resumeResult)
       const staleInputs = parsed?.staleInputs ?? []
-      setThreadLatestCompactBoundary(threadId, parsed?.latestCompactBoundary)
-      setThreadLatestRequestCollapse(threadId, parsed?.latestRequestCollapse)
+      setThreadCompressionProjectionFacts(threadId, parsed ?? {})
       for (const input of staleInputs) {
         if (ctx.seenStaleInputIdRef.current.has(input.inputId)) continue
         ctx.seenStaleInputIdRef.current.add(input.inputId)
@@ -264,8 +270,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           ctx.stateLogsRef.current
         return withRecordValue(prev, threadId, [...prepended, ...current])
       })
-      setThreadLatestCompactBoundary(threadId, parsed.latestCompactBoundary)
-      setThreadLatestRequestCollapse(threadId, parsed.latestRequestCollapse)
+      setThreadCompressionProjectionFacts(threadId, parsed)
       setThreadHistoryCursor(threadId, parsed.nextCursor)
     } finally {
       endThreadHistoryRequest(threadId, seq)

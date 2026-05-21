@@ -4,6 +4,7 @@ import type { RpcThreadReplayResult } from '../core/rpcContracts'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
+import type { ThreadCompressionProjectionFacts } from '../core/threadCache'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
@@ -198,6 +199,11 @@ export async function replayThreadEvents(
     return ctx.parseThreadReplayResponse(baselineResult)
   }
 
+  const cacheThreadCompressionProjectionFacts = (facts: ThreadCompressionProjectionFacts): void => {
+    ctx.cacheLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    ctx.cacheLatestRequestCollapse(threadId, facts.latestRequestCollapse)
+  }
+
   const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {
     const gapRebuildCursor = replay.latestCursor
     const withGapCursorFloor = (cursor: number): number => Math.max(gapRebuildCursor, cursor)
@@ -212,8 +218,7 @@ export async function replayThreadEvents(
     }
 
     const baselineReplay = await fetchReplayBaseline()
-    ctx.cacheLatestCompactBoundary(threadId, baselineReplay.latestCompactBoundary)
-    ctx.cacheLatestRequestCollapse(threadId, baselineReplay.latestRequestCollapse)
+    cacheThreadCompressionProjectionFacts(baselineReplay)
     if (baselineReplay.state) {
       maybeLogInvariantIssues(baselineReplay.state)
       observeCanonicalProtocolAnomalies(baselineReplay.state)
@@ -252,16 +257,14 @@ export async function replayThreadEvents(
     }
 
     if (replay.hasGap) {
-      ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
-      ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
+      cacheThreadCompressionProjectionFacts(replay)
       await handleHasGapReplay(replay)
       flushCanonicalProtocolAnomaliesLog()
       return true
     }
 
     if (shouldUseHistoryFallbackOnEmptyReplayPage({ fromStart, replay })) {
-      ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
-      ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
+      cacheThreadCompressionProjectionFacts(replay)
       const loaded = await ctx.loadThreadHistory(threadId)
       if (!loaded) {
         flushCanonicalProtocolAnomaliesLog()
@@ -285,8 +288,7 @@ export async function replayThreadEvents(
         ...(entry.params === undefined ? {} : { params: entry.params }),
       })
     }
-    ctx.cacheLatestCompactBoundary(threadId, replay.latestCompactBoundary)
-    ctx.cacheLatestRequestCollapse(threadId, replay.latestRequestCollapse)
+    cacheThreadCompressionProjectionFacts(replay)
 
     const { nextAfter, shouldContinue } = resolveReplayCursorProgress({
       after,

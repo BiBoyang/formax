@@ -1,6 +1,6 @@
 # Web Parity Adapter Contract（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-05-21
 状态：规范性（Normative）
 
 本文档定义 web reference client 在 adapter / reducer / cursor 层的共享边界，确保 Web 只消费 canonical semantics，而不再发明第二套语义状态机。
@@ -143,7 +143,18 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 `WEB-504`  
 `turn/started`、`turn/completed`、`turn/failed` 等通知的 UI 副作用（active turn、mode、日志）可以留在 Web runtime 层处理，但 canonical turn segments MUST 仍然通过 adapter + projection 路径收口。
 
-## 7. 变更流程
+## 7. Compression Projection Facts
+
+`WEB-601`
+Web runtime MUST treat `latestCompactBoundary` and `latestRequestCollapse` from `thread/messages`, `thread/resume`, and `thread/replay` as server-owned compression projection facts. They MUST be cached from the parsed RPC result object through a single facts helper per response, not independently derived from transcript rows.
+
+`WEB-602`
+These cached facts are display metadata for thread chrome and inspection panes. They MUST NOT be inserted into transcript logs, canonical projection segments, or history hydrate rows.
+
+`WEB-603`
+Snip/collapse request projection diagnostics currently remain under `/context` diagnostics (`nextTurnFixed.snipImpact`, `nextTurnFixed.collapseImpact`, and `strategyControlPlane`). Web MUST NOT invent a durable thread-level snip cache until app-server exposes a canonical thread surface field for it.
+
+## 8. 变更流程
 
 当修改 Web 的 history adapter、projection baseline、notification cursor、active-thread gating 或 replay hydrate 语义时：
 1. 先更新本文件。

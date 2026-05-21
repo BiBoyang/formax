@@ -9,6 +9,11 @@ export type ThreadCacheState = {
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
 }
 
+export type ThreadCompressionProjectionFacts = {
+  latestCompactBoundary?: CompactBoundarySummary | null
+  latestRequestCollapse?: RequestCollapseSummary | null
+}
+
 export const INITIAL_THREAD_CACHE_STATE: ThreadCacheState = {
   logsByThreadId: {},
   historyCursorByThreadId: {},
