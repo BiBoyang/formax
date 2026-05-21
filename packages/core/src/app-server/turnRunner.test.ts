@@ -16,6 +16,7 @@ import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from '../chat/context/compact.js'
 import { buildInitPrompt } from '../prompts/init.js'
 import { createUserInputManager } from '../tools/runtime/userInputManager.js'
@@ -437,18 +438,22 @@ describe('TurnRunner', () => {
         phase: 'initial',
         removedMessageCount: 2,
         compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: expect.any(String),
+        sourceProjectionKind: 'model_facing_baseline',
         removals: [
           expect.objectContaining({
             kind: 'model_facing_index_range',
             startIndex: 0,
             endIndexExclusive: 1,
             removedMessageFingerprints: [expect.any(String)],
+            removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
           }),
           expect.objectContaining({
             kind: 'model_facing_index_range',
             startIndex: 1,
             endIndexExclusive: 2,
             removedMessageFingerprints: [expect.any(String)],
+            removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
           }),
         ],
       }),
@@ -472,6 +477,7 @@ describe('TurnRunner', () => {
     expect(filePath).toBeTruthy()
     const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
     await seedWriter.appendHistorySnapshot(seededHistory)
+    const oldAFingerprint = fingerprintPromptMessage(seededHistory[0]!)
     await seedWriter.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
       schemaVersion: 1,
       source: 'request_snip',
@@ -485,7 +491,7 @@ describe('TurnRunner', () => {
           startIndex: 0,
           endIndexExclusive: 1,
           reason: 'previous request snip',
-          removedMessageFingerprints: ['old-a-fp'],
+          removedMessageFingerprints: [oldAFingerprint],
         },
       ],
     })
@@ -531,19 +537,22 @@ describe('TurnRunner', () => {
         phase: 'initial',
         removedMessageCount: 2,
         compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: expect.any(String),
+        sourceProjectionKind: 'model_facing_baseline',
         removals: [
           {
             kind: 'model_facing_index_range',
             startIndex: 0,
             endIndexExclusive: 1,
             reason: 'previous request snip',
-            removedMessageFingerprints: ['old-a-fp'],
+            removedMessageFingerprints: [oldAFingerprint],
           },
           expect.objectContaining({
             kind: 'model_facing_index_range',
             startIndex: 1,
             endIndexExclusive: 2,
             removedMessageFingerprints: [expect.any(String)],
+            removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
           }),
         ],
       }),
@@ -2353,6 +2362,11 @@ describe('TurnRunner', () => {
       headFingerprint: expect.any(String),
       tailFingerprint: expect.any(String),
       messageFingerprints: [expect.any(String), expect.any(String), expect.any(String)],
+      messageIdentities: [
+        expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+        expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+        expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) }),
+      ],
     })
     expect((replay.history[0] as any)?.meta?.compactBoundary?.preTokens).toBeGreaterThan(0)
     expect(replay.history[1]?.role).toBe('user')

@@ -14,6 +14,7 @@ import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from '../../../../chat/context/compact'
 import { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME } from '../../sessionSave/contextCollapseStoreEvents'
 import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../../sessionSave/durableSnipStoreEvents'
@@ -1221,6 +1222,7 @@ describe('createContextCompressionService', () => {
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-runtime-'))
     const sessionFilePath = path.join(dir, 'session.jsonl')
+    const oldAssistantMessage = { role: 'assistant', content: [{ type: 'text', text: 'old assistant detail' }] }
     await fs.writeFile(
       sessionFilePath,
       JSON.stringify({
@@ -1237,7 +1239,7 @@ describe('createContextCompressionService', () => {
               startIndex: 1,
               endIndexExclusive: 2,
               reason: 'request snip removed older assistant text message',
-              removedMessageFingerprints: ['old-assistant-fp'],
+              removedMessageFingerprints: [fingerprintPromptMessage(oldAssistantMessage as any)],
             },
           ],
         },
@@ -1252,7 +1254,7 @@ describe('createContextCompressionService', () => {
       lastAutoCompactSeqRef: { current: 0 },
       history: [
         { role: 'user', content: [{ type: 'text', text: 'old request' }] },
-        { role: 'assistant', content: [{ type: 'text', text: 'old assistant detail' }] },
+        oldAssistantMessage,
         { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
       ] as any,
       user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
@@ -1355,18 +1357,22 @@ describe('createContextCompressionService', () => {
       removedMessageCount: 2,
       estimatedTokensSaved: 1800,
       compactBoundaryFingerprint: null,
+      baseProjectionFingerprint: expect.any(String),
+      sourceProjectionKind: 'model_facing_baseline',
       removals: [
         expect.objectContaining({
           kind: 'model_facing_index_range',
           startIndex: 0,
           endIndexExclusive: 1,
           removedMessageFingerprints: [expect.any(String)],
+          removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
         }),
         expect.objectContaining({
           kind: 'model_facing_index_range',
           startIndex: 1,
           endIndexExclusive: 2,
           removedMessageFingerprints: [expect.any(String)],
+          removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
         }),
       ],
     })
@@ -1388,6 +1394,7 @@ describe('createContextCompressionService', () => {
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-merge-'))
     const sessionFilePath = path.join(dir, 'session.jsonl')
+    const oldAMessage = { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(2200)}` }] }
     await fs.writeFile(
       sessionFilePath,
       JSON.stringify({
@@ -1404,7 +1411,7 @@ describe('createContextCompressionService', () => {
               startIndex: 0,
               endIndexExclusive: 1,
               reason: 'previous request snip',
-              removedMessageFingerprints: ['old-a-fp'],
+              removedMessageFingerprints: [fingerprintPromptMessage(oldAMessage as any)],
             },
           ],
         },
@@ -1418,7 +1425,7 @@ describe('createContextCompressionService', () => {
       sendSeq: 10,
       lastAutoCompactSeqRef: { current: 0 },
       history: [
-        { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(2200)}` }] },
+        oldAMessage,
         { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(2200)}` }] },
         { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(2200)}` }] },
       ] as any,
@@ -1432,19 +1439,22 @@ describe('createContextCompressionService', () => {
       removedMessageCount: 2,
       estimatedTokensSaved: 900,
       compactBoundaryFingerprint: null,
+      baseProjectionFingerprint: expect.any(String),
+      sourceProjectionKind: 'model_facing_baseline',
       removals: [
         {
           kind: 'model_facing_index_range',
           startIndex: 0,
           endIndexExclusive: 1,
           reason: 'previous request snip',
-          removedMessageFingerprints: ['old-a-fp'],
+          removedMessageFingerprints: [fingerprintPromptMessage(oldAMessage as any)],
         },
         expect.objectContaining({
           kind: 'model_facing_index_range',
           startIndex: 1,
           endIndexExclusive: 2,
           removedMessageFingerprints: [expect.any(String)],
+          removedMessageIdentities: [expect.objectContaining({ schemaVersion: 1, fingerprint: expect.any(String) })],
         }),
       ],
     })

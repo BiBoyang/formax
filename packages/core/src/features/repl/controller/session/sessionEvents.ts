@@ -18,6 +18,8 @@ type RequestSnipEventState = {
   removedMessageCount: number
   estimatedTokensSaved: number
   compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint: string | null
+  sourceProjectionKind: 'model_facing_baseline'
   removals: DurableSnipRemoval[]
 }
 
@@ -126,6 +128,8 @@ export async function recordRequestSnipEvent(args: {
     estimatedTokensSaved: args.state.estimatedTokensSaved,
     removedMessageCount: args.state.removedMessageCount,
     compactBoundaryFingerprint: args.state.compactBoundaryFingerprint,
+    baseProjectionFingerprint: args.state.baseProjectionFingerprint,
+    sourceProjectionKind: args.state.sourceProjectionKind,
     removals: args.state.removals,
   })
 }

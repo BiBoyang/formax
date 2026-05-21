@@ -7,7 +7,9 @@ import {
   fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
   readCompactBoundaryMeta,
+  readPromptMessageIdentity,
   type CompactBoundaryMeta,
+  type PromptMessageIdentity,
 } from './compact'
 import {
   buildContextCollapseStoreSnapshot,
@@ -40,11 +42,16 @@ export type DurableSnipRemoval = {
   reason?: string
   removedMessageIds?: string[]
   removedMessageFingerprints?: string[]
+  removedMessageIdentities?: PromptMessageIdentity[]
 }
+
+export type DurableSnipSourceProjectionKind = 'model_facing_baseline'
 
 export type DurableSnipState = {
   schemaVersion: 1
   activeCompactBoundaryFingerprint?: string | null
+  baseProjectionFingerprint?: string | null
+  sourceProjectionKind?: DurableSnipSourceProjectionKind | null
   removals: DurableSnipRemoval[]
 }
 
@@ -101,18 +108,27 @@ export type ContextProjection = {
 
 export function mergeDurableSnipSnapshot(args: {
   existingState?: DurableSnipState | null
+  appliedExistingRemovals?: DurableSnipRemoval[]
   newRemovals: DurableSnipRemoval[]
   compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint?: string | null
+  sourceProjectionKind?: DurableSnipSourceProjectionKind | null
 }): DurableSnipState {
   const existingFingerprint = args.existingState?.activeCompactBoundaryFingerprint ?? null
   const shouldCarryExisting = args.compactBoundaryFingerprint
     ? existingFingerprint === args.compactBoundaryFingerprint
     : existingFingerprint === null
-  const existingRemovals = shouldCarryExisting ? cloneDurableSnipRemovals(args.existingState?.removals ?? []) : []
+  const existingRemovals = shouldCarryExisting
+    ? cloneDurableSnipRemovals(args.appliedExistingRemovals ?? args.existingState?.removals ?? [])
+    : []
+  const baseProjectionFingerprint = args.baseProjectionFingerprint ?? args.existingState?.baseProjectionFingerprint ?? null
+  const sourceProjectionKind = args.sourceProjectionKind ?? args.existingState?.sourceProjectionKind ?? null
   if (existingRemovals.length === 0) {
     return {
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: args.compactBoundaryFingerprint,
+      ...(baseProjectionFingerprint ? { baseProjectionFingerprint } : {}),
+      ...(sourceProjectionKind ? { sourceProjectionKind } : {}),
       removals: cloneDurableSnipRemovals(args.newRemovals),
     }
   }
@@ -127,6 +143,8 @@ export function mergeDurableSnipSnapshot(args: {
   return {
     schemaVersion: 1,
     activeCompactBoundaryFingerprint: args.compactBoundaryFingerprint,
+    ...(baseProjectionFingerprint ? { baseProjectionFingerprint } : {}),
+    ...(sourceProjectionKind ? { sourceProjectionKind } : {}),
     removals: [
       ...existingRemovals,
       ...translateProjectedSnipRemovals({
@@ -150,12 +168,16 @@ export function scopeDurableSnipStateToHistory(args: {
     return {
       schemaVersion: 1,
       activeCompactBoundaryFingerprint,
+      ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
+      ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
       removals: [],
     }
   }
   return {
     schemaVersion: 1,
     activeCompactBoundaryFingerprint,
+    ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
+    ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
     removals: cloneDurableSnipRemovals(args.state.removals),
   }
 }
@@ -349,7 +371,22 @@ function applyDurableSnipProjection(args: {
   }
 
   const removedIndexes = new Set<number>()
+  const appliedRemovals: DurableSnipRemoval[] = []
+  let skippedRemovalCount = 0
+  const identityCounts = countExplicitMessageIdentities(args.messages)
+  const fingerprintCounts = countMessageFingerprints(args.messages)
   for (const removal of normalizedRemovals) {
+    const validation = validateDurableSnipRemoval({
+      removal,
+      messages: args.messages,
+      identityCounts,
+      fingerprintCounts,
+    })
+    if (!validation.ok) {
+      skippedRemovalCount += 1
+      continue
+    }
+    appliedRemovals.push(removal)
     for (let index = removal.startIndex; index < removal.endIndexExclusive; index += 1) {
       removedIndexes.add(index)
     }
@@ -365,13 +402,76 @@ function applyDurableSnipProjection(args: {
       applied: removedIndexes.size > 0 || relinked.droppedOrphanToolBlockCount > 0,
       reason:
         removedIndexes.size > 0 || relinked.droppedOrphanToolBlockCount > 0
-          ? 'applied durable snip removals'
-          : 'durable snip state removed no messages',
+          ? skippedRemovalCount > 0
+            ? 'applied durable snip removals with skipped drifted removals'
+            : 'applied durable snip removals'
+          : skippedRemovalCount > 0
+            ? 'skipped durable snip removals due to identity/fingerprint drift'
+            : 'durable snip state removed no messages',
       removedMessageCount: removedIndexes.size + relinked.droppedMessageCount,
       droppedOrphanToolBlockCount: relinked.droppedOrphanToolBlockCount,
-      removals: normalizedRemovals,
+      removals: appliedRemovals,
     },
   }
+}
+
+function countExplicitMessageIdentities(messages: PromptMessage[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const message of messages) {
+    const identity = readPromptMessageIdentity(message)
+    if (!identity || identity.source !== 'explicit') continue
+    counts.set(identity.id, (counts.get(identity.id) ?? 0) + 1)
+  }
+  return counts
+}
+
+function countMessageFingerprints(messages: PromptMessage[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const message of messages) {
+    const fingerprint = fingerprintPromptMessage(message)
+    counts.set(fingerprint, (counts.get(fingerprint) ?? 0) + 1)
+  }
+  return counts
+}
+
+function validateDurableSnipRemoval(args: {
+  removal: DurableSnipRemoval
+  messages: PromptMessage[]
+  identityCounts: Map<string, number>
+  fingerprintCounts: Map<string, number>
+}): { ok: true } | { ok: false; reason: string } {
+  const expectedCount = args.removal.endIndexExclusive - args.removal.startIndex
+  const identities = args.removal.removedMessageIdentities
+  const hasExplicitIdentityGuard =
+    Array.isArray(identities) && identities.length > 0 && identities.every((identity) => identity.source === 'explicit')
+  if (hasExplicitIdentityGuard) {
+    if (identities.length !== expectedCount) return { ok: false, reason: 'identity_count_mismatch' }
+    for (let offset = 0; offset < identities.length; offset += 1) {
+      const expected = identities[offset]!
+      if ((args.identityCounts.get(expected.id) ?? 0) !== 1) return { ok: false, reason: 'identity_not_unique' }
+      const target = args.messages[args.removal.startIndex + offset]
+      const actual = readPromptMessageIdentity(target)
+      if (!actual || actual.source !== 'explicit') return { ok: false, reason: 'missing_identity' }
+      if (actual.id !== expected.id) return { ok: false, reason: 'identity_mismatch' }
+      if (expected.fingerprint !== fingerprintPromptMessage(target!)) {
+        return { ok: false, reason: 'identity_fingerprint_mismatch' }
+      }
+    }
+    return { ok: true }
+  }
+
+  const fingerprints = args.removal.removedMessageFingerprints
+  if (!Array.isArray(fingerprints) || fingerprints.length === 0) {
+    return { ok: false, reason: 'missing_legacy_fingerprint_guard' }
+  }
+  if (fingerprints.length !== expectedCount) return { ok: false, reason: 'fingerprint_count_mismatch' }
+  for (let offset = 0; offset < fingerprints.length; offset += 1) {
+    const expected = fingerprints[offset]!
+    if ((args.fingerprintCounts.get(expected) ?? 0) !== 1) return { ok: false, reason: 'fingerprint_not_unique' }
+    const target = args.messages[args.removal.startIndex + offset]
+    if (!target || fingerprintPromptMessage(target) !== expected) return { ok: false, reason: 'fingerprint_mismatch' }
+  }
+  return { ok: true }
 }
 
 function normalizeDurableSnipRemovals(args: {
@@ -394,6 +494,9 @@ function normalizeDurableSnipRemovals(args: {
       ...(Array.isArray(removal.removedMessageFingerprints)
         ? { removedMessageFingerprints: removal.removedMessageFingerprints }
         : {}),
+      ...(Array.isArray(removal.removedMessageIdentities)
+        ? { removedMessageIdentities: removal.removedMessageIdentities.map(clonePromptMessageIdentity) }
+        : {}),
     })
   }
   return out
@@ -409,7 +512,20 @@ function cloneDurableSnipRemovals(removals: DurableSnipRemoval[]): DurableSnipRe
     ...(Array.isArray(removal.removedMessageFingerprints)
       ? { removedMessageFingerprints: removal.removedMessageFingerprints.slice() }
       : {}),
+    ...(Array.isArray(removal.removedMessageIdentities)
+      ? { removedMessageIdentities: removal.removedMessageIdentities.map(clonePromptMessageIdentity) }
+      : {}),
   }))
+}
+
+function clonePromptMessageIdentity(identity: PromptMessageIdentity): PromptMessageIdentity {
+  return {
+    schemaVersion: 1,
+    id: identity.id,
+    parentId: identity.parentId ?? null,
+    fingerprint: identity.fingerprint,
+    source: identity.source,
+  }
 }
 
 function translateProjectedSnipRemovals(args: {
@@ -479,6 +595,13 @@ function groupTranslatedSnipRemoval(args: {
               groupStartOffset,
               groupEndOffset,
             ),
+          }
+        : {}),
+      ...(Array.isArray(args.removal.removedMessageIdentities)
+        ? {
+            removedMessageIdentities: args.removal.removedMessageIdentities
+              .slice(groupStartOffset, groupEndOffset)
+              .map(clonePromptMessageIdentity),
           }
         : {}),
     })

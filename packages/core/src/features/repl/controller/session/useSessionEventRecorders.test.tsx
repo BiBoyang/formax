@@ -204,6 +204,8 @@ describe('useSessionEventRecorders', () => {
       removedMessageCount: 1,
       estimatedTokensSaved: 120,
       compactBoundaryFingerprint: 'compact-fp',
+      baseProjectionFingerprint: 'baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline' as const,
       removals: [
         {
           kind: 'model_facing_index_range' as const,

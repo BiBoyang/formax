@@ -531,6 +531,8 @@ describe('runMainSendTurn', () => {
       removedMessageCount: 1,
       estimatedTokensSaved: 120,
       compactBoundaryFingerprint: 'compact-generation',
+      baseProjectionFingerprint: 'baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline' as const,
       removals: [
         {
           kind: 'model_facing_index_range' as const,

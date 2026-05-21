@@ -5,6 +5,7 @@ import {
   fingerprintCompactBoundaryMessage,
 } from '../../../chat/context/compact'
 import type { DurableSnipRemoval, DurableSnipState } from '../../../chat/context/contextProjection'
+import type { PromptMessageIdentity } from '../../../chat/context/compact'
 import type { PromptMessage } from '../../../prompts'
 
 export const DURABLE_SNIP_COMMITTED_EVENT_NAME = 'durable_snip_applied'
@@ -31,6 +32,35 @@ function parseStringList(value: unknown): string[] | undefined {
   return out
 }
 
+function parsePromptMessageIdentity(value: unknown): PromptMessageIdentity | null {
+  if (!isObject(value) || value.schemaVersion !== 1) return null
+  const id = coerceNonEmptyString(value.id)
+  const fingerprint = coerceNonEmptyString(value.fingerprint)
+  const source = value.source === 'explicit' || value.source === 'legacy_fallback' ? value.source : null
+  if (!id || !fingerprint || !source) return null
+  const parentId = value.parentId === null || value.parentId === undefined ? null : coerceNonEmptyString(value.parentId)
+  if (value.parentId !== null && value.parentId !== undefined && !parentId) return null
+  return {
+    schemaVersion: 1,
+    id,
+    parentId,
+    fingerprint,
+    source,
+  }
+}
+
+function parsePromptMessageIdentities(value: unknown): PromptMessageIdentity[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) return undefined
+  const out: PromptMessageIdentity[] = []
+  for (const item of value) {
+    const identity = parsePromptMessageIdentity(item)
+    if (!identity) return undefined
+    out.push(identity)
+  }
+  return out
+}
+
 function parseRemoval(value: unknown): DurableSnipRemoval | null {
   if (!isObject(value) || value.kind !== 'model_facing_index_range') return null
   if (typeof value.startIndex !== 'number' || typeof value.endIndexExclusive !== 'number') return null
@@ -39,6 +69,7 @@ function parseRemoval(value: unknown): DurableSnipRemoval | null {
   if (startIndex < 0 || endIndexExclusive <= startIndex) return null
   const removedMessageIds = parseStringList(value.removedMessageIds)
   const removedMessageFingerprints = parseStringList(value.removedMessageFingerprints)
+  const removedMessageIdentities = parsePromptMessageIdentities(value.removedMessageIdentities)
   const reason = coerceNonEmptyString(value.reason)
   return {
     kind: 'model_facing_index_range',
@@ -47,6 +78,7 @@ function parseRemoval(value: unknown): DurableSnipRemoval | null {
     ...(reason ? { reason } : {}),
     ...(removedMessageIds ? { removedMessageIds } : {}),
     ...(removedMessageFingerprints ? { removedMessageFingerprints } : {}),
+    ...(removedMessageIdentities ? { removedMessageIdentities } : {}),
   }
 }
 
@@ -75,6 +107,8 @@ function applyActiveCompactBoundaryFingerprint(args: {
     return {
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
+      baseProjectionFingerprint: args.state.baseProjectionFingerprint ?? null,
+      sourceProjectionKind: args.state.sourceProjectionKind ?? null,
       removals: [],
     }
   }
@@ -101,9 +135,14 @@ function applyDurableSnipEvent(args: {
   if (!eventCompactBoundaryFingerprint && args.state.activeCompactBoundaryFingerprint) return args.state
   const removals = parseRemovals(args.data.removals)
   if (!removals) return args.state
+  const baseProjectionFingerprint = coerceNonEmptyString(args.data.baseProjectionFingerprint)
+  const sourceProjectionKind =
+    args.data.sourceProjectionKind === 'model_facing_baseline' ? args.data.sourceProjectionKind : null
   return {
     schemaVersion: 1,
     activeCompactBoundaryFingerprint: args.state.activeCompactBoundaryFingerprint ?? eventCompactBoundaryFingerprint,
+    baseProjectionFingerprint: baseProjectionFingerprint ?? null,
+    sourceProjectionKind,
     removals,
   }
 }

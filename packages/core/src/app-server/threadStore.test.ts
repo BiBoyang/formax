@@ -10,6 +10,7 @@ import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from '../chat/context/compact.js'
 import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
@@ -1002,10 +1003,11 @@ describe('ThreadStore', () => {
       keepStrategy: buildAutoCompactKeepStrategy(2),
     })
     const writer = await SessionWriter.openExisting({ filePath })
+    const olderAssistant = { role: 'assistant', content: [{ type: 'text', text: 'older assistant detail' }] }
     await writer.appendHistorySnapshot([
       boundary,
       { role: 'user', content: [{ type: 'text', text: 'compact summary' }] },
-      { role: 'assistant', content: [{ type: 'text', text: 'older assistant detail' }] },
+      olderAssistant,
       { role: 'assistant', content: [{ type: 'text', text: 'recent assistant detail' }] },
     ] as any)
     await writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
@@ -1018,7 +1020,7 @@ describe('ThreadStore', () => {
           startIndex: 1,
           endIndexExclusive: 2,
           reason: 'remove older assistant detail',
-          removedMessageFingerprints: ['older-assistant-fingerprint'],
+          removedMessageFingerprints: [fingerprintPromptMessage(olderAssistant as any)],
         },
       ],
     })

@@ -19,6 +19,15 @@ function snipEvent(args: {
   endIndexExclusive: number
   removedMessageIds?: string[]
   removedMessageFingerprints?: string[]
+  removedMessageIdentities?: Array<{
+    schemaVersion: 1
+    id: string
+    parentId: string | null
+    fingerprint: string
+    source: 'explicit' | 'legacy_fallback'
+  }>
+  baseProjectionFingerprint?: string | null
+  sourceProjectionKind?: 'model_facing_baseline'
 }) {
   return {
     type: 'event',
@@ -28,6 +37,8 @@ function snipEvent(args: {
       schemaVersion: 1,
       source: 'request_snip',
       compactBoundaryFingerprint: args.compactBoundaryFingerprint,
+      baseProjectionFingerprint: args.baseProjectionFingerprint,
+      sourceProjectionKind: args.sourceProjectionKind,
       removals: [
         {
           kind: 'model_facing_index_range',
@@ -36,6 +47,7 @@ function snipEvent(args: {
           reason: 'durable snip test',
           removedMessageIds: args.removedMessageIds,
           removedMessageFingerprints: args.removedMessageFingerprints,
+          removedMessageIdentities: args.removedMessageIdentities,
         },
       ],
     },
@@ -54,6 +66,17 @@ describe('durableSnipStoreEvents', () => {
           endIndexExclusive: 2,
           removedMessageIds: ['msg-1'],
           removedMessageFingerprints: ['fp-1'],
+          removedMessageIdentities: [
+            {
+              schemaVersion: 1,
+              id: 'msg-1',
+              parentId: null,
+              fingerprint: 'fp-1',
+              source: 'explicit',
+            },
+          ],
+          baseProjectionFingerprint: 'baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
         })),
         JSON.stringify({ type: 'event', name: DURABLE_SNIP_COMMITTED_EVENT_NAME, data: { schemaVersion: 1 } }),
       ].join('\n'),
@@ -63,6 +86,8 @@ describe('durableSnipStoreEvents', () => {
     const expected = {
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: null,
+      baseProjectionFingerprint: 'baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
       removals: [
         {
           kind: 'model_facing_index_range',
@@ -71,6 +96,15 @@ describe('durableSnipStoreEvents', () => {
           reason: 'durable snip test',
           removedMessageIds: ['msg-1'],
           removedMessageFingerprints: ['fp-1'],
+          removedMessageIdentities: [
+            {
+              schemaVersion: 1,
+              id: 'msg-1',
+              parentId: null,
+              fingerprint: 'fp-1',
+              source: 'explicit',
+            },
+          ],
         },
       ],
     }
@@ -95,6 +129,8 @@ describe('durableSnipStoreEvents', () => {
           endIndexExclusive: 5,
           removedMessageIds: ['new-msg-1', 'new-msg-2'],
           removedMessageFingerprints: ['new-fp-1', 'new-fp-2'],
+          baseProjectionFingerprint: 'new-baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
         })),
       ].join('\n'),
       'utf8',
@@ -103,6 +139,8 @@ describe('durableSnipStoreEvents', () => {
     await expect(readDurableSnipStateFromSession({ filePath })).resolves.toEqual({
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: null,
+      baseProjectionFingerprint: 'new-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
       removals: [
         {
           kind: 'model_facing_index_range',
@@ -145,6 +183,8 @@ describe('durableSnipStoreEvents', () => {
     await expect(readDurableSnipStateFromSession({ filePath })).resolves.toEqual({
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: null,
+      baseProjectionFingerprint: null,
+      sourceProjectionKind: null,
       removals: [],
     })
   })
@@ -177,6 +217,8 @@ describe('durableSnipStoreEvents', () => {
     await expect(readDurableSnipStateFromSession({ filePath })).resolves.toEqual({
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(boundary),
+      baseProjectionFingerprint: null,
+      sourceProjectionKind: null,
       removals: [],
     })
   })
@@ -252,6 +294,8 @@ describe('durableSnipStoreEvents', () => {
     await expect(readDurableSnipStateFromSession({ filePath })).resolves.toEqual({
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(newBoundary),
+      baseProjectionFingerprint: null,
+      sourceProjectionKind: null,
       removals: [],
     })
     expect(readDurableSnipStateFromSessionSync({ filePath }).removals).toEqual([])

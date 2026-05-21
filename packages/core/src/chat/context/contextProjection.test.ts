@@ -4,6 +4,7 @@ import {
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
+  fingerprintPromptMessage,
 } from './compact'
 import { buildContextProjection, mergeDurableSnipSnapshot, scopeDurableSnipStateToHistory } from './contextProjection'
 import { createContextCollapseCommittedEntry } from './contextCollapseStore'
@@ -13,6 +14,22 @@ function textMessage(role: 'user' | 'assistant', text: string): PromptMessage {
   return {
     role,
     content: [{ type: 'text', text }],
+  }
+}
+
+function identifiedTextMessage(role: 'user' | 'assistant', text: string, id: string): PromptMessage {
+  const message = textMessage(role, text)
+  return {
+    ...message,
+    meta: {
+      messageIdentity: {
+        schemaVersion: 1,
+        id,
+        parentId: null,
+        fingerprint: fingerprintPromptMessage(message),
+        source: 'explicit',
+      },
+    },
   }
 }
 
@@ -245,6 +262,7 @@ describe('buildContextProjection', () => {
               startIndex: 1,
               endIndexExclusive: 3,
               reason: 'durable snip test range',
+              removedMessageFingerprints: [fingerprintPromptMessage(olderAssistant), fingerprintPromptMessage(middleUser)],
             },
           ],
         },
@@ -268,6 +286,7 @@ describe('buildContextProjection', () => {
           startIndex: 1,
           endIndexExclusive: 3,
           reason: 'durable snip test range',
+          removedMessageFingerprints: [fingerprintPromptMessage(olderAssistant), fingerprintPromptMessage(middleUser)],
         },
       ],
     })
@@ -290,7 +309,14 @@ describe('buildContextProjection', () => {
       durableState: {
         snip: {
           schemaVersion: 1,
-          removals: [{ kind: 'model_facing_index_range', startIndex: 2, endIndexExclusive: 3 }],
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 2,
+              endIndexExclusive: 3,
+              removedMessageFingerprints: [fingerprintPromptMessage(toolResult)],
+            },
+          ],
         },
       },
     })
@@ -322,6 +348,7 @@ describe('buildContextProjection', () => {
             kind: 'model_facing_index_range' as const,
             startIndex: 1,
             endIndexExclusive: 2,
+            removedMessageFingerprints: [fingerprintPromptMessage(history[2]!)],
           },
         ],
       },
@@ -333,6 +360,146 @@ describe('buildContextProjection', () => {
     expect(first.modelFacingBaseline).toEqual(second.modelFacingBaseline)
     expect(first.facts.modelFacingBaselineFingerprint).toBe(second.facts.modelFacingBaselineFingerprint)
     expect(JSON.stringify(first.rawTranscript)).toContain('older assistant analysis')
+  })
+
+  it('skips durable snip replay when removed explicit identity no longer matches the target range', () => {
+    const target = identifiedTextMessage('assistant', 'assistant text still present', 'actual-id')
+    const projection = buildContextProjection({
+      history: [textMessage('user', 'request'), target, textMessage('assistant', 'answer')],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          baseProjectionFingerprint: 'old-baseline',
+          sourceProjectionKind: 'model_facing_baseline',
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              removedMessageIdentities: [
+                {
+                  schemaVersion: 1,
+                  id: 'removed-id',
+                  parentId: null,
+                  fingerprint: fingerprintPromptMessage(target),
+                  source: 'explicit',
+                },
+              ],
+              removedMessageFingerprints: [fingerprintPromptMessage(target)],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(projection.modelFacingBaseline).toEqual([textMessage('user', 'request'), target, textMessage('assistant', 'answer')])
+    expect(projection.durableState.snip).toMatchObject({
+      status: 'active',
+      applied: false,
+      reason: 'skipped durable snip removals due to identity/fingerprint drift',
+      removedMessageCount: 0,
+      removals: [],
+    })
+  })
+
+  it('skips durable snip replay when removed identity or legacy fingerprint is duplicated', () => {
+    const firstDuplicate = identifiedTextMessage('assistant', 'duplicate id one', 'duplicate-id')
+    const secondDuplicate = identifiedTextMessage('assistant', 'duplicate id two', 'duplicate-id')
+    const duplicateFingerprint = textMessage('assistant', 'same text')
+    const otherDuplicateFingerprint = textMessage('assistant', 'same text')
+
+    const identityProjection = buildContextProjection({
+      history: [firstDuplicate, secondDuplicate, textMessage('assistant', 'tail')],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: 1,
+              removedMessageIdentities: [
+                {
+                  schemaVersion: 1,
+                  id: 'duplicate-id',
+                  parentId: null,
+                  fingerprint: fingerprintPromptMessage(firstDuplicate),
+                  source: 'explicit',
+                },
+              ],
+              removedMessageFingerprints: [fingerprintPromptMessage(firstDuplicate)],
+            },
+          ],
+        },
+      },
+    })
+    const fingerprintProjection = buildContextProjection({
+      history: [duplicateFingerprint, otherDuplicateFingerprint, textMessage('assistant', 'tail')],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: 1,
+              removedMessageFingerprints: [fingerprintPromptMessage(duplicateFingerprint)],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(identityProjection.modelFacingBaseline).toEqual([firstDuplicate, secondDuplicate, textMessage('assistant', 'tail')])
+    expect(identityProjection.durableState.snip.reason).toBe(
+      'skipped durable snip removals due to identity/fingerprint drift',
+    )
+    expect(fingerprintProjection.modelFacingBaseline).toEqual([
+      duplicateFingerprint,
+      otherDuplicateFingerprint,
+      textMessage('assistant', 'tail'),
+    ])
+    expect(fingerprintProjection.durableState.snip.reason).toBe(
+      'skipped durable snip removals due to identity/fingerprint drift',
+    )
+  })
+
+  it('falls back to fingerprint guard for weak legacy-fallback removed identities', () => {
+    const removed = textMessage('assistant', 'legacy transcript message')
+    const kept = textMessage('assistant', 'recent answer')
+    const projection = buildContextProjection({
+      history: [removed, kept],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: 1,
+              removedMessageIdentities: [
+                {
+                  schemaVersion: 1,
+                  id: `legacy:0:${fingerprintPromptMessage(removed)}`,
+                  parentId: null,
+                  fingerprint: fingerprintPromptMessage(removed),
+                  source: 'legacy_fallback',
+                },
+              ],
+              removedMessageFingerprints: [fingerprintPromptMessage(removed)],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(projection.modelFacingBaseline).toEqual([kept])
+    expect(projection.durableState.snip).toMatchObject({
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 1,
+    })
   })
 
   it('reserves a deferred tool-result content replacement state without replacing content', () => {
@@ -840,6 +1007,49 @@ describe('mergeDurableSnipSnapshot', () => {
           kind: 'model_facing_index_range',
           startIndex: 0,
           endIndexExclusive: 1,
+        },
+      ],
+    })
+  })
+
+  it('merges new projected removals only across existing removals that actually replayed', () => {
+    const snapshot = mergeDurableSnipSnapshot({
+      existingState: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: null,
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+            reason: 'skipped old request snip',
+            removedMessageFingerprints: ['stale-fp'],
+          },
+        ],
+      },
+      appliedExistingRemovals: [],
+      newRemovals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+          reason: 'next request snip',
+          removedMessageFingerprints: ['current-fp'],
+        },
+      ],
+      compactBoundaryFingerprint: null,
+    })
+
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: null,
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 0,
+          endIndexExclusive: 1,
+          reason: 'next request snip',
+          removedMessageFingerprints: ['current-fp'],
         },
       ],
     })

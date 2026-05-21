@@ -811,11 +811,15 @@ export class TurnRunner {
             endIndexExclusive: removal.endIndexExclusive,
             reason: removal.reason,
             removedMessageFingerprints: removal.removedMessageFingerprints,
+            removedMessageIdentities: removal.removedMessageIdentities,
           }))
           const snipSnapshot = mergeDurableSnipSnapshot({
             existingState: initialDurableSnipState,
+            appliedExistingRemovals: prepared.contextProjection.durableState.snip.removals,
             newRemovals,
             compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+            baseProjectionFingerprint: prepared.contextProjection.facts.modelFacingBaselineFingerprint,
+            sourceProjectionKind: 'model_facing_baseline',
           })
           await writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
             schemaVersion: 1,
@@ -827,6 +831,8 @@ export class TurnRunner {
               0,
             ),
             compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+            baseProjectionFingerprint: snipSnapshot.baseProjectionFingerprint,
+            sourceProjectionKind: snipSnapshot.sourceProjectionKind,
             removals: snipSnapshot.removals,
           })
         }

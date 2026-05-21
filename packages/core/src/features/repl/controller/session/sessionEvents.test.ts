@@ -151,6 +151,8 @@ describe('sessionEvents', () => {
         removedMessageCount: 1,
         estimatedTokensSaved: 120,
         compactBoundaryFingerprint: 'compact-generation',
+        baseProjectionFingerprint: 'baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
         removals: [
           {
             kind: 'model_facing_index_range',
@@ -170,6 +172,8 @@ describe('sessionEvents', () => {
       estimatedTokensSaved: 120,
       removedMessageCount: 1,
       compactBoundaryFingerprint: 'compact-generation',
+      baseProjectionFingerprint: 'baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
       removals: [
         {
           kind: 'model_facing_index_range',
@@ -193,6 +197,8 @@ describe('sessionEvents', () => {
         removedMessageCount: 1,
         estimatedTokensSaved: 120,
         compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: null,
+        sourceProjectionKind: 'model_facing_baseline',
         removals: [
           {
             kind: 'model_facing_index_range',
@@ -213,6 +219,8 @@ describe('sessionEvents', () => {
         removedMessageCount: 0,
         estimatedTokensSaved: 0,
         compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: null,
+        sourceProjectionKind: 'model_facing_baseline',
         removals: [],
       },
     })

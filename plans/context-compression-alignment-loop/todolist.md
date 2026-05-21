@@ -84,7 +84,7 @@ Validation:
 - [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
 - [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
 - [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [ ] commit。
+- [x] commit。
 
 ## Gate 1C: Generation Reset Fixture
 
@@ -115,7 +115,7 @@ Validation:
 - [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
 - [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
 - [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [ ] commit。
+- [x] commit。
 
 ## Gate 1D: App-Server / Web Surface Fixture Tests
 
@@ -148,7 +148,7 @@ Validation:
 - [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
 - [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
 - [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [ ] commit。
+- [x] commit。
 
 ## Gate 2A: Message Identity Groundwork
 
@@ -180,7 +180,7 @@ Validation:
 - [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
 - [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
 - [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [ ] commit。
+- [x] commit。
 
 ## Gate 2B: Snip Removed UUID / Identity Replay
 
@@ -188,22 +188,28 @@ Validation:
 
 Non-goals:
 
-- [ ] 不实现 full Claude Code parentUuid chain reconstruction。
-- [ ] 不实现 compact preserved segment `head/anchor/tail` relink。
-- [ ] 不处理 collapse-active durable snip rebase；collapse-active 仍保持 request-only snip，不写 durable event。
+- [x] 不实现 full Claude Code parentUuid chain reconstruction。
+- [x] 不实现 compact preserved segment `head/anchor/tail` relink。
+- [x] 不处理 collapse-active durable snip rebase；collapse-active 仍保持 request-only snip，不写 durable event。
 
 Tasks:
 
-- [ ] 更新 `durable_snip_applied` snapshot schema：保留 current range，同时增加 removed message identity / fingerprint / base projection fingerprint / source projection kind。
-- [ ] 明确 `durable_snip_applied` 是 snapshot 语义，不是 incremental patch；latest valid snapshot 覆盖 older snapshot，empty snapshot 清空 state。
-- [ ] 收紧 mismatch 策略：removed identity 存在但 fingerprint 不匹配时，必须 skip durable removal，并在 facts/debug reason 中标记 drift；只有旧事件缺 identity 时，才允许 fallback 到 legacy range/count/fingerprint guard。
-- [ ] 写 tests：failed turn 不写 durable snip。
-- [ ] 写 tests：new compact boundary generation 后旧 snip state 清空或忽略。
-- [ ] 写 tests：snip 删除 tool pair 一侧后 provider-facing model baseline 不含 orphan tool block。
-- [ ] 写 tests：collapse-active request snip 成功 turn 后仍不写 `durable_snip_applied`，resume 后不应用 collapsed-coordinate removal。
-- [ ] 写 tests：removed identity 找不到时 skip，不按旧 range 盲删。
-- [ ] 写 tests：duplicate fingerprint / duplicate identity 进入 safe path，不做 destructive removal。
-- [ ] 写 tests：raw JSONL/session 文件仍包含 removed messages 和 durable snip event。
+- [x] 更新 `durable_snip_applied` snapshot schema：保留 current range，同时增加 removed message identity / fingerprint / base projection fingerprint / source projection kind。
+- [x] 明确 `durable_snip_applied` 是 snapshot 语义，不是 incremental patch；latest valid snapshot 覆盖 older snapshot，empty snapshot 清空 state。
+- [x] 收紧 mismatch 策略：removed identity 存在但 fingerprint 不匹配时，必须 skip durable removal，并在 facts/debug reason 中标记 drift；只有旧事件缺 identity 时，才允许 fallback 到 legacy range/count/fingerprint guard。
+- [x] 写 tests：failed turn 不写 durable snip。
+- [x] 写 tests：new compact boundary generation 后旧 snip state 清空或忽略。
+- [x] 写 tests：snip 删除 tool pair 一侧后 provider-facing model baseline 不含 orphan tool block。
+- [x] 写 tests：collapse-active request snip 成功 turn 后仍不写 `durable_snip_applied`，resume 后不应用 collapsed-coordinate removal。
+- [x] 写 tests：removed identity 找不到时 skip，不按旧 range 盲删。
+- [x] 写 tests：duplicate fingerprint / duplicate identity 进入 safe path，不做 destructive removal。
+- [x] 写 tests：raw JSONL/session 文件仍包含 removed messages 和 durable snip event。
+
+Validation:
+
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/snip.test.ts packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts packages/core/src/features/repl/controller/session/sessionEvents.test.ts packages/core/src/features/repl/controller/session/useSessionEventRecorders.test.tsx packages/core/src/features/repl/controller/send/sendMainTurn.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/threadStore.test.ts`
+- [x] `bun run type-check`
+- [x] Codex review before commit
 
 ## Gate 2C: Compact Preserved Segment Relink
 
@@ -255,13 +261,13 @@ Tasks:
 
 ## Global Review Checklist
 
-- [ ] Diff 只包含当前 Gate，不夹带 cleanup 或 unrelated behavior。
-- [ ] 如改变 durable behavior，contract 先更新。
-- [ ] raw transcript / UI visible scrollback 不被 durable projection 改写。
-- [ ] persisted history、model-facing baseline、request history 不混淆。
-- [ ] compact generation scope 不泄漏旧 snip/collapse state。
-- [ ] 删除/collapse/replacement 后 provider payload 不出现 orphan tool_use/tool_result。
-- [ ] app-server/Web/TUI 只消费 canonical facts，不各自推导 compression semantics。
-- [ ] failed / aborted turn 不写成功态 durable state。
-- [ ] targeted tests 通过。
-- [ ] Codex review 使用 `gpt-5.5 high`，输出到 `.tmp/codex-review-result/review-latest.txt`；用 `rg` 检索 findings / no-finding 结论，不只看 tail；如有 findings，全部修完再提交。
+- [x] Diff 只包含当前 Gate，不夹带 cleanup 或 unrelated behavior。
+- [x] 如改变 durable behavior，contract 先更新。
+- [x] raw transcript / UI visible scrollback 不被 durable projection 改写。
+- [x] persisted history、model-facing baseline、request history 不混淆。
+- [x] compact generation scope 不泄漏旧 snip/collapse state。
+- [x] 删除/collapse/replacement 后 provider payload 不出现 orphan tool_use/tool_result。
+- [x] app-server/Web/TUI 只消费 canonical facts，不各自推导 compression semantics。
+- [x] failed / aborted turn 不写成功态 durable state。
+- [x] targeted tests 通过。
+- [x] Codex review 使用 `gpt-5.5 high`，输出到 `.tmp/codex-review-result/review-latest.txt`；用 `rg` 检索 findings / no-finding 结论，不只看 tail；如有 findings，全部修完再提交。

@@ -21,6 +21,8 @@ type RequestSnipEventState = {
   removedMessageCount: number
   estimatedTokensSaved: number
   compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint: string | null
+  sourceProjectionKind: 'model_facing_baseline'
   removals: DurableSnipRemoval[]
 }
 

@@ -67,6 +67,8 @@ export type RequestSnipState = {
   removedMessageCount: number
   estimatedTokensSaved: number
   compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint: string | null
+  sourceProjectionKind: 'model_facing_baseline'
   removals: DurableSnipRemoval[]
 }
 
@@ -210,11 +212,15 @@ export function createContextCompressionService(deps: {
       endIndexExclusive: removal.endIndexExclusive,
       reason: removal.reason,
       removedMessageFingerprints: removal.removedMessageFingerprints,
+      removedMessageIdentities: removal.removedMessageIdentities,
     }))
     const snapshot = mergeDurableSnipSnapshot({
       existingState: prepared.durableSnipState,
+      appliedExistingRemovals: prepared.contextProjection.durableState.snip.removals,
       newRemovals,
       compactBoundaryFingerprint: prepared.contextProjection.facts.activeCompactBoundaryFingerprint,
+      baseProjectionFingerprint: prepared.contextProjection.facts.modelFacingBaselineFingerprint,
+      sourceProjectionKind: 'model_facing_baseline',
     })
     const canPersistDurableSnip =
       !prepared.contextProjection.durableState.collapse.applied && !prepared.strategyFacts.collapse.applied
@@ -226,6 +232,8 @@ export function createContextCompressionService(deps: {
       ),
       estimatedTokensSaved: prepared.strategyFacts.snip.estimatedTokensSaved,
       compactBoundaryFingerprint: prepared.contextProjection.facts.activeCompactBoundaryFingerprint,
+      baseProjectionFingerprint: snapshot.baseProjectionFingerprint ?? null,
+      sourceProjectionKind: 'model_facing_baseline',
       removals: snapshot.removals,
     }
   }

@@ -1,5 +1,5 @@
 import { estimatePromptTokens } from './estimate'
-import { fingerprintPromptMessage } from './compact'
+import { buildPromptMessageIdentity, fingerprintPromptMessage, type PromptMessageIdentity } from './compact'
 import type { PromptMessage } from '../../prompts'
 
 const DEFAULT_MIN_TEXT_CHARS = 1400
@@ -30,6 +30,7 @@ export type RequestSnipRemoval = {
   endIndexExclusive: number
   reason: string
   removedMessageFingerprints: string[]
+  removedMessageIdentities?: PromptMessageIdentity[]
 }
 
 type EligibleAssistantTextMessageRef = {
@@ -138,6 +139,7 @@ export function applyRequestSnip(args: {
       endIndexExclusive: ref.messageIndex + 1,
       reason: 'request snip removed older assistant text message',
       removedMessageFingerprints: [fingerprintPromptMessage(sourceMessage)],
+      removedMessageIdentities: [buildPromptMessageIdentity({ message: sourceMessage, index: ref.messageIndex })],
     })
     estimatedTokensSaved += Math.max(0, sourceTokens - replacementTokens)
     snippedMessages += 1
