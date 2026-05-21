@@ -319,6 +319,78 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('drains a pending initial collapse commit before reactive compact on provider overflow', async () => {
+    const initialCommit = {
+      collapsedRange: { kind: 'model_facing_index_range' as const, startIndex: 0, endIndexExclusive: 3 },
+      compactBoundaryFingerprint: 'compact-generation-1',
+      recapMessage: { role: 'user' as const, content: [{ type: 'text' as const, text: 'initial recap' }] },
+    }
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-prepared' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-request' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 96,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          preservedTailMessageCount: 4,
+          retainedCompactSummary: true,
+          recentUserPromptCount: 2,
+          recentFileCount: 1,
+          earlierToolResultBlockCount: 0,
+          recapFingerprint: 'initial-collapse-fingerprint',
+        },
+        commit: initialCommit,
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'initial-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    runReactiveCompact.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
+      collapseState: {
+        applied: false,
+        collapsedHeadMessageCount: 0,
+        estimatedTokensSaved: 0,
+        metadata: null,
+        commit: null,
+      },
+      strategyFacts: {},
+      reactiveCompactState: {
+        applied: true,
+        strategy: 'model_summary',
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+      context: null,
+      cacheEditPlan: null,
+    })
+
+    const harness = createHarness()
+    harness._spies.engine.runTurn
+      .mockRejectedValueOnce(new Error('HTTP 413: request too large'))
+      .mockResolvedValueOnce([{ role: 'assistant', content: [{ type: 'text', text: 'ok' }] }])
+
+    await runMainSendTurn(harness)
+
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith({
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 96,
+      metadata: expect.objectContaining({
+        recapFingerprint: 'initial-collapse-fingerprint',
+      }),
+      commit: initialCommit,
+    })
+    expect(harness.refs.onRequestCollapse.mock.invocationCallOrder[0]).toBeLessThan(
+      runReactiveCompact.mock.invocationCallOrder[0],
+    )
+  })
+
   it('surfaces the original provider overflow error when reactive compact itself fails', async () => {
     runReactiveCompact.mockRejectedValueOnce(new Error('Compact failed: empty summary'))
     const harness = createHarness()

@@ -289,6 +289,9 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           kind: 'reactive_error',
           detail: reactiveErrorInfo.detail.slice(0, 200),
         }
+        if (prepared.collapseState.commit) {
+          await recordRequestCollapse('initial', prepared.collapseState)
+        }
         let reactivePrepared
         try {
           reactivePrepared = await compression.runReactiveCompact({

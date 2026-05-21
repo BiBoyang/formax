@@ -206,7 +206,7 @@ Tests first:
 - [x] Collapse commit persists outside transcript rows or as explicit durable event.
 - [x] Resume/load rebuilds collapse store.
 - [x] Next-turn projection applies committed collapse entries.
-- [ ] Provider overflow path drains pending collapse before reactive full compact.
+- [x] Provider overflow path drains pending collapse before reactive full compact.
 - [ ] Materializing compact clears/rebases stale collapse entries before the new compact boundary.
 
 Implementation:
@@ -214,7 +214,7 @@ Implementation:
 - [x] Define collapse committed entry / snapshot schema.
 - [x] Add replay/load owner.
 - [x] Integrate projection owner.
-- [ ] Add overflow drain before reactive compact.
+- [x] Add overflow drain before reactive compact.
 
 Validation:
 
