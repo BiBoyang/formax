@@ -455,6 +455,59 @@ describe('readStaleInputsFromSession', () => {
     })
   })
 
+  it('reads latest request-time collapse only when it belongs to the current compact boundary', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-boundary-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-boundary-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+
+    const created = await SessionWriter.createNew({ cwd, env })
+    const writer = created.writer
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 120,
+      recapFingerprint: 'pre-compact-collapse',
+    })
+    const compactedHistory = [
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'auto',
+            preTokens: 4096,
+            summaryKind: 'session_memory',
+          },
+        },
+      },
+      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+    ] as any
+    await writer.appendHistorySnapshot(compactedHistory)
+
+    expect(await readLatestRequestCollapseEventFromSession({ filePath: created.filePath })).toBeNull()
+
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'post-compact-collapse',
+    })
+    await writer.appendHistorySnapshot([
+      ...compactedHistory,
+      { role: 'assistant', content: [{ type: 'text', text: 'later answer' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const event = await readLatestRequestCollapseEventFromSession({ filePath: created.filePath })
+    expect(event).toMatchObject({
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'post-compact-collapse',
+    })
+  })
+
   it('returns null when no persisted request-time collapse event exists', async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-none-cwd-'))
     const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-collapse-event-none-config-'))

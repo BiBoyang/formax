@@ -149,17 +149,17 @@ Validation:
 Tests first:
 
 - [ ] App-server resume + `/compact` command consumes or clears pending restore at the durable dispatch/compact ownership point.
-- [ ] `latestRequestCollapse` ignores pre-compact collapse events when a newer compact boundary exists.
+- [x] `latestRequestCollapse` ignores pre-compact collapse events when a newer compact boundary exists.
 - [ ] Compact boundary event without matching `history_state` safe-degrades with diagnostics instead of silently restoring huge pre-compact history.
 
 Implementation:
 
-- [ ] Fix only the proven failing cases.
-- [ ] Keep contracts updated before semantic behavior changes.
+- [x] Fix only the proven failing cases.
+- [x] Keep contracts updated before semantic behavior changes.
 
 Validation:
 
-- [ ] Targeted app-server/session tests.
+- [x] `bun run test -- packages/core/src/app-server/store/sessionEventReader.test.ts packages/core/src/app-server/threadStore.test.ts`
 - [ ] `bun run test:repl-semantic-gate` if `packages/core/src/features/repl/**` semantic flow changes.
 
 ### Batch 4: Durable Snip Migration

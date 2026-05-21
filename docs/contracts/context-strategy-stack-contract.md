@@ -166,6 +166,9 @@ If `snip` is promoted to durable projection behavior, the contract MUST decide w
 `CSS-310`
 Provider cache side effects are not durable projection state. Anthropic `cache_reference` / `cache_edits` may alter server-side cached prefix behavior for one request, but they MUST NOT be interpreted as transcript mutation, compact boundary, snip boundary, collapse commit, or resume authority.
 
+`CSS-311`
+App-server and diagnostics surfaces that expose `latestRequestCollapse` MUST scope that fact to the current compact-boundary generation. If the latest persisted `request_collapse_applied` event predates the latest compact boundary's first appearance in session history, the surface MUST return `null` for `latestRequestCollapse` rather than showing stale pre-compact collapse metadata. Repeated history snapshots that contain the same current compact boundary MUST NOT invalidate a later request-collapse event.
+
 ## 5. Stage Facts 合同
 
 `CSS-401`  

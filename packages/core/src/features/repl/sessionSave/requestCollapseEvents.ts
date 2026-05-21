@@ -20,6 +20,17 @@ export type PersistedRequestCollapseInspection = {
   latest: PersistedRequestCollapseEvent | null
 }
 
+type IndexedRequestCollapseEvent = {
+  event: PersistedRequestCollapseEvent
+  lineIndex: number
+}
+
+type RequestCollapseScan = {
+  events: PersistedRequestCollapseEvent[]
+  indexedEvents: IndexedRequestCollapseEvent[]
+  latestCompactBoundaryIntroducedAtLine: number | null
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
 }
@@ -70,14 +81,19 @@ function parseRequestCollapseEvent(ts: unknown, data: unknown): PersistedRequest
   }
 }
 
-async function scanRequestCollapseEvents(filePath: string): Promise<PersistedRequestCollapseEvent[]> {
+async function scanRequestCollapseState(filePath: string): Promise<RequestCollapseScan> {
   const events: PersistedRequestCollapseEvent[] = []
+  const indexedEvents: IndexedRequestCollapseEvent[] = []
+  let latestCompactBoundaryKey: string | null = null
+  let latestCompactBoundaryIntroducedAtLine: number | null = null
+  let lineIndex = 0
   const rl = readline.createInterface({
     input: fs.createReadStream(filePath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
   })
 
   for await (const line of rl) {
+    lineIndex += 1
     const trimmed = String(line).trimEnd()
     if (!trimmed) continue
     let parsed: unknown
@@ -87,33 +103,42 @@ async function scanRequestCollapseEvents(filePath: string): Promise<PersistedReq
       continue
     }
     if (!isObject(parsed)) continue
+    const compactBoundaryKey = readLatestCompactBoundaryKeyFromRecord(parsed)
+    if (compactBoundaryKey && compactBoundaryKey !== latestCompactBoundaryKey) {
+      latestCompactBoundaryKey = compactBoundaryKey
+      latestCompactBoundaryIntroducedAtLine = lineIndex
+    }
     if (parsed.type !== 'event') continue
     if (coerceNonEmptyString(parsed.name) !== 'request_collapse_applied') continue
     const event = parseRequestCollapseEvent(parsed.ts, parsed.data)
     if (!event) continue
     events.push(event)
+    indexedEvents.push({ event, lineIndex })
   }
 
-  return events
+  return {
+    events,
+    indexedEvents,
+    latestCompactBoundaryIntroducedAtLine,
+  }
 }
 
 export async function readRequestCollapseEventsFromSession(args: {
   filePath: string
 }): Promise<PersistedRequestCollapseEvent[]> {
-  return scanRequestCollapseEvents(args.filePath)
+  return (await scanRequestCollapseState(args.filePath)).events
 }
 
 export async function readLatestRequestCollapseEventFromSession(args: {
   filePath: string
 }): Promise<PersistedRequestCollapseEvent | null> {
-  const events = await scanRequestCollapseEvents(args.filePath)
-  return events.length > 0 ? events[events.length - 1]! : null
+  return selectLatestRequestCollapseForCurrentCompactBoundary(await scanRequestCollapseState(args.filePath))
 }
 
 export async function inspectRequestCollapseEventsFromSession(args: {
   filePath: string
 }): Promise<PersistedRequestCollapseInspection> {
-  const events = await scanRequestCollapseEvents(args.filePath)
+  const events = (await scanRequestCollapseState(args.filePath)).events
   return {
     totalCount: events.length,
     initialCount: events.filter((event) => event.phase === 'initial').length,
@@ -126,14 +151,19 @@ export async function inspectRequestCollapseEventsFromSession(args: {
 export function readLatestRequestCollapseEventFromSessionSync(args: {
   filePath: string
 }): PersistedRequestCollapseEvent | null {
-  let latest: PersistedRequestCollapseEvent | null = null
+  const events: PersistedRequestCollapseEvent[] = []
+  const indexedEvents: IndexedRequestCollapseEvent[] = []
+  let latestCompactBoundaryKey: string | null = null
+  let latestCompactBoundaryIntroducedAtLine: number | null = null
   let raw = ''
   try {
     raw = fs.readFileSync(args.filePath, 'utf8')
   } catch {
     return null
   }
+  let lineIndex = 0
   for (const line of raw.split('\n')) {
+    lineIndex += 1
     const trimmed = String(line).trim()
     if (!trimmed) continue
     let parsed: unknown
@@ -143,11 +173,60 @@ export function readLatestRequestCollapseEventFromSessionSync(args: {
       continue
     }
     if (!isObject(parsed)) continue
+    const compactBoundaryKey = readLatestCompactBoundaryKeyFromRecord(parsed)
+    if (compactBoundaryKey && compactBoundaryKey !== latestCompactBoundaryKey) {
+      latestCompactBoundaryKey = compactBoundaryKey
+      latestCompactBoundaryIntroducedAtLine = lineIndex
+    }
     if (parsed.type !== 'event') continue
     if (coerceNonEmptyString(parsed.name) !== 'request_collapse_applied') continue
     const event = parseRequestCollapseEvent(parsed.ts, parsed.data)
     if (!event) continue
-    latest = event
+    events.push(event)
+    indexedEvents.push({ event, lineIndex })
   }
-  return latest
+  return selectLatestRequestCollapseForCurrentCompactBoundary({
+    events,
+    indexedEvents,
+    latestCompactBoundaryIntroducedAtLine,
+  })
+}
+
+function selectLatestRequestCollapseForCurrentCompactBoundary(scan: RequestCollapseScan): PersistedRequestCollapseEvent | null {
+  if (scan.latestCompactBoundaryIntroducedAtLine == null) {
+    return scan.events.length > 0 ? scan.events[scan.events.length - 1]! : null
+  }
+  for (let index = scan.indexedEvents.length - 1; index >= 0; index -= 1) {
+    const entry = scan.indexedEvents[index]!
+    if (entry.lineIndex > scan.latestCompactBoundaryIntroducedAtLine) return entry.event
+  }
+  return null
+}
+
+function readLatestCompactBoundaryKeyFromRecord(record: Record<string, unknown>): string | null {
+  if (record.type !== 'history_state') return null
+  const messages = Array.isArray(record.messages) ? record.messages : []
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (!isObject(message)) continue
+    const meta = message.meta
+    if (!isObject(meta)) continue
+    const compactBoundary = meta.compactBoundary
+    if (!isObject(compactBoundary)) continue
+    return stableStringify(compactBoundary)
+  }
+  return null
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+  if (isObject(value)) {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
 }

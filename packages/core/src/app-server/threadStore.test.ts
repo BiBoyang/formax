@@ -611,6 +611,102 @@ describe('ThreadStore', () => {
     )
   })
 
+  it('hides request collapse facts that predate the latest compact boundary', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before collapse' }] },
+    ] as any)
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'initial',
+      collapsedHeadMessageCount: 5,
+      estimatedTokensSaved: 320,
+      recapFingerprint: 'pre-compact-collapse',
+    })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'auto',
+            triggerReason: { kind: 'auto_threshold' },
+            preTokens: 4096,
+            summaryKind: 'session_memory',
+          },
+        },
+      },
+      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const readOut = await store.readThread(thread.id)
+    const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const resumed = await store.resumeThread(thread.id)
+
+    expect(readOut.latestCompactBoundary).toEqual(
+      expect.objectContaining({ trigger: 'auto', preTokens: 4096 }),
+    )
+    expect(readOut.latestRequestCollapse).toBeNull()
+    expect(messagesOut.latestRequestCollapse).toBeNull()
+    expect(resumed.latestRequestCollapse).toBeNull()
+  })
+
+  it('keeps request collapse facts that occur after the current compact boundary', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    const history = [
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'auto',
+            triggerReason: { kind: 'auto_threshold' },
+            preTokens: 4096,
+            summaryKind: 'session_memory',
+          },
+        },
+      },
+      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+    ] as any
+    await writer.appendHistorySnapshot(history)
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 128,
+      recapFingerprint: 'post-compact-collapse',
+    })
+    await writer.appendHistorySnapshot([
+      ...history,
+      { role: 'assistant', content: [{ type: 'text', text: 'post-collapse answer' }] },
+    ] as any)
+    await writer.shutdown()
+
+    const expectedCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 128,
+      recapFingerprint: 'post-compact-collapse',
+    }
+
+    const readOut = await store.readThread(thread.id)
+    const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const resumed = await store.resumeThread(thread.id)
+
+    expect(readOut.latestRequestCollapse).toEqual(expectedCollapse)
+    expect(messagesOut.latestRequestCollapse).toEqual(expectedCollapse)
+    expect(resumed.latestRequestCollapse).toEqual(expectedCollapse)
+  })
+
   it('inspects persisted request-time collapse events for a thread', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})
