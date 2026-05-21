@@ -836,6 +836,30 @@ describe('createContextCompressionService', () => {
     })
   })
 
+  it('stamps assistant timestamps for cache-editing main-thread time-based microcompact', () => {
+    process.env[CACHE_EDITING_BETA_HEADER] = 'cache-editing-test'
+    const { service } = createService({
+      cfg: createCfg({
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: 'https://api.anthropic.com/v1',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+        },
+      }),
+    })
+
+    const out = service.finalizeHistoryAfterTurn({
+      contextWindowTokens: 100_000,
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }],
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(out.history[0]?.meta?.timestamp).toEqual(expect.any(String))
+  })
+
   it('keeps microcompact request-only during post-turn finalization', () => {
     vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
       messages,

@@ -1,10 +1,12 @@
 import type { AnthropicCacheEditDelete, AnthropicCacheEditPlan, PromptMessage } from '../../prompts'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
+import { readPromptMessageTimestampMs } from './promptMessageTimestamps'
 
 const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
 const DEFAULT_MIN_RESULT_CHARS = 1200
 const DEFAULT_MAX_STUB_CHARS = 120
 export const MICROCOMPACT_STUB_PREFIX = '[Older tool result cleared by microcompact:'
+export const TIME_BASED_MC_CLEARED_MESSAGE = '[Old tool result content cleared]'
 const MICROCOMPACT_COMPANION_STUB_PREFIX = '[Older companion block cleared by microcompact:'
 const SKILL_COMPANION_PREFIX = 'Base directory for this skill: '
 const DEFAULT_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob', 'Skill'] as const
@@ -13,6 +15,8 @@ const DEFAULT_CACHE_AWARE_MIN_RESULT_CHARS = 400
 const DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES = ['Read', 'Grep', 'Glob'] as const
 const DEFAULT_TIME_AWARE_MIN_RESULT_CHARS = 900
 const DEFAULT_TIME_AWARE_MIN_STALE_USER_TURNS = 3
+const DEFAULT_TIME_BASED_ASSISTANT_GAP_THRESHOLD_MINUTES = 60
+const DEFAULT_TIME_BASED_KEEP_RECENT_TOOL_RESULTS = 5
 const SAFE_BASH_COMMANDS = [
   'cat',
   'head',
@@ -226,6 +230,10 @@ export function microCompactHistory(args: {
   timeAwareMinResultChars?: number
   timeAwareMinResultCharsByName?: Record<string, number>
   timeAwareMinStaleUserTurns?: number
+  enableTimeBasedMicroCompact?: boolean
+  timeBasedAssistantGapThresholdMinutes?: number
+  timeBasedKeepRecentToolResults?: number
+  nowMs?: number
   enableCacheEditing?: boolean
 }): {
   messages: PromptMessage[]
@@ -261,6 +269,21 @@ export function microCompactHistory(args: {
     DEFAULT_TIME_AWARE_MIN_STALE_USER_TURNS,
   )
   const toolUsesById = collectToolUsesById(args.messages)
+  const timeBasedResult = maybeTimeBasedAssistantGapMicroCompact({
+    messages: args.messages,
+    toolUsesById,
+    enabled: args.enableTimeBasedMicroCompact === true,
+    nowMs: args.nowMs,
+    gapThresholdMinutes: args.timeBasedAssistantGapThresholdMinutes,
+    keepRecentToolResults: args.timeBasedKeepRecentToolResults,
+    cacheAwareEligibleToolNames,
+    cacheAwareMinResultChars,
+    timeAwareEligibleToolNames,
+    timeAwareMinResultChars,
+    timeAwareMinStaleUserTurns,
+  })
+  if (timeBasedResult) return timeBasedResult
+
   const eligibleBlocks = collectEligibleToolResults({
     messages: args.messages,
     eligibleToolNames,
@@ -414,6 +437,175 @@ export function microCompactHistory(args: {
     timeAwareToolNames,
     cacheEditingPlannedBlocks: 0,
   }
+}
+
+function maybeTimeBasedAssistantGapMicroCompact(args: {
+  messages: PromptMessage[]
+  toolUsesById: Map<string, ToolUseMeta>
+  enabled: boolean
+  nowMs?: number
+  gapThresholdMinutes?: number
+  keepRecentToolResults?: number
+  cacheAwareEligibleToolNames: Set<string>
+  cacheAwareMinResultChars: number
+  timeAwareEligibleToolNames: Set<string>
+  timeAwareMinResultChars: number
+  timeAwareMinStaleUserTurns: number
+}): ReturnType<typeof microCompactHistory> | null {
+  if (!args.enabled) return null
+
+  const lastAssistant = findLastAssistantMessage(args.messages)
+  const lastAssistantTs = readPromptMessageTimestampMs(lastAssistant)
+  if (lastAssistantTs == null) return null
+
+  const nowMs = Number.isFinite(args.nowMs) ? args.nowMs! : Date.now()
+  const gapThresholdMinutes = clampCount(
+    args.gapThresholdMinutes,
+    DEFAULT_TIME_BASED_ASSISTANT_GAP_THRESHOLD_MINUTES,
+  )
+  const gapMinutes = (nowMs - lastAssistantTs) / 60_000
+  if (!Number.isFinite(gapMinutes) || gapMinutes < gapThresholdMinutes) return null
+
+  const refs = collectTimeBasedToolResultRefs({
+    messages: args.messages,
+    toolUsesById: args.toolUsesById,
+  })
+  const keepRecent = Math.max(1, clampCount(args.keepRecentToolResults, DEFAULT_TIME_BASED_KEEP_RECENT_TOOL_RESULTS))
+  const keepToolUseIds = new Set(refs.map((ref) => ref.toolUseId).slice(-keepRecent))
+  const refsToClear = refs.filter((ref) => !keepToolUseIds.has(ref.toolUseId))
+  if (refsToClear.length === 0) {
+    return {
+      messages: args.messages,
+      cacheEditPlan: null,
+      compacted: false,
+      compactedBlocks: 0,
+      compactedToolNames: [],
+      estimatedTokensSaved: 0,
+      keptRecentBlocks: refs.length,
+      cacheAwareEligibleToolNames: [...args.cacheAwareEligibleToolNames],
+      cacheAwareMinResultChars: args.cacheAwareMinResultChars,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: [...args.timeAwareEligibleToolNames],
+      timeAwareMinResultChars: args.timeAwareMinResultChars,
+      timeAwareMinStaleUserTurns: args.timeAwareMinStaleUserTurns,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
+      cacheEditingPlannedBlocks: 0,
+    }
+  }
+
+  const patchedMessages = [...args.messages]
+  const patchedByIndex = new Map<number, PromptMessage>()
+  const compactedToolNames: string[] = []
+  const compactedToolNameSet = new Set<string>()
+  let estimatedTokensSaved = 0
+  let compactedBlocks = 0
+
+  for (const ref of refsToClear) {
+    const sourceMessage = patchedByIndex.get(ref.messageIndex) ?? patchedMessages[ref.messageIndex]
+    if (!sourceMessage || !Array.isArray(sourceMessage.content)) continue
+    const nextBlocks = [...sourceMessage.content]
+    const block = nextBlocks[ref.blockIndex] as any
+    if (block?.type !== 'tool_result' || block.content === TIME_BASED_MC_CLEARED_MESSAGE) continue
+
+    nextBlocks[ref.blockIndex] = {
+      ...block,
+      content: TIME_BASED_MC_CLEARED_MESSAGE,
+    }
+    estimatedTokensSaved += Math.max(0, estimateTextTokens(ref.rawResultText))
+    compactedBlocks += 1
+    const patchedMessage = {
+      ...sourceMessage,
+      content: nextBlocks as any,
+    }
+    patchedByIndex.set(ref.messageIndex, patchedMessage)
+    patchedMessages[ref.messageIndex] = patchedMessage
+
+    if (!compactedToolNameSet.has(ref.tool.name)) {
+      compactedToolNameSet.add(ref.tool.name)
+      compactedToolNames.push(ref.tool.name)
+    }
+  }
+
+  if (patchedByIndex.size === 0) return null
+
+  return {
+    messages: patchedMessages,
+    cacheEditPlan: null,
+    compacted: true,
+    compactedBlocks,
+    compactedToolNames,
+    estimatedTokensSaved,
+    keptRecentBlocks: Math.max(0, refs.length - compactedBlocks),
+    cacheAwareEligibleToolNames: [...args.cacheAwareEligibleToolNames],
+    cacheAwareMinResultChars: args.cacheAwareMinResultChars,
+    cacheAwareCompactedBlocks: 0,
+    cacheAwareToolNames: [],
+    timeAwareEligibleToolNames: [...args.timeAwareEligibleToolNames],
+    timeAwareMinResultChars: args.timeAwareMinResultChars,
+    timeAwareMinStaleUserTurns: args.timeAwareMinStaleUserTurns,
+    timeAwareCompactedBlocks: compactedBlocks,
+    timeAwareToolNames: compactedToolNames,
+    cacheEditingPlannedBlocks: 0,
+  }
+}
+
+function findLastAssistantMessage(messages: PromptMessage[]): PromptMessage | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === 'assistant') return message
+  }
+  return null
+}
+
+function collectTimeBasedToolResultRefs(args: {
+  messages: PromptMessage[]
+  toolUsesById: Map<string, ToolUseMeta>
+}): EligibleToolResultRef[] {
+  const refs: EligibleToolResultRef[] = []
+  const compactableToolNames = new Set<string>([
+    ...DEFAULT_ELIGIBLE_TOOL_NAMES,
+    ...DEFAULT_CACHE_AWARE_ELIGIBLE_TOOL_NAMES,
+    ...DEFAULT_TIME_AWARE_ELIGIBLE_TOOL_NAMES,
+    'Bash',
+    'WebFetch',
+  ])
+
+  for (let messageIndex = 0; messageIndex < args.messages.length; messageIndex += 1) {
+    const message = args.messages[messageIndex]
+    if (!message || message.role !== 'user' || !Array.isArray(message.content)) continue
+
+    for (let blockIndex = 0; blockIndex < message.content.length; blockIndex += 1) {
+      const block = message.content[blockIndex] as any
+      if (block?.type !== 'tool_result') continue
+      if (block?.is_error === true) continue
+      if (typeof block.tool_use_id !== 'string' || block.tool_use_id.length === 0) continue
+      if (block.content === TIME_BASED_MC_CLEARED_MESSAGE) continue
+
+      const tool = args.toolUsesById.get(block.tool_use_id)
+      if (!tool || !compactableToolNames.has(tool.name)) continue
+
+      const raw = toolResultContentToText(block.content)
+      if (isAlreadyMicroCompacted(block.content)) continue
+      if (!isSafeToolResultToMicroCompact(tool, raw)) continue
+
+      refs.push({
+        messageIndex,
+        blockIndex,
+        toolUseId: block.tool_use_id,
+        tool,
+        staleUserTurns: 0,
+        rawResultChars: raw.length,
+        rawResultText: raw,
+        compactToolResult: true,
+        compactionReason: 'time_aware',
+        timeAwareCandidate: true,
+      })
+    }
+  }
+
+  return refs
 }
 
 function buildCacheEditingMicroCompactResult(args: {

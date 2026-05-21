@@ -65,7 +65,7 @@ These are used by development, diagnostics, or legacy paths and are not a stable
 - `FORMAX_TOOLSEARCH_ENGINE` (optional deferred ToolSearch engine for plain queries: `bm25` [default], `regex`, `keyword`, `hybrid`; per-query prefixes like `regex:` and `bm25:` still override)
 - `FORMAX_REQUEST_DRY_RUN` (construct request payload only, dump to file, skip real network request)
 - `FORMAX_REQUEST_DRY_RUN_DIR` (optional output directory for dry-run request payload dumps; defaults to `<cwd>/proxy/request-dry-run`)
-- `CACHE_EDITING_BETA_HEADER` (Anthropic first-party cache editing beta header, mirroring Claude Code's `CACHE_EDITING_BETA_HEADER`; enables request-only `cache_reference` / `cache_edits` projection when `llm.provider=anthropic` and `llm.baseUrl` points at `api.anthropic.com`)
+- `CACHE_EDITING_BETA_HEADER` (Anthropic first-party cache editing beta header, mirroring Claude Code's `CACHE_EDITING_BETA_HEADER`; enables request-only `cache_reference` / `cache_edits` projection when `llm.provider=anthropic` and `llm.baseUrl` points at `api.anthropic.com`; also enables the main-thread Claude Code-style cold-cache time-based microcompact gate)
 - `FORMAX_WEBFETCH_MODEL`
 - `FORMAX_WEBFETCH_MAX_TOKENS`
 - `FORMAX_WEBFETCH_MAX_INPUT_CHARS`

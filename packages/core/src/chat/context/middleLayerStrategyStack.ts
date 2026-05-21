@@ -113,6 +113,10 @@ export function executeMiddleLayerStrategyStack(args: {
   enableToolResultBudget?: boolean
   enableCollapse?: boolean
   enableCacheEditing?: boolean
+  enableTimeBasedMicroCompact?: boolean
+  timeBasedAssistantGapThresholdMinutes?: number
+  timeBasedKeepRecentToolResults?: number
+  nowMs?: number
 }): MiddleLayerStrategyStackResult {
   const trailingMessage = args.trailingMessage ?? null
   const preMicrocompactMessages = trailingMessage ? [...args.history, trailingMessage] : [...args.history]
@@ -136,6 +140,10 @@ export function executeMiddleLayerStrategyStack(args: {
     timeAwareMinResultCharsByName: policy.timeAwareMinResultCharsByName,
     timeAwareMinStaleUserTurns: policy.timeAwareMinStaleUserTurns,
     enableCacheEditing: args.enableCacheEditing,
+    enableTimeBasedMicroCompact: args.enableTimeBasedMicroCompact,
+    timeBasedAssistantGapThresholdMinutes: args.timeBasedAssistantGapThresholdMinutes,
+    timeBasedKeepRecentToolResults: args.timeBasedKeepRecentToolResults,
+    nowMs: args.nowMs,
   })
   const inputHistoryTokens = estimatePromptTokens({ system: [], messages: args.history })
   const microCompactedHistoryTokens = estimatePromptTokens({ system: [], messages: microCompactResult.messages })

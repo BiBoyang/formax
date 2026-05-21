@@ -52,6 +52,7 @@ export type PromptBlock =
   | Record<string, any>
 
 export type PromptMessageMeta = {
+  timestamp?: string
   compactBoundary?: {
     schemaVersion: 1
     trigger?: 'manual' | 'auto' | 'reactive'

@@ -16,6 +16,7 @@ import {
   type MiddleLayerStrategyFacts,
 } from '../../../../chat/context/middleLayerStrategyStack'
 import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
+import { stampMissingAssistantMessageTimestamps } from '../../../../chat/context/promptMessageTimestamps'
 import { prepareTurnRequestProjection } from '../../../../chat/context/turnRequestProjection'
 import {
   buildSessionMemoryCompactionRehydration,
@@ -108,6 +109,7 @@ export function createContextCompressionService(deps: {
       user: args.user,
       budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
       enableCacheEditing: isCacheEditingEnabled(),
+      enableTimeBasedMicroCompact: isCacheEditingEnabled(),
     })
 
   const estimateContext = (args: {
@@ -355,11 +357,14 @@ export function createContextCompressionService(deps: {
       history: ChatHistory
       context: EstimatedContextState
     } {
-      const history = runCanonicalMiddleLayerStack({
+      const projectedHistory = runCanonicalMiddleLayerStack({
         system: args.system,
         history: args.history,
         contextWindowTokens: args.contextWindowTokens,
       }).persistedHistoryCandidate
+      const history = isCacheEditingEnabled()
+        ? stampMissingAssistantMessageTimestamps(projectedHistory, new Date().toISOString())
+        : projectedHistory
 
       return {
         history,

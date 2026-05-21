@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { microCompactHistory, resolveAdaptiveMicroCompactPolicy } from './microCompact'
+import {
+  microCompactHistory,
+  resolveAdaptiveMicroCompactPolicy,
+  TIME_BASED_MC_CLEARED_MESSAGE,
+} from './microCompact'
 import type { PromptMessage } from '../../prompts'
 
 function assistantToolUse(id: string, name: string, input: Record<string, unknown>): PromptMessage {
@@ -117,6 +121,77 @@ describe('microCompactHistory', () => {
       },
     ])
     expect(out.cacheEditingPlannedBlocks).toBe(1)
+  })
+
+  it('time-based microcompacts old tool results after an assistant wall-clock gap and skips cache edits', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+      { role: 'assistant', content: [{ type: 'text', text: 'done' }] as any, meta: { timestamp: '2026-05-21T00:00:00.000Z' } },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      enableCacheEditing: true,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 60,
+      timeBasedKeepRecentToolResults: 1,
+      nowMs: new Date('2026-05-21T02:01:00.000Z').getTime(),
+    })
+
+    expect(out.cacheEditPlan).toBeNull()
+    expect((out.messages[1]!.content[0] as any).content).toBe(TIME_BASED_MC_CLEARED_MESSAGE)
+    expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
+    expect(out.timeAwareCompactedBlocks).toBe(1)
+    expect(out.timeAwareToolNames).toEqual(['Read'])
+  })
+
+  it('does not time-based microcompact when the assistant timestamp gap is below threshold', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      { role: 'assistant', content: [{ type: 'text', text: 'done' }] as any, meta: { timestamp: '2026-05-21T00:30:00.000Z' } },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 60,
+      timeBasedKeepRecentToolResults: 1,
+      nowMs: new Date('2026-05-21T01:00:00.000Z').getTime(),
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.messages).toBe(messages)
+  })
+
+  it('suppresses cache edits after an assistant wall-clock gap even when no time-based blocks are cleared', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+      userToolResult('read-1', 'a'.repeat(4000)),
+      assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+      userToolResult('read-2', 'b'.repeat(4000)),
+      assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+      userToolResult('read-3', 'c'.repeat(4000)),
+      assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+      userToolResult('read-4', 'd'.repeat(4000)),
+      { role: 'assistant', content: [{ type: 'text', text: 'done' }] as any, meta: { timestamp: '2026-05-21T00:00:00.000Z' } },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      enableCacheEditing: true,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 60,
+      nowMs: new Date('2026-05-21T02:01:00.000Z').getTime(),
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.messages).toBe(messages)
+    expect(out.keptRecentBlocks).toBe(4)
   })
 
   it('skips ineligible, small, error, and already microcompacted results', () => {

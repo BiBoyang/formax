@@ -232,7 +232,7 @@ function collectFallbackToolResultContent(messages: PromptMessage[]): Map<string
 
 function clonePromptMessages(messages: PromptMessage[]): PromptMessage[] {
   return messages.map((message) => ({
-    ...message,
+    role: message.role,
     content: Array.isArray(message.content)
       ? message.content.map((block) => (block && typeof block === 'object' ? { ...(block as any) } : block))
       : message.content,
@@ -335,7 +335,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
       stream: true,
       model: modelForRequest,
       max_tokens: args.maxTokens ?? 16000,
-      messages: prompt.messages,
+      messages: clonePromptMessages(prompt.messages),
       system: prompt.system,
       tools: args.tools,
     })

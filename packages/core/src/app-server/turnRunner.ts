@@ -10,6 +10,7 @@ import type { ContextBudgetConfig } from '../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
+import { stampMissingAssistantMessageTimestamps } from '../chat/context/promptMessageTimestamps.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
   buildSystemPrompt,
@@ -621,6 +622,7 @@ export class TurnRunner {
         throw new Error('Request aborted')
       }
 
+      let cacheEditingEnabledForSnapshot = false
       if (running.compact.isCommand) {
         await writer.appendEvent('compact_started', { source: 'manual' })
         const compactResult = await runCompactFlow({
@@ -661,16 +663,19 @@ export class TurnRunner {
           platform: this.platform,
           homedir: this.homedir,
         })
+        const cacheEditingEnabled = isAnthropicCacheEditingEnabled({
+          provider: runtimeConfig.llm.provider,
+          baseUrl: runtimeConfig.llm.baseUrl,
+          env: this.env ?? process.env,
+        })
+        cacheEditingEnabledForSnapshot = cacheEditingEnabled
         const prepared = prepareTurnRequestProjection({
           system,
           history,
           user,
           budgetConfig: promptBudget,
-          enableCacheEditing: isAnthropicCacheEditingEnabled({
-            provider: runtimeConfig.llm.provider,
-            baseUrl: runtimeConfig.llm.baseUrl,
-            env: this.env ?? process.env,
-          }),
+          enableCacheEditing: cacheEditingEnabled,
+          enableTimeBasedMicroCompact: cacheEditingEnabled,
         })
         const executionHistory = prepared.persistedHistory as ChatHistory
         const executionRequestHistory = prepared.requestHistory as ChatHistory
@@ -717,7 +722,9 @@ export class TurnRunner {
             : (nextHistory as ChatHistory)
       }
 
-      const historyForSnapshot = nextHistoryForSnapshot
+      const historyForSnapshot = cacheEditingEnabledForSnapshot
+        ? stampMissingAssistantMessageTimestamps(nextHistoryForSnapshot, new Date().toISOString())
+        : nextHistoryForSnapshot
 
       if (assistantText.trim()) {
         await writer.appendStableMsg({

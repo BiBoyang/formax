@@ -135,7 +135,7 @@
 
 - [x] `bun run test -- packages/core/src/chat/context packages/core/src/streaming/anthropic`
 - [x] `bun run test -- packages/core/src/features/repl/controller/send packages/core/src/features/repl/controller/session`
-- [ ] `bun run test -- packages/core/src/sdk/query.test.ts packages/core/src/sdk/sessions.test.ts packages/core/src/sdk/v2.test.ts`
+- [x] `bun run test -- packages/core/src/sdk/query.test.ts packages/core/src/sdk/sessions.test.ts packages/core/src/sdk/v2.test.ts`
 - [x] `bun run test:repl-semantic-gate`
 - [x] `mkdir -p .tmp/codex-review-result`
 - [x] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
@@ -143,10 +143,10 @@
 
 ## Open Questions
 
-- [ ] 是否要第一版就切到 Claude Code 的 wall-clock assistant-gap time-aware 策略，还是先只接 cache editing side-channel，保留当前 user-turn stale 策略？
+- [x] 第一版切到 Claude Code 的 wall-clock assistant-gap time-aware 策略：主线程 Anthropic cache editing capability 开启时，超过 60 分钟 assistant gap 先走 cold-cache request-only clearing，并跳过当轮 cache edits。
 - [x] Anthropic cache editing beta header 名称按 Claude Code 对齐为 `CACHE_EDITING_BETA_HEADER`；真实 API smoke 只作为后续可选验证，不阻塞客户端 parity 实现。
-- [ ] app-server main-thread 是否在第一版跟 TUI 同步启用，还是先只启用 TUI REPL 主线程？
-- [ ] 是否需要新增用户可见 config，还是先通过 env/internal capability gate 控制？
+- [x] app-server main-thread 与 TUI 同步启用：两者都通过 shared turn request projection 和 `CACHE_EDITING_BETA_HEADER` capability gate 生效。
+- [x] 第一版不新增用户可见 config，先通过 env/internal capability gate 控制；用户可见配置留到真实产品开关需要时再做。
 
 ## Commit Strategy
 

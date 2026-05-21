@@ -21,6 +21,7 @@ export function prepareTurnRequestProjection(args: {
   user: PromptMessage
   budgetConfig: ContextBudgetConfig | null
   enableCacheEditing?: boolean
+  enableTimeBasedMicroCompact?: boolean
 }): PreparedTurnRequestProjection {
   const stack = executeMiddleLayerStrategyStack({
     system: args.system,
@@ -28,6 +29,9 @@ export function prepareTurnRequestProjection(args: {
     trailingMessage: args.user,
     budgetConfig: args.budgetConfig,
     ...(args.enableCacheEditing !== undefined ? { enableCacheEditing: args.enableCacheEditing } : {}),
+    ...(args.enableTimeBasedMicroCompact !== undefined
+      ? { enableTimeBasedMicroCompact: args.enableTimeBasedMicroCompact }
+      : {}),
   })
 
   return {

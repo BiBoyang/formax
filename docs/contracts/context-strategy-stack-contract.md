@@ -116,6 +116,9 @@ middle-layer stack MUST 区分以下三个 envelope：
 `CSS-305a`
 request-time reducers MAY 产生 provider-specific request-envelope side-effect plan，例如 Anthropic cache editing 的 `cache_reference` / `cache_edits` delete plan。此类 plan MUST 只用于 assembled request/API payload projection；MUST NOT 被写回 persisted history，也 MUST NOT 改变 replay/session restore 的 authoritative transcript。若 request side-effect plan 无法被当前 provider/capability 消费，runtime MUST 能继续使用不依赖该 plan 的 request projection 或 fallback path。
 
+`CSS-305b`
+Claude Code-style time-based microcompact MAY run before cache-editing projection when main-thread Anthropic cache editing is enabled and the wall-clock gap since the last assistant message exceeds the configured prompt-cache TTL threshold. This path MUST treat the cache as cold: it MAY content-clear older compactable `tool_result` blocks in the request projection, MUST keep at least the most recent compactable tool result, and MUST NOT emit `cache_edits` for that same turn. Persisted history MAY carry assistant timestamp metadata needed to evaluate the wall-clock gap, but time-based tool-result clearing itself remains request-only.
+
 `CSS-306`  
 post-turn finalization、manual compact 后的 persisted baseline materialization、以及 reactive/auto compact 后的 persisted-history normalization SHOULD 复用 canonical middle-layer stack owner，而不是在调用侧继续手工串联 `microcompact` / `prune` helper。
 

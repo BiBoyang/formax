@@ -224,14 +224,17 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const messages = [
       {
         role: 'assistant' as const,
+        meta: { timestamp: '2026-05-21T01:00:00.000Z' },
         content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }],
       },
       {
         role: 'user' as const,
+        meta: { timestamp: '2026-05-21T01:00:01.000Z' },
         content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'old result' }],
       },
       {
         role: 'user' as const,
+        meta: { timestamp: '2026-05-21T01:00:02.000Z' },
         content: [{ type: 'text', text: 'next question', cache_control: { type: 'ephemeral' as const } }],
       },
     ]
@@ -260,6 +263,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
     expect(init.headers['anthropic-beta']).toContain('cache-editing-test')
+    expect(JSON.stringify(body.messages)).not.toContain('"meta"')
     expect(body.messages[1].content[0]).toMatchObject({
       type: 'tool_result',
       tool_use_id: 'read-1',
@@ -278,6 +282,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     ])
     expect((messages[1] as any).content[0].cache_reference).toBeUndefined()
     expect((messages[2] as any).content).toHaveLength(1)
+    expect((messages[0] as any).meta).toEqual({ timestamp: '2026-05-21T01:00:00.000Z' })
   })
 
   it('projects cache edits by tool_use_id after request normalization changes message positions', async () => {
