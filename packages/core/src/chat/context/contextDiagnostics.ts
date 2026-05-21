@@ -2,6 +2,7 @@ import type { ContextBudgetConfig } from './budget'
 import { computeContextBudget, computeContextStats } from './budget'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
+import { isAnthropicCacheEditingEnabled } from './cacheEditing'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
 import { type MicroCompactImpact } from './microCompact'
@@ -76,6 +77,7 @@ export type NextTurnFixedContextDiagnostics = {
   assembledLedger: ContextAssembledLedgerRow[]
   strategyCoordination: ContextStrategyCoordinationFact[]
   strategyControlPlane: ContextStrategyControlPlane
+  cacheEditingPlanStatus: ContextCacheEditingPlanStatus
   toolResultBudgetImpact: ToolResultBudgetImpact
   microCompactImpact: MicroCompactImpact
   snipImpact: SnipImpact
@@ -92,6 +94,12 @@ export type NextTurnFixedContextDiagnostics = {
   autoCompactSkipReason: string | null
   pruneSkipReason: string | null
   topAssembledContributors: ContextContributor[]
+}
+
+export type ContextCacheEditingPlanStatus = {
+  enabled: boolean
+  plannedBlocks: number
+  reason: string
 }
 
 export type ContextLatestRequestCollapse = {
@@ -334,6 +342,7 @@ export function analyzeNextTurnFixedContext(args: {
   planPath?: string | null
   keepLastTurns?: number
   enableAutoCompact?: boolean
+  enableCacheEditing?: boolean
 }): NextTurnFixedContextDiagnostics {
   const promptMessages = getContinuationMessagesAfterLatestCompactBoundary(args.messages)
   const hasLatestCompactBoundary = findLatestCompactBoundary(args.messages) != null
@@ -358,6 +367,7 @@ export function analyzeNextTurnFixedContext(args: {
     trailingMessage: fixedUserMessage,
     budgetConfig: args.budgetConfig ?? null,
     allowBoundarylessContinuation: hasLatestCompactBoundary,
+    enableCacheEditing: args.enableCacheEditing,
   })
   const microCompactedHistory = stack.microCompactedHistory
 
@@ -449,6 +459,10 @@ export function analyzeNextTurnFixedContext(args: {
     }),
     strategyCoordination: buildStrategyCoordinationFacts(stack.facts),
     strategyControlPlane: buildStrategyControlPlane(stack.facts),
+    cacheEditingPlanStatus: buildCacheEditingPlanStatus({
+      enabled: args.enableCacheEditing === true,
+      plannedBlocks: stack.facts.microCompact.impact.cacheEditingPlannedBlocks,
+    }),
     toolResultBudgetImpact: stack.facts.toolResultBudget.impact,
     microCompactImpact: {
       compactedBlocks: stack.facts.microCompact.impact.compactedBlocks,
@@ -547,6 +561,31 @@ function buildStrategyControlPlane(facts: MiddleLayerStrategyFacts): ContextStra
   }
 }
 
+function buildCacheEditingPlanStatus(args: {
+  enabled: boolean
+  plannedBlocks: number
+}): ContextCacheEditingPlanStatus {
+  if (!args.enabled) {
+    return {
+      enabled: false,
+      plannedBlocks: 0,
+      reason: 'cache editing disabled',
+    }
+  }
+  if (args.plannedBlocks > 0) {
+    return {
+      enabled: true,
+      plannedBlocks: args.plannedBlocks,
+      reason: `planned ${formatInt(args.plannedBlocks)} cache edit delete(s)`,
+    }
+  }
+  return {
+    enabled: true,
+    plannedBlocks: 0,
+    reason: 'cache editing enabled but no eligible cache edit deletes were planned',
+  }
+}
+
 function buildAssembledLedger(args: {
   system: PromptBlock[]
   systemTokens: number
@@ -624,6 +663,7 @@ export function buildContextDiagnosticsReport(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  env?: NodeJS.ProcessEnv
 }): string {
   const payload = buildContextDiagnosticsPayload(args)
   return formatContextDiagnosticsReport({
@@ -649,6 +689,7 @@ export function buildContextDiagnosticsJson(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  env?: NodeJS.ProcessEnv
 }): string {
   return JSON.stringify(buildContextDiagnosticsPayload(args), null, 2)
 }
@@ -664,6 +705,7 @@ export function buildContextDiagnosticsPayload(args: {
   nextTurnFixedGroups?: NextTurnFixedContextGroup[]
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
+  env?: NodeJS.ProcessEnv
 }): ContextDiagnosticsPayload {
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
@@ -703,6 +745,11 @@ export function buildContextDiagnosticsPayload(args: {
     planPath: args.planPath ?? null,
     keepLastTurns: args.cfg.context.compactKeepLastTurns,
     enableAutoCompact: args.cfg.context.enableAutoCompact,
+    enableCacheEditing: isAnthropicCacheEditingEnabled({
+      provider: args.cfg.llm.provider,
+      baseUrl: args.cfg.llm.baseUrl,
+      env: args.env,
+    }),
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
@@ -815,6 +862,7 @@ export function formatContextDiagnosticsReport(args: {
     `- Microcompact compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.compactedBlocks ?? 0)}`,
     `- Microcompact kept recent eligible blocks: ${formatInt(args.nextTurn?.microCompactImpact.keptRecentBlocks ?? 0)}`,
     `- Microcompact compacted tools: ${formatToolNames(args.nextTurn?.microCompactImpact.compactedToolNames ?? [])}`,
+    `- Microcompact cache-editing: ${formatCacheEditingPlanStatus(args.nextTurn?.cacheEditingPlanStatus ?? null)}`,
     `- Microcompact cache-aware eligible tools: ${formatToolNames(args.nextTurn?.microCompactImpact.cacheAwareEligibleToolNames ?? [])}`,
     `- Microcompact cache-aware minimum chars: ${formatInt(args.nextTurn?.microCompactImpact.cacheAwareMinResultChars ?? 0)}`,
     `- Microcompact cache-aware compacted blocks: ${formatInt(args.nextTurn?.microCompactImpact.cacheAwareCompactedBlocks ?? 0)}`,
@@ -1021,6 +1069,11 @@ function formatCountsByToolName(rows: Array<{ toolName: string; count: number }>
 function formatToolNames(value: string[]): string {
   if (value.length === 0) return 'none'
   return value.join(', ')
+}
+
+function formatCacheEditingPlanStatus(value: ContextCacheEditingPlanStatus | null): string {
+  if (!value) return 'unknown'
+  return `${value.enabled ? 'enabled' : 'disabled'}; planned_deletes=${formatInt(value.plannedBlocks)}; ${value.reason}`
 }
 
 function formatStageNames(value: MiddleLayerStage[]): string {

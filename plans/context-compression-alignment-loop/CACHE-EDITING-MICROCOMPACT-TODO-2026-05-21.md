@@ -115,7 +115,7 @@
 
 - [x] Add SSE parser test for `cache_deleted_input_tokens`.
 - [x] Add accumulated usage test if stream deltas report cache-deleted tokens in multiple events.
-- [ ] Add diagnostics test showing cache editing applied/skipped reason when available.
+- [x] Add diagnostics test showing cache editing applied/skipped reason when available.
 
 ### Implementation
 

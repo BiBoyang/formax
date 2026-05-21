@@ -3,6 +3,7 @@ import {
   analyzeContextDiagnostics,
   analyzeNextTurnFixedContext,
   buildContextDiagnosticsJson,
+  buildContextDiagnosticsReport,
   formatContextDiagnosticsReport,
   resolveContextDiagnosticsOutputFormat,
 } from './contextDiagnostics'
@@ -21,6 +22,7 @@ import {
 import { estimatePromptTokens } from './estimate'
 import { buildPostCompactRehydration } from './postCompactRehydration'
 import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
+import { CACHE_EDITING_BETA_HEADER } from './cacheEditing'
 
 describe('contextDiagnostics', () => {
   it('analyzes prompt slices, counts tool results, and detects microcompacted stubs', () => {
@@ -948,6 +950,83 @@ describe('contextDiagnostics', () => {
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('kind')
     expect(parsed.nextTurnFixed.topAssembledContributors[0]).toHaveProperty('key')
     expect(parsed.notes).toBeInstanceOf(Array)
+  })
+
+  it('reports cache editing plan status in JSON and text diagnostics', () => {
+    const args = {
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: 'https://api.anthropic.com/v1',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 3_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 0,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: {
+          logsDir: '',
+          subagentsDir: '',
+          planDir: '',
+        },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      env: {
+        [CACHE_EDITING_BETA_HEADER]: 'cache-editing-test',
+      } as NodeJS.ProcessEnv,
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/repo/a.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'a'.repeat(4000) }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-2', name: 'Read', input: { file_path: '/repo/b.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-2', content: 'b'.repeat(4000) }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-3', name: 'Read', input: { file_path: '/repo/c.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-3', content: 'c'.repeat(4000) }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-4', name: 'Read', input: { file_path: '/repo/d.ts' } }] as any,
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-4', content: 'd'.repeat(4000) }] as any },
+      ] as PromptMessage[],
+    }
+
+    const parsed = JSON.parse(buildContextDiagnosticsJson(args))
+    expect(parsed.nextTurnFixed.cacheEditingPlanStatus).toEqual({
+      enabled: true,
+      plannedBlocks: 3,
+      reason: 'planned 3 cache edit delete(s)',
+    })
+    expect(parsed.nextTurnFixed.microCompactImpact.cacheEditingPlannedBlocks).toBe(3)
+
+    const report = buildContextDiagnosticsReport(args)
+    expect(report).toContain(
+      '- Microcompact cache-editing: enabled; planned_deletes=3; planned 3 cache edit delete(s)',
+    )
   })
 
   it('parses supported /context output formats', () => {
