@@ -22,9 +22,14 @@ const SESSION_MEMORY_RECENT_FILES_LIMIT = 5
 const SESSION_MEMORY_RECENT_PROMPTS_LIMIT = 3
 const SESSION_MEMORY_RECENT_SKILLS_LIMIT = 3
 const SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT = 3
+const SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT = 3
+const SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT = 3
 const SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT = 3
 const SESSION_MEMORY_SUMMARY_RECENT_SKILLS_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_RECENT_SUBAGENT_TYPES_LIMIT = 2
+const SESSION_MEMORY_SUMMARY_RECENT_DEFERRED_TOOL_NAMES_LIMIT = 2
+const SESSION_MEMORY_SUMMARY_RECENT_TASK_HINTS_LIMIT = 2
+const SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS = 96
 const SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS = 160
 const SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS = 80
 const SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS = 80
@@ -47,6 +52,8 @@ export type SessionMemoryDraft = {
     recentUserPrompts: string[]
     recentSkills: string[]
     recentSubagentTypes: string[]
+    recentDeferredToolNames: string[]
+    recentTaskHints: string[]
     planPath: string | null
     planExcerpt: string | null
     todoSummary: string | null
@@ -72,6 +79,8 @@ export type SessionMemoryRestoreSummary = {
   recentUserPrompts: string[]
   recentSkills: string[]
   recentSubagentTypes: string[]
+  recentDeferredToolNames: string[]
+  recentTaskHints: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -142,6 +151,11 @@ export function buildSessionMemoryDraft(args: {
         inputKey: 'subagent_type',
         limit: SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT,
       }),
+      recentDeferredToolNames: collectRecentDeferredToolNames(
+        args.previousHistory,
+        SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT,
+      ),
+      recentTaskHints: collectRecentTaskHints(args.previousHistory, SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT),
       planPath: rehydration.planPath,
       planExcerpt: rehydration.planExcerpt,
       todoSummary: rehydration.todoSummary,
@@ -187,6 +201,16 @@ export function mergeSessionMemoryDraft(base: SessionMemoryDraft, patch: Session
         newer: nextActiveTask.recentSubagentTypes,
         older: base.activeTask.recentSubagentTypes,
         limit: SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT,
+      }),
+      recentDeferredToolNames: mergeRecentStrings({
+        newer: nextActiveTask.recentDeferredToolNames,
+        older: base.activeTask.recentDeferredToolNames,
+        limit: SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT,
+      }),
+      recentTaskHints: mergeRecentStrings({
+        newer: nextActiveTask.recentTaskHints,
+        older: base.activeTask.recentTaskHints,
+        limit: SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT,
       }),
       planPath: readNullableString(nextActiveTask.planPath, base.activeTask.planPath),
       planExcerpt: readNullableString(nextActiveTask.planExcerpt, base.activeTask.planExcerpt),
@@ -234,6 +258,19 @@ export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): 
         .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS))
         .join(', ')}`,
     )
+  }
+
+  const recentDeferredToolNames = normalizeStringList(draft.activeTask.recentDeferredToolNames)
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_DEFERRED_TOOL_NAMES_LIMIT)
+  if (recentDeferredToolNames.length > 0) {
+    lines.push(`Recently loaded deferred tools: ${recentDeferredToolNames.join(', ')}`)
+  }
+
+  const recentTaskHints = normalizeStringList(draft.activeTask.recentTaskHints)
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_TASK_HINTS_LIMIT)
+  if (recentTaskHints.length > 0) {
+    lines.push('Recent delegated task hints:')
+    for (const hint of recentTaskHints) lines.push(`- ${truncateForSummary(hint, SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS)}`)
   }
 
   if (draft.activeTask.mode !== 'normal') {
@@ -301,6 +338,14 @@ export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): Ses
     .slice(0, SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT)
     .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS))
 
+  const recentDeferredToolNames = normalizeStringList(draft.activeTask.recentDeferredToolNames)
+    .slice(0, SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS))
+
+  const recentTaskHints = normalizeStringList(draft.activeTask.recentTaskHints)
+    .slice(0, SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT)
+    .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS))
+
   return {
     schemaVersion: 1,
     mode: draft.activeTask.mode,
@@ -308,6 +353,8 @@ export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): Ses
     recentUserPrompts,
     recentSkills,
     recentSubagentTypes,
+    recentDeferredToolNames,
+    recentTaskHints,
     planPath: truncateNullableSummaryField(draft.activeTask.planPath, SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS),
     planExcerpt: truncateNullableSummaryField(
       draft.activeTask.planExcerpt,
@@ -388,15 +435,15 @@ function collectRecentUserPrompts(messages: PromptMessage[], limit: number): str
   return prompts
 }
 
-function collectSuccessfulToolResultIds(messages: PromptMessage[]): Set<string> {
-  const out = new Set<string>()
+function collectSuccessfulToolResults(messages: PromptMessage[]): Map<string, unknown> {
+  const out = new Map<string, unknown>()
   for (const message of messages) {
     if (message?.role !== 'user' || !Array.isArray(message.content)) continue
     for (const block of message.content as any[]) {
       if (block?.type !== 'tool_result') continue
       if (block?.is_error === true) continue
       if (typeof block?.tool_use_id === 'string' && block.tool_use_id.length > 0) {
-        out.add(block.tool_use_id)
+        out.set(block.tool_use_id, block.content)
       }
     }
   }
@@ -414,8 +461,8 @@ function collectRecentSuccessfulToolInputStrings(
   const keep = Math.max(0, Math.floor(args.limit))
   if (keep <= 0) return []
 
-  const successfulToolIds = collectSuccessfulToolResultIds(messages)
-  if (successfulToolIds.size === 0) return []
+  const successfulToolResults = collectSuccessfulToolResults(messages)
+  if (successfulToolResults.size === 0) return []
 
   const values: string[] = []
   const seen = new Set<string>()
@@ -425,7 +472,7 @@ function collectRecentSuccessfulToolInputStrings(
     for (let blockIndex = message.content.length - 1; blockIndex >= 0 && values.length < keep; blockIndex -= 1) {
       const block = (message.content as any[])[blockIndex]
       if (block?.type !== 'tool_use' || block?.name !== args.toolName) continue
-      if (typeof block?.id !== 'string' || !successfulToolIds.has(block.id)) continue
+      if (typeof block?.id !== 'string' || !successfulToolResults.has(block.id)) continue
       const inputValue =
         block?.input && typeof block.input === 'object'
           ? readNonEmptyString((block.input as Record<string, unknown>)[args.inputKey])
@@ -437,6 +484,113 @@ function collectRecentSuccessfulToolInputStrings(
   }
 
   return values
+}
+
+function collectRecentDeferredToolNames(messages: PromptMessage[], limit: number): string[] {
+  const keep = Math.max(0, Math.floor(limit))
+  if (keep <= 0) return []
+
+  const successfulToolResults = collectSuccessfulToolResults(messages)
+  if (successfulToolResults.size === 0) return []
+
+  const values: string[] = []
+  const seen = new Set<string>()
+  for (let index = messages.length - 1; index >= 0 && values.length < keep; index -= 1) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (let blockIndex = message.content.length - 1; blockIndex >= 0 && values.length < keep; blockIndex -= 1) {
+      const block = (message.content as any[])[blockIndex]
+      if (block?.type !== 'tool_use' || block?.name !== 'ToolSearch') continue
+      if (typeof block?.id !== 'string' || !successfulToolResults.has(block.id)) continue
+      for (const name of extractLoadedDeferredToolNames(successfulToolResults.get(block.id))) {
+        if (seen.has(name)) continue
+        seen.add(name)
+        values.push(name)
+        if (values.length >= keep) break
+      }
+    }
+  }
+
+  return values
+}
+
+function collectRecentTaskHints(messages: PromptMessage[], limit: number): string[] {
+  const keep = Math.max(0, Math.floor(limit))
+  if (keep <= 0) return []
+
+  const successfulToolResults = collectSuccessfulToolResults(messages)
+  if (successfulToolResults.size === 0) return []
+
+  const values: string[] = []
+  const seen = new Set<string>()
+  for (let index = messages.length - 1; index >= 0 && values.length < keep; index -= 1) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (let blockIndex = message.content.length - 1; blockIndex >= 0 && values.length < keep; blockIndex -= 1) {
+      const block = (message.content as any[])[blockIndex]
+      if (block?.type !== 'tool_use' || block?.name !== 'Task') continue
+      if (typeof block?.id !== 'string' || !successfulToolResults.has(block.id)) continue
+      const input = block.input && typeof block.input === 'object' ? block.input as Record<string, unknown> : {}
+      const subagentType = readNonEmptyString(input.subagent_type)
+      const description = readNonEmptyString(input.description)
+      if (!subagentType || !description) continue
+      const parts = [`${subagentType}: ${description}`]
+      if (input.run_in_background === true) parts.push('(background)')
+      const resume = readNonEmptyString(input.resume)
+      if (resume) parts.push(`(resume ${resume})`)
+      const hint = parts.join(' ')
+      if (seen.has(hint)) continue
+      seen.add(hint)
+      values.push(hint)
+    }
+  }
+
+  return values
+}
+
+function extractLoadedDeferredToolNames(content: unknown): string[] {
+  const text = extractToolResultText(content)
+  if (!text) return []
+
+  const lines = text.split(/\r?\n/)
+  const out: string[] = []
+  let inLoadedSection = false
+  let inMatchedSection = false
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (/^currently loaded tools:\s*$/i.test(trimmed)) {
+      inLoadedSection = true
+      inMatchedSection = false
+      continue
+    }
+    if (/^matched tools:\s*$/i.test(trimmed)) {
+      inMatchedSection = true
+      inLoadedSection = false
+      continue
+    }
+    if (/^[A-Za-z].*:\s*$/.test(trimmed)) {
+      inLoadedSection = false
+      inMatchedSection = false
+      continue
+    }
+    if (!inLoadedSection && !inMatchedSection) continue
+
+    const match = /^-\s+(.+)$/.exec(trimmed)
+    const name = readNonEmptyString(match?.[1])
+    if (name) out.push(name)
+  }
+
+  return out
+}
+
+function extractToolResultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  const parts: string[] = []
+  for (const block of content as any[]) {
+    if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
+  }
+  return parts.join('\n')
 }
 
 function formatStrategyLines(strategy: SessionMemoryDraft['currentStrategy']): string[] {

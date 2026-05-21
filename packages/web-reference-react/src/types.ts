@@ -93,6 +93,8 @@ export type SessionMemoryRestoreSummary = {
   recentUserPrompts: string[]
   recentSkills: string[]
   recentSubagentTypes: string[]
+  recentDeferredToolNames: string[]
+  recentTaskHints: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null

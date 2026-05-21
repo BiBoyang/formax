@@ -360,6 +360,9 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
   const recentSkills = record.recentSkills === undefined ? [] : parseRequiredStringList(record.recentSkills)
   const recentSubagentTypes =
     record.recentSubagentTypes === undefined ? [] : parseRequiredStringList(record.recentSubagentTypes)
+  const recentDeferredToolNames =
+    record.recentDeferredToolNames === undefined ? [] : parseRequiredStringList(record.recentDeferredToolNames)
+  const recentTaskHints = record.recentTaskHints === undefined ? [] : parseRequiredStringList(record.recentTaskHints)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
@@ -369,6 +372,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
     !recentUserPrompts ||
     !recentSkills ||
     !recentSubagentTypes ||
+    !recentDeferredToolNames ||
+    !recentTaskHints ||
     planPath === undefined ||
     planExcerpt === undefined ||
     todoSummary === undefined
@@ -382,6 +387,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
     recentUserPrompts,
     recentSkills,
     recentSubagentTypes,
+    recentDeferredToolNames,
+    recentTaskHints,
     planPath,
     planExcerpt,
     todoSummary,

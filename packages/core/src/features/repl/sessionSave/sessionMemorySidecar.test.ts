@@ -22,6 +22,8 @@ function createDraft(): SessionMemoryDraft {
       recentUserPrompts: ['fix auth redirect'],
       recentSkills: ['formax-dev-loop-workflow'],
       recentSubagentTypes: ['Explore'],
+      recentDeferredToolNames: ['Bash'],
+      recentTaskHints: ['Explore: audit restore state'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Investigate auth flow',
       todoSummary: 'todo summary',

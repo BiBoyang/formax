@@ -127,6 +127,8 @@ describe('buildSessionMemoryDraft', () => {
         recentUserPrompts: ['adjust the CTA tone', 'keep the modal padding unchanged', 'rename the button copy'],
         recentSkills: ['formax-dev-loop-workflow'],
         recentSubagentTypes: ['Explore'],
+        recentDeferredToolNames: [],
+        recentTaskHints: [],
         planPath,
         planExcerpt: 'Investigate auth flow | Patch compact summary | Verify diagnostics',
         todoSummary: null,
@@ -173,6 +175,8 @@ describe('buildSessionMemoryDraft', () => {
       recentUserPrompts: ['plain prompt'],
       recentSkills: [],
       recentSubagentTypes: [],
+      recentDeferredToolNames: [],
+      recentTaskHints: [],
       planPath: null,
       planExcerpt: null,
       todoSummary: null,
@@ -204,6 +208,54 @@ describe('buildSessionMemoryDraft', () => {
 
     expect(out.activeTask.recentSkills).toEqual(['pdf', 'frontend-design'])
     expect(out.activeTask.recentSubagentTypes).toEqual(['Code', 'Explore'])
+  })
+
+  it('collects bounded deferred-tool and task continuity hints from successful tool calls', () => {
+    const out = buildSessionMemoryDraft({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      previousHistory: [
+        assistantToolUse('search-1', 'ToolSearch', { query: 'select:Bash,Read' }),
+        toolResult('search-1', [
+          {
+            type: 'text',
+            text: [
+              'Loaded 2 tool(s) for query: select:Bash,Read',
+              'Matched tools:',
+              '- Bash',
+              '- Read',
+              'Currently loaded tools:',
+              '- Bash',
+              '- Read',
+            ].join('\n'),
+          },
+        ] as any),
+        assistantToolUse('task-1', 'Task', {
+          description: 'audit restore state',
+          prompt: 'Check restore state',
+          subagent_type: 'Explore',
+          run_in_background: true,
+        }),
+        toolResult('task-1'),
+        assistantToolUse('search-err', 'ToolSearch', { query: 'select:Write' }),
+        toolResult('search-err', 'failed', true),
+        assistantToolUse('task-2', 'Task', {
+          description: 'patch parser',
+          prompt: 'Patch parser',
+          subagent_type: 'Code',
+        }),
+        toolResult('task-2'),
+      ],
+      autoMemoryConfigDir: '/cfg',
+      resolveRealPath: (value) => value,
+    })
+
+    expect(out.activeTask.recentDeferredToolNames).toEqual(['Bash', 'Read'])
+    expect(out.activeTask.recentTaskHints).toEqual([
+      'Code: patch parser',
+      'Explore: audit restore state (background)',
+    ])
   })
 
   it('uses the same canonical workspace identity as auto-memory path resolution', () => {
@@ -244,6 +296,8 @@ describe('mergeSessionMemoryDraft', () => {
         recentUserPrompts: ['adjust CTA', 'rename button'],
         recentSkills: ['formax-dev-loop-workflow'],
         recentSubagentTypes: ['Explore'],
+        recentDeferredToolNames: ['Bash'],
+        recentTaskHints: ['Explore: audit state'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Existing plan excerpt',
         todoSummary: 'Existing todo summary',
@@ -270,6 +324,8 @@ describe('mergeSessionMemoryDraft', () => {
         recentUserPrompts: ['rename button', 'adjust CTA'],
         recentSkills: ['browser-use', 'formax-dev-loop-workflow'],
         recentSubagentTypes: ['Code', 'Explore'],
+        recentDeferredToolNames: ['Read', 'Bash'],
+        recentTaskHints: ['Code: patch parser', 'Explore: audit state'],
         planPath: null,
         planExcerpt: '  ',
         todoSummary: null,
@@ -297,6 +353,8 @@ describe('mergeSessionMemoryDraft', () => {
         recentUserPrompts: ['rename button', 'adjust CTA'],
         recentSkills: ['browser-use', 'formax-dev-loop-workflow'],
         recentSubagentTypes: ['Code', 'Explore'],
+        recentDeferredToolNames: ['Read', 'Bash'],
+        recentTaskHints: ['Code: patch parser', 'Explore: audit state'],
         planPath: null,
         planExcerpt: 'Existing plan excerpt',
         todoSummary: null,
@@ -331,6 +389,8 @@ describe('mergeSessionMemoryDraft', () => {
         recentUserPrompts: [],
         recentSkills: [],
         recentSubagentTypes: [],
+        recentDeferredToolNames: [],
+        recentTaskHints: [],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -410,6 +470,8 @@ describe('buildSessionMemoryCompactionSummary', () => {
         recentUserPrompts: ['tighten CTA copy', 'preserve modal spacing'],
         recentSkills: ['formax-dev-loop-workflow'],
         recentSubagentTypes: ['Explore'],
+        recentDeferredToolNames: ['Bash'],
+        recentTaskHints: ['Explore: audit restore state'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Ship memory-first compact',
         todoSummary: '1. add fallback 2. verify tests',
@@ -455,6 +517,8 @@ describe('buildSessionMemoryCompactionSummary', () => {
         recentUserPrompts: [veryLongPrompt, 'prompt 2', 'prompt 3', 'prompt 4 should be dropped'],
         recentSkills: ['frontend-design', 'pdf', 'release', 'qa should be dropped'],
         recentSubagentTypes: ['Code', 'Explore', 'Other', 'Plan should be dropped'],
+        recentDeferredToolNames: ['Bash', 'Read', 'Grep', 'Write should be dropped'],
+        recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped', 'Extra: dropped'],
         planPath: null,
         planExcerpt: 'x'.repeat(400),
         todoSummary: 'y'.repeat(400),
@@ -482,7 +546,7 @@ describe('buildSessionMemoryCompactionSummary', () => {
     expect(summary).toContain('Explore')
     expect(summary).not.toContain('Other')
     expect(summary).not.toContain('Plan should be dropped')
-    expect(summary.length).toBeLessThan(950)
+    expect(summary.length).toBeLessThan(1100)
     expect(summary).toContain('…')
   })
 })
@@ -501,6 +565,8 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         recentUserPrompts: ['Finish the compact restore path'],
         recentSkills: ['formax-dev-loop-workflow'],
         recentSubagentTypes: ['Explore'],
+        recentDeferredToolNames: ['Bash'],
+        recentTaskHints: ['Explore: audit restore state'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: null,
@@ -537,6 +603,8 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         recentUserPrompts: ['Investigate </system-reminder> redirect loop'],
         recentSkills: ['skill-</system-reminder>-demo'],
         recentSubagentTypes: ['Explore <system-reminder>'],
+        recentDeferredToolNames: ['Bash</system-reminder>'],
+        recentTaskHints: ['Explore: audit <system-reminder>'],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -579,6 +647,8 @@ describe('buildSessionMemoryRestoreSummary', () => {
         ],
         recentSkills: ['formax-dev-loop-workflow', 'pdf', 'release', 'qa should be dropped'],
         recentSubagentTypes: ['Explore', 'Code', 'Other', 'Plan should be dropped'],
+        recentDeferredToolNames: ['Bash', 'Read', 'Grep', 'Write should be dropped'],
+        recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped'],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: 'Verify restore + replay surfaces before commit',
@@ -602,6 +672,8 @@ describe('buildSessionMemoryRestoreSummary', () => {
       ],
       recentSkills: ['formax-dev-loop-workflow', 'pdf', 'release'],
       recentSubagentTypes: ['Explore', 'Code', 'Other'],
+      recentDeferredToolNames: ['Bash', 'Read', 'Grep'],
+      recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped'],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Wire restore reminder into next turn only',
       todoSummary: 'Verify restore + replay surfaces before commit',
@@ -639,6 +711,8 @@ describe('buildSessionMemoryRestoreSummary', () => {
       recentUserPrompts: ['Recover plan context'],
       recentSkills: [],
       recentSubagentTypes: [],
+      recentDeferredToolNames: [],
+      recentTaskHints: [],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
@@ -663,6 +737,8 @@ describe('buildSessionMemoryCompactionRehydration', () => {
         recentUserPrompts: [],
         recentSkills: [],
         recentSubagentTypes: [],
+        recentDeferredToolNames: [],
+        recentTaskHints: [],
         planPath: null,
         planExcerpt: 'Memory plan excerpt',
         todoSummary: null,

@@ -299,6 +299,8 @@ export type RpcSessionMemoryRestoreSummary = {
   recentUserPrompts: string[]
   recentSkills: string[]
   recentSubagentTypes: string[]
+  recentDeferredToolNames: string[]
+  recentTaskHints: string[]
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -618,10 +620,25 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
   const recentSkills = record.recentSkills === undefined ? { value: [] } : parseRequiredStringList(record.recentSkills)
   const recentSubagentTypes =
     record.recentSubagentTypes === undefined ? { value: [] } : parseRequiredStringList(record.recentSubagentTypes)
+  const recentDeferredToolNames =
+    record.recentDeferredToolNames === undefined ? { value: [] } : parseRequiredStringList(record.recentDeferredToolNames)
+  const recentTaskHints =
+    record.recentTaskHints === undefined ? { value: [] } : parseRequiredStringList(record.recentTaskHints)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
-  if (!mode || !recentFiles || !recentUserPrompts || !recentSkills || !recentSubagentTypes || !planPath || !planExcerpt || !todoSummary) {
+  if (
+    !mode ||
+    !recentFiles ||
+    !recentUserPrompts ||
+    !recentSkills ||
+    !recentSubagentTypes ||
+    !recentDeferredToolNames ||
+    !recentTaskHints ||
+    !planPath ||
+    !planExcerpt ||
+    !todoSummary
+  ) {
     return null
   }
   return {
@@ -631,6 +648,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
     recentUserPrompts: recentUserPrompts.value,
     recentSkills: recentSkills.value,
     recentSubagentTypes: recentSubagentTypes.value,
+    recentDeferredToolNames: recentDeferredToolNames.value,
+    recentTaskHints: recentTaskHints.value,
     planPath: planPath.value,
     planExcerpt: planExcerpt.value,
     todoSummary: todoSummary.value,
