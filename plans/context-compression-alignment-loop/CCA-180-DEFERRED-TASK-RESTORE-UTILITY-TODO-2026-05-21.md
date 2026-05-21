@@ -4,6 +4,12 @@
 
 目标：在 `CCA-171` 已有 `recentSkills` / `recentSubagentTypes` 的基础上，把 session-memory restore utility 扩展到 deferred-task continuity，但保持 next-turn-only / best-effort / no-new-authority 语义。
 
+## Status
+
+- 当前状态：暂停。
+- 已完成：Batch 1 / Batch 2 的 additive restore hint shape，提交为 `a7a399ad feat(context): add deferred restore hints`。
+- 暂停原因：这项是后续 18x 主线，当前需要回到 WebGPT/cache-editing 收敛主线；不要继续扩展 `CCA-180`，直到当前主线收口并明确恢复。
+
 ## Contract
 
 - [x] Update `docs/contracts/session-persistence-contract.md`: restore summary may include bounded deferred-task hints.
