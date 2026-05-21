@@ -1,6 +1,7 @@
 import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
+  buildCompactPreservedSegmentMeta,
   buildCompactionSummaryUserText,
   fingerprintCompactBoundaryMessage,
 } from './compact'
@@ -17,8 +18,15 @@ export type FixtureRequestCollapseSummary = {
 
 export type CompressionProjectionGoldenFixture = {
   rawTranscript: PromptMessage[]
+  uiScrollback: PromptMessage[]
+  modelFacingBaseline: PromptMessage[]
   compactBoundary: PromptMessage
   compactBoundaryFingerprint: string
+  compactSummaryMessage: PromptMessage
+  toolUseMessage: PromptMessage
+  toolResultMessage: PromptMessage
+  recentUserMessage: PromptMessage
+  recentAssistantMessage: PromptMessage
   durableState: ContextProjectionDurableInputState
   requestCollapseEvent: FixtureRequestCollapseSummary
   pendingSessionMemoryRestore: SessionMemoryRestoreSummary
@@ -31,13 +39,37 @@ export function textFixtureMessage(role: 'user' | 'assistant', text: string): Pr
   }
 }
 
+function assistantToolUseFixtureMessage(id: string): PromptMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'tool_use', id, name: 'Read', input: { file_path: `/repo/${id}.ts` } }] as any,
+  }
+}
+
+function userToolResultFixtureMessage(id: string): PromptMessage {
+  return {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content: `${id} result` }] as any,
+  }
+}
+
 export function buildCompressionProjectionGoldenFixture(): CompressionProjectionGoldenFixture {
+  const compactSummaryMessage = textFixtureMessage('user', buildCompactionSummaryUserText('Fixture compact summary'))
+  const toolUseMessage = assistantToolUseFixtureMessage('golden-read-config')
+  const toolResultMessage = userToolResultFixtureMessage('golden-read-config')
+  const recentUserMessage = textFixtureMessage('user', 'recent user request')
+  const recentAssistantMessage = textFixtureMessage('assistant', 'recent assistant answer')
+  const preservedTail = [toolUseMessage, toolResultMessage, recentUserMessage, recentAssistantMessage]
   const compactBoundary = buildCompactBoundaryMessage({
     trigger: 'auto',
     triggerReason: { kind: 'auto_threshold', detail: 'used=8192 limit=7200' },
     preTokens: 8192,
     summaryKind: 'model_summary',
     keepStrategy: buildAutoCompactKeepStrategy(2),
+    preservedSegment: buildCompactPreservedSegmentMeta({
+      summaryMessage: compactSummaryMessage,
+      preservedTail,
+    }),
   })
   const compactBoundaryFingerprint = fingerprintCompactBoundaryMessage(compactBoundary)
   if (!compactBoundaryFingerprint) {
@@ -48,25 +80,32 @@ export function buildCompressionProjectionGoldenFixture(): CompressionProjection
     textFixtureMessage('user', 'pre-boundary request'),
     textFixtureMessage('assistant', 'pre-boundary answer'),
     compactBoundary,
-    textFixtureMessage('user', buildCompactionSummaryUserText('Fixture compact summary')),
-    textFixtureMessage('assistant', 'older assistant detail'),
-    textFixtureMessage('user', 'recent user request'),
-    textFixtureMessage('assistant', 'recent assistant answer'),
+    compactSummaryMessage,
+    ...preservedTail,
   ]
+  const uiScrollback = rawTranscript.filter((message) => message !== compactBoundary)
+  const modelFacingBaseline = [compactSummaryMessage, recentUserMessage, recentAssistantMessage]
 
   return {
     rawTranscript,
+    uiScrollback,
+    modelFacingBaseline,
     compactBoundary,
     compactBoundaryFingerprint,
+    compactSummaryMessage,
+    toolUseMessage,
+    toolResultMessage,
+    recentUserMessage,
+    recentAssistantMessage,
     durableState: {
       snip: {
         schemaVersion: 1,
         removals: [
           {
             kind: 'model_facing_index_range',
-            startIndex: 1,
-            endIndexExclusive: 2,
-            reason: 'golden durable snip removes older assistant detail',
+            startIndex: 2,
+            endIndexExclusive: 3,
+            reason: 'golden durable snip removes tool result so projection drops orphan tool_use',
           },
         ],
       },

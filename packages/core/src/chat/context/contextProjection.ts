@@ -5,6 +5,7 @@ import {
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
+  readCompactBoundaryMeta,
   type CompactBoundaryMeta,
 } from './compact'
 import {
@@ -177,6 +178,7 @@ export function buildContextProjection(args: {
     compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
   })
   const modelFacingBaseline = collapseProjection.messages
+  const uiScrollback = buildUiScrollback(args.history)
   const durableState = buildDurableProjectionState({
     snip: snipProjection.fact,
     collapse: collapseProjection.fact,
@@ -184,7 +186,7 @@ export function buildContextProjection(args: {
 
   return {
     rawTranscript: args.history,
-    uiScrollback: args.history,
+    uiScrollback,
     modelFacingBaseline,
     diagnosticsProjection: modelFacingBaseline,
     durableState,
@@ -200,6 +202,19 @@ export function buildContextProjection(args: {
       ],
     },
   }
+}
+
+function buildUiScrollback(history: PromptMessage[]): PromptMessage[] {
+  let filtered: PromptMessage[] | null = null
+  for (let index = 0; index < history.length; index += 1) {
+    const message = history[index]!
+    if (readCompactBoundaryMeta(message)) {
+      filtered ??= history.slice(0, index)
+      continue
+    }
+    filtered?.push(message)
+  }
+  return filtered ?? history
 }
 
 function buildDurableProjectionState(args: {

@@ -3,6 +3,7 @@ import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
   buildCompactionSummaryUserText,
+  fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
 } from './compact'
 import { CONTEXT_COLLAPSE_PREFIX, collapseRequestHistory } from './contextCollapse'
@@ -58,7 +59,12 @@ describe('context compression projection baseline', () => {
     const views = buildContextProjection({ history: rawTranscript })
 
     expect(views.rawTranscript).toBe(rawTranscript)
-    expect(views.uiScrollback).toBe(rawTranscript)
+    expect(views.uiScrollback).toEqual([
+      textMessage('user', 'pre-boundary request'),
+      textMessage('assistant', 'pre-boundary answer'),
+      textMessage('user', buildCompactionSummaryUserText('Compacted summary')),
+      textMessage('assistant', 'post-boundary answer'),
+    ])
     expect(views.modelFacingBaseline).toEqual([
       textMessage('user', buildCompactionSummaryUserText('Compacted summary')),
       textMessage('assistant', 'post-boundary answer'),
@@ -138,14 +144,38 @@ describe('context compression projection baseline', () => {
     })
 
     expect(projection.rawTranscript).toBe(fixture.rawTranscript)
-    expect(projection.uiScrollback).toBe(fixture.rawTranscript)
+    expect(projection.uiScrollback).toEqual(fixture.uiScrollback)
+    expect(projection.uiScrollback.some((message) => message.meta?.compactBoundary)).toBe(false)
     expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fixture.compactBoundaryFingerprint)
+    expect(projection.facts.latestCompactBoundary?.preservedSegment).toMatchObject({
+      schemaVersion: 1,
+      continuationMessageCount: 5,
+      preservedTailMessageCount: 4,
+      messageFingerprints: [
+        fingerprintPromptMessage(fixture.compactSummaryMessage),
+        fingerprintPromptMessage(fixture.toolUseMessage),
+        fingerprintPromptMessage(fixture.toolResultMessage),
+        fingerprintPromptMessage(fixture.recentUserMessage),
+        fingerprintPromptMessage(fixture.recentAssistantMessage),
+      ],
+    })
     expect(projection.facts.appliedDurableStages).toEqual(['snip'])
-    expect(projection.modelFacingBaseline).toEqual([
-      textMessage('user', buildCompactionSummaryUserText('Fixture compact summary')),
-      textMessage('user', 'recent user request'),
-      textMessage('assistant', 'recent assistant answer'),
-    ])
+    expect(JSON.stringify(projection.rawTranscript)).toContain('pre-boundary request')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('pre-boundary request')
+    expect(JSON.stringify(projection.rawTranscript)).toContain('"tool_use_id":"golden-read-config"')
+    expect(JSON.stringify(projection.uiScrollback)).toContain('"tool_use_id":"golden-read-config"')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('"tool_use_id":"golden-read-config"')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('"id":"golden-read-config"')
+    expect(projection.modelFacingBaseline).toEqual(fixture.modelFacingBaseline)
+    expect(projection.diagnosticsProjection).toEqual(projection.modelFacingBaseline)
+    expect(projection.durableState.snip.removedMessageCount).toBe(2)
+    expect(projection.durableState.snip.droppedOrphanToolBlockCount).toBe(1)
+    expect(projection.durableState.collapse).toMatchObject({
+      status: 'no_state',
+      applied: false,
+      committedEntryCount: 0,
+    })
+    expect(projection.durableState.toolResultContentReplacement.status).toBe('deferred')
     expect(fixture.requestCollapseEvent).toEqual({
       phase: 'initial',
       collapsedHeadMessageCount: 2,

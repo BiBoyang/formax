@@ -859,7 +859,7 @@ describe('contextDiagnostics', () => {
     expect(parsed.mode).toBe('normal')
     expect(parsed.projectionLayers).toMatchObject({
       rawTranscriptMessageCount: 1,
-      uiScrollbackMessageCount: 1,
+      uiScrollbackMessageCount: 0,
       modelFacingBaselineMessageCount: 0,
       diagnosticsProjectionMessageCount: 0,
       appliedDurableStages: [],
@@ -1102,7 +1102,7 @@ describe('contextDiagnostics', () => {
 
     expect(report).toContain('Projection layers')
     expect(report).toContain('- Raw transcript messages: 1')
-    expect(report).toContain('- UI scrollback messages: 1')
+    expect(report).toContain('- UI scrollback messages: 0')
     expect(report).toContain('- Model-facing baseline messages: 0')
     expect(report).toContain('- Diagnostics projection messages: 0')
     expect(report).toContain('- Durable stages applied: none')

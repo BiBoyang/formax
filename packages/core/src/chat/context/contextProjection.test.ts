@@ -75,7 +75,14 @@ describe('buildContextProjection', () => {
     const projection = buildContextProjection({ history })
 
     expect(projection.rawTranscript).toBe(history)
-    expect(projection.uiScrollback).toBe(history)
+    expect(projection.uiScrollback).toEqual([
+      textMessage('user', 'pre-boundary request'),
+      textMessage('user', buildCompactionSummaryUserText('first compact summary')),
+      textMessage('assistant', 'middle answer'),
+      textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
+      textMessage('user', 'post-boundary request'),
+      textMessage('assistant', 'post-boundary answer'),
+    ])
     expect(projection.modelFacingBaseline).toEqual([
       textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
       textMessage('user', 'post-boundary request'),
@@ -154,7 +161,7 @@ describe('buildContextProjection', () => {
     })
 
     expect(projection.rawTranscript).toBe(history)
-    expect(projection.uiScrollback).toBe(history)
+    expect(projection.uiScrollback).toEqual([compactSummary, olderAssistant, middleUser, recentAssistant])
     expect(projection.modelFacingBaseline).toEqual([compactSummary, recentAssistant])
     expect(projection.diagnosticsProjection).toEqual(projection.modelFacingBaseline)
     expect(projection.durableState.snip).toEqual({
@@ -310,7 +317,7 @@ describe('buildContextProjection', () => {
     })
 
     expect(projection.rawTranscript).toBe(history)
-    expect(projection.uiScrollback).toBe(history)
+    expect(projection.uiScrollback).toEqual([compactSummary, olderAssistant, olderUser, recentAssistant])
     expect(projection.modelFacingBaseline).toEqual([compactSummary, recap, recentAssistant])
     expect(JSON.stringify(projection.rawTranscript)).toContain('older assistant analysis')
     expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('older assistant analysis')
