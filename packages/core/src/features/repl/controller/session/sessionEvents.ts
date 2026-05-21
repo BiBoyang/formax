@@ -2,6 +2,12 @@ import { getClaudeMdInjectionMeta } from '../../injectedBlocks'
 import { getLocalCommandInjectionStats } from './localCommandInjection'
 import type { LocalCommandRecord } from '../../../commands/registry'
 import type { SessionWriter } from '../../sessionSave/writer'
+import {
+  CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  createContextCollapseCommittedEntry,
+  type ContextCollapseCommittedEntry,
+  type ContextCollapseCommitState,
+} from '../../../../chat/context/contextCollapseStore'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
 
@@ -54,18 +60,19 @@ export function recordClaudeMdInjectionEvent(args: {
   void args.writer?.appendEvent('claude_md_injection', meta)
 }
 
-export function recordRequestCollapseEvent(args: {
+export async function recordRequestCollapseEvent(args: {
   sessionSaveEnabled: boolean
   writer: SessionEventWriter
   phase: 'initial' | 'reactive_retry'
   collapsedHeadMessageCount: number
   estimatedTokensSaved: number
   metadata: ContextCollapseMeta | null
-}): void {
-  if (!args.sessionSaveEnabled) return
-  if (!args.metadata) return
+  commit: ContextCollapseCommitState | null
+}): Promise<ContextCollapseCommittedEntry | null> {
+  if (!args.sessionSaveEnabled) return null
+  if (!args.metadata) return null
 
-  void args.writer?.appendEvent('request_collapse_applied', {
+  await args.writer?.appendEvent('request_collapse_applied', {
     phase: args.phase,
     collapsedHeadMessageCount: args.collapsedHeadMessageCount,
     estimatedTokensSaved: args.estimatedTokensSaved,
@@ -79,6 +86,18 @@ export function recordRequestCollapseEvent(args: {
     earlierToolResultBlockCount: args.metadata.earlierToolResultBlockCount,
     recapFingerprint: args.metadata.recapFingerprint,
   })
+  if (!args.commit) return null
+  const entry = createContextCollapseCommittedEntry({
+    id: `request-collapse:${args.phase}:${args.metadata.recapFingerprint}`,
+    createdAtMs: Date.now(),
+    source: 'request_collapse',
+    collapsedRange: args.commit.collapsedRange,
+    compactBoundaryFingerprint: args.commit.compactBoundaryFingerprint,
+    recapMessage: args.commit.recapMessage,
+    metadata: args.metadata,
+  })
+  await args.writer?.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
+  return entry
 }
 
 export function recordReactiveCompactEvent(args: {

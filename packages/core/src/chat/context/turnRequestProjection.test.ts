@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildAutoCompactKeepStrategy, buildCompactBoundaryMessage, buildCompactionSummaryUserText } from './compact'
+import {
+  buildAutoCompactKeepStrategy,
+  buildCompactBoundaryMessage,
+  buildCompactionSummaryUserText,
+  fingerprintCompactBoundaryMessage,
+} from './compact'
 import { executeMiddleLayerStrategyStack } from './middleLayerStrategyStack'
 import { prepareTurnRequestProjection } from './turnRequestProjection'
 import type { PromptMessage } from '../../prompts'
@@ -124,6 +129,45 @@ describe('prepareTurnRequestProjection', () => {
       textMessage('user', buildCompactionSummaryUserText('Compacted summary')),
       textMessage('assistant', 'post-boundary answer'),
     ])
+  })
+
+  it('allows boundaryless continuation when durable collapse snapshot preserves the active compact generation', () => {
+    const compactBoundaryMessage = compactBoundary()
+    const compactBoundaryFingerprint = fingerprintCompactBoundaryMessage(compactBoundaryMessage)
+    const history: PromptMessage[] = [
+      textMessage('user', buildCompactionSummaryUserText('resumed compact summary')),
+      textMessage('assistant', 'post-resume answer'),
+    ]
+    const user = textMessage('user', 'next request')
+    vi.mocked(executeMiddleLayerStrategyStack).mockReturnValue({
+      persistedHistoryCandidate: history,
+      requestHistory: history,
+      preparedTrailingMessage: user,
+      cacheEditPlan: null,
+      facts: {},
+    } as any)
+
+    prepareTurnRequestProjection({
+      system: [],
+      history,
+      user,
+      budgetConfig: null,
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          activeCompactBoundaryFingerprint: compactBoundaryFingerprint,
+          entries: [],
+        },
+      },
+    })
+
+    expect(executeMiddleLayerStrategyStack).toHaveBeenCalledWith({
+      system: [],
+      history,
+      trailingMessage: user,
+      budgetConfig: null,
+      allowBoundarylessContinuation: true,
+    })
   })
 
   it('applies durable snip state before request-only reducers without mutating persisted history', () => {

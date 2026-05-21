@@ -2,11 +2,21 @@ import fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import {
+  findLatestCompactBoundaryIndex,
+  fingerprintCompactBoundaryMessage,
   isCompactBoundaryMessage,
   readCompactBoundaryMeta,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { ContextBudgetConfig } from '../chat/context/budget.js'
+import {
+  CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  appendContextCollapseStoreEntry,
+  createContextCollapseCommittedEntry,
+  requestHistoryContainsExactMessage,
+  setContextCollapseStoreActiveCompactBoundaryFingerprint,
+  type ContextCollapseStoreSnapshot,
+} from '../chat/context/contextCollapseStore.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
@@ -16,7 +26,12 @@ import {
   buildSystemPrompt,
   resolveSystemPromptVariant,
 } from '../prompts/index.js'
-import { findSessionFileBySessionId, readSessionFile, SessionWriter } from '../features/repl/sessionSave/index.js'
+import {
+  findSessionFileBySessionId,
+  readContextCollapseStoreSnapshotFromSession,
+  readSessionFile,
+  SessionWriter,
+} from '../features/repl/sessionSave/index.js'
 import { runCompactFlow } from '../features/repl/controller/send/compactFlow.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
 import { sourceFromInputKind } from '../shared/inputContracts.js'
@@ -243,6 +258,7 @@ export class TurnRunner {
   private readonly threadFilePathById = new Map<string, string>()
   private readonly planSessionByThreadId = new Map<string, PlanSessionManager>()
   private readonly runningByThreadId = new Map<string, RunningTurn>()
+  private readonly contextCollapseStoreByFilePath = new Map<string, ContextCollapseStoreSnapshot>()
   private readonly autoTitleAttemptedThreadIds = new Set<string>()
   private readonly autoTitleCheckedTopicPromptKeys = new Set<string>()
 
@@ -265,6 +281,31 @@ export class TurnRunner {
     )
     this.ensureThreadFilePath = args.ensureThreadFilePath
     this.runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(this.env ?? process.env)
+  }
+
+  private async getContextCollapseStoreSnapshot(filePath: string): Promise<ContextCollapseStoreSnapshot> {
+    const cached = this.contextCollapseStoreByFilePath.get(filePath)
+    if (cached) return cached
+    const snapshot = await readContextCollapseStoreSnapshotFromSession({ filePath }).catch(() => ({
+      schemaVersion: 1 as const,
+      activeCompactBoundaryFingerprint: null,
+      entries: [],
+    }))
+    this.contextCollapseStoreByFilePath.set(filePath, snapshot)
+    return snapshot
+  }
+
+  private updateContextCollapseStoreActiveGeneration(filePath: string, history: ChatHistory): void {
+    const boundaryIndex = findLatestCompactBoundaryIndex(history)
+    const activeCompactBoundaryFingerprint =
+      boundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(history[boundaryIndex]!) : null
+    this.contextCollapseStoreByFilePath.set(
+      filePath,
+      setContextCollapseStoreActiveCompactBoundaryFingerprint({
+        snapshot: this.contextCollapseStoreByFilePath.get(filePath) ?? null,
+        activeCompactBoundaryFingerprint,
+      }),
+    )
   }
 
   getPlanPath(threadId: string): string | null {
@@ -440,6 +481,7 @@ export class TurnRunner {
       })
       const replay = await readSessionFile(running.filePath)
       const history = replay.history
+      const initialCollapseStoreSnapshot = await this.getContextCollapseStoreSnapshot(running.filePath)
 
       const userMsg: Msg = {
         id: `user-${Date.now()}-${running.turnId}`,
@@ -675,12 +717,22 @@ export class TurnRunner {
           history,
           user,
           budgetConfig: promptBudget,
+          durableState: {
+            collapse: initialCollapseStoreSnapshot,
+          },
           enableCacheEditing: cacheEditingEnabled,
           enableTimeBasedMicroCompact: cacheEditingEnabled,
         })
         const executionHistory = prepared.persistedHistory as ChatHistory
         const executionRequestHistory = prepared.requestHistory as ChatHistory
         const executionUser = prepared.requestUser as typeof user
+        const collapseFact = prepared.strategyFacts.collapse
+        const collapseCompactBoundaryFingerprint =
+          prepared.contextProjection.durableState.collapse.compactBoundaryFingerprint
+        const collapseRecapMessage = prepared.stack.collapsedHistory[0]
+        const collapseRecapSurvivedRequestProjection = collapseRecapMessage
+          ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: collapseRecapMessage })
+          : false
 
         await this.consumePendingInjectedBlocksForDispatch(running)
         const nextHistory = await this.engine.runTurn({
@@ -713,6 +765,32 @@ export class TurnRunner {
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
         }
+        if (
+          collapseFact.applied &&
+          collapseFact.metadata &&
+          collapseCompactBoundaryFingerprint &&
+          collapseRecapMessage &&
+          collapseRecapSurvivedRequestProjection
+        ) {
+          const entry = createContextCollapseCommittedEntry({
+            id: `request-collapse:app-server:${collapseFact.metadata.recapFingerprint}`,
+            createdAtMs: Date.now(),
+            source: 'request_collapse',
+            collapsedRange: {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
+            },
+            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
+            recapMessage: collapseRecapMessage,
+            metadata: collapseFact.metadata,
+          })
+          await writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
+          this.contextCollapseStoreByFilePath.set(running.filePath, appendContextCollapseStoreEntry({
+            snapshot: this.contextCollapseStoreByFilePath.get(running.filePath) ?? initialCollapseStoreSnapshot,
+            entry,
+          }))
+        }
         nextHistoryForSnapshot =
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0
             ? stripInjectedBlocksFromHistory(
@@ -736,6 +814,7 @@ export class TurnRunner {
         })
       }
       await writer.appendHistorySnapshot(historyForSnapshot)
+      this.updateContextCollapseStoreActiveGeneration(running.filePath, historyForSnapshot)
       const firstUserPrompt = firstUserPromptFromHistory(history) ?? running.inputText
       const uiMsgCount = historyForSnapshot.filter((message) => {
         if (isCompactBoundaryMessage(message)) return false

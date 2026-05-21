@@ -11,7 +11,9 @@ import type { PlanSessionManager } from '../planSession'
 import type { RuntimeFlags } from '../../../config/runtimeFlags'
 import type { UserInputManager } from '../../../tools/runtime/userInputManager'
 import type { CompactLifecycleEvent } from './send/compactFlow'
+import type { RequestCollapseCommitState } from './send/contextCompressionService'
 import type { ContextCollapseMeta } from '../../../chat/context/contextCollapse'
+import type { ContextCollapseStoreSnapshot } from '../../../chat/context/contextCollapseStore'
 import type { ReactiveCompactErrorKind } from './send/reactiveCompact'
 import type { CanonicalEvent } from '../../semantics/core'
 import type { TranscriptProjectionState } from '../../semantics/projection'
@@ -165,6 +167,7 @@ export type SendFlowRefs = {
   autoCompactSeqRef: { current: number }
   reminderServiceRef: { current: ReminderService | null }
   getSessionFilePath?: () => string | null
+  getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
   canonicalTurnIdRef: { current: string | null }
   claudeMdMetaSigRef: { current: string | null }
 }
@@ -191,7 +194,8 @@ export type SendFlowCallbacks = {
     collapsedHeadMessageCount: number
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
-  }) => void
+    commit: RequestCollapseCommitState | null
+  }) => void | Promise<void>
   onReactiveCompact?: (event: {
     triggerKind: ReactiveCompactErrorKind
     triggerDetail: string
@@ -390,6 +394,7 @@ export async function runSendAction(args: {
       autoCompactSeqRef: args.refs.autoCompactSeqRef,
       reminderServiceRef: args.refs.reminderServiceRef,
       getSessionFilePath: () => args.refs.sessionWriterRef.current?.filePath ?? null,
+      getContextCollapseStoreSnapshot: args.refs.getContextCollapseStoreSnapshot,
     },
     canonical: {
       turnIdRef: args.refs.canonicalTurnIdRef,

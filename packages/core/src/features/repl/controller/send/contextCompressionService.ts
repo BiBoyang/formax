@@ -24,6 +24,11 @@ import {
   type SessionMemoryDraft,
 } from '../../../../chat/context/sessionMemory'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import {
+  requestHistoryContainsExactMessage,
+  type ContextCollapseCommitState,
+  type ContextCollapseStoreSnapshot,
+} from '../../../../chat/context/contextCollapseStore'
 import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
@@ -31,6 +36,7 @@ import type { ReplMode } from '../../mode'
 import { waitForRollingSessionMemoryFlush } from '../shared/sessionMemoryFlush'
 import { countNonToolUserTurns } from '../shared/utils'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
+import { readContextCollapseStoreSnapshotFromSession } from '../../sessionSave/contextCollapseStoreEvents'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 export type EstimatedContextState = {
@@ -45,7 +51,9 @@ export type RequestCollapseState = {
   collapsedHeadMessageCount: number
   estimatedTokensSaved: number
   metadata: ContextCollapseMeta | null
+  commit: ContextCollapseCommitState | null
 }
+export type RequestCollapseCommitState = ContextCollapseCommitState
 
 export type ReactiveCompactState = {
   applied: boolean
@@ -67,6 +75,7 @@ export function createContextCompressionService(deps: {
   handleEvent?: (ev: StreamEvent) => void
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   getSessionFilePath?: () => string | null
+  getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
   readSessionMemoryFile?: (sessionFilePath: string) => Promise<SessionMemoryDraft | null>
   waitForSessionMemoryFlush?: (sessionFilePath: string) => Promise<void>
 }) {
@@ -83,6 +92,36 @@ export function createContextCompressionService(deps: {
       baseUrl: deps.cfg.llm.baseUrl,
     })
 
+  let fallbackCollapseStoreFilePath: string | null = null
+  let fallbackCollapseStoreSnapshot: ContextCollapseStoreSnapshot | null = null
+  let fallbackCollapseStoreLoading: Promise<ContextCollapseStoreSnapshot | null> | null = null
+
+  const getFallbackContextCollapseStoreSnapshot = async (): Promise<ContextCollapseStoreSnapshot | null> => {
+    const sessionFilePath = deps.getSessionFilePath?.() ?? null
+    if (!sessionFilePath) {
+      fallbackCollapseStoreFilePath = null
+      fallbackCollapseStoreSnapshot = null
+      fallbackCollapseStoreLoading = null
+      return null
+    }
+    if (fallbackCollapseStoreFilePath === sessionFilePath && fallbackCollapseStoreSnapshot) {
+      return fallbackCollapseStoreSnapshot
+    }
+    if (fallbackCollapseStoreFilePath === sessionFilePath && fallbackCollapseStoreLoading) {
+      return fallbackCollapseStoreLoading
+    }
+    fallbackCollapseStoreFilePath = sessionFilePath
+    fallbackCollapseStoreLoading = readContextCollapseStoreSnapshotFromSession({ filePath: sessionFilePath }).catch(
+      () => null,
+    )
+    const snapshot = await fallbackCollapseStoreLoading
+    if (fallbackCollapseStoreFilePath === sessionFilePath) {
+      fallbackCollapseStoreSnapshot = snapshot
+      fallbackCollapseStoreLoading = null
+    }
+    return snapshot
+  }
+
   const runCanonicalMiddleLayerStack = (args: {
     system: PromptBlock[]
     history: ChatHistory
@@ -97,20 +136,27 @@ export function createContextCompressionService(deps: {
       enableCacheEditing: isCacheEditingEnabled(),
     })
 
-  const prepareCanonicalTurnProjection = (args: {
+  const prepareCanonicalTurnProjection = async (args: {
     system: PromptBlock[]
     history: ChatHistory
     contextWindowTokens: number | undefined
     user: PromptMessage
-  }) =>
-    prepareTurnRequestProjection({
+  }) => {
+    const collapseSnapshot = deps.getContextCollapseStoreSnapshot
+      ? await deps.getContextCollapseStoreSnapshot()
+      : await getFallbackContextCollapseStoreSnapshot()
+    return prepareTurnRequestProjection({
       system: args.system,
       history: args.history,
       user: args.user,
       budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+      durableState: {
+        collapse: collapseSnapshot,
+      },
       enableCacheEditing: isCacheEditingEnabled(),
       enableTimeBasedMicroCompact: isCacheEditingEnabled(),
     })
+  }
 
   const estimateContext = (args: {
     system: PromptBlock[]
@@ -128,6 +174,39 @@ export function createContextCompressionService(deps: {
       limitTokens: stats.effectiveLimitTokens,
       percentRemaining: stats.percentRemaining,
       source: 'estimate',
+    }
+  }
+
+  const buildRequestCollapseState = (prepared: ReturnType<typeof prepareTurnRequestProjection>): RequestCollapseState => {
+    const collapseFact = prepared.strategyFacts.collapse
+    const compactBoundaryFingerprint = prepared.contextProjection.durableState.collapse.compactBoundaryFingerprint
+    const recapMessage = prepared.stack.collapsedHistory[0] ?? null
+    const recapSurvivedRequestProjection = recapMessage
+      ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: recapMessage })
+      : false
+    const commit =
+      collapseFact.applied &&
+      collapseFact.metadata &&
+      compactBoundaryFingerprint &&
+      recapMessage &&
+      recapSurvivedRequestProjection
+        ? {
+            collapsedRange: {
+              kind: 'model_facing_index_range' as const,
+              startIndex: 0,
+              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
+            },
+            compactBoundaryFingerprint,
+            recapMessage,
+          }
+        : null
+
+    return {
+      applied: collapseFact.applied,
+      collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
+      estimatedTokensSaved: collapseFact.estimatedTokensSaved,
+      metadata: collapseFact.metadata,
+      commit,
     }
   }
 
@@ -245,7 +324,7 @@ export function createContextCompressionService(deps: {
       autoCompacted: boolean
       showAutoCompactNotice: boolean
     }> {
-      let prepared = prepareCanonicalTurnProjection({
+      let prepared = await prepareCanonicalTurnProjection({
         system: args.system,
         history: args.history,
         user: args.user,
@@ -309,7 +388,7 @@ export function createContextCompressionService(deps: {
                 })
               ).compactedHistory
 
-            prepared = prepareCanonicalTurnProjection({
+            prepared = await prepareCanonicalTurnProjection({
               system: args.system,
               history: compactedHistory,
               user: args.user,
@@ -331,12 +410,7 @@ export function createContextCompressionService(deps: {
         history: persistedHistoryCandidate,
         requestHistory: prepared.requestHistory,
         cacheEditPlan: prepared.cacheEditPlan,
-        collapseState: {
-          applied: prepared.strategyFacts.collapse.applied,
-          collapsedHeadMessageCount: prepared.strategyFacts.collapse.collapsedHeadMessageCount,
-          estimatedTokensSaved: prepared.strategyFacts.collapse.estimatedTokensSaved,
-          metadata: prepared.strategyFacts.collapse.metadata,
-        },
+        collapseState: buildRequestCollapseState(prepared),
         strategyFacts: prepared.strategyFacts,
         user: preparedUser,
         context: estimateContext({
@@ -474,7 +548,7 @@ export function createContextCompressionService(deps: {
           })
         ).compactedHistory
 
-      const prepared = prepareCanonicalTurnProjection({
+      const prepared = await prepareCanonicalTurnProjection({
         system: args.system,
         history: compactedHistory,
         user: args.user,
@@ -487,12 +561,7 @@ export function createContextCompressionService(deps: {
         history: persistedHistoryCandidate,
         requestHistory: prepared.requestHistory,
         cacheEditPlan: prepared.cacheEditPlan,
-        collapseState: {
-          applied: prepared.strategyFacts.collapse.applied,
-          collapsedHeadMessageCount: prepared.strategyFacts.collapse.collapsedHeadMessageCount,
-          estimatedTokensSaved: prepared.strategyFacts.collapse.estimatedTokensSaved,
-          metadata: prepared.strategyFacts.collapse.metadata,
-        },
+        collapseState: buildRequestCollapseState(prepared),
         strategyFacts: prepared.strategyFacts,
         reactiveCompactState: {
           applied: true,

@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { ChatEngine } from '../../../../chat/engine'
+import type { ContextCollapseStoreSnapshot } from '../../../../chat/context/contextCollapseStore'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -14,6 +15,7 @@ import { applyProviderErrorToState } from '../shared'
 import { resolvePreMainSendRouting } from './sendPreMainRouting'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { RequestCollapseCommitState } from './contextCompressionService'
 import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import { createMainTurnExecutionContext } from './sendMainTurnContext'
 import { runMainSendTurn } from './sendMainTurn'
@@ -48,6 +50,7 @@ type RunReplModelSendFlowArgs = {
     autoCompactSeqRef: { current: number }
     reminderServiceRef: { current: ReminderService | null }
     getSessionFilePath?: () => string | null
+    getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
   }
   canonical: {
     turnIdRef: { current: string | null }
@@ -66,7 +69,8 @@ type RunReplModelSendFlowArgs = {
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
-    }) => void
+      commit: RequestCollapseCommitState | null
+    }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
       triggerDetail: string
@@ -154,6 +158,7 @@ export async function runReplModelSendFlow(args: RunReplModelSendFlowArgs): Prom
     onRequestCollapse: args.callbacks.onRequestCollapse,
     onReactiveCompact: args.callbacks.onReactiveCompact,
     getSessionFilePath: args.turnRefs.getSessionFilePath,
+    getContextCollapseStoreSnapshot: args.turnRefs.getContextCollapseStoreSnapshot,
   })
   try {
     const runResult = await runMainSendTurn({

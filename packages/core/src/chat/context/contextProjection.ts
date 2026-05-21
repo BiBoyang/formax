@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto'
 import {
   findLatestCompactBoundary,
+  findLatestCompactBoundaryIndex,
+  fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
   type CompactBoundaryMeta,
 } from './compact'
+import {
+  buildContextCollapseStoreSnapshot,
+  type ContextCollapseCommittedEntry,
+  type ContextCollapseStoreSnapshot,
+} from './contextCollapseStore'
 import { dropOrphanToolBlocks } from './toolPairProjection'
 import type { PromptMessage } from '../../prompts'
 
@@ -44,9 +51,18 @@ export type DurableSnipProjectionFact = DurableProjectionStageFact & {
   removals: DurableSnipRemoval[]
 }
 
+export type DurableCollapseProjectionFact = DurableProjectionStageFact & {
+  stage: 'collapse'
+  status: 'no_state' | 'active'
+  committedEntryCount: number
+  replacedMessageCount: number
+  droppedOrphanToolBlockCount: number
+  compactBoundaryFingerprint: string | null
+}
+
 export type ContextProjectionDurableState = {
   snip: DurableSnipProjectionFact
-  collapse: DurableProjectionStageFact & { stage: 'collapse'; status: 'no_state' }
+  collapse: DurableCollapseProjectionFact
   toolResultContentReplacement: DurableProjectionStageFact & {
     stage: 'tool_result_content_replacement'
     status: 'deferred'
@@ -55,12 +71,13 @@ export type ContextProjectionDurableState = {
 
 export type ContextProjectionDurableInputState = {
   snip?: DurableSnipState | null
-  collapse?: null
+  collapse?: ContextCollapseStoreSnapshot | null
   toolResultContentReplacement?: null
 }
 
 export type ContextProjectionFacts = {
   latestCompactBoundary: CompactBoundaryMeta | null
+  activeCompactBoundaryFingerprint: string | null
   rawTranscriptMessageCount: number
   modelFacingBaselineMessageCount: number
   modelFacingBaselineFingerprint: string
@@ -80,13 +97,26 @@ export function buildContextProjection(args: {
   history: PromptMessage[]
   durableState?: ContextProjectionDurableInputState
 }): ContextProjection {
+  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
+  const latestCompactBoundaryFingerprint =
+    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
+  const activeCompactBoundaryFingerprint =
+    latestCompactBoundaryFingerprint ?? args.durableState?.collapse?.activeCompactBoundaryFingerprint ?? null
   const compactBoundaryBaseline = getContinuationMessagesAfterLatestCompactBoundary(args.history)
   const snipProjection = applyDurableSnipProjection({
     messages: compactBoundaryBaseline,
     state: args.durableState?.snip ?? null,
   })
-  const modelFacingBaseline = snipProjection.messages
-  const durableState = buildDurableProjectionState({ snip: snipProjection.fact })
+  const collapseProjection = applyDurableCollapseProjection({
+    messages: snipProjection.messages,
+    snapshot: args.durableState?.collapse ?? null,
+    compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+  })
+  const modelFacingBaseline = collapseProjection.messages
+  const durableState = buildDurableProjectionState({
+    snip: snipProjection.fact,
+    collapse: collapseProjection.fact,
+  })
 
   return {
     rawTranscript: args.history,
@@ -96,23 +126,25 @@ export function buildContextProjection(args: {
     durableState,
     facts: {
       latestCompactBoundary: findLatestCompactBoundary(args.history),
+      activeCompactBoundaryFingerprint,
       rawTranscriptMessageCount: args.history.length,
       modelFacingBaselineMessageCount: modelFacingBaseline.length,
       modelFacingBaselineFingerprint: fingerprintPromptMessages(modelFacingBaseline),
-      appliedDurableStages: snipProjection.fact.applied ? ['snip'] : [],
+      appliedDurableStages: [
+        ...(snipProjection.fact.applied ? (['snip'] as const) : []),
+        ...(collapseProjection.fact.applied ? (['collapse'] as const) : []),
+      ],
     },
   }
 }
 
-function buildDurableProjectionState(args: { snip: DurableSnipProjectionFact }): ContextProjectionDurableState {
+function buildDurableProjectionState(args: {
+  snip: DurableSnipProjectionFact
+  collapse: DurableCollapseProjectionFact
+}): ContextProjectionDurableState {
   return {
     snip: args.snip,
-    collapse: {
-      stage: 'collapse',
-      status: 'no_state',
-      applied: false,
-      reason: 'durable collapse projection is not implemented yet',
-    },
+    collapse: args.collapse,
     toolResultContentReplacement: {
       stage: 'tool_result_content_replacement',
       status: 'deferred',
@@ -120,6 +152,93 @@ function buildDurableProjectionState(args: { snip: DurableSnipProjectionFact }):
       reason: 'Claude Code-style durable tool-result content replacement is deferred',
     },
   }
+}
+
+function applyDurableCollapseProjection(args: {
+  messages: PromptMessage[]
+  snapshot: ContextCollapseStoreSnapshot | null
+  compactBoundaryFingerprint: string | null
+}): { messages: PromptMessage[]; fact: DurableCollapseProjectionFact } {
+  const snapshot = args.snapshot ? buildContextCollapseStoreSnapshot({ entries: args.snapshot.entries }) : null
+  const snapshotEntries = snapshot?.entries ?? []
+  const entries = args.compactBoundaryFingerprint
+    ? snapshotEntries.filter((entry) => entry.compactBoundaryFingerprint === args.compactBoundaryFingerprint)
+    : []
+  if (entries.length === 0) {
+    return {
+      messages: args.messages,
+      fact: {
+        stage: 'collapse',
+        status: 'no_state',
+        applied: false,
+        reason: 'no durable collapse state',
+        committedEntryCount: snapshotEntries.length,
+        replacedMessageCount: 0,
+        droppedOrphanToolBlockCount: 0,
+        compactBoundaryFingerprint: args.compactBoundaryFingerprint,
+      },
+    }
+  }
+
+  let messages = args.messages.slice()
+  let appliedEntryCount = 0
+  let replacedMessageCount = 0
+  let droppedOrphanToolBlockCount = 0
+
+  for (const entry of entries) {
+    const normalized = normalizeCollapseEntryRange({ entry, messageCount: messages.length })
+    if (!normalized) continue
+    const replacedMessages = [
+      ...messages.slice(0, normalized.startIndex),
+      entry.recapMessage,
+      ...messages.slice(normalized.endIndexExclusive),
+    ]
+    const relinked = dropOrphanToolBlocks(replacedMessages)
+    messages = relinked.messages
+    appliedEntryCount += 1
+    replacedMessageCount += normalized.endIndexExclusive - normalized.startIndex
+    droppedOrphanToolBlockCount += relinked.droppedOrphanToolBlockCount
+  }
+
+  if (appliedEntryCount === 0) {
+    return {
+      messages: args.messages,
+      fact: {
+        stage: 'collapse',
+        status: 'no_state',
+        applied: false,
+        reason: 'durable collapse state removed no messages',
+        committedEntryCount: entries.length,
+        replacedMessageCount: 0,
+        droppedOrphanToolBlockCount: 0,
+        compactBoundaryFingerprint: args.compactBoundaryFingerprint,
+      },
+    }
+  }
+
+  return {
+    messages,
+    fact: {
+      stage: 'collapse',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable collapse commits',
+      committedEntryCount: appliedEntryCount,
+      replacedMessageCount,
+      droppedOrphanToolBlockCount,
+      compactBoundaryFingerprint: args.compactBoundaryFingerprint,
+    },
+  }
+}
+
+function normalizeCollapseEntryRange(args: {
+  entry: ContextCollapseCommittedEntry
+  messageCount: number
+}): { startIndex: number; endIndexExclusive: number } | null {
+  const startIndex = Math.max(0, args.entry.collapsedRange.startIndex)
+  const endIndexExclusive = Math.min(args.messageCount, args.entry.collapsedRange.endIndexExclusive)
+  if (startIndex >= endIndexExclusive) return null
+  return { startIndex, endIndexExclusive }
 }
 
 function applyDurableSnipProjection(args: {

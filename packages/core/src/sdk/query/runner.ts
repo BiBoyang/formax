@@ -9,6 +9,14 @@ import type { ContextBudgetConfig } from '../../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../../chat/context/cacheEditing.js'
+import {
+  CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  appendContextCollapseStoreEntry,
+  createContextCollapseCommittedEntry,
+  requestHistoryContainsExactMessage,
+  type ContextCollapseStoreSnapshot,
+} from '../../chat/context/contextCollapseStore.js'
+import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionSave/contextCollapseStoreEvents.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'
@@ -1423,6 +1431,9 @@ async function* runQuery(
       const injectedPromptBlocks = [...resumeInjectedPromptBlocks, ...toolExposure.injectedPromptBlocks]
       const outputMaxRetries =
         outputFormat?.type === 'json_schema' ? Math.max(0, outputFormat.maxRetries ?? 0) : 0
+      let collapseStoreSnapshot: ContextCollapseStoreSnapshot | null = resumeResolution.sessionFilePath
+        ? await readContextCollapseStoreSnapshotFromSession({ filePath: resumeResolution.sessionFilePath }).catch(() => null)
+        : null
       let currentHistory = history
       let currentPrompt = normalizedPrompt.prompt
       let lastStructuredValidationError: string | null = null
@@ -1439,6 +1450,9 @@ async function* runQuery(
           history: currentHistory,
           user: userForTurn,
           budgetConfig: promptBudget,
+          durableState: {
+            collapse: collapseStoreSnapshot,
+          },
           enableCacheEditing: isAnthropicCacheEditingEnabled({
             provider: runtime.cfg.llm.provider,
             baseUrl: runtime.cfg.llm.baseUrl,
@@ -1448,6 +1462,13 @@ async function* runQuery(
         const executionHistory = parsePromptHistory(prepared.persistedHistory)
         const executionRequestHistory = parsePromptHistory(prepared.requestHistory)
         const requestUserForTurn = parsePromptHistory([prepared.requestUser])[0] ?? userForTurn
+        const collapseFact = prepared.strategyFacts.collapse
+        const collapseCompactBoundaryFingerprint =
+          prepared.contextProjection.durableState.collapse.compactBoundaryFingerprint
+        const collapseRecapMessage = prepared.stack.collapsedHistory[0]
+        const collapseRecapSurvivedRequestProjection = collapseRecapMessage
+          ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: collapseRecapMessage })
+          : false
         const nextHistoryRaw = await runtime.engine.runTurn({
           history: executionHistory,
           requestHistory: executionRequestHistory,
@@ -1473,6 +1494,30 @@ async function* runQuery(
               : {}),
           },
         })
+        if (
+          sessionPersistence &&
+          collapseFact.applied &&
+          collapseFact.metadata &&
+          collapseCompactBoundaryFingerprint &&
+          collapseRecapMessage &&
+          collapseRecapSurvivedRequestProjection
+        ) {
+          const entry = createContextCollapseCommittedEntry({
+            id: `request-collapse:sdk:${collapseFact.metadata.recapFingerprint}`,
+            createdAtMs: Date.now(),
+            source: 'request_collapse',
+            collapsedRange: {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
+            },
+            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
+            recapMessage: collapseRecapMessage,
+            metadata: collapseFact.metadata,
+          })
+          await sessionPersistence.writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
+          collapseStoreSnapshot = appendContextCollapseStoreEntry({ snapshot: collapseStoreSnapshot, entry })
+        }
         nextHistory = stripInjectedBlocksFromHistory(
           parsePromptHistory(nextHistoryRaw),
           executionHistory.length,

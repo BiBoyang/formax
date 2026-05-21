@@ -1,4 +1,5 @@
 import type { ChatEngine } from '../../../../chat/engine'
+import type { ContextCollapseStoreSnapshot } from '../../../../chat/context/contextCollapseStore'
 import type { RuntimeConfig } from '../../../../config/config'
 import type { RuntimeFlags } from '../../../../config/runtimeFlags'
 import type { StreamEvent } from '../../../../streaming/types'
@@ -8,6 +9,7 @@ import type { PlanSessionManager } from '../../planSession'
 import type { ReminderService } from '../../reminders/ReminderService'
 import type { CompactLifecycleEvent } from './compactFlow'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type { RequestCollapseCommitState } from './contextCompressionService'
 import type { ReactiveCompactErrorKind } from './reactiveCompact'
 import type { ReplModeAccess, SendTurnSharedRefs } from './sendTypes'
 
@@ -33,13 +35,15 @@ type MainTurnContextArgs = {
     collapsedHeadMessageCount: number
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
-  }) => void) | undefined
+    commit: RequestCollapseCommitState | null
+  }) => void | Promise<void>) | undefined
   onReactiveCompact?: ((event: {
     triggerKind: ReactiveCompactErrorKind
     triggerDetail: string
     strategy: 'session_memory' | 'model_summary'
   }) => void) | undefined
   getSessionFilePath?: () => string | null
+  getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
 }
 
 export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
@@ -67,13 +71,15 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
-    }) => void
+      commit: RequestCollapseCommitState | null
+    }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
       triggerDetail: string
       strategy: 'session_memory' | 'model_summary'
     }) => void
     getSessionFilePath?: () => string | null
+    getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
   }
 } {
   return {
@@ -99,6 +105,7 @@ export function createMainTurnExecutionContext(args: MainTurnContextArgs): {
       onRequestCollapse: args.onRequestCollapse,
       onReactiveCompact: args.onReactiveCompact,
       getSessionFilePath: args.getSessionFilePath,
+      getContextCollapseStoreSnapshot: args.getContextCollapseStoreSnapshot,
     },
   }
 }

@@ -120,7 +120,7 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
-- `packages/core/src/chat/context/contextProjection.ts`：architecture parity 主线的 durable projection owner；当前把 raw transcript、UI scrollback、latest compact continuation 的 model-facing baseline、durable snip state replay、diagnostics projection、durable collapse/content-replacement 占位 facts 收敛到一个入口，不迁移现有 request-only snip reducer 启发式
+- `packages/core/src/chat/context/contextProjection.ts`：architecture parity 主线的 durable projection owner；当前把 raw transcript、UI scrollback、latest compact continuation 的 model-facing baseline、durable snip state replay、durable collapse store replay、diagnostics projection、content-replacement 占位 facts 收敛到一个入口，不迁移现有 request-only reducer 启发式
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> snip -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
 - `packages/core/src/chat/context/turnRequestProjection.ts`：app-server / SDK 共享的 runtime request projection adapter，先通过 `buildContextProjection()` 生成 model-facing baseline，再进入 request-only reducers；返回时把 persisted `history`、request-only `requestHistory`、以及可能被 terminal prune 改写的 `requestUser` 分开
 - `packages/core/src/chat/context/toolResultBudget.ts`：独立的 request-time tool-result budget replacement 策略（`CCA-141` 起点；只改 request projection，不改 persisted `history`）
@@ -133,7 +133,7 @@ Formax 的“上下文管理”分两条线：
 ### 想改“request-time context collapse（P2.5 / MVP）”
 
 - `packages/core/src/chat/context/contextCollapse.ts`：`collapseRequestHistory()`（当前是保守 MVP，只在已有 latest compact boundary 时尝试把 continuation 头部折叠成 request-only recap）
-- `packages/core/src/chat/context/contextCollapseStore.ts`：durable context-collapse migration 的 committed entry / snapshot schema；先定义可 replay 的 store 形状，后续再接 projection owner
+- `packages/core/src/chat/context/contextCollapseStore.ts`：durable context-collapse migration 的 committed entry / snapshot schema；entry 带 compact-boundary generation fingerprint，projection replay 只应用当前 generation 的 commit，避免 compact 后旧 recap 误改新 baseline
 - `packages/core/src/chat/context/contextCollapse.test.ts`：单测覆盖（无 boundary 不生效、collapse recap 生成、最小节省阈值）
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前接线点（只改 `requestHistory`，不改 persisted `history`）
 - `packages/core/src/features/repl/controller/session/useSessionEventRecorders.ts`：当前最小 runtime 消费点（真实模型请求若用了 request-time collapse，会追加 `request_collapse_applied` session event）

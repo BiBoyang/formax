@@ -39,7 +39,7 @@ export function prepareTurnRequestProjection(args: {
     history: contextProjection.modelFacingBaseline,
     trailingMessage: args.user,
     budgetConfig: args.budgetConfig,
-    ...(contextProjection.facts.latestCompactBoundary ? { allowBoundarylessContinuation: true } : {}),
+    ...(contextProjection.facts.activeCompactBoundaryFingerprint ? { allowBoundarylessContinuation: true } : {}),
     ...(args.enableCacheEditing !== undefined ? { enableCacheEditing: args.enableCacheEditing } : {}),
     ...(args.enableTimeBasedMicroCompact !== undefined
       ? { enableTimeBasedMicroCompact: args.enableTimeBasedMicroCompact }

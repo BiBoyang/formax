@@ -677,6 +677,16 @@ export function fingerprintPromptMessage(message: PromptMessage): string {
   return createHash('sha1').update(normalized).digest('hex').slice(0, 16)
 }
 
+export function fingerprintCompactBoundaryMessage(message: PromptMessage): string | null {
+  const compactBoundary = readCompactBoundaryMeta(message)
+  if (!compactBoundary) return null
+  const normalized = JSON.stringify({
+    role: message.role,
+    compactBoundary,
+  })
+  return createHash('sha1').update(normalized).digest('hex').slice(0, 16)
+}
+
 function estimateHistoryTokens(messages: PromptMessage[]): number {
   if (messages.length === 0) return 0
   return estimatePromptTokens({

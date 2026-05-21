@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { randomUUID } from 'node:crypto'
 import type { ChatEngine, ChatHistory } from '../../chat/engine'
+import {
+  appendContextCollapseStoreEntry,
+  type ContextCollapseCommittedEntry,
+  type ContextCollapseStoreSnapshot,
+} from '../../chat/context/contextCollapseStore'
 import type { ToolDefinition } from '../../tools/types'
 import type { RuntimeConfig } from '../../config/config'
 import type { Msg } from '../../shared/toolMessageTypes'
@@ -56,6 +61,7 @@ import {
 import type { CanonicalEvent } from '../semantics/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
+import { readContextCollapseStoreSnapshotFromSession } from './sessionSave/contextCollapseStoreEvents'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
 import { getDeferredToolExposureStore } from '../../tools/runtime/deferredToolExposure'
 import type { SubAgentListItem } from '../subagents/types.js'
@@ -205,6 +211,11 @@ export function useReplController(deps: {
 
   const sessionSaveEnabled = runtimeFlags.sessionSaveEnabled
   const userInput = useUserInputManager()
+  const contextCollapseStoreCacheRef = useRef<{
+    filePath: string | null
+    snapshot: ContextCollapseStoreSnapshot | null
+    loading: Promise<ContextCollapseStoreSnapshot | null> | null
+  }>({ filePath: null, snapshot: null, loading: null })
   const { shutdownSessionWriter, ensureSessionWriter } = useSessionWriterLifecycle({
     sessionSaveEnabled,
     cwd: runtimeCwd,
@@ -227,7 +238,46 @@ export function useReplController(deps: {
   useEffect(() => {
     initialSessionFilePathRef.current = deps.initialSession?.filePath
     historySnapshotBaseRef.current = deps.initialSession?.replayHistory ?? null
+    contextCollapseStoreCacheRef.current = { filePath: null, snapshot: null, loading: null }
   }, [deps.initialSession?.filePath, deps.initialSession?.replayHistory])
+
+  const getContextCollapseStoreSnapshot = useCallback(async (): Promise<ContextCollapseStoreSnapshot | null> => {
+    const filePath = sessionWriterRef.current?.filePath ?? initialSessionFilePathRef.current ?? null
+    if (!filePath) {
+      contextCollapseStoreCacheRef.current = { filePath: null, snapshot: null, loading: null }
+      return null
+    }
+
+    const cached = contextCollapseStoreCacheRef.current
+    if (cached.filePath === filePath && cached.snapshot) return cached.snapshot
+    if (cached.filePath === filePath && cached.loading) return cached.loading
+
+    const loading = readContextCollapseStoreSnapshotFromSession({ filePath }).catch(() => null)
+    contextCollapseStoreCacheRef.current = { filePath, snapshot: null, loading }
+    const snapshot = await loading
+    if (
+      contextCollapseStoreCacheRef.current.filePath === filePath &&
+      contextCollapseStoreCacheRef.current.loading === loading
+    ) {
+      contextCollapseStoreCacheRef.current = { filePath, snapshot, loading: null }
+    }
+    return contextCollapseStoreCacheRef.current.filePath === filePath
+      ? contextCollapseStoreCacheRef.current.snapshot
+      : snapshot
+  }, [initialSessionFilePathRef, sessionWriterRef])
+
+  const onContextCollapseCommitted = useCallback((entry: ContextCollapseCommittedEntry) => {
+    const filePath = sessionWriterRef.current?.filePath ?? initialSessionFilePathRef.current ?? null
+    if (!filePath) return
+    const cached = contextCollapseStoreCacheRef.current.filePath === filePath
+      ? contextCollapseStoreCacheRef.current.snapshot
+      : null
+    contextCollapseStoreCacheRef.current = {
+      filePath,
+      snapshot: appendContextCollapseStoreEntry({ snapshot: cached, entry }),
+      loading: null,
+    }
+  }, [initialSessionFilePathRef, sessionWriterRef])
 
   const { closeConfigDialogWithInjection } = useConfigDialogInjection({
     closeConfigDialog,
@@ -246,6 +296,7 @@ export function useReplController(deps: {
   } = useSessionEventRecorders({
     sessionSaveEnabled,
     writerRef: sessionWriterRef,
+    onContextCollapseCommitted,
   })
 
   const {
@@ -510,6 +561,7 @@ export function useReplController(deps: {
           autoCompactSeqRef: runtimeStateRefs.autoCompactSeqRef,
           reminderServiceRef: turnFlowRefs.reminderServiceRef,
           getSessionFilePath: () => sessionWriterRef.current?.filePath ?? initialSessionFilePathRef.current ?? null,
+          getContextCollapseStoreSnapshot,
           canonicalTurnIdRef: canonicalRefs.turnIdRef,
           claudeMdMetaSigRef: runtimeStateRefs.claudeMdMetaSigRef,
         },
@@ -580,6 +632,7 @@ export function useReplController(deps: {
       onCompactLifecycle,
       ensureSessionWriter,
       initialSessionFilePathRef,
+      getContextCollapseStoreSnapshot,
     ],
   )
 

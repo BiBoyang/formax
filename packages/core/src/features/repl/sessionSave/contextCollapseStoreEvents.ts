@@ -1,6 +1,10 @@
 import fs from 'node:fs'
 import readline from 'node:readline'
 import {
+  findLatestCompactBoundaryIndex,
+  fingerprintCompactBoundaryMessage,
+} from '../../../chat/context/compact'
+import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   buildContextCollapseStoreSnapshot,
   createContextCollapseCommittedEntry,
@@ -106,13 +110,23 @@ function parseContextCollapseCommittedEntry(ts: unknown, data: unknown): Context
     createdAtMs: parseCreatedAtMs(ts, data.createdAtMs),
     source: 'request_collapse',
     collapsedRange,
+    compactBoundaryFingerprint: coerceNonEmptyString(data.compactBoundaryFingerprint),
     recapMessage,
     metadata,
   })
 }
 
-async function readContextCollapseCommittedEntries(filePath: string): Promise<ContextCollapseCommittedEntry[]> {
+function readActiveCompactBoundaryFingerprint(record: unknown): string | null | undefined {
+  if (!isObject(record) || record.type !== 'history_state' || !Array.isArray(record.messages)) return undefined
+  const messages = record.messages as PromptMessage[]
+  const boundaryIndex = findLatestCompactBoundaryIndex(messages)
+  if (boundaryIndex < 0) return null
+  return fingerprintCompactBoundaryMessage(messages[boundaryIndex]!)
+}
+
+async function readContextCollapseStoreFromSession(filePath: string): Promise<ContextCollapseStoreSnapshot> {
   const entries: ContextCollapseCommittedEntry[] = []
+  let activeCompactBoundaryFingerprint: string | null = null
   const rl = readline.createInterface({
     input: fs.createReadStream(filePath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
@@ -127,25 +141,30 @@ async function readContextCollapseCommittedEntries(filePath: string): Promise<Co
     } catch {
       continue
     }
+    const nextActiveCompactBoundaryFingerprint = readActiveCompactBoundaryFingerprint(parsed)
+    if (nextActiveCompactBoundaryFingerprint !== undefined) {
+      activeCompactBoundaryFingerprint = nextActiveCompactBoundaryFingerprint
+    }
     if (!isObject(parsed) || parsed.type !== 'event') continue
     if (coerceNonEmptyString(parsed.name) !== CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME) continue
     const entry = parseContextCollapseCommittedEntry(parsed.ts, parsed.data)
     if (entry) entries.push(entry)
   }
 
-  return entries
+  return buildContextCollapseStoreSnapshot({ entries, activeCompactBoundaryFingerprint })
 }
 
 export async function readContextCollapseStoreSnapshotFromSession(args: {
   filePath: string
 }): Promise<ContextCollapseStoreSnapshot> {
-  return buildContextCollapseStoreSnapshot({ entries: await readContextCollapseCommittedEntries(args.filePath) })
+  return readContextCollapseStoreFromSession(args.filePath)
 }
 
 export function readContextCollapseStoreSnapshotFromSessionSync(args: {
   filePath: string
 }): ContextCollapseStoreSnapshot {
   const entries: ContextCollapseCommittedEntry[] = []
+  let activeCompactBoundaryFingerprint: string | null = null
   let raw = ''
   try {
     raw = fs.readFileSync(args.filePath, 'utf8')
@@ -161,10 +180,14 @@ export function readContextCollapseStoreSnapshotFromSessionSync(args: {
     } catch {
       continue
     }
+    const nextActiveCompactBoundaryFingerprint = readActiveCompactBoundaryFingerprint(parsed)
+    if (nextActiveCompactBoundaryFingerprint !== undefined) {
+      activeCompactBoundaryFingerprint = nextActiveCompactBoundaryFingerprint
+    }
     if (!isObject(parsed) || parsed.type !== 'event') continue
     if (coerceNonEmptyString(parsed.name) !== CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME) continue
     const entry = parseContextCollapseCommittedEntry(parsed.ts, parsed.data)
     if (entry) entries.push(entry)
   }
-  return buildContextCollapseStoreSnapshot({ entries })
+  return buildContextCollapseStoreSnapshot({ entries, activeCompactBoundaryFingerprint })
 }

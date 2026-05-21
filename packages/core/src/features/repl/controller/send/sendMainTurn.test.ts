@@ -192,6 +192,7 @@ describe('runMainSendTurn', () => {
         collapsedHeadMessageCount: 0,
         estimatedTokensSaved: 0,
         metadata: null,
+        commit: null,
       },
       user,
       context:
@@ -247,6 +248,7 @@ describe('runMainSendTurn', () => {
           earlierToolResultBlockCount: 4,
           recapFingerprint: 'abcdef0123456789',
         },
+        commit: null,
       },
       reactiveCompactState: {
         applied: true,
@@ -307,6 +309,7 @@ describe('runMainSendTurn', () => {
         kind: 'request_recap',
         keepLastTurns: 2,
       }),
+      commit: null,
     })
     expect(harness.refs.onReactiveCompact).toHaveBeenCalledWith({
       triggerKind: 'maximum_context_length',
@@ -402,6 +405,7 @@ describe('runMainSendTurn', () => {
           earlierToolResultBlockCount: 5,
           recapFingerprint: 'abcdef0123456789',
         },
+        commit: null,
       },
       user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
       context: {
@@ -437,6 +441,7 @@ describe('runMainSendTurn', () => {
         kind: 'request_recap',
         keepLastTurns: 2,
       }),
+      commit: null,
     })
   })
 
@@ -449,6 +454,7 @@ describe('runMainSendTurn', () => {
         collapsedHeadMessageCount: 0,
         estimatedTokensSaved: 0,
         metadata: null,
+        commit: null,
       },
       user: { role: 'user', content: [{ type: 'text', text: 'request-fit-user' }] },
       context: {
@@ -488,6 +494,7 @@ describe('runMainSendTurn', () => {
         collapsedHeadMessageCount: 0,
         estimatedTokensSaved: 0,
         metadata: null,
+        commit: null,
       },
       user: { role: 'user', content: [{ type: 'text', text: 'force-fit-without-injected-blocks' }] },
       context: {
@@ -524,6 +531,7 @@ describe('runMainSendTurn', () => {
         collapsedHeadMessageCount: 0,
         estimatedTokensSaved: 0,
         metadata: null,
+        commit: null,
       },
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {
@@ -553,6 +561,7 @@ describe('runMainSendTurn', () => {
         collapsedHeadMessageCount: 0,
         estimatedTokensSaved: 0,
         metadata: null,
+        commit: null,
       },
       user: { role: 'user', content: [{ type: 'text', text: 'user-block' }] },
       context: {

@@ -8,6 +8,10 @@ import {
   recordRequestCollapseEvent,
 } from './sessionEvents'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
+import type {
+  ContextCollapseCommittedEntry,
+  ContextCollapseCommitState,
+} from '../../../../chat/context/contextCollapseStore'
 import type { ReactiveCompactErrorKind } from '../shared/reactiveCompactTypes'
 
 type CompactLifecycleEvent =
@@ -18,6 +22,7 @@ type CompactLifecycleEvent =
 function useSessionEventRecorders(args: {
   sessionSaveEnabled: boolean
   writerRef: { current: SessionWriter | null }
+  onContextCollapseCommitted?: (entry: ContextCollapseCommittedEntry) => void
 }): {
   onCompactLifecycle: (event: CompactLifecycleEvent) => void
   onRequestCollapse: (event: {
@@ -25,7 +30,8 @@ function useSessionEventRecorders(args: {
     collapsedHeadMessageCount: number
     estimatedTokensSaved: number
     metadata: ContextCollapseMeta | null
-  }) => void
+    commit: ContextCollapseCommitState | null
+  }) => Promise<void>
   onReactiveCompact: (event: {
     triggerKind: ReactiveCompactErrorKind
     triggerDetail: string
@@ -59,22 +65,25 @@ function useSessionEventRecorders(args: {
   }, [args.sessionSaveEnabled, args.writerRef])
 
   const onRequestCollapse = useCallback(
-    (event: {
+    async (event: {
       phase: 'initial' | 'reactive_retry'
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: ContextCollapseMeta | null
+      commit: ContextCollapseCommitState | null
     }) => {
-      recordRequestCollapseEvent({
+      const entry = await recordRequestCollapseEvent({
         sessionSaveEnabled: args.sessionSaveEnabled,
         writer: args.writerRef.current,
         phase: event.phase,
         collapsedHeadMessageCount: event.collapsedHeadMessageCount,
         estimatedTokensSaved: event.estimatedTokensSaved,
         metadata: event.metadata,
+        commit: event.commit,
       })
+      if (entry) args.onContextCollapseCommitted?.(entry)
     },
-    [args.sessionSaveEnabled, args.writerRef],
+    [args.sessionSaveEnabled, args.writerRef, args.onContextCollapseCommitted],
   )
 
   const onReactiveCompact = useCallback(

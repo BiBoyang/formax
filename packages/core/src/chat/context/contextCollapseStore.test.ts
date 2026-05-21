@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  appendContextCollapseStoreEntry,
   buildContextCollapseStoreSnapshot,
   createContextCollapseCommittedEntry,
+  setContextCollapseStoreActiveCompactBoundaryFingerprint,
 } from './contextCollapseStore'
 import type { ContextCollapseMeta } from './contextCollapse'
 import type { PromptMessage } from '../../prompts'
@@ -36,6 +38,7 @@ describe('contextCollapseStore', () => {
       createdAtMs: 1234,
       source: 'request_collapse',
       collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 5 },
+      compactBoundaryFingerprint: null,
       recapMessage: recapMessage('<system-reminder>Older continuation collapsed</system-reminder>'),
       metadata: collapseMeta(),
     })
@@ -47,13 +50,14 @@ describe('contextCollapseStore', () => {
       createdAtMs: 1234,
       source: 'request_collapse',
       collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 5 },
+      compactBoundaryFingerprint: null,
       recapMessage: recapMessage('<system-reminder>Older continuation collapsed</system-reminder>'),
       metadata: collapseMeta(),
     })
     expect(JSON.parse(JSON.stringify(entry))).toEqual(entry)
   })
 
-  it('normalizes invalid committed ranges and builds a stable snapshot order', () => {
+  it('normalizes invalid committed ranges while preserving append order', () => {
     const later = createContextCollapseCommittedEntry({
       id: 'collapse-later',
       createdAtMs: 2000,
@@ -75,16 +79,44 @@ describe('contextCollapseStore', () => {
 
     expect(snapshot).toEqual({
       schemaVersion: 1,
+      activeCompactBoundaryFingerprint: null,
       entries: [
-        {
-          ...earlier,
-          collapsedRange: { kind: 'model_facing_index_range', startIndex: 4, endIndexExclusive: 5 },
-        },
         {
           ...later,
           collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 3 },
         },
+        {
+          ...earlier,
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 4, endIndexExclusive: 5 },
+        },
       ],
+    })
+  })
+
+  it('updates in-memory snapshots without rebuilding from the session file', () => {
+    const entry = createContextCollapseCommittedEntry({
+      id: 'collapse-1',
+      createdAtMs: 1000,
+      source: 'request_collapse',
+      collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+      compactBoundaryFingerprint: 'compact-generation-1',
+      recapMessage: recapMessage('recap'),
+      metadata: collapseMeta(),
+    })
+
+    const withEntry = appendContextCollapseStoreEntry({ snapshot: null, entry })
+    expect(withEntry).toMatchObject({
+      activeCompactBoundaryFingerprint: 'compact-generation-1',
+      entries: [entry],
+    })
+
+    const next = setContextCollapseStoreActiveCompactBoundaryFingerprint({
+      snapshot: withEntry,
+      activeCompactBoundaryFingerprint: 'compact-generation-2',
+    })
+    expect(next).toMatchObject({
+      activeCompactBoundaryFingerprint: 'compact-generation-2',
+      entries: [entry],
     })
   })
 })

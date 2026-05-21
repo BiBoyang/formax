@@ -1,4 +1,5 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
+import type { ContextCollapseStoreSnapshot } from '../../../../chat/context/contextCollapseStore'
 import { getKnownContextWindowTokens } from '../../../../chat/context/modelWindow'
 import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { RuntimeConfig } from '../../../../config/config'
@@ -57,13 +58,15 @@ type RunMainSendTurnArgs = {
       collapsedHeadMessageCount: number
       estimatedTokensSaved: number
       metadata: RequestCollapseState['metadata']
-    }) => void
+      commit: RequestCollapseState['commit']
+    }) => void | Promise<void>
     onReactiveCompact?: (event: {
       triggerKind: ReactiveCompactErrorKind
       triggerDetail: string
       strategy: Exclude<ReactiveCompactState['strategy'], null>
     }) => void
     getSessionFilePath?: () => string | null
+    getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
   }
   state: SendStateSetters & {
     emitCanonicalUiMessage?: (message: CanonicalUiMessage) => void
@@ -185,6 +188,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       handleEvent: args.handleEvent,
       onCompactLifecycle: args.onCompactLifecycle,
       getSessionFilePath: args.getSessionFilePath,
+      getContextCollapseStoreSnapshot: args.getContextCollapseStoreSnapshot,
     })
 
     const prepared = await compression.prepareHistoryForTurn({
@@ -242,13 +246,17 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         exec,
       })
 
-    const recordRequestCollapse = (phase: 'initial' | 'reactive_retry', collapseState: RequestCollapseState | undefined) => {
+    const recordRequestCollapse = async (
+      phase: 'initial' | 'reactive_retry',
+      collapseState: RequestCollapseState | undefined,
+    ) => {
       if (!collapseState?.applied) return
-      args.onRequestCollapse?.({
+      await args.onRequestCollapse?.({
         phase,
         collapsedHeadMessageCount: collapseState.collapsedHeadMessageCount,
         estimatedTokensSaved: collapseState.estimatedTokensSaved,
         metadata: collapseState.metadata,
+        commit: collapseState.commit,
       })
     }
     const recordReactiveCompact = (
@@ -268,8 +276,9 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
     let executionRequestHistory = prunedRequestHistory
     let executionUser = prunedUser
     let nextHistory: ChatHistory
+    let successfulCollapsePhase: 'initial' | 'reactive_retry' = 'initial'
+    let successfulCollapseState = prepared.collapseState
     try {
-      recordRequestCollapse('initial', prepared.collapseState)
       nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
     } catch (error) {
       const abortLike = isAbortLikeError(error)
@@ -303,12 +312,14 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           reactiveErrorInfo.detail,
           reactivePrepared.reactiveCompactState,
         )
-        recordRequestCollapse('reactive_retry', reactivePrepared.collapseState)
+        successfulCollapsePhase = 'reactive_retry'
+        successfulCollapseState = reactivePrepared.collapseState
         nextHistory = await runTurnWith(executionHistory, executionRequestHistory, executionUser)
       } else {
         throw error
       }
     }
+    await recordRequestCollapse(successfulCollapsePhase, successfulCollapseState)
 
     args.pendingExitPlanReminderRef.current = false
 

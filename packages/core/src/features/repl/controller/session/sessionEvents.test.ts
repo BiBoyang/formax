@@ -3,7 +3,9 @@ import {
   recordClaudeMdInjectionEvent,
   recordCompactRequestedEvent,
   recordLocalCommandInjectionEvent,
+  recordRequestCollapseEvent,
 } from './sessionEvents'
+import { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME } from '../../../../chat/context/contextCollapseStore'
 
 const EMPTY_CLAUDE_MD_META = { capChars: 200_000, global: null, project: null, memory: null } as const
 
@@ -83,6 +85,57 @@ describe('sessionEvents', () => {
       record: { commandName: '/hooks' } as any,
     })
     expect(appendEvent).not.toHaveBeenCalled()
+  })
+
+  it('records request collapse diagnostics and durable collapse commit when available', async () => {
+    const appendEvent = vi.fn()
+    const recapMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: '<system-reminder>durable recap</system-reminder>' }],
+    } as any
+
+    await recordRequestCollapseEvent({
+      sessionSaveEnabled: true,
+      writer: { appendEvent },
+      phase: 'initial',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 120,
+      metadata: {
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 2,
+        preservedTailMessageCount: 4,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 2,
+        recentFileCount: 1,
+        earlierToolResultBlockCount: 5,
+        recapFingerprint: 'abcdef0123456789',
+      },
+      commit: {
+        collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+        compactBoundaryFingerprint: 'compact-generation',
+        recapMessage,
+      },
+    })
+
+    expect(appendEvent).toHaveBeenCalledWith(
+      'request_collapse_applied',
+      expect.objectContaining({
+        phase: 'initial',
+        collapsedHeadMessageCount: 2,
+        recapFingerprint: 'abcdef0123456789',
+      }),
+    )
+    expect(appendEvent).toHaveBeenCalledWith(
+      CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+      expect.objectContaining({
+        id: 'request-collapse:initial:abcdef0123456789',
+        source: 'request_collapse',
+        collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+        compactBoundaryFingerprint: 'compact-generation',
+        recapMessage,
+      }),
+    )
   })
 
   it('records claude_md_injection only for full profile with changed non-empty meta', async () => {

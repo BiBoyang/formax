@@ -147,7 +147,7 @@ describe('useSessionEventRecorders', () => {
       />,
     )
 
-    apiRef.current?.onRequestCollapse({
+    await apiRef.current?.onRequestCollapse({
       phase: 'initial',
       collapsedHeadMessageCount: 3,
       estimatedTokensSaved: 120,
@@ -162,6 +162,7 @@ describe('useSessionEventRecorders', () => {
         earlierToolResultBlockCount: 5,
         recapFingerprint: 'abcdef0123456789',
       },
+      commit: null,
     })
 
     expect(recordRequestCollapseEventMock).toHaveBeenCalledWith({
@@ -181,6 +182,7 @@ describe('useSessionEventRecorders', () => {
         earlierToolResultBlockCount: 5,
         recapFingerprint: 'abcdef0123456789',
       },
+      commit: null,
     })
 
     app.unmount()
