@@ -53,6 +53,13 @@ export type PromptBlock =
 
 export type PromptMessageMeta = {
   timestamp?: string
+  messageIdentity?: {
+    schemaVersion: 1
+    id: string
+    parentId?: string | null
+    fingerprint?: string
+    source?: 'explicit' | 'legacy_fallback'
+  }
   compactBoundary?: {
     schemaVersion: 1
     trigger?: 'manual' | 'auto' | 'reactive'
@@ -89,6 +96,13 @@ export type PromptMessageMeta = {
       headFingerprint: string | null
       tailFingerprint: string | null
       messageFingerprints?: string[]
+      messageIdentities?: Array<{
+        schemaVersion: 1
+        id: string
+        parentId?: string | null
+        fingerprint: string
+        source: 'explicit' | 'legacy_fallback'
+      }>
     }
   }
 }

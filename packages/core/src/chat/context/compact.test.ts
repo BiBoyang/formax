@@ -615,6 +615,43 @@ describe('compaction summary helpers', () => {
     ).toBe(false)
   })
 
+  it('records explicit and legacy fallback identities for compact continuation messages', () => {
+    const summary: PromptMessage = {
+      ...txt('user', 'summary'),
+      meta: {
+        messageIdentity: {
+          schemaVersion: 1,
+          id: 'summary-id',
+          parentId: 'parent-id',
+          fingerprint: 'summary-fp',
+          source: 'explicit',
+        },
+      },
+    }
+    const preservedTail = [txt('assistant', 'tail one')]
+    const preservedSegment = buildCompactPreservedSegmentMeta({
+      summaryMessage: summary,
+      preservedTail,
+    })
+
+    expect(preservedSegment.messageIdentities).toEqual([
+      {
+        schemaVersion: 1,
+        id: 'summary-id',
+        parentId: 'parent-id',
+        fingerprint: 'summary-fp',
+        source: 'explicit',
+      },
+      {
+        schemaVersion: 1,
+        id: expect.stringMatching(/^legacy:1:[a-f0-9]{16}$/),
+        parentId: null,
+        fingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        source: 'legacy_fallback',
+      },
+    ])
+  })
+
   it('builds a default rehydration plan from mode and plan-path state', () => {
     expect(buildDefaultCompactRehydrationPlan({ mode: 'normal', planPath: null })).toEqual({
       schemaVersion: 1,

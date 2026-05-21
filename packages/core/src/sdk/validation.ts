@@ -22,12 +22,33 @@ import type {
 
 const promptBlockSchema = z.record(z.string(), z.unknown())
 
+const promptMessageIdentitySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: z.string().trim().min(1),
+    parentId: z.string().trim().min(1).nullable().optional(),
+    fingerprint: z.string().optional(),
+    source: z.enum(['explicit', 'legacy_fallback']).optional(),
+  })
+  .strict()
+
+const compactPreservedSegmentMessageIdentitySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: z.string().trim().min(1),
+    parentId: z.string().nullable().optional(),
+    fingerprint: z.string(),
+    source: z.enum(['explicit', 'legacy_fallback']),
+  })
+  .strict()
+
 const promptMessageSchema = z
   .object({
     role: z.enum(['user', 'assistant']),
     content: z.array(promptBlockSchema),
     meta: z
       .object({
+        messageIdentity: promptMessageIdentitySchema.optional(),
         compactBoundary: z
           .object({
             schemaVersion: z.literal(1),
@@ -70,6 +91,7 @@ const promptMessageSchema = z
               headFingerprint: z.string().nullable(),
               tailFingerprint: z.string().nullable(),
               messageFingerprints: z.array(z.string()).optional(),
+              messageIdentities: z.array(compactPreservedSegmentMessageIdentitySchema).optional(),
             }).optional(),
           })
           .optional(),

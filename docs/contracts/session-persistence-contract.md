@@ -103,6 +103,16 @@ app-server `thread/start` 当前 MUST 返回 provisional thread。
 4. SHOULD 只暴露恢复当前任务语义真正有用的最小 structured task state（如 `mode`、`planPath`、`recentFiles`、`recentUserPrompts`、`recentSkills`、`recentSubagentTypes`、`recentDeferredToolNames`、`recentTaskHints`、`planExcerpt`、`todoSummary`）
 5. `recentDeferredToolNames` / `recentTaskHints` MUST be bounded best-effort hints derived from prior successful tool calls; they MUST NOT rehydrate deferred tool runtime state, resume background tasks, or become a new persisted authority.
 
+`SES-107`
+Context-compression message identity metadata MAY be carried under `PromptMessage.meta.messageIdentity` and compact preserved-segment metadata. The minimum identity shape is:
+1. `schemaVersion: 1`
+2. stable `id`
+3. optional `parentId`
+4. `fingerprint`
+5. `source` (`explicit` or `legacy_fallback`)
+
+Explicit identities SHOULD come from persisted message metadata when available. Legacy fallback identities MAY be derived from projection-local order plus message fingerprint; they are deterministic for the same replay/projection but MUST NOT be treated as strong cross-session identity and MUST NOT drive destructive replay by themselves. Duplicate identities, missing parent ids, and old compact boundaries without identity fields MUST remain non-destructive: raw transcript, UI scrollback, and model-facing baseline membership MUST continue to fall back to fingerprint/count guards until an explicit relink contract upgrades the behavior.
+
 ## 3. SDK Resume 语义
 
 `SES-201`  

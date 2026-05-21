@@ -98,6 +98,17 @@ export type CompactPreservedSegment = {
   headFingerprint: string | null
   tailFingerprint: string | null
   messageFingerprints?: string[]
+  messageIdentities?: PromptMessageIdentity[]
+}
+
+export type PromptMessageIdentitySource = 'explicit' | 'legacy_fallback'
+
+export type PromptMessageIdentity = {
+  schemaVersion: 1
+  id: string
+  parentId: string | null
+  fingerprint: string
+  source: PromptMessageIdentitySource
 }
 
 export type CompactBoundaryMeta = {
@@ -603,6 +614,7 @@ export function buildCompactPreservedSegmentMeta(args: {
     headFingerprint: head ? fingerprintPromptMessage(head) : null,
     tailFingerprint: tail ? fingerprintPromptMessage(tail) : null,
     messageFingerprints: continuationMessages.map((message) => fingerprintPromptMessage(message)),
+    messageIdentities: continuationMessages.map((message, index) => buildPromptMessageIdentity({ message, index })),
   }
 }
 
@@ -686,6 +698,38 @@ export function fingerprintPromptMessage(message: PromptMessage): string {
     content: Array.isArray(message.content) ? message.content : [],
   })
   return createHash('sha1').update(normalized).digest('hex').slice(0, 16)
+}
+
+export function readPromptMessageIdentity(message: PromptMessage | null | undefined): PromptMessageIdentity | null {
+  const raw = message?.meta?.messageIdentity
+  if (!raw || raw.schemaVersion !== 1 || typeof raw.id !== 'string' || raw.id.trim().length === 0) return null
+  const fingerprint = typeof raw.fingerprint === 'string' && raw.fingerprint.length > 0
+    ? raw.fingerprint
+    : fingerprintPromptMessage(message!)
+  const parentId = typeof raw.parentId === 'string' && raw.parentId.trim().length > 0 ? raw.parentId : null
+  return {
+    schemaVersion: 1,
+    id: raw.id,
+    parentId,
+    fingerprint,
+    source: raw.source === 'legacy_fallback' ? 'legacy_fallback' : 'explicit',
+  }
+}
+
+export function buildPromptMessageIdentity(args: {
+  message: PromptMessage
+  index: number
+}): PromptMessageIdentity {
+  const explicit = readPromptMessageIdentity(args.message)
+  if (explicit) return explicit
+  const fingerprint = fingerprintPromptMessage(args.message)
+  return {
+    schemaVersion: 1,
+    id: `legacy:${args.index}:${fingerprint}`,
+    parentId: null,
+    fingerprint,
+    source: 'legacy_fallback',
+  }
 }
 
 export function fingerprintCompactBoundaryMessage(message: PromptMessage): string | null {

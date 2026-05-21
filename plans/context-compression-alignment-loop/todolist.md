@@ -156,22 +156,31 @@ Validation:
 
 Non-goals:
 
-- [ ] 不一次性实现完整 Claude Code parentUuid chain。
-- [ ] 不改变旧 session 的可恢复性。
-- [ ] 不删除 fingerprint guard；fingerprint 仍作为 drift detection / legacy fallback。
+- [x] 不一次性实现完整 Claude Code parentUuid chain。
+- [x] 不改变旧 session 的可恢复性。
+- [x] 不删除 fingerprint guard；fingerprint 仍作为 drift detection / legacy fallback。
 
 Tasks:
 
-- [ ] 先更新 contract，定义 Formax message identity 的最小语义：stable message id、message fingerprint、可选 parent id、旧历史 fallback。
-- [ ] 为 compact continuation messages 生成或读取 stable identity。
-- [ ] 在 projection/test diagnostics 内暴露 identity-aware fingerprint/debug 信息；除非 contract 明确升级，否则不新增 app-server/Web public fields。
-- [ ] 增加 tests，确保旧 boundary 缺 identity 时继续使用 fingerprint/count guard。
-- [ ] 增加 tests，确保 identity 不改变 raw transcript / UI scrollback。
-- [ ] 定义 identity uniqueness / collision handling。
-- [ ] 定义 legacy fallback identity 是否跨进程稳定；如果不能稳定，必须标记为 legacy fallback，不允许被当作强 identity。
-- [ ] 增加 tests：duplicate identity 不触发 destructive identity-based replay。
-- [ ] 增加 tests：missing parent id 不影响 raw transcript / UI scrollback / model-facing baseline。
-- [ ] 增加 tests：SDK validation roundtrip 不丢 identity/fingerprint 扩展字段。
+- [x] 先更新 contract，定义 Formax message identity 的最小语义：stable message id、message fingerprint、可选 parent id、旧历史 fallback。
+- [x] 为 compact continuation messages 生成或读取 stable identity。
+- [x] 在 projection/test diagnostics 内暴露 identity-aware fingerprint/debug 信息；除非 contract 明确升级，否则不新增 app-server/Web public fields。
+- [x] 增加 tests，确保旧 boundary 缺 identity 时继续使用 fingerprint/count guard。
+- [x] 增加 tests，确保 identity 不改变 raw transcript / UI scrollback。
+- [x] 定义 identity uniqueness / collision handling。
+- [x] 定义 legacy fallback identity 是否跨进程稳定；如果不能稳定，必须标记为 legacy fallback，不允许被当作强 identity。
+- [x] 增加 tests：duplicate identity 不触发 destructive identity-based replay。
+- [x] 增加 tests：missing parent id 不影响 raw transcript / UI scrollback / model-facing baseline。
+- [x] 增加 tests：SDK validation roundtrip 不丢 identity/fingerprint 扩展字段。
+
+Validation:
+
+- [x] `bun run test -- packages/core/src/chat/context/compact.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/sdk/validation.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
+- [x] `bun run type-check`
+- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
+- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
+- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
+- [ ] commit。
 
 ## Gate 2B: Snip Removed UUID / Identity Replay
 

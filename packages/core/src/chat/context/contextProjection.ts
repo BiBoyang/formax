@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   findLatestCompactBoundary,
   findLatestCompactBoundaryIndex,
+  buildPromptMessageIdentity,
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
   getContinuationMessagesAfterLatestCompactBoundary,
@@ -85,6 +86,7 @@ export type ContextProjectionFacts = {
   rawTranscriptMessageCount: number
   modelFacingBaselineMessageCount: number
   modelFacingBaselineFingerprint: string
+  modelFacingBaselineMessageIdentities: ReturnType<typeof buildPromptMessageIdentity>[]
   appliedDurableStages: DurableProjectionStage[]
 }
 
@@ -196,6 +198,9 @@ export function buildContextProjection(args: {
       rawTranscriptMessageCount: args.history.length,
       modelFacingBaselineMessageCount: modelFacingBaseline.length,
       modelFacingBaselineFingerprint: fingerprintPromptMessages(modelFacingBaseline),
+      modelFacingBaselineMessageIdentities: modelFacingBaseline.map((message, index) =>
+        buildPromptMessageIdentity({ message, index }),
+      ),
       appliedDurableStages: [
         ...(snipProjection.fact.applied ? (['snip'] as const) : []),
         ...(collapseProjection.fact.applied ? (['collapse'] as const) : []),

@@ -128,6 +128,64 @@ describe('buildContextProjection', () => {
     expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fingerprintCompactBoundaryMessage(latestBoundary))
   })
 
+  it('exposes message identity diagnostics without changing projection membership', () => {
+    const duplicateIdentity = {
+      schemaVersion: 1 as const,
+      id: 'duplicate-id',
+      fingerprint: 'duplicate-fp',
+      source: 'explicit' as const,
+    }
+    const first = {
+      ...textMessage('user', 'first request'),
+      meta: { messageIdentity: duplicateIdentity },
+    }
+    const second = {
+      ...textMessage('assistant', 'second answer'),
+      meta: { messageIdentity: duplicateIdentity },
+    }
+    const missingParent = {
+      ...textMessage('user', 'missing parent still visible'),
+      meta: {
+        messageIdentity: {
+          schemaVersion: 1 as const,
+          id: 'missing-parent-id',
+          fingerprint: 'missing-parent-fp',
+          source: 'explicit' as const,
+        },
+      },
+    }
+    const history: PromptMessage[] = [first, second, missingParent]
+
+    const projection = buildContextProjection({ history })
+
+    expect(projection.rawTranscript).toBe(history)
+    expect(projection.uiScrollback).toBe(history)
+    expect(projection.modelFacingBaseline).toBe(history)
+    expect(projection.facts.modelFacingBaselineMessageIdentities).toEqual([
+      {
+        schemaVersion: 1,
+        id: 'duplicate-id',
+        parentId: null,
+        fingerprint: 'duplicate-fp',
+        source: 'explicit',
+      },
+      {
+        schemaVersion: 1,
+        id: 'duplicate-id',
+        parentId: null,
+        fingerprint: 'duplicate-fp',
+        source: 'explicit',
+      },
+      {
+        schemaVersion: 1,
+        id: 'missing-parent-id',
+        parentId: null,
+        fingerprint: 'missing-parent-fp',
+        source: 'explicit',
+      },
+    ])
+  })
+
   it('reserves no-op durable snip/collapse placeholders without changing the baseline', () => {
     const history: PromptMessage[] = [
       boundary(),
