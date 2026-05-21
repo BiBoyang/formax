@@ -126,6 +126,15 @@ describe('executeMiddleLayerStrategyStack', () => {
     vi.mocked(applyRequestSnip).mockReturnValue({
       messages: snippedHistory,
       applied: true,
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'request snip removed older assistant text message',
+          removedMessageFingerprints: ['snip-fp-1'],
+        },
+      ],
       impact: {
         snippedMessages: 1,
         snippedBlocks: 1,
@@ -193,6 +202,15 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(result.persistedHistoryCandidate).toEqual([{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }])
     expect(result.toolBudgetedHistory).toEqual([{ role: 'user', content: [{ type: 'text', text: 'budgeted-result' }] }])
     expect(result.snippedHistory).toEqual(snippedHistory)
+    expect(result.snipRemovals).toEqual([
+      {
+        kind: 'model_facing_index_range',
+        startIndex: 1,
+        endIndexExclusive: 2,
+        reason: 'request snip removed older assistant text message',
+        removedMessageFingerprints: ['snip-fp-1'],
+      },
+    ])
     expect(result.collapsedHistory).toEqual(collapsedHistory)
     expect(result.preparedTrailingMessage).toEqual(prunedMessages[1])
     expect(result.requestHistory).toEqual(collapsedHistory)

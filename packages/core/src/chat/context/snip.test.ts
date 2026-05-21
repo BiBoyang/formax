@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { fingerprintPromptMessage } from './compact'
 import { applyRequestSnip, resolveAdaptiveSnipPolicy, SNIP_STUB_PREFIX } from './snip'
 import type { PromptMessage } from '../../prompts'
 
@@ -60,6 +61,22 @@ describe('snip', () => {
       keptRecentMessages: 1,
       minTextChars: 1000,
     })
+    expect(out.removals).toEqual([
+      {
+        kind: 'model_facing_index_range',
+        startIndex: 0,
+        endIndexExclusive: 1,
+        reason: 'request snip removed older assistant text message',
+        removedMessageFingerprints: [fingerprintPromptMessage(messages[0]!)],
+      },
+      {
+        kind: 'model_facing_index_range',
+        startIndex: 1,
+        endIndexExclusive: 2,
+        reason: 'request snip removed older assistant text message',
+        removedMessageFingerprints: [fingerprintPromptMessage(messages[1]!)],
+      },
+    ])
     expect(out.impact.estimatedTokensSaved).toBeGreaterThan(0)
   })
 
@@ -91,6 +108,7 @@ describe('snip', () => {
 
     expect(out.applied).toBe(false)
     expect(out.messages).toEqual(messages)
+    expect(out.removals).toEqual([])
     expect(out.impact).toEqual({
       snippedMessages: 0,
       snippedBlocks: 0,

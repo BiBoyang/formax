@@ -15,7 +15,13 @@ import {
   type AdaptiveToolResultBudgetPolicy,
   type ToolResultBudgetImpact,
 } from './toolResultBudget'
-import { applyRequestSnip, resolveAdaptiveSnipPolicy, type AdaptiveSnipPolicy, type SnipImpact } from './snip'
+import {
+  applyRequestSnip,
+  resolveAdaptiveSnipPolicy,
+  type AdaptiveSnipPolicy,
+  type RequestSnipRemoval,
+  type SnipImpact,
+} from './snip'
 import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../prompts'
 
 export type MiddleLayerStage = 'microcompact' | 'tool_result_budget' | 'snip' | 'collapse' | 'prune'
@@ -95,6 +101,7 @@ export type MiddleLayerStrategyStackResult = {
   microCompactedHistory: PromptMessage[]
   toolBudgetedHistory: PromptMessage[]
   snippedHistory: PromptMessage[]
+  snipRemovals: RequestSnipRemoval[]
   collapsedHistory: PromptMessage[]
   persistedHistoryCandidate: PromptMessage[]
   preparedMessages: PromptMessage[]
@@ -217,6 +224,7 @@ export function executeMiddleLayerStrategyStack(args: {
     microCompactedHistory: microCompactResult.messages,
     toolBudgetedHistory: toolResultBudgetResult.messages,
     snippedHistory: snipResult.messages,
+    snipRemovals: snipResult.removals ?? [],
     collapsedHistory: collapseResult.messages,
     persistedHistoryCandidate: args.history,
     preparedMessages,

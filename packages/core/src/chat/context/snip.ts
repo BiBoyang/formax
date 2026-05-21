@@ -1,4 +1,5 @@
 import { estimatePromptTokens } from './estimate'
+import { fingerprintPromptMessage } from './compact'
 import type { PromptMessage } from '../../prompts'
 
 const DEFAULT_MIN_TEXT_CHARS = 1400
@@ -21,6 +22,14 @@ export type AdaptiveSnipPolicy = {
   keepRecentMessages: number
   minTextChars: number
   maxExcerptChars: number
+}
+
+export type RequestSnipRemoval = {
+  kind: 'model_facing_index_range'
+  startIndex: number
+  endIndexExclusive: number
+  reason: string
+  removedMessageFingerprints: string[]
 }
 
 type EligibleAssistantTextMessageRef = {
@@ -66,6 +75,7 @@ export function applyRequestSnip(args: {
 }): {
   messages: PromptMessage[]
   applied: boolean
+  removals: RequestSnipRemoval[]
   impact: SnipImpact
 } {
   const eligibleMessages = collectEligibleAssistantTextMessages({
@@ -76,6 +86,7 @@ export function applyRequestSnip(args: {
     return {
       messages: args.messages,
       applied: false,
+      removals: [],
       impact: {
         snippedMessages: 0,
         snippedBlocks: 0,
@@ -89,6 +100,7 @@ export function applyRequestSnip(args: {
     return {
       messages: args.messages,
       applied: false,
+      removals: [],
       impact: {
         snippedMessages: 0,
         snippedBlocks: 0,
@@ -104,6 +116,7 @@ export function applyRequestSnip(args: {
   let estimatedTokensSaved = 0
   let snippedMessages = 0
   let snippedBlocks = 0
+  const removals: RequestSnipRemoval[] = []
 
   for (const ref of refsToSnip) {
     const sourceMessage = patchedMessages[ref.messageIndex]
@@ -119,6 +132,13 @@ export function applyRequestSnip(args: {
     if (replacementTokens >= sourceTokens) continue
 
     patchedMessages[ref.messageIndex] = replacementMessage
+    removals.push({
+      kind: 'model_facing_index_range',
+      startIndex: ref.messageIndex,
+      endIndexExclusive: ref.messageIndex + 1,
+      reason: 'request snip removed older assistant text message',
+      removedMessageFingerprints: [fingerprintPromptMessage(sourceMessage)],
+    })
     estimatedTokensSaved += Math.max(0, sourceTokens - replacementTokens)
     snippedMessages += 1
     snippedBlocks += ref.blockCount
@@ -127,6 +147,7 @@ export function applyRequestSnip(args: {
   return {
     messages: patchedMessages,
     applied: snippedMessages > 0,
+    removals,
     impact: {
       snippedMessages,
       snippedBlocks,
