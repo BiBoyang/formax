@@ -230,7 +230,7 @@ Validation:
 目的：让 TUI/Web/app-server/replay 在新的 projection owner 下只消费 canonical facts。
 
 - [x] TUI primary / expanded transcript view declares whether it shows raw scrollback, compacted view, or diagnostics view.
-- [ ] App-server `thread/read`, `thread/messages`, `thread/replay`, `thread/resume` consume the same projection facts.
+- [x] App-server `thread/read`, `thread/messages`, `thread/replay`, `thread/resume` consume the same projection facts.
 - [ ] Web runtime caches compact/snip/collapse facts from a single RPC shape.
 - [ ] `/context` diagnostics displays projection layers without redefining stage semantics.
 - [ ] CODEMAP / README / contracts updated if entrypoints move.

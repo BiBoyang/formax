@@ -73,6 +73,7 @@
     - `estimatedTokensSaved`
     - `recapFingerprint?`
   - `thread/resume` 返回的 `latestRequestCollapse` MUST 与同一 session 的 `thread/read` / `thread/messages` / `thread/replay` 使用相同 request-time collapse event 来源；客户端不得从 restored history 或 timeline rows 反推第二套 collapse summary
+- `thread/resume` / `thread/read` / `thread/messages` / `thread/replay` MUST 通过同一组 server-side projection facts 缓存与解析路径暴露 `latestCompactBoundary` 和 `latestRequestCollapse`；新增 surface 不得分别扫描 compact 与 request-collapse 来源后再自行拼装响应。
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 

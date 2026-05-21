@@ -799,6 +799,71 @@ describe('AppServer', () => {
     expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
   })
 
+  it('hydrates thread/replay compression facts from one readThread projection', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'manual',
+      preTokens: 900,
+      summaryKind: 'model_summary',
+    } as const
+    const latestRequestCollapse: LatestRequestCollapseSummary = {
+      phase: 'initial',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 128,
+      recapFingerprint: 'single-read-collapse',
+    }
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return {
+            thread: baseThread,
+            staleInputs: [],
+            latestCompactBoundary,
+            latestRequestCollapse,
+          }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary,
+            latestRequestCollapse,
+          }
+        },
+        async listThreadMessages() {
+          return {
+            data: [],
+            nextCursor: null,
+            latestCompactBoundary,
+            latestRequestCollapse,
+          }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const replayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+
+    expect(readThreadCount).toBe(1)
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
+  })
+
   it('maps thread store errors on start/resume/read to rpc errors', async () => {
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },

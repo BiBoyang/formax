@@ -66,6 +66,11 @@ export type ThreadReadResult = {
 
 export type LatestRequestCollapseSummary = NonNullable<ThreadReadResult['latestRequestCollapse']>
 
+type ThreadProjectionFacts = {
+  latestCompactBoundary: CompactBoundaryMeta | null
+  latestRequestCollapse: LatestRequestCollapseSummary | null
+}
+
 export type ThreadMessage = {
   id: string
   kind: 'message'
@@ -475,6 +480,16 @@ function toLatestRequestCollapseSummary(
   }
 }
 
+function buildThreadProjectionFacts(args: {
+  replay: Awaited<ReturnType<typeof readSessionFile>>
+  latestRequestCollapseEvent: Awaited<ReturnType<typeof readLatestRequestCollapseEventFromSession>>
+}): ThreadProjectionFacts {
+  return {
+    latestCompactBoundary: findLatestCompactBoundary(args.replay.history as any),
+    latestRequestCollapse: toLatestRequestCollapseSummary(args.latestRequestCollapseEvent),
+  }
+}
+
 export class ThreadStore {
   private readonly cwd: string
   private readonly env?: NodeJS.ProcessEnv
@@ -602,11 +617,16 @@ export class ThreadStore {
       // Best-effort: if refresh fails, keep the pre-refresh restore artifacts.
     }
 
+    const projectionFacts = buildThreadProjectionFacts({
+      replay,
+      latestRequestCollapseEvent: latestRequestCollapse,
+    })
+
     return {
       thread: toThread(summary),
       staleInputs,
-      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
-      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapse),
+      latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      latestRequestCollapse: projectionFacts.latestRequestCollapse,
       pendingSessionMemoryRestore: restoreArtifacts.pendingSessionMemoryRestore,
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
         ? { nextTurnInjectedBlocks: restoreArtifacts.nextTurnInjectedBlocks }
@@ -700,11 +720,16 @@ export class ThreadStore {
       readLatestRequestCollapseEventFromSession({ filePath }),
     ])
 
+    const projectionFacts = buildThreadProjectionFacts({
+      replay,
+      latestRequestCollapseEvent: latestRequestCollapse,
+    })
+
     return {
       thread: toThread(summary),
       transcriptPreview,
-      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
-      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapse),
+      latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      latestRequestCollapse: projectionFacts.latestRequestCollapse,
     }
   }
 
@@ -839,11 +864,16 @@ export class ThreadStore {
     const page = all.slice(start, end)
     const nextCursor = start > 0 ? String(start) : null
 
+    const projectionFacts = buildThreadProjectionFacts({
+      replay,
+      latestRequestCollapseEvent,
+    })
+
     return {
       data: page,
       nextCursor,
-      latestCompactBoundary: findLatestCompactBoundary(replay.history as any),
-      latestRequestCollapse: toLatestRequestCollapseSummary(latestRequestCollapseEvent),
+      latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      latestRequestCollapse: projectionFacts.latestRequestCollapse,
     }
   }
 
