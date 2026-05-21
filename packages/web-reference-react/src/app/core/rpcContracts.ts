@@ -1,4 +1,4 @@
-import type { ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
+import type { DurableSnipSummary, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
 import {
   asResolvedInputs,
   asThreadMessages,
@@ -317,6 +317,7 @@ export type RpcThreadReplayResult = {
   hasGap: boolean
   state: ReplayStateSnapshot | null
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
@@ -325,6 +326,7 @@ export type RpcThreadMessagesResult = {
   data: ThreadMessage[]
   nextCursor: string | null
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
@@ -337,6 +339,7 @@ export type RpcThreadReadResult = {
   }
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
 }
 
@@ -349,6 +352,7 @@ export type RpcThreadResumeResult = {
   }
   staleInputs: ResolvedInput[]
   latestCompactBoundary?: RpcLatestCompactBoundary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
 }
@@ -402,11 +406,13 @@ export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult
   const replay = asThreadReplay(value)
   const root = asRecord(value)
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
-  if (!latestCompactBoundary || !latestRequestCollapse) return replay
+  if (!latestCompactBoundary || !durableSnip || !latestRequestCollapse) return replay
   return {
     ...replay,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(durableSnip.present ? { durableSnip: durableSnip.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
   }
 }
@@ -450,12 +456,14 @@ export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | n
         .filter((entry): entry is { role: 'user' | 'assistant'; text: string } => Boolean(entry))
     : []
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
-  if (!latestCompactBoundary || !latestRequestCollapse) return null
+  if (!latestCompactBoundary || !durableSnip || !latestRequestCollapse) return null
   return {
     thread: { id, cwd, createdAt, updatedAt },
     transcriptPreview,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(durableSnip.present ? { durableSnip: durableSnip.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
   }
 }
@@ -469,6 +477,7 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
   const updatedAt = typeof thread.updatedAt === 'string' && thread.updatedAt.trim() ? thread.updatedAt : null
   const staleInputs = asResolvedInputs(root)
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
+  const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
   const pendingSessionMemoryRestore = parseOptionalNullableSessionMemoryRestoreField(root, 'pendingSessionMemoryRestore')
   if (
@@ -477,6 +486,7 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
     !createdAt ||
     !updatedAt ||
     !latestCompactBoundary ||
+    !durableSnip ||
     !latestRequestCollapse ||
     !pendingSessionMemoryRestore
   ) {
@@ -486,6 +496,7 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
     thread: { id, cwd, createdAt, updatedAt },
     staleInputs,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(durableSnip.present ? { durableSnip: durableSnip.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
     ...(pendingSessionMemoryRestore.present
       ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore.value }
@@ -1396,6 +1407,49 @@ function parseOptionalNullableLatestCompactBoundaryField(
   const value = record[fieldName]
   if (value === null) return { present: true, value: null }
   const parsed = parseLatestCompactBoundary(value)
+  return parsed ? { present: true, value: parsed } : null
+}
+
+function parseDurableSnipSummary(value: unknown): DurableSnipSummary | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const stage = record.stage === 'snip' ? 'snip' : null
+  const status = record.status === 'no_state' || record.status === 'active' ? record.status : null
+  const applied = typeof record.applied === 'boolean' ? record.applied : null
+  const reason = typeof record.reason === 'string' ? record.reason : null
+  const removedMessageCount = asFiniteNumber(record.removedMessageCount)
+  const droppedOrphanToolBlockCount = asFiniteNumber(record.droppedOrphanToolBlockCount)
+  const removalRangeCount = asFiniteNumber(record.removalRangeCount)
+  if (
+    !stage ||
+    !status ||
+    applied == null ||
+    reason == null ||
+    removedMessageCount == null ||
+    droppedOrphanToolBlockCount == null ||
+    removalRangeCount == null
+  ) {
+    return null
+  }
+  return {
+    stage,
+    status,
+    applied,
+    reason,
+    removedMessageCount,
+    droppedOrphanToolBlockCount,
+    removalRangeCount,
+  }
+}
+
+function parseOptionalNullableDurableSnipField(
+  record: Record<string, unknown>,
+  fieldName: string,
+): { present: boolean; value: DurableSnipSummary | null } | null {
+  if (!Object.prototype.hasOwnProperty.call(record, fieldName)) return { present: false, value: null }
+  const value = record[fieldName]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseDurableSnipSummary(value)
   return parsed ? { present: true, value: parsed } : null
 }
 

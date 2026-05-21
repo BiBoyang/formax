@@ -44,6 +44,16 @@ export type RequestCollapseSummary = {
   recapFingerprint?: string
 }
 
+export type DurableSnipSummary = {
+  stage: 'snip'
+  status: 'no_state' | 'active'
+  applied: boolean
+  reason: string
+  removedMessageCount: number
+  droppedOrphanToolBlockCount: number
+  removalRangeCount: number
+}
+
 export type CompactBoundarySummary = {
   schemaVersion: 1
   trigger?: 'manual' | 'auto' | 'reactive'

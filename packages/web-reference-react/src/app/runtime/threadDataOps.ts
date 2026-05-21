@@ -9,7 +9,7 @@ import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary
 import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey, type ThreadCompressionProjectionFacts } from '../core/threadCache'
-import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 
 export type ThreadDataOpsContext = {
@@ -23,6 +23,7 @@ export type ThreadDataOpsContext = {
   historyCursorByThreadIdRef: { current: Record<string, string | null> }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
+  durableSnipByThreadIdRef: { current: Record<string, DurableSnipSummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
   stateLogsRef: { current: TranscriptItem[] }
@@ -51,6 +52,11 @@ export type ThreadDataOpsContext = {
     updater: (
       prev: Record<string, RequestCollapseSummary | null>,
     ) => Record<string, RequestCollapseSummary | null>,
+  ) => void
+  setDurableSnipByThreadId: (
+    updater: (
+      prev: Record<string, DurableSnipSummary | null>,
+    ) => Record<string, DurableSnipSummary | null>,
   ) => void
   setLogsByThreadId: (
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
@@ -112,11 +118,48 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     ctx.setLatestRequestCollapseByThreadId((prev) => withRecordValue(prev, threadId, nextCollapse))
   }
 
+  const areDurableSnipEqual = (
+    left: DurableSnipSummary | null | undefined,
+    right: DurableSnipSummary | null | undefined,
+  ): boolean => {
+    if (left === right) return true
+    if (!left || !right) return left == null && right == null
+    return (
+      left.stage === right.stage &&
+      left.status === right.status &&
+      left.applied === right.applied &&
+      left.reason === right.reason &&
+      left.removedMessageCount === right.removedMessageCount &&
+      left.droppedOrphanToolBlockCount === right.droppedOrphanToolBlockCount &&
+      left.removalRangeCount === right.removalRangeCount
+    )
+  }
+
+  const setThreadDurableSnip = (
+    threadId: string,
+    durableSnip: DurableSnipSummary | null | undefined,
+  ) => {
+    if (durableSnip === undefined) {
+      return
+    }
+    const nextDurableSnip = durableSnip
+    if (areDurableSnipEqual(ctx.durableSnipByThreadIdRef.current[threadId] ?? null, nextDurableSnip)) {
+      return
+    }
+    ctx.durableSnipByThreadIdRef.current = withRecordValue(
+      ctx.durableSnipByThreadIdRef.current,
+      threadId,
+      nextDurableSnip,
+    )
+    ctx.setDurableSnipByThreadId((prev) => withRecordValue(prev, threadId, nextDurableSnip))
+  }
+
   const setThreadCompressionProjectionFacts = (
     threadId: string,
     facts: ThreadCompressionProjectionFacts,
   ): void => {
     setThreadLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    setThreadDurableSnip(threadId, facts.durableSnip)
     setThreadLatestRequestCollapse(threadId, facts.latestRequestCollapse)
   }
 

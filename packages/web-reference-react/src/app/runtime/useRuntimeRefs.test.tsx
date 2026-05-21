@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { CompactBoundarySummary, ThreadSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, ThreadSummary, TranscriptItem } from '../../types'
 import { useThreadCacheRefs, useThreadSnapshotRefs } from './useRuntimeRefs'
 
 function createThread(id: string, cwd: string): ThreadSummary {
@@ -80,6 +80,7 @@ describe('useRuntimeRefs', () => {
       logsByThreadId: Record<string, TranscriptItem[]>
       transcriptSourceByThreadId: Record<string, 'history' | 'replay'>
       latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
+      durableSnipByThreadId: Record<string, DurableSnipSummary | null>
       latestRequestCollapseByThreadId: Record<string, { phase: 'initial' | 'reactive_retry'; collapsedHeadMessageCount: number; estimatedTokensSaved: number } | null>
     }
     const initialLogsByThread = {
@@ -92,6 +93,7 @@ describe('useRuntimeRefs', () => {
       logsByThreadId: initialLogsByThread,
       transcriptSourceByThreadId: initialSources,
       latestCompactBoundaryByThreadId: { 'thread-1': null },
+      durableSnipByThreadId: { 'thread-1': null },
       latestRequestCollapseByThreadId: { 'thread-1': null },
     }
 
@@ -101,6 +103,7 @@ describe('useRuntimeRefs', () => {
           props.logsByThreadId,
           props.transcriptSourceByThreadId,
           props.latestCompactBoundaryByThreadId,
+          props.durableSnipByThreadId,
           props.latestRequestCollapseByThreadId,
         ),
       {
@@ -125,6 +128,17 @@ describe('useRuntimeRefs', () => {
           summaryKind: 'session_memory',
         },
       },
+      durableSnipByThreadId: {
+        'thread-2': {
+          stage: 'snip',
+          status: 'active',
+          applied: true,
+          reason: 'applied durable snip removals',
+          removedMessageCount: 1,
+          droppedOrphanToolBlockCount: 0,
+          removalRangeCount: 1,
+        },
+      },
       latestRequestCollapseByThreadId: {
         'thread-2': {
           phase: 'initial',
@@ -140,6 +154,7 @@ describe('useRuntimeRefs', () => {
       expect(result.current.logsByThreadIdRef.current).toBe(nextLogsByThread)
       expect(result.current.transcriptSourceByThreadRef.current).toBe(nextSources)
       expect(result.current.latestCompactBoundaryByThreadIdRef.current).toBe(nextProps.latestCompactBoundaryByThreadId)
+      expect(result.current.durableSnipByThreadIdRef.current).toBe(nextProps.durableSnipByThreadId)
       expect(result.current.latestRequestCollapseByThreadIdRef.current).toBe(nextProps.latestRequestCollapseByThreadId)
     })
   })

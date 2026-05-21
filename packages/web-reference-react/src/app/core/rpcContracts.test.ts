@@ -48,6 +48,16 @@ const COLLAPSE_RECAP_CONTRIBUTOR = {
   ordinal: 1,
 }
 
+const DURABLE_SNIP = {
+  stage: 'snip' as const,
+  status: 'active' as const,
+  applied: true,
+  reason: 'applied durable snip removals',
+  removedMessageCount: 2,
+  droppedOrphanToolBlockCount: 1,
+  removalRangeCount: 1,
+}
+
 describe('rpcContracts', () => {
   it('parses thread/start response and rejects invalid payload', () => {
     expect(parseThreadStartResponse({ thread: { id: 'thread-1', cwd: '/repo' } })).toEqual({
@@ -1434,6 +1444,7 @@ describe('rpcContracts', () => {
         estimatedTokensSaved: 96,
         recapFingerprint: 'fedcba9876543210',
       },
+      durableSnip: DURABLE_SNIP,
       pendingSessionMemoryRestore: {
         schemaVersion: 1,
         mode: 'plan',
@@ -1474,6 +1485,7 @@ describe('rpcContracts', () => {
       estimatedTokensSaved: 96,
       recapFingerprint: 'fedcba9876543210',
     })
+    expect(replay.durableSnip).toEqual(DURABLE_SNIP)
     expect(replay.pendingSessionMemoryRestore).toEqual({
       schemaVersion: 1,
       mode: 'plan',
@@ -1566,6 +1578,7 @@ describe('rpcContracts', () => {
         estimatedTokensSaved: 64,
         recapFingerprint: 'fedcba9876543210',
       },
+      durableSnip: DURABLE_SNIP,
     })
     expect(messages.data).toHaveLength(1)
     expect(messages.nextCursor).toBe('cursor-1')
@@ -1604,6 +1617,7 @@ describe('rpcContracts', () => {
       estimatedTokensSaved: 64,
       recapFingerprint: 'fedcba9876543210',
     })
+    expect(messages.durableSnip).toEqual(DURABLE_SNIP)
   })
 
   it('parses thread/read payload with optional latest request collapse summary', () => {

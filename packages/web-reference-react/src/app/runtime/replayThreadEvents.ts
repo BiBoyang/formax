@@ -3,7 +3,7 @@ import type { AppAction } from '../../store'
 import type { RpcThreadReplayResult } from '../core/rpcContracts'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
 import type { ThreadCompressionProjectionFacts } from '../core/threadCache'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
@@ -57,6 +57,7 @@ export type ReplayThreadEventsContext = {
   stateLogsRef: { current: unknown[] }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
   cacheLatestCompactBoundary: (threadId: string, boundary: CompactBoundarySummary | null | undefined) => void
+  cacheDurableSnip: (threadId: string, durableSnip: DurableSnipSummary | null | undefined) => void
   cacheLatestRequestCollapse: (threadId: string, collapse: RequestCollapseSummary | null | undefined) => void
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
@@ -201,6 +202,7 @@ export async function replayThreadEvents(
 
   const cacheThreadCompressionProjectionFacts = (facts: ThreadCompressionProjectionFacts): void => {
     ctx.cacheLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    ctx.cacheDurableSnip(threadId, facts.durableSnip)
     ctx.cacheLatestRequestCollapse(threadId, facts.latestRequestCollapse)
   }
 

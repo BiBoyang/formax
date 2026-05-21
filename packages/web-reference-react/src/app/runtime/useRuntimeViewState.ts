@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import type { ReplMode } from '../../semantics'
-import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import {
   INITIAL_THREAD_CACHE_STATE,
   withThreadCacheSlice,
@@ -38,6 +38,7 @@ export type RuntimeViewState = {
   historyLoadingByThreadId: Record<string, boolean>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
   latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
+  durableSnipByThreadId: Record<string, DurableSnipSummary | null>
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
   setDiffSnapshot: (value: DiffSnapshot | null) => void
   setHistoryLoadingByThreadId: (
@@ -79,6 +80,11 @@ export type RuntimeViewState = {
     updater: (
       prev: Record<string, RequestCollapseSummary | null>,
     ) => Record<string, RequestCollapseSummary | null>,
+  ) => void
+  setDurableSnipByThreadId: (
+    updater: (
+      prev: Record<string, DurableSnipSummary | null>,
+    ) => Record<string, DurableSnipSummary | null>,
   ) => void
 }
 
@@ -206,6 +212,19 @@ export function useRuntimeViewState(): RuntimeViewState {
     [],
   )
 
+  const setDurableSnipByThreadId = useCallback(
+    (
+      updater: (
+        prev: Record<string, DurableSnipSummary | null>,
+      ) => Record<string, DurableSnipSummary | null>,
+    ) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(prev, 'durableSnipByThreadId', updater(prev.durableSnipByThreadId)),
+      )
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!noticeMessage) return
     const timer = window.setTimeout(() => {
@@ -232,6 +251,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     historyLoadingByThreadId,
     transcriptSourceByThreadId: threadCache.transcriptSourceByThreadId,
     latestCompactBoundaryByThreadId: threadCache.latestCompactBoundaryByThreadId,
+    durableSnipByThreadId: threadCache.durableSnipByThreadId,
     latestRequestCollapseByThreadId: threadCache.latestRequestCollapseByThreadId,
     setDiffSnapshot,
     setHistoryLoadingByThreadId,
@@ -249,6 +269,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     setHistoryCursorByThreadId,
     setTranscriptSourceByThreadId,
     setLatestCompactBoundaryByThreadId,
+    setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
   }
 }

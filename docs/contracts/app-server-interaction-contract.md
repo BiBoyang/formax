@@ -42,7 +42,7 @@
 ## 2.2 thread/resume
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, staleInputs, latestCompactBoundary?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
+- 返回：`{ thread, staleInputs, latestCompactBoundary?, durableSnip?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
 - 共享恢复语义：
   - stale input 的推导、`server_restart` 过期语义、以及 provisional thread 的恢复边界以 `docs/contracts/session-persistence-contract.md` 为准
   - 若 file-backed restore 同时恢复出 session-memory reminder block，app-server MAY 在服务端缓存它，并在下一次成功的 `turn/start` / turn-dispatch 上作为 next-turn-only injected blocks 消费一次；该 block MUST NOT 被写回 persisted history
@@ -67,13 +67,22 @@
     - `preTokens?`
     - `summaryKind?`
   - `thread/resume` 返回的 `latestCompactBoundary` MUST 与同一 session 的 `thread/read` / `thread/messages` 使用相同 canonical compact protocol 来源；客户端不得为 restore surface 自行推导第二套 compact summary
+  - `durableSnip` 当前为可选 durable projection fact；若存在，稳定字段 SHOULD 包含：
+    - `stage`（固定为 `snip`）
+    - `status`（`no_state` 或 `active`）
+    - `applied`
+    - `reason`
+    - `removedMessageCount`
+    - `droppedOrphanToolBlockCount`
+    - `removalRangeCount`
+  - `durableSnip` 仅描述 replay/model-facing projection 的 durable snip stage；MUST NOT 被解释为 request-time `nextTurnFixed.snipImpact`，也 MUST NOT 被插入 transcript rows
   - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
     - `phase`（`initial` 或 `reactive_retry`）
     - `collapsedHeadMessageCount`
     - `estimatedTokensSaved`
     - `recapFingerprint?`
   - `thread/resume` 返回的 `latestRequestCollapse` MUST 与同一 session 的 `thread/read` / `thread/messages` / `thread/replay` 使用相同 request-time collapse event 来源；客户端不得从 restored history 或 timeline rows 反推第二套 collapse summary
-- `thread/resume` / `thread/read` / `thread/messages` / `thread/replay` MUST 通过同一组 server-side projection facts 缓存与解析路径暴露 `latestCompactBoundary` 和 `latestRequestCollapse`；新增 surface 不得分别扫描 compact 与 request-collapse 来源后再自行拼装响应。
+- `thread/resume` / `thread/read` / `thread/messages` / `thread/replay` MUST 通过同一组 server-side projection facts 缓存与解析路径暴露 `latestCompactBoundary`、`durableSnip` 和 `latestRequestCollapse`；新增 surface 不得分别扫描 compact、snip 与 request-collapse 来源后再自行拼装响应。
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 
@@ -88,7 +97,7 @@
 ## 2.4 thread/read
 
 - 入参：`{ threadId: string }`
-- 返回：`{ thread, transcriptPreview, latestCompactBoundary?, latestRequestCollapse? }`
+- 返回：`{ thread, transcriptPreview, latestCompactBoundary?, durableSnip?, latestRequestCollapse? }`
   - `latestCompactBoundary` 当前为可选最小 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
     - `trigger?`
@@ -96,6 +105,7 @@
     - `preTokens?`
     - `summaryKind?`
   - 当同一 thread 已有更深的 compact protocol facts 时，`thread/read` SHOULD 继续沿用 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得因为 read / messages / replay / resume surface 不同而降级为另一套较浅摘要
+  - `durableSnip` 当前为可选 durable projection fact；若存在，稳定字段与 `thread/resume` 相同。
   - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
     - `phase`（`initial` 或 `reactive_retry`）
     - `collapsedHeadMessageCount`
@@ -110,7 +120,7 @@
   - `limit` 默认 50，最大 200
   - `cursor` 为非负整数字符串偏移量
   - `cursor` 缺失时默认返回最新一页
-- 返回：`{ data, nextCursor, latestCompactBoundary?, latestRequestCollapse? }`（`nextCursor` 指向更早一页）
+- 返回：`{ data, nextCursor, latestCompactBoundary?, durableSnip?, latestRequestCollapse? }`（`nextCursor` 指向更早一页）
   - `data` 包含两类项：
     - `kind: "message"`：`{ id, role: "user" | "assistant", text }`
     - `kind: "tool"`：`{ id, toolUseId?, toolName, status, summary, paramsText?, detailLines? }`
@@ -123,6 +133,7 @@
     - `preTokens?`
     - `summaryKind?`
   - 当同一 thread 已有更深的 compact protocol facts 时，`thread/messages` SHOULD 继续沿用 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得因为 history / replay / resume / read surface 不同而降级为另一套较浅摘要
+  - `durableSnip` 当前为可选 durable projection fact；若存在，它 MUST NOT 改写现有 `data[]` item 语义。
   - `latestRequestCollapse` 当前为可选最小摘要；若存在，稳定字段 SHOULD 包含：
     - `phase`（`initial` 或 `reactive_retry`）
     - `collapsedHeadMessageCount`
@@ -133,13 +144,14 @@
 ## 2.4.2 thread/replay
 
 - 入参：`{ threadId: string, after?: number, limit?: number }`
-- 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
+- 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, durableSnip?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
   - `latestCompactBoundary` 当前为可选 compact protocol 摘要。
   - 若存在，它 MUST 与同一 thread 的 canonical replay-backed compact boundary 对齐，并与 `thread/read` / `thread/messages` / `thread/resume` 共用同一 compact protocol 来源。
   - 该字段 SHOULD 继续沿用已有 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得为 replay / inspection surface 重新组装第二套 compact summary。
   - `pendingSessionMemoryRestore` 当前为可选 next-turn-only restore utility 摘要。
   - 若存在，它 MUST 与同一 thread 最近一次 `thread/resume` 缓存的 pending restore artifact 对齐，并在下一次成功的 `turn/start` / turn-dispatch 消费后消失。
   - 该字段 MUST NOT 被解释为新的 persisted authority；它只描述当前 server-side pending restore utility 窗口。
+  - `durableSnip` 当前为可选 durable projection fact；若存在，它 MUST 与同一 thread 的 `thread/read` / `thread/messages` / `thread/resume` 使用相同 projection owner 来源。
   - `latestRequestCollapse` 当前为可选最小 request-time collapse 摘要。
   - 若存在，它 MUST 与同一 thread 的 `thread/read` / `thread/messages` / `thread/resume` 使用相同 persisted request-collapse event 来源，且 MUST NOT 改写 replay `data[]` item 语义。
 

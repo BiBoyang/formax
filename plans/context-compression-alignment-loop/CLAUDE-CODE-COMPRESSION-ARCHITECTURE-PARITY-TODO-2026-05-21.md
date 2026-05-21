@@ -231,9 +231,9 @@ Validation:
 
 - [x] TUI primary / expanded transcript view declares whether it shows raw scrollback, compacted view, or diagnostics view.
 - [x] App-server `thread/read`, `thread/messages`, `thread/replay`, `thread/resume` consume the same projection facts.
-- [ ] Web runtime caches compact/snip/collapse facts from a single RPC shape.
+- [x] Web runtime caches compact/snip/collapse facts from a single RPC shape.
   - [x] Compact/collapse display facts cached from one parsed RPC facts object per `thread/messages` / `thread/resume` / `thread/replay` response.
-  - [ ] Snip remains `/context` diagnostics-only until app-server exposes a canonical thread-level snip fact.
+  - [x] App-server exposes `durableSnip` as the canonical thread-level durable snip projection fact; Web caches it without treating it as request-time `/context` `snipImpact`.
 - [x] `/context` diagnostics displays projection layers without redefining stage semantics.
 - [ ] CODEMAP / README / contracts updated if entrypoints move.
 

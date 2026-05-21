@@ -29,6 +29,7 @@ import {
 import {
   ThreadStore,
   type LatestRequestCollapseSummary,
+  type ThreadDurableSnipSummary,
   type ThreadListResult,
   type ThreadMessagesResult,
   type ThreadReadResult,
@@ -67,6 +68,7 @@ type ReplayEntry = {
 
 type LatestThreadProjectionFacts = {
   latestCompactBoundary: CompactBoundaryMeta | null
+  durableSnip: ThreadDurableSnipSummary | null
   latestRequestCollapse: LatestRequestCollapseSummary | null
 }
 
@@ -133,6 +135,7 @@ export class AppServer {
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
+  private readonly durableSnipByThreadId = new Map<string, ThreadDurableSnipSummary | null>()
   private readonly latestRequestCollapseByThreadId = new Map<string, LatestRequestCollapseSummary | null>()
   private readonly liveCompactBoundaryByThreadId = new Map<
     string,
@@ -249,6 +252,7 @@ export class AppServer {
             thread: result.thread,
             staleInputs: result.staleInputs,
             latestCompactBoundary: result.latestCompactBoundary ?? null,
+            durableSnip: result.durableSnip ?? null,
             latestRequestCollapse: result.latestRequestCollapse ?? null,
             pendingSessionMemoryRestore: result.pendingSessionMemoryRestore ?? null,
           }),
@@ -647,10 +651,12 @@ export class AppServer {
     threadId: string,
     facts: {
       latestCompactBoundary?: CompactBoundaryMeta | null
+      durableSnip?: ThreadDurableSnipSummary | null
       latestRequestCollapse?: LatestRequestCollapseSummary | null
     },
   ): void {
     this.rememberLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    this.rememberDurableSnip(threadId, facts.durableSnip)
     this.rememberLatestRequestCollapse(threadId, facts.latestRequestCollapse)
   }
 
@@ -673,6 +679,7 @@ export class AppServer {
     const paramsObj = params && typeof params === 'object' ? (params as Record<string, unknown>) : null
     const threadId = extractThreadIdFromNotificationParams(paramsObj)
     if (!threadId) return paramsObj ?? undefined
+    this.durableSnipByThreadId.delete(threadId)
     this.latestRequestCollapseByThreadId.delete(threadId)
 
     const replaySeq = this.replaySeq + 1
@@ -788,9 +795,10 @@ export class AppServer {
     latestCursor: number
     hasGap: boolean
     state: ReplayStateSnapshot | null
-    latestCompactBoundary: CompactBoundaryMeta | null
-    latestRequestCollapse: LatestRequestCollapseSummary | null
-    pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null
+      latestCompactBoundary: CompactBoundaryMeta | null
+      durableSnip: ThreadDurableSnipSummary | null
+      latestRequestCollapse: LatestRequestCollapseSummary | null
+      pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null
   }> {
     const entries = this.replayByThreadId.get(args.threadId) ?? []
     const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
@@ -838,6 +846,7 @@ export class AppServer {
         hasGap,
         state: stateSnapshot,
         latestCompactBoundary: stableLatestCompactBoundary,
+        durableSnip: latestProjectionFacts.durableSnip,
         latestRequestCollapse,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
@@ -851,6 +860,7 @@ export class AppServer {
         hasGap: false,
         state: stateSnapshot,
         latestCompactBoundary: stableLatestCompactBoundary,
+        durableSnip: latestProjectionFacts.durableSnip,
         latestRequestCollapse,
         pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
       }
@@ -881,9 +891,15 @@ export class AppServer {
         : hasGap
           ? latestCompactBoundary
           : stableLatestCompactBoundary,
+      durableSnip: latestProjectionFacts.durableSnip,
       latestRequestCollapse,
       pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
     }
+  }
+
+  private rememberDurableSnip(threadId: string, durableSnip: ThreadDurableSnipSummary | null | undefined): void {
+    if (durableSnip === undefined) return
+    this.durableSnipByThreadId.set(threadId, durableSnip ?? null)
   }
 
   private rememberLatestRequestCollapse(threadId: string, collapse: LatestRequestCollapseSummary | null | undefined): void {
@@ -893,10 +909,12 @@ export class AppServer {
 
   private async resolveLatestProjectionFactsForReplay(threadId: string): Promise<LatestThreadProjectionFacts> {
     const hasCachedCompactBoundary = this.latestCompactBoundaryByThreadId.has(threadId)
+    const hasCachedDurableSnip = this.durableSnipByThreadId.has(threadId)
     const hasCachedRequestCollapse = this.latestRequestCollapseByThreadId.has(threadId)
-    if (hasCachedCompactBoundary && hasCachedRequestCollapse) {
+    if (hasCachedCompactBoundary && hasCachedDurableSnip && hasCachedRequestCollapse) {
       return {
         latestCompactBoundary: this.latestCompactBoundaryByThreadId.get(threadId) ?? null,
+        durableSnip: this.durableSnipByThreadId.get(threadId) ?? null,
         latestRequestCollapse: this.latestRequestCollapseByThreadId.get(threadId) ?? null,
       }
     }
@@ -904,20 +922,26 @@ export class AppServer {
     try {
       const thread = await this.threadStore.readThread(threadId)
       if (!hasCachedCompactBoundary) this.rememberLatestCompactBoundary(threadId, thread.latestCompactBoundary)
+      if (!hasCachedDurableSnip) this.rememberDurableSnip(threadId, thread.durableSnip)
       if (!hasCachedRequestCollapse) this.rememberLatestRequestCollapse(threadId, thread.latestRequestCollapse)
       return {
         latestCompactBoundary: hasCachedCompactBoundary
           ? (this.latestCompactBoundaryByThreadId.get(threadId) ?? null)
           : (thread.latestCompactBoundary ?? null),
+        durableSnip: hasCachedDurableSnip
+          ? (this.durableSnipByThreadId.get(threadId) ?? null)
+          : (thread.durableSnip ?? null),
         latestRequestCollapse: hasCachedRequestCollapse
           ? (this.latestRequestCollapseByThreadId.get(threadId) ?? null)
           : (thread.latestRequestCollapse ?? null),
       }
     } catch {
       if (!hasCachedCompactBoundary) this.rememberLatestCompactBoundary(threadId, null)
+      if (!hasCachedDurableSnip) this.rememberDurableSnip(threadId, null)
       if (!hasCachedRequestCollapse) this.rememberLatestRequestCollapse(threadId, null)
       return {
         latestCompactBoundary: this.latestCompactBoundaryByThreadId.get(threadId) ?? null,
+        durableSnip: this.durableSnipByThreadId.get(threadId) ?? null,
         latestRequestCollapse: this.latestRequestCollapseByThreadId.get(threadId) ?? null,
       }
     }

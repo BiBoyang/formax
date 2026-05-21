@@ -1,4 +1,4 @@
-import type { CompactBoundarySummary, RequestCollapseSummary, TranscriptItem } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from './replayMachine'
 
 export type ThreadCacheState = {
@@ -6,11 +6,13 @@ export type ThreadCacheState = {
   historyCursorByThreadId: Record<string, string | null>
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>
   latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
+  durableSnipByThreadId: Record<string, DurableSnipSummary | null>
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
 }
 
 export type ThreadCompressionProjectionFacts = {
   latestCompactBoundary?: CompactBoundarySummary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RequestCollapseSummary | null
 }
 
@@ -19,6 +21,7 @@ export const INITIAL_THREAD_CACHE_STATE: ThreadCacheState = {
   historyCursorByThreadId: {},
   transcriptSourceByThreadId: {},
   latestCompactBoundaryByThreadId: {},
+  durableSnipByThreadId: {},
   latestRequestCollapseByThreadId: {},
 }
 

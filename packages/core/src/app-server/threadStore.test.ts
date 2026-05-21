@@ -300,7 +300,13 @@ describe('ThreadStore', () => {
 
     const provisional = await store.startThread({})
     const emptyPage = await store.listThreadMessages({ threadId: provisional.id, limit: 20, cursor: '3' })
-    expect(emptyPage).toEqual({ data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null })
+    expect(emptyPage).toEqual({
+      data: [],
+      nextCursor: null,
+      latestCompactBoundary: null,
+      durableSnip: null,
+      latestRequestCollapse: null,
+    })
 
     const fakeSummary = {
       id: provisional.id,

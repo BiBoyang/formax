@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react'
-import type { CompactBoundarySummary, RequestCollapseSummary, RpcNotification } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, RpcNotification } from '../../types'
 import {
   createInitialThreadRuntimeState,
   isReplMode,
@@ -47,12 +47,16 @@ export type UseRuntimeEventOrchestratorArgs = {
   stateLogsRef: ReplayThreadEventsContext['stateLogsRef']
   transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef']
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
+  durableSnipByThreadIdRef: { current: Record<string, DurableSnipSummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
   setLatestCompactBoundaryByThreadId: (
     updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>,
   ) => void
   setLatestRequestCollapseByThreadId: (
     updater: (prev: Record<string, RequestCollapseSummary | null>) => Record<string, RequestCollapseSummary | null>,
+  ) => void
+  setDurableSnipByThreadId: (
+    updater: (prev: Record<string, DurableSnipSummary | null>) => Record<string, DurableSnipSummary | null>,
   ) => void
   setThreadTranscriptSource: ReplayThreadEventsContext['setThreadTranscriptSource']
   clearThreadHistoryCursor: ReplayThreadEventsContext['clearThreadHistoryCursor']
@@ -93,8 +97,10 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     stateLogsRef,
     transcriptSourceByThreadRef,
     latestCompactBoundaryByThreadIdRef,
+    durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
     setLatestCompactBoundaryByThreadId,
+    setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
@@ -152,6 +158,30 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       setLatestRequestCollapseByThreadId((prev) => withRecordValue(prev, threadId, collapse))
     },
     [latestRequestCollapseByThreadIdRef, setLatestRequestCollapseByThreadId],
+  )
+
+  const cacheDurableSnip = useCallback(
+    (threadId: string, durableSnip: DurableSnipSummary | null | undefined): void => {
+      if (durableSnip === undefined) return
+      const current = durableSnipByThreadIdRef.current[threadId] ?? null
+      if (
+        current === durableSnip ||
+        (current &&
+          durableSnip &&
+          current.stage === durableSnip.stage &&
+          current.status === durableSnip.status &&
+          current.applied === durableSnip.applied &&
+          current.reason === durableSnip.reason &&
+          current.removedMessageCount === durableSnip.removedMessageCount &&
+          current.droppedOrphanToolBlockCount === durableSnip.droppedOrphanToolBlockCount &&
+          current.removalRangeCount === durableSnip.removalRangeCount)
+      ) {
+        return
+      }
+      durableSnipByThreadIdRef.current = withRecordValue(durableSnipByThreadIdRef.current, threadId, durableSnip)
+      setDurableSnipByThreadId((prev) => withRecordValue(prev, threadId, durableSnip))
+    },
+    [durableSnipByThreadIdRef, setDurableSnipByThreadId],
   )
 
   const cacheLiveCompactBoundary = useCallback(
@@ -305,6 +335,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         stateLogsRef,
         transcriptSourceByThreadRef,
         cacheLatestCompactBoundary,
+        cacheDurableSnip,
         cacheLatestRequestCollapse,
         dispatch,
         setMode,
@@ -322,6 +353,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       cacheThreadMode,
       clearThreadHistoryCursor,
       cacheLatestCompactBoundary,
+      cacheDurableSnip,
       cacheLatestRequestCollapse,
       dispatch,
       handleNotification,

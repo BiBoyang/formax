@@ -123,6 +123,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     stateLogsRef: { current: [{ id: 'active-log' }] },
     transcriptSourceByThreadRef: { current: { [TEST_THREAD_ID]: 'history' } },
     cacheLatestCompactBoundary: vi.fn(),
+    cacheDurableSnip: vi.fn(),
     cacheLatestRequestCollapse: vi.fn(),
     dispatch: vi.fn(),
     setMode: vi.fn(),
@@ -180,13 +181,15 @@ it('caches latest compact and collapse summaries from replay responses', async (
     }),
   )
   const cacheLatestCompactBoundary = vi.fn()
+  const cacheDurableSnip = vi.fn()
   const cacheLatestRequestCollapse = vi.fn()
-  const ctx = createReplayContext({ request, cacheLatestCompactBoundary, cacheLatestRequestCollapse })
+  const ctx = createReplayContext({ request, cacheLatestCompactBoundary, cacheDurableSnip, cacheLatestRequestCollapse })
 
   const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
   expect(ok).toBe(true)
   expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+  expect(cacheDurableSnip).toHaveBeenCalledWith(TEST_THREAD_ID, undefined)
   expect(cacheLatestRequestCollapse).toHaveBeenCalledWith(TEST_THREAD_ID, latestRequestCollapse)
 })
 

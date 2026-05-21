@@ -9,7 +9,7 @@ import { createUserInputManager } from '../tools/runtime/userInputManager.js'
 import { classifyRpcMessage, JSON_RPC_ERRORS } from './jsonrpc.js'
 import type { Thread } from './protocol.js'
 import { AppServer } from './server.js'
-import { ThreadStore, type LatestRequestCollapseSummary } from './threadStore.js'
+import { ThreadStore, type LatestRequestCollapseSummary, type ThreadDurableSnipSummary } from './threadStore.js'
 import { TurnRunner } from './turnRunner.js'
 
 function request(id: string | number | null, method: string, params?: unknown) {
@@ -326,7 +326,7 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread() {
-          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, durableSnip: null }
         },
         async listThreads() {
           return { data: [], nextCursor: null }
@@ -342,11 +342,12 @@ describe('AppServer', () => {
               preTokens: 1200,
               summaryKind: 'session_memory',
             },
+            durableSnip: null,
             latestRequestCollapse: null,
           }
         },
         async listThreadMessages() {
-          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip: null, latestRequestCollapse: null }
         },
       },
     })
@@ -369,6 +370,61 @@ describe('AppServer', () => {
       summaryKind: 'session_memory',
     })
     expect(readThreadCount).toBe(1)
+  })
+
+  it('does not treat omitted durable snip fact as an authoritative null replay cache', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const durableSnip: ThreadDurableSnipSummary = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
+      removalRangeCount: 1,
+    }
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: null,
+            ...(readThreadCount > 1 ? { durableSnip } : {}),
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+        },
+      },
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+    await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    const replayAfterDurableSnipAvailable = await server.handleMessage(
+      request(3, 'thread/replay', { threadId: 'thread-1' }),
+    )
+
+    expect(readThreadCount).toBe(2)
+    expect((replayAfterDurableSnipAvailable[0] as any).result.durableSnip).toEqual(durableSnip)
   })
 
   it('refreshes replay latestRequestCollapse after later turn notifications', async () => {
@@ -422,6 +478,63 @@ describe('AppServer', () => {
 
     const refreshedReplay = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
     expect((refreshedReplay[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
+  })
+
+  it('refreshes replay durable snip facts after later turn notifications', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    let durableSnip: ThreadDurableSnipSummary | null = null
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, durableSnip }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary: null,
+            durableSnip,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip, latestRequestCollapse: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const staleReplay = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
+    expect((staleReplay[0] as any).result.durableSnip).toBeNull()
+
+    durableSnip = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 3,
+      droppedOrphanToolBlockCount: 1,
+      removalRangeCount: 2,
+    }
+    server.createTurnNotificationEmitter()('turn/started', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'running' },
+    })
+
+    const refreshedReplay = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+    expect((refreshedReplay[0] as any).result.durableSnip).toEqual(durableSnip)
   })
 
   it('keeps compact and collapse summaries consistent across resume, read, messages, and replay', async () => {
@@ -499,7 +612,7 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread() {
-          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, durableSnip: null }
         },
         async listThreads() {
           return { data: [], nextCursor: null }
@@ -510,11 +623,12 @@ describe('AppServer', () => {
             thread: baseThread,
             transcriptPreview: [],
             latestCompactBoundary: null,
+            durableSnip: null,
             latestRequestCollapse: null,
           }
         },
         async listThreadMessages() {
-          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip: null, latestRequestCollapse: null }
         },
       },
     })
@@ -615,7 +729,7 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread() {
-          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, durableSnip: null }
         },
         async listThreads() {
           return { data: [], nextCursor: null }
@@ -626,11 +740,12 @@ describe('AppServer', () => {
             thread: baseThread,
             transcriptPreview: [],
             latestCompactBoundary: null,
+            durableSnip: null,
             latestRequestCollapse: null,
           }
         },
         async listThreadMessages() {
-          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip: null, latestRequestCollapse: null }
         },
       },
     })
@@ -688,7 +803,7 @@ describe('AppServer', () => {
           return baseThread
         },
         async resumeThread() {
-          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null }
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary: null, durableSnip: null }
         },
         async listThreads() {
           return { data: [], nextCursor: null }
@@ -699,11 +814,12 @@ describe('AppServer', () => {
             thread: baseThread,
             transcriptPreview: [],
             latestCompactBoundary: persistedBoundary,
+            durableSnip: null,
             latestRequestCollapse: null,
           }
         },
         async listThreadMessages() {
-          return { data: [], nextCursor: null, latestCompactBoundary: null, latestRequestCollapse: null }
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip: null, latestRequestCollapse: null }
         },
       },
     })
@@ -757,6 +873,15 @@ describe('AppServer', () => {
       estimatedTokensSaved: 512,
       recapFingerprint: 'replay-collapse-fingerprint',
     }
+    const durableSnip: ThreadDurableSnipSummary = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 2,
+      droppedOrphanToolBlockCount: 1,
+      removalRangeCount: 1,
+    }
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
       threadStore: {
@@ -768,6 +893,7 @@ describe('AppServer', () => {
             thread: baseThread,
             staleInputs: [],
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -779,6 +905,7 @@ describe('AppServer', () => {
             thread: baseThread,
             transcriptPreview: [],
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -787,6 +914,7 @@ describe('AppServer', () => {
             data: [],
             nextCursor: null,
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -796,6 +924,7 @@ describe('AppServer', () => {
 
     const replayOut = await server.handleMessage(request(2, 'thread/replay', { threadId: 'thread-1' }))
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    expect((replayOut[0] as any).result.durableSnip).toEqual(durableSnip)
     expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
   })
 
@@ -818,6 +947,15 @@ describe('AppServer', () => {
       estimatedTokensSaved: 128,
       recapFingerprint: 'single-read-collapse',
     }
+    const durableSnip: ThreadDurableSnipSummary = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 1,
+      droppedOrphanToolBlockCount: 0,
+      removalRangeCount: 1,
+    }
     let readThreadCount = 0
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -830,6 +968,7 @@ describe('AppServer', () => {
             thread: baseThread,
             staleInputs: [],
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -842,6 +981,7 @@ describe('AppServer', () => {
             thread: baseThread,
             transcriptPreview: [],
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -850,6 +990,7 @@ describe('AppServer', () => {
             data: [],
             nextCursor: null,
             latestCompactBoundary,
+            durableSnip,
             latestRequestCollapse,
           }
         },
@@ -861,6 +1002,7 @@ describe('AppServer', () => {
 
     expect(readThreadCount).toBe(1)
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    expect((replayOut[0] as any).result.durableSnip).toEqual(durableSnip)
     expect((replayOut[0] as any).result.latestRequestCollapse).toEqual(latestRequestCollapse)
   })
 
@@ -1399,6 +1541,7 @@ describe('AppServer', () => {
       },
       staleInputs: [],
       latestCompactBoundary: null,
+      durableSnip: null,
       latestRequestCollapse: null,
       pendingSessionMemoryRestore,
     })

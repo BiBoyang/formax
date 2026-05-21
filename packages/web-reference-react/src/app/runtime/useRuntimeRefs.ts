@@ -8,7 +8,7 @@ import { useRef, useEffect } from 'react'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import type { RpcClient } from '../../rpcClient'
 import { SEEN_EVENT_CAP } from '../core/constants'
-import type { CompactBoundarySummary, RequestCollapseSummary, ThreadSummary } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, ThreadSummary } from '../../types'
 import type { TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -124,6 +124,7 @@ export interface ThreadCacheRefs {
   logsByThreadIdRef: React.RefObject<Record<string, TranscriptItem[]>>
   transcriptSourceByThreadRef: React.RefObject<Record<string, ThreadTranscriptSource>>
   latestCompactBoundaryByThreadIdRef: React.RefObject<Record<string, CompactBoundarySummary | null>>
+  durableSnipByThreadIdRef: React.RefObject<Record<string, DurableSnipSummary | null>>
   latestRequestCollapseByThreadIdRef: React.RefObject<Record<string, RequestCollapseSummary | null>>
 }
 
@@ -136,11 +137,13 @@ export function useThreadCacheRefs(
   logsByThreadId: Record<string, TranscriptItem[]>,
   transcriptSourceByThreadId: Record<string, ThreadTranscriptSource>,
   latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>,
+  durableSnipByThreadId: Record<string, DurableSnipSummary | null>,
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>,
 ): ThreadCacheRefs {
   const logsByThreadIdRef = useRef(logsByThreadId)
   const transcriptSourceByThreadRef = useRef(transcriptSourceByThreadId)
   const latestCompactBoundaryByThreadIdRef = useRef(latestCompactBoundaryByThreadId)
+  const durableSnipByThreadIdRef = useRef(durableSnipByThreadId)
   const latestRequestCollapseByThreadIdRef = useRef(latestRequestCollapseByThreadId)
 
   // Keep cache refs synchronized together to avoid redundant effect scheduling.
@@ -148,13 +151,21 @@ export function useThreadCacheRefs(
     logsByThreadIdRef.current = logsByThreadId
     transcriptSourceByThreadRef.current = transcriptSourceByThreadId
     latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThreadId
+    durableSnipByThreadIdRef.current = durableSnipByThreadId
     latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThreadId
-  }, [logsByThreadId, transcriptSourceByThreadId, latestCompactBoundaryByThreadId, latestRequestCollapseByThreadId])
+  }, [
+    logsByThreadId,
+    transcriptSourceByThreadId,
+    latestCompactBoundaryByThreadId,
+    durableSnipByThreadId,
+    latestRequestCollapseByThreadId,
+  ])
 
   return {
     logsByThreadIdRef,
     transcriptSourceByThreadRef,
     latestCompactBoundaryByThreadIdRef,
+    durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
   }
 }

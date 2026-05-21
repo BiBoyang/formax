@@ -14,7 +14,8 @@ import {
 import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.js'
 import type { PromptBlock } from '../prompts/index.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
-import { buildActiveHistoryFromSessionReplay, findLatestCompactBoundary, type CompactBoundaryMeta } from '../chat/context/compact.js'
+import { buildActiveHistoryFromSessionReplay, type CompactBoundaryMeta } from '../chat/context/compact.js'
+import { buildContextProjection, type DurableSnipProjectionFact } from '../chat/context/contextProjection.js'
 import type { InputResolvedPayload } from './protocol/input.js'
 import type {
   Thread,
@@ -56,6 +57,7 @@ export type ThreadReadResult = {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
   latestCompactBoundary?: CompactBoundaryMeta | null
+  durableSnip?: ThreadDurableSnipSummary | null
   latestRequestCollapse?: {
     phase: 'initial' | 'reactive_retry'
     collapsedHeadMessageCount: number
@@ -66,8 +68,19 @@ export type ThreadReadResult = {
 
 export type LatestRequestCollapseSummary = NonNullable<ThreadReadResult['latestRequestCollapse']>
 
+export type ThreadDurableSnipSummary = {
+  stage: 'snip'
+  status: DurableSnipProjectionFact['status']
+  applied: boolean
+  reason: string
+  removedMessageCount: number
+  droppedOrphanToolBlockCount: number
+  removalRangeCount: number
+}
+
 type ThreadProjectionFacts = {
   latestCompactBoundary: CompactBoundaryMeta | null
+  durableSnip: ThreadDurableSnipSummary
   latestRequestCollapse: LatestRequestCollapseSummary | null
 }
 
@@ -95,6 +108,7 @@ export type ThreadMessagesResult = {
   data: Array<ThreadMessage | ThreadToolMessage>
   nextCursor: string | null
   latestCompactBoundary?: CompactBoundaryMeta | null
+  durableSnip?: ThreadDurableSnipSummary | null
   latestRequestCollapse?: LatestRequestCollapseSummary | null
 }
 
@@ -116,6 +130,7 @@ export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
   latestCompactBoundary?: CompactBoundaryMeta | null
+  durableSnip?: ThreadDurableSnipSummary | null
   latestRequestCollapse?: LatestRequestCollapseSummary | null
   pendingSessionMemoryRestore?: SessionMemoryRestoreSummary | null
   nextTurnInjectedBlocks?: PromptBlock[]
@@ -480,12 +495,26 @@ function toLatestRequestCollapseSummary(
   }
 }
 
+function toThreadDurableSnipSummary(fact: DurableSnipProjectionFact): ThreadDurableSnipSummary {
+  return {
+    stage: 'snip',
+    status: fact.status,
+    applied: fact.applied,
+    reason: fact.reason,
+    removedMessageCount: fact.removedMessageCount,
+    droppedOrphanToolBlockCount: fact.droppedOrphanToolBlockCount,
+    removalRangeCount: fact.removals.length,
+  }
+}
+
 function buildThreadProjectionFacts(args: {
   replay: Awaited<ReturnType<typeof readSessionFile>>
   latestRequestCollapseEvent: Awaited<ReturnType<typeof readLatestRequestCollapseEventFromSession>>
 }): ThreadProjectionFacts {
+  const projection = buildContextProjection({ history: args.replay.history as any })
   return {
-    latestCompactBoundary: findLatestCompactBoundary(args.replay.history as any),
+    latestCompactBoundary: projection.facts.latestCompactBoundary,
+    durableSnip: toThreadDurableSnipSummary(projection.durableState.snip),
     latestRequestCollapse: toLatestRequestCollapseSummary(args.latestRequestCollapseEvent),
   }
 }
@@ -580,6 +609,7 @@ export class ThreadStore {
         thread: toThreadFromProvisional(provisional),
         staleInputs: [],
         latestCompactBoundary: null,
+        durableSnip: null,
         latestRequestCollapse: null,
         pendingSessionMemoryRestore: null,
       }
@@ -626,6 +656,7 @@ export class ThreadStore {
       thread: toThread(summary),
       staleInputs,
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
       pendingSessionMemoryRestore: restoreArtifacts.pendingSessionMemoryRestore,
       ...(restoreArtifacts.nextTurnInjectedBlocks.length > 0
@@ -708,6 +739,7 @@ export class ThreadStore {
         thread: toThreadFromProvisional(provisional),
         transcriptPreview: [],
         latestCompactBoundary: null,
+        durableSnip: null,
         latestRequestCollapse: null,
       }
     }
@@ -729,6 +761,7 @@ export class ThreadStore {
       thread: toThread(summary),
       transcriptPreview,
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
     }
   }
@@ -748,6 +781,7 @@ export class ThreadStore {
         data: [],
         nextCursor: null,
         latestCompactBoundary: null,
+        durableSnip: null,
         latestRequestCollapse: null,
       }
     }
@@ -873,6 +907,7 @@ export class ThreadStore {
       data: page,
       nextCursor,
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
+      durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
     }
   }

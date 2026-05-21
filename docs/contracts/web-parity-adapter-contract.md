@@ -146,13 +146,13 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 ## 7. Compression Projection Facts
 
 `WEB-601`
-Web runtime MUST treat `latestCompactBoundary` and `latestRequestCollapse` from `thread/messages`, `thread/resume`, and `thread/replay` as server-owned compression projection facts. They MUST be cached from the parsed RPC result object through a single facts helper per response, not independently derived from transcript rows.
+Web runtime MUST treat `latestCompactBoundary`, `durableSnip`, and `latestRequestCollapse` from `thread/messages`, `thread/resume`, and `thread/replay` as server-owned compression projection facts. They MUST be cached from the parsed RPC result object through a single facts helper per response, not independently derived from transcript rows.
 
 `WEB-602`
 These cached facts are display metadata for thread chrome and inspection panes. They MUST NOT be inserted into transcript logs, canonical projection segments, or history hydrate rows.
 
 `WEB-603`
-Snip/collapse request projection diagnostics currently remain under `/context` diagnostics (`nextTurnFixed.snipImpact`, `nextTurnFixed.collapseImpact`, and `strategyControlPlane`). Web MUST NOT invent a durable thread-level snip cache until app-server exposes a canonical thread surface field for it.
+`durableSnip` is the durable projection-stage fact exposed by app-server. Request projection diagnostics remain under `/context` diagnostics (`nextTurnFixed.snipImpact`, `nextTurnFixed.collapseImpact`, and `strategyControlPlane`). Web MUST NOT interpret `durableSnip` as request-time snip impact or use it to mutate transcript rows.
 
 ## 8. 变更流程
 

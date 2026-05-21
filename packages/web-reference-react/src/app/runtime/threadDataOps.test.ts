@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadDataOps, type ThreadDataOpsContext } from './threadDataOps'
-import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
+import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
 
 vi.mock('../../eventAdapters', () => ({
   mapThreadHistoryToCanonicalLogs: vi.fn(() => [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }]),
@@ -20,12 +20,16 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
   let historyCursorByThread: Record<string, string | null> = {}
   let transcriptSourceByThread: Record<string, 'history' | 'replay'> = {}
   let latestCompactBoundaryByThread: Record<string, CompactBoundarySummary | null> = {}
+  let durableSnipByThread: Record<string, DurableSnipSummary | null> = {}
   let latestRequestCollapseByThread: Record<string, RequestCollapseSummary | null> = {}
   let logsByThread: Record<string, any[]> = {}
   const historyCursorByThreadIdRef = { current: {} as Record<string, string | null> }
   const logsByThreadIdRef = { current: {} as Record<string, any[]> }
   const latestCompactBoundaryByThreadIdRef = {
     current: {} as Record<string, CompactBoundarySummary | null>,
+  }
+  const durableSnipByThreadIdRef = {
+    current: {} as Record<string, DurableSnipSummary | null>,
   }
   const latestRequestCollapseByThreadIdRef = {
     current: {} as Record<string, RequestCollapseSummary | null>,
@@ -42,6 +46,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     historyCursorByThreadIdRef,
     transcriptSourceByThreadRef: { current: {} },
     latestCompactBoundaryByThreadIdRef,
+    durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
     logsByThreadIdRef,
     stateLogsRef: { current: [] },
@@ -63,6 +68,11 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
       latestCompactBoundaryByThread = updater(latestCompactBoundaryByThread)
       latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThread
       return latestCompactBoundaryByThread
+    }),
+    setDurableSnipByThreadId: vi.fn((updater) => {
+      durableSnipByThread = updater(durableSnipByThread)
+      durableSnipByThreadIdRef.current = durableSnipByThread
+      return durableSnipByThread
     }),
     setLatestRequestCollapseByThreadId: vi.fn((updater) => {
       latestRequestCollapseByThread = updater(latestRequestCollapseByThread)
@@ -173,6 +183,34 @@ describe('threadDataOps', () => {
 
     expect(ctx.setLatestCompactBoundaryByThreadId).toHaveBeenCalled()
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
+  })
+
+  it('caches durable snip facts from thread history responses', async () => {
+    const durableSnip = {
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 2,
+      droppedOrphanToolBlockCount: 1,
+      removalRangeCount: 1,
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+      durableSnip,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.setDurableSnipByThreadId).toHaveBeenCalled()
+    expect(ctx.durableSnipByThreadIdRef.current['thread-1']).toEqual(durableSnip)
   })
 
   it('keeps thread history compact/collapse facts separate from transcript logs', async () => {

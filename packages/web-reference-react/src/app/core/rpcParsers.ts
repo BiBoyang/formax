@@ -1,5 +1,6 @@
 import type {
   CompactBoundarySummary,
+  DurableSnipSummary,
   PendingInput,
   RequestCollapseSummary,
   ResolvedInput,
@@ -87,6 +88,7 @@ export function asThreadMessages(value: unknown): {
   data: ThreadMessage[]
   nextCursor: string | null
   latestCompactBoundary?: CompactBoundarySummary | null
+  durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RequestCollapseSummary | null
 } {
   if (!value || typeof value !== 'object') return { data: [], nextCursor: null }
@@ -179,10 +181,57 @@ export function asThreadMessages(value: unknown): {
       : latestRequestCollapseRaw === null
         ? null
         : undefined
+  const durableSnipRaw = root.durableSnip
+  const durableSnip: DurableSnipSummary | null | undefined =
+    durableSnipRaw && typeof durableSnipRaw === 'object'
+      ? (() => {
+          const record = durableSnipRaw as Record<string, unknown>
+          const stage = record.stage === 'snip' ? 'snip' : null
+          const status = record.status === 'no_state' || record.status === 'active' ? record.status : null
+          const applied = typeof record.applied === 'boolean' ? record.applied : null
+          const reason = typeof record.reason === 'string' ? record.reason : null
+          const removedMessageCount =
+            typeof record.removedMessageCount === 'number' && Number.isFinite(record.removedMessageCount)
+              ? record.removedMessageCount
+              : null
+          const droppedOrphanToolBlockCount =
+            typeof record.droppedOrphanToolBlockCount === 'number' &&
+            Number.isFinite(record.droppedOrphanToolBlockCount)
+              ? record.droppedOrphanToolBlockCount
+              : null
+          const removalRangeCount =
+            typeof record.removalRangeCount === 'number' && Number.isFinite(record.removalRangeCount)
+              ? record.removalRangeCount
+              : null
+          if (
+            !stage ||
+            !status ||
+            applied == null ||
+            reason == null ||
+            removedMessageCount == null ||
+            droppedOrphanToolBlockCount == null ||
+            removalRangeCount == null
+          ) {
+            return undefined
+          }
+          return {
+            stage,
+            status,
+            applied,
+            reason,
+            removedMessageCount,
+            droppedOrphanToolBlockCount,
+            removalRangeCount,
+          }
+        })()
+      : durableSnipRaw === null
+        ? null
+        : undefined
   return {
     data,
     nextCursor,
     ...(latestCompactBoundaryRaw !== undefined ? { latestCompactBoundary: latestCompactBoundary ?? null } : {}),
+    ...(durableSnipRaw !== undefined ? { durableSnip: durableSnip ?? null } : {}),
     ...(latestRequestCollapseRaw !== undefined ? { latestRequestCollapse: latestRequestCollapse ?? null } : {}),
   }
 }
