@@ -1,5 +1,7 @@
 # Context Compression Alignment Loop Blueprint (Active)
 
+> Current active mainline, 2026-05-21: use `CLAUDE-CODE-COMPRESSION-ARCHITECTURE-PARITY-TODO-2026-05-21.md` and `docs/contracts/context-strategy-stack-contract.md` as the active source for context-compression architecture work. Older CCA wave descriptions below are historical context and may be superseded.
+
 目标：围绕 Claude Code 的上下文压缩体系，持续缩小 Formax 在“分层压缩、协议化 compact、状态恢复、可观测性”上的差距，并保持每个增量都可测试、可 review、可提交。
 
 最后更新时间：2026-05-16
@@ -223,7 +225,7 @@ Claude Code 更成熟的地方，不是某一个 `/compact` prompt 写得更长�
    - `CCA-160` 已完成
    - `CCA-161` 已完成
    - `CCA-162` 已完成：`thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，Web replay runtime 会消费它并在 replay source 下继续显示 compact header
-   - `CCA-163` 已完成：`microcompact` 当前已补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser
+   - `CCA-163` 已完成：历史上曾补上基于 stale user-turn age 的 time-aware path，并把 `timeAware*` facts 暴露到 diagnostics / app-server / Web strict parser；该路径已被 2026-05-21 Claude Code-style cache-editing / cold-cache wall-clock assistant-gap microcompact 语义 supersede，当前 active contract 见 `docs/contracts/context-strategy-stack-contract.md`
    - post-`CCA-163` mainline re-rank 已完成
    - `CCA-170` 已完成：manual `/compact` 现在也会复用 task-minimal `keep_combo` selector，不再退回固定 `keep_last_turns`
    - `CCA-171` 已完成：higher-order restore utility 现在会沿 canonical restore-artifacts 路径额外暴露 bounded 的 `recentSkills` 与 `recentSubagentTypes`，并让 `thread/resume` / `thread/replay` / next-turn reminder 共用这份扩展后的 task utility

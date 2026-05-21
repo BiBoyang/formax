@@ -543,6 +543,74 @@ describe('ThreadStore', () => {
     })
   })
 
+  it('keeps compact boundary and request collapse facts aligned across read/messages/resume', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendStableMsg({
+      id: 'u-cross-surface',
+      role: 'user',
+      content: 'cross-surface prompt',
+      timestamp: new Date('2026-02-08T00:00:00.000Z'),
+    })
+    await writer.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+        meta: {
+          compactBoundary: {
+            schemaVersion: 1,
+            trigger: 'auto',
+            triggerReason: { kind: 'auto_threshold' },
+            preTokens: 4096,
+            summaryKind: 'session_memory',
+          },
+        },
+      },
+      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+      { role: 'user', content: [{ type: 'text', text: 'post compact prompt' }] },
+    ] as any)
+    await writer.appendEvent('request_collapse_applied', {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 256,
+      recapFingerprint: 'collapse-fingerprint-1',
+    })
+    await writer.shutdown()
+
+    const expectedBoundary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 4096,
+      summaryKind: 'session_memory',
+    }
+    const expectedCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 256,
+      recapFingerprint: 'collapse-fingerprint-1',
+    }
+
+    const readOut = await store.readThread(thread.id)
+    const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    const resumed = await store.resumeThread(thread.id)
+
+    expect(readOut.latestCompactBoundary).toEqual(expectedBoundary)
+    expect(messagesOut.latestCompactBoundary).toEqual(expectedBoundary)
+    expect(resumed.latestCompactBoundary).toEqual(expectedBoundary)
+    expect(readOut.latestRequestCollapse).toEqual(expectedCollapse)
+    expect(messagesOut.latestRequestCollapse).toEqual(expectedCollapse)
+    expect(resumed.latestRequestCollapse).toEqual(expectedCollapse)
+    expect(messagesOut.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'message', role: 'user', text: 'cross-surface prompt' }),
+      ]),
+    )
+  })
+
   it('inspects persisted request-time collapse events for a thread', async () => {
     const { cwd, env, store } = await createStore()
     const thread = await store.startThread({})

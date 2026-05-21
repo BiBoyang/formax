@@ -204,4 +204,78 @@ describe('useTranscriptDisplayState', () => {
 
     expect(result.current.activeThreadLatestCompactBoundary).toEqual(latestCompactBoundary)
   })
+
+  it('keeps compact/collapse facts out of live transcript logs and display summaries', () => {
+    const latestCompactBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const latestRequestCollapse: RequestCollapseSummary = {
+      phase: 'initial',
+      collapsedHeadMessageCount: 2,
+      estimatedTokensSaved: 64,
+      recapFingerprint: 'collapse-fp',
+    }
+    const logs: TranscriptItem[] = [
+      { id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' },
+    ]
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs,
+        logsByThreadId: { 'thread-1': logs },
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: {},
+        latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
+        latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      }),
+    )
+
+    expect(result.current.activeLogs).toEqual(logs)
+    expect(result.current.activeThreadLatestCompactBoundary).toBeNull()
+    expect(result.current.activeThreadLatestRequestCollapse).toBeNull()
+  })
+
+  it('keeps compact/collapse display facts separate from history transcript logs', () => {
+    const latestCompactBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      trigger: 'reactive',
+      preTokens: 3072,
+      summaryKind: 'model_summary',
+    }
+    const latestRequestCollapse: RequestCollapseSummary = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 3,
+      estimatedTokensSaved: 96,
+      recapFingerprint: 'retry-fp',
+    }
+    const logs: TranscriptItem[] = [
+      { id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' },
+    ]
+
+    const { result } = renderHook(() =>
+      useTranscriptDisplayState({
+        activeThreadId: 'thread-1',
+        threads: [createThread()],
+        logs: [],
+        logsByThreadId: { 'thread-1': logs },
+        historyCursorByThreadId: {},
+        historyLoadingByThreadId: {},
+        transcriptSourceByThreadId: { 'thread-1': 'history' },
+        latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
+        latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      }),
+    )
+
+    expect(result.current.activeLogs).toEqual(logs)
+    expect(result.current.activeThreadLatestCompactBoundary).toEqual(latestCompactBoundary)
+    expect(result.current.activeThreadLatestRequestCollapse).toEqual(latestRequestCollapse)
+    expect(JSON.stringify(result.current.activeLogs)).not.toContain('estimatedTokensSaved')
+    expect(JSON.stringify(result.current.activeLogs)).not.toContain('preTokens')
+  })
 })

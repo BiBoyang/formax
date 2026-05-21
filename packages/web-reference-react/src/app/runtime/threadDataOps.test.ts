@@ -175,6 +175,51 @@ describe('threadDataOps', () => {
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
   })
 
+  it('keeps thread history compact/collapse facts separate from transcript logs', async () => {
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'reactive',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 5,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    } as const
+    const latestRequestCollapse = {
+      phase: 'reactive_retry',
+      collapsedHeadMessageCount: 4,
+      estimatedTokensSaved: 128,
+      recapFingerprint: 'collapse-fp',
+    } as const
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
+      activeThreadIdRef: { current: 'thread-1' },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: null,
+      latestCompactBoundary,
+      latestRequestCollapse,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
+    expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(latestRequestCollapse)
+    expect(ctx.logsByThreadIdRef.current['thread-1']).toEqual([
+      { id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' },
+    ])
+    expect(JSON.stringify(ctx.logsByThreadIdRef.current['thread-1'])).not.toContain('latestCompactBoundary')
+    expect(JSON.stringify(ctx.logsByThreadIdRef.current['thread-1'])).not.toContain('collapsedHeadMessageCount')
+  })
+
   it('refreshes cached compact boundary when deeper inspection fields change under the same shallow summary', async () => {
     const cachedBoundary: CompactBoundarySummary = {
       schemaVersion: 1,

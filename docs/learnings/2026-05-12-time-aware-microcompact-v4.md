@@ -1,5 +1,7 @@
 # 2026-05-12 time-aware microcompact v4
 
+> Superseded note, 2026-05-21: this was the pre-cache-editing Formax design. The active contract now follows Claude Code-style cache-editing / cold-cache wall-clock assistant-gap semantics: warm-cache microcompact uses Anthropic request/API-only `cache_edits`, cold-cache time-based clearing uses assistant wall-clock gap, and when cache editing is unavailable plus cold-cache trigger has not fired, `microcompact` is no-op. See `docs/contracts/context-strategy-stack-contract.md` and `docs/learnings/2026-05-21-anthropic-cache-editing-microcompact.md`.
+
 `CCA-163` 把 `microcompact` 从 cache-aware duplicate path 继续推进到 time-aware / stale-aware path。
 
 这次没有引入真实时间戳，也没有新 reducer。实现选择的是更稳定的会话内代理信号：`stale user-turn age`。
@@ -20,7 +22,7 @@
 
 Claude Code 的成熟点之一，不只是“重复结果更早清理”，而是“当 cache 已冷、当前任务也已经走远时，旧结果应该更早退出工作集”。
 
-Formax 当前没有 API cache-editing 这层能力，所以 v4 先采用最稳的本地判据：
+当时 Formax 还没有 API cache-editing 这层能力，所以 v4 先采用最稳的本地判据：
 
 - 不看 wall-clock time
 - 不引入 persisted state

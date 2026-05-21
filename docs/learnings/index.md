@@ -125,4 +125,5 @@
 - [2026-05-12 - Time-aware microcompact v4](./2026-05-12-time-aware-microcompact-v4.md)
 - [2026-05-12 - Working-set selector v4](./2026-05-12-working-set-selector-v4.md)
 - [2026-05-21 - Anthropic cache editing microcompact boundary](./2026-05-21-anthropic-cache-editing-microcompact.md)
+- [2026-05-21 - Context compression architecture parity](./2026-05-21-context-compression-architecture-parity.md)
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)

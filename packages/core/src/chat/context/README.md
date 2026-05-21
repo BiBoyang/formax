@@ -85,6 +85,7 @@ Formax 的“上下文管理”分两条线：
   - `requestHistory`：仅用于“本轮发给模型”的请求投影视图
   - 这层分离是后续安全接入 context collapse MVP 的关键前置条件之一
   - 当前 `context collapse MVP` 已开始接入这条 request-only 分支：它只会把较早 continuation 折叠成 deterministic recap，用于本轮 prompt；不会改写 persisted `history`
+  - 当前 architecture parity 主线进一步把这层分离上提为 durable projection 与 request-only reducers 的边界：compact boundary / future durable snip / future collapse store 应先形成 model-facing baseline，再进入本目录的 middle-layer stack
 
 ### injected blocks（ephemeral）
 
@@ -118,12 +119,13 @@ Formax 的“上下文管理”分两条线：
 
 ### 想改“轻量压缩 / microcompact（P2）”
 
+- `packages/core/src/chat/context/contextProjection.ts`：architecture parity 主线的 durable projection owner；当前先把 raw transcript、UI scrollback、latest compact continuation 的 model-facing baseline、diagnostics projection、durable snip/collapse/content-replacement 占位 facts 收敛到一个入口，不迁移现有 request-only reducer 行为
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`：query-time middle-layer strategy stack 的共享执行层；当前 canonical 顺序已经收敛为 `microcompact -> tool_result_budget -> snip -> collapse -> prune`，其中 `prune` 明确作为 terminal fallback 只在最后的 request envelope 上兜底
 - `packages/core/src/chat/context/turnRequestProjection.ts`：app-server / SDK 共享的 runtime request projection adapter，把 persisted `history`、request-only `requestHistory`、以及可能被 terminal prune 改写的 `requestUser` 分开返回
 - `packages/core/src/chat/context/toolResultBudget.ts`：独立的 request-time tool-result budget replacement 策略（`CCA-141` 起点；只改 request projection，不改 persisted `history`）
 - `packages/core/src/chat/context/snip.ts`：独立的 request-time snip reducer（`CCA-143` 起点；当前只裁短较老的 assistant 纯文本消息，不改 persisted `history`）
-- `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()`（当前默认会压 `Read` / `Grep` / `Glob` 的旧大结果，以及 `Skill` 的旧 machine-generated companion body；stub 会保留路径/模式/skill 名称与近似体量摘要；v2 已把策略从“全局 keep N”扩成按 tool family 的 recent keep 配额 + per-tool size threshold；v3 已额外引入 cache-aware duplicate path，会对重复的 cache-like lookup 结果更早做 request-time stub replacement）
-- `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖（保留最近结果、跳过 error/小结果、stub 可读性、family-aware recency、per-tool size threshold）
+- `packages/core/src/chat/context/microCompact.ts`：`microCompactHistory()` 当前按 Claude Code-aligned 子路径工作：Anthropic cache editing 可用时产出 request/API-only `cache_reference` / `cache_edits` delete plan；main-thread cold-cache wall-clock assistant gap 触发时允许 request-only 清旧 `tool_result`；cache editing 不可用且 cold-cache trigger 未触发时 no-op，不再走旧的 user-turn/stub fallback。
+- `packages/core/src/chat/context/microCompact.test.ts`：单测覆盖 cache-editing plan、cold-cache time-based clearing、no-op fallback、以及 request-only / persisted-history 边界。
 - `packages/core/src/features/repl/controller/send/contextCompressionService.ts`：当前挂载点（prepare/finalize）
 - 当前 `contextCompressionService` 也已把 post-compact、manual compact、reactive retry、post-turn finalization 的 persisted-history normalization 收敛到同一个 canonical stack owner；terminal `prune` 不再被 materialize 到 future-turn persisted baseline
 
@@ -136,10 +138,11 @@ Formax 的“上下文管理”分两条线：
 - 当前边界：
   - 只作用于 request-time projection
   - `prepareHistoryForTurn()` / `runReactiveCompact()` 当前也会返回最小 `collapseState`，让运行时后续链路能够消费“这轮 request projection 是否做了 collapse”以及对应 metadata，而不必再从 `requestHistory` 反推
-  - 当前 session persistence 也会把真实模型请求上实际使用的 collapse 投影记录成最小 `request_collapse_applied` event，并区分 `initial` / `reactive_retry`
-  - 不引入 collapse store / archived span metadata
-  - 不改变 replay / resume 的 persisted history 语义
-  - reactive/manual 路径暂未单独扩展 collapse 策略
+- 当前 session persistence 也会把真实模型请求上实际使用的 collapse 投影记录成最小 `request_collapse_applied` event，并区分 `initial` / `reactive_retry`
+- 不引入 collapse store / archived span metadata
+- 不改变 replay / resume 的 persisted history 语义
+- reactive/manual 路径暂未单独扩展 collapse 策略
+- architecture parity 主线将把 collapse 升级方向单独处理：未来 durable collapse store 需要先定义 committed entry / snapshot / restore replay / overflow drain / materializing compact cleanup，再改运行时。
 
 ### 想改“上下文诊断 / /context”
 
@@ -150,10 +153,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 runtime send-path 与 `/context` next-turn diagnostics 也已共用 `middleLayerStrategyStack`：`microcompact`、`prune`、`collapse` 不再由两边各自串联执行，从而把 `strategyFacts`、impact 字段和 request-time prepared view 收敛到同一个 owner
 - 当前 `middleLayerStrategyStack` 里也已引入第一条真正独立的新中间层策略：`toolResultBudget` 会单独给 tool-result group 计预算；超预算时优先在 request-time projection 上做 replacement，再把结果交给 `collapse`，并通过 `toolResultBudgetImpact` + `assembledLedger` 暴露收益
 - 当前 `middleLayerStrategyStack` 里也已引入最小 `snip` 层：它只会在 request-time projection 上裁短较老的 assistant 纯文本消息，并通过 `snipImpact` 暴露命中消息数、保留的 recent eligible messages、以及估算节省量
-- 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy：pressure ratio 会共同驱动 eligible tool family、per-tool recent keep 配额、以及 per-tool size threshold，避免 `/context` 和真实发送链的 microcompact 行为再次漂移
-- 当前 `microCompactImpact` 已稳定暴露两类 deeper-path facts：
-  - cache-aware facts：`cacheAwareEligibleToolNames`、`cacheAwareMinResultChars`、`cacheAwareCompactedBlocks`、`cacheAwareToolNames`，用于解释重复 lookup 命中时到底是哪条 cache-aware path 在减压
-  - time-aware facts：`timeAwareEligibleToolNames`、`timeAwareMinResultChars`、`timeAwareMinStaleUserTurns`、`timeAwareCompactedBlocks`、`timeAwareToolNames`，用于解释哪些较旧结果因为 stale user-turn age 达阈值而被更早 stub
+- 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy，但旧的 user-turn/stub fallback 已被 Claude Code-style cache-editing / cold-cache time-based semantics 取代。`microCompactImpact` 中仍可能保留历史字段用于兼容解析，但当前规范语义以 `docs/contracts/context-strategy-stack-contract.md` 为准。
 - 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
 - 当前 system prompt diagnostics 已支持 per-system-section breakdown：会把 system 拆成 `Identity`、heading 前 `Preamble`、以及顶层 `# section`，`top contributors` 不再只把 system 当作单个黑盒 contributor
 - 当前 `nextTurnFixed` diagnostics 已支持 lifecycle markers：会以非破坏性投影方式比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异

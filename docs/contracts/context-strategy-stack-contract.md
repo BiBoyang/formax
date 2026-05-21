@@ -1,15 +1,16 @@
 # Context Strategy Stack 合同（唯一事实源）
 
-最后更新：2026-05-11  
+最后更新：2026-05-21
 状态：规范性（Normative）
 
-本文档定义 Formax query-time context middle layer 的唯一事实源。
+本文档定义 Formax query-time context middle layer 的唯一事实源，并定义该 middle layer 与更上层 durable compression projection 的边界。
 
 范围：
 - query-time middle-layer stages 的列表、角色与执行顺序
 - stage 对 request projection / persisted history / assembled envelope 的作用域边界
 - stage facts 的最小稳定语义
 - `prune` 作为 terminal fallback 的角色约束
+- durable compression projection 与 request-only reducers 的分层边界
 
 不在范围内：
 - full compact / partial compact / reactive compact 的完整协议
@@ -24,6 +25,7 @@
 - `packages/core/src/chat/context/README.md`
 
 相关实现（规范锚点）：
+- `packages/core/src/chat/context/contextProjection.ts`
 - `packages/core/src/chat/context/middleLayerStrategyStack.ts`
 - `packages/core/src/chat/context/microCompact.ts`
 - `packages/core/src/chat/context/toolResultBudget.ts`
@@ -46,6 +48,27 @@ runtime send-path 与 `/context` next-turn diagnostics MUST 复用同一 middle-
 
 `CSS-003`  
 新增 middle-layer strategy 时，MUST 先在本合同中定义 stage 角色、顺序与作用域，再接入 runtime。
+
+`CSS-004`
+Formax context compression architecture MUST distinguish durable model-facing projection from request-only middle-layer reduction. A durable projection may be reconstructed from persisted transcript, compact boundaries, snip metadata, collapse store entries, or session events. A request-only reducer may only affect the current request envelope unless this contract and the session persistence contract explicitly upgrade it to durable semantics.
+
+`CSS-004a`
+The shared durable projection owner MUST be `buildContextProjection()` in `packages/core/src/chat/context/contextProjection.ts`. It currently defines the canonical raw transcript, UI scrollback, model-facing baseline, diagnostics projection, durable-state placeholders, and projection facts. Until durable `snip` / durable `collapse` are explicitly migrated, this owner MUST keep those states as no-op placeholders and MUST NOT change current request-only reducer behavior.
+
+`CSS-005`
+Claude Code parity work SHOULD target the following layer order:
+1. append-only transcript / persisted session log
+2. durable compression state replay
+3. model-facing projection baseline
+4. query-time middle-layer request reducers / semantic projections
+5. provider-specific request side effects
+6. materializing compact
+7. TUI / app-server / Web / diagnostics adapters
+
+The middle-layer stage order defined below starts at layer 4. It MUST NOT be treated as the complete compression architecture.
+
+`CSS-006`
+Formax's current middle-layer order is canonical for Formax, but it MUST NOT be described as exact helper-order parity with Claude Code. Claude Code parity work concerns lifecycle roles and durable projection boundaries first; helper order may differ when Formax has a documented canonical order and tests for request/persisted scope.
 
 ## 2. Stage 列表与角色
 
@@ -107,6 +130,9 @@ middle-layer stack MUST 区分以下三个 envelope：
 `CSS-303`  
 `microcompact` 与 `tool_result_budget` 当前 SHOULD 被视为 request-time reducers；不得在没有显式合同变更的情况下引入 persisted-history mutation 语义。`microcompact` 当前只允许 Claude Code-aligned 子路径：cold-cache time-based content clearing 与 Anthropic cache-editing delete planning；这些子路径同样 MUST 保持 request-time reducer 语义，不得把“较旧结果更早 stub”扩展成 persisted baseline 改写。
 
+`CSS-303a`
+Claude Code exposes a durable side-state pattern for tool-result content replacement in some query sources. Formax does not implement that durable side-state yet. Until an explicit migration changes this contract, Formax `tool_result_budget` remains request-only; durable content-replacement state is a deferred architecture gap and MUST NOT be inferred from current `tool_result_budget` facts.
+
 `CSS-304`  
 `prune` 的规范语义 MUST 是 terminal fallback：它的职责是保证最终 request-time payload 进入预算，而不是抢在前置 reducers/projection 之前充当普通变换步骤。
 
@@ -127,6 +153,18 @@ post-turn finalization、manual compact 后的 persisted baseline materializatio
 
 `CSS-307`  
 当 surrounding flow materialize future-turn persisted `history` 时，`prune` MUST NOT 被写回 persisted baseline。`prune` 只负责 `assembled_request_envelope` 的 terminal fallback；若调用方需要 future-turn baseline，MUST 取 canonical stack 暴露的 persisted-history candidate，而不是取 terminal-pruned request payload。
+
+`CSS-308`
+Durable projection state MUST be replayed before the request-only middle-layer stack runs. Examples include compact-boundary truncation, future durable snip removals, and future context-collapse committed entries / snapshots. Middle-layer reducers MUST receive the model-facing baseline produced by that durable replay, not independently rediscover durable state from UI or Web cache.
+
+`CSS-309`
+Current Formax `snip` and `collapse` remain request-only stages until an explicit durable projection migration changes their contract. A future durable `snip` migration MUST define the persisted metadata, replay/load behavior, model-facing filtering, and UI scrollback behavior before changing runtime. A future durable `context collapse` migration MUST define committed entry / snapshot storage, restore replay, overflow-drain ordering, and materializing compact rebase/cleanup behavior before changing runtime.
+
+`CSS-309a`
+If `snip` is promoted to durable projection behavior, the contract MUST decide whether a separate request-only fallback snip stage remains in the middle-layer stack or whether `snip` is removed from the layer-4 reducer list and represented only as layer-2/3 durable projection. The durable migration MUST NOT silently keep both semantics under one ambiguous `snip` label.
+
+`CSS-310`
+Provider cache side effects are not durable projection state. Anthropic `cache_reference` / `cache_edits` may alter server-side cached prefix behavior for one request, but they MUST NOT be interpreted as transcript mutation, compact boundary, snip boundary, collapse commit, or resume authority.
 
 ## 5. Stage Facts 合同
 
@@ -165,6 +203,9 @@ diagnostics / app-server / Web surface 对 middle-layer 的展示 SHOULD 优先�
 `CSS-502`  
 当 `/context`、app-server diagnostics、或 Web parity 需要消费新的 middle-layer facts 时，本合同 MUST 先记录 canonical stage 语义；派生文档只做链接和摘要，不得重定义核心角色与顺序。
 
+`CSS-503`
+When a compression feature is promoted from request-only behavior to durable projection behavior, the implementation MUST update this contract and the session persistence contract before runtime wiring. The change MUST include tests for resume/load replay and at least one cross-surface projection consumer.
+
 ## 7. 测试映射
 
 主测试集：
@@ -176,3 +217,4 @@ diagnostics / app-server / Web surface 对 middle-layer 的展示 SHOULD 优先�
 1. stage order regression
 2. request-only vs persisted-history 边界
 3. terminal fallback (`prune`) 位置与角色
+4. durable projection replay boundary when the change affects model-facing baseline construction
