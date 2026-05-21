@@ -100,12 +100,12 @@
 
 - [x] Decide and implement owner for session-scoped cache editing state; avoid storing it as process-global Anthropic client state. Decision: no session-scoped state; plans are request-local and consumed by the first model call.
 - [x] Wire reset hooks for `/clear`, `/compact`, and session transition boundaries. Not needed because no resettable cache-editing state exists.
-- [ ] Keep app-server and TUI behavior aligned through shared request projection rather than UI-specific wiring.
+- [x] Keep app-server and TUI behavior aligned through shared request projection rather than UI-specific wiring.
 
 ### Validation
 
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send packages/core/src/features/repl/controller/session`
-- [ ] `bun run test -- packages/core/src/sdk/query.test.ts packages/core/src/sdk/sessions.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send packages/core/src/features/repl/controller/session`
+- [x] `bun run test -- packages/core/src/sdk/query.test.ts packages/core/src/sdk/sessions.test.ts`
 
 ## Batch 4: Usage Accounting And Diagnostics
 

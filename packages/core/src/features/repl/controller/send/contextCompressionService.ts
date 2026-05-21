@@ -16,6 +16,7 @@ import {
   type MiddleLayerStrategyFacts,
 } from '../../../../chat/context/middleLayerStrategyStack'
 import { buildPostCompactRehydration } from '../../../../chat/context/postCompactRehydration'
+import { prepareTurnRequestProjection } from '../../../../chat/context/turnRequestProjection'
 import {
   buildSessionMemoryCompactionRehydration,
   buildSessionMemoryCompactionSummary,
@@ -75,6 +76,12 @@ export function createContextCompressionService(deps: {
     baselineTokens: deps.cfg.context.baselineTokens,
   })
 
+  const isCacheEditingEnabled = () =>
+    isAnthropicCacheEditingEnabled({
+      provider: deps.cfg.llm.provider,
+      baseUrl: deps.cfg.llm.baseUrl,
+    })
+
   const runCanonicalMiddleLayerStack = (args: {
     system: PromptBlock[]
     history: ChatHistory
@@ -86,10 +93,21 @@ export function createContextCompressionService(deps: {
       history: args.history,
       trailingMessage: args.trailingMessage,
       budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
-      enableCacheEditing: isAnthropicCacheEditingEnabled({
-        provider: deps.cfg.llm.provider,
-        baseUrl: deps.cfg.llm.baseUrl,
-      }),
+      enableCacheEditing: isCacheEditingEnabled(),
+    })
+
+  const prepareCanonicalTurnProjection = (args: {
+    system: PromptBlock[]
+    history: ChatHistory
+    contextWindowTokens: number | undefined
+    user: PromptMessage
+  }) =>
+    prepareTurnRequestProjection({
+      system: args.system,
+      history: args.history,
+      user: args.user,
+      budgetConfig: args.contextWindowTokens ? buildBudgetConfig(args.contextWindowTokens) : null,
+      enableCacheEditing: isCacheEditingEnabled(),
     })
 
   const estimateContext = (args: {
@@ -225,15 +243,13 @@ export function createContextCompressionService(deps: {
       autoCompacted: boolean
       showAutoCompactNotice: boolean
     }> {
-      let stack: ReturnType<typeof runCanonicalMiddleLayerStack> | null = null
-      let nextHistory = args.history
-      stack = runCanonicalMiddleLayerStack({
+      let prepared = prepareCanonicalTurnProjection({
         system: args.system,
-        history: nextHistory,
-        trailingMessage: args.user,
+        history: args.history,
+        user: args.user,
         contextWindowTokens: args.contextWindowTokens,
       })
-      const microCompactedHistoryForAutoCompact = stack.microCompactedHistory
+      const microCompactedHistoryForAutoCompact = prepared.stack.microCompactedHistory
       let autoCompacted = false
       let showAutoCompactNotice = false
 
@@ -291,13 +307,12 @@ export function createContextCompressionService(deps: {
                 })
               ).compactedHistory
 
-            stack = runCanonicalMiddleLayerStack({
+            prepared = prepareCanonicalTurnProjection({
               system: args.system,
               history: compactedHistory,
-              trailingMessage: args.user,
+              user: args.user,
               contextWindowTokens: args.contextWindowTokens,
             })
-            nextHistory = stack.persistedHistoryCandidate
             args.lastAutoCompactSeqRef.current = args.sendSeq
             autoCompacted = true
             showAutoCompactNotice = deps.cfg.ui.showAutoCompactNotice === true
@@ -307,30 +322,24 @@ export function createContextCompressionService(deps: {
         }
       }
 
-      stack ??= runCanonicalMiddleLayerStack({
-        system: args.system,
-        history: nextHistory,
-        trailingMessage: args.user,
-        contextWindowTokens: args.contextWindowTokens,
-      })
-      const preparedUser = stack.preparedTrailingMessage ?? args.user
-      const persistedHistoryCandidate = stack.persistedHistoryCandidate
+      const preparedUser = prepared.requestUser
+      const persistedHistoryCandidate = prepared.persistedHistory
 
       return {
         history: persistedHistoryCandidate,
-        requestHistory: stack.requestHistory,
-        cacheEditPlan: stack.cacheEditPlan,
+        requestHistory: prepared.requestHistory,
+        cacheEditPlan: prepared.cacheEditPlan,
         collapseState: {
-          applied: stack.facts.collapse.applied,
-          collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
-          estimatedTokensSaved: stack.facts.collapse.estimatedTokensSaved,
-          metadata: stack.facts.collapse.metadata,
+          applied: prepared.strategyFacts.collapse.applied,
+          collapsedHeadMessageCount: prepared.strategyFacts.collapse.collapsedHeadMessageCount,
+          estimatedTokensSaved: prepared.strategyFacts.collapse.estimatedTokensSaved,
+          metadata: prepared.strategyFacts.collapse.metadata,
         },
-        strategyFacts: stack.facts,
+        strategyFacts: prepared.strategyFacts,
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...stack.requestHistory, preparedUser],
+          messages: [...prepared.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
         autoCompacted,
@@ -460,26 +469,26 @@ export function createContextCompressionService(deps: {
           })
         ).compactedHistory
 
-      const stack = runCanonicalMiddleLayerStack({
+      const prepared = prepareCanonicalTurnProjection({
         system: args.system,
         history: compactedHistory,
-        trailingMessage: args.user,
+        user: args.user,
         contextWindowTokens: args.contextWindowTokens,
       })
-      const preparedUser = stack.preparedTrailingMessage ?? args.user
-      const persistedHistoryCandidate = stack.persistedHistoryCandidate
+      const preparedUser = prepared.requestUser
+      const persistedHistoryCandidate = prepared.persistedHistory
 
       return {
         history: persistedHistoryCandidate,
-        requestHistory: stack.requestHistory,
-        cacheEditPlan: stack.cacheEditPlan,
+        requestHistory: prepared.requestHistory,
+        cacheEditPlan: prepared.cacheEditPlan,
         collapseState: {
-          applied: stack.facts.collapse.applied,
-          collapsedHeadMessageCount: stack.facts.collapse.collapsedHeadMessageCount,
-          estimatedTokensSaved: stack.facts.collapse.estimatedTokensSaved,
-          metadata: stack.facts.collapse.metadata,
+          applied: prepared.strategyFacts.collapse.applied,
+          collapsedHeadMessageCount: prepared.strategyFacts.collapse.collapsedHeadMessageCount,
+          estimatedTokensSaved: prepared.strategyFacts.collapse.estimatedTokensSaved,
+          metadata: prepared.strategyFacts.collapse.metadata,
         },
-        strategyFacts: stack.facts,
+        strategyFacts: prepared.strategyFacts,
         reactiveCompactState: {
           applied: true,
           strategy: sessionMemoryCompactedHistory ? 'session_memory' : 'model_summary',
@@ -487,7 +496,7 @@ export function createContextCompressionService(deps: {
         user: preparedUser,
         context: estimateContext({
           system: args.system,
-          messages: [...stack.requestHistory, preparedUser],
+          messages: [...prepared.requestHistory, preparedUser],
           contextWindowTokens: args.contextWindowTokens,
         }),
       }

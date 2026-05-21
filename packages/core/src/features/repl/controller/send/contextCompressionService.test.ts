@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createContextCompressionService } from './contextCompressionService'
 import { computeContextStats } from '../../../../chat/context/budget'
+import { CACHE_EDITING_BETA_HEADER } from '../../../../chat/context/cacheEditing'
 import { estimatePromptTokens } from '../../../../chat/context/estimate'
 import { pruneForPromptBudget } from '../../../../chat/context/prune'
 import { runCompactFlow } from './compactFlow'
@@ -104,6 +105,7 @@ function userToolResult(id: string, content: string): any {
 describe('createContextCompressionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env[CACHE_EDITING_BETA_HEADER]
     vi.mocked(countNonToolUserTurns).mockReturnValue(3)
     vi.mocked(estimatePromptTokens).mockReturnValue(1234)
     vi.mocked(computeContextStats).mockReturnValue({
@@ -121,6 +123,10 @@ describe('createContextCompressionService', () => {
       compactedHistory: [{ role: 'user', content: [{ type: 'text', text: 'compacted' }] }],
       summary: 'summary',
     } as any)
+  })
+
+  afterEach(() => {
+    delete process.env[CACHE_EDITING_BETA_HEADER]
   })
 
   it('skips auto-compact when guard conditions are not met and still prepares the turn', async () => {
@@ -866,6 +872,65 @@ describe('createContextCompressionService', () => {
 
     expect((out.history[1] as any).content[0].content).toBe('a'.repeat(4000))
     expect((out.history[7] as any).content[0].content).toBe('d'.repeat(4000))
+  })
+
+  it('prepares cache edit plans through the shared turn projection without mutating persisted history', async () => {
+    process.env[CACHE_EDITING_BETA_HEADER] = 'cache-editing-test'
+    vi.mocked(pruneForPromptBudget).mockImplementation(({ messages }: any) => ({
+      messages,
+      pruned: false,
+    }))
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      return serialized.includes('[Older tool result cleared by microcompact:') ? 700 : 8_500
+    })
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 9_000,
+      autoCompactLimitTokens: 8_500,
+      percentRemaining: 10,
+      shouldAutoCompact: false,
+    }))
+
+    const { service } = createService({
+      cfg: createCfg({
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: 'https://api.anthropic.com/v1',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+        },
+      }),
+    })
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
+        userToolResult('read-1', 'a'.repeat(4000)),
+        assistantToolUse('read-2', 'Read', { file_path: '/repo/src/b.ts' }),
+        userToolResult('read-2', 'b'.repeat(4000)),
+        assistantToolUse('read-3', 'Read', { file_path: '/repo/src/c.ts' }),
+        userToolResult('read-3', 'c'.repeat(4000)),
+        assistantToolUse('read-4', 'Read', { file_path: '/repo/src/d.ts' }),
+        userToolResult('read-4', 'd'.repeat(4000)),
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect((out.history[1] as any).content[0].content).toBe('a'.repeat(4000))
+    expect((out.requestHistory[1] as any).content[0].content).toBe('a'.repeat(4000))
+    expect(out.cacheEditPlan?.provider).toBe('anthropic')
+    expect(out.cacheEditPlan?.deletes.map((deleteRef) => deleteRef.cacheReference)).toEqual([
+      'read-1',
+      'read-2',
+      'read-3',
+    ])
   })
 
   it('builds a collapsed requestHistory while leaving persisted history unchanged', async () => {
