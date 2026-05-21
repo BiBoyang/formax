@@ -169,22 +169,23 @@ Validation:
 
 Tests first:
 
-- [ ] Snip emits durable metadata/boundary identifying removed message IDs or ranges.
-- [ ] Resume/load applies snip removals to model-facing projection.
-- [ ] UI scrollback can still show raw transcript or explicitly documented view.
+- [x] Snip emits durable metadata/boundary identifying removed message IDs or ranges.
+- [x] Resume/load applies snip removals to model-facing projection.
+- [x] UI scrollback can still show raw transcript or explicitly documented view.
 - [ ] Parent-chain / continuation relink stays valid across removed middle ranges.
-- [ ] Subsequent request uses stable snipped projection and does not repeatedly resurrect unsnipped history.
-- [ ] Keep schema abstract until Claude Code `snipCompact` / `snipProjection` internals are available; tests should require durable IDs/ranges and replay behavior, not exact field names.
+- [x] Subsequent request uses stable snipped projection and does not repeatedly resurrect unsnipped history.
+- [x] Keep schema abstract until Claude Code `snipCompact` / `snipProjection` internals are available; tests should require durable IDs/ranges and replay behavior, not exact field names.
 
 Implementation:
 
-- [ ] Add durable snip state shape.
-- [ ] Add replay/load projection support.
+- [x] Add durable snip state shape.
+- [x] Add replay/load projection support.
 - [ ] Route model-facing request projection through durable snip state before request-only reducers.
 - [ ] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
 
 Validation:
 
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
 - [ ] Context/session/app-server/Web replay targeted tests.
 - [ ] `bun run type-check`
 - [ ] Mandatory codex review before commit.

@@ -53,7 +53,7 @@ runtime send-path 与 `/context` next-turn diagnostics MUST 复用同一 middle-
 Formax context compression architecture MUST distinguish durable model-facing projection from request-only middle-layer reduction. A durable projection may be reconstructed from persisted transcript, compact boundaries, snip metadata, collapse store entries, or session events. A request-only reducer may only affect the current request envelope unless this contract and the session persistence contract explicitly upgrade it to durable semantics.
 
 `CSS-004a`
-The shared durable projection owner MUST be `buildContextProjection()` in `packages/core/src/chat/context/contextProjection.ts`. It currently defines the canonical raw transcript, UI scrollback, model-facing baseline, diagnostics projection, durable-state placeholders, and projection facts. Until durable `snip` / durable `collapse` are explicitly migrated, this owner MUST keep those states as no-op placeholders and MUST NOT change current request-only reducer behavior.
+The shared durable projection owner MUST be `buildContextProjection()` in `packages/core/src/chat/context/contextProjection.ts`. It currently defines the canonical raw transcript, UI scrollback, model-facing baseline, diagnostics projection, durable-state facts, and projection facts. Durable `snip` state MAY remove model-facing baseline ranges in this owner while preserving raw transcript / UI scrollback. Until durable `collapse` is explicitly migrated, this owner MUST keep durable collapse as a no-op placeholder and MUST NOT change current request-only reducer behavior.
 
 `CSS-005`
 Claude Code parity work SHOULD target the following layer order:

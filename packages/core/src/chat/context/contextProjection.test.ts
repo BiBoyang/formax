@@ -86,7 +86,9 @@ describe('buildContextProjection', () => {
       stage: 'snip',
       status: 'no_state',
       applied: false,
-      reason: 'durable snip projection is not implemented yet',
+      reason: 'no durable snip state',
+      removedMessageCount: 0,
+      removals: [],
     })
     expect(projection.durableState.collapse).toEqual({
       stage: 'collapse',
@@ -95,6 +97,87 @@ describe('buildContextProjection', () => {
       reason: 'durable collapse projection is not implemented yet',
     })
     expect(projection.facts.appliedDurableStages).toEqual([])
+  })
+
+  it('applies durable snip ranges to model-facing projection while preserving raw scrollback', () => {
+    const compactSummary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const olderAssistant = textMessage('assistant', 'older assistant analysis')
+    const middleUser = textMessage('user', 'middle request')
+    const recentAssistant = textMessage('assistant', 'recent answer')
+    const history: PromptMessage[] = [
+      boundary(),
+      compactSummary,
+      olderAssistant,
+      middleUser,
+      recentAssistant,
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 3,
+              reason: 'durable snip test range',
+            },
+          ],
+        },
+      },
+    })
+
+    expect(projection.rawTranscript).toBe(history)
+    expect(projection.uiScrollback).toBe(history)
+    expect(projection.modelFacingBaseline).toEqual([compactSummary, recentAssistant])
+    expect(projection.diagnosticsProjection).toEqual(projection.modelFacingBaseline)
+    expect(projection.durableState.snip).toEqual({
+      stage: 'snip',
+      status: 'active',
+      applied: true,
+      reason: 'applied durable snip removals',
+      removedMessageCount: 2,
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 3,
+          reason: 'durable snip test range',
+        },
+      ],
+    })
+    expect(projection.facts.appliedDurableStages).toEqual(['snip'])
+    expect(projection.facts.modelFacingBaselineMessageCount).toBe(2)
+  })
+
+  it('keeps durable snip projection stable across repeated requests', () => {
+    const history: PromptMessage[] = [
+      boundary(),
+      textMessage('user', buildCompactionSummaryUserText('compact summary')),
+      textMessage('assistant', 'older assistant analysis'),
+      textMessage('assistant', 'recent answer'),
+    ]
+    const durableState = {
+      snip: {
+        schemaVersion: 1 as const,
+        removals: [
+          {
+            kind: 'model_facing_index_range' as const,
+            startIndex: 1,
+            endIndexExclusive: 2,
+          },
+        ],
+      },
+    }
+
+    const first = buildContextProjection({ history, durableState })
+    const second = buildContextProjection({ history: [...history], durableState })
+
+    expect(first.modelFacingBaseline).toEqual(second.modelFacingBaseline)
+    expect(first.facts.modelFacingBaselineFingerprint).toBe(second.facts.modelFacingBaselineFingerprint)
+    expect(JSON.stringify(first.rawTranscript)).toContain('older assistant analysis')
   })
 
   it('reserves a deferred tool-result content replacement state without replacing content', () => {
