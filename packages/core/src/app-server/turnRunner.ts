@@ -20,7 +20,11 @@ import {
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
-import { mergeDurableSnipSnapshot, scopeDurableSnipStateToHistory } from '../chat/context/contextProjection.js'
+import {
+  mergeDurableSnipSnapshot,
+  rebaseCollapseHeadCountAfterDurableSnip,
+  scopeDurableSnipStateToHistory,
+} from '../chat/context/contextProjection.js'
 import { stampMissingAssistantMessageTimestamps } from '../chat/context/promptMessageTimestamps.js'
 import type { PromptBlock } from '../prompts/index.js'
 import {
@@ -776,34 +780,14 @@ export class TurnRunner {
         if (running.abortController.signal.aborted) {
           throw new Error('Request aborted')
         }
-        if (
-          collapseFact.applied &&
-          collapseFact.metadata &&
-          collapseCompactBoundaryFingerprint &&
-          collapseRecapMessage &&
-          collapseRecapSurvivedRequestProjection
-        ) {
-          const entry = createContextCollapseCommittedEntry({
-            id: `request-collapse:app-server:${collapseFact.metadata.recapFingerprint}`,
-            createdAtMs: Date.now(),
-            source: 'request_collapse',
-            collapsedRange: {
-              kind: 'model_facing_index_range',
-              startIndex: 0,
-              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
-            },
-            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
-            recapMessage: collapseRecapMessage,
-            metadata: collapseFact.metadata,
-          })
-          await writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
-          this.contextCollapseStoreByFilePath.set(running.filePath, appendContextCollapseStoreEntry({
-            snapshot: this.contextCollapseStoreByFilePath.get(running.filePath) ?? initialCollapseStoreSnapshot,
-            entry,
-          }))
-        }
+        const rebasedCollapseHeadMessageCount = rebaseCollapseHeadCountAfterDurableSnip({
+          collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
+          snipRemovals: prepared.stack.snipRemovals,
+          baselineMessages: prepared.contextProjection.modelFacingBaseline,
+        })
         const canPersistDurableSnip =
-          !prepared.contextProjection.durableState.collapse.applied && !collapseFact.applied
+          !prepared.contextProjection.durableState.collapse.applied &&
+          (!collapseFact.applied || rebasedCollapseHeadMessageCount !== null)
         if (canPersistDurableSnip && snipFact.applied && prepared.stack.snipRemovals.length > 0) {
           const newRemovals = prepared.stack.snipRemovals.map((removal) => ({
             kind: removal.kind,
@@ -835,6 +819,33 @@ export class TurnRunner {
             sourceProjectionKind: snipSnapshot.sourceProjectionKind,
             removals: snipSnapshot.removals,
           })
+        }
+        if (
+          collapseFact.applied &&
+          collapseFact.metadata &&
+          collapseCompactBoundaryFingerprint &&
+          collapseRecapMessage &&
+          collapseRecapSurvivedRequestProjection &&
+          rebasedCollapseHeadMessageCount
+        ) {
+          const entry = createContextCollapseCommittedEntry({
+            id: `request-collapse:app-server:${collapseFact.metadata.recapFingerprint}`,
+            createdAtMs: Date.now(),
+            source: 'request_collapse',
+            collapsedRange: {
+              kind: 'model_facing_index_range',
+              startIndex: 0,
+              endIndexExclusive: rebasedCollapseHeadMessageCount,
+            },
+            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
+            recapMessage: collapseRecapMessage,
+            metadata: collapseFact.metadata,
+          })
+          await writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
+          this.contextCollapseStoreByFilePath.set(running.filePath, appendContextCollapseStoreEntry({
+            snapshot: this.contextCollapseStoreByFilePath.get(running.filePath) ?? initialCollapseStoreSnapshot,
+            entry,
+          }))
         }
         nextHistoryForSnapshot =
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0

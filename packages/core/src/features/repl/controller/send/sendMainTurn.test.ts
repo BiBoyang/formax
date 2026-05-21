@@ -574,6 +574,58 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('records request snip before the dependent request collapse fact', async () => {
+    const snipState = {
+      applied: true,
+      removedMessageCount: 1,
+      estimatedTokensSaved: 120,
+      compactBoundaryFingerprint: 'compact-generation',
+      baseProjectionFingerprint: 'baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline' as const,
+      removals: [
+        {
+          kind: 'model_facing_index_range' as const,
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'request snip removed older assistant text message',
+          removedMessageFingerprints: ['removed-fp'],
+        },
+      ],
+    }
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'request-projection' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 96,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          recapFingerprint: 'abcdef0123456789',
+        },
+        commit: {
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+          compactBoundaryFingerprint: 'compact-generation',
+          recapMessage: { role: 'assistant', content: [{ type: 'text', text: 'recap' }] },
+        },
+      },
+      snipState,
+      user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+
+    await runMainSendTurn(harness as any)
+
+    expect(harness.refs.onRequestSnip.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.refs.onRequestCollapse.mock.invocationCallOrder[0],
+    )
+  })
+
   it('does not record request compression facts when the initial turn fails', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],

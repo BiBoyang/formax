@@ -303,6 +303,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           detail: reactiveErrorInfo.detail.slice(0, 200),
         }
         if (prepared.collapseState.commit) {
+          await recordRequestSnip('initial', prepared.snipState)
           await recordRequestCollapse('initial', prepared.collapseState)
         }
         let reactivePrepared
@@ -337,8 +338,8 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         throw error
       }
     }
-    await recordRequestCollapse(successfulCollapsePhase, successfulCollapseState)
     await recordRequestSnip(successfulSnipPhase, successfulSnipState)
+    await recordRequestCollapse(successfulCollapsePhase, successfulCollapseState)
 
     args.pendingExitPlanReminderRef.current = false
 

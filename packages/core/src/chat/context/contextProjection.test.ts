@@ -7,7 +7,12 @@ import {
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
 } from './compact'
-import { buildContextProjection, mergeDurableSnipSnapshot, scopeDurableSnipStateToHistory } from './contextProjection'
+import {
+  buildContextProjection,
+  mergeDurableSnipSnapshot,
+  rebaseCollapseHeadCountAfterDurableSnip,
+  scopeDurableSnipStateToHistory,
+} from './contextProjection'
 import { createContextCollapseCommittedEntry } from './contextCollapseStore'
 import type { PromptMessage } from '../../prompts'
 
@@ -1143,5 +1148,56 @@ describe('scopeDurableSnipStateToHistory', () => {
       activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
       removals: [],
     })
+  })
+})
+
+describe('rebaseCollapseHeadCountAfterDurableSnip', () => {
+  it('recomputes same-turn collapse source ranges after durable snip removes head messages', () => {
+    expect(
+      rebaseCollapseHeadCountAfterDurableSnip({
+        collapsedHeadMessageCount: 4,
+        snipRemovals: [
+          { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 2 },
+          { kind: 'model_facing_index_range', startIndex: 3, endIndexExclusive: 4 },
+        ],
+      }),
+    ).toBe(2)
+  })
+
+  it('skips collapse commits when a snip removal crosses the collapse source boundary', () => {
+    expect(
+      rebaseCollapseHeadCountAfterDurableSnip({
+        collapsedHeadMessageCount: 3,
+        snipRemovals: [{ kind: 'model_facing_index_range', startIndex: 2, endIndexExclusive: 4 }],
+      }),
+    ).toBeNull()
+  })
+
+  it('skips collapse commits when durable snip removes the entire collapsed source head', () => {
+    expect(
+      rebaseCollapseHeadCountAfterDurableSnip({
+        collapsedHeadMessageCount: 2,
+        snipRemovals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 }],
+      }),
+    ).toBeNull()
+  })
+
+  it('skips collapse commits when a durable snip removal cannot replay uniquely', () => {
+    const duplicateA = textMessage('assistant', 'duplicate legacy text')
+    const duplicateB = textMessage('assistant', 'duplicate legacy text')
+    expect(
+      rebaseCollapseHeadCountAfterDurableSnip({
+        collapsedHeadMessageCount: 2,
+        baselineMessages: [duplicateA, duplicateB, textMessage('assistant', 'tail')],
+        snipRemovals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 0,
+            endIndexExclusive: 1,
+            removedMessageFingerprints: [fingerprintPromptMessage(duplicateA)],
+          },
+        ],
+      }),
+    ).toBeNull()
   })
 })

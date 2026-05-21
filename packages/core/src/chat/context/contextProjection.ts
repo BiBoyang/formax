@@ -55,6 +55,49 @@ export type DurableSnipState = {
   removals: DurableSnipRemoval[]
 }
 
+export function rebaseCollapseHeadCountAfterDurableSnip(args: {
+  collapsedHeadMessageCount: number
+  snipRemovals: DurableSnipRemoval[]
+  baselineMessages?: PromptMessage[]
+}): number | null {
+  const collapsedHeadMessageCount = Math.max(0, Math.floor(args.collapsedHeadMessageCount))
+  const snipRemovals = normalizeDurableSnipRemovals({
+    removals: args.snipRemovals,
+    messageCount: args.baselineMessages?.length ?? Number.MAX_SAFE_INTEGER,
+  })
+  if (args.baselineMessages) {
+    const requestedRangeRemovalCount = args.snipRemovals.filter(
+      (removal) => removal.kind === 'model_facing_index_range',
+    ).length
+    if (snipRemovals.length !== requestedRangeRemovalCount) return null
+    const identityCounts = countExplicitMessageIdentities(args.baselineMessages)
+    const fingerprintCounts = countMessageFingerprints(args.baselineMessages)
+    for (const removal of snipRemovals) {
+      const validation = validateDurableSnipRemoval({
+        removal,
+        messages: args.baselineMessages,
+        identityCounts,
+        fingerprintCounts,
+      })
+      if (!validation.ok) return null
+    }
+  }
+  const removedCollapsedHeadIndexes = new Set<number>()
+  for (const removal of snipRemovals) {
+    if (removal.endIndexExclusive <= collapsedHeadMessageCount) {
+      for (let index = removal.startIndex; index < removal.endIndexExclusive; index += 1) {
+        removedCollapsedHeadIndexes.add(index)
+      }
+      continue
+    }
+    if (removal.startIndex < collapsedHeadMessageCount && removal.endIndexExclusive > collapsedHeadMessageCount) {
+      return null
+    }
+  }
+  const adjustedCount = collapsedHeadMessageCount - removedCollapsedHeadIndexes.size
+  return adjustedCount > 0 ? adjustedCount : null
+}
+
 export type DurableSnipProjectionFact = DurableProjectionStageFact & {
   stage: 'snip'
   status: 'no_state' | 'active'

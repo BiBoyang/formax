@@ -243,14 +243,20 @@ Current safe behavior:
 
 Tasks:
 
-- [ ] 先更新 contract，定义坐标空间：raw compact continuation、durable snip baseline、durable collapse projection、request reducer output。
-- [ ] Gate 4 不做泛化 compression migration framework；只解决 collapse-active request snip removal -> durable baseline removal -> collapse ranges recompute or skip。
-- [ ] 拆成可 review 子提交：contract + failing tests；snip removal rebase；collapse range recompute/skip policy；surface/facts tests。
-- [ ] removal 命中 synthetic collapse recap 本身，默认 skip durable persistence。
-- [ ] removal 横跨 recap 和普通消息，不能简单平移 index。
-- [ ] removal 删除 collapse source range 的一部分，默认 skip durable persistence，除非 contract 明确支持 delete source range。
-- [ ] partial rebase failure 整体不写 durable snip event，不做部分 durable 写入。
-- [ ] turn 成功后 projection、resume 后 projection、repeat replay projection 幂等一致。
+- [x] 先更新 contract，定义坐标空间：raw compact continuation、durable snip baseline、durable collapse projection、request reducer output。
+- [x] Gate 4 不做泛化 compression migration framework；只解决 collapse-active request snip removal -> durable baseline removal -> collapse ranges recompute or skip。
+- [x] 拆成可 review 子提交：contract + failing tests；snip removal rebase；collapse range recompute/skip policy；surface/facts tests。
+- [x] removal 命中 synthetic collapse recap 本身，默认 skip durable persistence。
+- [x] removal 横跨 recap 和普通消息，不能简单平移 index。
+- [x] removal 删除 collapse source range 的一部分，默认 skip durable persistence，除非 contract 明确支持 delete source range。
+- [x] partial rebase failure 整体不写 durable snip event，不做部分 durable 写入。
+- [x] turn 成功后 projection、resume 后 projection、repeat replay projection 幂等一致。
+
+Validation:
+
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts`
+- [x] `bun run type-check`
+- [x] Codex review before commit
 
 ## Gate 5: Tool Result Durable Side-State
 

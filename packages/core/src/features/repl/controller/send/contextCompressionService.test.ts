@@ -1209,6 +1209,63 @@ describe('createContextCompressionService', () => {
     expect(out.snipState.applied).toBe(false)
   })
 
+  it('persists request snip when the same turn also creates a rebased collapse commit', async () => {
+    vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
+      contextWindowTokens: 100_000,
+      usedTokens,
+      effectiveLimitTokens: 1000,
+      autoCompactLimitTokens: 850,
+      percentRemaining: 5,
+      shouldAutoCompact: false,
+    }))
+    vi.mocked(estimatePromptTokens).mockImplementation(({ messages }: any) => {
+      const serialized = JSON.stringify(messages)
+      if (serialized.includes('Older continuation collapsed for this request only.')) return 100
+      if (serialized.includes('[Older assistant text snipped for this request:')) {
+        return Array.isArray(messages) && messages.length > 1 ? 2400 : 50
+      }
+      return 950
+    })
+
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'auto',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 2,
+        keepMinTokens: 1200,
+        keepMinUserTurns: 1,
+      },
+    })
+    const { service } = createService()
+    const out = await service.prepareHistoryForTurn({
+      contextWindowTokens: 100_000,
+      sendSeq: 10,
+      lastAutoCompactSeqRef: { current: 0 },
+      history: [
+        compactBoundary,
+        { role: 'user', content: [{ type: 'text', text: buildCompactionSummaryUserText('compact summary') }] },
+        { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(2200)}` }] },
+        { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(2200)}` }] },
+        { role: 'user', content: [{ type: 'text', text: 'latest request' }] },
+        { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(2200)}` }] },
+      ] as any,
+      user: { role: 'user', content: [{ type: 'text', text: 'next' }] },
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    expect(out.strategyFacts.snip.applied).toBe(true)
+    expect(out.collapseState.applied).toBe(true)
+    expect(out.snipState.applied).toBe(true)
+    expect(out.snipState.removals).toHaveLength(2)
+    expect(out.collapseState.commit?.collapsedRange).toEqual({
+      kind: 'model_facing_index_range',
+      startIndex: 0,
+      endIndexExclusive: 1,
+    })
+  })
+
   it('replays durable snip state from the session file before request reducers', async () => {
     vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
       contextWindowTokens: 100_000,

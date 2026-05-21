@@ -31,6 +31,7 @@ import {
 } from '../../../../chat/context/contextCollapseStore'
 import {
   mergeDurableSnipSnapshot,
+  rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
   type DurableSnipRemoval,
   type DurableSnipState,
@@ -222,8 +223,14 @@ export function createContextCompressionService(deps: {
       baseProjectionFingerprint: prepared.contextProjection.facts.modelFacingBaselineFingerprint,
       sourceProjectionKind: 'model_facing_baseline',
     })
+    const rebasedCollapsedHeadMessageCount = rebaseCollapseHeadCountAfterDurableSnip({
+      collapsedHeadMessageCount: prepared.strategyFacts.collapse.collapsedHeadMessageCount,
+      snipRemovals: prepared.stack.snipRemovals,
+      baselineMessages: prepared.contextProjection.modelFacingBaseline,
+    })
     const canPersistDurableSnip =
-      !prepared.contextProjection.durableState.collapse.applied && !prepared.strategyFacts.collapse.applied
+      !prepared.contextProjection.durableState.collapse.applied &&
+      (!prepared.strategyFacts.collapse.applied || rebasedCollapsedHeadMessageCount !== null)
     return {
       applied: canPersistDurableSnip && prepared.strategyFacts.snip.applied && newRemovals.length > 0,
       removedMessageCount: snapshot.removals.reduce(
@@ -245,17 +252,23 @@ export function createContextCompressionService(deps: {
     const recapSurvivedRequestProjection = recapMessage
       ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: recapMessage })
       : false
+    const rebasedCollapsedHeadMessageCount = rebaseCollapseHeadCountAfterDurableSnip({
+      collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
+      snipRemovals: prepared.stack.snipRemovals,
+      baselineMessages: prepared.contextProjection.modelFacingBaseline,
+    })
     const commit =
       collapseFact.applied &&
       collapseFact.metadata &&
       compactBoundaryFingerprint &&
       recapMessage &&
-      recapSurvivedRequestProjection
+      recapSurvivedRequestProjection &&
+      rebasedCollapsedHeadMessageCount
         ? {
             collapsedRange: {
               kind: 'model_facing_index_range' as const,
               startIndex: 0,
-              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
+              endIndexExclusive: rebasedCollapsedHeadMessageCount,
             },
             compactBoundaryFingerprint,
             recapMessage,
