@@ -98,23 +98,23 @@ Validation:
 
 Tests first:
 
-- [ ] old compact boundary + old durable snip + newer compact boundary：newer generation 后旧 durable snip removals 被清空或忽略。
-- [ ] old request-collapse event 在 newer compact boundary 前：`latestRequestCollapse` 不跨 boundary 暴露。
-- [ ] old durable collapse facts 不跨 newer compact boundary 暴露，除非 future contract 明确支持 boundaryless recovered generation。
-- [ ] `latestCompactBoundary` 是 newer boundary。
-- [ ] raw transcript 仍保留 old boundary / old events。
-- [ ] UI visible rows 不受 stale control-plane events 影响。
-- [ ] collapse-active request snip safety guard 保持：request-time snip 可以影响当轮 request，但不写 `durable_snip_applied`。
-- [ ] failed / aborted / interrupted turn 不会把 live compact/snip/collapse facts 提升为 committed durable facts。
+- [x] old compact boundary + old durable snip + newer compact boundary：newer generation 后旧 durable snip removals 被清空或忽略。
+- [x] old request-collapse event 在 newer compact boundary 前：`latestRequestCollapse` 不跨 boundary 暴露。
+- [x] old durable collapse facts 不跨 newer compact boundary 暴露，除非 future contract 明确支持 boundaryless recovered generation。
+- [x] `latestCompactBoundary` 是 newer boundary。
+- [x] raw transcript 仍保留 old boundary / old events。
+- [x] UI visible rows 不受 stale control-plane events 影响。
+- [x] collapse-active request snip safety guard 保持：request-time snip 可以影响当轮 request，但不写 `durable_snip_applied`。
+- [x] failed / aborted / interrupted turn 不会把 live compact/snip/collapse facts 提升为 committed durable facts。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts` if collapse-active guard test moves or is expanded.
-- [ ] `bun run type-check` only if runtime types/schema are changed.
-- [ ] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [ ] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [ ] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts` if collapse-active guard test moves or is expanded.
+- [x] `bun run type-check` only if runtime types/schema are changed。
+- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
+- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
+- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
 - [ ] commit。
 
 ## Gate 1D: App-Server / Web Surface Fixture Tests

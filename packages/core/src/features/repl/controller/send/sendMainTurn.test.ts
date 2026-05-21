@@ -572,6 +572,81 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('does not record request compression facts when the initial turn fails', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      requestHistory: [],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 120,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+        },
+        commit: null,
+      },
+      snipState: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 80,
+        compactBoundaryFingerprint: 'compact-generation',
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+    harness._spies.engine.runTurn.mockRejectedValueOnce(new Error('provider failed'))
+
+    const result = await runMainSendTurn(harness as any)
+
+    expect(result.turnOutcome).toBe('failed')
+    expect(harness.refs.onRequestCollapse).not.toHaveBeenCalled()
+    expect(harness.refs.onRequestSnip).not.toHaveBeenCalled()
+  })
+
+  it('does not record request compression facts when the initial turn is aborted', async () => {
+    vi.mocked(isAbortLikeError).mockReturnValueOnce(true)
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [],
+      requestHistory: [],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 120,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+        },
+        commit: null,
+      },
+      snipState: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 80,
+        compactBoundaryFingerprint: 'compact-generation',
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'prepared-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    const harness = createHarness()
+    harness._spies.engine.runTurn.mockRejectedValueOnce(new Error('aborted'))
+
+    const result = await runMainSendTurn(harness as any)
+
+    expect(result.turnOutcome).toBe('aborted')
+    expect(harness.refs.onRequestCollapse).not.toHaveBeenCalled()
+    expect(harness.refs.onRequestSnip).not.toHaveBeenCalled()
+  })
+
   it('keeps terminal-pruned current user request-only while persisting the original user message', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [],

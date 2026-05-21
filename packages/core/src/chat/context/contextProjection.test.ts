@@ -95,6 +95,39 @@ describe('buildContextProjection', () => {
     expect(projection.facts.modelFacingBaselineMessageCount).toBe(3)
   })
 
+  it('uses the latest compact boundary generation while raw and UI views retain older visible history', () => {
+    const oldBoundary = boundary(4096)
+    const latestBoundary = boundary(8192)
+    const history: PromptMessage[] = [
+      textMessage('user', 'pre-old-boundary request'),
+      oldBoundary,
+      textMessage('user', buildCompactionSummaryUserText('old compact summary')),
+      textMessage('assistant', 'old preserved assistant'),
+      latestBoundary,
+      textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
+      textMessage('assistant', 'latest preserved assistant'),
+    ]
+
+    const projection = buildContextProjection({ history })
+
+    expect(projection.rawTranscript).toBe(history)
+    expect(JSON.stringify(projection.rawTranscript)).toContain('old compact summary')
+    expect(projection.uiScrollback).toEqual([
+      textMessage('user', 'pre-old-boundary request'),
+      textMessage('user', buildCompactionSummaryUserText('old compact summary')),
+      textMessage('assistant', 'old preserved assistant'),
+      textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
+      textMessage('assistant', 'latest preserved assistant'),
+    ])
+    expect(projection.modelFacingBaseline).toEqual([
+      textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
+      textMessage('assistant', 'latest preserved assistant'),
+    ])
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('old compact summary')
+    expect(projection.facts.latestCompactBoundary).toEqual(latestBoundary.meta?.compactBoundary)
+    expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fingerprintCompactBoundaryMessage(latestBoundary))
+  })
+
   it('reserves no-op durable snip/collapse placeholders without changing the baseline', () => {
     const history: PromptMessage[] = [
       boundary(),
@@ -774,6 +807,31 @@ describe('scopeDurableSnipStateToHistory', () => {
     expect(scoped).toEqual({
       schemaVersion: 1,
       activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+      removals: [],
+    })
+  })
+
+  it('clears stale boundary-scoped snip removals when a newer compact boundary is active', () => {
+    const oldBoundary = boundary(4096)
+    const latestBoundary = boundary(8192)
+    const scoped = scopeDurableSnipStateToHistory({
+      state: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(oldBoundary),
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      history: [
+        oldBoundary,
+        textMessage('user', buildCompactionSummaryUserText('old compact summary')),
+        latestBoundary,
+        textMessage('user', buildCompactionSummaryUserText('latest compact summary')),
+        textMessage('assistant', 'latest preserved tail'),
+      ],
+    })
+
+    expect(scoped).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
       removals: [],
     })
   })
