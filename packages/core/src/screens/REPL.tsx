@@ -44,7 +44,7 @@ import { renderThinkingBlock, shouldRenderThinkingBlock } from './repl/thinkingB
 import { useSurfaceTransitionManager } from './repl/useSurfaceTransitionManager'
 import { buildPrimaryTranscriptStaticKey } from './repl/transcriptKey'
 import { createSlashCommandSpecMap, resolveSlashCommandInputHint } from './repl/inputHint'
-import { projectCompactPrimaryTranscript } from './repl/compactProjection'
+import { projectCompactPrimaryTranscript, projectExpandedTranscript } from './repl/compactProjection'
 import { createRuntimeFlags } from '../config/runtimeFlags'
 import { partitionMessages } from '../features/repl/controller/ui'
 import { isErrorLikeSubline, shouldSuppressGlobalError } from '../features/repl/controller/shared'
@@ -619,10 +619,15 @@ export function REPL({
     return group
   }, [allMessages, expandedViewActive])
 
-  const expandedTranscriptHiddenCount = useMemo(() => {
-    if (!expandedViewActive) return 0
-    return Math.max(0, allMessages.length - 20)
-  }, [allMessages.length, expandedViewActive])
+  const { expandedTranscriptMessages, expandedTranscriptHiddenCount } = useMemo(
+    () =>
+      projectExpandedTranscript({
+        allMessages,
+        expandedViewActive,
+        hideHistory: expandedTranscriptHideHistory,
+      }),
+    [allMessages, expandedTranscriptHideHistory, expandedViewActive],
+  )
 
   const subagentPresentationCatalog = useMemo(() => {
     const colorByName = new Map<string, string>()
@@ -635,12 +640,6 @@ export function REPL({
     }
     return { colorByName }
   }, [state.allowedSubagents])
-
-  const expandedTranscriptMessages = useMemo(() => {
-    if (!expandedViewActive) return allMessages
-    if (!expandedTranscriptHideHistory) return allMessages
-    return allMessages.slice(-20)
-  }, [allMessages, expandedTranscriptHideHistory, expandedViewActive])
 
   const loadingOverrideText = useMemo(() => {
     const t = String(state.loadingText || '').trim()

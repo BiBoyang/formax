@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Msg } from '../../shared/toolMessageTypes'
-import { isCompactSlashCommandText, projectCompactPrimaryTranscript } from './compactProjection'
+import {
+  EXPANDED_TRANSCRIPT_RECENT_WINDOW_MESSAGE_COUNT,
+  isCompactSlashCommandText,
+  projectCompactPrimaryTranscript,
+  projectExpandedTranscript,
+} from './compactProjection'
 
 function createMessage(overrides: Partial<Msg>): Msg {
   return {
@@ -37,6 +42,7 @@ describe('projectCompactPrimaryTranscript', () => {
 
     expect(result.lastCompactBoundaryIndex).toBe(-1)
     expect(result.primaryTranscriptStartIndex).toBe(0)
+    expect(result.surfaceViewKind).toBe('ui_scrollback_full')
     expect(result.primaryTranscriptMessages).toEqual(allMessages)
   })
 
@@ -63,6 +69,7 @@ describe('projectCompactPrimaryTranscript', () => {
     ]
 
     const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.surfaceViewKind).toBe('ui_scrollback_compact_slice')
     expect(result.primaryTranscriptMessages).toEqual([banner, compactCommand, subline])
   })
 
@@ -91,6 +98,7 @@ describe('projectCompactPrimaryTranscript', () => {
     ]
 
     const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.surfaceViewKind).toBe('ui_scrollback_compact_slice')
     expect(result.primaryTranscriptMessages).toEqual([banner, latestCompact, subline])
   })
 
@@ -104,6 +112,7 @@ describe('projectCompactPrimaryTranscript', () => {
     ]
 
     const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.surfaceViewKind).toBe('ui_scrollback_compact_slice')
     expect(result.primaryTranscriptMessages.map((message) => message.id)).toEqual(['subline'])
   })
 
@@ -122,6 +131,60 @@ describe('projectCompactPrimaryTranscript', () => {
     ]
 
     const result = projectCompactPrimaryTranscript(allMessages)
+    expect(result.surfaceViewKind).toBe('ui_scrollback_compact_slice')
     expect(result.primaryTranscriptMessages).toEqual([banner])
+  })
+})
+
+describe('projectExpandedTranscript', () => {
+  it('declares expanded transcript as raw UI scrollback when inactive', () => {
+    const allMessages: Msg[] = [
+      createMessage({ id: 'u1', role: 'user', content: 'hello' }),
+      createMessage({ id: 'a1', role: 'assistant', content: 'world' }),
+    ]
+
+    const result = projectExpandedTranscript({
+      allMessages,
+      expandedViewActive: false,
+      hideHistory: true,
+    })
+
+    expect(result.surfaceViewKind).toBe('ui_scrollback_raw')
+    expect(result.expandedTranscriptHiddenCount).toBe(0)
+    expect(result.expandedTranscriptMessages).toEqual(allMessages)
+  })
+
+  it('declares expanded transcript as raw UI scrollback when history is visible', () => {
+    const allMessages = Array.from({ length: EXPANDED_TRANSCRIPT_RECENT_WINDOW_MESSAGE_COUNT + 2 }, (_, index) =>
+      createMessage({ id: `m${index}`, role: index % 2 === 0 ? 'user' : 'assistant', content: `message ${index}` }),
+    )
+
+    const result = projectExpandedTranscript({
+      allMessages,
+      expandedViewActive: true,
+      hideHistory: false,
+    })
+
+    expect(result.surfaceViewKind).toBe('ui_scrollback_raw')
+    expect(result.expandedTranscriptHiddenCount).toBe(2)
+    expect(result.expandedTranscriptMessages).toEqual(allMessages)
+  })
+
+  it('declares expanded hide-history as a recent UI scrollback window', () => {
+    const allMessages = Array.from({ length: EXPANDED_TRANSCRIPT_RECENT_WINDOW_MESSAGE_COUNT + 3 }, (_, index) =>
+      createMessage({ id: `m${index}`, role: 'assistant', content: `message ${index}` }),
+    )
+
+    const result = projectExpandedTranscript({
+      allMessages,
+      expandedViewActive: true,
+      hideHistory: true,
+    })
+
+    expect(result.surfaceViewKind).toBe('ui_scrollback_recent_window')
+    expect(result.expandedTranscriptHiddenCount).toBe(3)
+    expect(result.expandedTranscriptMessages.map((message) => message.id)).toEqual(
+      allMessages.slice(-EXPANDED_TRANSCRIPT_RECENT_WINDOW_MESSAGE_COUNT).map((message) => message.id),
+    )
   })
 })
