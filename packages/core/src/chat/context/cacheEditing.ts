@@ -1,4 +1,4 @@
-export const FORMAX_ANTHROPIC_CACHE_EDITING_BETA_HEADER = 'FORMAX_ANTHROPIC_CACHE_EDITING_BETA_HEADER'
+export const CACHE_EDITING_BETA_HEADER = 'CACHE_EDITING_BETA_HEADER'
 
 export function resolveAnthropicCacheEditingBetaHeader(args: {
   provider: string
@@ -7,7 +7,7 @@ export function resolveAnthropicCacheEditingBetaHeader(args: {
 }): string | null {
   if (args.provider !== 'anthropic') return null
   if (!isFirstPartyAnthropicBaseUrl(args.baseUrl)) return null
-  const header = String((args.env ?? process.env)[FORMAX_ANTHROPIC_CACHE_EDITING_BETA_HEADER] || '').trim()
+  const header = String((args.env ?? process.env)[CACHE_EDITING_BETA_HEADER] || '').trim()
   return header || null
 }
 

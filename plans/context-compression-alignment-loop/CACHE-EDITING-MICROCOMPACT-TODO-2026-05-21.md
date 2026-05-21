@@ -75,7 +75,7 @@
 
 - [x] Add Anthropic-only payload transform for `cache_reference` / `cache_edits`.
 - [x] Extend local Anthropic request block typings to allow `cache_edits` and `cache_reference`.
-- [x] Add Anthropic cache editing beta header behind an explicit capability/config gate.
+- [x] Add Anthropic cache editing beta header behind an explicit capability/config gate using the Claude Code-aligned `CACHE_EDITING_BETA_HEADER` name.
 - [x] Ensure prompt caching normalization and cache editing transform have a deterministic order.
 - [x] Ensure retry/fallback paths strip cache editing payload when beta support is removed.
 
@@ -144,7 +144,7 @@
 ## Open Questions
 
 - [ ] 是否要第一版就切到 Claude Code 的 wall-clock assistant-gap time-aware 策略，还是先只接 cache editing side-channel，保留当前 user-turn stale 策略？
-- [ ] Anthropic cache editing beta header 的具体名称是否需要通过真实 API smoke test 确认后再默认启用？
+- [x] Anthropic cache editing beta header 名称按 Claude Code 对齐为 `CACHE_EDITING_BETA_HEADER`；真实 API smoke 只作为后续可选验证，不阻塞客户端 parity 实现。
 - [ ] app-server main-thread 是否在第一版跟 TUI 同步启用，还是先只启用 TUI REPL 主线程？
 - [ ] 是否需要新增用户可见 config，还是先通过 env/internal capability gate 控制？
 

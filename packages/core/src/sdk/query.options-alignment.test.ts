@@ -444,7 +444,7 @@ describe('sdk query option alignment regressions', () => {
         env: {
           ...process.env,
           FORMAX_API_KEY: 'sk-test',
-          FORMAX_ANTHROPIC_CACHE_EDITING_BETA_HEADER: 'cache-editing-test',
+          CACHE_EDITING_BETA_HEADER: 'cache-editing-test',
         },
       },
     })
