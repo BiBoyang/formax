@@ -11,8 +11,8 @@
 - [x] 每个条目按一个小 commit 执行：tests first → 实现 → targeted tests → `type-check`（如涉及类型/跨包）→ codex review → 修复 findings → commit。
 - [x] `SDK durable snip resume parity` 可以先做；但 `SDK same-turn snip + collapse rebase` 不单独提前做，必须和 same-turn dependency / policy 一起处理。
 - [x] `success-boundary` 必须前置到 cleanup 前，避免失败 turn 留下 replay-authoritative durable state。
-- [ ] `session reader strictness` 是 correctness hardening，但不要和 runtime wiring / success-boundary 混在同一 commit。
-- [ ] `Batch 3` 只作为 cleanup backlog，不能作为一个大 refactor commit。
+- [x] `session reader strictness` 是 correctness hardening，但不要和 runtime wiring / success-boundary 混在同一 commit。
+- [x] `Batch 3` 只作为 cleanup backlog，不能作为一个大 refactor commit。
 
 ## 通用 Commit Gate
 
@@ -323,8 +323,8 @@ Validation:
 
 ## Explicitly Deferred
 
-- [ ] 不在 correctness commits 中做测试文件大规模重命名。
-- [ ] 不在 correctness commits 中重排 compression golden fixture。
-- [ ] 不在 correctness commits 中抽大型 runtime object。
-- [ ] 不在 correctness commits 中改变 Claude Code 对齐目标或上下文压缩策略。
-- [ ] 不在 duplicate same-id 修复里同时定义 different-id overlap 大策略。
+- [x] 不在 correctness commits 中做测试文件大规模重命名。
+- [x] 不在 correctness commits 中重排 compression golden fixture。
+- [x] 不在 correctness commits 中抽大型 runtime object。
+- [x] 不在 correctness commits 中改变 Claude Code 对齐目标或上下文压缩策略。
+- [x] 不在 duplicate same-id 修复里同时定义 different-id overlap 大策略。
