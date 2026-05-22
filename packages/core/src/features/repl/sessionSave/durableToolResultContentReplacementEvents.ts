@@ -10,21 +10,12 @@ import type {
   DurableToolResultContentReplacementState,
 } from '../../../chat/context/contextProjection'
 import type { PromptMessage } from '../../../prompts'
+import { coerceNonEmptyString, isObject } from './validation'
 
 export const DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME =
   'durable_tool_result_content_replacement_applied'
 
 const MAIN_THREAD_SCOPE: DurableToolResultContentReplacementSourceScope = { kind: 'main_thread' }
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
-function coerceNonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
 
 function parseSourceScope(value: unknown): DurableToolResultContentReplacementSourceScope | null {
   if (!isObject(value)) return null

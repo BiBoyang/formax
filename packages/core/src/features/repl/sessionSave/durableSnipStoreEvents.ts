@@ -7,18 +7,9 @@ import {
 import type { DurableSnipRemoval, DurableSnipState } from '../../../chat/context/contextProjection'
 import type { PromptMessageIdentity } from '../../../chat/context/compact'
 import type { PromptMessage } from '../../../prompts'
+import { coerceNonEmptyString, isObject } from './validation'
 
 export const DURABLE_SNIP_COMMITTED_EVENT_NAME = 'durable_snip_applied'
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
-function coerceNonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
 
 function parseStringList(value: unknown): string[] | undefined {
   if (value === undefined) return undefined

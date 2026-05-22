@@ -15,18 +15,9 @@ import {
 } from '../../../chat/context/contextCollapseStore'
 import type { ContextCollapseMeta } from '../../../chat/context/contextCollapse'
 import type { PromptMessage } from '../../../prompts'
+import { coerceNonEmptyString, isObject } from './validation'
 
 export { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME }
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
-function coerceNonEmptyString(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
 
 function parseCreatedAtMs(ts: unknown, value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.floor(value))

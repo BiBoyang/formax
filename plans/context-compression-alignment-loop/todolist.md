@@ -315,7 +315,7 @@ Validation:
 
 每项必须独立 commit，不能合成一个大 cleanup batch。
 
-- [ ] `refactor(session): share strict event parsing helpers`
+- [x] `refactor(session): share strict event parsing helpers`
 - [ ] `refactor(context): share durable projection scoping helper`
 - [ ] `refactor(web): centralize compression fact tri-state helper`
 - [ ] `refactor(context): share durable commit candidate helpers`
