@@ -319,7 +319,7 @@ Validation:
 - [x] `refactor(context): share durable projection scoping helper`
 - [x] `refactor(web): centralize compression fact tri-state helper`
 - [x] `refactor(context): share durable commit candidate helpers`
-- [ ] `docs(context): refresh CODEMAP durable projection owners`
+- [x] `docs(context): refresh CODEMAP durable projection owners`
 
 ## Explicitly Deferred
 

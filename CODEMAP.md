@@ -38,6 +38,10 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Durable context-collapse store replay reader: `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
 - Durable snip snapshot replay reader / event name: `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
 - Durable tool-result content replacement replay reader / event name: `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.ts`
+- Durable compression success-boundary writers:
+  - REPL: `packages/core/src/features/repl/controller/session/sessionEvents.ts`, `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+  - App-server: `packages/core/src/app-server/turnRunner.ts`
+  - SDK: `packages/core/src/sdk/query/runner.ts`
 - Primary tests: `packages/core/src/app-server/*.test.ts`, `packages/core/src/app-server/store/*.test.ts`, `packages/core/src/app-server/turn/*.test.ts`
 
 ## REPL UI (Ink)
@@ -87,12 +91,12 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Token estimate fallback: `packages/core/src/chat/context/estimate.ts`
 - Context diagnostics snapshot/report builder (`/context`): `packages/core/src/chat/context/contextDiagnostics.ts`
 - Anthropic cache editing capability gate: `packages/core/src/chat/context/cacheEditing.ts`
-- Durable context-collapse committed entry/snapshot schema: `packages/core/src/chat/context/contextCollapseStore.ts`
+- Durable context-collapse committed entry/snapshot schema and commit-candidate gate: `packages/core/src/chat/context/contextCollapseStore.ts`
 - Shared query-time middle-layer strategy stack (`microcompact` / `prune` / `collapse` execution + facts): `packages/core/src/chat/context/middleLayerStrategyStack.ts`
 - Shared runtime request projection adapter (persisted history vs request history/user for app-server + SDK): `packages/core/src/chat/context/turnRequestProjection.ts`
+- Durable request projection owner (`raw history -> model-facing baseline -> durable snip -> durable collapse -> durable tool-result replacement`), durable snapshot merge/scoping, and projection facts: `packages/core/src/chat/context/contextProjection.ts`
 - Message identity / fingerprint helpers for compression projection diagnostics, compact preserved segments, and preserved-tail relink: `packages/core/src/chat/context/compact.ts`
 - Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`
-- Durable tool-result content replacement projection stage: `packages/core/src/chat/context/contextProjection.ts`
 - Independent request-time snip reducer for older assistant text messages + durable identity/fingerprint removal metadata: `packages/core/src/chat/context/snip.ts`
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
 - Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
