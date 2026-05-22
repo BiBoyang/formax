@@ -154,6 +154,71 @@ describe('durableSnipStoreEvents', () => {
     })
   })
 
+  it('rejects a mixed valid and invalid durable snip snapshot without replacing the previous snapshot', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-store-invalid-snapshot-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify(snipEvent({
+          startIndex: 1,
+          endIndexExclusive: 2,
+          removedMessageIds: ['old-msg'],
+          removedMessageFingerprints: ['old-fp'],
+          baseProjectionFingerprint: 'old-baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
+        })),
+        JSON.stringify({
+          type: 'event',
+          ts: '2026-05-21T00:00:01.000Z',
+          name: DURABLE_SNIP_COMMITTED_EVENT_NAME,
+          data: {
+            schemaVersion: 1,
+            source: 'request_snip',
+            compactBoundaryFingerprint: null,
+            baseProjectionFingerprint: 'invalid-baseline-fp',
+            sourceProjectionKind: 'model_facing_baseline',
+            removals: [
+              {
+                kind: 'model_facing_index_range',
+                startIndex: 3,
+                endIndexExclusive: 5,
+                reason: 'valid entry in invalid snapshot',
+              },
+              {
+                kind: 'model_facing_index_range',
+                startIndex: 7,
+                endIndexExclusive: 7,
+                reason: 'invalid zero-width entry rejects whole snapshot',
+              },
+            ],
+          },
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    const expected = {
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: null,
+      baseProjectionFingerprint: 'old-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'durable snip test',
+          removedMessageIds: ['old-msg'],
+          removedMessageFingerprints: ['old-fp'],
+        },
+      ],
+    }
+
+    await expect(readDurableSnipStateFromSession({ filePath })).resolves.toEqual(expected)
+    expect(readDurableSnipStateFromSessionSync({ filePath })).toEqual(expected)
+  })
+
   it('allows an empty durable snip snapshot to clear previous removals', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-store-clear-'))
     const filePath = path.join(dir, 'session.jsonl')

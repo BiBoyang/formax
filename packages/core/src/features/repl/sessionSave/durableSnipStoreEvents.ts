@@ -84,7 +84,13 @@ function parseRemoval(value: unknown): DurableSnipRemoval | null {
 
 function parseRemovals(value: unknown): DurableSnipRemoval[] | undefined {
   if (!Array.isArray(value)) return undefined
-  return value.map(parseRemoval).filter((entry): entry is DurableSnipRemoval => Boolean(entry))
+  const removals: DurableSnipRemoval[] = []
+  for (const item of value) {
+    const removal = parseRemoval(item)
+    if (!removal) return undefined
+    removals.push(removal)
+  }
+  return removals
 }
 
 function readActiveCompactBoundaryFingerprint(record: unknown): string | null | undefined {

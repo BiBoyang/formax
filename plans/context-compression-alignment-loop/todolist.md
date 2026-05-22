@@ -282,14 +282,14 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 mixed valid/invalid removals test：snapshot event 中任一 removal invalid 时整条 event 不接受，保留前一 valid snapshot。
-- [ ] 保留 empty `removals: []` 可作为 intentional clear。
-- [ ] 修改 `parseRemovals()` 为 strict all-or-nothing。
+- [x] 新增 mixed valid/invalid removals test：snapshot event 中任一 removal invalid 时整条 event 不接受，保留前一 valid snapshot。
+- [x] 保留 empty `removals: []` 可作为 intentional clear。
+- [x] 修改 `parseRemovals()` 为 strict all-or-nothing。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
+- [x] 通用 Commit Gate。
 
 ## Commit 11: Malformed Durable Tool Replacement Scope Strictness
 
