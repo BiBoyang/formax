@@ -36,9 +36,13 @@
   "build": {
     "appId": "com.yusifeng.formax.desktop",
     "productName": "Formax Desktop",
-    "icon": "icon.png",
+    "icon": "build/icon.png",
+    "mac": {
+      "icon": "build/icon.icns"
+    },
     "directories": {
-      "output": "out"
+      "output": "out",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -52,6 +56,10 @@
           "**/*"
         ]
       }
+    ],
+    "npmRebuild": false,
+    "asarUnpack": [
+      "**/node_modules/node-pty/prebuilds/**"
     ],
     "asar": true
   }
