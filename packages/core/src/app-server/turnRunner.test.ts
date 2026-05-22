@@ -217,6 +217,73 @@ describe('TurnRunner', () => {
     ).toHaveLength(1)
   })
 
+  it('commits app-server durable compression state only after durable flush succeeds', async () => {
+    const filePath = '/tmp/thread.jsonl'
+    const contextCollapseStoreByFilePath = new Map()
+    const contextCollapseCommit = {
+      schemaVersion: 1 as const,
+      id: 'request-collapse:test',
+      createdAtMs: 1,
+      source: 'request_collapse' as const,
+      collapsedRange: { kind: 'model_facing_index_range' as const, startIndex: 0, endIndexExclusive: 2 },
+      compactBoundaryFingerprint: 'compact-generation',
+      recapMessage: { role: 'user' as const, content: [{ type: 'text' as const, text: 'recap' }] },
+      metadata: {
+        schemaVersion: 1 as const,
+        kind: 'request_recap' as const,
+        keepLastTurns: 2,
+        preservedTailMessageCount: 3,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 1,
+        recentFileCount: 0,
+        earlierToolResultBlockCount: 0,
+        recapFingerprint: 'abcdef0123456789',
+      },
+    }
+    const durableSnipCommit = {
+      schemaVersion: 1,
+      source: 'request_snip',
+      phase: 'initial',
+      removals: [],
+    }
+    const appendEvent = vi.fn(async () => undefined)
+    const flush = vi.fn(async () => undefined)
+
+    await __turnRunnerTestOnly.commitPendingDurableCompressionState({
+      writer: { appendEvent, flush },
+      filePath,
+      contextCollapseStoreByFilePath,
+      durableSnipCommit,
+      contextCollapseCommit,
+    })
+
+    expect(appendEvent).toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, durableSnipCommit)
+    expect(appendEvent).toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, contextCollapseCommit)
+    expect(flush).toHaveBeenCalled()
+    expect(contextCollapseStoreByFilePath.get(filePath)).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: 'compact-generation',
+      entries: [contextCollapseCommit],
+    })
+
+    const failedContextCollapseStoreByFilePath = new Map()
+    await expect(
+      __turnRunnerTestOnly.commitPendingDurableCompressionState({
+        writer: {
+          appendEvent: vi.fn(async () => undefined),
+          flush: vi.fn(async () => {
+            throw new Error('durable flush failed')
+          }),
+        },
+        filePath,
+        contextCollapseStoreByFilePath: failedContextCollapseStoreByFilePath,
+        durableSnipCommit,
+        contextCollapseCommit,
+      }),
+    ).rejects.toThrow('durable flush failed')
+    expect(failedContextCollapseStoreByFilePath.get(filePath)).toBeUndefined()
+  })
+
   it('handles approval_request metadata fields and skill tool patching path', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
@@ -1018,6 +1085,122 @@ describe('TurnRunner', () => {
       })
       const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
       expect(String(failed.params?.error || '')).toContain('flush failed')
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('does not expose app-server durable snip commits when final flush fails', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot([
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory)
+    await seedWriter.shutdown()
+
+    const appendEvent = vi.fn().mockResolvedValue(undefined)
+    const openSpy = vi.spyOn(SessionWriter, 'openExisting').mockResolvedValue({
+      appendEvent,
+      appendStableMsg: vi.fn().mockResolvedValue(undefined),
+      appendHistorySnapshot: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockRejectedValue(new Error('flush failed')),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+    } as any)
+
+    try {
+      const runner = new TurnRunner({
+        engine: {
+          async runTurn(args) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+            ] as ChatHistory
+          },
+        },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        cwd: fixture.cwd,
+        env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+      const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+      expect(String(failed.params?.error || '')).toContain('flush failed')
+      expect(appendEvent).not.toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, expect.anything())
+      expect(appendEvent).not.toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, expect.anything())
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('does not expose app-server durable snip commits when history snapshot append fails', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot([
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory)
+    await seedWriter.shutdown()
+
+    const appendEvent = vi.fn().mockResolvedValue(undefined)
+    const openSpy = vi.spyOn(SessionWriter, 'openExisting').mockResolvedValue({
+      appendEvent,
+      appendStableMsg: vi.fn().mockResolvedValue(undefined),
+      appendHistorySnapshot: vi.fn().mockRejectedValue(new Error('snapshot failed')),
+      flush: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+    } as any)
+
+    try {
+      const runner = new TurnRunner({
+        engine: {
+          async runTurn(args) {
+            return [
+              ...args.history,
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+            ] as ChatHistory
+          },
+        },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        cwd: fixture.cwd,
+        env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+      const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+      expect(String(failed.params?.error || '')).toContain('snapshot failed')
+      expect(appendEvent).not.toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, expect.anything())
+      expect(appendEvent).not.toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, expect.anything())
     } finally {
       openSpy.mockRestore()
     }

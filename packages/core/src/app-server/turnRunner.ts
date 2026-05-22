@@ -15,6 +15,7 @@ import {
   createContextCollapseCommittedEntry,
   requestHistoryContainsExactMessage,
   setContextCollapseStoreActiveCompactBoundaryFingerprint,
+  type ContextCollapseCommittedEntry,
   type ContextCollapseStoreSnapshot,
 } from '../chat/context/contextCollapseStore.js'
 import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
@@ -248,6 +249,28 @@ function stripInjectedBlocksFromHistory(history: ChatHistory, userIndex: number,
   return [...history.slice(0, userIndex), stripped, ...history.slice(userIndex + 1)]
 }
 
+async function commitPendingDurableCompressionState(args: {
+  writer: Pick<SessionWriter, 'appendEvent' | 'flush'>
+  filePath: string
+  contextCollapseStoreByFilePath: Map<string, ContextCollapseStoreSnapshot>
+  durableSnipCommit: Record<string, unknown> | null
+  contextCollapseCommit: ContextCollapseCommittedEntry | null
+}): Promise<void> {
+  if (args.durableSnipCommit) {
+    await args.writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, args.durableSnipCommit)
+  }
+  if (args.contextCollapseCommit) {
+    await args.writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, args.contextCollapseCommit)
+  }
+  await args.writer.flush()
+  if (args.contextCollapseCommit) {
+    args.contextCollapseStoreByFilePath.set(args.filePath, appendContextCollapseStoreEntry({
+      snapshot: args.contextCollapseStoreByFilePath.get(args.filePath) ?? null,
+      entry: args.contextCollapseCommit,
+    }))
+  }
+}
+
 export class TurnRunner {
   private readonly engine: Pick<ChatEngine, 'runTurn'>
   private readonly tools: ToolDefinition[]
@@ -479,6 +502,8 @@ export class TurnRunner {
     let writer: SessionWriter | null = null
     let status: TurnStatus = 'running'
     let errorMessage: string | null = null
+    let pendingDurableSnipCommit: Record<string, unknown> | null = null
+    let pendingContextCollapseCommit: ContextCollapseCommittedEntry | null = null
 
     try {
       writer = await SessionWriter.openExisting({ filePath: running.filePath })
@@ -817,7 +842,7 @@ export class TurnRunner {
             baseProjectionFingerprint: prepared.contextProjection.facts.modelFacingBaselineFingerprint,
             sourceProjectionKind: 'model_facing_baseline',
           })
-          await writer.appendEvent(DURABLE_SNIP_COMMITTED_EVENT_NAME, {
+          pendingDurableSnipCommit = {
             schemaVersion: 1,
             source: 'request_snip',
             phase: 'initial',
@@ -830,7 +855,7 @@ export class TurnRunner {
             baseProjectionFingerprint: snipSnapshot.baseProjectionFingerprint,
             sourceProjectionKind: snipSnapshot.sourceProjectionKind,
             removals: snipSnapshot.removals,
-          })
+          }
         }
         if (
           collapseFact.applied &&
@@ -854,11 +879,7 @@ export class TurnRunner {
             recapMessage: collapseRecapMessage,
             metadata: collapseFact.metadata,
           })
-          await writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
-          this.contextCollapseStoreByFilePath.set(running.filePath, appendContextCollapseStoreEntry({
-            snapshot: this.contextCollapseStoreByFilePath.get(running.filePath) ?? initialCollapseStoreSnapshot,
-            entry,
-          }))
+          pendingContextCollapseCommit = entry
         }
         nextHistoryForSnapshot =
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0
@@ -926,6 +947,26 @@ export class TurnRunner {
         if (flushError && status === 'completed') {
           status = 'failed'
           errorMessage = flushError instanceof Error ? flushError.message : String(flushError)
+        }
+        if (status === 'completed') {
+          const durableCommitError = await (async () => {
+            try {
+              await commitPendingDurableCompressionState({
+                writer,
+                filePath: running.filePath,
+                contextCollapseStoreByFilePath: this.contextCollapseStoreByFilePath,
+                durableSnipCommit: pendingDurableSnipCommit,
+                contextCollapseCommit: pendingContextCollapseCommit,
+              })
+              return null
+            } catch (err) {
+              return err
+            }
+          })()
+          if (durableCommitError) {
+            status = 'failed'
+            errorMessage = durableCommitError instanceof Error ? durableCommitError.message : String(durableCommitError)
+          }
         }
       }
 
@@ -1157,4 +1198,5 @@ export const __turnRunnerTestOnly = {
   toToolEndPayload,
   normalizePositiveLimit,
   stripInjectedBlocksFromHistory,
+  commitPendingDurableCompressionState,
 }

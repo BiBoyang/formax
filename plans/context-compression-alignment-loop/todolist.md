@@ -10,7 +10,7 @@
 - [x] 可以开始执行，但不能按“大 Batch 1”一次性做。
 - [x] 每个条目按一个小 commit 执行：tests first → 实现 → targeted tests → `type-check`（如涉及类型/跨包）→ codex review → 修复 findings → commit。
 - [x] `SDK durable snip resume parity` 可以先做；但 `SDK same-turn snip + collapse rebase` 不单独提前做，必须和 same-turn dependency / policy 一起处理。
-- [ ] `success-boundary` 必须前置到 cleanup 前，避免失败 turn 留下 replay-authoritative durable state。
+- [x] `success-boundary` 必须前置到 cleanup 前，避免失败 turn 留下 replay-authoritative durable state。
 - [ ] `session reader strictness` 是 correctness hardening，但不要和 runtime wiring / success-boundary 混在同一 commit。
 - [ ] `Batch 3` 只作为 cleanup backlog，不能作为一个大 refactor commit。
 
@@ -18,16 +18,16 @@
 
 每个 commit 都执行：
 
-- [ ] 明确本 commit 只解决一个问题域。
-- [ ] 先补 regression / characterization test。
-- [ ] 只改实现到让该测试通过，不顺手重构。
-- [ ] 跑本 commit 的 targeted tests。
-- [ ] 如改类型、跨 package import、公共 contract，跑 `bun run type-check`。
-- [ ] `mkdir -p .tmp/codex-review-result`
-- [ ] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
-- [ ] `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
-- [ ] 修完 review findings。
-- [ ] commit。
+- [x] 明确本 commit 只解决一个问题域。
+- [x] 先补 regression / characterization test。
+- [x] 只改实现到让该测试通过，不顺手重构。
+- [x] 跑本 commit 的 targeted tests。
+- [x] 如改类型、跨 package import、公共 contract，跑 `bun run type-check`。
+- [x] `mkdir -p .tmp/codex-review-result`
+- [x] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
+- [x] `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
+- [x] 修完 review findings。
+- [x] commit。
 
 ## Commit 1: SDK Durable Snip Resume Parity
 
@@ -132,25 +132,25 @@ Validation:
 
 Clarification:
 
-- [ ] 区分 request attempt diagnostic event、pending collapse drain、durable future-state commit。
-- [ ] 不写反合同测试：如果当前设计需要 overflow 前 drain pending collapse commit，必须单独建模，不能把 pending 当 completed durable success。
+- [x] 区分 request attempt diagnostic event、pending collapse drain、durable future-state commit。
+- [x] 不写反合同测试：如果当前设计需要 overflow 前 drain pending collapse commit，必须单独建模，不能把 pending 当 completed durable success。
 
 Tasks:
 
-- [ ] REPL test：initial overflow + `prepared.collapseState.commit` + `runReactiveCompact` reject，不应留下 completed-turn durable snip/collapse success state。
-- [ ] REPL test：initial overflow + reactive compact success + retry `engine.runTurn` reject/abort，不应留下 completed-turn durable snip/collapse success state。
-- [ ] App-server test：durable snip/collapse candidate 存在，但 history snapshot append 或 flush 失败时，reader / replay surface 不暴露 completed durable state。
-- [ ] App-server completed turn 仍能持久化 durable snip/collapse，并更新 in-memory collapse store。
-- [ ] interrupted/failed turn 不写 completed durable snip/collapse success state。
-- [ ] 如实现 pending event，pending event 必须 reader-invisible。
+- [x] REPL test：initial overflow + `prepared.collapseState.commit` + `runReactiveCompact` reject，不应留下 completed-turn durable snip/collapse success state。
+- [x] REPL test：initial overflow + reactive compact success + retry `engine.runTurn` reject/abort，不应留下 completed-turn durable snip/collapse success state。
+- [x] App-server test：durable snip/collapse candidate 存在，但 history snapshot append 或 flush 失败时，reader / replay surface 不暴露 completed durable state。
+- [x] App-server completed turn 仍能持久化 durable snip/collapse，并更新 in-memory collapse store。
+- [x] interrupted/failed turn 不写 completed durable snip/collapse success state。
+- [x] 如实现 pending event，pending event 必须 reader-invisible。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
-- [ ] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 5: App-Server Compact Boundary Cache Tri-State
 

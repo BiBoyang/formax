@@ -303,8 +303,10 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           detail: reactiveErrorInfo.detail.slice(0, 200),
         }
         if (prepared.collapseState.commit) {
-          await recordRequestSnip('initial', prepared.snipState)
-          await recordRequestCollapse('initial', prepared.collapseState)
+          await recordRequestCollapse('initial', {
+            ...prepared.collapseState,
+            commit: null,
+          })
         }
         let reactivePrepared
         try {

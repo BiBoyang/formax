@@ -327,7 +327,7 @@ describe('runMainSendTurn', () => {
     })
   })
 
-  it('drains a pending initial collapse commit before reactive compact on provider overflow', async () => {
+  it('records pending initial collapse diagnostics before reactive compact on provider overflow', async () => {
     const initialCommit = {
       collapsedRange: { kind: 'model_facing_index_range' as const, startIndex: 0, endIndexExclusive: 3 },
       compactBoundaryFingerprint: 'compact-generation-1',
@@ -392,11 +392,141 @@ describe('runMainSendTurn', () => {
       metadata: expect.objectContaining({
         recapFingerprint: 'initial-collapse-fingerprint',
       }),
-      commit: initialCommit,
+      commit: null,
     })
     expect(harness.refs.onRequestCollapse.mock.invocationCallOrder[0]).toBeLessThan(
       runReactiveCompact.mock.invocationCallOrder[0],
     )
+  })
+
+  it('does not record completed durable snip state when reactive compact fails after initial overflow', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-prepared' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-request' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 96,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          recapFingerprint: 'initial-collapse-fingerprint',
+        },
+        commit: {
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 3 },
+          compactBoundaryFingerprint: 'compact-generation-1',
+          recapMessage: { role: 'user', content: [{ type: 'text', text: 'initial recap' }] },
+        },
+      },
+      snipState: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 80,
+        compactBoundaryFingerprint: 'compact-generation-1',
+        baseProjectionFingerprint: 'baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'initial-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    runReactiveCompact.mockRejectedValueOnce(new Error('Compact failed: empty summary'))
+    const harness = createHarness()
+    harness._spies.engine.runTurn.mockRejectedValueOnce(new Error('HTTP 413: request too large'))
+
+    const result = await runMainSendTurn(harness)
+
+    expect(result.turnOutcome).toBe('failed')
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledTimes(1)
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith(expect.objectContaining({ commit: null }))
+    expect(harness.refs.onRequestSnip).not.toHaveBeenCalled()
+  })
+
+  it('does not record completed durable compression state when the reactive retry fails', async () => {
+    prepareHistoryForTurn.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-prepared' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'initial-request' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 3,
+        estimatedTokensSaved: 96,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          recapFingerprint: 'initial-collapse-fingerprint',
+        },
+        commit: {
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 3 },
+          compactBoundaryFingerprint: 'compact-generation-1',
+          recapMessage: { role: 'user', content: [{ type: 'text', text: 'initial recap' }] },
+        },
+      },
+      snipState: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 80,
+        compactBoundaryFingerprint: 'compact-generation-1',
+        baseProjectionFingerprint: 'baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'initial-user' }] },
+      context: null,
+      autoCompacted: false,
+      showAutoCompactNotice: false,
+    })
+    runReactiveCompact.mockResolvedValueOnce({
+      history: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-summary' }] }],
+      requestHistory: [{ role: 'assistant', content: [{ type: 'text', text: 'reactive-request-summary' }] }],
+      collapseState: {
+        applied: true,
+        collapsedHeadMessageCount: 2,
+        estimatedTokensSaved: 64,
+        metadata: {
+          schemaVersion: 1,
+          kind: 'request_recap',
+          keepLastTurns: 2,
+          recapFingerprint: 'reactive-collapse-fingerprint',
+        },
+        commit: {
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+          compactBoundaryFingerprint: 'compact-generation-2',
+          recapMessage: { role: 'user', content: [{ type: 'text', text: 'reactive recap' }] },
+        },
+      },
+      snipState: {
+        applied: true,
+        removedMessageCount: 1,
+        estimatedTokensSaved: 70,
+        compactBoundaryFingerprint: 'compact-generation-2',
+        baseProjectionFingerprint: 'reactive-baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
+        removals: [{ kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 1 }],
+      },
+      strategyFacts: {},
+      reactiveCompactState: {
+        applied: true,
+        strategy: 'model_summary',
+      },
+      user: { role: 'user', content: [{ type: 'text', text: 'reactive-user' }] },
+      context: null,
+      cacheEditPlan: null,
+    })
+    const harness = createHarness()
+    harness._spies.engine.runTurn
+      .mockRejectedValueOnce(new Error('HTTP 413: request too large'))
+      .mockRejectedValueOnce(new Error('provider failed after reactive compact'))
+
+    const result = await runMainSendTurn(harness)
+
+    expect(result.turnOutcome).toBe('failed')
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledTimes(1)
+    expect(harness.refs.onRequestCollapse).toHaveBeenCalledWith(expect.objectContaining({ commit: null }))
+    expect(harness.refs.onRequestSnip).not.toHaveBeenCalled()
   })
 
   it('surfaces the original provider overflow error when reactive compact itself fails', async () => {
