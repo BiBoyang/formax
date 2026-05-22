@@ -212,18 +212,18 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 cache-editing microcompact regression：带 `meta.durableToolResultContentReplacementToolUseIds` 的 long tool result 不产生 cache edit plan / fallback stub。
-- [ ] 新增 time-based microcompact regression：old assistant timestamp + durable-replaced old result，不被 `TIME_BASED_MC_CLEARED_MESSAGE` 覆盖。
-- [ ] 在 `collectTimeBasedToolResultRefs()` 跳过 durable-replaced tool result。
-- [ ] 在 `collectEligibleToolResults()` 跳过 durable-replaced tool result。
-- [ ] 如抽 helper，只抽 predicate，不改 microcompact 策略顺序。
+- [x] 新增 cache-editing microcompact regression：带 `meta.durableToolResultContentReplacementToolUseIds` 的 long tool result 不产生 cache edit plan / fallback stub。
+- [x] 新增 time-based microcompact regression：old assistant timestamp + durable-replaced old result，不被 `TIME_BASED_MC_CLEARED_MESSAGE` 覆盖。
+- [x] 在 `collectTimeBasedToolResultRefs()` 跳过 durable-replaced tool result。
+- [x] 在 `collectEligibleToolResults()` 跳过 durable-replaced tool result。
+- [x] 如抽 helper，只抽 predicate，不改 microcompact 策略顺序。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/chat/context/microCompact.test.ts packages/core/src/chat/context/toolResultBudget.test.ts`
-- [ ] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/chat/context/microCompact.test.ts packages/core/src/chat/context/toolResultBudget.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 8: Durable Collapse Replay Idempotency
 

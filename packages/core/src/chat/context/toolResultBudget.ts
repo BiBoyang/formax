@@ -1,6 +1,7 @@
 import { computeContextBudget, type ContextBudgetConfig } from './budget'
 import type { PromptMessage } from '../../prompts'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
+import { isDurableToolResultContentReplacement } from './durableToolResultContentReplacementMeta'
 
 export const TOOL_RESULT_BUDGET_STUB_PREFIX = '[Tool result replaced by budget:'
 const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 2
@@ -288,11 +289,6 @@ function collectEligibleToolResults(args: {
     }
   }
   return out
-}
-
-function isDurableToolResultContentReplacement(message: PromptMessage, toolUseId: string): boolean {
-  const ids = (message.meta as any)?.durableToolResultContentReplacementToolUseIds
-  return Array.isArray(ids) && ids.some((value) => value === toolUseId)
 }
 
 function buildToolResultBudgetStub(tool: ToolUseMeta, rawResultText: string): string {

@@ -1,5 +1,6 @@
 import type { AnthropicCacheEditDelete, AnthropicCacheEditPlan, PromptMessage } from '../../prompts'
 import { toolResultContentToText } from '../../shared/utils/toolResultContent'
+import { isDurableToolResultContentReplacement } from './durableToolResultContentReplacementMeta'
 import { readPromptMessageTimestampMs } from './promptMessageTimestamps'
 
 const DEFAULT_KEEP_RECENT_TOOL_RESULTS = 3
@@ -511,6 +512,7 @@ function collectTimeBasedToolResultRefs(args: {
       if (block?.is_error === true) continue
       if (typeof block.tool_use_id !== 'string' || block.tool_use_id.length === 0) continue
       if (block.content === TIME_BASED_MC_CLEARED_MESSAGE) continue
+      if (isDurableToolResultContentReplacement(message, block.tool_use_id)) continue
 
       const tool = args.toolUsesById.get(block.tool_use_id)
       if (!tool || !compactableToolNames.has(tool.name)) continue
@@ -723,6 +725,7 @@ function collectEligibleToolResults(args: {
       if (block?.type !== 'tool_result') continue
       if (block?.is_error === true) continue
       if (typeof block.tool_use_id !== 'string' || block.tool_use_id.length === 0) continue
+      if (isDurableToolResultContentReplacement(message, block.tool_use_id)) continue
 
       const tool = args.toolUsesById.get(block.tool_use_id)
       if (!tool) continue

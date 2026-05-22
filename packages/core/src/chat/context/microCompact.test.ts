@@ -121,6 +121,31 @@ describe('microCompactHistory', () => {
     expect(out.cacheEditingPlannedBlocks).toBe(1)
   })
 
+  it('does not cache-edit microcompact durable tool-result content replacements', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-durable', 'Read', { file_path: '/repo/src/durable.ts' }),
+      {
+        ...userToolResult('read-durable', '[durable replacement] '.repeat(500)),
+        meta: {
+          durableToolResultContentReplacementToolUseIds: ['read-durable'],
+        } as any,
+      },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      keepRecentToolResults: 0,
+      minResultChars: 1,
+      eligibleToolNames: ['Read'],
+      enableCacheEditing: true,
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.messages).toBe(messages)
+    expect((out.messages[1]!.content[0] as any).content).toContain('[durable replacement]')
+  })
+
   it('time-based microcompacts old tool results after an assistant wall-clock gap and skips cache edits', () => {
     const messages: PromptMessage[] = [
       assistantToolUse('read-1', 'Read', { file_path: '/repo/src/a.ts' }),
@@ -144,6 +169,36 @@ describe('microCompactHistory', () => {
     expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
     expect(out.timeAwareCompactedBlocks).toBe(1)
     expect(out.timeAwareToolNames).toEqual(['Read'])
+  })
+
+  it('does not time-based microcompact durable tool-result content replacements', () => {
+    const messages: PromptMessage[] = [
+      assistantToolUse('read-durable', 'Read', { file_path: '/repo/src/durable.ts' }),
+      {
+        ...userToolResult('read-durable', '[durable replacement] '.repeat(500)),
+        meta: {
+          durableToolResultContentReplacementToolUseIds: ['read-durable'],
+        } as any,
+      },
+      assistantToolUse('read-recent', 'Read', { file_path: '/repo/src/recent.ts' }),
+      userToolResult('read-recent', 'recent'.repeat(900)),
+      { role: 'assistant', content: [{ type: 'text', text: 'done' }] as any, meta: { timestamp: '2026-05-21T00:00:00.000Z' } },
+    ]
+
+    const out = microCompactHistory({
+      messages,
+      enableCacheEditing: true,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 60,
+      timeBasedKeepRecentToolResults: 1,
+      nowMs: new Date('2026-05-21T02:01:00.000Z').getTime(),
+    })
+
+    expect(out.compacted).toBe(false)
+    expect(out.cacheEditPlan).toBeNull()
+    expect(out.messages).toBe(messages)
+    expect((out.messages[1]!.content[0] as any).content).toContain('[durable replacement]')
+    expect((out.messages[3]!.content[0] as any).content).not.toBe(TIME_BASED_MC_CLEARED_MESSAGE)
   })
 
   it('does not time-based microcompact when cache editing is unavailable', () => {
