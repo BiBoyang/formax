@@ -644,6 +644,7 @@ export class AppServer {
   }
 
   private rememberLatestCompactBoundary(threadId: string, boundary?: CompactBoundaryMeta | null): void {
+    if (boundary === undefined) return
     this.latestCompactBoundaryByThreadId.set(threadId, boundary ?? null)
   }
 

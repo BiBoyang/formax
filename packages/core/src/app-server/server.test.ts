@@ -664,7 +664,7 @@ describe('AppServer', () => {
     const newerBoundary = {
       schemaVersion: 1,
       trigger: 'manual',
-      triggerReason: { kind: 'manual_command' },
+      triggerReason: { kind: 'manual' },
       preTokens: 4096,
       summaryKind: 'transcript',
     }
@@ -871,6 +871,112 @@ describe('AppServer', () => {
     const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(previousBoundary)
     expect(readThreadCount).toBe(2)
+  })
+
+  it('preserves replay compact boundary cache when thread/messages omits the fact', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'manual',
+      triggerReason: { kind: 'manual' },
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+    } as const
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary, durableSnip: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary,
+            durableSnip: null,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null } as any
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const readOut = await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    expect((readOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    await server.handleMessage(request(3, 'thread/messages', { threadId: 'thread-1' }))
+    const replayOut = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-1' }))
+
+    expect((replayOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    expect(readThreadCount).toBe(1)
+  })
+
+  it('clears replay compact boundary cache when thread/messages returns explicit null', async () => {
+    const baseThread: Thread = {
+      id: 'thread-1',
+      cwd: '/tmp/workspace',
+      createdAt: '2026-02-08T00:00:00.000Z',
+      updatedAt: '2026-02-08T00:00:01.000Z',
+    }
+    const latestCompactBoundary = {
+      schemaVersion: 1,
+      trigger: 'manual',
+      triggerReason: { kind: 'manual' },
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+    } as const
+    let readThreadCount = 0
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          return baseThread
+        },
+        async resumeThread() {
+          return { thread: baseThread, staleInputs: [], latestCompactBoundary, durableSnip: null }
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread() {
+          readThreadCount += 1
+          return {
+            thread: baseThread,
+            transcriptPreview: [],
+            latestCompactBoundary,
+            durableSnip: null,
+            latestRequestCollapse: null,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null, latestCompactBoundary: null, durableSnip: null, latestRequestCollapse: null }
+        },
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    const readOut = await server.handleMessage(request(2, 'thread/read', { threadId: 'thread-1' }))
+    expect((readOut[0] as any).result.latestCompactBoundary).toEqual(latestCompactBoundary)
+    await server.handleMessage(request(3, 'thread/messages', { threadId: 'thread-1' }))
+    const replayOut = await server.handleMessage(request(4, 'thread/replay', { threadId: 'thread-1' }))
+
+    expect((replayOut[0] as any).result.latestCompactBoundary).toBeNull()
+    expect(readThreadCount).toBe(1)
   })
 
   it('surfaces persisted compact and request-collapse facts in thread/replay', async () => {

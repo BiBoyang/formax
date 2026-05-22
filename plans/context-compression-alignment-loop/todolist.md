@@ -163,14 +163,14 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 replay cache test：已有 cached `latestCompactBoundary` 后，partial result 省略该字段时不得清空 cache。
-- [ ] 新增 explicit null test：`latestCompactBoundary: null` 应清空 cache。
-- [ ] 修改 `rememberLatestCompactBoundary()`：`undefined` 表示 omitted / no update；只有 explicit `null` 才写 null。
+- [x] 新增 replay cache test：已有 cached `latestCompactBoundary` 后，partial result 省略该字段时不得清空 cache。
+- [x] 新增 explicit null test：`latestCompactBoundary: null` 应清空 cache。
+- [x] 修改 `rememberLatestCompactBoundary()`：`undefined` 表示 omitted / no update；只有 explicit `null` 才写 null。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/app-server/server.test.ts`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/app-server/server.test.ts`
+- [x] 通用 Commit Gate。
 
 ## Commit 6: Web Compression Fact Tri-State Parsing
 
