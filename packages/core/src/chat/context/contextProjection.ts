@@ -230,16 +230,14 @@ export function scopeDurableSnipStateToHistory(args: {
   history: PromptMessage[]
 }): DurableSnipState | null {
   if (!args.state) return null
-  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
-  const observedCompactBoundaryFingerprint =
-    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
-  const stateFingerprint = args.state.activeCompactBoundaryFingerprint ?? null
-  const activeCompactBoundaryFingerprint =
-    observedCompactBoundaryFingerprint ?? (stateFingerprint ? stateFingerprint : null)
-  if (observedCompactBoundaryFingerprint && observedCompactBoundaryFingerprint !== stateFingerprint) {
+  const scope = scopeDurableProjectionToHistory({
+    history: args.history,
+    activeCompactBoundaryFingerprint: args.state.activeCompactBoundaryFingerprint,
+  })
+  if (scope.shouldClear) {
     return {
       schemaVersion: 1,
-      activeCompactBoundaryFingerprint: observedCompactBoundaryFingerprint,
+      activeCompactBoundaryFingerprint: scope.activeCompactBoundaryFingerprint,
       ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
       ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
       removals: [],
@@ -247,7 +245,7 @@ export function scopeDurableSnipStateToHistory(args: {
   }
   return {
     schemaVersion: 1,
-    activeCompactBoundaryFingerprint,
+    activeCompactBoundaryFingerprint: scope.activeCompactBoundaryFingerprint,
     ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
     ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
     removals: cloneDurableSnipRemovals(args.state.removals),
@@ -259,17 +257,15 @@ export function scopeDurableToolResultContentReplacementStateToHistory(args: {
   history: PromptMessage[]
 }): DurableToolResultContentReplacementState | null {
   if (!args.state) return null
-  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
-  const observedCompactBoundaryFingerprint =
-    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
-  const stateFingerprint = args.state.activeCompactBoundaryFingerprint ?? null
-  const activeCompactBoundaryFingerprint =
-    observedCompactBoundaryFingerprint ?? (stateFingerprint ? stateFingerprint : null)
-  if (observedCompactBoundaryFingerprint && observedCompactBoundaryFingerprint !== stateFingerprint) {
+  const scope = scopeDurableProjectionToHistory({
+    history: args.history,
+    activeCompactBoundaryFingerprint: args.state.activeCompactBoundaryFingerprint,
+  })
+  if (scope.shouldClear) {
     return {
       schemaVersion: 1,
       sourceScope: args.state.sourceScope,
-      activeCompactBoundaryFingerprint: observedCompactBoundaryFingerprint,
+      activeCompactBoundaryFingerprint: scope.activeCompactBoundaryFingerprint,
       ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
       ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
       replacements: [],
@@ -278,10 +274,27 @@ export function scopeDurableToolResultContentReplacementStateToHistory(args: {
   return {
     schemaVersion: 1,
     sourceScope: args.state.sourceScope,
-    activeCompactBoundaryFingerprint,
+    activeCompactBoundaryFingerprint: scope.activeCompactBoundaryFingerprint,
     ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
     ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
     replacements: cloneDurableToolResultContentReplacements(args.state.replacements),
+  }
+}
+
+function scopeDurableProjectionToHistory(args: {
+  history: PromptMessage[]
+  activeCompactBoundaryFingerprint?: string | null
+}): {
+  activeCompactBoundaryFingerprint: string | null
+  shouldClear: boolean
+} {
+  const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
+  const observedCompactBoundaryFingerprint =
+    latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
+  const stateFingerprint = args.activeCompactBoundaryFingerprint ?? null
+  return {
+    activeCompactBoundaryFingerprint: observedCompactBoundaryFingerprint ?? (stateFingerprint ? stateFingerprint : null),
+    shouldClear: Boolean(observedCompactBoundaryFingerprint && observedCompactBoundaryFingerprint !== stateFingerprint),
   }
 }
 
