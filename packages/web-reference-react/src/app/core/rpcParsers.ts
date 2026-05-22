@@ -12,7 +12,12 @@ import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
 import type { ThreadRuntimeState } from '../../semantics'
 import type { SemanticsInvariantIssue } from '../../semantics'
-import { parseCompactBoundarySummary } from './compactBoundarySummary'
+import {
+  parseDurableSnipSummary,
+  parseLatestCompactBoundarySummary,
+  parseLatestRequestCollapseSummary,
+  parseOptionalNullableCompressionFact,
+} from './compressionFactParsers'
 
 export type ReplayNotification = {
   replaySeq: number
@@ -140,99 +145,23 @@ export function asThreadMessages(value: unknown): {
   const nextCursorRaw = (value as { nextCursor?: unknown }).nextCursor
   const nextCursor = typeof nextCursorRaw === 'string' ? nextCursorRaw : null
   const root = value as Record<string, unknown>
-  const latestCompactBoundaryRaw = root.latestCompactBoundary
-  const latestCompactBoundary: CompactBoundarySummary | null | undefined =
-    latestCompactBoundaryRaw && typeof latestCompactBoundaryRaw === 'object'
-      ? parseCompactBoundarySummary(latestCompactBoundaryRaw) ?? undefined
-      : latestCompactBoundaryRaw === null
-        ? null
-        : undefined
-  const latestRequestCollapseRaw = root.latestRequestCollapse
-  const latestRequestCollapse: RequestCollapseSummary | null | undefined =
-    latestRequestCollapseRaw && typeof latestRequestCollapseRaw === 'object'
-      ? (() => {
-          const record = latestRequestCollapseRaw as Record<string, unknown>
-          const phase: 'initial' | 'reactive_retry' | null =
-            record.phase === 'initial' || record.phase === 'reactive_retry' ? record.phase : null
-          const collapsedHeadMessageCount =
-            typeof record.collapsedHeadMessageCount === 'number' && Number.isFinite(record.collapsedHeadMessageCount)
-              ? record.collapsedHeadMessageCount
-              : null
-          const estimatedTokensSaved =
-            typeof record.estimatedTokensSaved === 'number' && Number.isFinite(record.estimatedTokensSaved)
-              ? record.estimatedTokensSaved
-              : null
-          const recapFingerprint =
-            record.recapFingerprint === undefined
-              ? undefined
-              : typeof record.recapFingerprint === 'string' && record.recapFingerprint.trim()
-                ? record.recapFingerprint
-                : null
-          if (!phase || collapsedHeadMessageCount == null || estimatedTokensSaved == null || recapFingerprint === null) {
-            return undefined
-          }
-          return {
-            phase,
-            collapsedHeadMessageCount,
-            estimatedTokensSaved,
-            ...(recapFingerprint ? { recapFingerprint } : {}),
-          }
-        })()
-      : latestRequestCollapseRaw === null
-        ? null
-        : undefined
-  const durableSnipRaw = root.durableSnip
-  const durableSnip: DurableSnipSummary | null | undefined =
-    durableSnipRaw && typeof durableSnipRaw === 'object'
-      ? (() => {
-          const record = durableSnipRaw as Record<string, unknown>
-          const stage = record.stage === 'snip' ? 'snip' : null
-          const status = record.status === 'no_state' || record.status === 'active' ? record.status : null
-          const applied = typeof record.applied === 'boolean' ? record.applied : null
-          const reason = typeof record.reason === 'string' ? record.reason : null
-          const removedMessageCount =
-            typeof record.removedMessageCount === 'number' && Number.isFinite(record.removedMessageCount)
-              ? record.removedMessageCount
-              : null
-          const droppedOrphanToolBlockCount =
-            typeof record.droppedOrphanToolBlockCount === 'number' &&
-            Number.isFinite(record.droppedOrphanToolBlockCount)
-              ? record.droppedOrphanToolBlockCount
-              : null
-          const removalRangeCount =
-            typeof record.removalRangeCount === 'number' && Number.isFinite(record.removalRangeCount)
-              ? record.removalRangeCount
-              : null
-          if (
-            !stage ||
-            !status ||
-            applied == null ||
-            reason == null ||
-            removedMessageCount == null ||
-            droppedOrphanToolBlockCount == null ||
-            removalRangeCount == null
-          ) {
-            return undefined
-          }
-          return {
-            stage,
-            status,
-            applied,
-            reason,
-            removedMessageCount,
-            droppedOrphanToolBlockCount,
-            removalRangeCount,
-          }
-        })()
-      : durableSnipRaw === null
-        ? null
-        : undefined
+  const latestCompactBoundary = parseOptionalNullableCompressionFact(
+    root,
+    'latestCompactBoundary',
+    parseLatestCompactBoundarySummary,
+  )
+  const latestRequestCollapse = parseOptionalNullableCompressionFact(
+    root,
+    'latestRequestCollapse',
+    parseLatestRequestCollapseSummary,
+  )
+  const durableSnip = parseOptionalNullableCompressionFact(root, 'durableSnip', parseDurableSnipSummary)
   return {
     data,
     nextCursor,
-    ...(latestCompactBoundary !== undefined ? { latestCompactBoundary } : {}),
-    ...(durableSnip !== undefined ? { durableSnip } : {}),
-    ...(latestRequestCollapse !== undefined ? { latestRequestCollapse } : {}),
+    ...(latestCompactBoundary?.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
+    ...(durableSnip?.present ? { durableSnip: durableSnip.value } : {}),
+    ...(latestRequestCollapse?.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
   }
 }
 

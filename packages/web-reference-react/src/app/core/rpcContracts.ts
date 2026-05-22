@@ -7,6 +7,11 @@ import {
   type ReplayStateSnapshot,
 } from './rpcParsers'
 import { parseCompactBoundarySummary } from './compactBoundarySummary'
+import {
+  parseDurableSnipSummary,
+  parseLatestRequestCollapseSummary,
+  parseOptionalNullableCompressionFact,
+} from './compressionFactParsers'
 
 export type RpcStartedThread = {
   id: string
@@ -547,38 +552,11 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
   }
 }
 
-function parseLatestRequestCollapse(value: unknown): RpcLatestRequestCollapse | null {
-  const record = asOptionalRecord(value)
-  if (!record) return null
-  const phase = record.phase === 'initial' || record.phase === 'reactive_retry' ? record.phase : null
-  const collapsedHeadMessageCount = asFiniteNumber(record.collapsedHeadMessageCount)
-  const estimatedTokensSaved = asFiniteNumber(record.estimatedTokensSaved)
-  const recapFingerprint =
-    record.recapFingerprint === undefined
-      ? undefined
-      : typeof record.recapFingerprint === 'string' && record.recapFingerprint.trim()
-        ? record.recapFingerprint
-        : null
-  if (!phase || collapsedHeadMessageCount == null || estimatedTokensSaved == null || recapFingerprint === null) {
-    return null
-  }
-  return {
-    phase,
-    collapsedHeadMessageCount,
-    estimatedTokensSaved,
-    ...(recapFingerprint ? { recapFingerprint } : {}),
-  }
-}
-
 function parseOptionalNullableLatestRequestCollapseField(
   record: Record<string, unknown>,
   key: string,
 ): { present: boolean; value: RpcLatestRequestCollapse | null } | null {
-  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
-  const value = record[key]
-  if (value === null) return { present: true, value: null }
-  const parsed = parseLatestRequestCollapse(value)
-  return parsed ? { present: true, value: parsed } : null
+  return parseOptionalNullableCompressionFact(record, key, parseLatestRequestCollapseSummary)
 }
 
 function parseLatestReactiveCompact(value: unknown): RpcLatestReactiveCompact | null {
@@ -1404,54 +1382,14 @@ function parseOptionalNullableLatestCompactBoundaryField(
   record: Record<string, unknown>,
   fieldName: string,
 ): { present: boolean; value: RpcLatestCompactBoundary | null } | null {
-  if (!Object.prototype.hasOwnProperty.call(record, fieldName)) return { present: false, value: null }
-  const value = record[fieldName]
-  if (value === null) return { present: true, value: null }
-  const parsed = parseLatestCompactBoundary(value)
-  return parsed ? { present: true, value: parsed } : null
-}
-
-function parseDurableSnipSummary(value: unknown): DurableSnipSummary | null {
-  const record = asOptionalRecord(value)
-  if (!record) return null
-  const stage = record.stage === 'snip' ? 'snip' : null
-  const status = record.status === 'no_state' || record.status === 'active' ? record.status : null
-  const applied = typeof record.applied === 'boolean' ? record.applied : null
-  const reason = typeof record.reason === 'string' ? record.reason : null
-  const removedMessageCount = asFiniteNumber(record.removedMessageCount)
-  const droppedOrphanToolBlockCount = asFiniteNumber(record.droppedOrphanToolBlockCount)
-  const removalRangeCount = asFiniteNumber(record.removalRangeCount)
-  if (
-    !stage ||
-    !status ||
-    applied == null ||
-    reason == null ||
-    removedMessageCount == null ||
-    droppedOrphanToolBlockCount == null ||
-    removalRangeCount == null
-  ) {
-    return null
-  }
-  return {
-    stage,
-    status,
-    applied,
-    reason,
-    removedMessageCount,
-    droppedOrphanToolBlockCount,
-    removalRangeCount,
-  }
+  return parseOptionalNullableCompressionFact(record, fieldName, parseLatestCompactBoundary)
 }
 
 function parseOptionalNullableDurableSnipField(
   record: Record<string, unknown>,
   fieldName: string,
 ): { present: boolean; value: DurableSnipSummary | null } | null {
-  if (!Object.prototype.hasOwnProperty.call(record, fieldName)) return { present: false, value: null }
-  const value = record[fieldName]
-  if (value === null) return { present: true, value: null }
-  const parsed = parseDurableSnipSummary(value)
-  return parsed ? { present: true, value: parsed } : null
+  return parseOptionalNullableCompressionFact(record, fieldName, parseDurableSnipSummary)
 }
 
 function parseRequiredStringList(value: unknown): { value: string[] } | null {
