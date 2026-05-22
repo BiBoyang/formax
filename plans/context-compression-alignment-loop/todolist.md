@@ -70,16 +70,16 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 `scopeDurableSnipStateToHistory()` regression：history 无 compact boundary，但 state 有 `activeCompactBoundaryFingerprint` 和 removals 时，应保留 removals。
-- [ ] 保留现有 “观察到 newer compact boundary 时清空旧 generation snip” 测试。
-- [ ] 将 snip scoping 调整为与 tool-result replacement 一致：只有 observed boundary 存在且 mismatch 时清空。
-- [ ] 不在本 commit 让 `buildContextProjection().facts.activeCompactBoundaryFingerprint` 从 snip state fallback；public facts 语义保持不变。
+- [x] 新增 `scopeDurableSnipStateToHistory()` regression：history 无 compact boundary，但 state 有 `activeCompactBoundaryFingerprint` 和 removals 时，应保留 removals。
+- [x] 保留现有 “观察到 newer compact boundary 时清空旧 generation snip” 测试。
+- [x] 将 snip scoping 调整为与 tool-result replacement 一致：只有 observed boundary 存在且 mismatch 时清空。
+- [x] 不在本 commit 让 `buildContextProjection().facts.activeCompactBoundaryFingerprint` 从 snip state fallback；public facts 语义保持不变。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 3: Same-Turn Snip + Collapse Safety Policy
 

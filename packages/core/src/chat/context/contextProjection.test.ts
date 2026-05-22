@@ -1202,6 +1202,41 @@ describe('scopeDurableSnipStateToHistory', () => {
       removals: [],
     })
   })
+
+  it('preserves snip removals for boundaryless compact resumes', () => {
+    const activeBoundary = boundary(4096)
+
+    const scoped = scopeDurableSnipStateToHistory({
+      state: {
+        schemaVersion: 1,
+        activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(activeBoundary),
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            reason: 'boundaryless resume durable snip',
+            removedMessageFingerprints: ['removed-fp'],
+          },
+        ],
+      },
+      history: [textMessage('user', 'compacted summary without boundary row'), textMessage('assistant', 'tail')],
+    })
+
+    expect(scoped).toEqual({
+      schemaVersion: 1,
+      activeCompactBoundaryFingerprint: fingerprintCompactBoundaryMessage(activeBoundary),
+      removals: [
+        {
+          kind: 'model_facing_index_range',
+          startIndex: 1,
+          endIndexExclusive: 2,
+          reason: 'boundaryless resume durable snip',
+          removedMessageFingerprints: ['removed-fp'],
+        },
+      ],
+    })
+  })
 })
 
 describe('scopeDurableToolResultContentReplacementStateToHistory', () => {

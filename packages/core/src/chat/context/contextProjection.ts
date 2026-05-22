@@ -231,13 +231,15 @@ export function scopeDurableSnipStateToHistory(args: {
 }): DurableSnipState | null {
   if (!args.state) return null
   const latestCompactBoundaryIndex = findLatestCompactBoundaryIndex(args.history)
-  const activeCompactBoundaryFingerprint =
+  const observedCompactBoundaryFingerprint =
     latestCompactBoundaryIndex >= 0 ? fingerprintCompactBoundaryMessage(args.history[latestCompactBoundaryIndex]!) : null
   const stateFingerprint = args.state.activeCompactBoundaryFingerprint ?? null
-  if (activeCompactBoundaryFingerprint !== stateFingerprint) {
+  const activeCompactBoundaryFingerprint =
+    observedCompactBoundaryFingerprint ?? (stateFingerprint ? stateFingerprint : null)
+  if (observedCompactBoundaryFingerprint && observedCompactBoundaryFingerprint !== stateFingerprint) {
     return {
       schemaVersion: 1,
-      activeCompactBoundaryFingerprint,
+      activeCompactBoundaryFingerprint: observedCompactBoundaryFingerprint,
       ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
       ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
       removals: [],
