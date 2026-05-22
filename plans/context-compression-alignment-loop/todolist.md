@@ -238,17 +238,17 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 duplicate same-id `context_collapse_committed` replay test：snapshot 只保留一条或 projection 与单 event 等价。
-- [ ] 实现 same-id committed collapse replay 幂等，避免 retry/重复 JSONL 行二次 collapse 删除尾部。
-- [ ] 不在本 commit 定义 all different-id overlap policy。
-- [ ] 如需记录 different-id overlap，先加 characterization / deferred note，不做大策略变更。
+- [x] 新增 duplicate same-id `context_collapse_committed` replay test：snapshot 只保留一条或 projection 与单 event 等价。
+- [x] 实现 same-id committed collapse replay 幂等，避免 retry/重复 JSONL 行二次 collapse 删除尾部。
+- [x] 不在本 commit 定义 all different-id overlap policy。
+- [x] 如需记录 different-id overlap，先加 characterization / deferred note，不做大策略变更。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 9: Malformed Collapse Committed Range Strictness
 

@@ -57,16 +57,27 @@ export function buildContextCollapseStoreSnapshot(args: {
   entries: ContextCollapseCommittedEntry[]
   activeCompactBoundaryFingerprint?: string | null
 }): ContextCollapseStoreSnapshot {
+  const entries: ContextCollapseCommittedEntry[] = []
+  const indexById = new Map<string, number>()
+  for (const entry of args.entries) {
+    const normalized = {
+      ...entry,
+      createdAtMs: normalizeCreatedAtMs(entry.createdAtMs),
+      collapsedRange: normalizeCommittedRange(entry.collapsedRange),
+      compactBoundaryFingerprint: normalizeOptionalFingerprint(entry.compactBoundaryFingerprint),
+    }
+    const existingIndex = indexById.get(normalized.id)
+    if (existingIndex === undefined) {
+      indexById.set(normalized.id, entries.length)
+      entries.push(normalized)
+    } else {
+      entries[existingIndex] = normalized
+    }
+  }
   return {
     schemaVersion: 1,
     activeCompactBoundaryFingerprint: normalizeOptionalFingerprint(args.activeCompactBoundaryFingerprint),
-    entries: args.entries
-      .map((entry) => ({
-        ...entry,
-        createdAtMs: normalizeCreatedAtMs(entry.createdAtMs),
-        collapsedRange: normalizeCommittedRange(entry.collapsedRange),
-        compactBoundaryFingerprint: normalizeOptionalFingerprint(entry.compactBoundaryFingerprint),
-      })),
+    entries,
   }
 }
 

@@ -101,6 +101,31 @@ describe('contextCollapseStoreEvents', () => {
     expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath })).toEqual(expected)
   })
 
+  it('deduplicates duplicate same-id committed collapse events during replay', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-duplicate-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const duplicate = committedEvent({
+      id: 'collapse-duplicate',
+      createdAtMs: Date.parse('2026-05-21T00:02:00.000Z'),
+      startIndex: 0,
+      endIndexExclusive: 2,
+      recapFingerprint: 'duplicate-fingerprint',
+    })
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify(duplicate),
+        JSON.stringify(duplicate),
+      ].join('\n'),
+      'utf8',
+    )
+
+    await expect(readContextCollapseStoreSnapshotFromSession({ filePath })).resolves.toMatchObject({
+      entries: [expect.objectContaining({ id: 'collapse-duplicate' })],
+    })
+    expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).entries).toHaveLength(1)
+  })
+
   it('carries the latest compact-boundary generation from history snapshots', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-boundary-'))
     const filePath = path.join(dir, 'session.jsonl')

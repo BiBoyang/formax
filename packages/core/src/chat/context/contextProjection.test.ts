@@ -688,6 +688,58 @@ describe('buildContextProjection', () => {
     expect(projection.facts.appliedDurableStages).toEqual(['collapse'])
   })
 
+  it('treats duplicate same-id committed collapse entries as one replay commit', () => {
+    const compactSummary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const olderAssistant = textMessage('assistant', 'older assistant analysis')
+    const olderUser = textMessage('user', 'older request')
+    const recentAssistant = textMessage('assistant', 'recent answer')
+    const recap = textMessage('user', '<system-reminder>committed collapse recap</system-reminder>')
+    const compactBoundary = boundary()
+    const compactBoundaryFingerprint = fingerprintCompactBoundaryMessage(compactBoundary)
+    const entry = createContextCollapseCommittedEntry({
+      id: 'collapse-duplicate',
+      createdAtMs: 1000,
+      source: 'request_collapse',
+      collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 3 },
+      compactBoundaryFingerprint,
+      recapMessage: recap,
+      metadata: {
+        schemaVersion: 1,
+        kind: 'request_recap',
+        keepLastTurns: 1,
+        preservedTailMessageCount: 1,
+        retainedCompactSummary: true,
+        recentUserPromptCount: 1,
+        recentFileCount: 0,
+        earlierToolResultBlockCount: 0,
+        recapFingerprint: 'collapse-fingerprint',
+      },
+    })
+
+    const projection = buildContextProjection({
+      history: [
+        compactBoundary,
+        compactSummary,
+        olderAssistant,
+        olderUser,
+        recentAssistant,
+      ],
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          entries: [entry, entry],
+        },
+      },
+    })
+
+    expect(projection.modelFacingBaseline).toEqual([compactSummary, recap, recentAssistant])
+    expect(projection.durableState.collapse).toMatchObject({
+      applied: true,
+      committedEntryCount: 1,
+      replacedMessageCount: 2,
+    })
+  })
+
   it('replays chained collapse entries in commit order', () => {
     const compactSummary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
     const olderAssistant = textMessage('assistant', 'older assistant analysis')
