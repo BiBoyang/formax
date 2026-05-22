@@ -90,11 +90,14 @@ function parseContextCollapseMeta(value: unknown): ContextCollapseMeta | null {
 
 function parseCommittedRange(value: unknown): ContextCollapseCommittedRange | null {
   if (!isObject(value) || value.kind !== 'model_facing_index_range') return null
-  if (typeof value.startIndex !== 'number' || typeof value.endIndexExclusive !== 'number') return null
+  const { startIndex, endIndexExclusive } = value
+  if (typeof startIndex !== 'number' || typeof endIndexExclusive !== 'number') return null
+  if (!Number.isSafeInteger(startIndex) || !Number.isSafeInteger(endIndexExclusive)) return null
+  if (startIndex < 0 || endIndexExclusive <= startIndex) return null
   return {
     kind: 'model_facing_index_range',
-    startIndex: Math.floor(value.startIndex),
-    endIndexExclusive: Math.floor(value.endIndexExclusive),
+    startIndex,
+    endIndexExclusive,
   }
 }
 

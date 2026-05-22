@@ -261,15 +261,15 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 malformed range tests：负数、反向 range、非有限 number、超大不安全整数。
-- [ ] JSONL-level 非有限 number case 使用 JSON 能实际表达的输入；parser-level 可单独覆盖 `Number.isFinite`。
-- [ ] `parseCommittedRange()` 严格要求 safe integer、`startIndex >= 0`、`endIndexExclusive > startIndex`。
-- [ ] 不满足条件时 reject event，不进入 constructor normalize。
+- [x] 新增 malformed range tests：负数、反向 range、非有限 number、超大不安全整数。
+- [x] JSONL-level 非有限 number case 使用 JSON 能实际表达的输入；parser-level 可单独覆盖 `Number.isFinite`。
+- [x] `parseCommittedRange()` 严格要求 safe integer、`startIndex >= 0`、`endIndexExclusive > startIndex`。
+- [x] 不满足条件时 reject event，不进入 constructor normalize。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
+- [x] 通用 Commit Gate。
 
 ## Commit 10: Malformed Durable Snip Snapshot Strictness
 

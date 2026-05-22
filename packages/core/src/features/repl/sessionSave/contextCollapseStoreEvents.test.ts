@@ -72,7 +72,7 @@ describe('contextCollapseStoreEvents', () => {
         JSON.stringify(committedEvent({
           id: 'collapse-earlier',
           createdAtMs: Date.parse('2026-05-21T00:01:00.000Z'),
-          startIndex: -1,
+          startIndex: 1,
           endIndexExclusive: 2,
           recapFingerprint: 'earlier-fingerprint',
         })),
@@ -92,7 +92,7 @@ describe('contextCollapseStoreEvents', () => {
         expect.objectContaining({
           id: 'collapse-earlier',
           createdAtMs: Date.parse('2026-05-21T00:01:00.000Z'),
-          collapsedRange: { kind: 'model_facing_index_range', startIndex: 0, endIndexExclusive: 2 },
+          collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 2 },
         }),
       ],
     }
@@ -124,6 +124,51 @@ describe('contextCollapseStoreEvents', () => {
       entries: [expect.objectContaining({ id: 'collapse-duplicate' })],
     })
     expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).entries).toHaveLength(1)
+  })
+
+  it('rejects malformed committed collapse ranges instead of normalizing them', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-ranges-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const nonFiniteNumberLine = JSON.stringify(committedEvent({
+      id: 'collapse-non-finite',
+      createdAtMs: Date.parse('2026-05-21T00:02:00.000Z'),
+      startIndex: 0,
+      endIndexExclusive: 2,
+      recapFingerprint: 'non-finite-fingerprint',
+    })).replace('"startIndex":0', '"startIndex":1e309')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify(committedEvent({
+          id: 'collapse-negative',
+          createdAtMs: Date.parse('2026-05-21T00:02:00.000Z'),
+          startIndex: -1,
+          endIndexExclusive: 2,
+          recapFingerprint: 'negative-fingerprint',
+        })),
+        JSON.stringify(committedEvent({
+          id: 'collapse-reversed',
+          createdAtMs: Date.parse('2026-05-21T00:03:00.000Z'),
+          startIndex: 2,
+          endIndexExclusive: 2,
+          recapFingerprint: 'reversed-fingerprint',
+        })),
+        JSON.stringify(committedEvent({
+          id: 'collapse-unsafe',
+          createdAtMs: Date.parse('2026-05-21T00:04:00.000Z'),
+          startIndex: Number.MAX_SAFE_INTEGER + 1,
+          endIndexExclusive: Number.MAX_SAFE_INTEGER + 2,
+          recapFingerprint: 'unsafe-fingerprint',
+        })),
+        nonFiniteNumberLine,
+      ].join('\n'),
+      'utf8',
+    )
+
+    await expect(readContextCollapseStoreSnapshotFromSession({ filePath })).resolves.toMatchObject({
+      entries: [],
+    })
+    expect(readContextCollapseStoreSnapshotFromSessionSync({ filePath }).entries).toEqual([])
   })
 
   it('carries the latest compact-boundary generation from history snapshots', async () => {
