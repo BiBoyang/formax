@@ -53,6 +53,37 @@ export function createContextCollapseCommittedEntry(args: {
   }
 }
 
+export function buildContextCollapseCommitStateCandidate(args: {
+  applied: boolean
+  metadata: ContextCollapseMeta | null | undefined
+  compactBoundaryFingerprint: string | null | undefined
+  recapMessage: PromptMessage | null | undefined
+  recapSurvivedRequestProjection: boolean
+  hasSameTurnSnip: boolean
+  collapsedHeadMessageCount: number | null | undefined
+}): ContextCollapseCommitState | null {
+  if (
+    !args.applied ||
+    !args.metadata ||
+    !args.compactBoundaryFingerprint ||
+    !args.recapMessage ||
+    !args.recapSurvivedRequestProjection ||
+    args.hasSameTurnSnip ||
+    !args.collapsedHeadMessageCount
+  ) {
+    return null
+  }
+  return {
+    collapsedRange: {
+      kind: 'model_facing_index_range',
+      startIndex: 0,
+      endIndexExclusive: args.collapsedHeadMessageCount,
+    },
+    compactBoundaryFingerprint: args.compactBoundaryFingerprint,
+    recapMessage: args.recapMessage,
+  }
+}
+
 export function buildContextCollapseStoreSnapshot(args: {
   entries: ContextCollapseCommittedEntry[]
   activeCompactBoundaryFingerprint?: string | null

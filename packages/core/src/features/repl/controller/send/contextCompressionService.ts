@@ -25,6 +25,7 @@ import {
 } from '../../../../chat/context/sessionMemory'
 import type { ContextCollapseMeta } from '../../../../chat/context/contextCollapse'
 import {
+  buildContextCollapseCommitStateCandidate,
   requestHistoryContainsExactMessage,
   type ContextCollapseCommitState,
   type ContextCollapseStoreSnapshot,
@@ -275,24 +276,15 @@ export function createContextCompressionService(deps: {
       snipRemovals: prepared.stack.snipRemovals,
       baselineMessages: prepared.contextProjection.modelFacingBaseline,
     })
-    const commit =
-      collapseFact.applied &&
-      collapseFact.metadata &&
-      compactBoundaryFingerprint &&
-      recapMessage &&
-      recapSurvivedRequestProjection &&
-      prepared.stack.snipRemovals.length === 0 &&
-      rebasedCollapsedHeadMessageCount
-        ? {
-            collapsedRange: {
-              kind: 'model_facing_index_range' as const,
-              startIndex: 0,
-              endIndexExclusive: rebasedCollapsedHeadMessageCount,
-            },
-            compactBoundaryFingerprint,
-            recapMessage,
-          }
-        : null
+    const commit = buildContextCollapseCommitStateCandidate({
+      applied: collapseFact.applied,
+      metadata: collapseFact.metadata,
+      compactBoundaryFingerprint,
+      recapMessage,
+      recapSurvivedRequestProjection,
+      hasSameTurnSnip: prepared.stack.snipRemovals.length > 0,
+      collapsedHeadMessageCount: rebasedCollapsedHeadMessageCount,
+    })
 
     return {
       applied: collapseFact.applied,

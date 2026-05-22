@@ -12,6 +12,7 @@ import type { ContextBudgetConfig } from '../chat/context/budget.js'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   appendContextCollapseStoreEntry,
+  buildContextCollapseCommitStateCandidate,
   createContextCollapseCommittedEntry,
   requestHistoryContainsExactMessage,
   setContextCollapseStoreActiveCompactBoundaryFingerprint,
@@ -857,26 +858,23 @@ export class TurnRunner {
             removals: snipSnapshot.removals,
           }
         }
-        if (
-          collapseFact.applied &&
-          collapseFact.metadata &&
-          collapseCompactBoundaryFingerprint &&
-          collapseRecapMessage &&
-          collapseRecapSurvivedRequestProjection &&
-          prepared.stack.snipRemovals.length === 0 &&
-          rebasedCollapseHeadMessageCount
-        ) {
+        const collapseCommit = buildContextCollapseCommitStateCandidate({
+          applied: collapseFact.applied,
+          metadata: collapseFact.metadata,
+          compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
+          recapMessage: collapseRecapMessage,
+          recapSurvivedRequestProjection: collapseRecapSurvivedRequestProjection,
+          hasSameTurnSnip: prepared.stack.snipRemovals.length > 0,
+          collapsedHeadMessageCount: rebasedCollapseHeadMessageCount,
+        })
+        if (collapseCommit && collapseFact.metadata) {
           const entry = createContextCollapseCommittedEntry({
             id: `request-collapse:app-server:${collapseFact.metadata.recapFingerprint}`,
             createdAtMs: Date.now(),
             source: 'request_collapse',
-            collapsedRange: {
-              kind: 'model_facing_index_range',
-              startIndex: 0,
-              endIndexExclusive: rebasedCollapseHeadMessageCount,
-            },
-            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
-            recapMessage: collapseRecapMessage,
+            collapsedRange: collapseCommit.collapsedRange,
+            compactBoundaryFingerprint: collapseCommit.compactBoundaryFingerprint,
+            recapMessage: collapseCommit.recapMessage,
             metadata: collapseFact.metadata,
           })
           pendingContextCollapseCommit = entry

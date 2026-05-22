@@ -318,7 +318,7 @@ Validation:
 - [x] `refactor(session): share strict event parsing helpers`
 - [x] `refactor(context): share durable projection scoping helper`
 - [x] `refactor(web): centralize compression fact tri-state helper`
-- [ ] `refactor(context): share durable commit candidate helpers`
+- [x] `refactor(context): share durable commit candidate helpers`
 - [ ] `docs(context): refresh CODEMAP durable projection owners`
 
 ## Explicitly Deferred

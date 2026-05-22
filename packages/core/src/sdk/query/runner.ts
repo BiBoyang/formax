@@ -16,6 +16,7 @@ import {
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   appendContextCollapseStoreEntry,
+  buildContextCollapseCommitStateCandidate,
   createContextCollapseCommittedEntry,
   requestHistoryContainsExactMessage,
   type ContextCollapseStoreSnapshot,
@@ -1528,26 +1529,23 @@ async function* runQuery(
               : {}),
           },
         })
-        if (
-          sessionPersistence &&
-          collapseFact.applied &&
-          collapseFact.metadata &&
-          collapseCompactBoundaryFingerprint &&
-          collapseRecapMessage &&
-          collapseRecapSurvivedRequestProjection &&
-          prepared.stack.snipRemovals.length === 0
-        ) {
+        const collapseCommit = buildContextCollapseCommitStateCandidate({
+          applied: collapseFact.applied,
+          metadata: collapseFact.metadata,
+          compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
+          recapMessage: collapseRecapMessage,
+          recapSurvivedRequestProjection: collapseRecapSurvivedRequestProjection,
+          hasSameTurnSnip: prepared.stack.snipRemovals.length > 0,
+          collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
+        })
+        if (sessionPersistence && collapseCommit && collapseFact.metadata) {
           const entry = createContextCollapseCommittedEntry({
             id: `request-collapse:sdk:${collapseFact.metadata.recapFingerprint}`,
             createdAtMs: Date.now(),
             source: 'request_collapse',
-            collapsedRange: {
-              kind: 'model_facing_index_range',
-              startIndex: 0,
-              endIndexExclusive: collapseFact.collapsedHeadMessageCount,
-            },
-            compactBoundaryFingerprint: collapseCompactBoundaryFingerprint,
-            recapMessage: collapseRecapMessage,
+            collapsedRange: collapseCommit.collapsedRange,
+            compactBoundaryFingerprint: collapseCommit.compactBoundaryFingerprint,
+            recapMessage: collapseCommit.recapMessage,
             metadata: collapseFact.metadata,
           })
           await sessionPersistence.writer.appendEvent(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, entry)
