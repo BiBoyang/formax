@@ -69,7 +69,6 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
     slashSelectionIndex,
     setSlashSelectionIndex,
     applySlashCommandSelection,
-    toggleSlashMenu,
     closeSlashMenu,
   } = useSlashCommandState({
     inputText: props.inputText,
@@ -110,7 +109,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
             value={props.inputText}
             onChange={(event) => props.onInputTextChange(event.target.value)}
             placeholder={t('transcript.followUpPlaceholder')}
-            className="min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-5 pt-2 pb-1 ui-text-base leading-relaxed placeholder:text-muted-foreground/55 focus-visible:ring-0 shadow-none"
+            className="composer-input min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 pt-3 pb-2 ui-text-base leading-relaxed focus-visible:ring-0 shadow-none"
             onCompositionStart={() => setIsImeComposing(true)}
             onCompositionEnd={() => setIsImeComposing(false)}
             onKeyDown={(event) => {
@@ -163,37 +162,19 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
             }}
           />
 
-          <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center justify-between px-3 pb-2 pt-1">
             <div className="flex min-w-0 items-center gap-2.5">
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={t('transcript.openSlashCommands')}
-                aria-expanded={isSlashMenuVisible}
-                data-testid="composer-slash-trigger"
-                onClick={toggleSlashMenu}
-                className={cn(
-                  'h-7 rounded-md px-2 font-mono text-[13px] leading-none tracking-tight text-muted-foreground transition-colors hover:text-foreground',
-                  isSlashMenuVisible && 'bg-muted text-foreground',
-                )}
-                title={t('transcript.slashCommandsTitle')}
-              >
-                /
-              </Button>
               <Button
                 type="button"
                 variant="ghost"
                 aria-label={t('transcript.executionMode')}
                 onClick={() => props.onModeChange(nextComposerMode(props.mode))}
-                className={cn('h-7 rounded-md px-2 ui-text-base font-medium tracking-tight transition-colors', modeInfo.toneClass)}
+                className={cn('h-6 gap-1 rounded-md px-1.5 py-0 has-[>svg]:px-1.5 ui-text-meta font-normal transition-colors', modeInfo.toneClass)}
                 title={t('transcript.modeCycleTitle')}
               >
-                <modeInfo.icon className="mr-0.5 size-3 shrink-0" />
+                <modeInfo.icon className="size-3 shrink-0" />
                 <span>{modeInfo.label}</span>
               </Button>
-              <div className="hidden lg:block ui-text-base text-muted-foreground/85">
-                {t('transcript.modeCycleHint')}
-              </div>
             </div>
             <div className="flex items-center gap-1 pr-1 text-muted-foreground">
               {props.isSending || props.isInterrupting ? (

@@ -10,6 +10,11 @@
 }
 
 @layer utilities {
+  .composer-input::placeholder {
+    color: color-mix(in oklch, var(--foreground) 18%, var(--background));
+    opacity: 1;
+  }
+
   .ui-text-base {
     font-size: var(--font-size-base);
     line-height: var(--line-height-base);

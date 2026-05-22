@@ -266,22 +266,17 @@ describe('TranscriptPane', () => {
     expect(screen.queryByRole('button', { name: 'Insert /todos' })).toBeNull()
   })
 
-  it('opens slash command menu from quick button and inserts selected command', () => {
-    const onInputTextChange = vi.fn()
+  it('does not render the slash command quick button', () => {
     renderWithI18n(
       <TranscriptPane
         {...baseProps({
           inputText: '',
-          onInputTextChange,
         })}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open slash commands' }))
-    expect(screen.queryByTestId('composer-slash-menu')).not.toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Insert /todos' }))
-    expect(onInputTextChange).toHaveBeenCalledWith('/todos ')
+    expect(screen.queryByRole('button', { name: 'Open slash commands' })).toBeNull()
+    expect(screen.queryByTestId('composer-slash-trigger')).toBeNull()
   })
 
   it('closes auto-open slash menu after selecting a slash command', () => {
