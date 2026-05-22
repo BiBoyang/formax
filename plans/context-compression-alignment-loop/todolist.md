@@ -302,14 +302,14 @@ Validation:
 
 Tasks:
 
-- [ ] 新增 malformed-present `sourceScope` test：不能 fallback 到 main_thread。
-- [ ] 保留 sourceScope 缺省时 legacy main_thread fallback。
-- [ ] 字段 present 但 `parseSourceScope()` 失败时 reject event。
+- [x] 新增 malformed-present `sourceScope` test：不能 fallback 到 main_thread。
+- [x] 保留 sourceScope 缺省时 legacy main_thread fallback。
+- [x] 字段 present 但 `parseSourceScope()` 失败时 reject event。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
+- [x] 通用 Commit Gate。
 
 ## Cleanup Backlog: Only After Commits 1-11
 

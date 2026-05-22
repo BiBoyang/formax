@@ -122,6 +122,63 @@ describe('durableToolResultContentReplacementEvents', () => {
     })
   })
 
+  it('falls back to main-thread scope for legacy events without sourceScope', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-legacy-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const event = replacementEvent({
+      toolUseId: 'legacy-tool',
+      replacementContent: '[legacy replacement]',
+      baseProjectionFingerprint: 'legacy-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+    })
+    delete (event.data as Record<string, unknown>).sourceScope
+
+    await fs.writeFile(filePath, JSON.stringify(event), 'utf8')
+
+    const expected = {
+      schemaVersion: 1,
+      sourceScope: { kind: 'main_thread' },
+      activeCompactBoundaryFingerprint: null,
+      baseProjectionFingerprint: 'legacy-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+      replacements: [
+        {
+          kind: 'tool_result_block',
+          toolUseId: 'legacy-tool',
+          replacementContent: '[legacy replacement]',
+          reason: 'durable tool result replacement test',
+        },
+      ],
+    }
+
+    await expect(readDurableToolResultContentReplacementStateFromSession({ filePath })).resolves.toEqual(expected)
+    expect(readDurableToolResultContentReplacementStateFromSessionSync({ filePath })).toEqual(expected)
+  })
+
+  it('rejects events with a malformed present sourceScope instead of falling back to main-thread', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-bad-scope-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const event = replacementEvent({
+      toolUseId: 'bad-scope-tool',
+      replacementContent: '[bad scope replacement]',
+      baseProjectionFingerprint: 'bad-scope-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+    })
+    ;(event.data as Record<string, unknown>).sourceScope = { kind: 'sidechain', id: '' }
+
+    await fs.writeFile(filePath, JSON.stringify(event), 'utf8')
+
+    const expected = {
+      schemaVersion: 1,
+      sourceScope: { kind: 'main_thread' },
+      activeCompactBoundaryFingerprint: null,
+      replacements: [],
+    }
+
+    await expect(readDurableToolResultContentReplacementStateFromSession({ filePath })).resolves.toEqual(expected)
+    expect(readDurableToolResultContentReplacementStateFromSessionSync({ filePath })).toEqual(expected)
+  })
+
   it('clears stale replacement snapshots when compact-boundary generation changes', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-'))
     const filePath = path.join(dir, 'session.jsonl')

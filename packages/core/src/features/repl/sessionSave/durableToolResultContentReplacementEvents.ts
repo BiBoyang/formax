@@ -117,7 +117,9 @@ function applyDurableToolResultReplacementEvent(args: {
 }): DurableToolResultContentReplacementState {
   if (!isObject(args.data) || args.data.schemaVersion !== 1) return args.state
   if (args.data.source !== 'tool_result_content_replacement') return args.state
-  const eventSourceScope = parseSourceScope(args.data.sourceScope) ?? MAIN_THREAD_SCOPE
+  const eventSourceScope =
+    args.data.sourceScope === undefined ? MAIN_THREAD_SCOPE : parseSourceScope(args.data.sourceScope)
+  if (!eventSourceScope) return args.state
   if (!sameSourceScope(eventSourceScope, args.sourceScope)) return args.state
   const eventCompactBoundaryFingerprint = coerceNonEmptyString(args.data.compactBoundaryFingerprint)
   if (
