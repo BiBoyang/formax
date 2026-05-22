@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { fingerprintToolResultContent } from '../chat/context/contextProjection.js'
+import { fingerprintCompactBoundaryMessage, fingerprintPromptMessage } from '../chat/context/compact.js'
+import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../features/repl/sessionSave/durableSnipStoreEvents.js'
 import { DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME } from '../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
 import { query } from './query.js'
 import type { QueryArgs, QueryMessage } from './types.js'
@@ -470,6 +472,182 @@ describe('sdk query option alignment regressions', () => {
       prompt: 'continue sdk durable replacement',
       options: {
         resume: 'session-durable-tool-result',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('success')
+  })
+
+  it('applies durable snip state on SDK resume without mutating persisted history', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-sdk-durable-snip-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    const snippedText = `old sdk assistant text ${'x'.repeat(1800)}`
+    const snippedMessage: PromptMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: snippedText }],
+    }
+    const history: PromptMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'persisted user before snip' }] },
+      snippedMessage,
+      { role: 'user', content: [{ type: 'text', text: 'recent user survives' }] },
+    ]
+    await fs.writeFile(
+      sessionFilePath,
+      JSON.stringify({
+        type: 'event',
+        ts: '2026-05-21T00:00:00.000Z',
+        name: DURABLE_SNIP_COMMITTED_EVENT_NAME,
+        data: {
+          schemaVersion: 1,
+          source: 'request_snip',
+          phase: 'initial',
+          estimatedTokensSaved: 300,
+          removedMessageCount: 1,
+          compactBoundaryFingerprint: null,
+          sourceProjectionKind: 'model_facing_baseline',
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              reason: 'sdk durable snip regression',
+              removedMessageFingerprints: [fingerprintPromptMessage(snippedMessage)],
+            },
+          ],
+        },
+      }),
+      'utf8',
+    )
+
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(JSON.stringify(turnArgs.history)).toContain(snippedText)
+      expect(JSON.stringify(turnArgs.requestHistory)).not.toContain(snippedText)
+      expect(JSON.stringify(turnArgs.requestHistory)).toContain('recent user survives')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-latest',
+      contextWindowTokens: 100000,
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue(sessionFilePath)
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-durable-snip', cwd: '/repo' },
+      history,
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk durable snip',
+      options: {
+        resume: 'session-durable-snip',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('success')
+    expect(JSON.stringify(result?.history ?? [])).toContain(snippedText)
+  })
+
+  it('preserves compact-boundary durable snip state on SDK resume active history', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-sdk-compact-durable-snip-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    const compactBoundary: PromptMessage = {
+      role: 'assistant',
+      content: [],
+      meta: {
+        compactBoundary: {
+          schemaVersion: 1,
+          trigger: 'manual',
+          summaryKind: 'model_summary',
+        },
+      },
+    }
+    const compactBoundaryFingerprint = fingerprintCompactBoundaryMessage(compactBoundary)
+    if (!compactBoundaryFingerprint) throw new Error('expected compact boundary fingerprint')
+    const summaryMessage: PromptMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: 'Summary: previous session context' }],
+    }
+    const snippedText = `compacted sdk assistant text ${'y'.repeat(1800)}`
+    const snippedMessage: PromptMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: snippedText }],
+    }
+    const replayHistory: PromptMessage[] = [
+      { role: 'user', content: [{ type: 'text', text: 'pre-boundary user' }] },
+      compactBoundary,
+      summaryMessage,
+      snippedMessage,
+      { role: 'user', content: [{ type: 'text', text: 'post-boundary user survives' }] },
+    ]
+    await fs.writeFile(
+      sessionFilePath,
+      JSON.stringify({
+        type: 'event',
+        ts: '2026-05-21T00:00:00.000Z',
+        name: DURABLE_SNIP_COMMITTED_EVENT_NAME,
+        data: {
+          schemaVersion: 1,
+          source: 'request_snip',
+          phase: 'initial',
+          estimatedTokensSaved: 300,
+          removedMessageCount: 1,
+          compactBoundaryFingerprint,
+          sourceProjectionKind: 'model_facing_baseline',
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              reason: 'sdk compact durable snip regression',
+              removedMessageFingerprints: [fingerprintPromptMessage(snippedMessage)],
+            },
+          ],
+        },
+      }),
+      'utf8',
+    )
+
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(JSON.stringify(turnArgs.history)).toContain(snippedText)
+      expect(JSON.stringify(turnArgs.requestHistory)).not.toContain(snippedText)
+      expect(JSON.stringify(turnArgs.requestHistory)).toContain('post-boundary user survives')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-latest',
+      contextWindowTokens: 100000,
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+    state.findSessionFileBySessionId.mockResolvedValue(sessionFilePath)
+    state.readSessionFile.mockResolvedValue({
+      meta: { sessionId: 'session-compact-durable-snip', cwd: '/repo' },
+      history: replayHistory,
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue compact sdk durable snip',
+      options: {
+        resume: 'session-compact-durable-snip',
       },
     })
 

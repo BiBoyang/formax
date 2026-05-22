@@ -1,291 +1,330 @@
-# Claude Code Context Compression Execution TODO
+# Context Compression WebGPT Bugfix TODO
 
 日期：2026-05-22
 
-当前执行入口只看这个文件。旧的 architecture parity TODO、WebGPT 回复、repomix prompt 都只作为历史材料，不再作为当前执行队列。
+当前执行入口只看这个文件。旧 Gate 已完成并进入 git 历史。本文件已根据
+`repomix-output/07-optimization-audit/response/{05.1,06.1,02.1}.md` 复审意见重排。
 
 ## 当前结论
 
-- [x] 下一步从 **Gate 1A: core golden projection fixture + durable projection coordinates** 开始。
-- [x] Gate 1 不修 parent-chain、snip UUID replay、collapse-active rebase、tool-result durable side-state。
-- [x] Gate 1 的目标是锁住同一段压缩历史在 raw transcript、UI visible scrollback、model-facing baseline、next request projection、app-server/Web replay facts 中的坐标关系。
-- [x] collapse-active request snip 不写 durable snip event 的 safety guard 当前已存在；Gate 4 前继续保持 request-only。
-- [x] Gate 4 collapse-active durable snip rebase 独立成 milestone，不和 Gate 2B 混做。
+- [x] 可以开始执行，但不能按“大 Batch 1”一次性做。
+- [x] 每个条目按一个小 commit 执行：tests first → 实现 → targeted tests → `type-check`（如涉及类型/跨包）→ codex review → 修复 findings → commit。
+- [x] `SDK durable snip resume parity` 可以先做；但 `SDK same-turn snip + collapse rebase` 不单独提前做，必须和 same-turn dependency / policy 一起处理。
+- [ ] `success-boundary` 必须前置到 cleanup 前，避免失败 turn 留下 replay-authoritative durable state。
+- [ ] `session reader strictness` 是 correctness hardening，但不要和 runtime wiring / success-boundary 混在同一 commit。
+- [ ] `Batch 3` 只作为 cleanup backlog，不能作为一个大 refactor commit。
 
-## Gate 1A: Core Fixture And Durable Projection Coordinates
+## 通用 Commit Gate
 
-建议提交名：`test(context): strengthen compression golden projection fixture`
+每个 commit 都执行：
+
+- [ ] 明确本 commit 只解决一个问题域。
+- [ ] 先补 regression / characterization test。
+- [ ] 只改实现到让该测试通过，不顺手重构。
+- [ ] 跑本 commit 的 targeted tests。
+- [ ] 如改类型、跨 package import、公共 contract，跑 `bun run type-check`。
+- [ ] `mkdir -p .tmp/codex-review-result`
+- [ ] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
+- [ ] `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
+- [ ] 修完 review findings。
+- [ ] commit。
+
+## Commit 1: SDK Durable Snip Resume Parity
+
+建议提交名：`fix(sdk): replay durable snip state on file-backed resume`
 
 主要文件：
 
-- `packages/core/src/chat/context/compressionProjectionFixture.ts`
-- `packages/core/src/chat/context/contextProjectionBaseline.test.ts`
-- `packages/core/src/chat/context/contextProjection.test.ts`
+- `packages/core/src/sdk/query/runner.ts`
+- `packages/core/src/sdk/query.options-alignment.test.ts`
+- 可能需要 `packages/core/src/features/repl/sessionSave/index.ts` 或相邻 export。
 
-Non-goals:
+Tasks:
 
-- [x] 不实现 Claude Code-style parentUuid relink。
-- [x] 不实现 compact preserved segment `head/anchor/tail` relink。
-- [x] 不实现 snip removed UUID replay / relink。
-- [x] 不实现 collapse-active durable snip rebase。
-- [x] 不实现 `tool_result_budget` / content replacement durable side-state。
-- [x] 不 snapshot TUI ANSI、滚动位置、临时文案、token estimate 细节。
-
-Tests first:
-
-- [x] Fixture 包含 pre-boundary 旧 user/assistant 历史：raw transcript 保留，model-facing baseline 不包含。
-- [x] Fixture 包含 metadata-only compact boundary，并带 `trigger`、`preTokens`、`summaryKind`、`keepStrategy`、`preservedSegment`、`messageFingerprints`。
-- [x] Fixture 包含 compact summary continuation message：作为 continuation head 进入 model-facing baseline；角色按当前 Formax compact summary contract 断言，不在 TODO 层绑定 Claude Code 角色。
-- [x] Fixture 包含 post-boundary `assistant tool_use` + `user tool_result` pair。
-- [x] Fixture durable snip 删除 tool pair 的一侧，projection 后必须 drop orphan tool block。
-- [x] Fixture 包含 recent user / assistant tail：必须进入 model-facing baseline、next request projection、diagnostics projection。
-- [x] Fixture request-collapse fact 只作为 latest request-collapse surface fact，不作为 committed durable collapse projection。
-- [x] Fixture pending session-memory restore 只作为 restore surface fact / next-turn restore context，不改 raw transcript。
-- [x] 断言 `rawTranscript` 保留完整输入，包括 pre-boundary 历史和被 durable snip 删除的消息。
-- [x] 断言 `uiScrollback` 保留完整可见消息行，包括 pre-boundary 历史和被 durable snip 从 model-facing baseline 删除的可见消息；但不包含 metadata-only compact boundary、durable snip event、request-collapse event、restore sidecar event。
-- [x] 断言 `modelFacingBaseline` 从 latest compact boundary 后开始。
-- [x] 断言 compact boundary 自身不进入 model-facing baseline。
-- [x] 断言 durable snip 删除目标消息。
-- [x] 断言 durable snip 删除 tool pair 一侧后，orphan tool block 被清理。
-- [x] 断言同一条被 durable snip 删除的消息满足：raw/session 仍存在、UI visible scrollback 仍可见、model-facing baseline 不包含。
-- [x] 断言 `diagnosticsProjection` 与当前 model-facing baseline 在 message order、role、tool linkage 上语义一致。
-- [x] 断言 `latestCompactBoundary` 保留 `preservedSegment`、`messageFingerprints`、`keepStrategy`、`summaryKind`。
-- [x] 断言 `modelFacingBaseline` 的 exact order / role / key ids-or-fingerprints 正确，不能只比 summary facts。
-- [x] 断言 `durableState.toolResultContentReplacement.status = "deferred"`。
-- [x] 断言 request-collapse fact 不会被当成 committed durable collapse store。
+- [x] 新增 SDK resume regression：session JSONL 含 `durable_snip_applied`。
+- [x] 断言 `runtime.engine.runTurn()` 收到的 `requestHistory` 不包含 snipped message。
+- [x] 断言 `history` / persisted raw transcript 仍保留原始消息。
+- [x] 新增 compact-boundary resume regression：active history 已裁掉 boundary 时，仍按 replay history 保留 boundary-scoped durable snip。
+- [x] SDK `query()` path 读取 `readDurableSnipStateFromSession()`。
+- [x] 每次 attempt 按 `currentHistory` 调 `scopeDurableSnipStateToHistory()`。
+- [x] SDK durable snip scoping 使用 `replayHistory` 作为 generation 参考，避免 compact boundary 被 active history 裁掉后清空有效 snip。
+- [x] 将 scoped snip state 传入 `prepareTurnRequestProjection({ durableState: { snip, collapse, toolResultContentReplacement } })`。
+- [x] 不在本 commit 处理 SDK same-turn snip + collapse rebase。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/contextProjectionBaseline.test.ts packages/core/src/chat/context/contextProjection.test.ts`
-- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
+- [x] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
+- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
-## Gate 1B: Next Request Projection Coordinates
+## Commit 2: Boundaryless Durable Snip Scoping
 
-建议提交名：`test(context): lock request projection inputs after durable projection`
+建议提交名：`fix(context): preserve durable snip state on boundaryless resumes`
 
 主要文件：
 
+- `packages/core/src/chat/context/contextProjection.ts`
+- `packages/core/src/chat/context/contextProjection.test.ts`
 - `packages/core/src/chat/context/turnRequestProjection.test.ts`
-- `packages/core/src/chat/context/contextProjectionBaseline.test.ts` if shared fixture expectations move.
 
-Tests first:
+Tasks:
 
-- [x] `prepareTurnRequestProjection()` 断言 `persistedHistory` 仍是 raw transcript。
-- [x] `prepareTurnRequestProjection()` 断言 middle-layer stack 输入来自 `contextProjection.modelFacingBaseline`。
-- [x] `prepareTurnRequestProjection()` 断言 reducers no-op 时 `requestHistory` 等于 model-facing baseline。
-- [x] `prepareTurnRequestProjection()` 断言 pending session-memory restore 不进入 raw transcript 或 durable model-facing baseline；它只属于 restore surface fact / next-turn restore context。
-- [x] `prepareTurnRequestProjection()` 断言 request-only reducer output 不被反推成 durable state。
+- [ ] 新增 `scopeDurableSnipStateToHistory()` regression：history 无 compact boundary，但 state 有 `activeCompactBoundaryFingerprint` 和 removals 时，应保留 removals。
+- [ ] 保留现有 “观察到 newer compact boundary 时清空旧 generation snip” 测试。
+- [ ] 将 snip scoping 调整为与 tool-result replacement 一致：只有 observed boundary 存在且 mismatch 时清空。
+- [ ] 不在本 commit 让 `buildContextProjection().facts.activeCompactBoundaryFingerprint` 从 snip state fallback；public facts 语义保持不变。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
-- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [x] commit。
+- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
 
-## Gate 1C: Generation Reset Fixture
+## Commit 3: Same-Turn Snip + Collapse Safety Policy
 
-建议提交名：`test(context): lock compression generation reset fixture`
+建议提交名：`fix(context): avoid unsafe same-turn snip collapse commits`
 
 主要文件：
 
+- `packages/core/src/chat/context/contextProjection.ts`
 - `packages/core/src/chat/context/contextProjection.test.ts`
-- `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-- `packages/core/src/features/repl/sessionSave/requestCollapseEvents.ts` tests if adjacent test coverage exists.
+- `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
+- `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
+- `packages/core/src/app-server/turnRunner.ts`
+- `packages/core/src/app-server/turnRunner.test.ts`
+- `packages/core/src/sdk/query/runner.ts`
+- `packages/core/src/sdk/query.options-alignment.test.ts`
 
-Tests first:
+Decision:
 
-- [x] old compact boundary + old durable snip + newer compact boundary：newer generation 后旧 durable snip removals 被清空或忽略。
-- [x] old request-collapse event 在 newer compact boundary 前：`latestRequestCollapse` 不跨 boundary 暴露。
-- [x] old durable collapse facts 不跨 newer compact boundary 暴露，除非 future contract 明确支持 boundaryless recovered generation。
-- [x] `latestCompactBoundary` 是 newer boundary。
-- [x] raw transcript 仍保留 old boundary / old events。
-- [x] UI visible rows 不受 stale control-plane events 影响。
-- [x] collapse-active request snip safety guard 保持：request-time snip 可以影响当轮 request，但不写 `durable_snip_applied`。
-- [x] failed / aborted / interrupted turn 不会把 live compact/snip/collapse facts 提升为 committed durable facts。
+- [ ] 先采用最小安全策略：same-turn request snip applied 且 collapse applied 时，collapse 仍可用于当轮 request，但不持久化依赖该 request snip 的 durable collapse commit。
+- [ ] 不在本 commit 引入 dependency metadata schema，除非 tests 证明 skip policy 不可行。
+
+Tasks:
+
+- [ ] 新增 replay fixture：same-turn snip + collapse 若写入 rebased collapse range，未来 snip drift skip 时不能把 rebased range 应用到未 snip baseline。
+- [ ] REPL/app-server/SDK 对 same-turn snip+collapse 使用统一 policy：不写 unsafe durable collapse commit。
+- [ ] 保留无 snip 场景 collapse commit 行为。
+- [ ] 保留 request-only collapse 当轮生效行为。
+- [ ] SDK 不再单独只补 rebase；如仍需要 rebase，只能在本 commit 与 dependency/safety policy 一起完成。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts` if collapse-active guard test moves or is expanded.
-- [x] `bun run type-check` only if runtime types/schema are changed。
-- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [x] commit。
+- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
+- [ ] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
+- [ ] `bun run test -- packages/core/src/app-server/turnRunner.test.ts`
+- [ ] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
 
-## Gate 1D: App-Server / Web Surface Fixture Tests
+## Commit 4: Durable Commit Success Boundary
 
-建议提交名：`test(app-server): route compression fixture facts across replay surfaces`
+建议提交名：`fix(context): gate durable compression commits on successful turns`
 
 主要文件：
 
+- `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
+- `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- `packages/core/src/app-server/turnRunner.ts`
+- `packages/core/src/app-server/turnRunner.test.ts`
+- `packages/core/src/features/repl/controller/session/sessionEvents.ts` if needed.
+
+Clarification:
+
+- [ ] 区分 request attempt diagnostic event、pending collapse drain、durable future-state commit。
+- [ ] 不写反合同测试：如果当前设计需要 overflow 前 drain pending collapse commit，必须单独建模，不能把 pending 当 completed durable success。
+
+Tasks:
+
+- [ ] REPL test：initial overflow + `prepared.collapseState.commit` + `runReactiveCompact` reject，不应留下 completed-turn durable snip/collapse success state。
+- [ ] REPL test：initial overflow + reactive compact success + retry `engine.runTurn` reject/abort，不应留下 completed-turn durable snip/collapse success state。
+- [ ] App-server test：durable snip/collapse candidate 存在，但 history snapshot append 或 flush 失败时，reader / replay surface 不暴露 completed durable state。
+- [ ] App-server completed turn 仍能持久化 durable snip/collapse，并更新 in-memory collapse store。
+- [ ] interrupted/failed turn 不写 completed durable snip/collapse success state。
+- [ ] 如实现 pending event，pending event 必须 reader-invisible。
+
+Validation:
+
+- [ ] `bun run test -- packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
+- [ ] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
+- [ ] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
+
+## Commit 5: App-Server Compact Boundary Cache Tri-State
+
+建议提交名：`fix(app-server): preserve replay compact boundary cache on omitted facts`
+
+主要文件：
+
+- `packages/core/src/app-server/server.ts`
 - `packages/core/src/app-server/server.test.ts`
-- `packages/core/src/app-server/threadStore.test.ts`
-- Web runtime tests if Web currently caches or displays these compression facts. Gate 1 claims app-server/Web replay facts, so Web coverage is required unless this TODO is explicitly narrowed to core + app-server.
-
-Tests first:
-
-- [x] `thread/resume` 返回 fixture-derived `latestCompactBoundary`。
-- [x] `thread/read` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [x] `thread/messages` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [x] `thread/replay` 返回同一份 fixture-derived `latestCompactBoundary`。
-- [x] 四个 surface 返回同一份 durable snip summary。
-- [x] 四个 surface 返回同一份 latest request-collapse fact。
-- [x] `thread/resume` 返回 pending session-memory restore summary。
-- [x] Replay pagination / cached facts 不把 omitted durable snip 当 authoritative null。
-- [x] Web 只缓存 RPC compression facts，不从 transcript rows 反推 compact/snip/collapse state。
-- [x] Web 遇到 transcript rows 中 compact-looking text 但 RPC facts 为 null 时，不自行推导 compression facts。
-- [x] Web 遇到 omitted durable snip 时，不覆盖已有 authoritative durable snip fact。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/app-server/threadStore.test.ts packages/core/src/app-server/server.test.ts`
-- [x] Web targeted tests covering RPC/cache compression facts if Web compression facts remain in Gate 1 scope.
-- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [x] commit。
-
-## Gate 2A: Message Identity Groundwork
-
-目标：在不大重写 session writer/reader 的前提下，为 compact preserved segment 和 durable snip 提供稳定 identity substrate。
-
-Non-goals:
-
-- [x] 不一次性实现完整 Claude Code parentUuid chain。
-- [x] 不改变旧 session 的可恢复性。
-- [x] 不删除 fingerprint guard；fingerprint 仍作为 drift detection / legacy fallback。
 
 Tasks:
 
-- [x] 先更新 contract，定义 Formax message identity 的最小语义：stable message id、message fingerprint、可选 parent id、旧历史 fallback。
-- [x] 为 compact continuation messages 生成或读取 stable identity。
-- [x] 在 projection/test diagnostics 内暴露 identity-aware fingerprint/debug 信息；除非 contract 明确升级，否则不新增 app-server/Web public fields。
-- [x] 增加 tests，确保旧 boundary 缺 identity 时继续使用 fingerprint/count guard。
-- [x] 增加 tests，确保 identity 不改变 raw transcript / UI scrollback。
-- [x] 定义 identity uniqueness / collision handling。
-- [x] 定义 legacy fallback identity 是否跨进程稳定；如果不能稳定，必须标记为 legacy fallback，不允许被当作强 identity。
-- [x] 增加 tests：duplicate identity 不触发 destructive identity-based replay。
-- [x] 增加 tests：missing parent id 不影响 raw transcript / UI scrollback / model-facing baseline。
-- [x] 增加 tests：SDK validation roundtrip 不丢 identity/fingerprint 扩展字段。
+- [ ] 新增 replay cache test：已有 cached `latestCompactBoundary` 后，partial result 省略该字段时不得清空 cache。
+- [ ] 新增 explicit null test：`latestCompactBoundary: null` 应清空 cache。
+- [ ] 修改 `rememberLatestCompactBoundary()`：`undefined` 表示 omitted / no update；只有 explicit `null` 才写 null。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/compact.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/sdk/validation.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts`
-- [x] `bun run type-check`
-- [x] Codex review 前创建输出目录：`mkdir -p .tmp/codex-review-result`
-- [x] Codex review: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`；如有 findings，全部修完再提交。
-- [x] 检索 review 结论和 findings：`rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`；不要只依赖 tail。
-- [x] commit。
+- [ ] `bun run test -- packages/core/src/app-server/server.test.ts`
+- [ ] 通用 Commit Gate。
 
-## Gate 2B: Snip Removed UUID / Identity Replay
+## Commit 6: Web Compression Fact Tri-State Parsing
 
-目标：优先解决日常长会话风险：snipped messages 在 resume 后不得复活进 model-facing baseline。
+建议提交名：`fix(web): preserve compression fact tri-state parsing`
 
-Non-goals:
+主要文件：
 
-- [x] 不实现 full Claude Code parentUuid chain reconstruction。
-- [x] 不实现 compact preserved segment `head/anchor/tail` relink。
-- [x] 不处理 collapse-active durable snip rebase；collapse-active 仍保持 request-only snip，不写 durable event。
+- `packages/web-reference-react/src/app/core/rpcParsers.ts`
+- `packages/web-reference-react/src/app/core/rpcParsers.test.ts`
+- `packages/web-reference-react/src/app/core/threadCache.test.ts`
+
+Decision:
+
+- [ ] malformed-present compression fact object 使用 omit / non-authoritative，不 reject 整个 response。
 
 Tasks:
 
-- [x] 更新 `durable_snip_applied` snapshot schema：保留 current range，同时增加 removed message identity / fingerprint / base projection fingerprint / source projection kind。
-- [x] 明确 `durable_snip_applied` 是 snapshot 语义，不是 incremental patch；latest valid snapshot 覆盖 older snapshot，empty snapshot 清空 state。
-- [x] 收紧 mismatch 策略：removed identity 存在但 fingerprint 不匹配时，必须 skip durable removal，并在 facts/debug reason 中标记 drift；只有旧事件缺 identity 时，才允许 fallback 到 legacy range/count/fingerprint guard。
-- [x] 写 tests：failed turn 不写 durable snip。
-- [x] 写 tests：new compact boundary generation 后旧 snip state 清空或忽略。
-- [x] 写 tests：snip 删除 tool pair 一侧后 provider-facing model baseline 不含 orphan tool block。
-- [x] 写 tests：collapse-active request snip 成功 turn 后仍不写 `durable_snip_applied`，resume 后不应用 collapsed-coordinate removal。
-- [x] 写 tests：removed identity 找不到时 skip，不按旧 range 盲删。
-- [x] 写 tests：duplicate fingerprint / duplicate identity 进入 safe path，不做 destructive removal。
-- [x] 写 tests：raw JSONL/session 文件仍包含 removed messages 和 durable snip event。
+- [ ] 新增 parser/cache test：`thread/messages` 返回 malformed `latestCompactBoundary` / `durableSnip` / `latestRequestCollapse` object 时，不应输出 explicit null，也不应清空已有 authoritative cache。
+- [ ] 新增 explicit null test：raw field 为 `null` 时才输出 null 并清空 cache。
+- [ ] 保留 omitted test：raw field absent 时不输出字段且不覆盖 cache。
+- [ ] 修改 `asThreadMessages()` 三态处理：absent = omit，explicit null = null，valid object = value，invalid object = omit。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/snip.test.ts packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts packages/core/src/features/repl/controller/session/sessionEvents.test.ts packages/core/src/features/repl/controller/session/useSessionEventRecorders.test.tsx packages/core/src/features/repl/controller/send/sendMainTurn.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/threadStore.test.ts`
-- [x] `bun run type-check`
-- [x] Codex review before commit
+- [ ] `bun run test -- packages/web-reference-react/src/app/core/rpcParsers.test.ts packages/web-reference-react/src/app/core/threadCache.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
 
-## Gate 2C: Compact Preserved Segment Relink
+## Commit 7: MicroCompact Durable-Replaced Tool Result Guard
 
-目标：把 compact preserved segment 从 fingerprint/count guard 推向 Claude Code-style `head/anchor/tail` relink 语义。
+建议提交名：`fix(context): skip durable-replaced tool results in microcompact`
+
+主要文件：
+
+- `packages/core/src/chat/context/microCompact.ts`
+- `packages/core/src/chat/context/microCompact.test.ts`
+- `packages/core/src/chat/context/toolResultBudget.ts` if sharing predicate.
+- `packages/core/src/chat/context/toolResultBudget.test.ts` if sharing predicate.
 
 Tasks:
 
-- [x] 更新 `session-persistence-contract.md`，定义 preserved segment identity / relink 语义与旧 boundary fallback。
-- [x] 扩展 compact boundary metadata，记录 summary/head/anchor/tail identity。
-- [x] 明确最终 replay/load order：compact preserved segment relink 先于 snip removal/relink，即使工程交付顺序是先 Gate 2B 后 Gate 2C。
-- [x] 写 tests：preserved tail resume 后不丢、不重复、不截断。
-- [x] 写 tests：old boundary 缺新 identity 字段时 fallback 到 fingerprint guard。
-- [x] 写 tests：anchor 缺失时不 relink，不重复 preserved tail，fallback 到 fingerprint/count guard。
-- [x] 写 tests：head/tail fingerprint mismatch 时 skip relink 或 fallback，但不能产生重复 tail。
-- [x] 写 tests：compact preserved segment + later durable snip 组合。
+- [ ] 新增 cache-editing microcompact regression：带 `meta.durableToolResultContentReplacementToolUseIds` 的 long tool result 不产生 cache edit plan / fallback stub。
+- [ ] 新增 time-based microcompact regression：old assistant timestamp + durable-replaced old result，不被 `TIME_BASED_MC_CLEARED_MESSAGE` 覆盖。
+- [ ] 在 `collectTimeBasedToolResultRefs()` 跳过 durable-replaced tool result。
+- [ ] 在 `collectEligibleToolResults()` 跳过 durable-replaced tool result。
+- [ ] 如抽 helper，只抽 predicate，不改 microcompact 策略顺序。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/compact.test.ts packages/core/src/chat/context/contextProjection.test.ts packages/core/src/sdk/validation.test.ts packages/core/src/features/repl/controller/send/compactFlow.test.ts packages/core/src/features/repl/controller/session/sessionTransitions.test.ts packages/core/src/features/repl/controller/session/sessionTurnCompletion.test.ts packages/core/src/app-server/turnRunner.test.ts`
-- [x] `bun run type-check`
-- [x] Codex review before commit
+- [ ] `bun run test -- packages/core/src/chat/context/microCompact.test.ts packages/core/src/chat/context/toolResultBudget.test.ts`
+- [ ] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
 
-## Gate 4: Collapse-Active Durable Snip Rebase
+## Commit 8: Durable Collapse Replay Idempotency
 
-目标：只有在 message identity、durable snip replay、compact preserved segment relink 稳定后，才处理 collapse-active 下 durable snip persistence。
+建议提交名：`fix(context): make durable collapse replay idempotent`
 
-Current safe behavior:
+主要文件：
 
-- [x] collapse-active request snip 可以 request-only 降低当轮请求体积。
-- [x] collapse-active request snip 不写 durable snip event。
+- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
+- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
+- `packages/core/src/chat/context/contextCollapseStore.ts`
+- `packages/core/src/chat/context/contextProjection.test.ts`
 
 Tasks:
 
-- [x] 先更新 contract，定义坐标空间：raw compact continuation、durable snip baseline、durable collapse projection、request reducer output。
-- [x] Gate 4 不做泛化 compression migration framework；只解决 collapse-active request snip removal -> durable baseline removal -> collapse ranges recompute or skip。
-- [x] 拆成可 review 子提交：contract + failing tests；snip removal rebase；collapse range recompute/skip policy；surface/facts tests。
-- [x] removal 命中 synthetic collapse recap 本身，默认 skip durable persistence。
-- [x] removal 横跨 recap 和普通消息，不能简单平移 index。
-- [x] removal 删除 collapse source range 的一部分，默认 skip durable persistence，除非 contract 明确支持 delete source range。
-- [x] partial rebase failure 整体不写 durable snip event，不做部分 durable 写入。
-- [x] turn 成功后 projection、resume 后 projection、repeat replay projection 幂等一致。
+- [ ] 新增 duplicate same-id `context_collapse_committed` replay test：snapshot 只保留一条或 projection 与单 event 等价。
+- [ ] 实现 same-id committed collapse replay 幂等，避免 retry/重复 JSONL 行二次 collapse 删除尾部。
+- [ ] 不在本 commit 定义 all different-id overlap policy。
+- [ ] 如需记录 different-id overlap，先加 characterization / deferred note，不做大策略变更。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts`
-- [x] `bun run type-check`
-- [x] Codex review before commit
+- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
+- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
+- [ ] `bun run type-check`
+- [ ] 通用 Commit Gate。
 
-## Gate 5: Tool Result Durable Side-State
+## Commit 9: Malformed Collapse Committed Range Strictness
 
-目标：最后处理 Claude Code-style durable tool-result content replacement。继续和 Anthropic cache editing 区分。
+建议提交名：`fix(session): reject malformed collapse committed ranges`
+
+主要文件：
+
+- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
+- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
 
 Tasks:
 
-- [x] 先更新 contract：定义 request-only `tool_result_budget` 与新增 durable tool-result content replacement side-state 的边界；不要把 `tool_result_budget` 本身改写成 durable stage。
-- [x] 定义 content replacement event / snapshot schema。
-- [x] 支持 main thread 与 agent/sidechain 最小 scope 隔离；不做完整 agent transcript 架构改造。
-- [x] projection owner 应用 durable replacement，但 raw transcript 不变。
-- [x] request-only `tool_result_budget` 与 durable replacement 不重复替换。
-- [x] Anthropic `cache_reference/cache_edits` 仍保持 provider side effect，不成为 durable authority。
+- [ ] 新增 malformed range tests：负数、反向 range、非有限 number、超大不安全整数。
+- [ ] JSONL-level 非有限 number case 使用 JSON 能实际表达的输入；parser-level 可单独覆盖 `Number.isFinite`。
+- [ ] `parseCommittedRange()` 严格要求 safe integer、`startIndex >= 0`、`endIndexExclusive > startIndex`。
+- [ ] 不满足条件时 reject event，不进入 constructor normalize。
 
 Validation:
 
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/contextProjectionBaseline.test.ts packages/core/src/chat/context/toolResultBudget.test.ts packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts packages/core/src/features/repl/controller/send/contextCompressionService.test.ts packages/core/src/app-server/turnRunner.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts packages/core/src/chat/context/middleLayerStrategyStack.test.ts packages/core/src/sdk/query.options-alignment.test.ts`
-- [x] `bun run type-check`
-- [x] Codex review before commit
+- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
+- [ ] 通用 Commit Gate。
 
-## Global Review Checklist
+## Commit 10: Malformed Durable Snip Snapshot Strictness
 
-- [x] Diff 只包含当前 Gate，不夹带 cleanup 或 unrelated behavior。
-- [x] 如改变 durable behavior，contract 先更新。
-- [x] raw transcript / UI visible scrollback 不被 durable projection 改写。
-- [x] persisted history、model-facing baseline、request history 不混淆。
-- [x] compact generation scope 不泄漏旧 snip/collapse state。
-- [x] 删除/collapse/replacement 后 provider payload 不出现 orphan tool_use/tool_result。
-- [x] app-server/Web/TUI 只消费 canonical facts，不各自推导 compression semantics。
-- [x] failed / aborted turn 不写成功态 durable state。
-- [x] targeted tests 通过。
-- [x] Codex review 使用 `gpt-5.5 high`，输出到 `.tmp/codex-review-result/review-latest.txt`；用 `rg` 检索 findings / no-finding 结论，不只看 tail；如有 findings，全部修完再提交。
+建议提交名：`fix(session): reject malformed durable snip snapshots`
+
+主要文件：
+
+- `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
+- `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
+
+Tasks:
+
+- [ ] 新增 mixed valid/invalid removals test：snapshot event 中任一 removal invalid 时整条 event 不接受，保留前一 valid snapshot。
+- [ ] 保留 empty `removals: []` 可作为 intentional clear。
+- [ ] 修改 `parseRemovals()` 为 strict all-or-nothing。
+
+Validation:
+
+- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
+- [ ] 通用 Commit Gate。
+
+## Commit 11: Malformed Durable Tool Replacement Scope Strictness
+
+建议提交名：`fix(session): reject malformed durable tool replacement scopes`
+
+主要文件：
+
+- `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.ts`
+- `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
+
+Tasks:
+
+- [ ] 新增 malformed-present `sourceScope` test：不能 fallback 到 main_thread。
+- [ ] 保留 sourceScope 缺省时 legacy main_thread fallback。
+- [ ] 字段 present 但 `parseSourceScope()` 失败时 reject event。
+
+Validation:
+
+- [ ] `bun run test -- packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
+- [ ] 通用 Commit Gate。
+
+## Cleanup Backlog: Only After Commits 1-11
+
+每项必须独立 commit，不能合成一个大 cleanup batch。
+
+- [ ] `refactor(session): share strict event parsing helpers`
+- [ ] `refactor(context): share durable projection scoping helper`
+- [ ] `refactor(web): centralize compression fact tri-state helper`
+- [ ] `refactor(context): share durable commit candidate helpers`
+- [ ] `docs(context): refresh CODEMAP durable projection owners`
+
+## Explicitly Deferred
+
+- [ ] 不在 correctness commits 中做测试文件大规模重命名。
+- [ ] 不在 correctness commits 中重排 compression golden fixture。
+- [ ] 不在 correctness commits 中抽大型 runtime object。
+- [ ] 不在 correctness commits 中改变 Claude Code 对齐目标或上下文压缩策略。
+- [ ] 不在 duplicate same-id 修复里同时定义 different-id overlap 大策略。

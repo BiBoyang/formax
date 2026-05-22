@@ -9,7 +9,10 @@ import type { ContextBudgetConfig } from '../../chat/context/budget.js'
 import { getKnownContextWindowTokens } from '../../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../../chat/context/cacheEditing.js'
-import { scopeDurableToolResultContentReplacementStateToHistory } from '../../chat/context/contextProjection.js'
+import {
+  scopeDurableSnipStateToHistory,
+  scopeDurableToolResultContentReplacementStateToHistory,
+} from '../../chat/context/contextProjection.js'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
   appendContextCollapseStoreEntry,
@@ -18,6 +21,9 @@ import {
   type ContextCollapseStoreSnapshot,
 } from '../../chat/context/contextCollapseStore.js'
 import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionSave/contextCollapseStoreEvents.js'
+import {
+  readDurableSnipStateFromSession,
+} from '../../features/repl/sessionSave/durableSnipStoreEvents.js'
 import {
   readDurableToolResultContentReplacementStateFromSession,
 } from '../../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
@@ -1438,6 +1444,9 @@ async function* runQuery(
       let collapseStoreSnapshot: ContextCollapseStoreSnapshot | null = resumeResolution.sessionFilePath
         ? await readContextCollapseStoreSnapshotFromSession({ filePath: resumeResolution.sessionFilePath }).catch(() => null)
         : null
+      const durableSnipState = resumeResolution.sessionFilePath
+        ? await readDurableSnipStateFromSession({ filePath: resumeResolution.sessionFilePath }).catch(() => null)
+        : null
       const durableToolResultContentReplacementState = resumeResolution.sessionFilePath
         ? await readDurableToolResultContentReplacementStateFromSession({
             filePath: resumeResolution.sessionFilePath,
@@ -1460,6 +1469,14 @@ async function* runQuery(
           user: userForTurn,
           budgetConfig: promptBudget,
           durableState: {
+            ...(durableSnipState
+              ? {
+                  snip: scopeDurableSnipStateToHistory({
+                    state: durableSnipState,
+                    history: resumeResolution.replayHistory ?? currentHistory,
+                  }),
+                }
+              : {}),
             collapse: collapseStoreSnapshot,
             ...(durableToolResultContentReplacementState
               ? {
