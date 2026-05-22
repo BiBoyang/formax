@@ -1211,7 +1211,7 @@ describe('createContextCompressionService', () => {
     expect(out.snipState.applied).toBe(false)
   })
 
-  it('persists request snip when the same turn also creates a rebased collapse commit', async () => {
+  it('persists request snip but skips durable collapse commit when same-turn snip also applies', async () => {
     vi.mocked(computeContextStats).mockImplementation(({ usedTokens }: any) => ({
       contextWindowTokens: 100_000,
       usedTokens,
@@ -1261,11 +1261,7 @@ describe('createContextCompressionService', () => {
     expect(out.collapseState.applied).toBe(true)
     expect(out.snipState.applied).toBe(true)
     expect(out.snipState.removals).toHaveLength(2)
-    expect(out.collapseState.commit?.collapsedRange).toEqual({
-      kind: 'model_facing_index_range',
-      startIndex: 0,
-      endIndexExclusive: 1,
-    })
+    expect(out.collapseState.commit).toBeNull()
   })
 
   it('replays durable snip state from the session file before request reducers', async () => {

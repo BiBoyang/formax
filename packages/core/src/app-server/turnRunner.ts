@@ -838,6 +838,7 @@ export class TurnRunner {
           collapseCompactBoundaryFingerprint &&
           collapseRecapMessage &&
           collapseRecapSurvivedRequestProjection &&
+          prepared.stack.snipRemovals.length === 0 &&
           rebasedCollapseHeadMessageCount
         ) {
           const entry = createContextCollapseCommittedEntry({

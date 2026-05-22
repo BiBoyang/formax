@@ -1534,7 +1534,8 @@ async function* runQuery(
           collapseFact.metadata &&
           collapseCompactBoundaryFingerprint &&
           collapseRecapMessage &&
-          collapseRecapSurvivedRequestProjection
+          collapseRecapSurvivedRequestProjection &&
+          prepared.stack.snipRemovals.length === 0
         ) {
           const entry = createContextCollapseCommittedEntry({
             id: `request-collapse:sdk:${collapseFact.metadata.recapFingerprint}`,

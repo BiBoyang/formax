@@ -98,25 +98,25 @@ Validation:
 
 Decision:
 
-- [ ] 先采用最小安全策略：same-turn request snip applied 且 collapse applied 时，collapse 仍可用于当轮 request，但不持久化依赖该 request snip 的 durable collapse commit。
-- [ ] 不在本 commit 引入 dependency metadata schema，除非 tests 证明 skip policy 不可行。
+- [x] 先采用最小安全策略：same-turn request snip applied 且 collapse applied 时，collapse 仍可用于当轮 request，但不持久化依赖该 request snip 的 durable collapse commit。
+- [x] 不在本 commit 引入 dependency metadata schema，除非 tests 证明 skip policy 不可行。
 
 Tasks:
 
-- [ ] 新增 replay fixture：same-turn snip + collapse 若写入 rebased collapse range，未来 snip drift skip 时不能把 rebased range 应用到未 snip baseline。
-- [ ] REPL/app-server/SDK 对 same-turn snip+collapse 使用统一 policy：不写 unsafe durable collapse commit。
-- [ ] 保留无 snip 场景 collapse commit 行为。
-- [ ] 保留 request-only collapse 当轮生效行为。
-- [ ] SDK 不再单独只补 rebase；如仍需要 rebase，只能在本 commit 与 dependency/safety policy 一起完成。
+- [x] 新增 same-turn persistence regression：request snip + request collapse 同轮生效时，snip 可持久化但 collapse commit 为 null。
+- [x] REPL/app-server/SDK 对 same-turn snip+collapse 使用统一 policy：不写 unsafe durable collapse commit。
+- [x] 保留无 snip 场景 collapse commit 行为。
+- [x] 保留 request-only collapse 当轮生效行为。
+- [x] SDK 不再单独只补 rebase；如仍需要 rebase，只能在本 commit 与 dependency/safety policy 一起完成。
 
 Validation:
 
-- [ ] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
-- [ ] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- [ ] `bun run test -- packages/core/src/app-server/turnRunner.test.ts`
-- [ ] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
+- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
+- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts`
+- [x] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 4: Durable Commit Success Boundary
 

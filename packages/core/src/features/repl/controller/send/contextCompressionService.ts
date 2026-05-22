@@ -281,6 +281,7 @@ export function createContextCompressionService(deps: {
       compactBoundaryFingerprint &&
       recapMessage &&
       recapSurvivedRequestProjection &&
+      prepared.stack.snipRemovals.length === 0 &&
       rebasedCollapsedHeadMessageCount
         ? {
             collapsedRange: {
