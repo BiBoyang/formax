@@ -184,20 +184,20 @@ Validation:
 
 Decision:
 
-- [ ] malformed-present compression fact object 使用 omit / non-authoritative，不 reject 整个 response。
+- [x] malformed-present compression fact object 使用 omit / non-authoritative，不 reject 整个 response。
 
 Tasks:
 
-- [ ] 新增 parser/cache test：`thread/messages` 返回 malformed `latestCompactBoundary` / `durableSnip` / `latestRequestCollapse` object 时，不应输出 explicit null，也不应清空已有 authoritative cache。
-- [ ] 新增 explicit null test：raw field 为 `null` 时才输出 null 并清空 cache。
-- [ ] 保留 omitted test：raw field absent 时不输出字段且不覆盖 cache。
-- [ ] 修改 `asThreadMessages()` 三态处理：absent = omit，explicit null = null，valid object = value，invalid object = omit。
+- [x] 新增 parser/cache test：`thread/messages` 返回 malformed `latestCompactBoundary` / `durableSnip` / `latestRequestCollapse` object 时，不应输出 explicit null，也不应清空已有 authoritative cache。
+- [x] 新增 explicit null test：raw field 为 `null` 时才输出 null 并清空 cache。
+- [x] 保留 omitted test：raw field absent 时不输出字段且不覆盖 cache。
+- [x] 修改 `asThreadMessages()` 三态处理：absent = omit，explicit null = null，valid object = value，invalid object = omit。
 
 Validation:
 
-- [ ] `bun run test -- packages/web-reference-react/src/app/core/rpcParsers.test.ts packages/web-reference-react/src/app/core/threadCache.test.ts`
-- [ ] `bun run type-check`
-- [ ] 通用 Commit Gate。
+- [x] `bun run test -- packages/web-reference-react/src/app/core/rpcParsers.test.ts packages/web-reference-react/src/app/core/threadCache.test.ts`
+- [x] `bun run type-check`
+- [x] 通用 Commit Gate。
 
 ## Commit 7: MicroCompact Durable-Replaced Tool Result Guard
 

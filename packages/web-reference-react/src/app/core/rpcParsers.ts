@@ -230,9 +230,9 @@ export function asThreadMessages(value: unknown): {
   return {
     data,
     nextCursor,
-    ...(latestCompactBoundaryRaw !== undefined ? { latestCompactBoundary: latestCompactBoundary ?? null } : {}),
-    ...(durableSnipRaw !== undefined ? { durableSnip: durableSnip ?? null } : {}),
-    ...(latestRequestCollapseRaw !== undefined ? { latestRequestCollapse: latestRequestCollapse ?? null } : {}),
+    ...(latestCompactBoundary !== undefined ? { latestCompactBoundary } : {}),
+    ...(durableSnip !== undefined ? { durableSnip } : {}),
+    ...(latestRequestCollapse !== undefined ? { latestRequestCollapse } : {}),
   }
 }
 

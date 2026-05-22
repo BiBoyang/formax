@@ -2,6 +2,42 @@ import { describe, expect, it } from 'vitest'
 import { asThreadMessages, asThreadReplay } from './rpcParsers'
 
 describe('rpcParsers', () => {
+  it('omits malformed-present thread/messages compression facts instead of coercing them to null', () => {
+    const parsed = asThreadMessages({
+      data: [],
+      latestCompactBoundary: { schemaVersion: 2, trigger: 'auto' },
+      durableSnip: { stage: 'snip', status: 'active' },
+      latestRequestCollapse: { phase: 'initial' },
+    })
+
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'latestCompactBoundary')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'durableSnip')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'latestRequestCollapse')).toBe(false)
+  })
+
+  it('preserves explicit null thread/messages compression facts as authoritative clears', () => {
+    const parsed = asThreadMessages({
+      data: [],
+      latestCompactBoundary: null,
+      durableSnip: null,
+      latestRequestCollapse: null,
+    })
+
+    expect(parsed).toMatchObject({
+      latestCompactBoundary: null,
+      durableSnip: null,
+      latestRequestCollapse: null,
+    })
+  })
+
+  it('omits absent thread/messages compression facts', () => {
+    const parsed = asThreadMessages({ data: [] })
+
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'latestCompactBoundary')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'durableSnip')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'latestRequestCollapse')).toBe(false)
+  })
+
   it('parses thread message rows and filters invalid entries', () => {
     const parsed = asThreadMessages({
       data: [
