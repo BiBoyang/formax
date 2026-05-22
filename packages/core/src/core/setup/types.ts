@@ -22,7 +22,7 @@ export type SetupStep =
   | 'done'
 
 export type SetupModelMode = 'quick' | 'advanced'
-export type SetupAnthropicVendor = 'anthropic' | 'glm' | 'kimi' | 'minimax' | 'custom'
+export type SetupAnthropicVendor = 'deepseek' | 'anthropic' | 'glm' | 'kimi' | 'minimax' | 'custom'
 
 export type SetupTierModels = Record<ModelTier, string>
 

@@ -41,6 +41,7 @@ const DEFAULT_BASE_URL: Record<ProviderId, string> = {
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
 }
 const ANTHROPIC_VENDOR_BASE_URL: Record<Exclude<SetupAnthropicVendor, 'custom'>, string> = {
+  deepseek: 'https://api.deepseek.com/anthropic',
   anthropic: 'https://api.anthropic.com/v1',
   glm: 'https://open.bigmodel.cn/api/anthropic',
   kimi: 'https://api.moonshot.cn/anthropic',
@@ -163,7 +164,7 @@ export function createSetupSession(args: {
     const prevProvider = state.draft.provider
     state.draft.provider = provider
     if (provider === 'anthropic') {
-      if (!state.draft.anthropicVendor) state.draft.anthropicVendor = 'anthropic'
+      if (!state.draft.anthropicVendor) state.draft.anthropicVendor = 'deepseek'
       const vendor = state.draft.anthropicVendor
       const hasExisting = state.draft.baseUrl.trim().length > 0
       if (prevProvider === 'anthropic' && hasExisting) {

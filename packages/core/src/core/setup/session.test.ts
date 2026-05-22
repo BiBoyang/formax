@@ -330,7 +330,10 @@ describe('createSetupSession', () => {
 
     await s.next()
     s.setProvider('anthropic')
-    expect(s.getState().draft.anthropicVendor).toBe('anthropic')
+    expect(s.getState().draft.anthropicVendor).toBe('deepseek')
+    expect(s.getState().draft.baseUrl).toBe('https://api.deepseek.com/anthropic')
+
+    s.setAnthropicVendor('anthropic')
     expect(s.getState().draft.baseUrl).toBe('https://api.anthropic.com/v1')
 
     s.setAnthropicVendor('glm')
@@ -506,7 +509,7 @@ describe('createSetupSession', () => {
     s.setProvider('anthropic')
     ;(s as any).setAnthropicVendor(null)
     s.setProvider('anthropic')
-    expect(s.getState().draft.anthropicVendor).toBe('anthropic')
+    expect(s.getState().draft.anthropicVendor).toBe('deepseek')
 
     s.setBaseUrl('https://proxy.anthropic.local/v1')
     s.setProvider('anthropic')

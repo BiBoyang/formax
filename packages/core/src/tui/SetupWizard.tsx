@@ -23,6 +23,7 @@ type ChoiceOption = {
 function resolveBaseUrlPlaceholder(args: { provider: ProviderId | null; anthropicVendor: SetupAnthropicVendor | null }): string {
   if (args.provider === 'anthropic') {
     if (args.anthropicVendor === 'custom') return 'https://your-provider.example.com/anthropic'
+    if (args.anthropicVendor === 'deepseek') return 'https://api.deepseek.com/anthropic'
     if (args.anthropicVendor === 'glm') return 'https://open.bigmodel.cn/api/anthropic'
     if (args.anthropicVendor === 'kimi') return 'https://api.moonshot.cn/anthropic'
     if (args.anthropicVendor === 'minimax') return 'https://api.minimax.io/anthropic'
@@ -182,6 +183,7 @@ export function SetupWizard({ providers, testConnection, onWrite, onDone, onCanc
   const providerOptions = useMemo(() => toProviderOptions(providers), [providers])
   const anthropicVendorOptions = useMemo<ChoiceOption[]>(
     () => [
+      { value: 'deepseek', label: 'DeepSeek', description: 'DeepSeek Anthropic-compatible endpoint' },
       { value: 'anthropic', label: 'Anthropic', description: 'Official Anthropic endpoint' },
       { value: 'glm', label: 'GLM', description: 'Zhipu GLM Anthropic-compatible endpoint' },
       { value: 'kimi', label: 'Kimi', description: 'Moonshot Kimi Anthropic-compatible endpoint' },
