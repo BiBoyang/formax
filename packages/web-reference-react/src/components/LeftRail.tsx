@@ -39,6 +39,7 @@ export type LeftRailProps = {
   onRefreshThreads?: () => void
   onResumeThread?: () => void
   threads: ThreadViewModel[]
+  currentGroupCwd?: string | null
   selectedCwd: string | null
   onSelectCwd: (cwd: string) => void
   activeThreadId: string | null
@@ -64,6 +65,7 @@ export type LeftRailProps = {
 export function LeftRail(props: LeftRailProps) {
   const {
     threads,
+    currentGroupCwd,
     selectedCwd,
     onSelectCwd,
     activeThreadId,
@@ -95,6 +97,8 @@ export function LeftRail(props: LeftRailProps) {
     [threads, activeThreadId],
   )
   const activeThreadCwd = activeThread?.cwd ?? null
+  const managedCurrentGroupCwd = selectedCwd ?? activeThreadCwd
+  const protectedCurrentGroupCwd = currentGroupCwd ?? managedCurrentGroupCwd
   const [openByCwd, setOpenByCwd] = useState<Record<string, boolean>>(() => readOpenByCwdFromStorage())
   const persistedOpenByCwdRef = useRef(JSON.stringify(openByCwd))
   const [renameThreadTarget, setRenameThreadTarget] = useState<ThreadViewModel | null>(null)
@@ -181,15 +185,16 @@ export function LeftRail(props: LeftRailProps) {
 
   const markFolderRemoved = useCallback((cwd: string) => {
     if (hiddenGroupCwdSet.has(cwd)) return
-    const isCurrentGroup = selectedCwd === cwd || (!selectedCwd && activeThreadCwd === cwd)
+    const isManagedCurrentGroup = managedCurrentGroupCwd === cwd
+    const isProtectedCurrentGroup = protectedCurrentGroupCwd === cwd
     const fallback = groupedThreads.find((group) => group.cwd !== cwd && !hiddenGroupCwdSet.has(group.cwd))?.cwd
-    if (isCurrentGroup && !fallback) return
+    if (isProtectedCurrentGroup && !fallback) return
 
-    if (isCurrentGroup && fallback) {
+    if (isManagedCurrentGroup && fallback) {
       onSelectCwd(fallback)
     }
     onHideThreadGroup(cwd)
-  }, [activeThreadCwd, groupedThreads, hiddenGroupCwdSet, onHideThreadGroup, onSelectCwd, selectedCwd])
+  }, [groupedThreads, hiddenGroupCwdSet, managedCurrentGroupCwd, onHideThreadGroup, onSelectCwd, protectedCurrentGroupCwd])
 
   const handleFolderOpenChange = useCallback((cwd: string, open: boolean) => {
     setOpenByCwd((previous) => {
@@ -345,9 +350,9 @@ export function LeftRail(props: LeftRailProps) {
             <div className="space-y-px px-2">
               {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">{t('leftRail.noRecentThreads')}</div> : null}
               {visibleGroupedThreads.map((group) => {
-                const isSelectedGroup = selectedCwd === group.cwd || (!selectedCwd && activeThreadCwd === group.cwd)
                 const isExpanded = openByCwd[group.cwd] ?? true
-                const canRemoveGroup = !isSelectedGroup || visibleGroupedThreads.length > 1
+                const isProtectedCurrentGroup = protectedCurrentGroupCwd === group.cwd
+                const canRemoveGroup = !isProtectedCurrentGroup || visibleGroupedThreads.length > 1
                 return (
                   <Collapsible
                     key={group.cwd}

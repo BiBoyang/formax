@@ -18,6 +18,7 @@ import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
+import { selectThreadTitle } from '../core/threadViewModel'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
 import { AppShellHeader } from './AppShellHeader'
 import { useDesktopBridge } from './useDesktopBridge'
@@ -131,9 +132,12 @@ export function AppShell(props: AppShellProps) {
     : isDraftSurface
       ? props.draftCwd
       : null
+  const leftRailCurrentGroupCwd = isDraftSurface
+    ? props.draftCwd
+    : props.selectedCwd ?? props.activeThread?.cwd ?? null
   const headerOpenFolderCwd = headerWorkspaceCwd
   const showThreadRightRail = isThreadSurface && props.isRightRailOpen
-  const showDevLoadAllButton = props.devLoadAllEnabled === true
+  const showDevLoadAllButton = isThreadSurface && props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning === true
@@ -150,8 +154,8 @@ export function AppShell(props: AppShellProps) {
     terminalHeightPercent,
     terminalPaneThreadId,
   } = useTerminalVisibility({
-    activeThreadCwd: props.activeThread?.cwd,
-    activeThreadId: props.activeThreadId,
+    activeThreadCwd: isThreadSurface ? props.activeThread?.cwd : null,
+    activeThreadId: isThreadSurface ? props.activeThreadId : null,
     isSettingsOpen: props.isSettingsOpen,
     selectedCwd: props.selectedCwd,
     sortedThreads: props.sortedThreads,
@@ -219,9 +223,10 @@ export function AppShell(props: AppShellProps) {
   const leftRailProps = useMemo(
     () => ({
       threads: props.sortedThreads,
+      currentGroupCwd: leftRailCurrentGroupCwd,
       selectedCwd: props.visibleSurface === 'newThreadDraft' ? null : props.selectedCwd,
       onSelectCwd: props.onSelectCwd,
-      activeThreadId: props.activeThreadId,
+      activeThreadId: isThreadSurface ? props.activeThreadId : null,
       onSelectThread: props.onSelectThread,
       onRenameThread: props.onRenameThread,
       onArchiveThread: props.onArchiveThread,
@@ -242,6 +247,7 @@ export function AppShell(props: AppShellProps) {
     }),
     [
       props.activeThreadId,
+      props.activeThread,
       props.hiddenGroupCwds,
       props.isThreadActionBusy,
       props.onArchiveThread,
@@ -259,6 +265,7 @@ export function AppShell(props: AppShellProps) {
       isDesktopClient,
       isWindowTransparent,
       desktopBridge,
+      leftRailCurrentGroupCwd,
       onCreateProject,
       onOpenFolderInTarget,
       openFolderActionLabel,
@@ -270,10 +277,10 @@ export function AppShell(props: AppShellProps) {
 
   const transcriptPaneProps = useMemo(
     () => ({
-      activeThread: props.activeThread,
-      activeThreadId: props.activeThreadId,
-      activeTurnId: props.activeTurnId,
-      composerLocked: props.composerLocked,
+      activeThread: isThreadSurface ? props.activeThread : undefined,
+      activeThreadId: isThreadSurface ? props.activeThreadId : null,
+      activeTurnId: isThreadSurface ? props.activeTurnId : null,
+      composerLocked: isThreadSurface ? props.composerLocked : false,
       surfaceKind: props.visibleSurface,
       draftCwd: props.draftCwd,
       draftCwdOptions: props.draftCwdOptions,
@@ -288,10 +295,10 @@ export function AppShell(props: AppShellProps) {
       onInputTextChange: props.onInputTextChange,
       onSend: props.onSend,
       onInterrupt: props.onInterrupt,
-      historyMore: props.historyMore,
-      historyLoading: props.historyLoading,
+      historyMore: isThreadSurface ? props.historyMore : false,
+      historyLoading: isThreadSurface ? props.historyLoading : false,
       onLoadEarlier: props.onLoadEarlier,
-      devLoadAllActive: props.devLoadAllRunning === true,
+      devLoadAllActive: isThreadSurface && props.devLoadAllRunning === true,
       isSending: props.isSending,
       isInterrupting: props.isInterrupting,
       lastRpcError: props.lastRpcError,
@@ -303,6 +310,7 @@ export function AppShell(props: AppShellProps) {
       props.activeTurnId,
       props.composerLocked,
       props.connectionStatus,
+      isThreadSurface,
       props.draftCwd,
       props.draftCwdOptions,
       props.onDraftCwdChange,
@@ -330,12 +338,12 @@ export function AppShell(props: AppShellProps) {
 
   const inputApprovalDockProps = useMemo(
     () => ({
-      input: props.selectedInput,
-      isAskOpen: props.isSelectedAskOpen,
+      input: isThreadSurface ? props.selectedInput : null,
+      isAskOpen: isThreadSurface ? props.isSelectedAskOpen : false,
       askPageIndex: props.selectedAskPageIndex,
       askDraftValues: props.selectedAskDraft,
-      submitStatus: props.submitStatus,
-      isSubmitting: props.isSubmittingInput,
+      submitStatus: isThreadSurface ? props.submitStatus : null,
+      isSubmitting: isThreadSurface ? props.isSubmittingInput : false,
       onAskOpen: props.onAskOpen,
       onAskDismiss: props.onAskDismiss,
       onAskPageChange: props.onAskPageChange,
@@ -343,6 +351,7 @@ export function AppShell(props: AppShellProps) {
       onSubmitInput: props.onSubmitInput,
     }),
     [
+      isThreadSurface,
       props.isSelectedAskOpen,
       props.isSubmittingInput,
       props.onAskDismiss,
@@ -485,7 +494,7 @@ export function AppShell(props: AppShellProps) {
                 showRightRailToggle={isThreadSurface}
                 isDesktopClient={isDesktopClient}
                 isSidebarOpen={props.isSidebarOpen}
-                activeThreadTitle={props.activeThreadTitle}
+                activeThreadTitle={isThreadSurface ? props.activeThreadTitle : selectThreadTitle(undefined)}
                 activeThreadLatestCompactBoundary={isThreadSurface ? props.activeThreadLatestCompactBoundary : null}
                 activeThreadLatestRequestCollapse={isThreadSurface ? props.activeThreadLatestRequestCollapse : null}
                 activeContextMeter={props.activeContextMeter}

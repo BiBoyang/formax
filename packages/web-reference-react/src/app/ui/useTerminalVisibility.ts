@@ -58,6 +58,10 @@ export function useTerminalVisibility(args: UseTerminalVisibilityArgs) {
       setResidentTerminalThreadId(null)
       return
     }
+    if (!args.activeThreadId) {
+      setResidentTerminalThreadId(null)
+      return
+    }
     if (!showTerminalPane || !args.activeThreadId) return
     setResidentTerminalThreadId((previous) => (previous === args.activeThreadId ? previous : args.activeThreadId))
   }, [args.activeThreadId, args.terminalBridge, showTerminalPane])

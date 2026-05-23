@@ -7,7 +7,7 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - App entry: `src/main.tsx`
 - App composition root: `src/App.tsx`
 - Runtime assembly hook: `src/app/useAppRuntime.ts`
-- Main shell/layout: `src/app/ui/AppShell.tsx`
+- Main shell/layout + shell owner gates: `src/app/ui/AppShell.tsx`, `src/app/ui/AppShellHeader.tsx`
 - Transcript/composer surface: `src/components/TranscriptPane.tsx`
 - Draft new-thread surface: `src/components/transcript/NewThreadDraftSurface.tsx`
 - Left rail/thread list: `src/components/LeftRail.tsx`
@@ -55,6 +55,7 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Pane shell + refresh + file selection: `src/components/WorktreeDiffPane.tsx`
 - Patch rendering primitives: `src/components/diff/*`
 - Runtime fetch handlers: `src/app/runtime/diffDataOps.ts`, `src/app/runtime/diffUiHandlers.ts`
+- Thread-only right-rail gating: `src/app/ui/AppShell.tsx`
 
 ### App Runtime / RPC Orchestration
 
@@ -62,6 +63,8 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Notification pipeline: `src/app/runtime/processNotification.ts`
 - Replay and cursor logic: `src/app/runtime/replayThreadEvents.ts`, `src/turnEventCursor.ts`
 - Draft surface state + derived visible surface: `src/app/runtime/newThreadDraft.ts`, `src/app/runtime/useRuntimeViewState.ts`
+- Thread-only cleanup + shell prop assembly: `src/app/useAppRuntime.ts`, `src/app/runtime/buildAppShellProps.ts`
+- Workspace-selection-only sync: `src/app/runtime/useThreadSelection.ts`
 - Thread actions: `src/app/runtime/threadActions.ts`, `src/app/runtime/threadUiHandlers.ts`
 - First-send draft creation flow: `src/app/runtime/composerActions.ts`, `src/app/runtime/useRuntimeActionsBundle.ts`
 - Connection/handshake: `src/app/runtime/connectRpcClient.ts`, `src/app/runtime/useInitializeHandshake.ts`

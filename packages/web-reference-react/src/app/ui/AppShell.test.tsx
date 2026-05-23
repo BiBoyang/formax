@@ -10,19 +10,34 @@ const desktopState = vi.hoisted(() => ({
 }))
 
 vi.mock('../../components/LeftRail', () => ({
-  LeftRail: () => <div data-testid="mock-left-rail" />,
+  LeftRail: (props: { selectedCwd: string | null; activeThreadId: string | null; currentGroupCwd?: string | null }) => (
+    <div
+      data-testid="mock-left-rail"
+      data-selected-cwd={props.selectedCwd ?? ''}
+      data-active-thread-id={props.activeThreadId ?? ''}
+      data-current-group-cwd={props.currentGroupCwd ?? ''}
+    />
+  ),
 }))
 
 vi.mock('../../components/TranscriptPane', () => ({
-  TranscriptPane: () => <div data-testid="mock-transcript-pane" />,
+  TranscriptPane: (props: { activeThreadId: string | null; logs: unknown[] }) => (
+    <div
+      data-testid="mock-transcript-pane"
+      data-active-thread-id={props.activeThreadId ?? ''}
+      data-log-count={String(props.logs.length)}
+    />
+  ),
 }))
 
 vi.mock('../../components/InputApprovalDock', () => ({
-  InputApprovalDock: () => <div data-testid="mock-approval-dock" />,
+  InputApprovalDock: (props: { input: unknown }) =>
+    props.input ? <div data-testid="mock-approval-dock" /> : null,
 }))
 
 vi.mock('../../components/TerminalPane', () => ({
-  TerminalPane: () => <div data-testid="mock-terminal-pane" />,
+  TerminalPane: (props: { visible: boolean }) =>
+    props.visible ? <div data-testid="mock-terminal-pane" /> : null,
 }))
 
 vi.mock('../../components/SettingsPane', () => ({
@@ -68,15 +83,15 @@ vi.mock('./usePanelDragCommit', () => ({
 }))
 
 vi.mock('./useTerminalVisibility', () => ({
-  useTerminalVisibility: () => ({
+  useTerminalVisibility: (args: { activeThreadId: string | null }) => ({
     canToggleTerminal: false,
     onCloseTerminalPane: vi.fn(),
     onTerminalDragStateChange: vi.fn(),
     onTerminalResize: vi.fn(),
     onToggleTerminal: vi.fn(),
-    showTerminalPane: false,
+    showTerminalPane: Boolean(args.activeThreadId),
     terminalHeightPercent: 0,
-    terminalPaneThreadId: null,
+    terminalPaneThreadId: args.activeThreadId,
   }),
 }))
 
@@ -214,6 +229,12 @@ describe('AppShell', () => {
     expect(screen.queryByTestId('app-shell-compact-summary')).toBeNull()
     expect(screen.queryByTestId('mock-worktree-diff-pane')).toBeNull()
     expect(screen.queryByText('+210')).toBeNull()
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-selected-cwd', '')
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-active-thread-id', '')
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-current-group-cwd', '')
+    expect(screen.getByText('New Thread')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-active-thread-id', '')
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '0')
   })
 
   it('uses draft cwd for header label and open-folder actions on the draft surface', () => {
@@ -227,9 +248,77 @@ describe('AppShell', () => {
 
     expect(screen.getByText('repo-draft')).toBeInTheDocument()
     expect(screen.queryByText(/^tmp$/)).toBeNull()
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-current-group-cwd', '/repo-draft')
 
     fireEvent.click(screen.getByTestId('app-shell-open-folder-button'))
 
     expect(desktopState.openPath).toHaveBeenCalledWith('cursor', '/repo-draft')
+  })
+
+  it('preserves draft feedback logs when no stale thread selection exists', () => {
+    renderShell({
+      visibleSurface: 'newThreadDraft',
+      activeThreadId: null,
+      activeThread: undefined,
+      logs: [
+        {
+          id: 'log-1',
+          kind: 'log',
+          text: 'Please choose a project before starting a new thread',
+          level: 'warn',
+        },
+      ],
+    })
+
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '1')
+  })
+
+  it('keeps the draft surface even when stale thread-only state is still present', () => {
+    renderShell({
+      visibleSurface: 'newThreadDraft',
+      activeThreadId: 'thread-stale',
+      activeThread: {
+        id: 'thread-stale',
+        cwd: '/repo-thread',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:00.000Z',
+        messageCount: 1,
+        label: null,
+        lastUserPrompt: null,
+      },
+      draftCwd: null,
+      selectedCwd: '/tmp',
+      selectedInput: {
+        threadId: 'thread-stale',
+        turnId: 'turn-1',
+        inputId: 'input-1',
+        toolUseId: 'tool-1',
+        kind: 'approval',
+        status: 'pending',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        expiresAt: '2026-05-24T00:00:00.000Z',
+        payload: { reason: 'approve' },
+      },
+      logs: [
+        {
+          id: 'log-1',
+          kind: 'log',
+          text: 'Please choose a project before starting a new thread',
+          level: 'warn',
+        },
+      ],
+    })
+
+    expect(screen.queryByText(/^tmp$/)).toBeNull()
+    expect(screen.queryByTestId('mock-worktree-diff-pane')).toBeNull()
+    expect(screen.queryByTestId('app-shell-collapse-summary')).toBeNull()
+    expect(screen.queryByTestId('app-shell-compact-summary')).toBeNull()
+    expect(screen.queryByTestId('app-shell-context-meter')).toBeNull()
+    expect(screen.queryByTestId('mock-approval-dock')).toBeNull()
+    expect(screen.queryByTestId('mock-terminal-pane')).toBeNull()
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-active-thread-id', '')
+    expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-current-group-cwd', '')
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-active-thread-id', '')
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '1')
   })
 })

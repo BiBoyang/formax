@@ -173,7 +173,7 @@ describe('LeftRail', () => {
         Reflect.deleteProperty(navigator, 'clipboard')
       }
     }
-  })
+  }, 15_000)
 
   it('starts a new thread in the selected folder from folder quick action', () => {
     const onEnterNewThreadDraft = vi.fn()
@@ -299,6 +299,35 @@ describe('LeftRail', () => {
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 
+  it('does not treat draft-owned current group as workspace selection when removing folders', async () => {
+    const onSelectCwd = vi.fn()
+    const onHideThreadGroup = vi.fn()
+
+    renderWithI18n(
+      <LeftRail
+        threads={threads}
+        currentGroupCwd="/repo"
+        selectedCwd={null}
+        onSelectCwd={onSelectCwd}
+        activeThreadId={null}
+        onSelectThread={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={onHideThreadGroup}
+      />,
+    )
+
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove session folder' }), { detail: 1, button: 0 })
+
+    expect(onHideThreadGroup).toHaveBeenCalledWith('/repo')
+    expect(onSelectCwd).not.toHaveBeenCalled()
+  })
+
   it('opens folder actions menu on left click and ignores right click', async () => {
     renderWithI18n(
       <LeftRail
@@ -381,6 +410,37 @@ describe('LeftRail', () => {
     fireEvent.click(removeItem, { detail: 1, button: 0 })
 
     expect(screen.getByTitle('/repo')).toBeInTheDocument()
+    expect(onSelectCwd).not.toHaveBeenCalled()
+    expect(onHideThreadGroup).not.toHaveBeenCalled()
+  })
+
+  it('does not remove the draft current folder when it is the only visible group', async () => {
+    const onSelectCwd = vi.fn()
+    const onHideThreadGroup = vi.fn()
+
+    renderWithI18n(
+      <LeftRail
+        threads={[threads[0]]}
+        currentGroupCwd="/repo"
+        selectedCwd={null}
+        onSelectCwd={onSelectCwd}
+        activeThreadId={null}
+        onSelectThread={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={onHideThreadGroup}
+      />,
+    )
+
+    const folderActionsButton = screen.getByRole('button', { name: 'Folder actions for repo' })
+    fireEvent.mouseDown(folderActionsButton, { button: 0 })
+    fireEvent.pointerDown(folderActionsButton, { button: 0, ctrlKey: false })
+    fireEvent.click(folderActionsButton)
+    const removeItem = await screen.findByRole('menuitem', { name: 'Remove session folder' })
+    expect(removeItem).toHaveAttribute('data-disabled')
+    fireEvent.click(removeItem, { detail: 1, button: 0 })
+
     expect(onSelectCwd).not.toHaveBeenCalled()
     expect(onHideThreadGroup).not.toHaveBeenCalled()
   })

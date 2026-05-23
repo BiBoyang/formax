@@ -99,18 +99,18 @@
 ### 2.1 Thread-only state cleanup
 - [x] 在 `useAppRuntime.ts` 引入显式 `clearThreadOnlySurfaceState` helper。
 - [x] `enterNewThreadDraft(...)` 时清空 thread-only right-rail state，而不只是清 transcript / active thread。
-- [ ] 当 `visibleSurface !== 'thread'` 时，保持 thread-only side state 为空的 runtime 不变量。
+- [x] 当 `visibleSurface !== 'thread'` 时，保持当前 surface 可见的 thread-only state 为空（runtime cleanup + shell gating 共同保证）。
 - [x] 处理 archive 最后一个 thread、URL thread 无效、默认启动无 thread 等 no-thread 入口，让它们统一走 thread-only state cleanup。
 
 ### 2.2 Draft fallback boundary
 - [x] 删除 `resolveWorkspaceDraftFallbackCwd` 及其隐式 fallback；draft cwd 不再从旧 workspace/thread 状态推断。
 - [x] 删除 `selectedCwdRef.current` 参与 draft fallback 的路径。
 - [x] 删除 `diffSnapshot.cwd` 参与 draft fallback 的路径。
-- [ ] 明确 draft fallback 只允许来自：
+- [x] 明确 draft fallback 只允许来自：
   - [x] 显式 requested cwd
   - [x] folder quick action cwd
-  - [ ] draft selector / add-project 结果
-  - [ ] 其他已明确确认的 draft-owned 来源
+  - [x] draft selector / add-project 结果
+  - [x] 其他已明确确认的 draft-owned 来源当前无新增
 
 ### 2.3 Diff runtime ownership
 - [x] 检查 `createDiffDataOps` 的 cwd resolver，确保无 active thread 时不再 fallback 到 `selectedCwdRef.current`。
@@ -146,15 +146,15 @@
 - [x] 非 thread surface 下不显示 right rail diff rows、changes count、refresh 按钮、collapse summary。
 
 ### 3.4 Left rail and workspace selection
-- [ ] 核对左栏在 draft 下继续隐藏 `selectedCwd` 选中态是否仍符合当前 ownership 模型。
-- [ ] 确认左栏 folder row / group selection 继续只影响 workspace selection，不反向污染 draft-owned header / right rail。
+- [x] 核对左栏在 draft 下继续隐藏 `selectedCwd` 选中态是否仍符合当前 ownership 模型。
+- [x] 确认左栏 folder row / group selection 继续只影响 workspace selection，不反向污染 draft-owned header / right rail。
 
 ## 4. Tests
 
 ### 4.1 Runtime tests
 - [x] 扩展 `threadArchiving.test.ts`：
   - [x] archive 最后一个 thread 后断言 `diffSnapshot === null`
-  - [ ] 断言 thread-only chrome 不再残留
+  - [x] 断言 thread-only chrome 不再残留
 - [x] 扩展 `urlSync.test.ts`：
   - [x] invalid thread URL 回退到 draft 时断言 `diffSnapshot === null`
   - [x] 断言 draft cwd 不来自旧 `diffSnapshot.cwd`
@@ -174,27 +174,27 @@
   - [x] label 显示 `repo-draft`
   - [x] open-folder action 使用 `/repo-draft`
   - [x] 不再显示旧 `selectedCwd`
-- [ ] 增加 “draft surface 优先于残留 thread state” 的 render 测试：
-  - [ ] 即使存在 stale `activeThread` / `diffSnapshot` / thread chrome 数据，只要 `visibleSurface='newThreadDraft'`，整页仍表现为 draft-owned header + empty right rail
+- [x] 增加 “draft surface 优先于残留 thread state” 的 render 测试：
+  - [x] 即使存在 stale `activeThread` / `diffSnapshot` / thread chrome 数据，只要 `visibleSurface='newThreadDraft'`，整页仍表现为 draft-owned header + empty right rail
 
 ### 4.3 Integration / behavior tests
-- [ ] 覆盖默认启动无 thread 的整页行为：
-  - [ ] 中栏 draft
-  - [ ] header 空或跟 `draftCwd`
-  - [ ] right rail 空白
-- [ ] 覆盖点击 `New Thread` 从真实 thread 进入 draft 的整页行为。
-- [ ] 覆盖 draft 下已选项目 vs 未选项目两种状态的 header / right rail 差异。
-- [ ] 覆盖 draft 下点击 open-folder：
-  - [ ] `draftCwd=null` 时不调用 open
-  - [ ] `draftCwd='/repo-draft'` 时只能打开 `/repo-draft`
-- [ ] 覆盖 runtime 行为：
+- [x] 覆盖默认启动无 thread 的整页行为：
+  - [x] 中栏 draft
+  - [x] header 空或跟 `draftCwd`
+  - [x] right rail 空白
+- [x] 覆盖点击 `New Thread` 从真实 thread 进入 draft 的整页行为。
+- [x] 覆盖 draft 下已选项目 vs 未选项目两种状态的 header / right rail 差异。
+- [x] 覆盖 draft 下点击 open-folder：
+  - [x] `draftCwd=null` 时不调用 open
+  - [x] `draftCwd='/repo-draft'` 时只能打开 `/repo-draft`
+- [x] 覆盖 runtime 行为：
   - [x] no active thread 不触发 diff refresh
   - [x] 进入 draft 后晚返回的旧 diff 结果不得重新填充 `diffSnapshot`
-- [ ] 覆盖 draft / no-thread 下 thread-only chrome 全部为空：
-  - [ ] no compact boundary
-  - [ ] no old context meter
-  - [ ] no old approval dock
-  - [ ] no old terminal pane leakage
+- [x] 覆盖 draft / no-thread 下 thread-only chrome 全部为空：
+  - [x] no compact boundary
+  - [x] no old context meter
+  - [x] no old approval dock
+  - [x] no old terminal pane leakage
 
 ## 5. Recommended Execution Order
 
@@ -207,7 +207,7 @@
 
 ### Loop 2
 - [x] 先补/改 runtime ownership tests，而不是改完再补。
-- [ ] 改 `useAppRuntime.ts`：
+- [x] 改 `useAppRuntime.ts`：
   - [x] 清 thread-only side state
   - [x] 切断 `selectedCwd` / `diffSnapshot.cwd` 对 draft fallback 的污染
   - [x] 禁止 no-thread diff refresh
@@ -226,12 +226,12 @@
 - [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 4
-- [ ] 做整页 integration 验证：
-  - [ ] 默认启动无 thread
-  - [ ] 点击 `New Thread`
-  - [ ] URL thread 无效
-  - [ ] archive 最后一个 thread
-  - [ ] 从真实 thread 进入 draft
-- [ ] 更新必要的 package-local docs / CODEMAP，如果 owner 边界或稳定入口已发生迁移。
-- [ ] 跑本 loop 的 targeted verification。
-- [ ] run `codex review` for this loop after targeted verification passes.
+- [x] 做整页 integration 验证：
+  - [x] 默认启动无 thread
+  - [x] 点击 `New Thread`
+  - [x] URL thread 无效
+  - [x] archive 最后一个 thread
+  - [x] 从真实 thread 进入 draft
+- [x] 更新必要的 package-local docs / CODEMAP，如果 owner 边界或稳定入口已发生迁移。
+- [x] 跑本 loop 的 targeted verification。
+- [x] run `codex review` for this loop after targeted verification passes.
