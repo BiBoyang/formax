@@ -23,6 +23,7 @@ import { AppShellHeader } from './AppShellHeader'
 import { useDesktopBridge } from './useDesktopBridge'
 import { usePanelDragCommit } from './usePanelDragCommit'
 import { TERMINAL_MAX_SIZE, TERMINAL_MIN_SIZE, useTerminalVisibility } from './useTerminalVisibility'
+import type { VisibleSurface } from '../runtime/newThreadDraft'
 
 const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
@@ -37,8 +38,9 @@ export type AppShellProps = {
   onSelectThread: (threadId: string) => void
   onRenameThread: (threadId: string, label: string) => void
   onArchiveThread: (threadId: string) => void
-  onStartThread: () => void
-  onStartThreadInCwd: (cwd: string) => void
+  onEnterNewThreadDraft: () => void
+  onEnterNewThreadDraftInCwd: (cwd: string) => void
+  onEnterAddProjectDraft: () => void
   hiddenGroupCwds: string[]
   onHideThreadGroup: (cwd: string) => void
   isThreadActionBusy: boolean
@@ -62,6 +64,10 @@ export type AppShellProps = {
   activeThread: ThreadSummary | undefined
   transcriptVirtualizationEnabled: boolean
   composerLocked: boolean
+  visibleSurface: VisibleSurface
+  draftCwd: string | null
+  draftCwdOptions: string[]
+  onDraftCwdChange: (cwd: string) => void
   logs: TranscriptItem[]
   inputText: string
   mode: ReplMode
@@ -180,16 +186,16 @@ export function AppShell(props: AppShellProps) {
     props.setIsSettingsOpen(false)
   }, [props.setIsSettingsOpen])
 
-  const onCreateProject = useCallback(async () => {
+  const onCreateProject = useCallback(() => {
+    props.onEnterAddProjectDraft()
+  }, [props.onEnterAddProjectDraft])
+
+  const onDraftAddProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
     const nextCwd = await desktopBridge.pickProjectFolder()
     if (!nextCwd) return
-    const openWithTarget = desktopBridge?.openTargets?.openPath
-    if (openWithTarget) {
-      void openWithTarget(props.userSettings.defaultOpenTarget, nextCwd).catch(() => undefined)
-    }
-    props.onStartThreadInCwd(nextCwd)
-  }, [desktopBridge, props.onStartThreadInCwd, props.userSettings.defaultOpenTarget])
+    props.onDraftCwdChange(nextCwd)
+  }, [desktopBridge, props])
 
   const onOpenFolderInTarget = useCallback((cwd: string) => {
     if (!isDesktopClient) return
@@ -208,14 +214,14 @@ export function AppShell(props: AppShellProps) {
   const leftRailProps = useMemo(
     () => ({
       threads: props.sortedThreads,
-      selectedCwd: props.selectedCwd,
+      selectedCwd: props.visibleSurface === 'newThreadDraft' ? null : props.selectedCwd,
       onSelectCwd: props.onSelectCwd,
       activeThreadId: props.activeThreadId,
       onSelectThread: props.onSelectThread,
       onRenameThread: props.onRenameThread,
       onArchiveThread: props.onArchiveThread,
-      onStartThread: props.onStartThread,
-      onStartThreadInCwd: props.onStartThreadInCwd,
+      onEnterNewThreadDraft: props.onEnterNewThreadDraft,
+      onEnterNewThreadDraftInCwd: props.onEnterNewThreadDraftInCwd,
       hiddenGroupCwds: props.hiddenGroupCwds,
       onHideThreadGroup: props.onHideThreadGroup,
       isBusy: props.isThreadActionBusy,
@@ -234,14 +240,16 @@ export function AppShell(props: AppShellProps) {
       props.hiddenGroupCwds,
       props.isThreadActionBusy,
       props.onArchiveThread,
+      props.onDraftCwdChange,
+      props.onEnterNewThreadDraft,
+      props.onEnterNewThreadDraftInCwd,
       props.onHideThreadGroup,
       props.onRenameThread,
       props.onSelectCwd,
       props.onSelectThread,
-      props.onStartThread,
-      props.onStartThreadInCwd,
       props.selectedCwd,
       props.sortedThreads,
+      props.visibleSurface,
       props.isSettingsOpen,
       isDesktopClient,
       isWindowTransparent,
@@ -261,6 +269,11 @@ export function AppShell(props: AppShellProps) {
       activeThreadId: props.activeThreadId,
       activeTurnId: props.activeTurnId,
       composerLocked: props.composerLocked,
+      surfaceKind: props.visibleSurface,
+      draftCwd: props.draftCwd,
+      draftCwdOptions: props.draftCwdOptions,
+      onDraftCwdChange: props.onDraftCwdChange,
+      onDraftAddProject: desktopBridge?.pickProjectFolder ? onDraftAddProject : undefined,
       virtualizationEnabled: props.transcriptVirtualizationEnabled,
       logs: props.logs,
       inputText: props.inputText,
@@ -285,6 +298,9 @@ export function AppShell(props: AppShellProps) {
       props.activeTurnId,
       props.composerLocked,
       props.connectionStatus,
+      props.draftCwd,
+      props.draftCwdOptions,
+      props.onDraftCwdChange,
       props.devLoadAllRunning,
       props.historyLoading,
       props.historyMore,
@@ -299,8 +315,11 @@ export function AppShell(props: AppShellProps) {
       props.onLoadEarlier,
       props.onModeChange,
       props.onSend,
+      props.visibleSurface,
       props.userSettings.longTextRequireCmdEnter,
       props.transcriptVirtualizationEnabled,
+      desktopBridge,
+      onDraftAddProject,
     ],
   )
 

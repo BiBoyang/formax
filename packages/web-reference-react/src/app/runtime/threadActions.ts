@@ -12,10 +12,17 @@ import {
   type ThreadListItem,
 } from './orchestrator/threadTransactions'
 export type { SelectThreadOptions } from './orchestrator/threadTransactions'
+import type { RpcStartedThread } from '../core/rpcContracts'
+
+export type CreatedThreadResult = {
+  thread: RpcStartedThread
+  effectiveCwd: string | null
+}
 
 export type ThreadActionsContext = {
   selectedCwd: string | null
   setSelectedCwd: (value: string | null) => void
+  createdThreadCwdByIdRef: { current: Record<string, string | null> }
   state: {
     activeThreadId: string | null
     activeTurnId: string | null
@@ -30,6 +37,7 @@ export type ThreadActionsContext = {
   dispatch: Dispatch<AppAction>
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
   setMode: (mode: ReplMode) => void
+  cacheThreadMode: (threadId: string | null | undefined, nextMode: ReplMode) => void
   runtimeStateByThreadRef: { current: Record<string, { mode: ReplMode }> }
   replayCursorByThreadRef: { current: Record<string, number> }
   activeThreadIdRef: { current: string | null }
@@ -72,31 +80,56 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     clearArchiveOp: ctx.clearArchiveOp,
   })
 
+  const createThreadOnServerInCwd = async (cwdOverride?: string | null): Promise<CreatedThreadResult | null> => {
+    const requestedCwd = typeof cwdOverride === 'string' && cwdOverride.trim() ? cwdOverride.trim() : null
+    const result = await ctx.request('thread/start', requestedCwd ? { cwd: requestedCwd } : {})
+    const thread = parseThreadStartResponse(result)
+    if (!thread) return null
+    return {
+      thread,
+      effectiveCwd: thread.cwd ?? requestedCwd ?? null,
+    }
+  }
+
+  const activateCreatedThread = async (
+    created: CreatedThreadResult,
+    options?: { synchronize?: boolean; modeOverride?: ReplMode },
+  ) => {
+    const { thread, effectiveCwd } = created
+    if (effectiveCwd) {
+      ctx.setSelectedCwd(effectiveCwd)
+      ctx.createdThreadCwdByIdRef.current[thread.id] = effectiveCwd
+    }
+    const nextMode = options?.modeOverride ?? ctx.runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal'
+    ctx.setMode(nextMode)
+    ctx.cacheThreadMode(thread.id, nextMode)
+    ctx.activeThreadIdRef.current = thread.id
+    ctx.dispatch({ type: 'set_active_thread', threadId: thread.id })
+    ctx.dispatch({ type: 'set_active_turn', turnId: null })
+    ctx.dispatch({ type: 'clear_pending_inputs' })
+    ctx.dispatch({
+      type: 'replace_logs',
+      logs: selectThreadTranscriptLogs({ threadId: thread.id, logsByThreadId: ctx.logsByThreadId, fallbackLogs: [] }),
+    })
+
+    if (options?.synchronize === false) return
+
+    await ctx.refreshThreads().catch(() => undefined)
+    await ctx.refreshWorkspaceDiff(effectiveCwd ?? ctx.selectedCwd ?? null).catch(() => undefined)
+  }
+
   const startThreadWithCwd = async (cwdOverride?: string | null) => {
     const previousThreadId = ctx.state.activeThreadId
     const previousLogs = ctx.state.logs
     const previousSelectedCwd = ctx.selectedCwd
-    const requestedCwd = typeof cwdOverride === 'string' && cwdOverride.trim() ? cwdOverride.trim() : null
     ctx.setIsThreadActionBusy(true)
     try {
-      const result = await ctx.request('thread/start', requestedCwd ? { cwd: requestedCwd } : {})
-      const thread = parseThreadStartResponse(result)
-      if (!thread) return
-      const effectiveCwd = thread.cwd ?? requestedCwd ?? null
+      const created = await createThreadOnServerInCwd(cwdOverride)
+      if (!created) return
 
-      if (effectiveCwd) {
-        ctx.setSelectedCwd(effectiveCwd)
-      }
-      ctx.setMode(ctx.runtimeStateByThreadRef.current[thread.id]?.mode ?? 'normal')
-      ctx.activeThreadIdRef.current = thread.id
-      ctx.dispatch({ type: 'set_active_thread', threadId: thread.id })
-      ctx.dispatch({ type: 'set_active_turn', turnId: null })
-      ctx.dispatch({ type: 'clear_pending_inputs' })
-      ctx.dispatch({
-        type: 'replace_logs',
-        logs: selectThreadTranscriptLogs({ threadId: thread.id, logsByThreadId: ctx.logsByThreadId, fallbackLogs: [] }),
-      })
-      const replayLoaded = await ctx.replayThreadEvents(thread.id, { fromStart: true })
+      await activateCreatedThread(created, { synchronize: false })
+
+      const replayLoaded = await ctx.replayThreadEvents(created.thread.id, { fromStart: true })
       if (!replayLoaded) {
         ctx.activeThreadIdRef.current = previousThreadId
         ctx.dispatch({ type: 'set_active_thread', threadId: previousThreadId })
@@ -112,10 +145,10 @@ export function createThreadActions(ctx: ThreadActionsContext) {
         ctx.log('Failed to hydrate new thread transcript. Restored previous thread.', 'warn')
         return
       }
-      await ctx.resumeThreadInputs(thread.id)
+      await ctx.resumeThreadInputs(created.thread.id)
       await ctx.refreshThreads()
-      await ctx.refreshWorkspaceDiff(effectiveCwd ?? ctx.selectedCwd ?? null)
-      ctx.log(`Thread created: ${thread.id}`)
+      await ctx.refreshWorkspaceDiff(created.effectiveCwd ?? ctx.selectedCwd ?? null)
+      ctx.log(`Thread created: ${created.thread.id}`)
     } finally {
       ctx.setIsThreadActionBusy(false)
     }
@@ -170,6 +203,8 @@ export function createThreadActions(ctx: ThreadActionsContext) {
   const loadEarlierHistory = async () => ctx.loadEarlierHistoryAction()
 
   return {
+    createThreadOnServerInCwd,
+    activateCreatedThread,
     startThread,
     startThreadInCwd,
     selectThread,

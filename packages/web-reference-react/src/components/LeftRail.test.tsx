@@ -43,7 +43,7 @@ describe('LeftRail', () => {
   it('renders status and dispatches actions', () => {
     const onSelectThread = vi.fn()
     const onSelectCwd = vi.fn()
-    const onStartThread = vi.fn()
+    const onEnterNewThreadDraft = vi.fn()
 
     renderWithI18n(
       <LeftRail
@@ -53,8 +53,8 @@ describe('LeftRail', () => {
         onSelectCwd={onSelectCwd}
         activeThreadId={threads[0].id}
         onSelectThread={onSelectThread}
-        onStartThread={onStartThread}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={onEnterNewThreadDraft}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -62,7 +62,7 @@ describe('LeftRail', () => {
 
     expect(screen.getByText('connected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
-    expect(onStartThread).toHaveBeenCalledTimes(1)
+    expect(onEnterNewThreadDraft).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: /hello/i }))
     expect(onSelectThread).toHaveBeenCalledWith('thread-11111111')
@@ -81,8 +81,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -125,8 +125,8 @@ describe('LeftRail', () => {
           onSelectThread={() => undefined}
           onRenameThread={onRenameThread}
           onArchiveThread={onArchiveThread}
-          onStartThread={() => undefined}
-          onStartThreadInCwd={() => undefined}
+          onEnterNewThreadDraft={() => undefined}
+          onEnterNewThreadDraftInCwd={() => undefined}
           hiddenGroupCwds={[]}
           onHideThreadGroup={() => undefined}
         />,
@@ -176,8 +176,8 @@ describe('LeftRail', () => {
   })
 
   it('starts a new thread in the selected folder from folder quick action', () => {
-    const onStartThread = vi.fn()
-    const onStartThreadInCwd = vi.fn()
+    const onEnterNewThreadDraft = vi.fn()
+    const onEnterNewThreadDraftInCwd = vi.fn()
 
     renderWithI18n(
       <LeftRail
@@ -186,20 +186,20 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={onStartThread}
-        onStartThreadInCwd={onStartThreadInCwd}
+        onEnterNewThreadDraft={onEnterNewThreadDraft}
+        onEnterNewThreadDraftInCwd={onEnterNewThreadDraftInCwd}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Start new thread in repo' }))
-    expect(onStartThreadInCwd).toHaveBeenCalledWith('/repo')
-    expect(onStartThread).not.toHaveBeenCalled()
+    expect(onEnterNewThreadDraftInCwd).toHaveBeenCalledWith('/repo')
+    expect(onEnterNewThreadDraft).not.toHaveBeenCalled()
   })
 
   it('disables folder quick action while thread actions are busy', () => {
-    const onStartThreadInCwd = vi.fn()
+    const onEnterNewThreadDraftInCwd = vi.fn()
 
     renderWithI18n(
       <LeftRail
@@ -208,8 +208,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={onStartThreadInCwd}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={onEnterNewThreadDraftInCwd}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
         isBusy
@@ -219,7 +219,7 @@ describe('LeftRail', () => {
     const quickActionButton = screen.getByRole('button', { name: 'Start new thread in repo' })
     expect(quickActionButton).toBeDisabled()
     fireEvent.click(quickActionButton)
-    expect(onStartThreadInCwd).not.toHaveBeenCalled()
+    expect(onEnterNewThreadDraftInCwd).not.toHaveBeenCalled()
   })
 
   it('shows desktop-only tooltip for add project action when folder picker is unavailable', async () => {
@@ -230,8 +230,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -256,8 +256,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
         onCreateProject={onCreateProject}
@@ -282,8 +282,8 @@ describe('LeftRail', () => {
         onSelectCwd={onSelectCwd}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={onHideThreadGroup}
       />,
@@ -307,8 +307,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -332,8 +332,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -365,8 +365,8 @@ describe('LeftRail', () => {
         onSelectCwd={onSelectCwd}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={onHideThreadGroup}
       />,
@@ -393,8 +393,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={['/repo']}
         onHideThreadGroup={() => undefined}
       />,
@@ -412,8 +412,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -465,8 +465,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={unorderedThreads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -504,8 +504,8 @@ describe('LeftRail', () => {
           onSelectCwd={() => undefined}
           activeThreadId="thread-recent"
           onSelectThread={() => undefined}
-          onStartThread={() => undefined}
-          onStartThreadInCwd={() => undefined}
+          onEnterNewThreadDraft={() => undefined}
+          onEnterNewThreadDraftInCwd={() => undefined}
           hiddenGroupCwds={[]}
           onHideThreadGroup={() => undefined}
         />,
@@ -527,8 +527,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[1].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -548,8 +548,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[0].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,
@@ -572,8 +572,8 @@ describe('LeftRail', () => {
         onSelectCwd={() => undefined}
         activeThreadId={threads[1].id}
         onSelectThread={() => undefined}
-        onStartThread={() => undefined}
-        onStartThreadInCwd={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
         hiddenGroupCwds={[]}
         onHideThreadGroup={() => undefined}
       />,

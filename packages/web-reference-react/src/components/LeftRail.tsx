@@ -45,8 +45,8 @@ export type LeftRailProps = {
   onSelectThread: (threadId: string) => void
   onRenameThread?: (threadId: string, label: string) => Promise<void> | void
   onArchiveThread?: (threadId: string) => Promise<void> | void
-  onStartThread: () => void
-  onStartThreadInCwd: (cwd: string) => void
+  onEnterNewThreadDraft: () => void
+  onEnterNewThreadDraftInCwd: (cwd: string) => void
   hiddenGroupCwds: string[]
   onHideThreadGroup: (cwd: string) => void
   isBusy?: boolean
@@ -71,8 +71,8 @@ export function LeftRail(props: LeftRailProps) {
     onSelectThread,
     onRenameThread,
     onArchiveThread,
-    onStartThread,
-    onStartThreadInCwd,
+    onEnterNewThreadDraft,
+    onEnterNewThreadDraftInCwd,
     hiddenGroupCwds,
     onHideThreadGroup,
     isBusy = false,
@@ -171,8 +171,8 @@ export function LeftRail(props: LeftRailProps) {
   }, [])
 
   const handleStartThreadInFolder = useCallback((cwd: string) => {
-    onStartThreadInCwd(cwd)
-  }, [onStartThreadInCwd])
+    onEnterNewThreadDraftInCwd(cwd)
+  }, [onEnterNewThreadDraftInCwd])
 
   const handleCreateProject = useCallback(() => {
     if (!onCreateProject) return
@@ -316,7 +316,7 @@ export function LeftRail(props: LeftRailProps) {
             <SidebarItem
               icon={<SquarePen className="h-4 w-4" />}
               label={t('leftRail.newThread')}
-              onActivate={onStartThread}
+              onActivate={onEnterNewThreadDraft}
               disabled={isBusy}
             />
             <div className="space-y-px">

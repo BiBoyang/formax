@@ -979,7 +979,7 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('starts new thread with selected working directory cwd', async () => {
+  it('enters draft surface without creating a thread when clicking New thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -1056,8 +1056,202 @@ describe('App thread history integration', () => {
     render(<App />)
     await screen.findByRole('button', { name: /Alpha Session/i })
 
-    fireEvent.click(screen.getByTitle('/repo-beta'))
-    fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('/repo-beta'))
+      fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
+    })
+
+    expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+    expect(screen.getByText('Choose a project before sending the first message.')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+  })
+
+  it('seeds draft cwd from the current workspace when no existing projects are available', async () => {
+    let resolveDiff: ((value: {
+      cwd: string
+      generatedAt: string
+      hasChanges: boolean
+      truncated: boolean
+      files: never[]
+    }) => void) | null = null
+
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return new Promise((resolve) => {
+          resolveDiff = resolve
+        })
+      }
+      if (method === 'thread/list') {
+        return { data: [] }
+      }
+      if (method === 'thread/start') {
+        return {
+          thread: {
+            id: 'thread-empty-seed',
+            cwd: '/workspace-empty',
+            createdAt: '2026-02-10T00:01:00.000Z',
+            updatedAt: '2026-02-10T00:01:00.000Z',
+          },
+        }
+      }
+      if (method === 'turn/start') {
+        return {
+          turn: {
+            id: 'turn-empty-seed',
+            threadId: 'thread-empty-seed',
+            status: 'running',
+          },
+        }
+      }
+      if (method === 'thread/messages') {
+        if ((params as { threadId?: string } | undefined)?.threadId === 'thread-empty-seed') {
+          return { data: [], nextCursor: null }
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-empty-seed' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New thread' }))
+
+    const disabledInput = await screen.findByPlaceholderText('Choose a project first')
+    expect(disabledInput).toBeDisabled()
+
+    await act(async () => {
+      resolveDiff?.({
+        cwd: '/workspace-empty',
+        generatedAt: '2026-02-10T00:00:00.000Z',
+        hasChanges: false,
+        truncated: false,
+        files: [],
+      })
+      await Promise.resolve()
+    })
+
+    const input = await screen.findByPlaceholderText('Ask for follow-up changes')
+    await waitFor(() => {
+      expect(input).toBeEnabled()
+    })
+    fireEvent.change(input, { target: { value: 'seeded first message' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) => entry.method === 'thread/start' && (entry.params as { cwd?: string } | undefined)?.cwd === '/workspace-empty',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('prefills cwd from folder quick action and creates the thread on first send', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo-alpha',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo-alpha',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:40.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo-beta',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/start') {
+        const cwd = (params as { cwd?: string } | undefined)?.cwd ?? '/repo-alpha'
+        return {
+          thread: {
+            id: 'thread-new',
+            cwd,
+            createdAt: '2026-02-10T00:01:00.000Z',
+            updatedAt: '2026-02-10T00:01:00.000Z',
+          },
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-new') {
+          return { data: [], nextCursor: null }
+        }
+      }
+      if (method === 'turn/start') {
+        return {
+          turn: {
+            id: 'turn-new',
+            threadId: 'thread-new',
+            status: 'running',
+          },
+        }
+      }
+      if (method === 'thread/resume') {
+        return { thread: { id: (params as any)?.threadId ?? 'thread-new' }, staleInputs: [] }
+      }
+      if (method === 'thread/replay') {
+        return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false }
+      }
+      return {}
+    })
+
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start new thread in repo-beta' }))
+
+    expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'bridge/readDiff' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
+      ),
+    ).toBe(false)
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    fireEvent.change(input, { target: { value: 'draft hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
       expect(
@@ -1066,6 +1260,121 @@ describe('App thread history integration', () => {
         ),
       ).toBe(true)
     })
+
+    expect(
+      rpcMock.requests.some(
+        (entry) =>
+          entry.method === 'turn/start' &&
+          (entry.params as any)?.threadId === 'thread-new' &&
+          (entry.params as any)?.input?.text === 'draft hello' &&
+          (entry.params as any)?.cwd === '/repo-beta',
+      ),
+    ).toBe(true)
+
+    const threadStartIndex = rpcMock.requests.findIndex(
+      (entry) => entry.method === 'thread/start' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
+    )
+    const firstTurnStartIndex = rpcMock.requests.findIndex(
+      (entry) =>
+        entry.method === 'turn/start' &&
+        (entry.params as any)?.threadId === 'thread-new' &&
+        (entry.params as any)?.input?.text === 'draft hello',
+    )
+    const refreshBetweenDraftCreateAndFirstTurn = rpcMock.requests.slice(threadStartIndex + 1, firstTurnStartIndex).some((entry) => {
+      return entry.method === 'thread/list' || entry.method === 'bridge/readDiff'
+    })
+
+    expect(threadStartIndex).toBeGreaterThanOrEqual(0)
+    expect(firstTurnStartIndex).toBeGreaterThan(threadStartIndex)
+    expect(refreshBetweenDraftCreateAndFirstTurn).toBe(false)
+  })
+
+  it('leaves unsent draft without creating a thread when selecting an existing thread', async () => {
+    render(<App />)
+    await screen.findByRole('button', { name: /Alpha Session/i })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New thread' }))
+    expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+
+    await screen.findByText('beta reply')
+    expect(screen.queryByTestId('new-thread-draft-surface')).not.toBeInTheDocument()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+  })
+
+  it('routes left-rail add project into draft without opening the picker immediately', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const pickProjectFolder = vi.fn(async () => '/repo-picked')
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: {},
+      pickProjectFolder,
+    } as typeof window.formaxDesktop
+
+    try {
+      render(<App />)
+      await screen.findByRole('button', { name: /Alpha Session/i })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
+      expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+      expect(pickProjectFolder).not.toHaveBeenCalled()
+      expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+      expect(screen.getByRole('button', { name: /Choose project/i })).toBeInTheDocument()
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('keeps add-project draft unselected until the picker returns a path', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const pickProjectFolder = vi.fn(async () => '/repo-picked')
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: {},
+      pickProjectFolder,
+    } as typeof window.formaxDesktop
+
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/workspace-empty',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return { data: [] }
+      }
+      return {}
+    })
+
+    try {
+      render(<App />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Add project' }))
+
+      expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+      expect(screen.queryByText('/workspace-empty')).not.toBeInTheDocument()
+      expect(pickProjectFolder).not.toHaveBeenCalled()
+      expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
   })
 
   it('hides folders provided by thread/list hiddenGroupCwds', async () => {

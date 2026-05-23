@@ -8,6 +8,7 @@ import {
   type ThreadActionsContext,
 } from './threadActions'
 import type { ThreadListItem } from './orchestrator/threadTransactions'
+import type { NewThreadDraftState } from './newThreadDraft'
 
 type CoreDeps = {
   request: ThreadActionsContext['request']
@@ -18,6 +19,7 @@ type CoreDeps = {
 type ThreadDeps = {
   selectedCwdRef: { current: string | null }
   setSelectedCwd: ThreadActionsContext['setSelectedCwd']
+  createdThreadCwdByIdRef: ThreadActionsContext['createdThreadCwdByIdRef']
   activeThreadIdRef: ThreadActionsContext['activeThreadIdRef']
   activeTurnIdRef: { current: string | null }
   selectedInputIdRef: { current: string | null }
@@ -27,6 +29,7 @@ type ThreadDeps = {
   sortedThreadsRef: { current: ThreadListItem[] }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
   runtimeStateByThreadRef: ThreadActionsContext['runtimeStateByThreadRef']
+  cacheThreadMode: ThreadActionsContext['cacheThreadMode']
   replayCursorByThreadRef: ThreadActionsContext['replayCursorByThreadRef']
   setMode: ThreadActionsContext['setMode']
   setIsThreadActionBusy: ThreadActionsContext['setIsThreadActionBusy']
@@ -49,6 +52,7 @@ type ComposerDeps = {
   mode: ComposerActionsContext['mode']
   activeThreadId: ComposerActionsContext['activeThreadId']
   activeTurnId: ComposerActionsContext['activeTurnId']
+  newThreadDraft: NewThreadDraftState
   commandByTurnRef: ComposerActionsContext['commandByTurnRef']
   setIsSendingTurn: ComposerActionsContext['setIsSendingTurn']
   setIsInterruptingTurn: ComposerActionsContext['setIsInterruptingTurn']
@@ -56,6 +60,8 @@ type ComposerDeps = {
   setSubmitStatusByInputId: ComposerActionsContext['setSubmitStatusByInputId']
   toRpcError: ComposerActionsContext['toRpcError']
   nowMs: ComposerActionsContext['nowMs']
+  leaveNewThreadDraft: ComposerActionsContext['leaveNewThreadDraft']
+  newThreadDraftRef: { current: NewThreadDraftState }
 }
 
 type UseRuntimeActionsBundleArgs = {
@@ -99,6 +105,8 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
   )
 
   const {
+    createThreadOnServerInCwd,
+    activateCreatedThread,
     startThread,
     startThreadInCwd,
     selectThread,
@@ -113,6 +121,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
           return thread.selectedCwdRef.current
         },
         setSelectedCwd: thread.setSelectedCwd,
+        createdThreadCwdByIdRef: thread.createdThreadCwdByIdRef,
         state: threadActionsState,
         get sortedThreads() {
           return thread.sortedThreadsRef.current
@@ -124,6 +133,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
         dispatch: core.dispatch,
         log: core.log,
         setMode: thread.setMode,
+        cacheThreadMode: thread.cacheThreadMode,
         runtimeStateByThreadRef: thread.runtimeStateByThreadRef,
         replayCursorByThreadRef: thread.replayCursorByThreadRef,
         activeThreadIdRef: thread.activeThreadIdRef,
@@ -147,6 +157,8 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       core.request,
       threadActionsState,
       thread.activeThreadIdRef,
+      thread.cacheThreadMode,
+      thread.createdThreadCwdByIdRef,
       thread.loadEarlierHistoryAction,
       thread.logsByThreadIdRef,
       thread.pendingArchiveOpsRef,
@@ -181,9 +193,10 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
         mode: composer.mode,
         activeThreadId: composer.activeThreadId,
         activeTurnId: composer.activeTurnId,
+        newThreadDraft: composer.newThreadDraft,
         resolveRequestCwd: (threadId) => {
           const activeThread = thread.threadsRef.current.find((threadItem) => threadItem.id === threadId)
-          return thread.selectedCwdRef.current ?? activeThread?.cwd ?? null
+          return activeThread?.cwd ?? thread.createdThreadCwdByIdRef.current[threadId] ?? thread.selectedCwdRef.current ?? null
         },
         getPendingInputById: (inputId) => thread.pendingInputsRef.current[inputId],
         request: core.request,
@@ -197,8 +210,16 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
         toRpcError: composer.toRpcError,
         nowMs: composer.nowMs,
         startThread,
+        createThreadOnServerInCwd,
+        activateCreatedThread,
+        leaveNewThreadDraft: composer.leaveNewThreadDraft,
+        refreshThreads: thread.refreshThreads,
+        refreshWorkspaceDiff: thread.refreshWorkspaceDiff,
+        getCurrentActiveThreadId: () => thread.activeThreadIdRef.current,
+        getCurrentNewThreadDraft: () => composer.newThreadDraftRef.current,
       }),
     [
+      activateCreatedThread,
       core.dispatch,
       core.log,
       core.request,
@@ -210,6 +231,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       composer.isSendingTurn,
       composer.isSubmittingInput,
       composer.mode,
+      composer.newThreadDraft,
       composer.nowMs,
       composer.setInputText,
       composer.setIsInterruptingTurn,
@@ -217,14 +239,23 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       composer.setIsSubmittingInput,
       composer.setSubmitStatusByInputId,
       composer.toRpcError,
+      composer.leaveNewThreadDraft,
+      composer.newThreadDraftRef,
+      createThreadOnServerInCwd,
       startThread,
+      thread.activeThreadIdRef,
+      thread.createdThreadCwdByIdRef,
       thread.pendingInputsRef,
+      thread.refreshThreads,
+      thread.refreshWorkspaceDiff,
       thread.selectedCwdRef,
       thread.threadsRef,
     ],
   )
 
   return {
+    createThreadOnServerInCwd,
+    activateCreatedThread,
     startThread,
     startThreadInCwd,
     selectThread,

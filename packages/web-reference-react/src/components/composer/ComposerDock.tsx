@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronsRight, Pause, Pencil, Square } from 'lucide-react'
-import { memo, useState, type FormEvent } from 'react'
+import { memo, useState, type FormEvent, type ReactNode } from 'react'
 import { shouldTreatAsLongPrompt } from '../../app/core/userSettings'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
@@ -47,13 +47,17 @@ export type ComposerDockProps = {
   onInputTextChange: (value: string) => void
   mode: ComposerMode
   onModeChange: (value: ComposerMode) => void
-  activeThreadId: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
+  canSubmit: boolean
+  isInputDisabled?: boolean
   isSending: boolean
   isInterrupting: boolean
   onInterrupt: () => void
   onSend: (event: FormEvent) => void
   longTextRequireCmdEnter: boolean
+  placeholder?: string
+  layoutVariant?: 'bottom' | 'centered'
+  footerAccessory?: ReactNode
 }
 
 export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
@@ -76,7 +80,11 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
   })
 
   return (
-    <div data-testid="composer" className="composer p-4 pb-8">
+    <div
+      data-testid="composer"
+      data-layout-variant={props.layoutVariant ?? 'bottom'}
+      className={cn('composer', props.layoutVariant === 'centered' ? 'w-full' : 'p-4 pb-8')}
+    >
       <div ref={composerRootRef} className="max-w-3xl mx-auto relative">
         {props.showJumpToBottom ? (
           <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
@@ -108,11 +116,13 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
           <Textarea
             value={props.inputText}
             onChange={(event) => props.onInputTextChange(event.target.value)}
-            placeholder={t('transcript.followUpPlaceholder')}
+            placeholder={props.placeholder ?? t('transcript.followUpPlaceholder')}
+            disabled={props.isInputDisabled}
             className="composer-input min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 pt-3 pb-2 ui-text-base leading-relaxed focus-visible:ring-0 shadow-none"
             onCompositionStart={() => setIsImeComposing(true)}
             onCompositionEnd={() => setIsImeComposing(false)}
             onKeyDown={(event) => {
+              if (props.isInputDisabled) return
               if (event.key === 'Tab' && event.shiftKey) {
                 event.preventDefault()
                 props.onModeChange(nextComposerMode(props.mode))
@@ -155,8 +165,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                 return
               }
               event.preventDefault()
-              if (props.activeThreadId && props.connectionStatus === 'connected' && !props.inputText.trim()) return
-              if (props.activeThreadId && props.connectionStatus === 'connected' && !props.isSending) {
+              if (props.canSubmit && !props.isSending) {
                 props.onSend(event as unknown as FormEvent)
               }
             }}
@@ -192,11 +201,11 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                 <Button
                   type="submit"
                   aria-label={t('transcript.sendMessage')}
-                  disabled={!props.activeThreadId || props.connectionStatus !== 'connected' || !props.inputText.trim()}
+                  disabled={!props.canSubmit}
                   size="icon"
                   className={cn(
                     'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
-                    !props.inputText.trim() ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
+                    !props.canSubmit ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
                   )}
                 >
                   <ArrowUp className="h-4 w-4" />
@@ -205,6 +214,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
             </div>
           </div>
         </form>
+        {props.footerAccessory ? <div className="mt-3">{props.footerAccessory}</div> : null}
       </div>
     </div>
   )

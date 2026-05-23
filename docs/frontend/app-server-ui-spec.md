@@ -37,8 +37,10 @@
 行为：
 
 1. 点击线程项切换 `activeThreadId`。
-2. `New Thread` 成功后自动刷新列表并选中新线程。
-3. 未连接时按钮可点击但应给出明确错误提示。
+2. 点击 `New Thread` 时进入显式 `newThreadDraft` surface，不立即创建真实 thread。
+3. 左侧 folder quick action 进入 `newThreadDraft`，并为该草稿预填 cwd。
+4. 左侧 `Add project` 只进入 `newThreadDraft`；native picker 只允许从中栏 draft selector 打开。
+5. 未连接时按钮可点击但应给出明确错误提示。
 
 ## 2.2 中栏（转录与发送）
 
@@ -51,12 +53,15 @@
 
 行为：
 
-1. `Send` 仅在已连接且存在 active thread 时可用。
-2. 发送前将用户输入追加到 transcript。
-3. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
-4. `turn/completed` 与 `turn/failed` 必须写入可见日志。
-5. `Interrupt` 仅在 active turn 存在时可用。
-6. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
+1. 中栏 surface MUST 显式区分 `welcome`、`newThreadDraft`、`thread`；不得继续单靠 `!activeThreadId` 混推 welcome 与 draft。
+2. `Send` 在真实 thread surface 下仅在已连接且存在 active thread 时可用。
+3. `Send` 在 `newThreadDraft` 下仅在已连接、已选择 path 且输入非空时可用。
+4. `newThreadDraft` 下 composer 居中显示；真实 thread 下保持底部 composer 布局。
+5. 发送前将用户输入追加到 transcript；draft 首发前不得先创建伪 thread 占位。
+6. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
+7. `turn/completed` 与 `turn/failed` 必须写入可见日志。
+8. `Interrupt` 仅在 active turn 存在时可用。
+9. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
 
 Transcript 类型要求（必须可区分）：
 
@@ -92,6 +97,16 @@ Transcript 类型要求（必须可区分）：
 1. `thread/list` 返回为空时展示空状态。
 2. thread 切换不清空 transcript（保留当前客户端视图日志）。
 3. thread 不存在或参数错误需展示服务端错误原文。
+
+## 3.2.1 New thread draft 工作流
+
+1. `newThreadDraft` 是显式 GUI transient surface，不是持久 thread。
+2. `newThreadDraft` 至少持有 `status`、`cwd`、`source` 等本地状态。
+3. draft path selector 数据源来自现有项目列表，并提供 `Add new project` 入口。
+4. draft path 是首发前的必选项；未选 path 时不得发送首条消息。
+5. draft 首发时客户端 MUST 先调用 `thread/start`，成功后再调用 `turn/start` 或 `command/dispatch`。
+6. 一旦 `thread/start` 成功，draft 即结束并进入真实 thread surface；若随后的首发失败，允许留下真实空 thread。
+7. 用户离开未发送的 draft时，不得额外创建空 thread，也不得污染左侧 thread 列表。
 
 ## 3.3 Turn 工作流
 
@@ -153,7 +168,8 @@ Transcript 类型要求（必须可区分）：
 
 1. `Send` disabled 条件：
    - `connectionStatus !== connected`
-   - `activeThreadId == null`
+   - `activeThreadId == null` 且当前不是已选 path 的 `newThreadDraft`
+   - 当前是 `newThreadDraft` 但 `draftCwd == null`
 2. `Interrupt` disabled 条件：
    - `activeTurnId == null`
 3. input 提交按钮 disabled 条件（推荐）：

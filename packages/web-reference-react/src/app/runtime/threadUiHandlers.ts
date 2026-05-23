@@ -5,8 +5,8 @@ type ThreadUiHandlersArgs = {
   selectThread: (threadId: string, options?: SelectThreadOptions) => void
   renameThread: (threadId: string, label: string) => Promise<void>
   archiveThread: (threadId: string) => Promise<void>
-  startThread: () => Promise<void>
-  startThreadInCwd: (cwd: string) => Promise<void>
+  enterNewThreadDraft: () => void
+  enterNewThreadDraftInCwd: (cwd: string) => void
   hideThreadGroup: (cwd: string) => Promise<void>
   runAsyncSafely: (task: Promise<unknown>) => void
 }
@@ -21,11 +21,11 @@ export function createThreadUiHandlers(args: ThreadUiHandlersArgs) {
     onArchiveThread: (threadId: string) => {
       args.runAsyncSafely(args.archiveThread(threadId))
     },
-    onStartThread: () => {
-      args.runAsyncSafely(args.startThread())
+    onEnterNewThreadDraft: () => {
+      args.enterNewThreadDraft()
     },
-    onStartThreadInCwd: (cwd: string) => {
-      args.runAsyncSafely(args.startThreadInCwd(cwd))
+    onEnterNewThreadDraftInCwd: (cwd: string) => {
+      args.enterNewThreadDraftInCwd(cwd)
     },
     onHideThreadGroup: (cwd: string) => {
       args.runAsyncSafely(args.hideThreadGroup(cwd))

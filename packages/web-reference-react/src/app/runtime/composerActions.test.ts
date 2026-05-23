@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PendingInput } from '../../types'
 import { createComposerActions, type ComposerActionsContext } from './composerActions'
+import type { CreatedThreadResult } from './threadActions'
 
 function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput {
   return {
@@ -18,6 +19,10 @@ function createPendingInput(overrides: Partial<PendingInput> = {}): PendingInput
 }
 
 function createBaseContext(overrides: Partial<ComposerActionsContext> = {}): ComposerActionsContext {
+  let currentActiveThreadId: string | null =
+    Object.prototype.hasOwnProperty.call(overrides, 'activeThreadId') ? (overrides.activeThreadId ?? null) : 'thread-1'
+  let currentNewThreadDraft: ComposerActionsContext['newThreadDraft'] =
+    Object.prototype.hasOwnProperty.call(overrides, 'newThreadDraft') ? (overrides.newThreadDraft ?? { status: 'inactive' }) : { status: 'inactive' }
   return {
     inputText: 'hello',
     setInputText: vi.fn(),
@@ -27,6 +32,7 @@ function createBaseContext(overrides: Partial<ComposerActionsContext> = {}): Com
     mode: 'normal',
     activeThreadId: 'thread-1',
     activeTurnId: null,
+    newThreadDraft: { status: 'inactive' },
     resolveRequestCwd: vi.fn(() => '/repo'),
     getPendingInputById: vi.fn(() => undefined),
     request: vi.fn(),
@@ -40,6 +46,16 @@ function createBaseContext(overrides: Partial<ComposerActionsContext> = {}): Com
     toRpcError: vi.fn(() => ({ message: 'boom' })),
     nowMs: vi.fn(() => 123),
     startThread: vi.fn(async () => {}),
+    createThreadOnServerInCwd: vi.fn(async (cwd: string): Promise<CreatedThreadResult> => ({
+      thread: { id: 'draft-thread', cwd },
+      effectiveCwd: cwd,
+    })),
+    activateCreatedThread: vi.fn(async () => undefined),
+    leaveNewThreadDraft: vi.fn(),
+    refreshThreads: vi.fn(async () => undefined),
+    refreshWorkspaceDiff: vi.fn(async () => undefined),
+    getCurrentActiveThreadId: vi.fn(() => currentActiveThreadId),
+    getCurrentNewThreadDraft: vi.fn(() => currentNewThreadDraft),
     ...overrides,
   }
 }
@@ -56,6 +72,20 @@ describe('composerActions', () => {
     expect(ctx.log).toHaveBeenCalledWith('Please select or create a thread first', 'warn')
     expect(ctx.request).not.toHaveBeenCalled()
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'push_message', role: 'user' }))
+  })
+
+  it('warns and does not create thread when draft is active without cwd', async () => {
+    const ctx = createBaseContext({
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: null },
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.log).toHaveBeenCalledWith('Please choose a project before starting a new thread', 'warn')
+    expect(ctx.createThreadOnServerInCwd).not.toHaveBeenCalled()
+    expect(ctx.request).not.toHaveBeenCalled()
   })
 
   it('starts a turn using resolved cwd and binds returned turn id', async () => {
@@ -81,6 +111,152 @@ describe('composerActions', () => {
     expect(ctx.setIsSendingTurn).toHaveBeenLastCalledWith(false)
   })
 
+  it('creates and activates a draft thread before first turn start', async () => {
+    const request = vi.fn(async () => ({ turn: { id: 'turn-draft-1' } }))
+    const ctx = createBaseContext({
+      inputText: 'build it',
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+      request,
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.createThreadOnServerInCwd).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.activateCreatedThread).toHaveBeenCalledWith({
+      thread: { id: 'draft-thread', cwd: '/draft-repo' },
+      effectiveCwd: '/draft-repo',
+    }, { synchronize: false, modeOverride: 'normal' })
+    expect(ctx.leaveNewThreadDraft).toHaveBeenCalledTimes(1)
+    expect(ctx.request).toHaveBeenCalledWith('turn/start', {
+      threadId: 'draft-thread',
+      input: { text: 'build it' },
+      mode: 'normal',
+      cwd: '/draft-repo',
+    })
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-draft-1' })
+  })
+
+  it('creates and activates a draft thread before supported slash command dispatch', async () => {
+    const request = vi.fn(async () => ({ turn: { id: 'turn-command-1' } }))
+    const ctx = createBaseContext({
+      inputText: '/compact',
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+      request,
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.createThreadOnServerInCwd).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.request).toHaveBeenCalledWith('command/dispatch', {
+      threadId: 'draft-thread',
+      command: '/compact',
+      mode: 'normal',
+      cwd: '/draft-repo',
+    })
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.commandByTurnRef.current.get('turn-command-1')).toBe('/compact')
+  })
+
+  it('refreshes threads and diff after a draft-created local command returns stdout', async () => {
+    const request = vi.fn(async () => ({ local: { stdout: 'local output' } }))
+    const ctx = createBaseContext({
+      inputText: '/todos',
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+      request,
+    })
+    ;(ctx.getCurrentActiveThreadId as ReturnType<typeof vi.fn>).mockReturnValue(null)
+    ;(ctx.getCurrentNewThreadDraft as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'active',
+      source: 'newThread',
+      cwd: '/draft-repo',
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'push_message', role: 'user', text: '/todos' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'push_message', role: 'assistant', text: 'local output' })
+  })
+
+  it('does not reactivate a stale draft send after the user navigates away', async () => {
+    let currentActiveThreadId: string | null = null
+    let currentNewThreadDraft: ComposerActionsContext['newThreadDraft'] = {
+      status: 'active',
+      source: 'newThread',
+      cwd: '/draft-repo',
+    }
+    const ctx = createBaseContext({
+      inputText: 'hello',
+      activeThreadId: null,
+      newThreadDraft: currentNewThreadDraft,
+      createThreadOnServerInCwd: vi.fn(async (cwd: string): Promise<CreatedThreadResult> => {
+        currentActiveThreadId = 'thread-existing'
+        currentNewThreadDraft = { status: 'inactive' }
+        return {
+          thread: { id: 'draft-thread', cwd },
+          effectiveCwd: cwd,
+        }
+      }),
+      getCurrentActiveThreadId: vi.fn(() => currentActiveThreadId),
+      getCurrentNewThreadDraft: vi.fn(() => currentNewThreadDraft),
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.activateCreatedThread).not.toHaveBeenCalled()
+    expect(ctx.leaveNewThreadDraft).not.toHaveBeenCalled()
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.request).not.toHaveBeenCalled()
+  })
+
+  it('restores draft input text when thread creation returns no thread payload', async () => {
+    let inputValue = 'hello'
+    const setInputText = vi.fn((next: string | ((prev: string) => string)) => {
+      inputValue = typeof next === 'function' ? next(inputValue) : next
+    })
+    const ctx = createBaseContext({
+      inputText: 'hello',
+      setInputText,
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+      createThreadOnServerInCwd: vi.fn(async () => null),
+    })
+
+    const actions = createComposerActions(ctx)
+    await expect(actions.startTurn()).rejects.toThrow('thread/start returned no thread payload')
+
+    expect(ctx.log).toHaveBeenCalledWith('Failed to create thread for draft first send', 'error')
+    expect(ctx.request).not.toHaveBeenCalled()
+    expect(inputValue).toBe('hello')
+  })
+
+  it('does not create a thread for /clear while draft is active', async () => {
+    const ctx = createBaseContext({
+      inputText: '/clear',
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(ctx.setInputText).toHaveBeenCalledWith('')
+    expect(ctx.startThread).not.toHaveBeenCalled()
+    expect(ctx.createThreadOnServerInCwd).not.toHaveBeenCalled()
+    expect(ctx.request).not.toHaveBeenCalled()
+  })
+
   it('restores input text when turn request fails', async () => {
     let inputValue = 'hello'
     const setInputText = vi.fn((next: string | ((prev: string) => string)) => {
@@ -102,6 +278,31 @@ describe('composerActions', () => {
       (call) => typeof call[0] === 'function',
     )
     expect(restoreCall).toBeDefined()
+  })
+
+  it('restores draft input text when first turn request fails after thread creation', async () => {
+    let inputValue = 'hello'
+    const setInputText = vi.fn((next: string | ((prev: string) => string)) => {
+      inputValue = typeof next === 'function' ? next(inputValue) : next
+    })
+    const ctx = createBaseContext({
+      inputText: 'hello',
+      setInputText,
+      activeThreadId: null,
+      newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
+      request: vi.fn(async () => {
+        throw new Error('network down')
+      }),
+    })
+
+    const actions = createComposerActions(ctx)
+    await expect(actions.startTurn()).rejects.toThrow('network down')
+
+    expect(ctx.createThreadOnServerInCwd).toHaveBeenCalledWith('/draft-repo')
+    expect(ctx.leaveNewThreadDraft).toHaveBeenCalledTimes(1)
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
+    expect(inputValue).toBe('hello')
   })
 
   it('submits pending input by id via getter lookup', async () => {

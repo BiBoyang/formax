@@ -8,6 +8,8 @@ import {
 } from '../core/threadCache'
 import type { ThreadCacheState } from '../core/threadCache'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
+import type { NewThreadDraftSource, NewThreadDraftState } from './newThreadDraft'
+import { normalizeDraftCwd } from './newThreadDraft'
 
 function areStringArraysEqual(a: string[], b: string[]): boolean {
   if (a === b) return true
@@ -31,6 +33,7 @@ export type RuntimeViewState = {
   noticeMessage: string | null
   mode: ReplMode
   selectedCwd: string | null
+  newThreadDraft: NewThreadDraftState
   hiddenGroupCwds: string[]
   threadCache: ThreadCacheState
   logsByThreadId: Record<string, TranscriptItem[]>
@@ -54,6 +57,9 @@ export type RuntimeViewState = {
   setIsRefreshingDiffStable: (next: boolean) => void
   setModeStable: (next: SetStateAction<ReplMode>) => void
   setSelectedCwdStable: (next: string | null) => void
+  enterNewThreadDraft: (args: { source: NewThreadDraftSource; cwd?: string | null }) => void
+  leaveNewThreadDraft: () => void
+  setNewThreadDraftCwdStable: (next: string | null) => void
   setNoticeMessageStable: (next: string | null) => void
   setHiddenGroupCwdsStable: (next: string[]) => void
   setLogsByThreadId: (
@@ -99,6 +105,7 @@ export function useRuntimeViewState(): RuntimeViewState {
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
   const [mode, setMode] = useState<ReplMode>('normal')
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null)
+  const [newThreadDraft, setNewThreadDraft] = useState<NewThreadDraftState>({ status: 'inactive' })
   const [hiddenGroupCwds, setHiddenGroupCwds] = useState<string[]>([])
   const [threadCache, setThreadCache] = useState<ThreadCacheState>(INITIAL_THREAD_CACHE_STATE)
   const [historyLoadingByThreadId, setHistoryLoadingByThreadId] = useState<Record<string, boolean>>({})
@@ -139,6 +146,38 @@ export function useRuntimeViewState(): RuntimeViewState {
 
   const setSelectedCwdStable = useCallback((next: string | null) => {
     setSelectedCwd((previous) => (previous === next ? previous : next))
+  }, [])
+
+  const enterNewThreadDraft = useCallback((args: { source: NewThreadDraftSource; cwd?: string | null }) => {
+    const nextCwd = normalizeDraftCwd(args.cwd)
+    setNewThreadDraft((previous) => {
+      const next: NewThreadDraftState = {
+        status: 'active',
+        source: args.source,
+        cwd: nextCwd,
+      }
+      if (
+        previous.status === 'active' &&
+        previous.source === next.source &&
+        previous.cwd === next.cwd
+      ) {
+        return previous
+      }
+      return next
+    })
+  }, [])
+
+  const leaveNewThreadDraft = useCallback(() => {
+    setNewThreadDraft((previous) => (previous.status === 'inactive' ? previous : { status: 'inactive' }))
+  }, [])
+
+  const setNewThreadDraftCwdStable = useCallback((next: string | null) => {
+    const normalized = normalizeDraftCwd(next)
+    setNewThreadDraft((previous) => {
+      if (previous.status !== 'active') return previous
+      if (previous.cwd === normalized) return previous
+      return { ...previous, cwd: normalized }
+    })
   }, [])
 
   const setNoticeMessageStable = useCallback((next: string | null) => {
@@ -244,6 +283,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     noticeMessage,
     mode,
     selectedCwd,
+    newThreadDraft,
     hiddenGroupCwds,
     threadCache,
     logsByThreadId: threadCache.logsByThreadId,
@@ -263,6 +303,9 @@ export function useRuntimeViewState(): RuntimeViewState {
     setIsRefreshingDiffStable,
     setModeStable,
     setSelectedCwdStable,
+    enterNewThreadDraft,
+    leaveNewThreadDraft,
+    setNewThreadDraftCwdStable,
     setNoticeMessageStable,
     setHiddenGroupCwdsStable,
     setLogsByThreadId,

@@ -9,6 +9,7 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Runtime assembly hook: `src/app/useAppRuntime.ts`
 - Main shell/layout: `src/app/ui/AppShell.tsx`
 - Transcript/composer surface: `src/components/TranscriptPane.tsx`
+- Draft new-thread surface: `src/components/transcript/NewThreadDraftSurface.tsx`
 - Left rail/thread list: `src/components/LeftRail.tsx`
 - Terminal pane: `src/components/TerminalPane.tsx`
 - Diff pane: `src/components/WorktreeDiffPane.tsx`
@@ -35,6 +36,8 @@ This file is the "where to change what" index for `packages/web-reference-react`
 ### Transcript / Composer
 
 - Transcript rendering + scroll + composer interaction: `src/components/TranscriptPane.tsx`
+- Draft surface shell + project selector: `src/components/transcript/NewThreadDraftSurface.tsx`
+- Composer submit gating / centered-vs-bottom layout: `src/components/composer/ComposerDock.tsx`
 - Tool transcript rendering: `src/components/tool/*`
 - Scroll boundary helper: `src/components/scrollBoundary.ts`
 - Markdown rendering worker + runtime:
@@ -58,7 +61,9 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Runtime bootstrap: `src/app/runtime/initializeRuntime.ts`
 - Notification pipeline: `src/app/runtime/processNotification.ts`
 - Replay and cursor logic: `src/app/runtime/replayThreadEvents.ts`, `src/turnEventCursor.ts`
+- Draft surface state + derived visible surface: `src/app/runtime/newThreadDraft.ts`, `src/app/runtime/useRuntimeViewState.ts`
 - Thread actions: `src/app/runtime/threadActions.ts`, `src/app/runtime/threadUiHandlers.ts`
+- First-send draft creation flow: `src/app/runtime/composerActions.ts`, `src/app/runtime/useRuntimeActionsBundle.ts`
 - Connection/handshake: `src/app/runtime/connectRpcClient.ts`, `src/app/runtime/useInitializeHandshake.ts`
 - URL-thread sync: `src/app/runtime/useThreadUrlSync.ts`
 - Thread-scoped compact/collapse summary comparators: `src/app/core/compactBoundarySummary.ts`, `src/app/core/requestCollapseSummary.ts`

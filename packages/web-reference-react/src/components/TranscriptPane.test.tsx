@@ -12,6 +12,28 @@ function renderWithI18n(ui: ReactElement) {
   })
 }
 
+function installImmediateIdleCallbacks() {
+  const originalRic = (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback
+  const originalCic = (window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback
+  const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+    callback({
+      didTimeout: false,
+      timeRemaining: () => 50,
+    } as IdleDeadline)
+    return 1
+  })
+  const cancelIdleCallback = vi.fn()
+
+  ;(window as Window & { requestIdleCallback?: (callback: IdleRequestCallback) => number }).requestIdleCallback =
+    requestIdleCallback
+  ;(window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback = cancelIdleCallback
+
+  return () => {
+    ;(window as Window & { requestIdleCallback?: unknown }).requestIdleCallback = originalRic
+    ;(window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback = originalCic
+  }
+}
+
 function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPaneProps {
   return {
     activeThreadId: 'thread-1',
@@ -176,6 +198,72 @@ describe('TranscriptPane', () => {
     expect(interruptButton).toBeEnabled()
     fireEvent.click(interruptButton)
     expect(onInterrupt).toHaveBeenCalledTimes(1)
+  })
+
+  it('enables first send on the draft surface only after a project is selected', () => {
+    const onSend = vi.fn((event) => event.preventDefault())
+    const { rerender } = renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          surfaceKind: 'newThreadDraft',
+          draftCwd: null,
+          draftCwdOptions: ['/repo'],
+          inputText: 'hello',
+          onDraftCwdChange: vi.fn(),
+          onSend,
+        })}
+      />,
+    )
+
+    expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+    expect(screen.getByText('Choose a project before sending the first message.')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+
+    rerender(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          surfaceKind: 'newThreadDraft',
+          draftCwd: '/repo',
+          draftCwdOptions: ['/repo'],
+          inputText: 'hello',
+          onDraftCwdChange: vi.fn(),
+          onSend,
+        })}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText('Ask for follow-up changes')
+    expect(input).toBeEnabled()
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toBeEnabled()
+    fireEvent.submit(sendButton.closest('form')!)
+    expect(onSend).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows runtime feedback while the draft surface is active', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          surfaceKind: 'newThreadDraft',
+          draftCwd: '/repo',
+          draftCwdOptions: ['/repo'],
+          logs: [{ id: 'warn-1', kind: 'log', level: 'warn', text: 'Please choose a project before starting a new thread' }],
+          lastRpcError: {
+            at: '2026-03-05T00:00:00.000Z',
+            method: 'thread/start',
+            message: 'rpc failed',
+          },
+          onDraftCwdChange: vi.fn(),
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Please choose a project before starting a new thread')).toBeInTheDocument()
+    expect(screen.getByText('RPC Error: rpc failed')).toBeInTheDocument()
   })
 
   it('renders assistant markdown into structured content', async () => {
@@ -1033,6 +1121,7 @@ describe('TranscriptPane', () => {
   })
 
   it('caps active-turn render window for very long histories', async () => {
+    const restoreIdleCallbacks = installImmediateIdleCallbacks()
     const logs = Array.from({ length: 600 }, (_, index) => ({
       id: `long-${index}`,
       kind: 'message' as const,
@@ -1040,28 +1129,30 @@ describe('TranscriptPane', () => {
       text: `long-msg-${index}`,
     }))
 
-    renderWithI18n(
-      <TranscriptPane
-        {...baseProps({
-          logs,
-          activeTurnId: 'turn-long',
-        })}
-      />,
-    )
+    try {
+      renderWithI18n(
+        <TranscriptPane
+          {...baseProps({
+            logs,
+            activeTurnId: 'turn-long',
+          })}
+        />,
+      )
 
-    expect(screen.getByText('long-msg-599')).toBeInTheDocument()
-    expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+      expect(screen.getByText('long-msg-599')).toBeInTheDocument()
+      expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
 
-    await waitFor(
-      () => {
+      await waitFor(() => {
         expect(screen.getByText('long-msg-400')).toBeInTheDocument()
-      },
-      { timeout: 4000 },
-    )
-    expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText('long-msg-399')).not.toBeInTheDocument()
+    } finally {
+      restoreIdleCallbacks()
+    }
   })
 
   it('applies tighter active-turn render cap when virtualization is enabled', async () => {
+    const restoreIdleCallbacks = installImmediateIdleCallbacks()
     const logs = Array.from({ length: 600 }, (_, index) => ({
       id: `virt-${index}`,
       kind: 'message' as const,
@@ -1069,26 +1160,27 @@ describe('TranscriptPane', () => {
       text: `virt-msg-${index}`,
     }))
 
-    renderWithI18n(
-      <TranscriptPane
-        {...baseProps({
-          logs,
-          activeTurnId: 'turn-virt',
-          virtualizationEnabled: true,
-        })}
-      />,
-    )
+    try {
+      renderWithI18n(
+        <TranscriptPane
+          {...baseProps({
+            logs,
+            activeTurnId: 'turn-virt',
+            virtualizationEnabled: true,
+          })}
+        />,
+      )
 
-    expect(screen.getByText('virt-msg-599')).toBeInTheDocument()
-    expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
+      expect(screen.getByText('virt-msg-599')).toBeInTheDocument()
+      expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
 
-    await waitFor(
-      () => {
+      await waitFor(() => {
         expect(screen.getByText('virt-msg-480')).toBeInTheDocument()
-      },
-      { timeout: 4000 },
-    )
-    expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText('virt-msg-479')).not.toBeInTheDocument()
+    } finally {
+      restoreIdleCallbacks()
+    }
   })
 
   it('stops wheel propagation only when viewport can still scroll in that direction', () => {

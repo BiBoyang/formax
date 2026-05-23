@@ -27,6 +27,7 @@ function createBaseContext(overrides: ThreadActionsTestOverrides = {}): ThreadAc
   return {
     selectedCwd: '/repo',
     setSelectedCwd: vi.fn(),
+    createdThreadCwdByIdRef: { current: {} },
     sortedThreads: [],
     logsByThreadId: {
       'prev-thread': [{ id: 'l-prev-cached', kind: 'message', role: 'assistant', text: 'cached' }],
@@ -35,6 +36,7 @@ function createBaseContext(overrides: ThreadActionsTestOverrides = {}): ThreadAc
     dispatch: vi.fn(),
     log: vi.fn(),
     setMode: vi.fn(),
+    cacheThreadMode: vi.fn(),
     runtimeStateByThreadRef: { current: {} },
     replayCursorByThreadRef: { current: {} },
     activeThreadIdRef: { current: 'prev-thread' },
@@ -88,6 +90,23 @@ describe('threadActions', () => {
     expect(ctx.setSelectedCwd).toHaveBeenCalledWith('/repo-child')
     expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/repo-child')
     expect(ctx.log).toHaveBeenCalledWith('Thread created: new-thread')
+  })
+
+  it('preserves an explicit draft-selected mode when activating a created thread', async () => {
+    const ctx = createBaseContext()
+    const actions = createThreadActions(ctx)
+
+    await actions.activateCreatedThread(
+      {
+        thread: { id: 'new-thread', cwd: '/repo-new' },
+        effectiveCwd: '/repo-new',
+      },
+      { synchronize: false, modeOverride: 'plan' },
+    )
+
+    expect(ctx.setMode).toHaveBeenCalledWith('plan')
+    expect(ctx.cacheThreadMode).toHaveBeenCalledWith('new-thread', 'plan')
+    expect(ctx.createdThreadCwdByIdRef.current['new-thread']).toBe('/repo-new')
   })
 
   it('ignores empty cwd for folder start action', async () => {

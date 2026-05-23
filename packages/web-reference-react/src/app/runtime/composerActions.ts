@@ -5,6 +5,9 @@ import { parseInputSubmitResponse, parseTurnStartLikeResponse } from '../core/rp
 import { toSubmitUiStatus } from '../core/threadTransforms'
 import type { PendingInput } from '../../types'
 import type { AppAction } from '../../store'
+import type { CreatedThreadResult } from './threadActions'
+import type { NewThreadDraftState } from './newThreadDraft'
+import { normalizeDraftCwd } from './newThreadDraft'
 
 export type ComposerActionsContext = {
   inputText: string
@@ -15,6 +18,7 @@ export type ComposerActionsContext = {
   mode: 'normal' | 'plan' | 'acceptEdits'
   activeThreadId: string | null
   activeTurnId: string | null
+  newThreadDraft: NewThreadDraftState
   resolveRequestCwd: (threadId: string) => string | null
   getPendingInputById: (inputId: string) => PendingInput | undefined
   request: (method: string, params?: unknown) => Promise<unknown>
@@ -28,6 +32,16 @@ export type ComposerActionsContext = {
   toRpcError: (method: string, error: unknown) => { code?: number; message: string }
   nowMs: () => number
   startThread: () => Promise<void>
+  createThreadOnServerInCwd: (cwd: string) => Promise<CreatedThreadResult | null>
+  activateCreatedThread: (
+    created: CreatedThreadResult,
+    options?: { synchronize?: boolean; modeOverride?: 'normal' | 'plan' | 'acceptEdits' },
+  ) => Promise<void>
+  leaveNewThreadDraft: () => void
+  refreshThreads: () => Promise<void>
+  refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
+  getCurrentActiveThreadId: () => string | null
+  getCurrentNewThreadDraft: () => NewThreadDraftState
 }
 
 export function createComposerActions(ctx: ComposerActionsContext) {
@@ -50,39 +64,88 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       return
     }
 
+    const activeDraft = ctx.newThreadDraft.status === 'active' ? ctx.newThreadDraft : null
+    const draftActive = activeDraft != null
+    const draftCwd = activeDraft ? normalizeDraftCwd(activeDraft.cwd) : null
+    const draftToken = activeDraft ? { source: activeDraft.source, cwd: draftCwd } : null
+
     if (commandRouting.isExactClear) {
       ctx.setInputText('')
       if (commandRouting.commandArgs) {
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: 'Usage: /clear' })
         return
       }
+      if (draftActive) {
+        return
+      }
       await ctx.startThread()
       return
     }
 
-    if (!ctx.activeThreadId) {
+    if (!ctx.activeThreadId && !draftActive) {
       ctx.log('Please select or create a thread first', 'warn')
       return
     }
 
+    if (draftActive && !draftCwd) {
+      ctx.log('Please choose a project before starting a new thread', 'warn')
+      return
+    }
+
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
-    const requestCwd = ctx.resolveRequestCwd(ctx.activeThreadId)
+    let requestThreadId = ctx.activeThreadId
+    let requestCwd = requestThreadId ? ctx.resolveRequestCwd(requestThreadId) : draftCwd
     ctx.setInputText('')
     if (shouldDispatchCommand) {
       ctx.log(`Command queued: ${text}`, 'info')
     }
 
     ctx.setIsSendingTurn(true)
+    let draftCreatedThread: CreatedThreadResult | null = null
+    const refreshDraftCreatedThread = () => {
+      if (!draftCreatedThread) return
+      void ctx.refreshThreads().catch(() => undefined)
+      void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
+    }
     try {
+      if (!requestThreadId && draftCwd) {
+        const created = await ctx.createThreadOnServerInCwd(draftCwd)
+        if (!created) {
+          ctx.log('Failed to create thread for draft first send', 'error')
+          throw new Error('thread/start returned no thread payload')
+        }
+        const currentDraft = ctx.getCurrentNewThreadDraft()
+        const draftSendStillActive =
+          draftToken != null &&
+          currentDraft.status === 'active' &&
+          currentDraft.source === draftToken.source &&
+          normalizeDraftCwd(currentDraft.cwd) === draftToken.cwd &&
+          ctx.getCurrentActiveThreadId() == null
+        if (!draftSendStillActive) {
+          void ctx.refreshThreads().catch(() => undefined)
+          return
+        }
+        await ctx.activateCreatedThread(created, { synchronize: false, modeOverride: ctx.mode })
+        ctx.leaveNewThreadDraft()
+        draftCreatedThread = created
+        requestThreadId = created.thread.id
+        requestCwd = created.effectiveCwd ?? draftCwd
+      }
+
+      if (!requestThreadId) {
+        ctx.log('Please select or create a thread first', 'warn')
+        return
+      }
+
       const result = shouldDispatchCommand
         ? await ctx.request('command/dispatch', {
-            threadId: ctx.activeThreadId,
+            threadId: requestThreadId,
             command: text,
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
           })
         : await ctx.request('turn/start', {
-            threadId: ctx.activeThreadId,
+            threadId: requestThreadId,
             input: { text },
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
@@ -90,10 +153,12 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       const parsedTurnResult = parseTurnStartLikeResponse(result)
       const localStdout = parsedTurnResult.localStdout
       if (localStdout) {
+        refreshDraftCreatedThread()
         ctx.dispatch({ type: 'push_message', role: 'user', text })
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
+      refreshDraftCreatedThread()
       const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
         ctx.dispatch({ type: 'set_active_turn', turnId })
@@ -102,6 +167,10 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         }
       }
     } catch (error) {
+      if (requestThreadId && draftCreatedThread) {
+        void ctx.refreshThreads().catch(() => undefined)
+        void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
+      }
       ctx.setInputText((current) => (current.trim() ? current : text))
       throw error
     } finally {

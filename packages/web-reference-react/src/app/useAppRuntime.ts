@@ -54,6 +54,7 @@ import {
 import {
   isDevPerformanceEnabled,
 } from './core/devPerformance'
+import { deriveVisibleSurface } from './runtime/newThreadDraft'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -89,6 +90,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     noticeMessage,
     mode,
     selectedCwd,
+    newThreadDraft,
     hiddenGroupCwds,
     logsByThreadId,
     latestCompactBoundaryByThreadId,
@@ -107,6 +109,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setIsRefreshingDiffStable,
     setModeStable,
     setSelectedCwdStable,
+    enterNewThreadDraft: enterNewThreadDraftState,
+    leaveNewThreadDraft,
+    setNewThreadDraftCwdStable,
     setNoticeMessageStable,
     setHiddenGroupCwdsStable,
     setLogsByThreadId,
@@ -145,6 +150,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   // 其他 Refs（不在分组中）
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
+  const createdThreadCwdByIdRef = useRef<Record<string, string | null>>({})
   const rpcQueueMetricsRef = useRef<RpcClientQueueMetrics | null>(null)
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
@@ -155,6 +161,20 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [devRuntime],
   )
   const devPerfEnabled = useMemo(() => isDevPerformanceEnabled({ isDevRuntime: devRuntime }), [devRuntime])
+  const visibleSurface = useMemo(
+    () => deriveVisibleSurface({ activeThreadId: state.activeThreadId, newThreadDraft }),
+    [newThreadDraft, state.activeThreadId],
+  )
+  const newThreadDraftRef = useRef(newThreadDraft)
+  newThreadDraftRef.current = newThreadDraft
+  const resolveWorkspaceDraftFallbackCwd = useCallback(() => {
+    const selectedFallbackCwd =
+      typeof selectedCwdRef.current === 'string' && selectedCwdRef.current.trim()
+        ? selectedCwdRef.current.trim()
+        : null
+    if (selectedFallbackCwd) return selectedFallbackCwd
+    return typeof diffSnapshot?.cwd === 'string' && diffSnapshot.cwd.trim() ? diffSnapshot.cwd.trim() : null
+  }, [diffSnapshot?.cwd, selectedCwdRef])
   const {
     activeHistoryLoading,
     activeLogs,
@@ -363,7 +383,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     },
   })
 
-  const { sortedThreads } = useThreadSelection({
+  const { sortedThreads, cwdOptions } = useThreadSelection({
     threads: state.threads,
     activeThreadId: state.activeThreadId,
     selectedCwd,
@@ -387,8 +407,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   })
 
   const {
-    startThread,
-    startThreadInCwd,
     selectThread,
     selectCwd,
     renameThread,
@@ -406,6 +424,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     thread: {
       selectedCwdRef,
       setSelectedCwd: setSelectedCwdStable,
+      createdThreadCwdByIdRef,
       activeThreadIdRef,
       activeTurnIdRef,
       selectedInputIdRef,
@@ -415,6 +434,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       sortedThreadsRef,
       logsByThreadIdRef,
       runtimeStateByThreadRef,
+      cacheThreadMode,
       replayCursorByThreadRef,
       setMode: setModeStable,
       setIsThreadActionBusy: setIsThreadActionBusyStable,
@@ -436,6 +456,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       mode,
       activeThreadId: state.activeThreadId,
       activeTurnId: state.activeTurnId,
+      newThreadDraft,
       commandByTurnRef,
       setIsSendingTurn: setIsSendingTurnStable,
       setIsInterruptingTurn: setIsInterruptingTurnStable,
@@ -443,13 +464,52 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       setSubmitStatusByInputId,
       toRpcError,
       nowMs: runtimePorts.nowMs,
+      leaveNewThreadDraft,
+      newThreadDraftRef,
     },
   })
+
+  const enterNewThreadDraft = useCallback((args: { source: 'newThread' | 'addProject' | 'folderQuickAction'; cwd?: string | null }) => {
+    const requestedCwd = typeof args.cwd === 'string' && args.cwd.trim() ? args.cwd.trim() : null
+    const fallbackDraftCwd =
+      requestedCwd ??
+      (
+        args.source !== 'addProject' && cwdOptions.length === 0
+          ? resolveWorkspaceDraftFallbackCwd()
+          : null
+      )
+
+    enterNewThreadDraftState({
+      ...args,
+      cwd: fallbackDraftCwd,
+    })
+    setModeStable('normal')
+    activeThreadIdRef.current = null
+    dispatch({ type: 'set_active_thread', threadId: null })
+    dispatch({ type: 'set_active_turn', turnId: null })
+    dispatch({ type: 'clear_pending_inputs' })
+    dispatch({ type: 'replace_logs', logs: [] })
+  }, [activeThreadIdRef, cwdOptions.length, dispatch, enterNewThreadDraftState, resolveWorkspaceDraftFallbackCwd, setModeStable])
+
+  useEffect(() => {
+    if (newThreadDraft.status !== 'active') return
+    if (newThreadDraft.cwd) return
+    if (newThreadDraft.source === 'addProject') return
+    if (cwdOptions.length !== 0) return
+    const fallbackDraftCwd = resolveWorkspaceDraftFallbackCwd()
+    if (!fallbackDraftCwd) return
+    setNewThreadDraftCwdStable(fallbackDraftCwd)
+  }, [cwdOptions.length, newThreadDraft, resolveWorkspaceDraftFallbackCwd, setNewThreadDraftCwdStable])
+
+  const selectThreadWithDraftExit = useCallback((threadId: string, options?: SelectThreadOptions) => {
+    leaveNewThreadDraft()
+    selectThread(threadId, options)
+  }, [leaveNewThreadDraft, selectThread])
 
   useThreadUrlSync({
     activeThreadId: state.activeThreadId,
     threads: state.threads,
-    selectThread,
+    selectThread: selectThreadWithDraftExit,
   })
 
   const { running: devLoadAllRunning, requestStart: requestDevLoadAll } = useDevLoadAllHistory({
@@ -490,22 +550,21 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     () =>
       createThreadUiHandlers({
         selectCwd,
-        selectThread,
+        selectThread: selectThreadWithDraftExit,
         renameThread,
         archiveThread,
-        startThread,
-        startThreadInCwd,
+        enterNewThreadDraft: () => enterNewThreadDraft({ source: 'newThread' }),
+        enterNewThreadDraftInCwd: (cwd) => enterNewThreadDraft({ source: 'folderQuickAction', cwd }),
         hideThreadGroup,
         runAsyncSafely,
       }),
     [
       archiveThread,
+      enterNewThreadDraft,
       hideThreadGroup,
       renameThread,
       selectCwd,
-      selectThread,
-      startThread,
-      startThreadInCwd,
+      selectThreadWithDraftExit,
     ],
   )
 
@@ -552,13 +611,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       onSelectThread: threadUiHandlers.onSelectThread,
       onRenameThread: threadUiHandlers.onRenameThread,
       onArchiveThread: threadUiHandlers.onArchiveThread,
-      onStartThread: threadUiHandlers.onStartThread,
-      onStartThreadInCwd: threadUiHandlers.onStartThreadInCwd,
+      onEnterNewThreadDraft: threadUiHandlers.onEnterNewThreadDraft,
+      onEnterNewThreadDraftInCwd: threadUiHandlers.onEnterNewThreadDraftInCwd,
+      onEnterAddProjectDraft: () => enterNewThreadDraft({ source: 'addProject' }),
       hiddenGroupCwds,
       onHideThreadGroup: threadUiHandlers.onHideThreadGroup,
       isThreadActionBusy,
     }),
-    [hiddenGroupCwds, isThreadActionBusy, selectedCwd, sortedThreads, state.activeThreadId, threadUiHandlers],
+    [enterNewThreadDraft, hiddenGroupCwds, isThreadActionBusy, selectedCwd, sortedThreads, state.activeThreadId, threadUiHandlers],
   )
 
   const layoutSection = useMemo<BuildAppShellPropsArgs['layout']>(
@@ -589,6 +649,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       activeThread,
       transcriptVirtualizationEnabled,
       composerLocked,
+      visibleSurface,
+      draftCwd: newThreadDraft.status === 'active' ? newThreadDraft.cwd : null,
+      draftCwdOptions: cwdOptions,
+      onDraftCwdChange: setNewThreadDraftCwdStable,
       logs: activeLogs,
       inputText,
       mode,
@@ -616,6 +680,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       activeThreadTitle,
       composerLocked,
       composerUiHandlers,
+      cwdOptions,
       devLoadAllRunning,
       devRuntime,
       historyMore,
@@ -624,11 +689,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       isSendingTurn,
       lastRpcError,
       mode,
+      newThreadDraft,
       runtimeUi.showContextMeter,
       setInputTextStable,
+      setNewThreadDraftCwdStable,
       state.activeTurnId,
       state.connectionStatus,
       transcriptVirtualizationEnabled,
+      visibleSurface,
     ],
   )
 

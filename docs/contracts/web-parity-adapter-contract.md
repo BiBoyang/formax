@@ -45,6 +45,12 @@ Web 的语义真值 MUST 继续来自共享 canonical semantics 层；Web adapte
 `WEB-003`  
 通知进入 canonical projection 前的 envelope 校验与排序 gate，MUST 由 Web runtime adapter 负责；一旦进入 projection，状态变迁 MUST 由 canonical reducer 决定。
 
+`WEB-004`
+Web MAY 持有 renderer-local transient surface state（例如 `newThreadDraft`），但该状态 MUST 保持在 runtime/UI ownership，MUST NOT 被 adapter/reducer 当作 canonical thread semantics。
+
+`WEB-005`
+`newThreadDraft` 之类的 transient surface MUST NOT 继续通过 `!activeThreadId` 隐式推断。Web 必须用显式 draft state 派生 `visibleSurface`，避免把 welcome、draft、real thread 混为同一 gate。
+
 ## 2. 历史回放适配（`eventAdapters.ts`）
 
 `WEB-101`  
@@ -136,6 +142,9 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 `WEB-502`  
 只有 active thread 的 turn notification 才 MAY 进入当前可见 transcript 的 canonical projection path。  
 非 active thread 的通知 MAY 更新 runtime bookkeeping，但 MUST NOT 污染当前可见 transcript。
+
+`WEB-502A`
+`newThreadDraft` 不是 active thread。draft surface 期间，Web URL sync MUST 继续保持 thread-only；draft 本地状态不得写入 URL query/route，也不得触发 canonical projection hydrate。
 
 `WEB-503`  
 当通知缺失 canonical envelope 必需字段，或 `schemaVersion` 非法时，Web MUST 跳过 canonical projection，并留下可诊断的 warn 日志；MUST NOT 伪造缺失字段继续投影。

@@ -7,7 +7,9 @@ import { MarkdownRenderer } from './MarkdownRenderer'
 import { ToolTranscriptItem } from './tool/ToolTranscriptItem'
 import { ComposerDock } from './composer/ComposerDock'
 import { TranscriptFeed } from './transcript/TranscriptFeed'
+import { NewThreadDraftSurface } from './transcript/NewThreadDraftSurface'
 import { useRenderWindow, type TranscriptRow } from './transcript/useRenderWindow'
+import type { VisibleSurface } from '../app/runtime/newThreadDraft'
 
 type OpenIdsAction =
   | { type: 'toggle'; id: string }
@@ -90,6 +92,7 @@ export type TranscriptPaneProps = {
   activeTurnId?: string | null
   virtualizationEnabled?: boolean
 
+  surfaceKind?: VisibleSurface
   logs: TranscriptItem[]
   composerLocked?: boolean
   inputText: string
@@ -107,6 +110,10 @@ export type TranscriptPaneProps = {
   isInterrupting?: boolean
   lastRpcError?: RpcErrorLike | null
   longTextRequireCmdEnter?: boolean
+  draftCwd?: string | null
+  draftCwdOptions?: string[]
+  onDraftCwdChange?: (cwd: string) => void
+  onDraftAddProject?: () => void
 }
 
 function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline' | 'destructive' {
@@ -255,11 +262,13 @@ const TranscriptRowsList = memo(function TranscriptRowsList(props: TranscriptRow
 })
 
 export function TranscriptPane(props: TranscriptPaneProps) {
+  const { t } = useI18n()
   const {
     activeThread,
     activeThreadId,
     activeTurnId = null,
     virtualizationEnabled = false,
+    surfaceKind = activeThreadId ? 'thread' : 'welcome',
     logs,
     composerLocked = false,
     inputText,
@@ -277,6 +286,10 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     isInterrupting = false,
     lastRpcError = null,
     longTextRequireCmdEnter = false,
+    draftCwd = null,
+    draftCwdOptions = [],
+    onDraftCwdChange,
+    onDraftAddProject,
   } = props
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
@@ -328,45 +341,110 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     ),
     [activeThread?.cwd, openToolIds, toggleToolOpen, transcriptRenderView.renderedRows],
   )
+  const hasDraftFeedback = surfaceKind === 'newThreadDraft' && (
+    transcriptRenderView.renderedRows.length > 0 ||
+    lastRpcError != null
+  )
+  const canSubmitInThread =
+    surfaceKind === 'thread' &&
+    connectionStatus === 'connected' &&
+    !isSending &&
+    Boolean(inputText.trim())
+  const canSubmitInDraft =
+    surfaceKind === 'newThreadDraft' &&
+    connectionStatus === 'connected' &&
+    !isSending &&
+    Boolean(draftCwd) &&
+    Boolean(inputText.trim())
 
   return (
     <main data-testid="center-pane" className="center-pane flex-1 min-w-0 overflow-x-hidden flex flex-col bg-background">
-      <TranscriptFeed
-        isWelcomeState={!activeThreadId}
-        historyMore={historyMore}
-        historyLoading={historyLoading}
-        onLoadEarlier={handleLoadEarlier}
-        hiddenInMemoryCount={transcriptRenderView.hiddenInMemoryCount}
-        onRenderEarlierMessages={renderEarlierMessages}
-        renderedLogsCount={transcriptRenderView.renderedRows.length}
-        rowsContent={rowsContent}
-        showTurnLoading={showTurnLoading}
-        lastRpcError={lastRpcError}
-        lastRpcErrorDetails={lastRpcErrorDetails}
-        showErrorDetails={showErrorDetails}
-        onShowErrorDetailsChange={setShowErrorDetails}
-        scrollAreaRef={scrollAreaRef}
-        bottomRef={bottomRef}
-      />
-
-      {!composerLocked ? (
-        <ComposerDock
-          showJumpToBottom={showJumpToBottom}
-          onJumpToBottom={jumpToBottom}
-          inputText={inputText}
-          onInputTextChange={onInputTextChange}
-          mode={mode}
-          onModeChange={onModeChange}
-          activeThreadId={activeThreadId}
-          connectionStatus={connectionStatus}
-          isSending={isSending}
-          isInterrupting={isInterrupting}
-          onInterrupt={onInterrupt}
-          onSend={handleSend}
-          longTextRequireCmdEnter={longTextRequireCmdEnter}
-        />
+      {surfaceKind === 'newThreadDraft' ? (
+        !composerLocked ? (
+          <NewThreadDraftSurface
+            draftCwd={draftCwd}
+            cwdOptions={draftCwdOptions}
+            onDraftCwdChange={(cwd) => onDraftCwdChange?.(cwd)}
+            onDraftAddProject={onDraftAddProject}
+            composer={(
+              <ComposerDock
+                showJumpToBottom={false}
+                onJumpToBottom={jumpToBottom}
+                inputText={inputText}
+                onInputTextChange={onInputTextChange}
+                mode={mode}
+                onModeChange={onModeChange}
+                connectionStatus={connectionStatus}
+                canSubmit={canSubmitInDraft}
+                isInputDisabled={!draftCwd}
+                isSending={isSending}
+                isInterrupting={isInterrupting}
+                onInterrupt={onInterrupt}
+                onSend={handleSend}
+                longTextRequireCmdEnter={longTextRequireCmdEnter}
+                placeholder={draftCwd ? undefined : t('transcript.newThreadSelectProjectFirst')}
+                layoutVariant="centered"
+              />
+            )}
+            feedback={
+              hasDraftFeedback ? (
+                <div className="rounded-xl border border-border/70 bg-background/80 p-3 shadow-sm">
+                  {lastRpcError ? (
+                    <div className="mb-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
+                      <div className="ui-text-meta font-medium text-destructive">
+                        {t('transcript.rpcErrorPrefix')}: {lastRpcError.message}
+                      </div>
+                    </div>
+                  ) : null}
+                  {rowsContent}
+                </div>
+              ) : null
+            }
+          />
+        ) : (
+          <div data-testid="composer-locked" className="h-4" />
+        )
       ) : (
-        <div data-testid="composer-locked" className="h-4" />
+        <>
+          <TranscriptFeed
+            isWelcomeState={surfaceKind === 'welcome'}
+            historyMore={historyMore}
+            historyLoading={historyLoading}
+            onLoadEarlier={handleLoadEarlier}
+            hiddenInMemoryCount={transcriptRenderView.hiddenInMemoryCount}
+            onRenderEarlierMessages={renderEarlierMessages}
+            renderedLogsCount={transcriptRenderView.renderedRows.length}
+            rowsContent={rowsContent}
+            showTurnLoading={showTurnLoading}
+            lastRpcError={lastRpcError}
+            lastRpcErrorDetails={lastRpcErrorDetails}
+            showErrorDetails={showErrorDetails}
+            onShowErrorDetailsChange={setShowErrorDetails}
+            scrollAreaRef={scrollAreaRef}
+            bottomRef={bottomRef}
+          />
+
+          {!composerLocked ? (
+            <ComposerDock
+              showJumpToBottom={showJumpToBottom}
+              onJumpToBottom={jumpToBottom}
+              inputText={inputText}
+              onInputTextChange={onInputTextChange}
+              mode={mode}
+              onModeChange={onModeChange}
+              connectionStatus={connectionStatus}
+              canSubmit={canSubmitInThread}
+              isSending={isSending}
+              isInterrupting={isInterrupting}
+              onInterrupt={onInterrupt}
+              onSend={handleSend}
+              longTextRequireCmdEnter={longTextRequireCmdEnter}
+              layoutVariant="bottom"
+            />
+          ) : (
+            <div data-testid="composer-locked" className="h-4" />
+          )}
+        </>
       )}
     </main>
   )
