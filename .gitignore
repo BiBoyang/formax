@@ -20,6 +20,7 @@ plans/readme-demo/
 snapshort/
 .skills/
 repomix-output/
+repomix-output-old/
 .tmp/
 plans/claude-agent-sdk/*
 .codex/skills/react-best-practices/*
