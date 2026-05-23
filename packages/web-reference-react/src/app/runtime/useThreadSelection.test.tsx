@@ -108,4 +108,22 @@ describe('useThreadSelection', () => {
       expect(result.current.cwdOptions).toBe(firstCwdOptions)
     })
   })
+
+  it('does not auto-select a workspace while draft ownership is active', async () => {
+    const setSelectedCwd = vi.fn()
+
+    renderHook(() =>
+      useThreadSelection({
+        threads,
+        activeThreadId: null,
+        selectedCwd: null,
+        setSelectedCwd,
+        suspendAutoSelection: true,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(setSelectedCwd).not.toHaveBeenCalled()
+    })
+  })
 })

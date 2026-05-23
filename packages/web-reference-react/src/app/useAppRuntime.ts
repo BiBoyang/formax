@@ -156,6 +156,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const activeTurnIdRef = useRef<string | null>(state.activeTurnId)
   const pendingInputsRef = useRef(state.pendingInputs)
+  const diffRequestSeqRef = useRef(0)
   const transcriptVirtualizationEnabled = useMemo(
     () => isTranscriptVirtualizationEnabled({ isDevRuntime: devRuntime }),
     [devRuntime],
@@ -167,14 +168,17 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   )
   const newThreadDraftRef = useRef(newThreadDraft)
   newThreadDraftRef.current = newThreadDraft
-  const resolveWorkspaceDraftFallbackCwd = useCallback(() => {
-    const selectedFallbackCwd =
-      typeof selectedCwdRef.current === 'string' && selectedCwdRef.current.trim()
-        ? selectedCwdRef.current.trim()
-        : null
-    if (selectedFallbackCwd) return selectedFallbackCwd
-    return typeof diffSnapshot?.cwd === 'string' && diffSnapshot.cwd.trim() ? diffSnapshot.cwd.trim() : null
-  }, [diffSnapshot?.cwd, selectedCwdRef])
+  const resolveThreadOwnedDiffCwd = useCallback(() => {
+    const activeThreadId = activeThreadIdRef.current
+    if (!activeThreadId) return null
+    const activeThread = threadsRef.current.find((thread) => thread.id === activeThreadId)
+    return activeThread?.cwd ?? createdThreadCwdByIdRef.current[activeThreadId] ?? null
+  }, [activeThreadIdRef, threadsRef])
+  const clearThreadOnlySurfaceState = useCallback(() => {
+    diffRequestSeqRef.current += 1
+    setDiffSnapshot(null)
+    setIsRefreshingDiffStable(false)
+  }, [setIsRefreshingDiffStable])
   const {
     activeHistoryLoading,
     activeLogs,
@@ -318,17 +322,22 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         request,
         setIsRefreshingDiff: setIsRefreshingDiffStable,
         setDiffSnapshot,
-        resolveDiffCwd: () => {
-          const activeThreadId = activeThreadIdRef.current
-          if (activeThreadId) {
-            const activeThreadCwd = threadsRef.current.find((thread) => thread.id === activeThreadId)?.cwd ?? null
-            if (activeThreadCwd) return activeThreadCwd
-          }
-          if (selectedCwdRef.current) return selectedCwdRef.current
-          return null
+        canRefreshDiff: () =>
+          newThreadDraftRef.current.status !== 'active' && activeThreadIdRef.current != null,
+        resolveDiffCwd: resolveThreadOwnedDiffCwd,
+        beginDiffRequest: () => {
+          diffRequestSeqRef.current += 1
+          return diffRequestSeqRef.current
+        },
+        isCurrentDiffRequest: (requestId) => requestId === diffRequestSeqRef.current,
+        shouldAcceptDiffResult: ({ requestId, cwd }) => {
+          if (requestId !== diffRequestSeqRef.current) return false
+          if (newThreadDraftRef.current.status === 'active') return false
+          const currentCwd = resolveThreadOwnedDiffCwd()
+          return currentCwd === cwd
         },
       }),
-    [request, setIsRefreshingDiffStable],
+    [request, resolveThreadOwnedDiffCwd, setIsRefreshingDiffStable],
   )
 
   const hideThreadGroup = useCallback(
@@ -388,6 +397,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     activeThreadId: state.activeThreadId,
     selectedCwd,
     setSelectedCwd: setSelectedCwdStable,
+    suspendAutoSelection: newThreadDraft.status === 'active',
   })
   const sortedThreadsRef = useRef(sortedThreads)
   const activeContextMeter = useMemo(() => selectActiveContextMeterView(state), [state])
@@ -471,48 +481,35 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   const enterNewThreadDraft = useCallback((args: { source: 'newThread' | 'addProject' | 'folderQuickAction'; cwd?: string | null }) => {
     const requestedCwd = typeof args.cwd === 'string' && args.cwd.trim() ? args.cwd.trim() : null
-    const fallbackDraftCwd =
-      requestedCwd ??
-      (
-        args.source !== 'addProject' && cwdOptions.length === 0
-          ? resolveWorkspaceDraftFallbackCwd()
-          : null
-      )
+    const fallbackDraftCwd = requestedCwd ?? null
 
     enterNewThreadDraftState({
       ...args,
       cwd: fallbackDraftCwd,
     })
+    clearThreadOnlySurfaceState()
+    setSelectedCwdStable(fallbackDraftCwd)
     setModeStable('normal')
     activeThreadIdRef.current = null
     dispatch({ type: 'set_active_thread', threadId: null })
     dispatch({ type: 'set_active_turn', turnId: null })
     dispatch({ type: 'clear_pending_inputs' })
     dispatch({ type: 'replace_logs', logs: [] })
-  }, [activeThreadIdRef, cwdOptions.length, dispatch, enterNewThreadDraftState, resolveWorkspaceDraftFallbackCwd, setModeStable])
+  }, [activeThreadIdRef, clearThreadOnlySurfaceState, dispatch, enterNewThreadDraftState, setModeStable])
 
   useEffect(() => {
     if (state.activeThreadId) return
     if (newThreadDraft.status === 'active') return
-    const fallbackDraftCwd = cwdOptions.length === 0 ? resolveWorkspaceDraftFallbackCwd() : null
-    enterNewThreadDraftState({ source: 'newThread', cwd: fallbackDraftCwd })
+    clearThreadOnlySurfaceState()
+    setSelectedCwdStable(null)
+    enterNewThreadDraftState({ source: 'newThread', cwd: null })
   }, [
-    cwdOptions.length,
+    clearThreadOnlySurfaceState,
     enterNewThreadDraftState,
     newThreadDraft.status,
-    resolveWorkspaceDraftFallbackCwd,
     state.activeThreadId,
+    setSelectedCwdStable,
   ])
-
-  useEffect(() => {
-    if (newThreadDraft.status !== 'active') return
-    if (newThreadDraft.cwd) return
-    if (newThreadDraft.source === 'addProject') return
-    if (cwdOptions.length !== 0) return
-    const fallbackDraftCwd = resolveWorkspaceDraftFallbackCwd()
-    if (!fallbackDraftCwd) return
-    setNewThreadDraftCwdStable(fallbackDraftCwd)
-  }, [cwdOptions.length, newThreadDraft, resolveWorkspaceDraftFallbackCwd, setNewThreadDraftCwdStable])
 
   const selectThreadWithDraftExit = useCallback((threadId: string, options?: SelectThreadOptions) => {
     leaveNewThreadDraft()

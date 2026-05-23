@@ -97,34 +97,34 @@
 ## 2. Runtime / Platform
 
 ### 2.1 Thread-only state cleanup
-- [ ] 在 `useAppRuntime.ts` 引入显式 `clearThreadOnlySurfaceState` helper。
-- [ ] `enterNewThreadDraft(...)` 时清空 thread-only right-rail state，而不只是清 transcript / active thread。
+- [x] 在 `useAppRuntime.ts` 引入显式 `clearThreadOnlySurfaceState` helper。
+- [x] `enterNewThreadDraft(...)` 时清空 thread-only right-rail state，而不只是清 transcript / active thread。
 - [ ] 当 `visibleSurface !== 'thread'` 时，保持 thread-only side state 为空的 runtime 不变量。
-- [ ] 处理 archive 最后一个 thread、URL thread 无效、默认启动无 thread 等 no-thread 入口，让它们统一走 thread-only state cleanup。
+- [x] 处理 archive 最后一个 thread、URL thread 无效、默认启动无 thread 等 no-thread 入口，让它们统一走 thread-only state cleanup。
 
 ### 2.2 Draft fallback boundary
-- [ ] 把 `resolveWorkspaceDraftFallbackCwd` 改名并收窄为 `resolveDraftFallbackCwd`。
-- [ ] 删除 `selectedCwdRef.current` 参与 draft fallback 的路径。
-- [ ] 删除 `diffSnapshot.cwd` 参与 draft fallback 的路径。
+- [x] 删除 `resolveWorkspaceDraftFallbackCwd` 及其隐式 fallback；draft cwd 不再从旧 workspace/thread 状态推断。
+- [x] 删除 `selectedCwdRef.current` 参与 draft fallback 的路径。
+- [x] 删除 `diffSnapshot.cwd` 参与 draft fallback 的路径。
 - [ ] 明确 draft fallback 只允许来自：
-  - [ ] 显式 requested cwd
-  - [ ] folder quick action cwd
+  - [x] 显式 requested cwd
+  - [x] folder quick action cwd
   - [ ] draft selector / add-project 结果
   - [ ] 其他已明确确认的 draft-owned 来源
 
 ### 2.3 Diff runtime ownership
-- [ ] 检查 `createDiffDataOps` 的 cwd resolver，确保无 active thread 时不再 fallback 到 `selectedCwdRef.current`。
-- [ ] 让 diff refresh / patch request 的 runtime 语义只在真实 thread 存在时生效。
-- [ ] 对 late diff result 加 active-thread guard，避免 stale snapshot 在切回 draft 后重新写入。
-- [ ] diff snapshot write MUST 校验：
-  - [ ] 当前仍存在 active thread
-  - [ ] 返回的 cwd 与当前 active thread cwd 匹配
-  - [ ] 否则直接丢弃结果
-- [ ] `clearThreadOnlySurfaceState` MUST 清理：
-  - [ ] `diffSnapshot`
-  - [ ] `isRefreshingDiff`
-  - [ ] pending / stale diff writeback path
-- [ ] no active thread => no diff refresh request and no patch request
+- [x] 检查 `createDiffDataOps` 的 cwd resolver，确保无 active thread 时不再 fallback 到 `selectedCwdRef.current`。
+- [x] 让 diff refresh / patch request 的 runtime 语义只在真实 thread 存在时生效。
+- [x] 对 late diff result 加 active-thread guard，避免 stale snapshot 在切回 draft 后重新写入。
+- [x] diff snapshot write MUST 校验：
+  - [x] 当前仍存在 active thread
+  - [x] 返回的 cwd 与当前 active thread cwd 匹配
+  - [x] 否则直接丢弃结果
+- [x] `clearThreadOnlySurfaceState` MUST 清理：
+  - [x] `diffSnapshot`
+  - [x] `isRefreshingDiff`
+  - [x] pending / stale diff writeback path
+- [x] no active thread => no diff refresh request and no patch request
 
 ## 3. Frontend Boundary
 
@@ -152,15 +152,15 @@
 ## 4. Tests
 
 ### 4.1 Runtime tests
-- [ ] 扩展 `threadArchiving.test.ts`：
-  - [ ] archive 最后一个 thread 后断言 `diffSnapshot === null`
+- [x] 扩展 `threadArchiving.test.ts`：
+  - [x] archive 最后一个 thread 后断言 `diffSnapshot === null`
   - [ ] 断言 thread-only chrome 不再残留
-- [ ] 扩展 `urlSync.test.ts`：
-  - [ ] invalid thread URL 回退到 draft 时断言 `diffSnapshot === null`
-  - [ ] 断言 draft cwd 不来自旧 `diffSnapshot.cwd`
-- [ ] 补从真实 thread 进入 draft 的 runtime 测试：
-  - [ ] 旧 `selectedCwd` 不再泄漏为 draft label / draft cwd
-  - [ ] 旧 `diffSnapshot` 被清空
+- [x] 扩展 `urlSync.test.ts`：
+  - [x] invalid thread URL 回退到 draft 时断言 `diffSnapshot === null`
+  - [x] 断言 draft cwd 不来自旧 `diffSnapshot.cwd`
+- [x] 补从真实 thread 进入 draft 的 runtime 测试：
+  - [x] 旧 `selectedCwd` 不再泄漏为 draft label / draft cwd
+  - [x] 旧 `diffSnapshot` 被清空
 
 ### 4.2 UI tests
 - [ ] 新增或扩展 `AppShell` / `AppShellHeader` render tests：
@@ -188,8 +188,8 @@
   - [ ] `draftCwd=null` 时不调用 open
   - [ ] `draftCwd='/repo-draft'` 时只能打开 `/repo-draft`
 - [ ] 覆盖 runtime 行为：
-  - [ ] no active thread 不触发 diff refresh
-  - [ ] 进入 draft 后晚返回的旧 diff 结果不得重新填充 `diffSnapshot`
+  - [x] no active thread 不触发 diff refresh
+  - [x] 进入 draft 后晚返回的旧 diff 结果不得重新填充 `diffSnapshot`
 - [ ] 覆盖 draft / no-thread 下 thread-only chrome 全部为空：
   - [ ] no compact boundary
   - [ ] no old context meter
@@ -206,15 +206,15 @@
 - [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 2
-- [ ] 先补/改 runtime ownership tests，而不是改完再补。
+- [x] 先补/改 runtime ownership tests，而不是改完再补。
 - [ ] 改 `useAppRuntime.ts`：
-  - [ ] 清 thread-only side state
-  - [ ] 切断 `selectedCwd` / `diffSnapshot.cwd` 对 draft fallback 的污染
-  - [ ] 禁止 no-thread diff refresh
-- [ ] 实现 late diff guard，确保 stale diff result 不会在 draft / no-thread 下重新写回。
-- [ ] 补/改 runtime tests：`threadArchiving.test.ts`、`urlSync.test.ts`、必要的 runtime coverage。
-- [ ] 跑本 loop 的 targeted verification。
-- [ ] run `codex review` for this loop after targeted verification passes.
+  - [x] 清 thread-only side state
+  - [x] 切断 `selectedCwd` / `diffSnapshot.cwd` 对 draft fallback 的污染
+  - [x] 禁止 no-thread diff refresh
+- [x] 实现 late diff guard，确保 stale diff result 不会在 draft / no-thread 下重新写回。
+- [x] 补/改 runtime tests：`threadArchiving.test.ts`、`urlSync.test.ts`、必要的 runtime coverage。
+- [x] 跑本 loop 的 targeted verification。
+- [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 3
 - [ ] 改 `AppShell.tsx` / `AppShellHeader.tsx`：

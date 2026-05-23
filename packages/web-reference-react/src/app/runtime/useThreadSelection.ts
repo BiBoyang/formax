@@ -15,8 +15,9 @@ export function useThreadSelection(args: {
   activeThreadId: string | null
   selectedCwd: string | null
   setSelectedCwd: (cwd: string | null) => void
+  suspendAutoSelection?: boolean
 }) {
-  const { threads, activeThreadId, selectedCwd, setSelectedCwd } = args
+  const { threads, activeThreadId, selectedCwd, setSelectedCwd, suspendAutoSelection = false } = args
   const cwdOptionsRef = useRef<string[]>([])
 
   const sortedThreads = useMemo(
@@ -49,6 +50,7 @@ export function useThreadSelection(args: {
   }, [threads])
 
   useEffect(() => {
+    if (suspendAutoSelection) return
     if (selectedCwd && cwdOptionSet.has(selectedCwd)) return
 
     const activeThread = activeThreadId ? threadById.get(activeThreadId) ?? null : null
@@ -61,7 +63,7 @@ export function useThreadSelection(args: {
     if (fallback !== selectedCwd) {
       setSelectedCwd(fallback)
     }
-  }, [activeThreadId, cwdOptionSet, cwdOptions, selectedCwd, setSelectedCwd, threadById])
+  }, [activeThreadId, cwdOptionSet, cwdOptions, selectedCwd, setSelectedCwd, suspendAutoSelection, threadById])
 
   return {
     sortedThreads,

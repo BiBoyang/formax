@@ -4,7 +4,11 @@ export type DiffDataOpsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>
   setIsRefreshingDiff: (value: boolean) => void
   setDiffSnapshot: (value: DiffSnapshot | null) => void
+  canRefreshDiff: () => boolean
   resolveDiffCwd: () => string | null
+  beginDiffRequest: () => number
+  isCurrentDiffRequest: (requestId: number) => boolean
+  shouldAcceptDiffResult: (args: { requestId: number; cwd: string | null }) => boolean
 }
 
 function asDiffSnapshot(value: unknown): DiffSnapshot | null {
@@ -68,30 +72,42 @@ function asDiffFilePatchPayload(value: unknown): DiffFilePatchPayload | null {
 
 export function createDiffDataOps(ctx: DiffDataOpsContext) {
   const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {
+    if (!ctx.canRefreshDiff()) return
+    const requestId = ctx.beginDiffRequest()
     ctx.setIsRefreshingDiff(true)
     try {
       const cwd = cwdOverride ?? ctx.resolveDiffCwd()
       const summaryParams = { maxFiles: 600, ...(cwd ? { cwd } : {}) }
       const summaryResult = await ctx.request('bridge/readDiffSummary', summaryParams).catch(() => null)
       const summarySnapshot = asDiffSnapshot(summaryResult)
-      if (summarySnapshot && !hasDiffErrorMarker(summarySnapshot)) {
+      if (
+        summarySnapshot &&
+        !hasDiffErrorMarker(summarySnapshot) &&
+        ctx.shouldAcceptDiffResult({ requestId, cwd: summarySnapshot.cwd || cwd })
+      ) {
         ctx.setDiffSnapshot(summarySnapshot)
+        return
+      }
+      if (!ctx.shouldAcceptDiffResult({ requestId, cwd })) {
         return
       }
 
       const legacyResult = await ctx.request('bridge/readDiff', { maxBytes: 180 * 1024, ...(cwd ? { cwd } : {}) })
       const legacySnapshot = asDiffSnapshot(legacyResult)
-      if (legacySnapshot) {
+      if (legacySnapshot && ctx.shouldAcceptDiffResult({ requestId, cwd: legacySnapshot.cwd || cwd })) {
         ctx.setDiffSnapshot(legacySnapshot)
       }
     } finally {
-      ctx.setIsRefreshingDiff(false)
+      if (ctx.isCurrentDiffRequest(requestId)) {
+        ctx.setIsRefreshingDiff(false)
+      }
     }
   }
 
   const requestDiffFilePatch = async (filePath: string, cwdOverride?: string | null): Promise<DiffFilePatchPayload | null> => {
     const path = filePath.trim()
     if (!path) return null
+    if (!ctx.canRefreshDiff()) return null
     const cwd = cwdOverride ?? ctx.resolveDiffCwd()
     const result = await ctx
       .request('bridge/readDiffFilePatch', { path, maxBytes: 220 * 1024, ...(cwd ? { cwd } : {}) })

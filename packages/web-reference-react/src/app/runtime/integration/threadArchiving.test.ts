@@ -154,6 +154,15 @@ describe('Thread Archiving Integration', () => {
       expect(result.current.activeThreadId).toBe('thread-1')
     })
 
+    await waitFor(() => {
+      expect(
+        rpcState.requestLog.filter(({ method }) => method === 'bridge/readDiffSummary').length,
+      ).toBeGreaterThan(0)
+    })
+    const diffRequestCountBeforeArchive = rpcState.requestLog.filter(
+      ({ method }) => method === 'bridge/readDiffSummary',
+    ).length
+
     act(() => {
       result.current.onArchiveThread('thread-1')
     })
@@ -163,8 +172,73 @@ describe('Thread Archiving Integration', () => {
       expect(result.current.visibleSurface).toBe('newThreadDraft')
       expect(result.current.mode).toBe('normal')
       expect(result.current.selectedCwd).toBe(null)
+      expect(result.current.diffSnapshot).toBeNull()
       expect(result.current.logs).toEqual([])
       expect(result.current.sortedThreads).toEqual([])
+    })
+    expect(
+      rpcState.requestLog.filter(({ method }) => method === 'bridge/readDiffSummary').length,
+    ).toBe(diffRequestCountBeforeArchive)
+  })
+
+  it('clears selected workspace and diff state when entering an unscoped draft from a thread', async () => {
+    rpcState.threads = [buildThread('thread-1', '2026-02-22T01:00:00Z', '/repo-1')]
+
+    const { result } = renderHook(() => useAppRuntime())
+
+    await waitFor(() => {
+      expect(result.current.sortedThreads.map((thread) => thread.id)).toEqual(['thread-1'])
+    })
+
+    act(() => {
+      result.current.onSelectThread('thread-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1')
+      expect(result.current.selectedCwd).toBe('/repo-1')
+      expect(result.current.diffSnapshot?.cwd).toBe('/repo-1')
+    })
+
+    act(() => {
+      result.current.onEnterNewThreadDraft()
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe(null)
+      expect(result.current.visibleSurface).toBe('newThreadDraft')
+      expect(result.current.selectedCwd).toBeNull()
+      expect(result.current.diffSnapshot).toBeNull()
+    })
+  })
+
+  it('preserves scoped draft workspace selection until header ownership moves to draft cwd', async () => {
+    rpcState.threads = [buildThread('thread-1', '2026-02-22T01:00:00Z', '/repo-1')]
+
+    const { result } = renderHook(() => useAppRuntime())
+
+    await waitFor(() => {
+      expect(result.current.sortedThreads.map((thread) => thread.id)).toEqual(['thread-1'])
+    })
+
+    act(() => {
+      result.current.onSelectThread('thread-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1')
+      expect(result.current.diffSnapshot?.cwd).toBe('/repo-1')
+    })
+
+    act(() => {
+      result.current.onEnterNewThreadDraftInCwd('/repo-draft')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe(null)
+      expect(result.current.visibleSurface).toBe('newThreadDraft')
+      expect(result.current.selectedCwd).toBe('/repo-draft')
+      expect(result.current.diffSnapshot).toBeNull()
     })
   })
 
