@@ -1,0 +1,4 @@
+interface:
+  display_name: "WebGPT Todo Response"
+  short_description: "Draft response/questions for WebGPT todo review"
+  default_prompt: "Generate WebGPT todo response for Formax"
