@@ -9,6 +9,9 @@ import {
   parseThreadReplayResponse,
   parseThreadStartResponse,
   parseTurnStartLikeResponse,
+  parseInitializeResponse,
+  parseContextMeterRaw,
+  parseProviderUsageRaw,
 } from './rpcContracts'
 
 const SYSTEM_CONTRIBUTOR = {
@@ -104,6 +107,85 @@ const COMPRESSION_GOLDEN_PENDING_RESTORE = {
 }
 
 describe('rpcContracts', () => {
+  it('parses initialize ui settings with compatibility defaults', () => {
+    expect(parseInitializeResponse({ ui: { showContextMeter: false } })).toEqual({
+      ui: { showContextMeter: false },
+    })
+    expect(parseInitializeResponse({})).toEqual({
+      ui: { showContextMeter: true },
+    })
+  })
+
+  it('parses context meter raw diagnostics and provider usage counters', () => {
+    expect(
+      parseContextMeterRaw({
+        schemaVersion: 1,
+        source: 'context_diagnostics_snapshot',
+        model: 'claude-test',
+        provider: 'anthropic',
+        budgetRaw: {
+          schemaVersion: 1,
+          model: 'claude-test',
+          provider: 'anthropic',
+          contextWindowTokens: 100000,
+          effectiveContextWindowPercent: 0.95,
+          autoCompactLimitPercent: 0.9,
+          baselineTokens: 12000,
+          source: 'known_model_window',
+        },
+        snapshotRaw: {
+          totalTokens: 100,
+          systemTokens: 20,
+          historyTokens: 80,
+          toolResultTokens: 30,
+          otherHistoryTokens: 50,
+          messageCount: 4,
+          userMessageCount: 2,
+          assistantMessageCount: 2,
+          toolResultBlockCount: 1,
+          microCompactedToolResultCount: 0,
+        },
+      }),
+    ).toMatchObject({
+      model: 'claude-test',
+      budgetRaw: { contextWindowTokens: 100000 },
+      snapshotRaw: { totalTokens: 100 },
+    })
+    expect(parseProviderUsageRaw({ input_tokens: 1, output_tokens: 2, cache_deleted_input_tokens: 9 })).toEqual({
+      input_tokens: 1,
+      output_tokens: 2,
+      cache_deleted_input_tokens: 9,
+    })
+    expect(parseProviderUsageRaw({ input_tokens: -1 })).toBeNull()
+  })
+
+  it('rejects malformed context meter budget raw diagnostics', () => {
+    const raw = {
+      schemaVersion: 1,
+      source: 'context_diagnostics_snapshot',
+      model: 'claude-test',
+      provider: 'anthropic',
+      budgetRaw: { schemaVersion: 1, model: 'claude-test' },
+      snapshotRaw: {
+        totalTokens: 100,
+        systemTokens: 20,
+        historyTokens: 80,
+        toolResultTokens: 30,
+        otherHistoryTokens: 50,
+        messageCount: 4,
+        userMessageCount: 2,
+        assistantMessageCount: 2,
+        toolResultBlockCount: 1,
+        microCompactedToolResultCount: 0,
+      },
+    }
+
+    expect(parseContextMeterRaw(raw)).toBeNull()
+    expect(parseContextMeterRaw({ ...raw, budgetRaw: undefined })).toBeNull()
+    expect(parseContextMeterRaw({ ...raw, budgetRaw: null })).toMatchObject({ budgetRaw: null })
+  })
+
+
   it('parses thread/start response and rejects invalid payload', () => {
     expect(parseThreadStartResponse({ thread: { id: 'thread-1', cwd: '/repo' } })).toEqual({
       id: 'thread-1',

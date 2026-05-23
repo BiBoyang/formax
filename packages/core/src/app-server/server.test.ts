@@ -79,6 +79,7 @@ describe('AppServer', () => {
     expect((init[0] as any).result.serverInfo).toEqual({ name: 'formax', version: 'test' })
     expect((init[0] as any).result.protocolVersion).toBe('0.2')
     expect((init[0] as any).result.serverInstanceId).toBeTypeOf('string')
+    expect((init[0] as any).result.ui).toEqual({ showContextMeter: true })
     expect((init[0] as any).result.limits).toEqual(
       expect.objectContaining({
         maxRequestBytes: expect.any(Number),
@@ -92,6 +93,17 @@ describe('AppServer', () => {
     const unknown = await server.handleMessage(request(2, 'unknown/method'))
     expect(unknown).toHaveLength(1)
     expect((unknown[0] as any).error.code).toBe(JSON_RPC_ERRORS.METHOD_NOT_FOUND)
+  })
+
+  it('returns configured initialize ui settings', async () => {
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      initializeUi: { showContextMeter: false },
+    })
+
+    const init = await server.handleMessage(request(1, 'initialize'))
+
+    expect((init[0] as any).result.ui).toEqual({ showContextMeter: false })
   })
 
   it('validates initialize params', async () => {
@@ -2104,6 +2116,7 @@ describe('AppServer', () => {
         model: 'claude-3-5-sonnet-latest',
         latestCompactBoundary: null,
         projectionLayers: {} as any,
+        contextMeterRaw: {} as any,
         snapshot: {} as any,
         nextTurnFixed: {} as any,
         notes: [],
@@ -3892,6 +3905,7 @@ describe('AppServer', () => {
         model: 'claude-3-5-sonnet-latest',
         latestCompactBoundary: null,
         projectionLayers: {} as any,
+        contextMeterRaw: {} as any,
         snapshot: {} as any,
         nextTurnFixed: {} as any,
         notes: [],
@@ -3936,6 +3950,7 @@ describe('AppServer', () => {
         model: 'claude-3-5-sonnet-latest',
         latestCompactBoundary: null,
         projectionLayers: {} as any,
+        contextMeterRaw: {} as any,
         snapshot: {} as any,
         nextTurnFixed: {} as any,
         notes: [],

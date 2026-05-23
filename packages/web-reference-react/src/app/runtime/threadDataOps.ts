@@ -1,6 +1,7 @@
 import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
 import {
   parseHiddenThreadGroupCwdsFromThreadList,
+  parseTurnStartLikeResponse,
   parseThreadResumeResponse,
   parseThreadListResponse,
   parseThreadMessagesResponse,
@@ -163,6 +164,29 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     setThreadLatestRequestCollapse(threadId, facts.latestRequestCollapse)
   }
 
+  const refreshContextMeterSnapshot = async (threadId: string) => {
+    try {
+      const result = await ctx.request('command/dispatch', { threadId, command: '/context --json' })
+      const parsed = parseTurnStartLikeResponse(result)
+      const raw = parsed.localDiagnostics?.contextMeterRaw
+      if (!raw) return
+      const fetchedAt = new Date().toISOString()
+      ctx.dispatch({
+        type: 'context_meter_snapshot_received',
+        threadId,
+        budgetRaw: raw.budgetRaw,
+        fetchedAt,
+        snapshot: {
+          source: 'context_diagnostics_snapshot',
+          fetchedAt,
+          ...raw.snapshotRaw,
+        },
+      })
+    } catch {
+      // best-effort context meter refresh
+    }
+  }
+
   const refreshThreads = async () => {
     const result = await ctx.request('thread/list', { limit: 50 })
     ctx.dispatch({ type: 'set_threads', threads: parseThreadListResponse(result) })
@@ -280,6 +304,7 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
           input.turnId,
         )
       }
+      void refreshContextMeterSnapshot(threadId)
     } catch {
       // best-effort resume
     }

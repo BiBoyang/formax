@@ -104,6 +104,77 @@ describe('processNotification', () => {
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(7)
   })
 
+  it('caches context meter budget from turn started without adding transcript rows', () => {
+    const ctx = createContext()
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/started',
+      params: {
+        replaySeq: 7,
+        eventId: 'evt-7',
+        ts: '2026-05-23T00:00:00.000Z',
+        source: 'system',
+        threadId: 'thread-1',
+        turn: { id: 'turn-1', threadId: 'thread-1', mode: 'normal', status: 'running' },
+        input: { text: 'hello' },
+        contextMeter: {
+          schemaVersion: 1,
+          budgetRaw: {
+            schemaVersion: 1,
+            model: 'claude-test',
+            provider: 'anthropic',
+            contextWindowTokens: 100000,
+            effectiveContextWindowPercent: 0.95,
+            autoCompactLimitPercent: 0.9,
+            baselineTokens: 12000,
+            source: 'known_model_window',
+          },
+        },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'context_meter_budget_received',
+      threadId: 'thread-1',
+      budgetRaw: expect.objectContaining({ contextWindowTokens: 100000 }),
+      ts: '2026-05-23T00:00:00.000Z',
+    })
+  })
+
+  it('caches non-active thread usage without canonical projection side effects', () => {
+    const ctx = createContext({ activeThreadIdRef: { current: 'thread-active' } })
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/event',
+      params: {
+        replaySeq: 8,
+        eventId: 'evt-8',
+        ts: '2026-05-23T00:00:01.000Z',
+        source: 'engine',
+        threadId: 'thread-bg',
+        turnId: 'turn-bg',
+        event: {
+          type: 'usage',
+          usage: { input_tokens: 10, cache_read_input_tokens: 2 },
+        },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'context_meter_usage_received',
+      threadId: 'thread-bg',
+      turnId: 'turn-bg',
+      usage: { input_tokens: 10, cache_read_input_tokens: 2 },
+      replaySeq: 8,
+      ts: '2026-05-23T00:00:01.000Z',
+    })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+  })
+
   it('skips canonical projection for turn notifications with missing envelope fields', () => {
     const ctx = createContext()
     const baseEnvelope = createReplayTurnEventEnvelope({

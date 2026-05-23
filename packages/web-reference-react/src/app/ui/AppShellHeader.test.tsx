@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n/I18nProvider'
 import { AppShellHeader } from './AppShellHeader'
 
-function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US') {
+function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US', showContextMeter = true) {
   return render(
     <I18nProvider language={language}>
       <AppShellHeader
@@ -23,6 +23,18 @@ function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US') {
           estimatedTokensSaved: 64,
           recapFingerprint: 'fp-1',
         }}
+        activeContextMeter={{
+          available: true,
+          source: 'usage',
+          usedTokens: 1000,
+          limitTokens: 95000,
+          percentUsed: 1,
+          percentRemaining: 99,
+          shouldAutoCompact: false,
+          label: '1% used (1k/95k, usage)',
+          tone: 'normal',
+        }}
+        showContextMeter={showContextMeter}
         activeWorkspaceLabel="workspace"
         showDevLoadAllButton={false}
         devLoadAllDisabled={true}
@@ -63,5 +75,11 @@ describe('AppShellHeader', () => {
     expect(screen.getByTestId('app-shell-compact-summary')).toHaveTextContent(
       'Latest compact: auto · session memory · 2048 tok',
     )
+  })
+
+  it('honors disabled context meter visibility', () => {
+    renderHeader('en-US', false)
+
+    expect(screen.queryByTestId('app-shell-context-meter')).toBeNull()
   })
 })

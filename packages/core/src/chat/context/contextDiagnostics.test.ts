@@ -877,6 +877,25 @@ describe('contextDiagnostics', () => {
       applied: false,
     })
     expect(parsed.snapshot).toBeTruthy()
+    expect(parsed.contextMeterRaw).toMatchObject({
+      schemaVersion: 1,
+      source: 'context_diagnostics_snapshot',
+      model: 'claude-3-5-sonnet-latest',
+      provider: 'anthropic',
+      budgetRaw: {
+        schemaVersion: 1,
+        contextWindowTokens: 100_000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 12_000,
+        source: 'runtime_config',
+      },
+      snapshotRaw: {
+        totalTokens: parsed.snapshot.totalTokens,
+        systemTokens: parsed.snapshot.systemTokens,
+        historyTokens: parsed.snapshot.historyTokens,
+      },
+    })
     expect(parsed.nextTurnFixed).toBeTruthy()
     expect(parsed.snapshot.historyTokens).toBeGreaterThanOrEqual(0)
     expect(parsed.snapshot.systemSectionBreakdown).toBeInstanceOf(Array)

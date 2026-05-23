@@ -1,5 +1,9 @@
 import type { ContextBudgetConfig } from './budget'
 import { computeContextBudget, computeContextStats } from './budget'
+import {
+  normalizeContextMeterBudgetRaw,
+  type ContextMeterBudgetRaw,
+} from '@formax/shared/utils/contextMeter'
 import { estimatePromptTokens } from './estimate'
 import { getKnownContextWindowTokens } from './modelWindow'
 import { isAnthropicCacheEditingEnabled } from './cacheEditing'
@@ -219,9 +223,32 @@ export type ContextDiagnosticsPayload = {
   latestRequestCollapse?: ContextLatestRequestCollapse | null
   latestReactiveCompact?: ContextLatestReactiveCompact | null
   projectionLayers: ContextProjectionLayerDiagnostics
+  contextMeterRaw: ContextMeterRaw
   snapshot: ContextDiagnostics
   nextTurnFixed: NextTurnFixedContextDiagnostics
   notes: string[]
+}
+
+export type ContextMeterSnapshotRaw = {
+  totalTokens: number
+  systemTokens: number
+  historyTokens: number
+  toolResultTokens: number
+  otherHistoryTokens: number
+  messageCount: number
+  userMessageCount: number
+  assistantMessageCount: number
+  toolResultBlockCount: number
+  microCompactedToolResultCount: number
+}
+
+export type ContextMeterRaw = {
+  schemaVersion: 1
+  source: 'context_diagnostics_snapshot'
+  model: string
+  provider: string | null
+  budgetRaw: ContextMeterBudgetRaw | null
+  snapshotRaw: ContextMeterSnapshotRaw
 }
 
 function normalizeLatestRequestCollapse(
@@ -798,6 +825,20 @@ export function buildContextDiagnosticsPayload(args: {
       provider: args.cfg.llm.provider,
       model: args.cfg.llm.model,
     })
+  const contextWindowSource = args.cfg.llm.contextWindowTokens != null ? 'runtime_config' : 'known_model_window'
+  const budgetRaw = contextWindowTokens
+    ? normalizeContextMeterBudgetRaw({
+        model: args.cfg.llm.model,
+        provider: args.cfg.llm.provider,
+        source: contextWindowSource,
+        config: {
+          contextWindowTokens,
+          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
+          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
+          baselineTokens: args.cfg.context.baselineTokens,
+        },
+      })
+    : null
 
   const projectionLayers = buildProjectionLayerDiagnostics({
     messages: args.messages,
@@ -852,6 +893,25 @@ export function buildContextDiagnosticsPayload(args: {
     latestRequestCollapse: normalizeLatestRequestCollapse(args.latestRequestCollapse),
     latestReactiveCompact: normalizeLatestReactiveCompact(args.latestReactiveCompact),
     projectionLayers,
+    contextMeterRaw: {
+      schemaVersion: 1,
+      source: 'context_diagnostics_snapshot',
+      model: args.cfg.llm.model,
+      provider: args.cfg.llm.provider || null,
+      budgetRaw,
+      snapshotRaw: {
+        totalTokens: diagnostics.totalTokens,
+        systemTokens: diagnostics.systemTokens,
+        historyTokens: diagnostics.historyTokens,
+        toolResultTokens: diagnostics.toolResultTokens,
+        otherHistoryTokens: diagnostics.otherHistoryTokens,
+        messageCount: diagnostics.messageCount,
+        userMessageCount: diagnostics.userMessageCount,
+        assistantMessageCount: diagnostics.assistantMessageCount,
+        toolResultBlockCount: diagnostics.toolResultBlockCount,
+        microCompactedToolResultCount: diagnostics.microCompactedToolResultCount,
+      },
+    },
     snapshot: diagnostics,
     nextTurnFixed: nextTurn,
     notes: [...DEFAULT_CONTEXT_DIAGNOSTICS_NOTES],

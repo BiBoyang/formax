@@ -99,6 +99,9 @@ export type AppServerOptions = {
   }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
+  initializeUi?: {
+    showContextMeter: boolean
+  }
   limits?: {
     maxRequestBytes: number
     maxEventBytes: number
@@ -120,6 +123,7 @@ export class AppServer {
   private readonly resolveContextDiagnostics?: AppServerOptions['resolveContextDiagnostics']
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   private readonly serverInstanceId: string
+  private readonly initializeUi: { showContextMeter: boolean }
   private readonly limits: {
     maxRequestBytes: number
     maxEventBytes: number
@@ -160,6 +164,7 @@ export class AppServer {
     this.resolveContextDiagnostics = args.resolveContextDiagnostics
     this.emitNotification = args.emitNotification
     this.serverInstanceId = args.serverInstanceId ?? randomUUID()
+    this.initializeUi = args.initializeUi ?? { showContextMeter: true }
     // initialize.result.limits is sourced from runAppServer() wiring (index.ts):
     // transport limits + input lifecycle limits + in-flight turn policy.
     this.limits = args.limits ?? {
@@ -212,6 +217,7 @@ export class AppServer {
           serverInfo: this.info,
           protocolVersion: APP_SERVER_PROTOCOL_VERSION,
           serverInstanceId: this.serverInstanceId,
+          ui: this.initializeUi,
           limits: this.limits,
         }),
       ]

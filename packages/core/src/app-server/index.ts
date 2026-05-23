@@ -4,6 +4,7 @@ import { findSessionFileBySessionId, readSessionFile } from '../features/repl/se
 import { resolveSessionMemoryRestoreContext } from '../features/repl/sessionSave/sessionMemoryRefresh.js'
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
+import { loadRuntimeConfig } from '../config/config.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import { AppServer } from './server.js'
 import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
@@ -212,12 +213,19 @@ export async function runAppServer(args?: {
   }
 
   let lazyTurnRunner: AppServerRunner | null = args?.turnRunner ?? null
+  const initializeConfig = await loadRuntimeConfig(env, cwd, {
+    platform: args?.platform,
+    homedir: args?.homedir,
+  }).catch(() => null)
   const server = new AppServer({
     info: {
       name: 'formax',
       version: String((pkg as any).version),
     },
     threadStore,
+    initializeUi: {
+      showContextMeter: initializeConfig?.ui.showContextMeter ?? true,
+    },
     turnRunner: lazyTurnRunner ?? undefined,
     resolveTurnRunner: async () => {
       if (lazyTurnRunner) return lazyTurnRunner

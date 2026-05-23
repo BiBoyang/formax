@@ -4,6 +4,7 @@ import {
   Code,
   Copy,
   GitCommitHorizontal,
+  Gauge,
   PanelLeft,
   PlusSquare,
   Settings,
@@ -13,7 +14,7 @@ import { Button } from '../../components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip'
 import { cn } from '../../lib/utils'
-import type { CompactBoundarySummary, RequestCollapseSummary } from '../../types'
+import type { CompactBoundarySummary, ContextMeterView, RequestCollapseSummary } from '../../types'
 import { useI18n } from '../i18n/I18nProvider'
 
 const SHARED_HEADER_BTN_ICON =
@@ -29,6 +30,8 @@ export type AppShellHeaderProps = {
   activeThreadTitle: string
   activeThreadLatestCompactBoundary: CompactBoundarySummary | null
   activeThreadLatestRequestCollapse: RequestCollapseSummary | null
+  activeContextMeter: ContextMeterView
+  showContextMeter: boolean
   activeWorkspaceLabel: string
   showDevLoadAllButton: boolean
   devLoadAllDisabled: boolean
@@ -85,6 +88,22 @@ export function AppShellHeader(props: AppShellHeaderProps) {
           <div className="min-w-0 flex flex-col justify-center gap-0.5 leading-tight">
             <div className="min-w-0 flex items-center gap-2">
               <div className="flex-1 min-w-0 truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
+              {props.showContextMeter && props.activeContextMeter.available && props.activeContextMeter.label ? (
+                <div
+                  data-testid="app-shell-context-meter"
+                  className={cn(
+                    'shrink-0 inline-flex items-center gap-1 truncate text-[11px]',
+                    props.activeContextMeter.tone === 'danger'
+                      ? 'text-red-500'
+                      : props.activeContextMeter.tone === 'warning'
+                        ? 'text-amber-500'
+                        : 'text-muted-foreground/80',
+                  )}
+                >
+                  <Gauge className="h-3 w-3" />
+                  <span className="max-w-[180px] truncate">{props.activeContextMeter.label}</span>
+                </div>
+              ) : null}
               <div className="min-w-0 max-w-[40%] truncate ui-text-meta text-muted-foreground/80">{props.activeWorkspaceLabel}</div>
             </div>
             {props.activeThreadLatestRequestCollapse ? (

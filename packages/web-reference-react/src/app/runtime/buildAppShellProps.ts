@@ -35,6 +35,8 @@ type TranscriptSection = Pick<
   | 'activeThreadTitle'
   | 'activeThreadLatestCompactBoundary'
   | 'activeThreadLatestRequestCollapse'
+  | 'activeContextMeter'
+  | 'showContextMeter'
   | 'activeTurnId'
   | 'connectionStatus'
   | 'activeThread'

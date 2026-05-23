@@ -128,6 +128,9 @@
   }
   protocolVersion: '0.2'
   serverInstanceId: string
+  ui: {
+    showContextMeter: boolean
+  }
   limits: {
     maxRequestBytes: number
     maxEventBytes: number
@@ -137,6 +140,8 @@
   }
 }
 ```
+
+`ui.showContextMeter` mirrors runtime UI config for client rendering. GUI clients may still keep thread-scoped context-meter raw data for continuity, but should hide the visible meter when this value is `false`.
 
 ## 3.2 initialized（notification）
 
@@ -784,6 +789,26 @@ AskUserQuestion payload：
 
 ## 6.2 `turn/event`
 
+`turn/started` MAY include a non-transcript context-meter budget block:
+
+```json
+{
+  "contextMeter": {
+    "schemaVersion": 1,
+    "budgetRaw": {
+      "schemaVersion": 1,
+      "model": "claude-sonnet-4-6",
+      "provider": "anthropic",
+      "contextWindowTokens": 200000,
+      "effectiveContextWindowPercent": 0.95,
+      "autoCompactLimitPercent": 0.9,
+      "baselineTokens": 12000,
+      "source": "known_model_window"
+    }
+  }
+}
+```
+
 ```ts
 {
   ...envelopeMeta,
@@ -804,6 +829,8 @@ AskUserQuestion payload：
 - `ask_user_question`
 - `error`
 - `complete`
+
+For `turn/event` with `event.type = "usage"`, `event.usage` is provider raw usage. Clients derive context-meter percentages locally.
 
 兼容性约束：
 

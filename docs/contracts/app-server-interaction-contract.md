@@ -28,7 +28,9 @@
   - `serverInfo`
   - `protocolVersion`
   - `serverInstanceId`
+  - `ui.showContextMeter`
   - `limits`
+5. `initialize.result.ui.showContextMeter` 是客户端 context meter 可见性开关；客户端 MAY 继续缓存 meter raw side-state，但渲染 GUI meter 时 MUST 尊重该开关。
 
 ## 2. 方法合同（Method Contract）
 
@@ -187,9 +189,19 @@
     - `mode: string`
     - `model: string`
     - `latestCompactBoundary: CompactBoundaryMeta | null`
+    - `contextMeterRaw: ContextMeterRaw`
     - `snapshot: ContextDiagnosticsSnapshot`
     - `nextTurnFixed: NextTurnFixedContextDiagnostics`
     - `notes: string[]`
+  - `local.diagnostics.contextMeterRaw` 是 GUI context meter 的 raw source-of-truth；客户端 MUST NOT 把 `percentRemaining` / `percentUsed` 当作 meter authority。该 block 当前稳定字段 MUST 包含：
+    - `schemaVersion: 1`
+    - `source: "context_diagnostics_snapshot"`
+    - `model: string`
+    - `provider: string | null`
+    - `budgetRaw: ContextMeterBudgetRaw | null`
+    - `snapshotRaw: ContextMeterSnapshotRaw`
+  - `ContextMeterBudgetRaw` 当前稳定字段 MUST 包含：`schemaVersion`、`model`、`provider`、`contextWindowTokens`、`effectiveContextWindowPercent`、`autoCompactLimitPercent`、`baselineTokens`、`source ("runtime_config" | "known_model_window")`。
+  - `ContextMeterSnapshotRaw` 当前稳定字段 MUST 包含 token/message 原始计数：`totalTokens`、`systemTokens`、`historyTokens`、`toolResultTokens`、`otherHistoryTokens`、`messageCount`、`userMessageCount`、`assistantMessageCount`、`toolResultBlockCount`、`microCompactedToolResultCount`。
   - `local.diagnostics.snapshot` 当前稳定字段 MUST 包含：
     - `totalTokens`
     - `systemTokens`
@@ -476,6 +488,7 @@ turn 通知到 canonical 的最小映射保证：
 
 - 载荷：`{ turn: { id, threadId, status: "running", mode } }`
 - `mode` 仅允许：`normal | acceptEdits | plan`
+- 当前 MAY 携带 `{ contextMeter: { schemaVersion: 1, budgetRaw: ContextMeterBudgetRaw | null } }`，用于客户端 thread-scoped runtime bookkeeping；该字段 MUST NOT 进入 canonical transcript projection。
 
 ## 3.2 turn/event
 
@@ -489,6 +502,7 @@ turn 通知到 canonical 的最小映射保证：
   - `event.type = "compact_boundary"`：表示当前 turn 产出了 compact boundary
   - `event.boundary` SHOULD 暴露与 history snapshot 中一致的 `compactBoundary` metadata
   - canonical adapter SHOULD 将该事件映射为 `system_message(uiKind="compact_boundary")`
+- 当 `event.type = "usage"` 时，`event.usage` MUST 保持 provider raw counters；服务端不得在该事件内写入已计算的 GUI 百分比。客户端 MAY 用该 raw usage 更新对应 thread 的 meter cache，包括非 active thread；但 MUST NOT 因此污染当前 active transcript projection。
 
 ## 3.3 turn/modeChanged
 

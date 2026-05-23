@@ -124,6 +124,65 @@ describe('appReducer', () => {
     expect(next.threads[1]).toBe(threadB)
   })
 
+  it('stores context meter raw data by thread without touching logs or projection', () => {
+    let state = appReducer(initialAppState, {
+      type: 'context_meter_budget_received',
+      threadId: 'thread-a',
+      budgetRaw: {
+        schemaVersion: 1,
+        model: 'claude-test',
+        provider: 'anthropic',
+        contextWindowTokens: 100000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 12000,
+        source: 'known_model_window',
+      },
+      ts: '2026-05-23T00:00:00.000Z',
+    })
+
+    state = appReducer(state, {
+      type: 'context_meter_usage_received',
+      threadId: 'thread-b',
+      turnId: 'turn-b',
+      usage: { input_tokens: 42 },
+      replaySeq: 10,
+    })
+
+    expect(state.contextMeterRawByThreadId['thread-a']?.budgetRaw?.contextWindowTokens).toBe(100000)
+    expect(state.contextMeterRawByThreadId['thread-b']?.liveUsageByTurnId['turn-b']?.usage.input_tokens).toBe(42)
+    expect(state.logs).toHaveLength(0)
+    expect(state.transcriptProjection).toBeNull()
+  })
+
+  it('does not clear context meter cache when switching active thread or replacing logs', () => {
+    let state = appReducer(initialAppState, {
+      type: 'context_meter_snapshot_received',
+      threadId: 'thread-a',
+      budgetRaw: null,
+      fetchedAt: '2026-05-23T00:00:00.000Z',
+      snapshot: {
+        source: 'context_diagnostics_snapshot',
+        fetchedAt: '2026-05-23T00:00:00.000Z',
+        totalTokens: 10,
+        systemTokens: 1,
+        historyTokens: 9,
+        toolResultTokens: 0,
+        otherHistoryTokens: 9,
+        messageCount: 1,
+        userMessageCount: 1,
+        assistantMessageCount: 0,
+        toolResultBlockCount: 0,
+        microCompactedToolResultCount: 0,
+      },
+    })
+
+    state = appReducer(state, { type: 'set_active_thread', threadId: 'thread-b' })
+    state = appReducer(state, { type: 'replace_logs', logs: [] })
+
+    expect(state.contextMeterRawByThreadId['thread-a']?.snapshot?.totalTokens).toBe(10)
+  })
+
   it('keeps state stable for no-op active turn updates', () => {
     const state = {
       ...initialAppState,

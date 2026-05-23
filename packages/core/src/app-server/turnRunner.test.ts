@@ -321,6 +321,60 @@ describe('TurnRunner', () => {
     ).toBe(true)
   })
 
+  it('emits raw context meter budget on turn start and keeps usage event raw', async () => {
+    const fixture = await createThreadFixture()
+    const env = {
+      ...fixture.env,
+      FORMAX_CONTEXT_WINDOW_TOKENS: '6000',
+      FORMAX_BASELINE_TOKENS: '123',
+    }
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({
+            type: 'usage',
+            usage: {
+              input_tokens: 10,
+              output_tokens: 2,
+              cache_read_input_tokens: 3,
+            },
+          } as any)
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    const started = notifications.find((n) => n.method === 'turn/started')
+    expect(started?.params?.contextMeter).toMatchObject({
+      schemaVersion: 1,
+      budgetRaw: {
+        schemaVersion: 1,
+        model: 'test-model',
+        contextWindowTokens: 6000,
+        baselineTokens: 123,
+        source: 'runtime_config',
+      },
+    })
+    const usage = notifications.find((n) => n.method === 'turn/event' && n.params?.event?.type === 'usage')
+    expect(usage?.params?.event?.usage).toEqual({
+      input_tokens: 10,
+      output_tokens: 2,
+      cache_read_input_tokens: 3,
+    })
+  })
+
   it('applies deferred tool exposure semantics when runtime flag is enabled', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

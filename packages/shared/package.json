@@ -9,6 +9,7 @@
     "./paramsText": "./src/paramsText.ts",
     "./prompts": "./src/prompts.ts",
     "./streaming": "./src/streaming.ts",
+    "./utils/contextMeter": "./src/utils/contextMeter.ts",
     "./utils/planMode": "./src/utils/planMode.ts",
     "./utils/planModeReminders": "./src/utils/planModeReminders.ts",
     "./utils/paths": "./src/utils/paths.ts",

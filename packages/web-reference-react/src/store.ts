@@ -1,6 +1,8 @@
 import type { ConnectionStatus } from './rpcClient'
-import type { PendingInput, ThreadSummary, TranscriptItem } from './types'
+import type { ContextMeterSnapshotRaw, ContextMeterThreadRaw, PendingInput, ThreadSummary, TranscriptItem } from './types'
 import type { CanonicalEvent } from './semantics'
+import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
+import type { TokenUsage } from '@formax/shared/streaming'
 import {
   createInitialTranscriptProjectionState,
   type TranscriptSegment,
@@ -22,6 +24,7 @@ export type AppState = {
   pendingInputs: Record<string, PendingInput>
   selectedInputId: string | null
   transcriptProjection: TranscriptProjectionState | null
+  contextMeterRawByThreadId: Record<string, ContextMeterThreadRaw>
 }
 
 export type AppAction =
@@ -38,6 +41,15 @@ export type AppAction =
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
   | { type: 'set_selected_input'; inputId: string | null }
+  | { type: 'context_meter_budget_received'; threadId: string; budgetRaw: ContextMeterBudgetRaw | null; ts?: string }
+  | { type: 'context_meter_usage_received'; threadId: string; turnId: string; usage: TokenUsage; replaySeq?: number; ts?: string }
+  | {
+      type: 'context_meter_snapshot_received'
+      threadId: string
+      budgetRaw: ContextMeterBudgetRaw | null
+      snapshot: ContextMeterSnapshotRaw
+      fetchedAt: string
+    }
   | { type: 'hydrate_projection_tool_names'; threadId: string; toolNameByUseId: Record<string, string> }
   | {
       type: 'hydrate_projection_snapshot'
@@ -61,6 +73,7 @@ export const initialAppState: AppState = {
   pendingInputs: {},
   selectedInputId: null,
   transcriptProjection: null,
+  contextMeterRawByThreadId: {},
 }
 
 function itemId(): string {
@@ -114,6 +127,18 @@ function reconcileThreadSummaries(prev: ThreadSummary[], next: ThreadSummary[]):
     return prev
   }
   return reconciled
+}
+
+function getContextMeterThreadRaw(
+  state: AppState,
+  threadId: string,
+): ContextMeterThreadRaw {
+  return state.contextMeterRawByThreadId[threadId] ?? {
+    threadId,
+    budgetRaw: null,
+    liveUsageByTurnId: {},
+    latestUsageTurnId: null,
+  }
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -211,6 +236,62 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'set_selected_input':
       if (state.selectedInputId === action.inputId) return state
       return { ...state, selectedInputId: action.inputId }
+
+    case 'context_meter_budget_received': {
+      const current = getContextMeterThreadRaw(state, action.threadId)
+      const next: ContextMeterThreadRaw = {
+        ...current,
+        budgetRaw: action.budgetRaw,
+        ...(action.ts ? { budgetUpdatedAt: action.ts } : {}),
+      }
+      return {
+        ...state,
+        contextMeterRawByThreadId: {
+          ...state.contextMeterRawByThreadId,
+          [action.threadId]: next,
+        },
+      }
+    }
+
+    case 'context_meter_usage_received': {
+      const current = getContextMeterThreadRaw(state, action.threadId)
+      const next: ContextMeterThreadRaw = {
+        ...current,
+        liveUsageByTurnId: {
+          ...current.liveUsageByTurnId,
+          [action.turnId]: {
+            usage: action.usage,
+            ...(action.replaySeq !== undefined ? { replaySeq: action.replaySeq } : {}),
+            ...(action.ts ? { ts: action.ts } : {}),
+          },
+        },
+        latestUsageTurnId: action.turnId,
+      }
+      return {
+        ...state,
+        contextMeterRawByThreadId: {
+          ...state.contextMeterRawByThreadId,
+          [action.threadId]: next,
+        },
+      }
+    }
+
+    case 'context_meter_snapshot_received': {
+      const current = getContextMeterThreadRaw(state, action.threadId)
+      const next: ContextMeterThreadRaw = {
+        ...current,
+        budgetRaw: action.budgetRaw,
+        budgetUpdatedAt: action.fetchedAt,
+        snapshot: action.snapshot,
+      }
+      return {
+        ...state,
+        contextMeterRawByThreadId: {
+          ...state.contextMeterRawByThreadId,
+          [action.threadId]: next,
+        },
+      }
+    }
 
     case 'hydrate_projection_tool_names': {
       const existingProjection =

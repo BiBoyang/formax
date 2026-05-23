@@ -72,6 +72,10 @@ import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 import { loadRuntimeConfig } from '../config/config.js'
 import { createPlanSessionManager, type PlanSessionManager } from '../features/repl/planSession.js'
+import {
+  normalizeContextMeterBudgetRaw,
+  type ContextMeterBudgetRaw,
+} from '@formax/shared/utils/contextMeter'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -416,12 +420,18 @@ export class TurnRunner {
     }
     this.runningByThreadId.set(params.threadId, running)
 
+    const contextMeterBudgetRaw = await this.resolveContextMeterBudgetRaw(running.cwd)
+
     this.emitTurnNotification(running, 'turn/started', 'system', {
       turn: {
         id: running.turnId,
         threadId: running.threadId,
         status: 'running',
         mode: running.replMode,
+      },
+      contextMeter: {
+        schemaVersion: 1,
+        budgetRaw: contextMeterBudgetRaw,
       },
       input: {
         text: running.inputText,
@@ -1026,6 +1036,33 @@ export class TurnRunner {
       autoCompactLimitPercent: runtimeConfig.context.autoCompactTokenLimitPercent,
       baselineTokens: runtimeConfig.context.baselineTokens,
     }
+  }
+
+  private async resolveContextMeterBudgetRaw(cwd: string): Promise<ContextMeterBudgetRaw | null> {
+    const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    const configuredContextWindowTokens = runtimeConfig.llm.contextWindowTokens
+    const contextWindowTokens =
+      configuredContextWindowTokens ??
+      getKnownContextWindowTokens({
+        provider: runtimeConfig.llm.provider,
+        model: this.model,
+      })
+    if (!contextWindowTokens) return null
+
+    return normalizeContextMeterBudgetRaw({
+      model: this.model,
+      provider: runtimeConfig.llm.provider,
+      source: configuredContextWindowTokens != null ? 'runtime_config' : 'known_model_window',
+      config: {
+        contextWindowTokens,
+        effectiveContextWindowPercent: runtimeConfig.context.effectiveContextWindowPercent,
+        autoCompactLimitPercent: runtimeConfig.context.autoCompactTokenLimitPercent,
+        baselineTokens: runtimeConfig.context.baselineTokens,
+      },
+    })
   }
 
   private resolvePendingInputs(

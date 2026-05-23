@@ -1,3 +1,6 @@
+import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
+import type { TokenUsage } from '@formax/shared/streaming'
+
 export type JsonRpcId = string | number
 
 export type RpcRequest = {
@@ -158,6 +161,42 @@ export type ResolvedInput = {
   expiresAt: string
   resolvedAt: string
   reason?: string
+}
+
+export type ContextMeterSnapshotRaw = {
+  source: 'context_diagnostics_snapshot'
+  fetchedAt: string
+  totalTokens: number
+  systemTokens: number
+  historyTokens: number
+  toolResultTokens: number
+  otherHistoryTokens: number
+  messageCount: number
+  userMessageCount: number
+  assistantMessageCount: number
+  toolResultBlockCount: number
+  microCompactedToolResultCount: number
+}
+
+export type ContextMeterThreadRaw = {
+  threadId: string
+  budgetRaw: ContextMeterBudgetRaw | null
+  budgetUpdatedAt?: string
+  snapshot?: ContextMeterSnapshotRaw
+  liveUsageByTurnId: Record<string, { usage: TokenUsage; replaySeq?: number; ts?: string }>
+  latestUsageTurnId?: string | null
+}
+
+export type ContextMeterView = {
+  available: boolean
+  source: 'usage' | 'snapshot' | null
+  usedTokens: number | null
+  limitTokens: number | null
+  percentUsed: number | null
+  percentRemaining: number | null
+  shouldAutoCompact: boolean | null
+  label: string | null
+  tone: 'normal' | 'warning' | 'danger'
 }
 
 export type TranscriptItem =

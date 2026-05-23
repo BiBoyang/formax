@@ -17,6 +17,9 @@ export type InitializeResult = {
   }
   protocolVersion: typeof APP_SERVER_PROTOCOL_VERSION
   serverInstanceId: string
+  ui: {
+    showContextMeter: boolean
+  }
   limits: {
     maxRequestBytes: number
     maxEventBytes: number

@@ -28,6 +28,7 @@ import { useRuntimeViewState } from './runtime/useRuntimeViewState'
 import { useRuntimeEventOrchestrator } from './runtime/useRuntimeEventOrchestrator'
 import { useRuntimeActionsBundle } from './runtime/useRuntimeActionsBundle'
 import { buildAppShellProps, type BuildAppShellPropsArgs } from './runtime/buildAppShellProps'
+import { selectActiveContextMeterView } from './core/contextMeterSelectors'
 import { useRpcConnectionEffect } from './runtime/useRpcConnectionEffect'
 import { useThreadSelection } from './runtime/useThreadSelection'
 import { useRuntimeRefSync } from './runtime/useRuntimeRefSync'
@@ -72,6 +73,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const devRuntime = useMemo(() => isDevRuntime(), [])
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
+  const [runtimeUi, setRuntimeUi] = useState({ showContextMeter: true })
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, isRightRailOpen, setIsRightRailOpen, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
     usePaneLayout()
@@ -213,7 +215,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     runtimeStateByThreadRef,
     nowIso: runtimePorts.nowIso,
   })
-  const { initializeHandshake } = useInitializeHandshake({ clientRef })
+  const onInitializeResult = useCallback((result: { ui: { showContextMeter: boolean } }) => {
+    setRuntimeUi((previous) =>
+      previous.showContextMeter === result.ui.showContextMeter
+        ? previous
+        : { showContextMeter: result.ui.showContextMeter },
+    )
+  }, [])
+  const { initializeHandshake } = useInitializeHandshake({ clientRef, onInitializeResult })
 
   const shouldProcessSequencedNotification = useCallback(
     (params: unknown): boolean => {
@@ -361,6 +370,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setSelectedCwd: setSelectedCwdStable,
   })
   const sortedThreadsRef = useRef(sortedThreads)
+  const activeContextMeter = useMemo(() => selectActiveContextMeterView(state), [state])
 
   useRuntimeRefSync({
     activeThreadId: state.activeThreadId,
@@ -572,6 +582,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       activeThreadTitle,
       activeThreadLatestCompactBoundary,
       activeThreadLatestRequestCollapse,
+      activeContextMeter,
+      showContextMeter: runtimeUi.showContextMeter,
       activeTurnId: state.activeTurnId,
       connectionStatus: state.connectionStatus,
       activeThread,
@@ -598,7 +610,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       activeHistoryLoading,
       activeLogs,
       activeThread,
+      activeThreadLatestCompactBoundary,
       activeThreadLatestRequestCollapse,
+      activeContextMeter,
       activeThreadTitle,
       composerLocked,
       composerUiHandlers,
@@ -610,6 +624,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       isSendingTurn,
       lastRpcError,
       mode,
+      runtimeUi.showContextMeter,
       setInputTextStable,
       state.activeTurnId,
       state.connectionStatus,

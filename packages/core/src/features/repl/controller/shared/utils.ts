@@ -1,5 +1,6 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { TokenUsage } from '../../../../streaming/types'
+import { sumInputTokens } from '@formax/shared/utils/contextMeter'
 import { countNonToolUserTurns as countNonToolUserTurnsFromCompact } from '../../../../chat/context/compact'
 import { isExactSlashCommand as isExactSlashCommandFromRouting } from '../../../semantics/core/commandRouting'
 
@@ -39,10 +40,7 @@ export function formatTokenUsageSummary(usage: TokenUsage | undefined): string |
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
-export function sumInputTokens(usage: TokenUsage | undefined): number {
-  const u = usage || {}
-  return (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
-}
+export { sumInputTokens }
 
 export function sumTokens(usage: TokenUsage | undefined): number {
   const u = usage || {}

@@ -13,6 +13,11 @@ vi.mock('../core/rpcContracts', () => ({
   })),
   parseThreadMessagesResponse: vi.fn(() => ({ data: [], nextCursor: 'cursor-next' })),
   parseThreadListResponse: vi.fn(() => []),
+  parseTurnStartLikeResponse: vi.fn(() => ({
+    turnId: null,
+    localStdout: '',
+    localDiagnostics: null,
+  })),
 }))
 
 function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): ThreadDataOpsContext {
@@ -514,5 +519,56 @@ describe('threadDataOps', () => {
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
     expect(ctx.setLatestRequestCollapseByThreadId).toHaveBeenCalled()
     expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(latestRequestCollapse)
+  })
+
+  it('refreshes context meter snapshot after thread resume when diagnostics raw data is available', async () => {
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({}),
+    })
+    const { parseTurnStartLikeResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseTurnStartLikeResponse).mockReturnValueOnce({
+      turnId: null,
+      localStdout: '',
+      localDiagnostics: {
+        kind: 'formax.context_diagnostics',
+        schemaVersion: 1,
+        mode: 'normal',
+        model: 'claude-test',
+        latestCompactBoundary: null,
+        contextMeterRaw: {
+          schemaVersion: 1,
+          source: 'context_diagnostics_snapshot',
+          model: 'claude-test',
+          provider: 'anthropic',
+          budgetRaw: null,
+          snapshotRaw: {
+            totalTokens: 100,
+            systemTokens: 10,
+            historyTokens: 90,
+            toolResultTokens: 0,
+            otherHistoryTokens: 90,
+            messageCount: 2,
+            userMessageCount: 1,
+            assistantMessageCount: 1,
+            toolResultBlockCount: 0,
+            microCompactedToolResultCount: 0,
+          },
+        },
+        snapshot: {} as any,
+        nextTurnFixed: {} as any,
+        notes: [],
+      },
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await ops.resumeThreadInputs('thread-1')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(ctx.request).toHaveBeenCalledWith('command/dispatch', { threadId: 'thread-1', command: '/context --json' })
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'context_meter_snapshot_received',
+      threadId: 'thread-1',
+      snapshot: expect.objectContaining({ totalTokens: 100 }),
+    }))
   })
 })

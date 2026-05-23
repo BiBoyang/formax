@@ -143,6 +143,13 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 `WEB-504`  
 `turn/started`、`turn/completed`、`turn/failed` 等通知的 UI 副作用（active turn、mode、日志）可以留在 Web runtime 层处理，但 canonical turn segments MUST 仍然通过 adapter + projection 路径收口。
 
+`WEB-505`
+Web context meter state MUST remain thread-scoped runtime side state. Raw meter facts from `turn/started.contextMeter`, `turn/event` usage events, and `/context --json` `local.diagnostics.contextMeterRaw` MAY update `contextMeterRawByThreadId`, including for non-active threads, after sequenced-notification gating. They MUST NOT be inserted into transcript logs, canonical projection segments, history hydrate rows, or `eventAdapters.ts`.
+Visible Web context-meter rendering MUST honor `initialize.result.ui.showContextMeter`; disabling visibility MUST NOT require dropping the cached raw side state.
+
+`WEB-506`
+Web MUST derive displayed context percentages locally from raw budget, usage, and snapshot facts. `percentRemaining`, `percentUsed`, labels, colors, and warning tones are render/view-model projections, not protocol authority.
+
 ## 7. Compression Projection Facts
 
 `WEB-601`

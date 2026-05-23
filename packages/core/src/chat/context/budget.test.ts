@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { computeContextBudget, computeContextStats } from './budget'
+import {
+  normalizeContextMeterBudgetRaw,
+  sumContextMeterLiveInputTokens,
+  sumInputTokens,
+} from '@formax/shared/utils/contextMeter'
 
 describe('context budget', () => {
   it('computes effective and auto-compact limits', () => {
@@ -70,5 +75,44 @@ describe('context budget', () => {
     })
     expect(stats.effectiveLimitTokens).toBe(95_000)
     expect(stats.usedTokens).toBe(0)
+  })
+
+  it('normalizes raw context meter budget and input-side usage counters', () => {
+    expect(
+      normalizeContextMeterBudgetRaw({
+        model: 'claude-test',
+        provider: 'anthropic',
+        source: 'known_model_window',
+        config: { contextWindowTokens: 200_000 },
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      model: 'claude-test',
+      provider: 'anthropic',
+      contextWindowTokens: 200_000,
+      effectiveContextWindowPercent: 0.95,
+      autoCompactLimitPercent: 0.9,
+      baselineTokens: 12_000,
+      source: 'known_model_window',
+    })
+    expect(
+      sumInputTokens({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 3,
+        cache_creation_input_tokens: 4,
+        cache_deleted_input_tokens: 99,
+      }),
+    ).toBe(17)
+    expect(
+      sumContextMeterLiveInputTokens({
+        provider: 'openai',
+        usage: {
+          input_tokens: 10,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 4,
+        },
+      }),
+    ).toBe(10)
   })
 })

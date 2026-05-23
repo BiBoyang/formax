@@ -3,6 +3,7 @@ import type { AppAction } from '../../store'
 import type { CompactBoundarySummary, PendingInput, ResolvedInput, RpcNotification } from '../../types'
 import { isNotificationForActiveThread } from '../core/appEventMachine'
 import { parseCompactBoundarySummary } from '../core/compactBoundarySummary'
+import { parseContextMeterBudgetRaw, parseProviderUsageRaw } from '../core/rpcContracts'
 import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
 import type { ReplMode } from '../../semantics'
 import { mapTurnNotificationToCanonicalEvents } from '../../semantics'
@@ -67,6 +68,46 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
 
   const isActiveThread = () =>
     isNotificationForActiveThread({ params, activeThreadId: ctx.activeThreadIdRef.current })
+
+  if (threadId) {
+    if (notification.method === 'turn/started') {
+      const contextMeter = asObject(params.contextMeter)
+      if (contextMeter.budgetRaw === null) {
+        ctx.dispatch({
+          type: 'context_meter_budget_received',
+          threadId,
+          budgetRaw: null,
+          ...(typeof params.ts === 'string' ? { ts: params.ts } : {}),
+        })
+      } else if (Object.prototype.hasOwnProperty.call(contextMeter, 'budgetRaw')) {
+        const budgetRaw = parseContextMeterBudgetRaw(contextMeter.budgetRaw)
+        if (budgetRaw) {
+          ctx.dispatch({
+            type: 'context_meter_budget_received',
+            threadId,
+            budgetRaw,
+            ...(typeof params.ts === 'string' ? { ts: params.ts } : {}),
+          })
+        }
+      }
+    } else if (notification.method === 'turn/event') {
+      const turnId = typeof params.turnId === 'string' && params.turnId.trim() ? params.turnId : ''
+      const event = asObject(params.event)
+      if (turnId && event.type === 'usage') {
+        const usage = parseProviderUsageRaw(event.usage)
+        if (usage) {
+          ctx.dispatch({
+            type: 'context_meter_usage_received',
+            threadId,
+            turnId,
+            usage,
+            ...(replaySeq !== null ? { replaySeq } : {}),
+            ...(typeof params.ts === 'string' ? { ts: params.ts } : {}),
+          })
+        }
+      }
+    }
+  }
 
   if (isActiveThread()) {
     const canonicalEvents = mapTurnNotificationToCanonicalEvents(

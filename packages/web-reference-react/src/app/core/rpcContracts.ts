@@ -1,4 +1,6 @@
 import type { DurableSnipSummary, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
+import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
+import type { TokenUsage } from '@formax/shared/streaming'
 import {
   asResolvedInputs,
   asThreadMessages,
@@ -22,6 +24,12 @@ export type RpcTurnStartLikeResult = {
   turnId: string | null
   localStdout: string
   localDiagnostics: RpcContextDiagnosticsPayload | null
+}
+
+export type RpcInitializeResult = {
+  ui: {
+    showContextMeter: boolean
+  }
 }
 
 export type RpcContextContributor = {
@@ -271,9 +279,32 @@ export type RpcContextDiagnosticsPayload = {
   latestCompactBoundary: RpcLatestCompactBoundary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
   latestReactiveCompact?: RpcLatestReactiveCompact | null
+  contextMeterRaw?: RpcContextMeterRaw | null
   snapshot: RpcContextDiagnosticsSnapshot
   nextTurnFixed: RpcNextTurnFixedContextDiagnostics
   notes: string[]
+}
+
+export type RpcContextMeterSnapshotRaw = {
+  totalTokens: number
+  systemTokens: number
+  historyTokens: number
+  toolResultTokens: number
+  otherHistoryTokens: number
+  messageCount: number
+  userMessageCount: number
+  assistantMessageCount: number
+  toolResultBlockCount: number
+  microCompactedToolResultCount: number
+}
+
+export type RpcContextMeterRaw = {
+  schemaVersion: 1
+  source: 'context_diagnostics_snapshot'
+  model: string
+  provider: string | null
+  budgetRaw: ContextMeterBudgetRaw | null
+  snapshotRaw: RpcContextMeterSnapshotRaw
 }
 
 export type RpcLatestRequestCollapse = {
@@ -386,6 +417,16 @@ export function parseThreadStartResponse(value: unknown): RpcStartedThread | nul
   if (!id) return null
   const cwd = typeof thread.cwd === 'string' && thread.cwd.trim() ? thread.cwd : undefined
   return cwd ? { id, cwd } : { id }
+}
+
+export function parseInitializeResponse(value: unknown): RpcInitializeResult {
+  const root = asRecord(value)
+  const ui = asRecord(root.ui)
+  return {
+    ui: {
+      showContextMeter: typeof ui.showContextMeter === 'boolean' ? ui.showContextMeter : true,
+    },
+  }
 }
 
 export function parseTurnStartLikeResponse(value: unknown): RpcTurnStartLikeResult {
@@ -525,6 +566,8 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
   const latestCompactBoundary = parseStrictLatestCompactBoundaryField(record)
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(record, 'latestRequestCollapse')
   const latestReactiveCompact = parseOptionalNullableLatestReactiveCompactField(record, 'latestReactiveCompact')
+  const contextMeterRaw =
+    record.contextMeterRaw === undefined ? { present: false as const, value: null } : { present: true as const, value: parseContextMeterRaw(record.contextMeterRaw) }
   const notes = parseRequiredStringList(record.notes)
   if (
     !mode ||
@@ -534,6 +577,7 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
     !latestCompactBoundary ||
     !latestRequestCollapse ||
     !latestReactiveCompact ||
+    (contextMeterRaw.present && !contextMeterRaw.value) ||
     !notes
   ) {
     return null
@@ -546,10 +590,136 @@ function parseContextDiagnosticsPayload(value: unknown): RpcContextDiagnosticsPa
     latestCompactBoundary: latestCompactBoundary.value,
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
     ...(latestReactiveCompact.present ? { latestReactiveCompact: latestReactiveCompact.value } : {}),
+    ...(contextMeterRaw.present ? { contextMeterRaw: contextMeterRaw.value } : {}),
     snapshot,
     nextTurnFixed,
     notes: notes.value,
   }
+}
+
+export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRaw | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  if (record.schemaVersion !== 1) return null
+  const model = typeof record.model === 'string' && record.model.trim() ? record.model : null
+  const provider = record.provider === null || record.provider === undefined
+    ? null
+    : typeof record.provider === 'string'
+      ? record.provider
+      : undefined
+  const contextWindowTokens = asFiniteNumber(record.contextWindowTokens)
+  const effectiveContextWindowPercent = asFiniteNumber(record.effectiveContextWindowPercent)
+  const autoCompactLimitPercent = asFiniteNumber(record.autoCompactLimitPercent)
+  const baselineTokens = asFiniteNumber(record.baselineTokens)
+  const source =
+    record.source === 'runtime_config' || record.source === 'known_model_window' ? record.source : null
+  if (
+    !model ||
+    provider === undefined ||
+    contextWindowTokens == null ||
+    effectiveContextWindowPercent == null ||
+    autoCompactLimitPercent == null ||
+    baselineTokens == null ||
+    !source
+  ) {
+    return null
+  }
+  return {
+    schemaVersion: 1,
+    model,
+    provider,
+    contextWindowTokens,
+    effectiveContextWindowPercent,
+    autoCompactLimitPercent,
+    baselineTokens,
+    source,
+  }
+}
+
+function parseContextMeterSnapshotRaw(value: unknown): RpcContextMeterSnapshotRaw | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const totalTokens = asFiniteNumber(record.totalTokens)
+  const systemTokens = asFiniteNumber(record.systemTokens)
+  const historyTokens = asFiniteNumber(record.historyTokens)
+  const toolResultTokens = asFiniteNumber(record.toolResultTokens)
+  const otherHistoryTokens = asFiniteNumber(record.otherHistoryTokens)
+  const messageCount = asFiniteNumber(record.messageCount)
+  const userMessageCount = asFiniteNumber(record.userMessageCount)
+  const assistantMessageCount = asFiniteNumber(record.assistantMessageCount)
+  const toolResultBlockCount = asFiniteNumber(record.toolResultBlockCount)
+  const microCompactedToolResultCount = asFiniteNumber(record.microCompactedToolResultCount)
+  if (
+    totalTokens == null ||
+    systemTokens == null ||
+    historyTokens == null ||
+    toolResultTokens == null ||
+    otherHistoryTokens == null ||
+    messageCount == null ||
+    userMessageCount == null ||
+    assistantMessageCount == null ||
+    toolResultBlockCount == null ||
+    microCompactedToolResultCount == null
+  ) {
+    return null
+  }
+  return {
+    totalTokens,
+    systemTokens,
+    historyTokens,
+    toolResultTokens,
+    otherHistoryTokens,
+    messageCount,
+    userMessageCount,
+    assistantMessageCount,
+    toolResultBlockCount,
+    microCompactedToolResultCount,
+  }
+}
+
+export function parseContextMeterRaw(value: unknown): RpcContextMeterRaw | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  if (record.schemaVersion !== 1) return null
+  if (record.source !== 'context_diagnostics_snapshot') return null
+  const model = typeof record.model === 'string' && record.model.trim() ? record.model : null
+  const provider = record.provider === null || record.provider === undefined
+    ? null
+    : typeof record.provider === 'string'
+      ? record.provider
+      : undefined
+  if (!Object.prototype.hasOwnProperty.call(record, 'budgetRaw')) return null
+  const budgetRaw = record.budgetRaw === null ? null : parseContextMeterBudgetRaw(record.budgetRaw)
+  const snapshotRaw = parseContextMeterSnapshotRaw(record.snapshotRaw)
+  if (!model || provider === undefined || (record.budgetRaw !== null && !budgetRaw) || !snapshotRaw) return null
+  return {
+    schemaVersion: 1,
+    source: 'context_diagnostics_snapshot',
+    model,
+    provider,
+    budgetRaw,
+    snapshotRaw,
+  }
+}
+
+export function parseProviderUsageRaw(value: unknown): TokenUsage | null {
+  const record = asOptionalRecord(value)
+  if (!record) return null
+  const out: TokenUsage = {}
+  for (const key of [
+    'input_tokens',
+    'output_tokens',
+    'cache_read_input_tokens',
+    'cache_creation_input_tokens',
+    'cache_deleted_input_tokens',
+  ] as const) {
+    const raw = record[key]
+    if (raw === undefined) continue
+    const parsed = asFiniteNumber(raw)
+    if (parsed == null || parsed < 0) return null
+    out[key] = parsed
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 function parseOptionalNullableLatestRequestCollapseField(
