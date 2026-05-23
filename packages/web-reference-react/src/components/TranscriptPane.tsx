@@ -7,7 +7,7 @@ import { MarkdownRenderer } from './MarkdownRenderer'
 import { ToolTranscriptItem } from './tool/ToolTranscriptItem'
 import { ComposerDock } from './composer/ComposerDock'
 import { TranscriptFeed } from './transcript/TranscriptFeed'
-import { NewThreadDraftSurface } from './transcript/NewThreadDraftSurface'
+import { DraftProjectSelector, NewThreadDraftSurface } from './transcript/NewThreadDraftSurface'
 import { useRenderWindow, type TranscriptRow } from './transcript/useRenderWindow'
 import type { VisibleSurface } from '../app/runtime/newThreadDraft'
 
@@ -388,6 +388,14 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 longTextRequireCmdEnter={longTextRequireCmdEnter}
                 placeholder={draftCwd ? undefined : t('transcript.newThreadSelectProjectFirst')}
                 layoutVariant="centered"
+                floatingFooterAccessory={
+                  <DraftProjectSelector
+                    draftCwd={draftCwd}
+                    cwdOptions={draftCwdOptions}
+                    onDraftCwdChange={(cwd) => onDraftCwdChange?.(cwd)}
+                    onDraftAddProject={onDraftAddProject}
+                  />
+                }
                 activeContextMeter={activeContextMeter}
                 showContextMeter={showContextMeter}
               />

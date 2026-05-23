@@ -106,6 +106,7 @@ export type ComposerDockProps = {
   placeholder?: string
   layoutVariant?: 'bottom' | 'centered'
   footerAccessory?: ReactNode
+  floatingFooterAccessory?: ReactNode
   activeContextMeter?: ContextMeterView
   showContextMeter?: boolean
 }
@@ -160,7 +161,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
           />
         ) : null}
         <form
-          className="group relative flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm focus-within:border-ring/30 focus-within:shadow-md transition-all duration-200"
+          className="group relative z-10 flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm transition-all duration-200 focus-within:border-ring/30 focus-within:shadow-md"
           onSubmit={props.onSend}
         >
           <Textarea
@@ -269,6 +270,14 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
             </div>
           </div>
         </form>
+        {props.floatingFooterAccessory ? (
+          <div className="pointer-events-none absolute inset-x-0 top-full z-0 h-10">
+            <div className="absolute inset-x-0 -top-6 h-16 rounded-b-[24px] bg-muted shadow-[0_2px_8px_rgba(0,0,0,0.05)]" />
+            <div className="pointer-events-auto relative flex h-10 items-center px-4">
+              {props.floatingFooterAccessory}
+            </div>
+          </div>
+        ) : null}
         {props.footerAccessory ? <div className="mt-3">{props.footerAccessory}</div> : null}
       </div>
     </div>

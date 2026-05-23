@@ -243,7 +243,7 @@ describe('TranscriptPane', () => {
     )
 
     expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
-    expect(screen.getByText('Choose a project before sending the first message.')).toBeInTheDocument()
+    expect(screen.queryByText('Choose a project before sending the first message.')).toBeNull()
     expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
 
