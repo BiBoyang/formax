@@ -1,135 +1,237 @@
-# Web New Thread Draft Surface Todo
+# Web Draft Ownership Leakage Todo
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] 当前 `packages/web-reference-react` 的左侧 `新建线程` 会直接走真实 `thread/start`。
-- [x] 当前 `ComposerDock` 与 `composerActions` 都要求存在真实 `activeThreadId` 才能提交。
-- [x] 当前 `TranscriptFeed` / `TranscriptPane` 主要通过 `!activeThreadId` 表达 welcome/empty surface。
-- [x] 当前 `useThreadSelection()` 会自动回填 `selectedCwd`，不适合直接承载“未选 path”的 draft 状态。
-- [x] 这次需求已经对齐为显式 `newThreadDraft` 过程，而不是复用现有 welcome 态。
-- [x] 新流程的主线语义是 `welcome -> newThreadDraft -> thread`，但 `newThreadDraft` 也可能从已有 thread 进入。
-- [x] 真实 thread 仍然必须绑定 path，因此 draft 下 path 是必选项。
+- [x] 当前 `packages/web-reference-react` 已经把无 active thread 的默认主入口切到 `newThreadDraft`，中栏 composer 居中。
+- [x] 当前问题已不再是 isolated right-rail bug，而是一组 `newThreadDraft` ownership 没切干净的问题。
+- [x] `newThreadDraft` 下右栏仍可能显示旧 `diffSnapshot`，说明 right rail 仍按 workspace-like 生命周期存活。
+- [x] `newThreadDraft` 下 header workspace label 会泄漏旧 `selectedCwd`，例如显示 `tmp`。
+- [x] `newThreadDraft` 下 header 的 open-folder action 仍可能绑定旧 `selectedCwd`。
+- [x] `useAppRuntime.ts` 当前仍可能把 `selectedCwdRef.current` 和 `diffSnapshot.cwd` 参与 draft fallback cwd 推断。
+- [x] `selectedCwd` 不是 `draftCwd`，`diffSnapshot.cwd` 更不是 `draftCwd`。
+- [x] 用户已经明确确认：右侧内容必须严格跟随真实 thread；当前没有选中 thread 时右栏必须是空白页。
+- [x] 用户已经明确确认：`welcome` 先保留，但不再承担“无线程默认入口”的职责。
 
 ### 0.2 Goals
-- [x] 点击左侧 `新建线程` 时进入显式 `newThreadDraft` surface，而不是立即创建真实 thread。
-- [x] 在 `newThreadDraft` 下显示居中的 `ComposerDock` 与中间 path selector。
-- [x] 未选 path 时禁止发送首条消息。
-- [x] draft 首条发送时才真实调用 `thread/start`，随后再走 `turn/start` 或 `command/dispatch`。
-- [x] 离开未发送的 draft 时不留下空 thread，不污染左侧 thread 列表。
+- [x] 把 `newThreadDraft` 从“只改对中栏”收敛成“整页 ownership 一致”的状态。
+- [x] 让 right rail 成为严格的 thread-only surface：无真实 thread 时一律空白。
+- [x] 让 header 在 draft 下改读 `draftCwd`，未选项目时不再显示旧 workspace label。
+- [x] 让 header 的 open-folder action 在 draft 下与 `draftCwd` 保持一致，未选项目时不可用。
+- [x] 切断 `selectedCwd` / `diffSnapshot.cwd` 对 draft fallback 的污染。
+- [x] 用测试锁住 thread-owned / draft-owned / workspace-selection-only 三类 owner 边界。
 
 ### 0.3 Non-goals
-- [x] 本任务不改 app-server 协议，不新增“原子创建 thread 并发送首条消息”的服务端接口。
-- [x] 本任务不改变左侧普通 folder row 的现有职责；它仍是分组/导航语义，不承担 draft path 选择。
-- [x] 本任务不做 draft 跨刷新恢复，不做未发送草稿持久化。
-- [x] 本任务不顺手重构 terminal、diff、approval 等无关链路。
-- [x] 本任务不把 `newThreadDraft` 塞回现有 `!activeThreadId` welcome 逻辑里。
+- [x] 本任务不改 app-server 协议。
+- [x] 本任务不新增 fake empty thread，也不允许“假装已有 thread”来维持右栏内容。
+- [x] 本任务不顺手做 unrelated desktop、project management、terminal redesign。
+- [x] 本任务不要求现在物理删除 `welcome` 状态定义；只要求它退出默认入口职责。
+- [x] 本任务不把 `selectedCwd` 整体删除；它仍可作为 workspace selection only 状态存在。
 
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [x] 先核对并在必要时更新 `docs/frontend/app-server-ui-spec.md`，把 `newThreadDraft` 作为显式 GUI surface 写清楚。
-- [x] 评估是否需要同步更新 `docs/contracts/web-parity-adapter-contract.md`，特别是 active-thread canonical gating 与 web 端 transient draft surface 的边界。
-- [x] 确认本次是否需要更新 `docs/contracts/app-server-interaction-contract.md`；当前预期是协议不变，仅 UI/runtime 调用时机变化。
-- [x] 判断是否需要新增长期 canonical doc；当前预期先不新增，若实现后发现概念稳定再提升。
+- [x] 更新 `docs/frontend/app-server-ui-spec.md`，把右栏从 “workspace diff” 收敛为 thread-only surface。
+- [x] 在 `docs/frontend/app-server-ui-spec.md` 中补充 header 在 `newThreadDraft` 下的 workspace label / open-folder 语义。
+- [x] 审视 `docs/contracts/web-parity-adapter-contract.md`，确认 `newThreadDraft` 作为 transient surface 不再泄漏旧 thread/workspace owner。
+- [x] 判断是否需要为 `thread-owned / draft-owned / workspace selection only` 增补短的 canonical 说明；如不需要新文档，则在现有 docs 中落清边界。
 
-### 1.2 Data model
-- [x] 定义 `newThreadDraft` 为唯一可写 draft 状态，最小形状至少包含 `status`、`cwd`、`source`。
-- [x] 定义 `surfaceKind` / `visibleSurface` 为派生 view model，而不是第二个可写状态源：`newThreadDraft.status === 'active' -> 'newThreadDraft'`，否则 `activeThreadId ? 'thread' : 'welcome'`。
-- [x] 明确 `selectedCwd` 与 `draftCwd` 的边界：`selectedCwd` 继续服务左侧分组/现有 thread，`draftCwd` 只服务新建线程草稿过程。
-- [x] 禁止 UI 组件继续用 `!activeThreadId` 推断 draft；`TranscriptPane` 只消费派生后的 `surfaceKind` / `visibleSurface`。
+### 1.2 Ownership model
+- [x] 明确定义 `thread-owned` 状态集合：
+  - [x] `activeThreadId`
+  - [x] `activeThread.cwd`
+  - [x] `diffSnapshot`
+  - [x] `activeThreadLatestRequestCollapse`
+  - [x] `activeThreadLatestCompactBoundary`
+  - [x] `activeContextMeter` / visible context meter chrome
+  - [x] `activeTurnId` / interrupt / active-turn header controls
+  - [x] `selectedInput` / approval dock / `composerLocked`
+  - [x] terminal pane visibility only as ownership leakage audit, not redesign
+- [x] 明确定义 `draft-owned` 状态集合：
+  - [x] `newThreadDraft.status`
+  - [x] `newThreadDraft.source`
+  - [x] `draftCwd`
+  - [x] draft selector / draft send eligibility
+- [x] 明确定义 `workspace selection only` 状态集合：
+  - [x] `selectedCwd`
+  - [x] 左栏 group selection / highlight
+  - [x] 其他仅服务 workspace navigation 的状态
+- [x] 把 “谁可以读 `selectedCwd`、谁绝对不能读 `selectedCwd`” 写成可执行规则。
+- [x] 把 `selectedCwd` 的 allowed readers 写死：
+  - [x] left rail group selection / highlight
+  - [x] workspace navigation only
+  - [x] not header label
+  - [x] not header folder action
+  - [x] not draft fallback
+  - [x] not diff resolver
+- [x] 把 “谁可以读 `draftCwd`、谁绝对不能从旧 `diffSnapshot` 派生 `draftCwd`” 写成可执行规则。
 
-### 1.3 Types / Interfaces
-- [x] 更新 `AppShellProps` / `TranscriptPaneProps` / `ComposerDockProps`，显式表达 draft surface 与提交条件，不再把 `activeThreadId` 作为唯一 gate。
-- [x] 为 runtime actions 定义 `enterNewThreadDraft`、`leaveNewThreadDraft`、`setNewThreadDraftCwd`、`createAndActivateThreadInCwd` 等接口边界。
-- [x] 明确左侧入口 props 命名，避免继续使用会误导成“立即创建 thread”的 handler 名称。
-- [x] 让 `ComposerDock` 的 Enter 与发送按钮共用同一套 `canSubmit` / `isInputDisabled` 逻辑，禁止一个入口继续隐式依赖 `activeThreadId`。
+### 1.3 View-model boundaries
+- [x] 在 `AppShell` 层定义明确的派生 gate：
+  - [x] `isThreadSurface`
+  - [x] `isDraftSurface`
+  - [x] `headerWorkspaceCwd`
+  - [x] `headerOpenFolderCwd`
+  - [x] `showThreadRightRail`
+- [x] 把 `isThreadSurface` 的公式写死：
+  - [x] `visibleSurface === 'thread' && activeThreadId != null`
+- [x] 把 `headerWorkspaceCwd` 的公式写死：
+  - [x] `thread surface -> activeThread.cwd ?? null`
+  - [x] `draft surface -> draftCwd`
+  - [x] `otherwise -> null`
+- [x] 决定 `activeWorkspaceLabel` 在 `newThreadDraft` 下的正确语义：
+  - [x] 有 `draftCwd` 时显示 `folderNameFromCwd(draftCwd)`
+  - [x] `draftCwd == null` 时为空，不显示旧 `selectedCwd`
+- [x] 决定 header open-folder action 在 `newThreadDraft` 下的正确语义：
+  - [x] 跟随 `draftCwd`
+  - [x] `draftCwd == null` 时隐藏或 disabled
+- [x] `AppShellHeader` MUST NOT 再接收名为 `selectedCwd` 的 prop。
+- [x] 给 header 传入的 folder action target 改成显式命名：
+  - [x] `headerOpenFolderCwd`
+  - [x] 或 `openFolderCwd`
+- [x] thread header chrome 在 `!isThreadSurface` 时必须隐藏：
+  - [x] compact boundary
+  - [x] context meter
+  - [x] request collapse / active-turn 相关 chrome
 
 ## 2. Runtime / Platform
-- [x] 在 `useRuntimeViewState.ts` 增加 draft state 与 stable setter。
-- [x] 在 `useAppRuntime.ts` / `useRuntimeActionsBundle.ts` 组装 draft actions，并把 `cwdOptions` 透传到 UI 层。
-- [x] 不直接复用现有 `startThreadWithCwd` 作为 draft 首发路径。
-- [x] 从 `threadActions.ts` 拆出更小的 server create helper，例如 `createThreadOnServerInCwd(cwd)`，只负责 `thread/start` 与响应解析。
-- [x] 拆出 activation helper，例如 `activateCreatedThread(thread, meta)`，只负责激活真实 thread、清 active turn/pending/logs、同步真实 thread cwd。
-- [x] 在 `composerActions.ts` 增加 draft 首发分支：校验 `draftCwd` 后先 `thread/start`，再 `turn/start` 或 `command/dispatch`；不得先跑旧的 replay/hydrate 回滚事务。
-- [x] 明确 `thread/start` 成功但首发失败时的边界处理，接受留下真实空 thread 的协议现实，不做假回滚。
-- [x] 审视 `useThreadUrlSync.ts`，保持 URL 只同步真实 thread，不为 draft 引入独立 query/route。
-- [x] 把 `selectedCwd` / `draftCwd` 分离写成可执行不变量：
-  - [x] `setNewThreadDraftCwd` 是唯一写入 `draftCwd` 的 action。
-  - [x] `selectCwd` / folder row click 只允许写 `selectedCwd`，不得写 `draftCwd`。
-  - [x] `useThreadSelection()` fallback 只能修正 `selectedCwd`，不得参与 draft path 初始化。
-  - [x] draft 首发请求的 cwd 来自 `draftCwd` / created thread effective cwd，不得回退到普通 active-thread `resolveRequestCwd(activeThreadId)` 逻辑。
-- [x] 补 draft 下 command routing 边界，至少覆盖：
-  - [x] draft active + `/clear` 不得调用普通 `startThread()`。
-  - [x] draft active + supported slash command：只有已选 `draftCwd` 时才先 `thread/start` 再 `command/dispatch`。
-  - [x] draft active + unsupported slash command：只显示 unsupported 提示，不创建 thread。
-- [x] 明确 draft 生命周期退出规则：
-  - [x] `selectThread(threadId)` 必须退出 draft 并进入真实 thread。
-  - [x] 再次点击左侧 `新建线程` 必须重置为 fresh draft，`draftCwd = null`。
-  - [x] folder quick action 重新进入 draft，并预填该 folder 的 `draftCwd`。
-  - [x] 一旦 `thread/start` 成功，draft 立即结束；即使后续首发失败，也已经进入真实 thread surface。
-- [x] v1 中 `draftCwd` 不参与 right diff cwd 解析；选择 draft path 不自动刷新右栏 diff，只有真实 thread 激活后才刷新。
+
+### 2.1 Thread-only state cleanup
+- [ ] 在 `useAppRuntime.ts` 引入显式 `clearThreadOnlySurfaceState` helper。
+- [ ] `enterNewThreadDraft(...)` 时清空 thread-only right-rail state，而不只是清 transcript / active thread。
+- [ ] 当 `visibleSurface !== 'thread'` 时，保持 thread-only side state 为空的 runtime 不变量。
+- [ ] 处理 archive 最后一个 thread、URL thread 无效、默认启动无 thread 等 no-thread 入口，让它们统一走 thread-only state cleanup。
+
+### 2.2 Draft fallback boundary
+- [ ] 把 `resolveWorkspaceDraftFallbackCwd` 改名并收窄为 `resolveDraftFallbackCwd`。
+- [ ] 删除 `selectedCwdRef.current` 参与 draft fallback 的路径。
+- [ ] 删除 `diffSnapshot.cwd` 参与 draft fallback 的路径。
+- [ ] 明确 draft fallback 只允许来自：
+  - [ ] 显式 requested cwd
+  - [ ] folder quick action cwd
+  - [ ] draft selector / add-project 结果
+  - [ ] 其他已明确确认的 draft-owned 来源
+
+### 2.3 Diff runtime ownership
+- [ ] 检查 `createDiffDataOps` 的 cwd resolver，确保无 active thread 时不再 fallback 到 `selectedCwdRef.current`。
+- [ ] 让 diff refresh / patch request 的 runtime 语义只在真实 thread 存在时生效。
+- [ ] 对 late diff result 加 active-thread guard，避免 stale snapshot 在切回 draft 后重新写入。
+- [ ] diff snapshot write MUST 校验：
+  - [ ] 当前仍存在 active thread
+  - [ ] 返回的 cwd 与当前 active thread cwd 匹配
+  - [ ] 否则直接丢弃结果
+- [ ] `clearThreadOnlySurfaceState` MUST 清理：
+  - [ ] `diffSnapshot`
+  - [ ] `isRefreshingDiff`
+  - [ ] pending / stale diff writeback path
+- [ ] no active thread => no diff refresh request and no patch request
 
 ## 3. Frontend Boundary
 
-### 3.1 Left rail
-- [x] 左侧 `新建线程` 改为进入 draft，不立即创建 thread。
-- [x] folder quick action 改为进入 draft 并预填该 folder 的 cwd。
-- [x] 普通 folder row 点击保持现有分组/导航行为，不写入 `draftCwd`。
+### 3.1 AppShell ownership
+- [ ] 在 `AppShell.tsx` 集中派生 header 和 right rail 的 owner gate，不把 ownership 判断散落到各组件。
+- [ ] 让 header label 在 `thread` / `newThreadDraft` / no-thread 三种 surface 下读对来源。
+- [ ] 不再把裸 `selectedCwd` 直接作为 header folder action 的输入。
+- [ ] right rail 在非 `thread` surface 下渲染空白态，而不是继续挂载 thread-only 内容。
+- [ ] `activeThreadLatestRequestCollapse` 在 draft / no-thread 下不得残留显示。
 
-### 3.2 Draft surface
-- [x] 在 `TranscriptPane` 层显式切换 `welcome | thread | newThreadDraft`，不要继续让 `TranscriptFeed` 从 `!activeThreadId` 推断 draft。
-- [x] 新增或抽出 `NewThreadDraftSurface`，承载居中的 `ComposerDock`、path selector、必选提示与空态文案。
-- [x] selector 数据源使用现有项目列表，并提供 `添加新项目` 入口。
+### 3.2 Header
+- [ ] 更新 `AppShellHeader.tsx` props，使 workspace label 可表达 “无值 / 不显示”。
+- [ ] 更新 `AppShellHeader.tsx` props，使 folder action 可表达 “无合法 cwd / 不可点”。
+- [ ] 确认 header 不会在 `newThreadDraft` 下再显示旧目录名，例如 `tmp`。
 
-### 3.3 Composer
-- [x] 给 `ComposerDock` 增加显式 `canSubmit` / `isInputDisabled` / `layoutVariant` 等 props。
-- [x] draft 下未选 path 时禁用输入或至少禁用提交；具体交互保持一处定义，不要在 Enter 和按钮层分叉出两套规则。
-- [x] 普通真实 thread 下继续保持现有底部 composer 布局与行为。
+### 3.3 Right rail
+- [ ] 保持 `WorktreeDiffPane` 作为 dumb renderer，不让它承担 draft/thread owner 判断。
+- [ ] 在 `AppShell` 层决定是否挂载 `WorktreeDiffPane`。
+- [ ] 非 thread surface 下不显示 right rail diff rows、changes count、refresh 按钮、collapse summary。
 
-### 3.4 Add project
-- [x] v1 决策：左侧 `添加项目` 不再直接 native picker + `onStartThreadInCwd`。
-- [x] 左侧 `添加项目` 只进入 `newThreadDraft`，`source = 'addProject'`，不预选 cwd，不创建 thread。
-- [x] native picker 只挂在中间 draft selector 的 `添加新项目` 选项下。
-- [x] picker 成功后只写 `draftCwd`，不写 `selectedCwd`，不创建 thread。
+### 3.4 Left rail and workspace selection
+- [ ] 核对左栏在 draft 下继续隐藏 `selectedCwd` 选中态是否仍符合当前 ownership 模型。
+- [ ] 确认左栏 folder row / group selection 继续只影响 workspace selection，不反向污染 draft-owned header / right rail。
 
 ## 4. Tests
-- [x] 更新 `LeftRail.test.tsx`：`新建线程` 与 folder quick action 进入 draft，而不是立即 start thread。
-- [x] 更新 `composerActions.test.ts`：覆盖 draft 未选 path 禁止发送、draft 首发先 `thread/start` 再 `turn/start`/`command/dispatch`、失败恢复边界，以及 `/clear` / supported slash command / unsupported slash command 的 draft 分支。
-- [x] 更新 `TranscriptPane.test.tsx`：覆盖 `surfaceKind` 分支、draft 居中 composer、welcome 与 draft 分离。
-- [x] 更新 `app-composer.integration.test.tsx`：把旧的“点击新建线程立即创建”行为替换为“选择 path 后首发才创建”。
-- [x] 视改动面补充 `useRuntimeViewState.test.tsx` 与 `useThreadUrlSync.test.tsx`，锁住 draft state 与 URL thread-only 语义。
-- [x] 补 leaving-draft 相关覆盖：draft -> 选择真实 thread、draft -> 再点 `新建线程`、draft -> folder quick action 重进、draft 首发失败后进入真实 thread 边界。
-- [x] 明确 right diff 不跟随 `draftCwd` 刷新的测试覆盖。
-- [x] 只跑与本次改动直接相关的 targeted tests，不扩大到无关全量验证。
+
+### 4.1 Runtime tests
+- [ ] 扩展 `threadArchiving.test.ts`：
+  - [ ] archive 最后一个 thread 后断言 `diffSnapshot === null`
+  - [ ] 断言 thread-only chrome 不再残留
+- [ ] 扩展 `urlSync.test.ts`：
+  - [ ] invalid thread URL 回退到 draft 时断言 `diffSnapshot === null`
+  - [ ] 断言 draft cwd 不来自旧 `diffSnapshot.cwd`
+- [ ] 补从真实 thread 进入 draft 的 runtime 测试：
+  - [ ] 旧 `selectedCwd` 不再泄漏为 draft label / draft cwd
+  - [ ] 旧 `diffSnapshot` 被清空
+
+### 4.2 UI tests
+- [ ] 新增或扩展 `AppShell` / `AppShellHeader` render tests：
+  - [ ] `visibleSurface='newThreadDraft'`、`activeThreadId=null`、`selectedCwd='/tmp'`、`draftCwd=null` 时 header 不显示 `tmp`
+  - [ ] 同场景下 header open-folder action 不存在或 disabled
+  - [ ] 同场景下 right rail 不挂载 `WorktreeDiffPane`
+  - [ ] 同场景下不显示 `latestRequestCollapse`
+  - [ ] 同场景下不显示 `activeThreadLatestCompactBoundary`
+  - [ ] 同场景下不显示旧 `activeContextMeter`
+- [ ] 增加 `draftCwd='/repo-draft'` 的 header 测试：
+  - [ ] label 显示 `repo-draft`
+  - [ ] open-folder action 使用 `/repo-draft`
+  - [ ] 不再显示旧 `selectedCwd`
+- [ ] 增加 “draft surface 优先于残留 thread state” 的 render 测试：
+  - [ ] 即使存在 stale `activeThread` / `diffSnapshot` / thread chrome 数据，只要 `visibleSurface='newThreadDraft'`，整页仍表现为 draft-owned header + empty right rail
+
+### 4.3 Integration / behavior tests
+- [ ] 覆盖默认启动无 thread 的整页行为：
+  - [ ] 中栏 draft
+  - [ ] header 空或跟 `draftCwd`
+  - [ ] right rail 空白
+- [ ] 覆盖点击 `New Thread` 从真实 thread 进入 draft 的整页行为。
+- [ ] 覆盖 draft 下已选项目 vs 未选项目两种状态的 header / right rail 差异。
+- [ ] 覆盖 draft 下点击 open-folder：
+  - [ ] `draftCwd=null` 时不调用 open
+  - [ ] `draftCwd='/repo-draft'` 时只能打开 `/repo-draft`
+- [ ] 覆盖 runtime 行为：
+  - [ ] no active thread 不触发 diff refresh
+  - [ ] 进入 draft 后晚返回的旧 diff 结果不得重新填充 `diffSnapshot`
+- [ ] 覆盖 draft / no-thread 下 thread-only chrome 全部为空：
+  - [ ] no compact boundary
+  - [ ] no old context meter
+  - [ ] no old approval dock
+  - [ ] no old terminal pane leakage
 
 ## 5. Recommended Execution Order
 
 ### Loop 1
-- [x] 固化 runtime 语义：`newThreadDraft` 作为唯一可写 draft 状态，`surfaceKind` 作为派生 surface。
-- [x] 拆分 draft 首发 helper：server create helper 与 activation helper，禁止直接复用旧的 `startThreadWithCwd` 事务。
-- [x] 改 `composerActions`，补 draft 首发、slash command 与 `/clear` 分支。
-- [x] 先补/改 runtime 单测：`composerActions.test.ts`、必要的 `useRuntimeViewState.test.tsx`、必要的 `useThreadUrlSync.test.tsx`。
-- [x] 跑本 loop 的 targeted verification。
+- [x] 收敛 ownership 定义：thread-owned / draft-owned / workspace selection only。
+- [x] 更新 `docs/frontend/app-server-ui-spec.md` 中 right rail 与 header 语义，先把规范写对。
+- [x] 在 todo 中固化 `headerWorkspaceCwd`、`headerOpenFolderCwd`、`showThreadRightRail` 的派生边界。
+- [x] 跑本 loop 的 targeted verification（仅文档/类型相关检查如果需要）。
 - [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 2
-- [x] 改左侧入口与主区切换：`新建线程`、folder quick action、`TranscriptPane` 的 surface 分流。
-- [x] 落地 `NewThreadDraftSurface`、path selector 与居中的 `ComposerDock`。
-- [x] 让 `ComposerDock` 的 Enter 与发送按钮只消费显式提交资格，而不是 `activeThreadId` gate。
-- [x] 更新 `LeftRail.test.tsx`、`TranscriptPane.test.tsx`。
-- [x] 跑本 loop 的 targeted verification。
-- [x] run `codex review` for this loop after targeted verification passes.
+- [ ] 先补/改 runtime ownership tests，而不是改完再补。
+- [ ] 改 `useAppRuntime.ts`：
+  - [ ] 清 thread-only side state
+  - [ ] 切断 `selectedCwd` / `diffSnapshot.cwd` 对 draft fallback 的污染
+  - [ ] 禁止 no-thread diff refresh
+- [ ] 实现 late diff guard，确保 stale diff result 不会在 draft / no-thread 下重新写回。
+- [ ] 补/改 runtime tests：`threadArchiving.test.ts`、`urlSync.test.ts`、必要的 runtime coverage。
+- [ ] 跑本 loop 的 targeted verification。
+- [ ] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 3
-- [x] 落实 `添加项目` 的 v1 语义：左侧入口只进入 draft，picker 只挂在中间 selector。
-- [x] 加固 integration tests，至少覆盖“未选 path 不创建 thread”“首发才创建 thread”“离开 draft 不留空 thread”“folder row 不参与 draft path 选择”。
-- [x] 跑本 loop 的 targeted verification。
-- [x] run `codex review` for this loop after targeted verification passes.
+- [ ] 改 `AppShell.tsx` / `AppShellHeader.tsx`：
+  - [ ] header label 改读正确 owner
+  - [ ] header folder action 改读正确 owner
+  - [ ] right rail 改成 thread-only render gate
+- [ ] 补 UI/render tests，锁住 `tmp` 泄漏、right rail 泄漏、collapse summary 泄漏。
+- [ ] 跑本 loop 的 targeted verification。
+- [ ] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 4
-- [x] 补 canonical docs：至少审视并在必要时更新 `docs/frontend/app-server-ui-spec.md`，必要时补 `docs/contracts/web-parity-adapter-contract.md`。
-- [x] 如果新增 `NewThreadDraftSurface`、draft actions 或 create helper 成为稳定入口，更新 `packages/web-reference-react/CODEMAP.md`。
-- [x] 完成 targeted verification 与手动 GUI spot-check，确认 welcome / draft / thread 三态没有重新混叠。
-- [x] 跑本 loop 的 targeted verification。
-- [x] run `codex review` for this loop after targeted verification passes.
+- [ ] 做整页 integration 验证：
+  - [ ] 默认启动无 thread
+  - [ ] 点击 `New Thread`
+  - [ ] URL thread 无效
+  - [ ] archive 最后一个 thread
+  - [ ] 从真实 thread 进入 draft
+- [ ] 更新必要的 package-local docs / CODEMAP，如果 owner 边界或稳定入口已发生迁移。
+- [ ] 跑本 loop 的 targeted verification。
+- [ ] run `codex review` for this loop after targeted verification passes.

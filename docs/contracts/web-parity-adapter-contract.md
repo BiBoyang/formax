@@ -51,6 +51,12 @@ Web MAY 持有 renderer-local transient surface state（例如 `newThreadDraft`�
 `WEB-005`
 `newThreadDraft` 之类的 transient surface MUST NOT 继续通过 `!activeThreadId` 隐式推断。Web 必须用显式 draft state 派生 `visibleSurface`，避免把 welcome、draft、real thread 混为同一 gate。
 
+`WEB-006`
+Web page shell MUST 保持 `thread-owned`、`draft-owned` 与 `workspace selection only` 三类 owner boundary 清晰分离：
+1. `thread-owned` chrome / diagnostics（例如 right rail diff、request collapse、compact boundary、context meter、active-turn chrome）只允许在真实 `thread` surface 下显示；
+2. `draft-owned` chrome 只允许读取显式 draft state（例如 `draftCwd`），不得回退到旧的 `selectedCwd` 或 `diffSnapshot.cwd`；
+3. `workspace selection only` 状态（例如 `selectedCwd`）可以继续服务左栏 group selection / workspace navigation，但 MUST NOT 冒充当前 thread cwd 或 draft cwd。
+
 ## 2. 历史回放适配（`eventAdapters.ts`）
 
 `WEB-101`  
@@ -145,6 +151,12 @@ Web runtime 在处理 turn notifications 时 MUST 先经过 sequenced-notificati
 
 `WEB-502A`
 `newThreadDraft` 不是 active thread。draft surface 期间，Web URL sync MUST 继续保持 thread-only；draft 本地状态不得写入 URL query/route，也不得触发 canonical projection hydrate。
+
+`WEB-502B`
+当 `visibleSurface !== 'thread'` 或 `activeThreadId == null` 时，thread-only shell state MUST 不可见且不得继续被当作当前 surface owner：
+1. `diffSnapshot`、`latestRequestCollapse`、`latestCompactBoundary`、context meter 等 thread chrome MAY 继续作为 by-thread cache 存在；
+2. 但当前 active projection / shell chrome MUST 为空，不得把旧 thread 数据渲染到 draft / no-thread surface；
+3. `selectedCwd` 与 `diffSnapshot.cwd` MUST NOT 参与 draft cwd fallback。
 
 `WEB-503`  
 当通知缺失 canonical envelope 必需字段，或 `schemaVersion` 非法时，Web MUST 跳过 canonical projection，并留下可诊断的 warn 日志；MUST NOT 伪造缺失字段继续投影。

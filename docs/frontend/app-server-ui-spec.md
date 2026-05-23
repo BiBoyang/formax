@@ -71,7 +71,7 @@ Transcript 类型要求（必须可区分）：
 3. `tool`（至少 start/update/end 可追踪）
 4. `system`（握手、错误、状态变更）
 
-## 2.3 右栏（Diff Only）
+## 2.3 右栏（Thread-Only Diff）
 
 必须包含：
 
@@ -81,7 +81,28 @@ Transcript 类型要求（必须可区分）：
 
 1. 右栏主区域优先显示 diff/tool 时间线，保障调试链路可追踪。
 2. 右栏不承载 pending input 表单。
-3. 右栏只负责 workspace diff 的展示与刷新。
+3. 右栏是 thread-only inspection pane；只有 `visibleSurface === 'thread'` 且存在真实 `activeThreadId` 时才允许展示 diff / tool timeline。
+4. `newThreadDraft`、welcome/no-thread fallback、invalid URL thread fallback、archive 最后一个 thread 后的无 active thread 状态下，右栏 MUST 为空白态。
+5. `latestRequestCollapse`、`latestCompactBoundary` 以及其他 thread-only 诊断 chrome，不得在 draft / no-thread surface 下残留显示。
+
+## 2.4 顶栏（Thread / Draft Chrome）
+
+行为：
+
+1. 顶栏的 thread 标题、workspace label、open-folder action 必须跟随当前 surface owner，而不是继续读旧的 workspace selection。
+2. 真实 `thread` surface 下：
+   - workspace label 显示 `activeThread.cwd` 的目录名；
+   - open-folder action 只允许作用于 `activeThread.cwd`。
+3. `newThreadDraft` surface 下：
+   - workspace label 只允许读取 `draftCwd`；
+   - 若 `draftCwd == null`，workspace label MUST 为空；
+   - open-folder action 只允许作用于 `draftCwd`；
+   - 若 `draftCwd == null`，open-folder action MUST 隐藏或 disabled。
+4. welcome / no-thread fallback 下：
+   - workspace label MUST 为空；
+   - open-folder action MUST 隐藏或 disabled；
+   - 不得继续保留旧 thread / old workspace 的 header chrome。
+5. `selectedCwd` 属于 workspace selection only 状态；它 MUST NOT 驱动 draft 或 no-thread 下的 header label、header folder action、right rail 内容或 draft fallback cwd。
 
 ## 3. 关键交互规范
 
@@ -108,6 +129,7 @@ Transcript 类型要求（必须可区分）：
 5. draft 首发时客户端 MUST 先调用 `thread/start`，成功后再调用 `turn/start` 或 `command/dispatch`。
 6. 一旦 `thread/start` 成功，draft 即结束并进入真实 thread surface；若随后的首发失败，允许留下真实空 thread。
 7. 用户离开未发送的 draft时，不得额外创建空 thread，也不得污染左侧 thread 列表。
+8. `draftCwd` 是 draft-owned cwd；`selectedCwd` 与 `diffSnapshot.cwd` 都不得再冒充 `draftCwd`。
 
 ## 3.3 Turn 工作流
 
@@ -204,6 +226,11 @@ Transcript 类型要求（必须可区分）：
 3. `eventAdapters` / `store` / `turnEventCursor` 的共享边界以 `docs/contracts/web-parity-adapter-contract.md` 为准。
 4. 语义状态迁移（mode/input/transcript segment）应集中在共享 semantics projector，UI reducer 仅承接投影结果与本地交互状态。
 5. 组件只做展示与事件派发，不持有业务状态机。
+6. `AppShell` 必须承担整页 ownership gate：
+   - `thread-owned`
+   - `draft-owned`
+   - `workspace selection only`
+   的派生与路由都应在 page shell / runtime 层收口，而不是散落在叶子组件自行推断。
 
 ## 9. 验收清单（UI）
 
