@@ -129,21 +129,21 @@
 ## 3. Frontend Boundary
 
 ### 3.1 AppShell ownership
-- [ ] 在 `AppShell.tsx` 集中派生 header 和 right rail 的 owner gate，不把 ownership 判断散落到各组件。
-- [ ] 让 header label 在 `thread` / `newThreadDraft` / no-thread 三种 surface 下读对来源。
-- [ ] 不再把裸 `selectedCwd` 直接作为 header folder action 的输入。
-- [ ] right rail 在非 `thread` surface 下渲染空白态，而不是继续挂载 thread-only 内容。
-- [ ] `activeThreadLatestRequestCollapse` 在 draft / no-thread 下不得残留显示。
+- [x] 在 `AppShell.tsx` 集中派生 header 和 right rail 的 owner gate，不把 ownership 判断散落到各组件。
+- [x] 让 header label 在 `thread` / `newThreadDraft` / no-thread 三种 surface 下读对来源。
+- [x] 不再把裸 `selectedCwd` 直接作为 header folder action 的输入。
+- [x] right rail 在非 `thread` surface 下渲染空白态，而不是继续挂载 thread-only 内容。
+- [x] `activeThreadLatestRequestCollapse` 在 draft / no-thread 下不得残留显示。
 
 ### 3.2 Header
-- [ ] 更新 `AppShellHeader.tsx` props，使 workspace label 可表达 “无值 / 不显示”。
-- [ ] 更新 `AppShellHeader.tsx` props，使 folder action 可表达 “无合法 cwd / 不可点”。
-- [ ] 确认 header 不会在 `newThreadDraft` 下再显示旧目录名，例如 `tmp`。
+- [x] 更新 `AppShellHeader.tsx` props，使 workspace label 可表达 “无值 / 不显示”。
+- [x] 更新 `AppShellHeader.tsx` props，使 folder action 可表达 “无合法 cwd / 不可点”。
+- [x] 确认 header 不会在 `newThreadDraft` 下再显示旧目录名，例如 `tmp`。
 
 ### 3.3 Right rail
-- [ ] 保持 `WorktreeDiffPane` 作为 dumb renderer，不让它承担 draft/thread owner 判断。
-- [ ] 在 `AppShell` 层决定是否挂载 `WorktreeDiffPane`。
-- [ ] 非 thread surface 下不显示 right rail diff rows、changes count、refresh 按钮、collapse summary。
+- [x] 保持 `WorktreeDiffPane` 作为 dumb renderer，不让它承担 draft/thread owner 判断。
+- [x] 在 `AppShell` 层决定是否挂载 `WorktreeDiffPane`。
+- [x] 非 thread surface 下不显示 right rail diff rows、changes count、refresh 按钮、collapse summary。
 
 ### 3.4 Left rail and workspace selection
 - [ ] 核对左栏在 draft 下继续隐藏 `selectedCwd` 选中态是否仍符合当前 ownership 模型。
@@ -163,17 +163,17 @@
   - [x] 旧 `diffSnapshot` 被清空
 
 ### 4.2 UI tests
-- [ ] 新增或扩展 `AppShell` / `AppShellHeader` render tests：
-  - [ ] `visibleSurface='newThreadDraft'`、`activeThreadId=null`、`selectedCwd='/tmp'`、`draftCwd=null` 时 header 不显示 `tmp`
-  - [ ] 同场景下 header open-folder action 不存在或 disabled
-  - [ ] 同场景下 right rail 不挂载 `WorktreeDiffPane`
-  - [ ] 同场景下不显示 `latestRequestCollapse`
-  - [ ] 同场景下不显示 `activeThreadLatestCompactBoundary`
-  - [ ] 同场景下不显示旧 `activeContextMeter`
-- [ ] 增加 `draftCwd='/repo-draft'` 的 header 测试：
-  - [ ] label 显示 `repo-draft`
-  - [ ] open-folder action 使用 `/repo-draft`
-  - [ ] 不再显示旧 `selectedCwd`
+- [x] 新增或扩展 `AppShell` / `AppShellHeader` render tests：
+  - [x] `visibleSurface='newThreadDraft'`、`activeThreadId=null`、`selectedCwd='/tmp'`、`draftCwd=null` 时 header 不显示 `tmp`
+  - [x] 同场景下 header open-folder action 不存在或 disabled
+  - [x] 同场景下 right rail 不挂载 `WorktreeDiffPane`
+  - [x] 同场景下不显示 `latestRequestCollapse`
+  - [x] 同场景下不显示 `activeThreadLatestCompactBoundary`
+  - [x] 同场景下不显示旧 `activeContextMeter`
+- [x] 增加 `draftCwd='/repo-draft'` 的 header 测试：
+  - [x] label 显示 `repo-draft`
+  - [x] open-folder action 使用 `/repo-draft`
+  - [x] 不再显示旧 `selectedCwd`
 - [ ] 增加 “draft surface 优先于残留 thread state” 的 render 测试：
   - [ ] 即使存在 stale `activeThread` / `diffSnapshot` / thread chrome 数据，只要 `visibleSurface='newThreadDraft'`，整页仍表现为 draft-owned header + empty right rail
 
@@ -217,13 +217,13 @@
 - [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 3
-- [ ] 改 `AppShell.tsx` / `AppShellHeader.tsx`：
-  - [ ] header label 改读正确 owner
-  - [ ] header folder action 改读正确 owner
-  - [ ] right rail 改成 thread-only render gate
-- [ ] 补 UI/render tests，锁住 `tmp` 泄漏、right rail 泄漏、collapse summary 泄漏。
-- [ ] 跑本 loop 的 targeted verification。
-- [ ] run `codex review` for this loop after targeted verification passes.
+- [x] 改 `AppShell.tsx` / `AppShellHeader.tsx`：
+  - [x] header label 改读正确 owner
+  - [x] header folder action 改读正确 owner
+  - [x] right rail 改成 thread-only render gate
+- [x] 补 UI/render tests，锁住 `tmp` 泄漏、right rail 泄漏、collapse summary 泄漏。
+- [x] 跑本 loop 的 targeted verification。
+- [x] run `codex review` for this loop after targeted verification passes.
 
 ### Loop 4
 - [ ] 做整页 integration 验证：

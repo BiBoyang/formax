@@ -124,17 +124,22 @@ export function AppShell(props: AppShellProps) {
   const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const rightRailPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const terminalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
+  const isThreadSurface = props.visibleSurface === 'thread' && props.activeThreadId != null
+  const isDraftSurface = props.visibleSurface === 'newThreadDraft'
+  const headerWorkspaceCwd = isThreadSurface
+    ? props.activeThread?.cwd ?? null
+    : isDraftSurface
+      ? props.draftCwd
+      : null
+  const headerOpenFolderCwd = headerWorkspaceCwd
+  const showThreadRightRail = isThreadSurface && props.isRightRailOpen
   const showDevLoadAllButton = props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning === true
   const activeWorkspaceLabel = useMemo(() => {
-    const cwd = props.activeThread?.cwd ?? props.selectedCwd
-    if (cwd) {
-      return folderNameFromCwd(cwd)
-    }
-    return isDesktopClient ? t('appShell.desktopWorkspace') : t('appShell.webWorkspace')
-  }, [isDesktopClient, props.activeThread?.cwd, props.selectedCwd, t])
+    return headerWorkspaceCwd ? folderNameFromCwd(headerWorkspaceCwd) : null
+  }, [headerWorkspaceCwd])
   const {
     canToggleTerminal,
     onCloseTerminalPane,
@@ -354,14 +359,15 @@ export function AppShell(props: AppShellProps) {
 
   const worktreeDiffPaneProps = useMemo(
     () => ({
-      diffSnapshot: props.diffSnapshot,
-      latestRequestCollapse: props.activeThreadLatestRequestCollapse,
+      diffSnapshot: isThreadSurface ? props.diffSnapshot : null,
+      latestRequestCollapse: isThreadSurface ? props.activeThreadLatestRequestCollapse : null,
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
-      isRefreshingDiff: props.isRefreshingDiff,
+      isRefreshingDiff: isThreadSurface ? props.isRefreshingDiff : false,
       showHeader: true as const,
     }),
     [
+      isThreadSurface,
       props.activeThreadLatestRequestCollapse,
       props.diffSnapshot,
       props.isRefreshingDiff,
@@ -390,30 +396,30 @@ export function AppShell(props: AppShellProps) {
       <ResizableHandle
         className={cn(
           'relative z-[120] w-0 after:left-0 after:w-3 after:translate-x-0',
-          !props.isRightRailOpen && 'pointer-events-none opacity-0',
+          !showThreadRightRail && 'pointer-events-none opacity-0',
         )}
         onDragging={onRightDragStateChange}
       />
 
       <ResizablePanel
         defaultSize={rightRailPercent}
-        size={props.isRightRailOpen ? rightRailPercent : 0}
-        minSize={props.isRightRailOpen ? rightRailMinPercent : 0}
-        maxSize={props.isRightRailOpen ? rightRailMaxPercent : 0}
+        size={showThreadRightRail ? rightRailPercent : 0}
+        minSize={showThreadRightRail ? rightRailMinPercent : 0}
+        maxSize={showThreadRightRail ? rightRailMaxPercent : 0}
         onResize={onRightResize}
         className={cn(
           'app-shell-panel-motion',
-          !props.isRightRailOpen && 'pointer-events-none',
+          !showThreadRightRail && 'pointer-events-none',
         )}
       >
         <div
           data-testid="right-rail"
           className={cn(
             'h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
-            props.isRightRailOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
+            showThreadRightRail ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
           )}
         >
-          <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
+          {isThreadSurface ? <MemoWorktreeDiffPane {...worktreeDiffPaneProps} /> : null}
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
@@ -474,28 +480,30 @@ export function AppShell(props: AppShellProps) {
               >
             {!props.isSettingsOpen ? (
               <AppShellHeader
-                isRightRailOpen={props.isRightRailOpen}
+                isRightRailOpen={showThreadRightRail}
+                showRightRailDivider={showThreadRightRail}
+                showRightRailToggle={isThreadSurface}
                 isDesktopClient={isDesktopClient}
                 isSidebarOpen={props.isSidebarOpen}
                 activeThreadTitle={props.activeThreadTitle}
-                activeThreadLatestCompactBoundary={props.activeThreadLatestCompactBoundary}
-                activeThreadLatestRequestCollapse={props.activeThreadLatestRequestCollapse}
+                activeThreadLatestCompactBoundary={isThreadSurface ? props.activeThreadLatestCompactBoundary : null}
+                activeThreadLatestRequestCollapse={isThreadSurface ? props.activeThreadLatestRequestCollapse : null}
                 activeContextMeter={props.activeContextMeter}
-                showContextMeter={props.showContextMeter}
+                showContextMeter={isThreadSurface && props.showContextMeter}
                 activeWorkspaceLabel={activeWorkspaceLabel}
                 showDevLoadAllButton={showDevLoadAllButton}
                 devLoadAllDisabled={devLoadAllDisabled}
                 devLoadAllRunning={props.devLoadAllRunning}
                 onDevLoadAllEarlier={onDevLoadAllEarlier}
                 onOpenSettings={onOpenSettings}
-                selectedCwd={props.selectedCwd}
+                openFolderCwd={headerOpenFolderCwd}
                 onOpenFolderInTarget={onOpenFolderInTarget}
                 openFolderActionLabel={openFolderActionLabel}
                 onToggleTerminal={onToggleTerminal}
                 canToggleTerminal={canToggleTerminal}
                 onToggleRightRail={onToggleRightRail}
                 onToggleSidebar={onToggleSidebar}
-                activeTurnId={props.activeTurnId}
+                activeTurnId={isThreadSurface ? props.activeTurnId : null}
               />
             ) : null}
 

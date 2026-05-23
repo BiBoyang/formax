@@ -1,14 +1,22 @@
-import { render, screen } from '@testing-library/react'
+import type { ComponentProps } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n/I18nProvider'
 import { AppShellHeader } from './AppShellHeader'
 
-function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US', showContextMeter = true) {
-  return render(
+function renderHeader(
+  language: 'zh-CN' | 'en-US' = 'en-US',
+  showContextMeter = true,
+  overrides: Partial<ComponentProps<typeof AppShellHeader>> = {},
+) {
+  const onOpenFolderInTarget = vi.fn()
+  const renderResult = render(
     <I18nProvider language={language}>
       <AppShellHeader
         isRightRailOpen={false}
-        isDesktopClient={false}
+        showRightRailDivider={false}
+        showRightRailToggle={true}
+        isDesktopClient={true}
         isSidebarOpen={true}
         activeThreadTitle="Thread title"
         activeThreadLatestCompactBoundary={{
@@ -39,17 +47,19 @@ function renderHeader(language: 'zh-CN' | 'en-US' = 'en-US', showContextMeter = 
         showDevLoadAllButton={false}
         devLoadAllDisabled={true}
         onOpenSettings={vi.fn()}
-        selectedCwd={null}
-        onOpenFolderInTarget={vi.fn()}
+        openFolderCwd={null}
+        onOpenFolderInTarget={onOpenFolderInTarget}
         openFolderActionLabel="Open"
         onToggleTerminal={vi.fn()}
         canToggleTerminal={false}
         onToggleRightRail={vi.fn()}
         onToggleSidebar={vi.fn()}
         activeTurnId={null}
+        {...overrides}
       />
-    </I18nProvider>,
+    </I18nProvider>
   )
+  return { ...renderResult, onOpenFolderInTarget }
 }
 
 describe('AppShellHeader', () => {
@@ -81,5 +91,25 @@ describe('AppShellHeader', () => {
     renderHeader('en-US', false)
 
     expect(screen.queryByTestId('app-shell-context-meter')).toBeNull()
+  })
+
+  it('disables open-folder affordance when there is no current folder owner', () => {
+    renderHeader('en-US', true, {
+      activeWorkspaceLabel: null,
+      openFolderCwd: null,
+    })
+
+    expect(screen.getByTestId('app-shell-open-folder-button')).toBeDisabled()
+    expect(screen.queryByText('workspace')).toBeNull()
+  })
+
+  it('opens the current owner folder when an explicit open-folder cwd is available', () => {
+    const { onOpenFolderInTarget } = renderHeader('en-US', true, {
+      openFolderCwd: '/repo-draft',
+    })
+
+    fireEvent.click(screen.getByTestId('app-shell-open-folder-button'))
+
+    expect(onOpenFolderInTarget).toHaveBeenCalledWith('/repo-draft')
   })
 })

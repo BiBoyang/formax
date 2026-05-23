@@ -25,6 +25,8 @@ const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:b
 
 export type AppShellHeaderProps = {
   isRightRailOpen: boolean
+  showRightRailDivider: boolean
+  showRightRailToggle: boolean
   isDesktopClient: boolean
   isSidebarOpen: boolean
   activeThreadTitle: string
@@ -32,13 +34,13 @@ export type AppShellHeaderProps = {
   activeThreadLatestRequestCollapse: RequestCollapseSummary | null
   activeContextMeter: ContextMeterView
   showContextMeter: boolean
-  activeWorkspaceLabel: string
+  activeWorkspaceLabel: string | null
   showDevLoadAllButton: boolean
   devLoadAllDisabled: boolean
   devLoadAllRunning?: boolean
   onDevLoadAllEarlier?: () => void
   onOpenSettings: () => void
-  selectedCwd: string | null
+  openFolderCwd: string | null
   onOpenFolderInTarget: (cwd: string) => void
   openFolderActionLabel: string
   onToggleTerminal: () => void | Promise<void>
@@ -65,7 +67,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
     <header
       className={cn(
         'h-[var(--desktop-chrome-height)] flex-none app-shell-right-header',
-        props.isRightRailOpen && 'border-b',
+        props.showRightRailDivider && 'border-b',
         props.isDesktopClient && 'app-shell-drag-region',
       )}
     >
@@ -104,7 +106,9 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                   <span className="max-w-[180px] truncate">{props.activeContextMeter.label}</span>
                 </div>
               ) : null}
-              <div className="min-w-0 max-w-[40%] truncate ui-text-meta text-muted-foreground/80">{props.activeWorkspaceLabel}</div>
+              {props.activeWorkspaceLabel ? (
+                <div className="min-w-0 max-w-[40%] truncate ui-text-meta text-muted-foreground/80">{props.activeWorkspaceLabel}</div>
+              ) : null}
             </div>
             {props.activeThreadLatestRequestCollapse ? (
               <div
@@ -176,10 +180,12 @@ export function AppShellHeader(props: AppShellHeaderProps) {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
+                    data-testid="app-shell-open-folder-button"
                     className={cn(SHARED_HEADER_BTN_INNER, 'px-2 border-r border-border/40')}
+                    disabled={!props.openFolderCwd}
                     onClick={() => {
-                      if (props.selectedCwd) {
-                        props.onOpenFolderInTarget(props.selectedCwd)
+                      if (props.openFolderCwd) {
+                        props.onOpenFolderInTarget(props.openFolderCwd)
                       }
                     }}
                   >
@@ -200,10 +206,12 @@ export function AppShellHeader(props: AppShellHeaderProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 z-[200]">
                 <DropdownMenuItem
+                  data-testid="app-shell-open-folder-menu-item"
                   className="cursor-pointer gap-2"
+                  disabled={!props.openFolderCwd}
                   onClick={() => {
-                    if (props.selectedCwd) {
-                      props.onOpenFolderInTarget(props.selectedCwd)
+                    if (props.openFolderCwd) {
+                      props.onOpenFolderInTarget(props.openFolderCwd)
                     }
                   }}
                 >
@@ -272,23 +280,25 @@ export function AppShellHeader(props: AppShellHeaderProps) {
             </TooltipProvider>
           ) : null}
 
-          <button
-            type="button"
-            className={cn(
-              'flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] transition-colors select-none',
-              props.isRightRailOpen
-                ? 'bg-[var(--sidebar-list-hover)] text-foreground'
-                : 'bg-transparent text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
-              props.isDesktopClient && 'app-shell-no-drag',
-            )}
-            onClick={props.onToggleRightRail}
-          >
-            <PlusSquare className="h-3.5 w-3.5" />
-            <div className="flex items-center gap-1 text-[12px] font-medium tracking-tight mt-[1px]">
-              <span className="text-green-600 dark:text-green-500">+210</span>
-              <span className="text-red-600 dark:text-red-500">-88</span>
-            </div>
-          </button>
+          {props.showRightRailToggle ? (
+            <button
+              type="button"
+              className={cn(
+                'flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] transition-colors select-none',
+                props.isRightRailOpen
+                  ? 'bg-[var(--sidebar-list-hover)] text-foreground'
+                  : 'bg-transparent text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
+                props.isDesktopClient && 'app-shell-no-drag',
+              )}
+              onClick={props.onToggleRightRail}
+            >
+              <PlusSquare className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1 text-[12px] font-medium tracking-tight mt-[1px]">
+                <span className="text-green-600 dark:text-green-500">+210</span>
+                <span className="text-red-600 dark:text-red-500">-88</span>
+              </div>
+            </button>
+          ) : null}
 
           <TooltipProvider delayDuration={300}>
             <Tooltip>
