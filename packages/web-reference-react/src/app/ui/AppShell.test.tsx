@@ -237,7 +237,7 @@ describe('AppShell', () => {
     expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '0')
   })
 
-  it('uses draft cwd for header label and open-folder actions on the draft surface', () => {
+  it('uses draft cwd for open-folder actions on the draft surface', () => {
     renderShell({
       selectedCwd: '/tmp',
       draftCwd: '/repo-draft',
@@ -246,7 +246,6 @@ describe('AppShell', () => {
       activeThread: undefined,
     })
 
-    expect(screen.getByText('repo-draft')).toBeInTheDocument()
     expect(screen.queryByText(/^tmp$/)).toBeNull()
     expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-current-group-cwd', '/repo-draft')
 

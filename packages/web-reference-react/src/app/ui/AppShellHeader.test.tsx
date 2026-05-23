@@ -87,8 +87,8 @@ describe('AppShellHeader', () => {
     )
   })
 
-  it('honors disabled context meter visibility', () => {
-    renderHeader('en-US', false)
+  it('does not render context meter in header', () => {
+    renderHeader('en-US', true)
 
     expect(screen.queryByTestId('app-shell-context-meter')).toBeNull()
   })
@@ -111,5 +111,23 @@ describe('AppShellHeader', () => {
     fireEvent.click(screen.getByTestId('app-shell-open-folder-button'))
 
     expect(onOpenFolderInTarget).toHaveBeenCalledWith('/repo-draft')
+  })
+
+  it('renders right-rail diff stats from props instead of hardcoded values', () => {
+    renderHeader('en-US', true, {
+      rightRailDiffStats: { additions: 210, deletions: 88 },
+    })
+
+    expect(screen.getByText('+210')).toBeInTheDocument()
+    expect(screen.getByText('-88')).toBeInTheDocument()
+  })
+
+  it('hides right-rail diff stats when there are no changes', () => {
+    renderHeader('en-US', true, {
+      rightRailDiffStats: { additions: 0, deletions: 0 },
+    })
+
+    expect(screen.queryByText('+0')).toBeNull()
+    expect(screen.queryByText('-0')).toBeNull()
   })
 })

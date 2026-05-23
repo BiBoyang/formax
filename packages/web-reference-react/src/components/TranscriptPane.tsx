@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useReducer, useState, type FormEvent } from
 import { useI18n } from '../app/i18n/I18nProvider'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/badge'
-import type { TranscriptItem, ThreadSummary } from '../types'
+import type { ContextMeterView, TranscriptItem, ThreadSummary } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ToolTranscriptItem } from './tool/ToolTranscriptItem'
 import { ComposerDock } from './composer/ComposerDock'
@@ -114,6 +114,8 @@ export type TranscriptPaneProps = {
   draftCwdOptions?: string[]
   onDraftCwdChange?: (cwd: string) => void
   onDraftAddProject?: () => void
+  activeContextMeter?: ContextMeterView
+  showContextMeter?: boolean
 }
 
 function logLevelBadge(level: 'info' | 'warn' | 'error'): 'secondary' | 'outline' | 'destructive' {
@@ -290,6 +292,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     draftCwdOptions = [],
     onDraftCwdChange,
     onDraftAddProject,
+    activeContextMeter,
+    showContextMeter = false,
   } = props
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
@@ -384,6 +388,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 longTextRequireCmdEnter={longTextRequireCmdEnter}
                 placeholder={draftCwd ? undefined : t('transcript.newThreadSelectProjectFirst')}
                 layoutVariant="centered"
+                activeContextMeter={activeContextMeter}
+                showContextMeter={showContextMeter}
               />
             )}
             feedback={
@@ -440,6 +446,8 @@ export function TranscriptPane(props: TranscriptPaneProps) {
               onSend={handleSend}
               longTextRequireCmdEnter={longTextRequireCmdEnter}
               layoutVariant="bottom"
+              activeContextMeter={activeContextMeter}
+              showContextMeter={showContextMeter}
             />
           ) : (
             <div data-testid="composer-locked" className="h-4" />

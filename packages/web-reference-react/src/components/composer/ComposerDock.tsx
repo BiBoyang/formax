@@ -3,8 +3,10 @@ import { memo, useState, type FormEvent, type ReactNode } from 'react'
 import { shouldTreatAsLongPrompt } from '../../app/core/userSettings'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
+import type { ContextMeterView } from '../../types'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { SlashCommandMenu } from './SlashCommandMenu'
 import { useSlashCommandState } from './useSlashCommandState'
 
@@ -40,6 +42,52 @@ function modeMeta(mode: ComposerMode, t: I18nTranslator): { label: string; icon:
   }
 }
 
+function formatTokensK(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '0k'
+  if (value < 1000) return String(Math.max(0, Math.floor(value)))
+  const inK = value / 1000
+  const oneDecimal = Math.round(inK * 10) / 10
+  return Number.isInteger(oneDecimal) ? `${oneDecimal}k` : `${oneDecimal.toFixed(1)}k`
+}
+
+export function ComposerContextMeterRing(props: {
+  activeContextMeter?: ContextMeterView
+  showContextMeter?: boolean
+  className?: string
+}) {
+  const { t } = useI18n()
+  const showContextRing = Boolean(props.showContextMeter && props.activeContextMeter?.available && props.activeContextMeter?.label)
+  if (!showContextRing) return null
+  const meterPercent = Math.max(0, Math.min(100, Math.round(props.activeContextMeter?.percentUsed ?? 0)))
+  const meterRemainingPercent = Math.max(0, Math.min(100, Math.round(props.activeContextMeter?.percentRemaining ?? 0)))
+  const meterUsedTokensK = formatTokensK(props.activeContextMeter?.usedTokens)
+  const meterLimitTokensK = formatTokensK(props.activeContextMeter?.limitTokens)
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            data-testid="composer-context-meter-ring"
+            className={cn('inline-flex h-3 w-3 items-center justify-center rounded-full', props.className)}
+            aria-label={props.activeContextMeter?.label ?? undefined}
+            style={{
+              background: `conic-gradient(#6b7280 ${meterPercent}%, #d1d5db ${meterPercent}% 100%)`,
+            }}
+          >
+            <div className="h-[7px] w-[7px] rounded-full bg-card" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] text-[13px] leading-relaxed">
+          <div className="font-medium">{t('transcript.contextMeterTooltip.title')}</div>
+          <div>{t('transcript.contextMeterTooltip.percentLine', { used: String(meterPercent), remaining: String(meterRemainingPercent) })}</div>
+          <div>{t('transcript.contextMeterTooltip.tokenLine', { used: meterUsedTokensK, total: meterLimitTokensK })}</div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 export type ComposerDockProps = {
   showJumpToBottom: boolean
   onJumpToBottom: () => void
@@ -58,6 +106,8 @@ export type ComposerDockProps = {
   placeholder?: string
   layoutVariant?: 'bottom' | 'centered'
   footerAccessory?: ReactNode
+  activeContextMeter?: ContextMeterView
+  showContextMeter?: boolean
 }
 
 export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
@@ -186,6 +236,11 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
               </Button>
             </div>
             <div className="flex items-center gap-1 pr-1 text-muted-foreground">
+              <ComposerContextMeterRing
+                activeContextMeter={props.activeContextMeter}
+                showContextMeter={props.showContextMeter}
+                className="mr-2"
+              />
               {props.isSending || props.isInterrupting ? (
                 <Button
                   type="button"

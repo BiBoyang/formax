@@ -61,6 +61,7 @@ describe('WorktreeDiffPane', () => {
     )
 
     expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
+    expect(screen.getByText('Changes: 1')).toBeInTheDocument()
     const fileRow = screen.getByTestId('diff-file-row-packages/web-reference-react/src/App.tsx')
     expect(fileRow.className).not.toContain('sticky')
     expect(fileRow.className).not.toContain('top-0')

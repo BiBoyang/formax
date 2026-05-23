@@ -1,15 +1,4 @@
-import {
-  ArrowRightLeft,
-  ChevronDown,
-  Code,
-  Copy,
-  GitCommitHorizontal,
-  Gauge,
-  PanelLeft,
-  PlusSquare,
-  Settings,
-  SquareTerminal,
-} from 'lucide-react'
+import { ChevronDown, Code, PanelLeft, PlusSquare, SquareTerminal } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip'
@@ -23,10 +12,16 @@ const SHARED_HEADER_BTN_GROUP =
   'h-[26px] flex items-center rounded-[6px] border border-border/60 bg-transparent overflow-hidden text-muted-foreground hover:text-foreground transition-colors'
 const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:bg-[var(--sidebar-list-hover)] transition-colors'
 
+// Intentionally disabled in both dev/prod.
+// Re-enable this single switch to restore the "Load all earlier" header entry
+// without re-discovering the runtime wiring (showDevLoadAllButton/onDevLoadAllEarlier).
+const ENABLE_DEV_LOAD_ALL_EARLIER_ENTRY = false
+
 export type AppShellHeaderProps = {
   isRightRailOpen: boolean
   showRightRailDivider: boolean
   showRightRailToggle: boolean
+  rightRailDiffStats?: { additions: number; deletions: number } | null
   isDesktopClient: boolean
   isSidebarOpen: boolean
   activeThreadTitle: string
@@ -62,6 +57,10 @@ export function AppShellHeader(props: AppShellHeaderProps) {
   const compactSummaryKindLabel = props.activeThreadLatestCompactBoundary?.summaryKind
     ? t(`appShell.compactSummaryKind.${props.activeThreadLatestCompactBoundary.summaryKind}`)
     : t('appShell.compactSummaryKind.unknown')
+  const showRightRailDiffStats =
+    props.showRightRailToggle &&
+    props.rightRailDiffStats != null &&
+    (props.rightRailDiffStats.additions > 0 || props.rightRailDiffStats.deletions > 0)
 
   return (
     <header
@@ -90,25 +89,6 @@ export function AppShellHeader(props: AppShellHeaderProps) {
           <div className="min-w-0 flex flex-col justify-center gap-0.5 leading-tight">
             <div className="min-w-0 flex items-center gap-2">
               <div className="flex-1 min-w-0 truncate ui-text-base font-semibold text-foreground">{props.activeThreadTitle}</div>
-              {props.showContextMeter && props.activeContextMeter.available && props.activeContextMeter.label ? (
-                <div
-                  data-testid="app-shell-context-meter"
-                  className={cn(
-                    'shrink-0 inline-flex items-center gap-1 truncate text-[11px]',
-                    props.activeContextMeter.tone === 'danger'
-                      ? 'text-red-500'
-                      : props.activeContextMeter.tone === 'warning'
-                        ? 'text-amber-500'
-                        : 'text-muted-foreground/80',
-                  )}
-                >
-                  <Gauge className="h-3 w-3" />
-                  <span className="max-w-[180px] truncate">{props.activeContextMeter.label}</span>
-                </div>
-              ) : null}
-              {props.activeWorkspaceLabel ? (
-                <div className="min-w-0 max-w-[40%] truncate ui-text-meta text-muted-foreground/80">{props.activeWorkspaceLabel}</div>
-              ) : null}
             </div>
             {props.activeThreadLatestRequestCollapse ? (
               <div
@@ -137,7 +117,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
           </div>
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-2">
-          {props.showDevLoadAllButton ? (
+          {ENABLE_DEV_LOAD_ALL_EARLIER_ENTRY && props.showDevLoadAllButton ? (
             <Button
               type="button"
               variant="ghost"
@@ -154,25 +134,6 @@ export function AppShellHeader(props: AppShellHeaderProps) {
               {props.devLoadAllRunning ? t('appShell.loadingAllEarlierDev') : t('appShell.loadAllEarlierDev')}
             </Button>
           ) : null}
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(SHARED_HEADER_BTN_ICON, props.isDesktopClient && 'app-shell-no-drag')}
-                  onClick={props.onOpenSettings}
-                  aria-label={t('appShell.settings')}
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-[13px]">
-                {t('appShell.settings')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
 
           <div className={cn(SHARED_HEADER_BTN_GROUP, props.isDesktopClient && 'app-shell-no-drag')}>
             <TooltipProvider>
@@ -222,37 +183,6 @@ export function AppShellHeader(props: AppShellHeaderProps) {
             </DropdownMenu>
           </div>
 
-          <button
-            type="button"
-            className={cn(
-              SHARED_HEADER_BTN_GROUP,
-              'px-2 gap-1 hover:bg-[var(--sidebar-list-hover)] border-border/60',
-              props.isDesktopClient && 'app-shell-no-drag',
-            )}
-          >
-            <ArrowRightLeft className="h-3.5 w-3.5" />
-            <span className="text-[12px]">{t('appShell.moveToWorktree')}</span>
-          </button>
-
-          <div className={cn(SHARED_HEADER_BTN_GROUP, props.isDesktopClient && 'app-shell-no-drag')}>
-            <button type="button" className={cn(SHARED_HEADER_BTN_INNER, 'px-2 gap-1 border-r border-border/40')}>
-              <GitCommitHorizontal className="h-3.5 w-3.5" />
-              <span className="text-[12px]">{t('appShell.commit')}</span>
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={cn(SHARED_HEADER_BTN_INNER, 'px-1.5')}>
-                  <ChevronDown className="h-3.5 w-3.5 leading-none" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 z-[200]">
-                <DropdownMenuItem className="text-[13px] cursor-pointer">{t('appShell.placeholderAction')}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <div className="w-px h-4 bg-border/60 mx-1" />
-
           {props.isDesktopClient ? (
             <TooltipProvider delayDuration={300}>
               <Tooltip>
@@ -293,30 +223,14 @@ export function AppShellHeader(props: AppShellHeaderProps) {
               onClick={props.onToggleRightRail}
             >
               <PlusSquare className="h-3.5 w-3.5" />
-              <div className="flex items-center gap-1 text-[12px] font-medium tracking-tight mt-[1px]">
-                <span className="text-green-600 dark:text-green-500">+210</span>
-                <span className="text-red-600 dark:text-red-500">-88</span>
-              </div>
+              {showRightRailDiffStats ? (
+                <div className="flex items-center gap-1 text-[12px] font-medium tracking-tight mt-[1px]">
+                  <span className="text-green-600 dark:text-green-500">+{props.rightRailDiffStats?.additions ?? 0}</span>
+                  <span className="text-red-600 dark:text-red-500">-{props.rightRailDiffStats?.deletions ?? 0}</span>
+                </div>
+              ) : null}
             </button>
           ) : null}
-
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(SHARED_HEADER_BTN_ICON, props.isDesktopClient && 'app-shell-no-drag')}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-[13px]">
-                {t('appShell.openInPopoutWindow')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
 
           {props.activeTurnId ? (
             <div className="rounded-full border border-border bg-background px-2.5 py-1 ui-text-meta font-medium text-muted-foreground">

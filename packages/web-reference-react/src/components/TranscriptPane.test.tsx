@@ -200,6 +200,32 @@ describe('TranscriptPane', () => {
     expect(onInterrupt).toHaveBeenCalledTimes(1)
   })
 
+  it('renders context meter ring in composer dock when enabled', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          inputText: 'hello',
+          showContextMeter: true,
+          activeContextMeter: {
+            available: true,
+            source: 'usage',
+            usedTokens: 21000,
+            limitTokens: 100000,
+            percentUsed: 21,
+            percentRemaining: 79,
+            shouldAutoCompact: false,
+            label: '21% used (21k/100k, usage)',
+            tone: 'normal',
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByTestId('composer-context-meter-ring')).toBeInTheDocument()
+  })
+
   it('enables first send on the draft surface only after a project is selected', () => {
     const onSend = vi.fn((event) => event.preventDefault())
     const { rerender } = renderWithI18n(

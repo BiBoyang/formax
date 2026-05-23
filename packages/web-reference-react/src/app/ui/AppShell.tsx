@@ -137,6 +137,19 @@ export function AppShell(props: AppShellProps) {
     : props.selectedCwd ?? props.activeThread?.cwd ?? null
   const headerOpenFolderCwd = headerWorkspaceCwd
   const showThreadRightRail = isThreadSurface && props.isRightRailOpen
+  const rightRailDiffStats = useMemo(() => {
+    if (!isThreadSurface) return null
+    const snapshot = props.diffSnapshot
+    if (!snapshot || !snapshot.hasChanges) return null
+    return snapshot.files.reduce(
+      (acc, file) => {
+        acc.additions += file.additions
+        acc.deletions += file.deletions
+        return acc
+      },
+      { additions: 0, deletions: 0 },
+    )
+  }, [isThreadSurface, props.diffSnapshot])
   const showDevLoadAllButton = isThreadSurface && props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
@@ -303,6 +316,8 @@ export function AppShell(props: AppShellProps) {
       isInterrupting: props.isInterrupting,
       lastRpcError: props.lastRpcError,
       longTextRequireCmdEnter: props.userSettings.longTextRequireCmdEnter,
+      activeContextMeter: props.activeContextMeter,
+      showContextMeter: isThreadSurface && props.showContextMeter,
     }),
     [
       props.activeThread,
@@ -330,6 +345,8 @@ export function AppShell(props: AppShellProps) {
       props.onSend,
       props.visibleSurface,
       props.userSettings.longTextRequireCmdEnter,
+      props.activeContextMeter,
+      props.showContextMeter,
       props.transcriptVirtualizationEnabled,
       desktopBridge,
       onDraftAddProject,
@@ -492,6 +509,7 @@ export function AppShell(props: AppShellProps) {
                 isRightRailOpen={showThreadRightRail}
                 showRightRailDivider={showThreadRightRail}
                 showRightRailToggle={isThreadSurface}
+                rightRailDiffStats={rightRailDiffStats}
                 isDesktopClient={isDesktopClient}
                 isSidebarOpen={props.isSidebarOpen}
                 activeThreadTitle={isThreadSurface ? props.activeThreadTitle : selectThreadTitle(undefined)}
