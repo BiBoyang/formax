@@ -1229,6 +1229,49 @@ describe('runMainSendTurn', () => {
     )
   })
 
+  it('filters REPL tool exposure from FORMAX_ALLOWED_TOOLS/FORMAX_DISABLED_TOOLS env', async () => {
+    const prevAllowed = process.env.FORMAX_ALLOWED_TOOLS
+    const prevDisabled = process.env.FORMAX_DISABLED_TOOLS
+    process.env.FORMAX_ALLOWED_TOOLS = 'Read,Write'
+    process.env.FORMAX_DISABLED_TOOLS = 'Write'
+    try {
+      const harness = createHarness({
+        deps: {
+          engine: {
+            runTurn: vi.fn(async (args: any) => [
+              ...(args.history || []),
+              args.user,
+              { role: 'assistant', content: [{ type: 'text', text: 'assistant' }] },
+            ]),
+          },
+          cfg: createCfg(),
+          planSession: {
+            getPlanPath: () => '/plans/current.md',
+            startNewPlan: () => '/plans/new.md',
+          },
+          reminderServiceRef: { current: null },
+          tools: [{ name: 'Read' }, { name: 'Write' }],
+          runtimeFlags: { deferredToolExposureEnabled: false },
+          allowedSubagents: [],
+          mode: 'normal',
+          getReplMode: () => 'normal',
+          setReplMode: vi.fn(),
+          handleEvent: vi.fn(),
+        },
+      })
+
+      await runMainSendTurn(harness as any)
+
+      const callArgs = harness.deps.engine.runTurn.mock.calls[0][0]
+      expect(callArgs.tools.map((tool: any) => tool.name)).toEqual(['Read'])
+    } finally {
+      if (prevAllowed === undefined) delete process.env.FORMAX_ALLOWED_TOOLS
+      else process.env.FORMAX_ALLOWED_TOOLS = prevAllowed
+      if (prevDisabled === undefined) delete process.env.FORMAX_DISABLED_TOOLS
+      else process.env.FORMAX_DISABLED_TOOLS = prevDisabled
+    }
+  })
+
   it('uses Thinking fallback for llm slash effect without loadingText', async () => {
     const harness = createHarness()
     harness.input.slashEffect = {

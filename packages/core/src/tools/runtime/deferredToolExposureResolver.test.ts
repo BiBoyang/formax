@@ -90,4 +90,24 @@ describe('deferredToolExposureResolver', () => {
     expect(out.resolveToolsForCall).toBeUndefined()
     expect(out.injectedPromptBlocks).toEqual([])
   })
+
+  it('falls back to direct tool exposure when tool search is disabled', () => {
+    const out = resolveDeferredToolExposureForTurn({
+      cwd: '/repo',
+      tools: [
+        { name: 'Skill', description: 'skill', input_schema: {} },
+        { name: 'Read', description: 'read', input_schema: {} },
+      ],
+      deferredToolExposureEnabled: true,
+      toolSearchEnabled: false,
+      explicitSessionKey: 'disabled-toolsearch-session',
+    })
+
+    expect(out.toolsForTurn.map((tool) => tool.name)).toEqual(['Skill', 'Read'])
+    expect(out.resolveToolsForCall).toBeUndefined()
+    expect(out.injectedPromptBlocks).toEqual([])
+    expect(buildSkillToolSpecForCwdWithOptions).toHaveBeenCalledWith('/repo', {
+      includeAvailableSkillsInDescription: true,
+    })
+  })
 })

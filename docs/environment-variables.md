@@ -32,6 +32,8 @@ These are intended for normal user configuration.
 
 - `FORMAX_SESSION_SAVE`: enable/disable session save (default enabled; `0|false|no` disables)
 - `FORMAX_TUI_SHOW_INTERNAL_TOOLS`: show internal tool rows in TUI (`ToolSearch` etc.); default hidden
+- `FORMAX_ALLOWED_TOOLS`: optional comma-separated allowlist for tools exposed to LLM requests (for example `Read,Edit,Bash`)
+- `FORMAX_DISABLED_TOOLS`: optional comma-separated denylist for tools removed from LLM request exposure (applied after allowlist)
 
 ### Config-by-env patch keys (advanced)
 

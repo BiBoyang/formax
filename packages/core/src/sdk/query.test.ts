@@ -457,6 +457,152 @@ describe('sdk query()', () => {
     }
   })
 
+  it('filters exposed tools using FORMAX_ALLOWED_TOOLS and FORMAX_DISABLED_TOOLS', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.tools.map((tool: ToolDefinition) => tool.name)).toEqual(['Read'])
+      expect(new Set(turnArgs.exec?.allowTools ?? [])).toEqual(new Set(['Read']))
+      expect(new Set(turnArgs.exec?.denyTools ?? [])).toEqual(new Set(['Write', 'AskUserQuestion']))
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      runTurn,
+      tools: [createTool('Read'), createTool('Write'), createTool('AskUserQuestion')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'env tool filter',
+      options: {
+        allowedTools: ['Read'],
+        env: {
+          ...process.env,
+          FORMAX_ALLOWED_TOOLS: 'Read, Write',
+          FORMAX_DISABLED_TOOLS: 'Write,AskUserQuestion',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.tools.map((tool) => tool.name)).toEqual(['Read'])
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('uses intersection for FORMAX_ALLOWED_TOOLS and options.allowedTools', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.tools.map((tool: ToolDefinition) => tool.name)).toEqual([])
+      expect(turnArgs.exec?.allowTools).toEqual([])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      runTurn,
+      tools: [createTool('Read'), createTool('Write')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'env allow intersection',
+      options: {
+        allowedTools: ['Write'],
+        env: {
+          ...process.env,
+          FORMAX_ALLOWED_TOOLS: 'Read',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.tools.map((tool) => tool.name)).toEqual([])
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('treats FORMAX_ALLOWED_TOOLS=* as wildcard when options.allowedTools is provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.tools.map((tool: ToolDefinition) => tool.name)).toEqual(['Write'])
+      expect(turnArgs.exec?.allowTools).toEqual(['Write'])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      runTurn,
+      tools: [createTool('Read'), createTool('Write')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'env wildcard allow',
+      options: {
+        allowedTools: ['Write'],
+        env: {
+          ...process.env,
+          FORMAX_ALLOWED_TOOLS: '*',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.tools.map((tool) => tool.name)).toEqual(['Write'])
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
+  it('treats options.allowedTools=* as wildcard when FORMAX_ALLOWED_TOOLS is provided', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.tools.map((tool: ToolDefinition) => tool.name)).toEqual(['Read'])
+      expect(turnArgs.exec?.allowTools).toEqual(['Read'])
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      runTurn,
+      tools: [createTool('Read'), createTool('Write')],
+    })
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'options wildcard allow',
+      options: {
+        allowedTools: ['*'],
+        env: {
+          ...process.env,
+          FORMAX_ALLOWED_TOOLS: 'Read',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages[0]
+    expect(init?.type).toBe('system')
+    if (init?.type === 'system') {
+      expect(init.tools.map((tool) => tool.name)).toEqual(['Read'])
+    }
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
   it('maps permissionMode to execution replMode', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.exec?.replMode).toBe('normal')
@@ -3244,6 +3390,46 @@ describe('sdk query()', () => {
     const userMessage = result.history.find((message) => message.role === 'user')
     expect(userMessage?.content[0]).toEqual({ type: 'text', text: 'pwd' })
     expect(JSON.stringify(userMessage?.content || [])).not.toContain('<available-deferred-tools>')
+  })
+
+  it('does not force ToolSearch into exec allowTools when denylisted', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({
+      tools: [createTool('Bash')],
+      runTurn,
+    })
+    runtime.runtimeFlags = {
+      sessionSaveEnabled: true,
+      isVitest: true,
+      hooksDebugEnabled: false,
+      userShellPath: null,
+      deferredToolExposureEnabled: true,
+      deferredToolSoftFallbackEnabled: true,
+      toolSearchEngine: 'bm25',
+      showInternalToolsInTui: false,
+      requestDryRunEnabled: false,
+      requestDryRunOutputDir: null,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'pwd',
+      options: {
+        allowedTools: ['Bash'],
+        env: {
+          ...process.env,
+          FORMAX_DISABLED_TOOLS: 'ToolSearch',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const turnArgs = runTurn.mock.calls[0]?.[0]
+    expect(new Set(turnArgs.exec.allowTools ?? [])).toEqual(new Set(['Bash']))
+    expect((turnArgs.exec.allowTools ?? []).includes('ToolSearch')).toBe(false)
+    expect(turnArgs.tools.map((tool: any) => tool.name)).toEqual(['Bash'])
   })
 
   it('keeps default tool set when options.tools preset is provided', async () => {

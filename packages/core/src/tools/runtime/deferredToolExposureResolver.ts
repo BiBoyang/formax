@@ -10,6 +10,7 @@ export type DeferredToolExposureResolverArgs = {
   cwd: string
   tools: ToolDefinition[]
   deferredToolExposureEnabled: boolean
+  toolSearchEnabled?: boolean
   explicitSessionKey?: string | null
   toolSearchEngine?: string | null
   includeSkillsReminderBlock?: boolean
@@ -51,10 +52,10 @@ export function resolveDeferredToolExposureForTurn(
   const baseToolsForTurn = patchToolsForTurnWithSkillDescriptions({
     tools: args.tools,
     cwd: args.cwd,
-    includeAvailableSkillsInDescription: !args.deferredToolExposureEnabled,
+    includeAvailableSkillsInDescription: !args.deferredToolExposureEnabled || args.toolSearchEnabled === false,
   })
 
-  if (!args.deferredToolExposureEnabled || baseToolsForTurn.length === 0) {
+  if (!args.deferredToolExposureEnabled || args.toolSearchEnabled === false || baseToolsForTurn.length === 0) {
     return {
       baseToolsForTurn,
       toolsForTurn: baseToolsForTurn,

@@ -35,6 +35,7 @@ import {
   patchToolsForTurnWithSkillDescriptions,
   resolveDeferredToolExposureForTurn,
 } from '../../tools/runtime/deferredToolExposureResolver.js'
+import { applyToolFilters, resolveToolFilters } from '../../tools/runtime/toolFilter.js'
 import type { ReplMode } from '../../tools/executor/index.js'
 import type { ToolDefinition } from '../../tools/types.js'
 import { AbortError } from '../errors.js'
@@ -159,23 +160,6 @@ function isSystemPromptPresetInput(input: unknown): input is SystemPromptPresetI
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false
   const record = input as Record<string, unknown>
   return record.type === 'preset' && record.preset === 'claude_code'
-}
-
-function filterToolsForQuery(args: {
-  tools: ToolDefinition[]
-  allowedTools?: string[]
-  disallowedTools?: string[]
-}): ToolDefinition[] {
-  const disallowed = new Set(args.disallowedTools ?? [])
-  const allowAll = args.allowedTools?.includes('*') ?? false
-  const allowed = args.allowedTools ? new Set(args.allowedTools) : null
-
-  return args.tools.filter((tool) => {
-    if (disallowed.has(tool.name)) return false
-    if (!allowed) return true
-    if (allowAll) return true
-    return allowed.has(tool.name)
-  })
 }
 
 function selectToolsForQuery(args: {
@@ -730,35 +714,6 @@ function patchClientStreamOnce(args: {
   }
 }
 
-function normalizeDisallowedTools(args: {
-  interactive: boolean
-  disallowedTools?: string[]
-  outputFormatEnabled?: boolean
-}): string[] | undefined {
-  const merged = new Set(args.disallowedTools ?? [])
-  if (!args.interactive) {
-    // Without an answer submission API, AskUserQuestion would deadlock.
-    merged.add('AskUserQuestion')
-  }
-  if (args.outputFormatEnabled) {
-    // StructuredOutput is an internal synthetic tool used by SDK outputFormat.
-    merged.delete(STRUCTURED_OUTPUT_TOOL_NAME)
-  }
-  return merged.size > 0 ? [...merged] : undefined
-}
-
-function normalizeAllowedTools(args: {
-  allowedTools?: string[]
-  outputFormatEnabled?: boolean
-}): string[] | undefined {
-  if (!args.allowedTools) return undefined
-  const merged = new Set(args.allowedTools)
-  if (args.outputFormatEnabled && !merged.has('*')) {
-    merged.add(STRUCTURED_OUTPUT_TOOL_NAME)
-  }
-  return [...merged]
-}
-
 function emitMessage(args: {
   emit: (message: QueryMessage) => void
   callback?: (message: QueryMessage) => void
@@ -1260,13 +1215,11 @@ async function* runQuery(
       const history = normalizedPrompt.history
       nextHistory = history
       const interactive = options.interactive === true
-      const allowTools = normalizeAllowedTools({
-        allowedTools: options.allowedTools,
-        outputFormatEnabled: outputFormat?.type === 'json_schema',
-      })
-      const disallowedTools = normalizeDisallowedTools({
+      const { allowTools, disallowedTools } = resolveToolFilters({
+        env,
         interactive,
-        disallowedTools: options.disallowedTools,
+        optionAllowedTools: options.allowedTools,
+        optionDisallowedTools: options.disallowedTools,
         outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
 
@@ -1313,9 +1266,9 @@ async function* runQuery(
         tools: getPatchedRuntimeTools(runtime),
         toolsOption: options.tools,
       })
-      const filteredTools = filterToolsForQuery({
+      const filteredTools = applyToolFilters({
         tools: selectedTools,
-        allowedTools: allowTools,
+        allowTools,
         disallowedTools,
       })
       const deferredToolExposureEnabled = runtime.runtimeFlags?.deferredToolExposureEnabled === true
@@ -1323,6 +1276,7 @@ async function* runQuery(
         cwd,
         tools: filteredTools,
         deferredToolExposureEnabled,
+        toolSearchEnabled: !disallowedTools?.includes('ToolSearch'),
         explicitSessionKey: sessionId,
         toolSearchEngine: runtime.runtimeFlags?.toolSearchEngine,
       })
@@ -1343,7 +1297,9 @@ async function* runQuery(
         ? (() => {
             if (!toolExposure.resolveToolsForCall) return allowTools
             const merged = new Set(allowTools)
-            merged.add('ToolSearch')
+            if (!disallowedTools?.includes('ToolSearch')) {
+              merged.add('ToolSearch')
+            }
             return [...merged]
           })()
         : undefined

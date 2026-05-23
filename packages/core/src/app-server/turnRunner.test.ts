@@ -435,6 +435,38 @@ describe('TurnRunner', () => {
     }
   })
 
+  it('filters app-server tool exposure from FORMAX_ALLOWED_TOOLS/FORMAX_DISABLED_TOOLS env', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const env = {
+      ...fixture.env,
+      FORMAX_ALLOWED_TOOLS: 'Read,Write',
+      FORMAX_DISABLED_TOOLS: 'Write',
+    }
+    const engineRunTurn = vi.fn(async (args: any) => {
+      expect(args.tools.map((tool: any) => tool.name)).toEqual(['Read'])
+      return [...args.history, args.user, { role: 'assistant', content: [{ type: 'text', text: 'done' }] }] as ChatHistory
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn: engineRunTurn },
+      tools: [
+        { name: 'Read', description: 'read', input_schema: {} } as any,
+        { name: 'Write', description: 'write', input_schema: {} } as any,
+      ],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    expect(engineRunTurn).toHaveBeenCalled()
+  })
+
   it('uses canonical middle-layer request history without persisting request-only reductions', async () => {
     const fixture = await createThreadFixture()
     const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '6000', FORMAX_BASELINE_TOKENS: '0' }

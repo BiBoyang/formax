@@ -10,6 +10,7 @@ import { buildOutputStyleInjectedBlocks } from '../../../../prompts/reminders/ou
 import { resolveSystemPromptVariant } from '../../../../prompts/system'
 import type { StreamEvent } from '../../../../streaming/types'
 import { resolveDeferredToolExposureForTurn } from '../../../../tools/runtime/deferredToolExposureResolver'
+import { applyToolFilters, resolveToolFilters } from '../../../../tools/runtime/toolFilter'
 import type { ToolDefinition } from '../../../../tools/types'
 import type { ReplMode } from '../../mode'
 import type { PlanSessionManager } from '../../planSession'
@@ -124,11 +125,21 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         : args.planSession?.getPlanPath() ?? null
 
     const cwd = process.cwd()
+    const { allowTools, disallowedTools } = resolveToolFilters({
+      env: process.env,
+      interactive: true,
+    })
+    const tools = applyToolFilters({
+      tools: args.tools,
+      allowTools,
+      disallowedTools,
+    })
     const deferredToolExposureEnabled = args.runtimeFlags?.deferredToolExposureEnabled === true
     const toolExposure = resolveDeferredToolExposureForTurn({
       cwd,
-      tools: args.tools,
+      tools,
       deferredToolExposureEnabled,
+      toolSearchEnabled: !disallowedTools?.includes('ToolSearch'),
       explicitSessionKey: args.deferredToolExposureSessionKeyRef?.current,
       toolSearchEngine: args.runtimeFlags?.toolSearchEngine,
     })

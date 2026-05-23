@@ -6,6 +6,7 @@ import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.
 import { createRuntime } from '../runtime/createRuntime.js'
 import { loadRuntimeConfig } from '../config/config.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
+import { applyToolFilters, resolveToolFilters } from '../tools/runtime/toolFilter.js'
 import { AppServer } from './server.js'
 import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
 import { readLatestReactiveCompactEventFromSession } from '../features/repl/sessionSave/reactiveCompactEvents.js'
@@ -279,10 +280,20 @@ export async function runAppServer(args?: {
         : { mode, planPath: livePlanPath }
       const diagnosticsMode = modeExplicit ? mode : restoreContext.mode
       const deferredToolExposureEnabled = runtime.runtimeFlags.deferredToolExposureEnabled === true
+      const { allowTools, disallowedTools } = resolveToolFilters({
+        env,
+        interactive: true,
+      })
+      const filteredTools = applyToolFilters({
+        tools: runtime.tools,
+        allowTools,
+        disallowedTools,
+      })
       const toolExposure = resolveDeferredToolExposureForTurn({
         cwd: dispatchCwd,
-        tools: runtime.tools,
+        tools: filteredTools,
         deferredToolExposureEnabled,
+        toolSearchEnabled: !disallowedTools?.includes('ToolSearch'),
         explicitSessionKey: `app-server:${threadId}`,
         toolSearchEngine: runtime.runtimeFlags.toolSearchEngine,
       })

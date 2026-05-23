@@ -50,6 +50,7 @@ import { sourceFromRuntimeEventType } from '../shared/runtimeEventSource.js'
 import type { StreamEvent } from '../streaming/types.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
+import { applyToolFilters, resolveToolFilters } from '../tools/runtime/toolFilter.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
 import type {
   InputEnvelopeMeta,
@@ -549,10 +550,20 @@ export class TurnRunner {
       await writer.appendStableMsg(userMsg)
 
       const deferredToolExposureEnabled = this.runtimeFlags.deferredToolExposureEnabled === true
+      const { allowTools, disallowedTools } = resolveToolFilters({
+        env: this.env ?? process.env,
+        interactive: true,
+      })
+      const filteredTools = applyToolFilters({
+        tools: this.tools,
+        allowTools,
+        disallowedTools,
+      })
       const toolExposure = resolveDeferredToolExposureForTurn({
         cwd: running.cwd,
-        tools: this.tools,
+        tools: filteredTools,
         deferredToolExposureEnabled,
+        toolSearchEnabled: !disallowedTools?.includes('ToolSearch'),
         explicitSessionKey: `app-server:${running.threadId}`,
         toolSearchEngine: this.runtimeFlags.toolSearchEngine,
       })
