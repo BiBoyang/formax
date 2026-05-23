@@ -268,7 +268,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     activeThreadId,
     activeTurnId = null,
     virtualizationEnabled = false,
-    surfaceKind = activeThreadId ? 'thread' : 'welcome',
+    surfaceKind = activeThreadId ? 'thread' : 'newThreadDraft',
     logs,
     composerLocked = false,
     inputText,

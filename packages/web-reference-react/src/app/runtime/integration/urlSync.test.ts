@@ -126,6 +126,7 @@ describe('URL Sync Integration', () => {
     await waitFor(() => {
       expect(result.current.sortedThreads.length).toBeGreaterThan(0)
       expect(result.current.activeThreadId).toBe(null)
+      expect(result.current.visibleSurface).toBe('newThreadDraft')
       expect(new URL(window.location.href).searchParams.get('thread')).toBeNull()
     })
   })

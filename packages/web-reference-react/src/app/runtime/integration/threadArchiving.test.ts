@@ -160,6 +160,7 @@ describe('Thread Archiving Integration', () => {
 
     await waitFor(() => {
       expect(result.current.activeThreadId).toBe(null)
+      expect(result.current.visibleSurface).toBe('newThreadDraft')
       expect(result.current.mode).toBe('normal')
       expect(result.current.selectedCwd).toBe(null)
       expect(result.current.logs).toEqual([])

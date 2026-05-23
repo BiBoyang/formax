@@ -493,6 +493,7 @@ describe('TranscriptPane', () => {
       <TranscriptPane
         {...baseProps({
           activeThreadId: null,
+          surfaceKind: 'welcome',
           logs: [],
         })}
       />,
@@ -505,6 +506,23 @@ describe('TranscriptPane', () => {
     expect(screen.queryByText('Create a plan to...')).not.toBeInTheDocument()
     expect(screen.queryByText('Prompt idea')).not.toBeInTheDocument()
     expect(container.querySelector('[data-radix-scroll-area-viewport]')).toBeNull()
+  })
+
+  it('defaults to the centered draft surface when no thread is active', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          logs: [],
+          draftCwdOptions: ['/repo-1'],
+          onDraftCwdChange: vi.fn(),
+        })}
+      />,
+    )
+
+    expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
+    expect(screen.getByText('What should we build in this project?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
   })
 
   it('does not render finalized thinking rows in the primary transcript', () => {

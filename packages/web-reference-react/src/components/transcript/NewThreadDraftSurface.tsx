@@ -29,7 +29,7 @@ export function NewThreadDraftSurface(props: NewThreadDraftSurfaceProps) {
     >
       <div className="w-full max-w-4xl">
         <div className="mx-auto mb-10 max-w-2xl text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground/80">
+          <h1 className="text-2xl tracking-tight text-foreground/80">
             {t('transcript.newThreadTitle')}
           </h1>
         </div>

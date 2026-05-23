@@ -54,14 +54,15 @@
 行为：
 
 1. 中栏 surface MUST 显式区分 `welcome`、`newThreadDraft`、`thread`；不得继续单靠 `!activeThreadId` 混推 welcome 与 draft。
-2. `Send` 在真实 thread surface 下仅在已连接且存在 active thread 时可用。
-3. `Send` 在 `newThreadDraft` 下仅在已连接、已选择 path 且输入非空时可用。
-4. `newThreadDraft` 下 composer 居中显示；真实 thread 下保持底部 composer 布局。
-5. 发送前将用户输入追加到 transcript；draft 首发前不得先创建伪 thread 占位。
-6. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
-7. `turn/completed` 与 `turn/failed` 必须写入可见日志。
-8. `Interrupt` 仅在 active turn 存在时可用。
-9. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
+2. 当 `activeThreadId == null` 时，默认主入口 MUST 回到 `newThreadDraft` surface，而不是底部 welcome composer。
+3. `Send` 在真实 thread surface 下仅在已连接且存在 active thread 时可用。
+4. `Send` 在 `newThreadDraft` 下仅在已连接、已选择 path 且输入非空时可用。
+5. `newThreadDraft` 下 composer 居中显示；真实 thread 下保持底部 composer 布局。
+6. 发送前将用户输入追加到 transcript；draft 首发前不得先创建伪 thread 占位。
+7. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
+8. `turn/completed` 与 `turn/failed` 必须写入可见日志。
+9. `Interrupt` 仅在 active turn 存在时可用。
+10. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
 
 Transcript 类型要求（必须可区分）：
 

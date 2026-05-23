@@ -492,6 +492,19 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   }, [activeThreadIdRef, cwdOptions.length, dispatch, enterNewThreadDraftState, resolveWorkspaceDraftFallbackCwd, setModeStable])
 
   useEffect(() => {
+    if (state.activeThreadId) return
+    if (newThreadDraft.status === 'active') return
+    const fallbackDraftCwd = cwdOptions.length === 0 ? resolveWorkspaceDraftFallbackCwd() : null
+    enterNewThreadDraftState({ source: 'newThread', cwd: fallbackDraftCwd })
+  }, [
+    cwdOptions.length,
+    enterNewThreadDraftState,
+    newThreadDraft.status,
+    resolveWorkspaceDraftFallbackCwd,
+    state.activeThreadId,
+  ])
+
+  useEffect(() => {
     if (newThreadDraft.status !== 'active') return
     if (newThreadDraft.cwd) return
     if (newThreadDraft.source === 'addProject') return

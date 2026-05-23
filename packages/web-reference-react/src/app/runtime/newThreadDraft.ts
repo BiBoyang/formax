@@ -20,7 +20,7 @@ export function deriveVisibleSurface(args: {
   if (args.activeThreadId) {
     return 'thread'
   }
-  return 'welcome'
+  return 'newThreadDraft'
 }
 
 export function normalizeDraftCwd(value: string | null | undefined): string | null {
