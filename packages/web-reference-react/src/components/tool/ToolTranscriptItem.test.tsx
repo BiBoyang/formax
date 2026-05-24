@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TranscriptItem } from '../../types'
 import { ToolTranscriptItem } from './ToolTranscriptItem'
+import { TOOL_PREVIEW_MAX_HEIGHT_PX } from './toolUiConstants'
 
 function makeToolItem(overrides: Partial<Extract<TranscriptItem, { kind: 'tool_call' }>> = {}): Extract<TranscriptItem, { kind: 'tool_call' }> {
   return {
@@ -104,7 +105,9 @@ describe('ToolTranscriptItem', () => {
     })
     const { container } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(container.querySelector('.overflow-y-auto')).not.toBeNull()
+    const scrollRegion = container.querySelector('.overflow-y-auto')
+    expect(scrollRegion).not.toBeNull()
+    expect(scrollRegion).toHaveStyle({ maxHeight: `${TOOL_PREVIEW_MAX_HEIGHT_PX}px` })
   })
 
   it('caps rendered preview rows for very large outputs', () => {

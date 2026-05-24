@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils'
 import { DiffPatchView } from '../diff/DiffPatchView'
 import { truncatePathFromLeft } from '../diff/diffTypes'
 import { Button } from '../ui/button'
-import { TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
+import { TOOL_PREVIEW_MAX_HEIGHT_PX, TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
 import type {
   ToolDisplayDensity,
   ToolInputState,
@@ -112,13 +112,12 @@ function PreviewLines(props: { lines: string[]; maxLines?: number }) {
   const renderLimit = Math.max(maxLines, TOOL_PREVIEW_MAX_RENDER_LINES)
   const renderedLines = lines.slice(0, renderLimit)
   const hiddenLineCount = Math.max(0, lines.length - renderedLines.length)
-  const shouldClamp = renderedLines.length > maxLines
-  const maxHeightEm = maxLines * 1.7
+  const showOverflowAffordance = renderedLines.length > maxLines
   return (
     <div className="relative min-w-0">
       <div
-        className={cn('space-y-0.5 font-mono ui-text-base ui-text-secondary leading-8 whitespace-pre-wrap break-words [overflow-wrap:anywhere]', shouldClamp ? 'overflow-y-auto pr-2' : null)}
-        style={shouldClamp ? { maxHeight: `${maxHeightEm}em` } : undefined}
+        className="space-y-0.5 overflow-y-auto pr-2 font-mono ui-text-base ui-text-secondary leading-8 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+        style={{ maxHeight: `${TOOL_PREVIEW_MAX_HEIGHT_PX}px` }}
       >
         {renderedLines.map((line, index) => (
           <div key={`preview-line-${index}`}>{line || '\u00a0'}</div>
@@ -127,7 +126,7 @@ function PreviewLines(props: { lines: string[]; maxLines?: number }) {
           <div className="ui-text-meta text-muted-foreground">{`... ${hiddenLineCount} more lines not shown`}</div>
         ) : null}
       </div>
-      {shouldClamp ? (
+      {showOverflowAffordance ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-background via-background/95 to-transparent" />
       ) : null}
     </div>
