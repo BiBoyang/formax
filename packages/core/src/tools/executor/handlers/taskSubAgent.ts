@@ -77,7 +77,8 @@ export function createTaskSubAgentToolHandler(deps: {
         }
       }
 
-      const currentCfg = await loadRuntimeConfig(process.env, ctx.cwd ?? process.cwd())
+      const taskCwd = typeof ctx.cwd === 'string' && ctx.cwd.trim() ? ctx.cwd : process.cwd()
+      const currentCfg = await loadRuntimeConfig(process.env, taskCwd)
       const agentModelTier = parseModelTier(agent.model)
       const selectedModelTier =
         explicitModelTier ??
@@ -219,6 +220,7 @@ export function createTaskSubAgentToolHandler(deps: {
         const subMode = parentMode === 'acceptEdits' ? 'acceptEdits' : 'normal'
 
         const result = await deps.runner.run({
+          cwd: taskCwd,
           agent,
           task: prompt,
           model: resolvedModel,

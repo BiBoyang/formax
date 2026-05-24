@@ -573,6 +573,8 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
     params.length > 0
       ? stringifyToolParams(params.filter((param) => param.label !== 'subagent_type' && param.label !== 'description'))
       : item.paramsText
+  const maxDetailLines = item.status === 'running' ? 8 : 20
+  const detailLines = item.detailLines.slice(-maxDetailLines)
   return withStandardBlocks({
     item,
     title,
@@ -580,8 +582,7 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
     cwd: context.cwd,
     ...(subtitle ? { subtitle } : {}),
     ...(paramsText ? { paramsText } : {}),
-    // Keep Task rows compact in GUI: render a single header row only.
-    detailLines: [],
+    detailLines,
   })
 }
 

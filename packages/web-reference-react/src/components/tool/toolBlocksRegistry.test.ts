@@ -363,7 +363,7 @@ describe('buildToolUiBlocks', () => {
     expect(taskBlocks.find((block) => block.kind === 'details')).toBeUndefined()
   })
 
-  it('keeps Task blocks single-line even when detail lines exist', () => {
+  it('shows bounded Task detail lines when nested progress exists', () => {
     const taskBlocks = buildToolUiBlocks(
       makeToolItem({
         toolName: 'Task',
@@ -377,8 +377,25 @@ describe('buildToolUiBlocks', () => {
     expect(taskHeader?.kind).toBe('header')
     expect(taskHeader?.title).toBe('Task')
     expect(taskHeader?.subtitle).toBe('planner(analyze docs)')
-    expect(taskHeader?.expandable).toBe(false)
-    expect(taskBlocks.find((block) => block.kind === 'details')).toBeUndefined()
+    expect(taskHeader?.expandable).toBe(true)
+    expect(taskBlocks.find((block) => block.kind === 'details')).toEqual(
+      expect.objectContaining({ lines: ['Read 10 lines', 'Found 3 files'] }),
+    )
+  })
+
+  it('bounds running Task detail lines to the most recent nested progress', () => {
+    const detailLines = Array.from({ length: 10 }, (_, index) => `nested ${index + 1}`)
+    const taskBlocks = buildToolUiBlocks(
+      makeToolItem({
+        toolName: 'Task',
+        status: 'running',
+        summary: 'Task running',
+        detailLines,
+      }),
+    )
+    const details = taskBlocks.find((block) => block.kind === 'details')
+    expect(details?.kind).toBe('details')
+    expect(details?.lines).toEqual(detailLines.slice(-8))
   })
 
   it('keeps bash OUT content as raw output text instead of collapsing cwd path', () => {

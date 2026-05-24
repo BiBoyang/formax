@@ -4,6 +4,11 @@ import type { ToolDefinition, ToolCall, ToolResult } from '../../tools/types'
 import { createToolExecutor } from '../../tools/executor'
 import type { ToolHandler } from '../../tools/executor'
 import type { LlmStreamOnceArgs, StreamTurnResult } from '../../streaming/types'
+import os from 'node:os'
+import path from 'node:path'
+import fsp from 'node:fs/promises'
+
+const TEST_CWD = process.cwd()
 
 function tool(name: string): ToolDefinition {
   return { name, description: `${name} tool`, input_schema: {} }
@@ -200,6 +205,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'code-reviewer',
         description: 'Reviews code',
@@ -227,6 +233,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'code-reviewer',
         description: 'Reviews code',
@@ -264,8 +271,9 @@ describe('SubAgentRunner', () => {
       baselineTokens: 0,
     }
 
-    const first = await runner.run({ agent, task: 'one', promptBudget: budget })
+    const first = await runner.run({ cwd: TEST_CWD, agent, task: 'one', promptBudget: budget })
     const second = await runner.run({
+      cwd: TEST_CWD,
       agent,
       task: 'two',
       resume: first.agentId,
@@ -285,6 +293,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'any',
         description: 'any',
@@ -311,6 +320,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'any',
         description: 'any',
@@ -347,6 +357,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'general-purpose',
         description: 'Any task',
@@ -364,6 +375,45 @@ describe('SubAgentRunner', () => {
     expect(client.firstToolResult).toEqual({ tool_use_id: 't1', content: 'ok' })
   })
 
+  it('uses per-run cwd for nested tool execution instead of process cwd', async () => {
+    const runCwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-subagent-run-cwd-'))
+    const seenCwds: string[] = []
+    try {
+      const client = new WildcardToolUseClient()
+      const handler: ToolHandler = {
+        canHandle(name) {
+          return name === 'Read'
+        },
+        async execute(call, ctx) {
+          seenCwds.push(ctx.cwd)
+          return { tool_use_id: call.id, content: 'ok' }
+        },
+      }
+      const runner = createSubAgentRunner({
+        client: client as any,
+        executor: createToolExecutor([handler]),
+        allTools: [tool('Read')],
+      })
+
+      const result = await runner.run({
+        cwd: runCwd,
+        agent: {
+          name: 'general-purpose',
+          description: 'Any task',
+          tools: ['*'],
+          systemPrompt: 'Return summary only.',
+        },
+        task: 'x',
+      })
+
+      expect(result.success).toBe(true)
+      expect(seenCwds).toEqual([runCwd])
+      expect(seenCwds).not.toContain(process.cwd())
+    } finally {
+      await fsp.rm(runCwd, { recursive: true, force: true })
+    }
+  })
+
   it('denies Edit/Write/NotebookEdit inside Explore and Plan subagents', async () => {
     const client = new RecordingClient('ok')
     const executor = createToolExecutor([])
@@ -374,6 +424,7 @@ describe('SubAgentRunner', () => {
     })
 
     const resultExplore = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'Explore',
         description: 'Explore',
@@ -388,6 +439,7 @@ describe('SubAgentRunner', () => {
     expect(client.calls[0]!.tools.map((t) => t.name).sort()).toEqual(['Bash', 'Glob', 'Read'])
 
     const resultPlan = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'Plan',
         description: 'Plan',
@@ -412,6 +464,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'general-purpose',
         description: 'Any task',
@@ -451,6 +504,7 @@ describe('SubAgentRunner', () => {
     })
 
     const result = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'any',
         description: 'any',
@@ -484,8 +538,8 @@ describe('SubAgentRunner', () => {
       executor,
       allTools: [],
     })
-    const first = await noBudgetRunner.run({ agent, task: 'one' })
-    const second = await noBudgetRunner.run({ agent, task: 'two', resume: first.agentId })
+    const first = await noBudgetRunner.run({ cwd: TEST_CWD, agent, task: 'one' })
+    const second = await noBudgetRunner.run({ cwd: TEST_CWD, agent, task: 'two', resume: first.agentId })
     expect(second.success).toBe(false)
     expect(second.error).toContain('too big')
 
@@ -501,8 +555,8 @@ describe('SubAgentRunner', () => {
         baselineTokens: 0,
       },
     })
-    const firstBudget = await budgetRunner.run({ agent, task: 'one' })
-    const secondBudget = await budgetRunner.run({ agent, task: 'two', resume: firstBudget.agentId })
+    const firstBudget = await budgetRunner.run({ cwd: TEST_CWD, agent, task: 'one' })
+    const secondBudget = await budgetRunner.run({ cwd: TEST_CWD, agent, task: 'two', resume: firstBudget.agentId })
     expect(secondBudget.success).toBe(true)
   })
 
@@ -528,8 +582,8 @@ describe('SubAgentRunner', () => {
       },
     })
 
-    const first = await runner.run({ agent, task: 'one', promptBudget: null })
-    const second = await runner.run({ agent, task: 'two', resume: first.agentId, promptBudget: null })
+    const first = await runner.run({ cwd: TEST_CWD, agent, task: 'one', promptBudget: null })
+    const second = await runner.run({ cwd: TEST_CWD, agent, task: 'two', resume: first.agentId, promptBudget: null })
     expect(second.success).toBe(false)
     expect(second.error).toContain('too big')
   })
@@ -544,6 +598,7 @@ describe('SubAgentRunner', () => {
     })
 
     const first = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'agent-a',
         description: 'a',
@@ -556,6 +611,7 @@ describe('SubAgentRunner', () => {
     expect(first.agentId).toBe('agent-fixed')
 
     const unknownResume = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'agent-a',
         description: 'a',
@@ -569,6 +625,7 @@ describe('SubAgentRunner', () => {
     expect(unknownResume.error).toContain('Unknown agent ID: missing-id')
 
     const mismatchedResume = await runner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'agent-b',
         description: 'b',
@@ -580,6 +637,20 @@ describe('SubAgentRunner', () => {
     })
     expect(mismatchedResume.success).toBe(false)
     expect(mismatchedResume.error).toContain("belongs to 'agent-a', not 'agent-b'")
+
+    const crossCwdResume = await runner.run({
+      cwd: `${TEST_CWD}/other-workspace`,
+      agent: {
+        name: 'agent-a',
+        description: 'a',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task-d',
+      resume: 'agent-fixed',
+    })
+    expect(crossCwdResume.success).toBe(false)
+    expect(crossCwdResume.error).toContain('was created for cwd')
   })
 
   it('supports undefined tool allowlist and string-thrown errors', async () => {
@@ -590,6 +661,7 @@ describe('SubAgentRunner', () => {
     })
 
     const ok = await okRunner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'agent-open',
         description: 'open',
@@ -607,6 +679,7 @@ describe('SubAgentRunner', () => {
       allTools: [],
     })
     const failed = await failRunner.run({
+      cwd: TEST_CWD,
       agent: {
         name: 'agent-fail',
         description: 'fail',

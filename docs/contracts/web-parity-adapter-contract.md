@@ -119,6 +119,9 @@ projection-managed rows 当前 MUST 包含：
 `WEB-303`  
 tool name 粘性恢复 MUST 继续以 `toolUseId` 为 key；从 logs 收集到的 `toolNameByUseId` 仅用于补全投影，不得替代 canonical tool sequencing。
 
+`WEB-303A`
+Web renderer MAY expose `Task` tool `detailLines` as bounded nested progress / error details. This is renderer-only visibility over server-supplied tool state; it MUST NOT create a second semantic state machine, infer approval/input lifecycle from text, or treat sub-agent approval errors as parent-turn pending input.
+
 `WEB-304`  
 turn footer 的 `createdAt` 在 projection rebuild 时 SHOULD 尽量保持稳定；Web 不应因为局部 patch 而无意义刷新 footer identity。
 

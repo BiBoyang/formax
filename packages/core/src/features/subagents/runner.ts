@@ -16,6 +16,7 @@ const READONLY_SUBAGENT_DENY_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const
 
 export interface SubAgentRunner {
   run(args: {
+    cwd: string
     agent: SubAgentConfig
     task: string
     resume?: string
@@ -48,12 +49,14 @@ export function createSubAgentRunner(deps: {
     string,
     {
       agentName: string
+      cwd: string
       history: Awaited<ReturnType<ChatEngine['runTurn']>>
     }
   >()
 
   return {
     async run({
+      cwd,
       agent,
       task,
       resume,
@@ -70,6 +73,10 @@ export function createSubAgentRunner(deps: {
         : typeof requestedAgentId === 'string' && requestedAgentId.trim()
           ? requestedAgentId.trim()
           : randomUUID()
+      const runCwd = typeof cwd === 'string' && cwd.trim() ? cwd.trim() : null
+      if (!runCwd) {
+        return { agentId, response: '', summary: '', success: false, error: 'SubAgentRunner.run requires cwd' }
+      }
 
       const resumeSession = typeof resume === 'string' && resume.trim() ? sessions.get(resume.trim()) : null
       if (resume && !resumeSession) {
@@ -82,6 +89,15 @@ export function createSubAgentRunner(deps: {
           summary: '',
           success: false,
           error: `Agent ID ${resume} belongs to '${resumeSession.agentName}', not '${agent.name}'.`,
+        }
+      }
+      if (resumeSession && resumeSession.cwd !== runCwd) {
+        return {
+          agentId,
+          response: '',
+          summary: '',
+          success: false,
+          error: `Agent ID ${resume} was created for cwd ${resumeSession.cwd}, not ${runCwd}.`,
         }
       }
 
@@ -124,7 +140,7 @@ export function createSubAgentRunner(deps: {
           system,
           tools: allowedTools,
           onEvent: handleEvent,
-          cwd: process.cwd(),
+          cwd: runCwd,
           signal,
           model,
           promptBudget: resolvedPromptBudget,
@@ -138,7 +154,7 @@ export function createSubAgentRunner(deps: {
             denyTools,
           },
         })
-        sessions.set(agentId, { agentName: agent.name, history: nextHistory })
+        sessions.set(agentId, { agentName: agent.name, cwd: runCwd, history: nextHistory })
 
         const trimmed = response.trim()
         const limited =

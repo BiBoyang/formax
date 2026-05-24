@@ -123,6 +123,9 @@ handler 负责工具执行结果，MUST 返回 `ToolResult`；它 MUST NOT 直�
 `TOOL-206`  
 tool presenter / presentation selector 只负责把 tool segment 转成可见摘要；它们 MUST NOT 重新定义工具执行协议。
 
+`TOOL-207`
+当工具执行已经拥有 `ExecutionContext.cwd` 时，nested runtime（包括 `Task` sub-agent）MUST 继续使用该 `cwd` 作为 workspace authority；内部 runner MUST NOT 在该路径上重新退回 `process.cwd()`。`SubAgentRunner.run(...)` 的 per-run `cwd` 是必填上下文，因为 app-server runtime MAY 同时服务多个 thread / cwd。
+
 ## 4. Deferred ToolSearch Runtime
 
 `TOOL-301`  

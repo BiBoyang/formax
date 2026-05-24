@@ -46,9 +46,10 @@ flowchart TD
 1. CLI 启动时调用 `registry.loadFromDirectories(...)`
    - 当前实现会同时加载 user-level（`~/.formax/agents/`）与 project-level（`.formax/agents/`），并以 project 覆盖 user
 2. Task 工具 handler 调用 `registry.get(agentName)` 获取配置
-3. Runner 根据 `agent.tools` 过滤全量工具列表
-4. Runner 创建隔离 ChatEngine 并执行（agentDepth=1）
-5. 执行完成返回 `{ agentId, summary, success }`
+3. Task handler 将当前 `ExecutionContext.cwd` 作为必填 per-run cwd 传给 runner
+4. Runner 根据 `agent.tools` 过滤全量工具列表
+5. Runner 创建隔离 ChatEngine 并执行（继承 per-run cwd，`agentDepth=1`）
+6. 执行完成返回 `{ agentId, summary, success }`
 
 ## 4) 边界与约束（Boundaries / Invariants）
 
@@ -56,7 +57,7 @@ flowchart TD
 
 - Agent 可指定 `tools: ['*']` 使用所有工具
 - Agent 可指定具体工具列表做白名单隔离
-- Runner 支持 resume（用 agentId 继续上次对话）
+- Runner 支持 resume（用 agentId 继续上次对话），但 resume 的 cwd 必须与创建该 agent session 的 cwd 一致
 - 用户可在 `~/.formax/agents/` 添加 user-level agent，也可在项目的 `.formax/agents/` 添加 project-level agent（优先级更高）
 
 ### ❌ 禁止
@@ -71,7 +72,8 @@ flowchart TD
 
 1. **SUBAGENT_DENY_TOOLS**：防止无限递归调用 sub-agent
 2. **agentDepth > 0**：Executor 自动拒绝 `SUBAGENT_DENY_TOOLS`
-3. **summary 截断**：默认 500 字符 + `…`
+3. **cwd 继承**：sub-agent 工具执行使用父 `Task` 的 `ExecutionContext.cwd`，runner 不回退到 `process.cwd()`
+4. **summary 截断**：默认 500 字符 + `…`
 
 ## 5) 如何扩展（How to extend）
 

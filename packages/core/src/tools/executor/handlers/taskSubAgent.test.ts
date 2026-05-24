@@ -106,7 +106,53 @@ describe('TaskSubAgentToolHandler', () => {
     expect(parsed.agent_id).toBe('agent-1')
   })
 
-  it('works when execution context cwd is omitted', async () => {
+  it('passes execution context cwd to SubAgentRunner.run', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-cwd-'))
+    try {
+      const agent = {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: [],
+        systemPrompt: 'Return summary only.',
+      }
+      const registryOk: SubAgentRegistry = {
+        async loadFromDirectory() {},
+        async loadFromDirectories() {},
+        get() {
+          return agent
+        },
+        list() {
+          return [{ name: agent.name, description: agent.description }]
+        },
+      }
+      const seenCwds: string[] = []
+      const runner: SubAgentRunner = {
+        async run(args) {
+          seenCwds.push(args.cwd)
+          return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
+        },
+      }
+      const handler = createTaskSubAgentToolHandler({
+        registry: registryOk,
+        runner,
+        taskManager: new TaskManager(),
+      })
+      const call: ToolCall = {
+        id: '1',
+        name: 'Task',
+        input: { description: 'Code review', subagent_type: 'code-reviewer', prompt: 'review' },
+      }
+
+      const result = await handler.execute(call, { cwd, agentDepth: 0 })
+      expect(result.is_error).toBeFalsy()
+      expect(seenCwds).toEqual([cwd])
+      expect(seenCwds).not.toContain(process.cwd())
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to process cwd before calling runner when direct handler callers omit cwd', async () => {
     const agent = {
       name: 'code-reviewer',
       description: 'Reviews code',
@@ -123,8 +169,10 @@ describe('TaskSubAgentToolHandler', () => {
         return [{ name: agent.name, description: agent.description }]
       },
     }
+    const seenCwds: string[] = []
     const runner: SubAgentRunner = {
-      async run() {
+      async run(args) {
+        seenCwds.push(args.cwd)
         return { agentId: 'agent-1', response: 'ok', summary: 'ok', success: true }
       },
     }
@@ -140,6 +188,7 @@ describe('TaskSubAgentToolHandler', () => {
     }
     const result = await handler.execute(call, { agentDepth: 0 } as any)
     expect(result.is_error).toBeFalsy()
+    expect(seenCwds).toEqual([process.cwd()])
   })
 
   it('truncates long summaries to 500 characters', async () => {
@@ -578,6 +627,54 @@ describe('TaskSubAgentToolHandler', () => {
     expect(agentIds).toEqual([undefined])
     const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
     expect(waited.snapshot.status).toBe('completed')
+  })
+
+  it('captures execution context cwd for run_in_background tasks', async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), 'formax-task-bg-cwd-'))
+    try {
+      const agent = {
+        name: 'code-reviewer',
+        description: 'Reviews code',
+        tools: [],
+        systemPrompt: 'Return summary only.',
+      }
+
+      const registryOk: SubAgentRegistry = {
+        async loadFromDirectory() {},
+        async loadFromDirectories() {},
+        get() {
+          return agent
+        },
+        list() {
+          return [{ name: agent.name, description: agent.description }]
+        },
+      }
+
+      const seenCwds: string[] = []
+      const runner: SubAgentRunner = {
+        async run(args) {
+          seenCwds.push(args.cwd)
+          return { agentId: args.agentId ?? 'agent-1', response: 'background', summary: 'background', success: true }
+        },
+      }
+
+      const taskManager = new TaskManager()
+      const handler = createTaskSubAgentToolHandler({ registry: registryOk, runner, taskManager })
+      const call: ToolCall = {
+        id: '1',
+        name: 'Task',
+        input: { description: 'Review', subagent_type: 'code-reviewer', prompt: 'review', run_in_background: true },
+      }
+
+      const result = await handler.execute(call, { cwd, agentDepth: 0 })
+      const parsed = JSON.parse(String(result.content))
+      const waited = await taskManager.wait(parsed.task_id, { timeoutMs: 1000 })
+      expect(waited.snapshot.status).toBe('completed')
+      expect(seenCwds).toEqual([cwd])
+      expect(seenCwds).not.toContain(process.cwd())
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true })
+    }
   })
 
   it('emits nested tool updates to ctx.onEvent', async () => {

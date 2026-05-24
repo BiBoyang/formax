@@ -168,6 +168,9 @@ effective decision MUST 先从 policy engine 结果出发，再叠加 repl mode�
 `PERM-406`  
 sub-agent 或 non-interactive 路径 MUST NOT 进入 prompt；若该动作需要 approval 或 workspace 扩权，必须直接返回 error。
 
+`PERM-407`
+sub-agent 的 workspace 边界 MUST 基于父 `Task` 执行时继承的 `ExecutionContext.cwd` 计算；这不改变 `PERM-406` 的 fail-closed / no-prompt 语义。
+
 ## 6. Workspace 边界合同
 
 `PERM-501`  

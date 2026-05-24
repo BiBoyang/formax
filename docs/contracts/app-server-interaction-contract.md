@@ -134,6 +134,7 @@
     - `kind: "tool"`：`{ id, toolUseId?, toolName, status, summary, paramsText?, detailLines? }`
       - `toolName` 为 `toolUseId` 维度粘性字段（sticky），`update/end` 缺省时服务端应补齐。
       - 若 `toolUseId` 缺失（历史/降级数据），不承诺跨记录合并语义；客户端按该条 `id` 作为独立记录处理。
+      - `Task` 工具的 `detailLines` MAY 包含 bounded nested tool progress / error 摘要，供 GUI 展示 sub-agent 是否仍在工作或已失败；这些 lines 不表示 parent turn 存在新的 interactive input，也不得改变 sub-agent no-prompt 语义。
   - `latestCompactBoundary` 当前为可选最小 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
     - `trigger?`
