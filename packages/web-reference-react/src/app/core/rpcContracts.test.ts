@@ -131,7 +131,9 @@ describe('rpcContracts', () => {
           effectiveContextWindowPercent: 0.95,
           autoCompactLimitPercent: 0.9,
           baselineTokens: 12000,
-          source: 'known_model_window',
+          source: 'provider_detail',
+          boundModel: 'claude-test',
+          profileFingerprint: 'profile:1',
         },
         snapshotRaw: {
           totalTokens: 100,
@@ -148,7 +150,7 @@ describe('rpcContracts', () => {
       }),
     ).toMatchObject({
       model: 'claude-test',
-      budgetRaw: { contextWindowTokens: 100000 },
+      budgetRaw: { contextWindowTokens: 100000, source: 'provider_detail', boundModel: 'claude-test' },
       snapshotRaw: { totalTokens: 100 },
     })
     expect(parseProviderUsageRaw({ input_tokens: 1, output_tokens: 2, cache_deleted_input_tokens: 9 })).toEqual({
@@ -157,6 +159,43 @@ describe('rpcContracts', () => {
       cache_deleted_input_tokens: 9,
     })
     expect(parseProviderUsageRaw({ input_tokens: -1 })).toBeNull()
+  })
+
+  it('keeps parsing pre-upgrade context meter budget payloads without new optional fields', () => {
+    expect(
+      parseContextMeterRaw({
+        schemaVersion: 1,
+        source: 'context_diagnostics_snapshot',
+        model: 'claude-test',
+        provider: 'anthropic',
+        budgetRaw: {
+          schemaVersion: 1,
+          model: 'claude-test',
+          provider: 'anthropic',
+          contextWindowTokens: 100000,
+          effectiveContextWindowPercent: 0.95,
+          autoCompactLimitPercent: 0.9,
+          baselineTokens: 12000,
+          source: 'provider_detail',
+        },
+        snapshotRaw: {
+          totalTokens: 100,
+          systemTokens: 20,
+          historyTokens: 80,
+          toolResultTokens: 30,
+          otherHistoryTokens: 50,
+          messageCount: 4,
+          userMessageCount: 2,
+          assistantMessageCount: 2,
+          toolResultBlockCount: 1,
+          microCompactedToolResultCount: 0,
+        },
+      }),
+    ).toMatchObject({
+      model: 'claude-test',
+      budgetRaw: { contextWindowTokens: 100000, source: 'provider_detail' },
+      snapshotRaw: { totalTokens: 100 },
+    })
   })
 
   it('rejects malformed context meter budget raw diagnostics', () => {

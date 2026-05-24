@@ -185,7 +185,7 @@ describe('fetchAnthropicModels', () => {
         model: 'm1',
         provider: 'anthropic',
         max_tokens: 7,
-        contextWindowTokens: 7,
+        contextWindowTokens: undefined,
         supports_reasoning_effort: false,
         supports_vision: true,
         supports_function_calling: true,

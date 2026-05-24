@@ -4,6 +4,7 @@ import path from 'node:path'
 export type PlanSessionManager = {
   getPlanPath: () => string | null
   startNewPlan: () => string
+  setPlanPath?: (planPath: string | null) => void
 }
 
 const ADJ1 = [
@@ -79,8 +80,8 @@ function ensurePlanFile(filePath: string): void {
   }
 }
 
-export function createPlanSessionManager(args: { planDir: string }): PlanSessionManager {
-  let currentPlanPath: string | null = null
+export function createPlanSessionManager(args: { planDir: string; initialPlanPath?: string | null }): PlanSessionManager {
+  let currentPlanPath: string | null = args.initialPlanPath ?? null
 
   const startNewPlan = (): string => {
     const dir = args.planDir
@@ -103,5 +104,8 @@ export function createPlanSessionManager(args: { planDir: string }): PlanSession
   return {
     getPlanPath: () => currentPlanPath,
     startNewPlan,
+    setPlanPath: (planPath) => {
+      currentPlanPath = planPath
+    },
   }
 }

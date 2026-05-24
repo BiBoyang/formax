@@ -35,10 +35,12 @@ const { state } = vi.hoisted(() => ({
       userInputManager: {},
     })),
     turnRunnerCtorArgs: [] as any[],
+    turnRunnerInstances: [] as any[],
     sessionFilePath: null as string | null,
     sessionReplay: null as any,
     restoreContext: { mode: 'normal' as 'normal' | 'acceptEdits' | 'plan', planPath: null as string | null },
     turnRunnerPlanPath: null as string | null,
+    turnRunnerAdoptCalls: [] as Array<{ threadId: string; planPath: string | null }>,
   },
 }))
 
@@ -135,8 +137,11 @@ vi.mock('./turnRunner.js', () => ({
   DEFAULT_INPUT_TTL_MS: 60_000,
   DEFAULT_MAX_PENDING_INPUTS_PER_THREAD: 5,
   TurnRunner: class {
+    private readonly planPaths = new Map<string, string | null>()
+
     constructor(args: unknown) {
       state.turnRunnerCtorArgs.push(args)
+      state.turnRunnerInstances.push(this)
     }
 
     async startTurn() {
@@ -151,8 +156,14 @@ vi.mock('./turnRunner.js', () => ({
       return { ok: true }
     }
 
-    getPlanPath() {
-      return state.turnRunnerPlanPath
+    getPlanPath(threadId: string) {
+      return this.planPaths.get(threadId) ?? state.turnRunnerPlanPath
+    }
+
+    adoptPlanPath(threadId: string, planPath: string | null) {
+      this.planPaths.set(threadId, planPath)
+      state.turnRunnerPlanPath = planPath
+      state.turnRunnerAdoptCalls.push({ threadId, planPath })
     }
   },
 }))
@@ -172,10 +183,12 @@ describe('runAppServer (coverage branches)', () => {
     state.handleMessage = async () => []
     state.createRuntimeSpy.mockClear()
     state.turnRunnerCtorArgs = []
+    state.turnRunnerInstances = []
     state.sessionFilePath = null
     state.sessionReplay = null
     state.restoreContext = { mode: 'normal', planPath: null }
     state.turnRunnerPlanPath = null
+    state.turnRunnerAdoptCalls = []
   })
 
   it('rethrows non-payload transport errors from safeSend', async () => {
@@ -391,6 +404,53 @@ describe('runAppServer (coverage branches)', () => {
       maxInFlightTurnsPerThread: 1,
     })
     expect(state.transport.sent.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('preserves a thread plan path when runtime profile changes and a new runner is bound', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}']
+    const env = {
+      ...process.env,
+      FORMAX_API_KEY: 'sk-test',
+      FORMAX_BASE_URL: 'https://api.example-a.test/v1',
+    }
+    let migratedPlanPath: string | null = null
+    state.handleMessage = async (_message, options) => {
+      const firstRunner = await options.resolveTurnRunner({ threadId: 'thread-1', cwd: '/tmp/repo' })
+      state.turnRunnerInstances[0]?.adoptPlanPath('thread-1', '/tmp/repo/live-plan.md')
+      state.turnRunnerAdoptCalls = []
+      env.FORMAX_BASE_URL = 'https://api.example-b.test/v1'
+      const secondRunner = await options.resolveTurnRunner({ threadId: 'thread-1', cwd: '/tmp/repo' })
+      migratedPlanPath = secondRunner.getPlanPath?.('thread-1') ?? null
+      expect(firstRunner).not.toBe(secondRunner)
+      return []
+    }
+
+    await runAppServer({ cwd: '/tmp/repo', env })
+
+    expect(state.turnRunnerCtorArgs).toHaveLength(2)
+    expect(state.turnRunnerAdoptCalls).toEqual([{ threadId: 'thread-1', planPath: '/tmp/repo/live-plan.md' }])
+    expect(migratedPlanPath).toBe('/tmp/repo/live-plan.md')
+  })
+
+  it('invalidates cached runners when non-profile runtime config changes', async () => {
+    state.transport.lines = ['{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}']
+    const env = {
+      ...process.env,
+      FORMAX_API_KEY: 'sk-test',
+      FORMAX_SUBAGENTS_DIR: '/tmp/agents-a',
+    }
+    state.handleMessage = async (_message, options) => {
+      const firstRunner = await options.resolveTurnRunner({ cwd: '/tmp/repo' })
+      env.FORMAX_SUBAGENTS_DIR = '/tmp/agents-b'
+      const secondRunner = await options.resolveTurnRunner({ cwd: '/tmp/repo' })
+      expect(firstRunner).not.toBe(secondRunner)
+      return []
+    }
+
+    await runAppServer({ cwd: '/tmp/repo', env })
+
+    expect(state.turnRunnerCtorArgs).toHaveLength(2)
+    expect(state.createRuntimeSpy).toHaveBeenCalledTimes(2)
   })
 
   it('converts oversized outbound events into PAYLOAD_TOO_LARGE response events', async () => {

@@ -1,20 +1,12 @@
 import { fetchAnthropicModels, fetchCustomModels } from '../../core/models/models.js'
 import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../core/models/modelContextCatalog.js'
+import { createModelContextWindowMetadata } from '../../core/models/modelCapability.js'
 import { extractContextWindowTokens } from '../../core/models/contextWindow.js'
+import { inferContextWindowTokens } from '../../core/models/inferContextWindowTokens.js'
 import { ErrorCode } from '../../core/errors/codes.js'
 import { mapUnknownError } from '../../core/setup/errorMapping.js'
 import type { ProviderId } from '../../config/settings/schema.js'
 import type { ConnectionTestResult } from '../../core/setup/types.js'
-
-function inferContextWindowTokens(model: string): number {
-  const m = String(model).trim().toLowerCase()
-  if (m.startsWith('claude-')) return 200000
-  if (m.startsWith('gpt-4o') || m.startsWith('gpt-4.1') || m.startsWith('gpt-4-turbo')) return 128000
-  if (m === 'gpt-4' || m.startsWith('gpt-4-')) return 8192
-  if (m.startsWith('gpt-3.5')) return 16385
-  if (m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) return 128000
-  return 32768
-}
 
 function uniqStrings(values: string[]): string[] {
   const out: string[] = []
@@ -149,7 +141,31 @@ export async function testSetupConnection(args: {
             [name, detected[name] ?? fromProbe[name] ?? fromCatalog[name] ?? inferContextWindowTokens(name)] as const,
         ),
       )
-      return { ok: true, models: names, modelContextWindows }
+      const modelContextWindowMetadata = Object.fromEntries(
+        names.map((name) => {
+          const tokens = detected[name] ?? fromProbe[name] ?? fromCatalog[name] ?? inferContextWindowTokens(name)
+          const source = detected[name]
+            ? 'provider_list'
+            : fromProbe[name]
+              ? 'provider_detail'
+              : fromCatalog[name]
+                ? 'catalog'
+                : 'heuristic'
+          const confidence = source === 'catalog' ? 'catalog' : source === 'heuristic' ? 'heuristic' : 'detected'
+          return [
+            name,
+            createModelContextWindowMetadata({
+              provider,
+              baseUrl: args.baseUrl,
+              model: name,
+              tokens,
+              source,
+              confidence,
+            }),
+          ] as const
+        }),
+      )
+      return { ok: true, models: names, modelContextWindows, modelContextWindowMetadata }
     } catch (err) {
       const mapped = mapUnknownError(err)
       return { ok: false, code: mapped.code, message: mapped.message }
@@ -195,8 +211,32 @@ export async function testSetupConnection(args: {
             [name, detected[name] ?? fromProbe[name] ?? fromCatalog[name] ?? inferContextWindowTokens(name)] as const,
         ),
       )
+      const modelContextWindowMetadata = Object.fromEntries(
+        models.map((name) => {
+          const tokens = detected[name] ?? fromProbe[name] ?? fromCatalog[name] ?? inferContextWindowTokens(name)
+          const source = detected[name]
+            ? 'provider_list'
+            : fromProbe[name]
+              ? 'provider_detail'
+              : fromCatalog[name]
+                ? 'catalog'
+                : 'heuristic'
+          const confidence = source === 'catalog' ? 'catalog' : source === 'heuristic' ? 'heuristic' : 'detected'
+          return [
+            name,
+            createModelContextWindowMetadata({
+              provider,
+              baseUrl: args.baseUrl,
+              model: name,
+              tokens,
+              source,
+              confidence,
+            }),
+          ] as const
+        }),
+      )
       if (models.length > 0) {
-        return { ok: true, models, modelContextWindows }
+        return { ok: true, models, modelContextWindows, modelContextWindowMetadata }
       }
       return { ok: false, code: ErrorCode.Unknown, message: 'No models returned from provider.' }
     } catch (err) {

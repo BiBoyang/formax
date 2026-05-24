@@ -59,6 +59,7 @@
 - `docs/learnings/2026-04-06-request-time-context-collapse-mvp.md`
 - `docs/learnings/2026-04-06-context-collapse-impact-diagnostics.md`
 - `docs/learnings/2026-05-24-anthropic-thinking-prune-protocol.md`
+- `docs/learnings/2026-05-24-context-window-source-binding-runtime-profile.md`
 - `docs/learnings/2026-04-06-collapse-recap-contributor-kind.md`
 - `docs/learnings/2026-04-06-collapse-recap-metadata.md`
 - `docs/learnings/2026-04-07-runtime-collapse-state-plumbing.md`
@@ -131,4 +132,5 @@
 - [2026-05-21 - Pending restore compact consumption](./2026-05-21-pending-restore-compact-consumption.md)
 - [2026-05-21 - Request collapse boundary generation](./2026-05-21-request-collapse-boundary-generation.md)
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)
+- [2026-05-24 - Context window source / binding / runtime profile](./2026-05-24-context-window-source-binding-runtime-profile.md)
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)

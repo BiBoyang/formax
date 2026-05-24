@@ -601,6 +601,8 @@ export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRa
   const record = asOptionalRecord(value)
   if (!record) return null
   if (record.schemaVersion !== 1) return null
+  const hasBoundModel = Object.prototype.hasOwnProperty.call(record, 'boundModel')
+  const hasProfileFingerprint = Object.prototype.hasOwnProperty.call(record, 'profileFingerprint')
   const model = typeof record.model === 'string' && record.model.trim() ? record.model : null
   const provider = record.provider === null || record.provider === undefined
     ? null
@@ -612,7 +614,33 @@ export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRa
   const autoCompactLimitPercent = asFiniteNumber(record.autoCompactLimitPercent)
   const baselineTokens = asFiniteNumber(record.baselineTokens)
   const source =
-    record.source === 'runtime_config' || record.source === 'known_model_window' ? record.source : null
+    record.source === 'runtime_config' ||
+    record.source === 'known_model_window' ||
+    record.source === 'env_override' ||
+    record.source === 'tier_config' ||
+    record.source === 'legacy_config' ||
+    record.source === 'migrated_legacy' ||
+    record.source === 'binding_mismatch' ||
+    record.source === 'none' ||
+    record.source === 'provider_list' ||
+    record.source === 'provider_detail' ||
+    record.source === 'catalog' ||
+    record.source === 'heuristic' ||
+    record.source === 'known_model_map'
+      ? record.source
+      : null
+  const boundModel =
+    record.boundModel === undefined || record.boundModel === null
+      ? null
+      : typeof record.boundModel === 'string' && record.boundModel.trim()
+        ? record.boundModel
+        : undefined
+  const profileFingerprint =
+    record.profileFingerprint === undefined || record.profileFingerprint === null
+      ? null
+      : typeof record.profileFingerprint === 'string'
+        ? record.profileFingerprint
+        : undefined
   if (
     !model ||
     provider === undefined ||
@@ -620,7 +648,9 @@ export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRa
     effectiveContextWindowPercent == null ||
     autoCompactLimitPercent == null ||
     baselineTokens == null ||
-    !source
+    !source ||
+    (hasBoundModel && boundModel === undefined) ||
+    (hasProfileFingerprint && profileFingerprint === undefined)
   ) {
     return null
   }
@@ -633,6 +663,8 @@ export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRa
     autoCompactLimitPercent,
     baselineTokens,
     source,
+    ...(boundModel ? { boundModel } : {}),
+    ...(profileFingerprint ? { profileFingerprint } : {}),
   }
 }
 

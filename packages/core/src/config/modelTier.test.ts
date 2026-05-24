@@ -51,6 +51,7 @@ describe('modelTier', () => {
     })
     expect(out.defaultTier).toBe('opus')
     expect(out.model).toBe('mapped-opus')
+    expect(out.modelSource).toBe('tier_model')
   })
 
   it('falls back to built-in defaults when no env or config override exists', () => {

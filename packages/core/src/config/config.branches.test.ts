@@ -94,6 +94,7 @@ describe('loadRuntimeConfig branch coverage', () => {
     mocks.resolveActiveModel.mockReturnValue({
       defaultTier: 'sonnet',
       model: 'resolved-model',
+      modelSource: 'tier_model',
     })
     mocks.resolveRuntimeConfig.mockReturnValue(createResolvedConfig())
   })
@@ -102,6 +103,7 @@ describe('loadRuntimeConfig branch coverage', () => {
     mocks.resolveActiveModel.mockReturnValueOnce({
       defaultTier: 'opus',
       model: 'resolved-model',
+      modelSource: 'tier_model',
     })
     mocks.resolveRuntimeConfig.mockReturnValue(
       createResolvedConfig({
@@ -143,6 +145,7 @@ describe('loadRuntimeConfig branch coverage', () => {
     expect(cfg.llm.tierModels).toEqual({ haiku: 'h', sonnet: 's', opus: 'o' })
     expect(cfg.llm.tierContextWindowTokens).toEqual({ haiku: 64000, sonnet: 128000, opus: 256000 })
     expect(cfg.llm.contextWindowTokens).toBe(256000)
+    expect(cfg.llm.contextWindowTokensSource).toBe('migrated_legacy')
     expect(cfg.llm.baseUrl).toBe('https://api.anthropic.com/v1')
   })
 
@@ -150,6 +153,7 @@ describe('loadRuntimeConfig branch coverage', () => {
     mocks.resolveActiveModel.mockReturnValueOnce({
       defaultTier: 'opus',
       model: 'resolved-model',
+      modelSource: 'tier_model',
     })
     mocks.resolveRuntimeConfig.mockReturnValue(
       createResolvedConfig({
@@ -168,6 +172,116 @@ describe('loadRuntimeConfig branch coverage', () => {
 
     const cfg = await loadRuntimeConfig({ FORMAX_CONTEXT_WINDOW_TOKENS: '64000' } as any, '/repo')
     expect(cfg.llm.contextWindowTokens).toBe(64000)
+    expect(cfg.llm.contextWindowTokensSource).toBe('env_override')
+  })
+
+  it('surfaces persisted tier capability source and binding when snapshot matches active model', async () => {
+    mocks.resolveActiveModel.mockReturnValueOnce({
+      defaultTier: 'sonnet',
+      model: 'claude-3-5-sonnet',
+      modelSource: 'tier_model',
+    })
+    mocks.resolveRuntimeConfig.mockReturnValue(
+      createResolvedConfig({
+        config: {
+          llm: {
+            provider: 'anthropic',
+            baseUrl: 'https://api.anthropic.com/v1/',
+            defaultTier: 'sonnet',
+            tierContextWindowTokens: {
+              haiku: 64000,
+              sonnet: 200000,
+              opus: 256000,
+            },
+            tierContextWindowSources: {
+              haiku: 'catalog',
+              sonnet: 'provider_detail',
+              opus: 'catalog',
+            },
+            tierContextWindowBindings: {
+              haiku: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-haiku',
+              },
+              sonnet: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-5-sonnet',
+              },
+              opus: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-opus',
+              },
+            },
+          },
+        },
+      }),
+    )
+
+    const cfg = await loadRuntimeConfig({} as any, '/repo')
+    expect(cfg.llm.contextWindowTokens).toBe(200000)
+    expect(cfg.llm.contextWindowTokensSource).toBe('provider_detail')
+    expect(cfg.llm.contextWindowTokensBoundModel).toBe('claude-3-5-sonnet')
+    expect(cfg.llm.contextWindowTokensBinding).toEqual({
+      provider: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      model: 'claude-3-5-sonnet',
+    })
+  })
+
+  it('downgrades tier snapshot to binding_mismatch when stored model identity no longer matches', async () => {
+    mocks.resolveActiveModel.mockReturnValueOnce({
+      defaultTier: 'sonnet',
+      model: 'claude-3-5-sonnet-v2',
+      modelSource: 'tier_model',
+    })
+    mocks.resolveRuntimeConfig.mockReturnValue(
+      createResolvedConfig({
+        config: {
+          llm: {
+            provider: 'anthropic',
+            baseUrl: 'https://api.anthropic.com/v1/',
+            defaultTier: 'sonnet',
+            tierContextWindowTokens: {
+              haiku: 64000,
+              sonnet: 200000,
+              opus: 256000,
+            },
+            tierContextWindowSources: {
+              haiku: 'catalog',
+              sonnet: 'provider_detail',
+              opus: 'catalog',
+            },
+            tierContextWindowBindings: {
+              haiku: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-haiku',
+              },
+              sonnet: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-5-sonnet',
+              },
+              opus: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'claude-3-opus',
+              },
+            },
+            contextWindowTokens: 12345,
+          },
+        },
+      }),
+    )
+
+    const cfg = await loadRuntimeConfig({} as any, '/repo')
+    expect(cfg.llm.contextWindowTokens).toBe(12345)
+    expect(cfg.llm.contextWindowTokensSource).toBe('binding_mismatch')
+    expect(cfg.llm.contextWindowTokensBoundModel).toBeUndefined()
+    expect(cfg.llm.contextWindowTokensBinding).toBeUndefined()
   })
 
   it('falls back timeout to 600000 when resolved timeout is falsy', async () => {

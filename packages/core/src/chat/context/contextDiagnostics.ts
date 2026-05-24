@@ -5,7 +5,6 @@ import {
   type ContextMeterBudgetRaw,
 } from '@formax/shared/utils/contextMeter'
 import { estimatePromptTokens } from './estimate'
-import { getKnownContextWindowTokens } from './modelWindow'
 import { isAnthropicCacheEditingEnabled } from './cacheEditing'
 import { MICROCOMPACT_STUB_PREFIX } from './microCompact'
 import { CONTEXT_COLLAPSE_PREFIX, type ContextCollapseMeta } from './contextCollapse'
@@ -38,6 +37,7 @@ import {
 } from './compact'
 import type { RuntimeConfig } from '../../config/config'
 import type { RuntimeFlags } from '../../config/runtimeFlags'
+import { resolveRuntimeModelProfile } from '../../config/runtimeModelProfile'
 import type { PromptBlock, PromptMessage } from '../../prompts'
 import { buildSystemPrompt } from '../../prompts'
 import { resolveSystemPromptVariant } from '../../prompts/system'
@@ -51,6 +51,7 @@ import {
   type ContextProjectionDurableInputState,
   type DurableProjectionStage,
 } from './contextProjection'
+import type { RuntimeModelProfile } from '../../core/models/modelCapability.js'
 
 export type ContextDiagnostics = {
   totalTokens: number
@@ -782,6 +783,7 @@ export function buildContextDiagnosticsReport(args: {
 export function buildContextDiagnosticsJson(args: {
   cwd: string
   cfg: RuntimeConfig
+  runtimeModelProfile?: RuntimeModelProfile
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
@@ -799,6 +801,7 @@ export function buildContextDiagnosticsJson(args: {
 export function buildContextDiagnosticsPayload(args: {
   cwd: string
   cfg: RuntimeConfig
+  runtimeModelProfile?: RuntimeModelProfile
   runtimeFlags?: RuntimeFlags
   allowedSubagents: Array<{ name: string; description: string }>
   mode: string
@@ -810,32 +813,35 @@ export function buildContextDiagnosticsPayload(args: {
   durableState?: ContextProjectionDurableInputState
   env?: NodeJS.ProcessEnv
 }): ContextDiagnosticsPayload {
+  const runtimeProfile =
+    args.runtimeModelProfile ??
+    resolveRuntimeModelProfile({
+      cfg: args.cfg,
+      runtimeFlagFingerprint: JSON.stringify(args.runtimeFlags ?? {}),
+    })
   const system = buildSystemPrompt({
     allowedSubagents: args.allowedSubagents,
     cwd: args.cwd,
-    model: args.cfg.llm.model,
+    model: runtimeProfile.model,
     variant: resolveSystemPromptVariant({
       deferredToolExposureEnabled: args.runtimeFlags?.deferredToolExposureEnabled,
     }),
   })
 
-  const contextWindowTokens =
-    args.cfg.llm.contextWindowTokens ??
-    getKnownContextWindowTokens({
-      provider: args.cfg.llm.provider,
-      model: args.cfg.llm.model,
-    })
-  const contextWindowSource = args.cfg.llm.contextWindowTokens != null ? 'runtime_config' : 'known_model_window'
+  const contextWindowTokens = runtimeProfile.contextWindowTokens
+  const contextWindowSource = runtimeProfile.contextWindowTokensSource
   const budgetRaw = contextWindowTokens
     ? normalizeContextMeterBudgetRaw({
-        model: args.cfg.llm.model,
-        provider: args.cfg.llm.provider,
+        model: runtimeProfile.model,
+        provider: runtimeProfile.provider,
         source: contextWindowSource,
+        boundModel: runtimeProfile.contextWindowTokensBoundModel ?? null,
+        profileFingerprint: runtimeProfile.fingerprint,
         config: {
           contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
+          effectiveContextWindowPercent: runtimeProfile.effectiveContextWindowPercent,
+          autoCompactLimitPercent: runtimeProfile.autoCompactTokenLimitPercent,
+          baselineTokens: runtimeProfile.baselineTokens,
         },
       })
     : null
@@ -852,9 +858,9 @@ export function buildContextDiagnosticsPayload(args: {
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
+          effectiveContextWindowPercent: runtimeProfile.effectiveContextWindowPercent,
+          autoCompactLimitPercent: runtimeProfile.autoCompactTokenLimitPercent,
+          baselineTokens: runtimeProfile.baselineTokens,
         }
       : null,
   })
@@ -870,16 +876,16 @@ export function buildContextDiagnosticsPayload(args: {
     keepLastTurns: args.cfg.context.compactKeepLastTurns,
     enableAutoCompact: args.cfg.context.enableAutoCompact,
     enableCacheEditing: isAnthropicCacheEditingEnabled({
-      provider: args.cfg.llm.provider,
-      baseUrl: args.cfg.llm.baseUrl,
+      provider: runtimeProfile.provider,
+      baseUrl: runtimeProfile.baseUrl,
       env: args.env,
     }),
     budgetConfig: contextWindowTokens
       ? {
           contextWindowTokens,
-          effectiveContextWindowPercent: args.cfg.context.effectiveContextWindowPercent,
-          autoCompactLimitPercent: args.cfg.context.autoCompactTokenLimitPercent,
-          baselineTokens: args.cfg.context.baselineTokens,
+          effectiveContextWindowPercent: runtimeProfile.effectiveContextWindowPercent,
+          autoCompactLimitPercent: runtimeProfile.autoCompactTokenLimitPercent,
+          baselineTokens: runtimeProfile.baselineTokens,
         }
       : null,
   })
@@ -888,7 +894,7 @@ export function buildContextDiagnosticsPayload(args: {
     kind: 'formax.context_diagnostics',
     schemaVersion: 1,
     mode: args.mode,
-    model: args.cfg.llm.model,
+    model: runtimeProfile.model,
     latestCompactBoundary: findLatestCompactBoundary(args.messages),
     latestRequestCollapse: normalizeLatestRequestCollapse(args.latestRequestCollapse),
     latestReactiveCompact: normalizeLatestReactiveCompact(args.latestReactiveCompact),
@@ -896,8 +902,8 @@ export function buildContextDiagnosticsPayload(args: {
     contextMeterRaw: {
       schemaVersion: 1,
       source: 'context_diagnostics_snapshot',
-      model: args.cfg.llm.model,
-      provider: args.cfg.llm.provider || null,
+      model: runtimeProfile.model,
+      provider: runtimeProfile.provider || null,
       budgetRaw,
       snapshotRaw: {
         totalTokens: diagnostics.totalTokens,

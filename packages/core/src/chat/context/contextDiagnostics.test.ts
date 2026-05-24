@@ -888,7 +888,7 @@ describe('contextDiagnostics', () => {
         effectiveContextWindowPercent: 0.95,
         autoCompactLimitPercent: 0.9,
         baselineTokens: 12_000,
-        source: 'runtime_config',
+        source: 'legacy_config',
       },
       snapshotRaw: {
         totalTokens: parsed.snapshot.totalTokens,

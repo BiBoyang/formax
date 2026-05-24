@@ -5,7 +5,16 @@ import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/settings/schema.js'
-import type { ProviderId, TierContextWindowMapping, TierModelMapping } from '../../config/settings/schema.js'
+import { shouldPersistContextWindowSource } from '../../core/models/modelCapability.js'
+import type {
+  CapabilitySource,
+  ProviderId,
+  TierContextWindowBindingMapping,
+  TierContextWindowConfidenceMapping,
+  TierContextWindowMapping,
+  TierContextWindowSourceMapping,
+  TierModelMapping,
+} from '../../config/settings/schema.js'
 
 export type WriteSetupFilesResult = {
   configPath: string
@@ -61,6 +70,40 @@ function mergeConfigPatches(
   }
 }
 
+function filterPersistableTierContextWindowTokens(args: {
+  tokens?: TierContextWindowMapping
+  sources?: TierContextWindowSourceMapping
+}): TierContextWindowMapping | undefined {
+  if (!args.tokens) return undefined
+  if (!args.sources) return args.tokens
+  const out: TierContextWindowMapping = {}
+  for (const tier of ['haiku', 'sonnet', 'opus'] as const) {
+    const source = args.sources[tier]
+    const tokens = args.tokens[tier]
+    if (tokens == null) continue
+    if (!source || !shouldPersistContextWindowSource(source)) continue
+    out[tier] = tokens
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+function filterPersistableTierMetadata<T extends TierContextWindowSourceMapping | TierContextWindowConfidenceMapping | TierContextWindowBindingMapping>(args: {
+  values?: T
+  sources?: TierContextWindowSourceMapping
+}): T | undefined {
+  if (!args.values) return undefined
+  if (!args.sources) return args.values
+  const out: Record<string, unknown> = {}
+  for (const tier of ['haiku', 'sonnet', 'opus'] as const) {
+    const source = args.sources[tier]
+    const value = args.values[tier]
+    if (value == null) continue
+    if (source && !shouldPersistContextWindowSource(source)) continue
+    out[tier] = value
+  }
+  return Object.keys(out).length > 0 ? (out as T) : undefined
+}
+
 export async function writeSetupFiles(args: {
   fileStore: FileStore
   cwd?: string
@@ -73,7 +116,11 @@ export async function writeSetupFiles(args: {
   model: string
   tierModels?: TierModelMapping
   tierContextWindowTokens?: TierContextWindowMapping
+  tierContextWindowSources?: TierContextWindowSourceMapping
+  tierContextWindowConfidence?: TierContextWindowConfidenceMapping
+  tierContextWindowBindings?: TierContextWindowBindingMapping
   contextWindowTokens?: number
+  contextWindowSource?: CapabilitySource
   authRef?: string
 }): Promise<WriteSetupFilesResult> {
   const cwd = args.cwd ?? process.cwd()
@@ -91,7 +138,22 @@ export async function writeSetupFiles(args: {
 
   const existing = await readJsonIfExists(args.fileStore, configPath, 'config', warnings)
   const tierModels = args.tierModels
-  const tierContextWindowTokens = args.tierContextWindowTokens
+  const tierContextWindowSources = filterPersistableTierMetadata({
+    values: args.tierContextWindowSources,
+    sources: args.tierContextWindowSources,
+  })
+  const tierContextWindowTokens = filterPersistableTierContextWindowTokens({
+    tokens: args.tierContextWindowTokens,
+    sources: args.tierContextWindowSources,
+  })
+  const tierContextWindowConfidence = filterPersistableTierMetadata({
+    values: args.tierContextWindowConfidence,
+    sources: args.tierContextWindowSources,
+  })
+  const tierContextWindowBindings = filterPersistableTierMetadata({
+    values: args.tierContextWindowBindings,
+    sources: args.tierContextWindowSources,
+  })
   const modelFromTier = tierModels?.sonnet?.trim() || ''
   const resolvedModel = args.model.trim() || modelFromTier
   const nextPatch = {
@@ -102,7 +164,12 @@ export async function writeSetupFiles(args: {
       model: resolvedModel,
       ...(tierModels ? { tierModels } : {}),
       ...(tierContextWindowTokens ? { tierContextWindowTokens } : {}),
-      ...(Number.isFinite(args.contextWindowTokens) && (args.contextWindowTokens || 0) > 0
+      ...(tierContextWindowSources ? { tierContextWindowSources } : {}),
+      ...(tierContextWindowConfidence ? { tierContextWindowConfidence } : {}),
+      ...(tierContextWindowBindings ? { tierContextWindowBindings } : {}),
+      ...(args.contextWindowSource !== 'heuristic' &&
+      Number.isFinite(args.contextWindowTokens) &&
+      (args.contextWindowTokens || 0) > 0
         ? { contextWindowTokens: Math.round(args.contextWindowTokens as number) }
         : {}),
       authRef,
@@ -110,6 +177,26 @@ export async function writeSetupFiles(args: {
     paths: { logsDir },
   }
   const merged = mergeConfigPatches(existing, nextPatch, warnings)
+  const mergedLlm =
+    merged.llm && typeof merged.llm === 'object' ? (merged.llm as Record<string, unknown>) : ((merged.llm = {}), merged.llm as Record<string, unknown>)
+  if (args.contextWindowSource === 'heuristic') {
+    delete mergedLlm.contextWindowTokens
+  }
+  const hasTierContextWindowInputs =
+    args.tierContextWindowTokens !== undefined ||
+    args.tierContextWindowSources !== undefined ||
+    args.tierContextWindowConfidence !== undefined ||
+    args.tierContextWindowBindings !== undefined
+  if (hasTierContextWindowInputs) {
+    if (tierContextWindowTokens) mergedLlm.tierContextWindowTokens = tierContextWindowTokens
+    else delete mergedLlm.tierContextWindowTokens
+    if (tierContextWindowSources) mergedLlm.tierContextWindowSources = tierContextWindowSources
+    else delete mergedLlm.tierContextWindowSources
+    if (tierContextWindowConfidence) mergedLlm.tierContextWindowConfidence = tierContextWindowConfidence
+    else delete mergedLlm.tierContextWindowConfidence
+    if (tierContextWindowBindings) mergedLlm.tierContextWindowBindings = tierContextWindowBindings
+    else delete mergedLlm.tierContextWindowBindings
+  }
   const validated = FormaxConfigV1Schema.parse(merged)
   await args.fileStore.writeJsonAtomic(configPath, validated)
 

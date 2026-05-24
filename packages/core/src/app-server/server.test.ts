@@ -1638,6 +1638,63 @@ describe('AppServer', () => {
     )
   })
 
+  it('keeps the resolved turn runner bound to a started thread for interrupt and input follow-ups', async () => {
+    const primaryRunner = {
+      startTurn: vi.fn(async (params) => ({
+        turn: { id: 'turn-1', threadId: params.threadId, status: 'running' as const },
+      })),
+      interruptTurn: vi.fn(async () => ({})),
+      submitInput: vi.fn(async () => ({ accepted: true, status: 'accepted' as const })),
+    }
+    const fallbackRunner = {
+      startTurn: vi.fn(async (params) => ({
+        turn: { id: 'turn-fallback', threadId: params.threadId, status: 'running' as const },
+      })),
+      interruptTurn: vi.fn(async () => ({})),
+      submitInput: vi.fn(async () => ({ accepted: true, status: 'accepted' as const })),
+    }
+    const resolveTurnRunner = vi.fn(async (args?: { cwd?: string; threadId?: string }) =>
+      args?.cwd === '/special-cwd' ? primaryRunner : fallbackRunner,
+    )
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      resolveTurnRunner,
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+
+    const startOut = await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        cwd: '/special-cwd',
+        input: { text: 'hello' },
+      }),
+    )
+    expect((startOut[0] as any).result.turn.id).toBe('turn-1')
+
+    const interruptOut = await server.handleMessage(
+      request(3, 'turn/interrupt', { threadId: 'thread-1', turnId: 'turn-1' }),
+    )
+    expect((interruptOut[0] as any).result).toEqual({})
+
+    const submitOut = await server.handleMessage(
+      request(4, 'turn/input/submit', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        inputId: 'ask-1',
+        answers: { Choice: 'A' },
+      }),
+    )
+    expect((submitOut[0] as any).result).toEqual({ accepted: true, status: 'accepted' })
+
+    expect(resolveTurnRunner).toHaveBeenCalledTimes(1)
+    expect(primaryRunner.startTurn).toHaveBeenCalledTimes(1)
+    expect(primaryRunner.interruptTurn).toHaveBeenCalledTimes(1)
+    expect(primaryRunner.submitInput).toHaveBeenCalledTimes(1)
+    expect(fallbackRunner.interruptTurn).not.toHaveBeenCalled()
+    expect(fallbackRunner.submitInput).not.toHaveBeenCalled()
+  })
+
   it('adds exit-plan reminder flag when mode transitions from plan to non-plan on turn/start', async () => {
     let received: unknown = null
     const server = new AppServer({
@@ -2404,6 +2461,66 @@ describe('AppServer', () => {
       input: { text: '/init' },
       mode: 'plan',
     })
+  })
+
+  it('reuses the thread-bound runner for non-local command/dispatch turns', async () => {
+    const primaryRunner = {
+      startTurn: vi.fn(async (params) => ({
+        turn: { id: 'turn-primary', threadId: params.threadId, status: 'running' as const },
+      })),
+      interruptTurn: vi.fn(async () => ({})),
+      submitInput: vi.fn(async () => ({ accepted: true, status: 'accepted' as const })),
+    }
+    const fallbackRunner = {
+      startTurn: vi.fn(async (params) => ({
+        turn: { id: 'turn-fallback', threadId: params.threadId, status: 'running' as const },
+      })),
+      interruptTurn: vi.fn(async () => ({})),
+      submitInput: vi.fn(async () => ({ accepted: true, status: 'accepted' as const })),
+    }
+    const resolveTurnRunner = vi.fn(async (args?: { cwd?: string; threadId?: string }) =>
+      args?.cwd === '/special-cwd' ? primaryRunner : fallbackRunner,
+    )
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async readThread() {
+          return {
+            thread: { id: 'thread-1', cwd: '/special-cwd', createdAt: '', updatedAt: '' },
+            transcriptPreview: [],
+          } as any
+        },
+      } as any,
+      resolveTurnRunner,
+    })
+
+    await server.handleMessage(request(1, 'initialize'))
+
+    await server.handleMessage(
+      request(2, 'turn/start', {
+        threadId: 'thread-1',
+        cwd: '/special-cwd',
+        input: { text: 'hello' },
+      }),
+    )
+
+    const dispatchOut = await server.handleMessage(
+      request(3, 'command/dispatch', {
+        threadId: 'thread-1',
+        command: '/compact keep summary',
+      }),
+    )
+
+    expect((dispatchOut[0] as any).result.turn.id).toBe('turn-primary')
+    expect(resolveTurnRunner).toHaveBeenCalledTimes(1)
+    expect(primaryRunner.startTurn).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        threadId: 'thread-1',
+        input: { text: '/compact keep summary' },
+      }),
+    )
+    expect(fallbackRunner.startTurn).not.toHaveBeenCalled()
   })
 
   it('adds exit-plan reminder flag when mode transitions from plan to non-plan on command/dispatch', async () => {

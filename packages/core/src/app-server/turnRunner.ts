@@ -19,7 +19,6 @@ import {
   type ContextCollapseCommittedEntry,
   type ContextCollapseStoreSnapshot,
 } from '../chat/context/contextCollapseStore.js'
-import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
 import {
@@ -72,11 +71,13 @@ import { computeEditPatchStartLineNumber } from '../features/repl/controller/str
 import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 import { loadRuntimeConfig } from '../config/config.js'
+import { resolveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
 import { createPlanSessionManager, type PlanSessionManager } from '../features/repl/planSession.js'
 import {
   normalizeContextMeterBudgetRaw,
   type ContextMeterBudgetRaw,
 } from '@formax/shared/utils/contextMeter'
+import type { RuntimeModelProfile } from '../core/models/modelCapability.js'
 
 type TurnStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
@@ -131,6 +132,7 @@ type RunningTurn = {
     isCommand: boolean
     instructions: string
   }
+  runtimeProfile: RuntimeModelProfile
   toolNameByUseId: Map<string, string>
   toolInputByUseId: Map<string, unknown>
 }
@@ -281,8 +283,6 @@ export class TurnRunner {
   private readonly engine: Pick<ChatEngine, 'runTurn'>
   private readonly tools: ToolDefinition[]
   private readonly allowedSubagents: Array<{ name: string; description: string }>
-  private readonly model: string
-  private readonly thinkingEnabled: boolean
   private readonly cwd: string
   private readonly env?: NodeJS.ProcessEnv
   private readonly platform?: string
@@ -293,6 +293,7 @@ export class TurnRunner {
   private readonly maxPendingInputsPerThread: number
   private readonly ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
   private readonly runtimeFlags: RuntimeFlags
+  private readonly runtimeFlagFingerprint: string
   private readonly threadFilePathById = new Map<string, string>()
   private readonly planSessionByThreadId = new Map<string, PlanSessionManager>()
   private readonly runningByThreadId = new Map<string, RunningTurn>()
@@ -304,8 +305,6 @@ export class TurnRunner {
     this.engine = args.engine
     this.tools = args.tools
     this.allowedSubagents = args.allowedSubagents
-    this.model = args.model
-    this.thinkingEnabled = Boolean(args.thinkingEnabled)
     this.cwd = args.cwd ? path.resolve(args.cwd) : process.cwd()
     this.env = args.env
     this.platform = args.platform
@@ -319,6 +318,7 @@ export class TurnRunner {
     )
     this.ensureThreadFilePath = args.ensureThreadFilePath
     this.runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(this.env ?? process.env)
+    this.runtimeFlagFingerprint = JSON.stringify(this.runtimeFlags)
   }
 
   private async getContextCollapseStoreSnapshot(filePath: string): Promise<ContextCollapseStoreSnapshot> {
@@ -353,20 +353,42 @@ export class TurnRunner {
     return this.planSessionByThreadId.get(threadId)?.getPlanPath() ?? null
   }
 
+  adoptPlanPath(threadId: string, planPath: string | null): void {
+    if (!planPath) return
+    const existing = this.planSessionByThreadId.get(threadId)
+    if (existing) {
+      existing.setPlanPath?.(planPath)
+      return
+    }
+    const planSession = createPlanSessionManager({
+      planDir: path.dirname(planPath),
+      initialPlanPath: planPath,
+    })
+    this.planSessionByThreadId.set(threadId, planSession)
+  }
+
   async startTurn(params: TurnStartRuntimeParams): Promise<{ turn: { id: string; threadId: string; status: TurnStatus } }> {
     const existing = this.runningByThreadId.get(params.threadId)
     if (existing) throw new Error(`Turn already running for thread: ${params.threadId}`)
 
     const cwd = params.cwd ? path.resolve(params.cwd) : this.cwd
-    const filePath = await this.resolveOrCreateThreadFilePath({ threadId: params.threadId, cwd })
+    const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    const runtimeProfile = resolveRuntimeModelProfile({
+      cfg: runtimeConfig,
+      runtimeFlagFingerprint: this.runtimeFlagFingerprint,
+    })
+    const filePath = await this.resolveOrCreateThreadFilePath({
+      threadId: params.threadId,
+      cwd,
+      model: runtimeProfile.model,
+    })
 
     const initialMode = normalizeReplMode(params.mode, 'normal')
     let planSession = this.planSessionByThreadId.get(params.threadId) ?? null
     if (initialMode === 'plan' && !planSession) {
-      const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
-        platform: this.platform,
-        homedir: this.homedir,
-      })
       planSession = createPlanSessionManager({ planDir: runtimeConfig.paths.planDir })
       this.planSessionByThreadId.set(params.threadId, planSession)
     }
@@ -416,12 +438,13 @@ export class TurnRunner {
         isCommand: commandRouting.isExactCompact,
         instructions: compactInstructions,
       },
+      runtimeProfile,
       toolNameByUseId: new Map<string, string>(),
       toolInputByUseId: new Map<string, unknown>(),
     }
     this.runningByThreadId.set(params.threadId, running)
 
-    const contextMeterBudgetRaw = await this.resolveContextMeterBudgetRaw(running.cwd)
+    const contextMeterBudgetRaw = this.resolveContextMeterBudgetRaw(running.runtimeProfile)
 
     this.emitTurnNotification(running, 'turn/started', 'system', {
       turn: {
@@ -576,7 +599,7 @@ export class TurnRunner {
       const system = buildSystemPrompt({
         allowedSubagents: this.allowedSubagents,
         cwd: running.cwd,
-        model: this.model,
+        model: running.runtimeProfile.model,
         variant: resolveSystemPromptVariant({ deferredToolExposureEnabled }),
       }, {
         env: this.env ?? process.env,
@@ -746,9 +769,9 @@ export class TurnRunner {
           system,
           cwd: running.cwd,
           signal: running.abortController.signal,
-          promptBudget: await this.resolvePromptBudgetConfig(running.cwd),
-          model: this.model,
-          thinkingEnabled: this.thinkingEnabled,
+          promptBudget: this.resolvePromptBudgetConfig(running.runtimeProfile),
+          model: running.runtimeProfile.model,
+          thinkingEnabled: running.runtimeProfile.thinkingMode,
           mode: running.replMode,
           getReplMode,
           setReplMode,
@@ -770,14 +793,10 @@ export class TurnRunner {
           summaryChars: compactResult.summary.length,
         })
       } else {
-        const promptBudget = await this.resolvePromptBudgetConfig(running.cwd)
-        const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, running.cwd, {
-          platform: this.platform,
-          homedir: this.homedir,
-        })
+        const promptBudget = this.resolvePromptBudgetConfig(running.runtimeProfile)
         const cacheEditingEnabled = isAnthropicCacheEditingEnabled({
-          provider: runtimeConfig.llm.provider,
-          baseUrl: runtimeConfig.llm.baseUrl,
+          provider: running.runtimeProfile.provider,
+          baseUrl: running.runtimeProfile.baseUrl,
           env: this.env ?? process.env,
         })
         cacheEditingEnabledForSnapshot = cacheEditingEnabled
@@ -823,7 +842,8 @@ export class TurnRunner {
           cwd: running.cwd,
           signal: running.abortController.signal,
           promptBudget,
-          thinkingEnabled: this.thinkingEnabled,
+          model: running.runtimeProfile.model,
+          thinkingEnabled: running.runtimeProfile.thinkingMode,
           exec: {
             interactive: true,
             replMode: running.replMode,
@@ -1037,50 +1057,33 @@ export class TurnRunner {
     })
   }
 
-  private async resolvePromptBudgetConfig(cwd: string): Promise<ContextBudgetConfig | null> {
-    const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
-      platform: this.platform,
-      homedir: this.homedir,
-    })
-    const contextWindowTokens =
-      runtimeConfig.llm.contextWindowTokens ??
-      getKnownContextWindowTokens({
-        provider: runtimeConfig.llm.provider,
-        model: this.model,
-      })
+  private resolvePromptBudgetConfig(runtimeProfile: RuntimeModelProfile): ContextBudgetConfig | null {
+    const contextWindowTokens = runtimeProfile.contextWindowTokens
     if (!contextWindowTokens) return null
 
     return {
       contextWindowTokens,
-      effectiveContextWindowPercent: runtimeConfig.context.effectiveContextWindowPercent,
-      autoCompactLimitPercent: runtimeConfig.context.autoCompactTokenLimitPercent,
-      baselineTokens: runtimeConfig.context.baselineTokens,
+      effectiveContextWindowPercent: runtimeProfile.effectiveContextWindowPercent,
+      autoCompactLimitPercent: runtimeProfile.autoCompactTokenLimitPercent,
+      baselineTokens: runtimeProfile.baselineTokens,
     }
   }
 
-  private async resolveContextMeterBudgetRaw(cwd: string): Promise<ContextMeterBudgetRaw | null> {
-    const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
-      platform: this.platform,
-      homedir: this.homedir,
-    })
-    const configuredContextWindowTokens = runtimeConfig.llm.contextWindowTokens
-    const contextWindowTokens =
-      configuredContextWindowTokens ??
-      getKnownContextWindowTokens({
-        provider: runtimeConfig.llm.provider,
-        model: this.model,
-      })
+  private resolveContextMeterBudgetRaw(runtimeProfile: RuntimeModelProfile): ContextMeterBudgetRaw | null {
+    const contextWindowTokens = runtimeProfile.contextWindowTokens
     if (!contextWindowTokens) return null
 
     return normalizeContextMeterBudgetRaw({
-      model: this.model,
-      provider: runtimeConfig.llm.provider,
-      source: configuredContextWindowTokens != null ? 'runtime_config' : 'known_model_window',
+      model: runtimeProfile.model,
+      provider: runtimeProfile.provider,
+      source: runtimeProfile.contextWindowTokensSource,
+      boundModel: runtimeProfile.contextWindowTokensBoundModel ?? null,
+      profileFingerprint: runtimeProfile.fingerprint,
       config: {
         contextWindowTokens,
-        effectiveContextWindowPercent: runtimeConfig.context.effectiveContextWindowPercent,
-        autoCompactLimitPercent: runtimeConfig.context.autoCompactTokenLimitPercent,
-        baselineTokens: runtimeConfig.context.baselineTokens,
+        effectiveContextWindowPercent: runtimeProfile.effectiveContextWindowPercent,
+        autoCompactLimitPercent: runtimeProfile.autoCompactTokenLimitPercent,
+        baselineTokens: runtimeProfile.baselineTokens,
       },
     })
   }
@@ -1153,7 +1156,7 @@ export class TurnRunner {
     })
   }
 
-  private async resolveOrCreateThreadFilePath(args: { threadId: string; cwd: string }): Promise<string> {
+  private async resolveOrCreateThreadFilePath(args: { threadId: string; cwd: string; model: string }): Promise<string> {
     if (this.ensureThreadFilePath) {
       const filePath = await this.ensureThreadFilePath(args)
       this.threadFilePathById.set(args.threadId, filePath)
@@ -1183,7 +1186,7 @@ export class TurnRunner {
       env: this.env,
       platform: this.platform,
       homedir: this.homedir,
-      model: this.model,
+      model: args.model,
       sessionId: args.threadId,
     })
     await created.writer.shutdown()

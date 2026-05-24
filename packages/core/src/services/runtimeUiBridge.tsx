@@ -19,6 +19,15 @@ import { UserInputProvider } from '../tools/runtime/userInputContext.js'
 import type { UserInputManager } from '../tools/runtime/userInputManager.js'
 import { createSafeInkStdout } from '../tui/inkStreams.js'
 import { SetupWizard } from '../tui/SetupWizard.js'
+import type {
+  CapabilityConfidence,
+  CapabilitySource,
+  ModelIdentity,
+  ModelTier,
+  TierContextWindowBindingMapping,
+  TierContextWindowConfidenceMapping,
+  TierContextWindowSourceMapping,
+} from '../config/settings/schema.js'
 
 const SETUP_PROVIDER_OPTIONS: SetupProviderOption[] = [
   {
@@ -103,7 +112,12 @@ export async function runLegacySetupWizard(args: { cwd: string; env: NodeJS.Proc
               model: draft.model,
               tierModels: draft.tierModels,
               tierContextWindowTokens: draft.tierContextWindowTokens,
+              tierContextWindowSources: draft.tierContextWindowSources as TierContextWindowSourceMapping | undefined,
+              tierContextWindowConfidence:
+                draft.tierContextWindowConfidence as TierContextWindowConfidenceMapping | undefined,
+              tierContextWindowBindings: draft.tierContextWindowBindings as TierContextWindowBindingMapping | undefined,
               contextWindowTokens: draft.contextWindowTokens,
+              contextWindowSource: draft.tierContextWindowSources?.sonnet,
             })
           }}
           onDone={() => {

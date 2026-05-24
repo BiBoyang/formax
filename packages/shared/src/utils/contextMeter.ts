@@ -15,7 +15,22 @@ export type ContextMeterBudgetRaw = {
   effectiveContextWindowPercent: number
   autoCompactLimitPercent: number
   baselineTokens: number
-  source: 'runtime_config' | 'known_model_window'
+  source:
+    | 'runtime_config'
+    | 'known_model_window'
+    | 'env_override'
+    | 'tier_config'
+    | 'legacy_config'
+    | 'migrated_legacy'
+    | 'binding_mismatch'
+    | 'none'
+    | 'provider_list'
+    | 'provider_detail'
+    | 'catalog'
+    | 'heuristic'
+    | 'known_model_map'
+  boundModel?: string | null
+  profileFingerprint?: string | null
 }
 
 export type ContextMeterBudget = {
@@ -43,6 +58,8 @@ export function normalizeContextMeterBudgetRaw(args: {
   model: string
   provider?: string | null
   source: ContextMeterBudgetRaw['source']
+  boundModel?: string | null
+  profileFingerprint?: string | null
   config: ContextMeterBudgetInput
 }): ContextMeterBudgetRaw {
   return {
@@ -55,6 +72,8 @@ export function normalizeContextMeterBudgetRaw(args: {
     autoCompactLimitPercent: args.config.autoCompactLimitPercent ?? DEFAULT_AUTO_COMPACT_LIMIT_PERCENT,
     baselineTokens: clampInt(args.config.baselineTokens ?? DEFAULT_CONTEXT_BASELINE_TOKENS, 0, Number.MAX_SAFE_INTEGER),
     source: args.source,
+    ...(args.boundModel ? { boundModel: args.boundModel } : {}),
+    ...(args.profileFingerprint ? { profileFingerprint: args.profileFingerprint } : {}),
   }
 }
 

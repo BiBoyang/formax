@@ -1,3 +1,4 @@
+import path from 'node:path'
 import pkg from '../../package.json'
 import { buildContextDiagnosticsPayload, formatContextDiagnosticsReport } from '../chat/context/contextDiagnostics.js'
 import { findSessionFileBySessionId, readSessionFile } from '../features/repl/sessionSave/index.js'
@@ -5,6 +6,9 @@ import { resolveSessionMemoryRestoreContext } from '../features/repl/sessionSave
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { loadRuntimeConfig } from '../config/config.js'
+import { createRuntimeFlags } from '../config/runtimeFlags.js'
+import { resolveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
+import { buildOpaqueFingerprint } from '../core/models/modelCapability.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import { applyToolFilters, resolveToolFilters } from '../tools/runtime/toolFilter.js'
 import { AppServer } from './server.js'
@@ -32,7 +36,7 @@ type OutboundQueueItem = {
   swallowSendErrors: boolean
 }
 type AppServerRunner = Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> &
-  Partial<Pick<TurnRunner, 'getPlanPath'>>
+  Partial<Pick<TurnRunner, 'getPlanPath' | 'adoptPlanPath'>>
 
 function normalizePositiveLimit(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
@@ -214,6 +218,9 @@ export async function runAppServer(args?: {
   }
 
   let lazyTurnRunner: AppServerRunner | null = args?.turnRunner ?? null
+  let latestResolvedTurnRunner: AppServerRunner | null = args?.turnRunner ?? null
+  const turnRunnerByProfileFingerprint = new Map<string, AppServerRunner>()
+  const turnRunnerByThreadId = new Map<string, AppServerRunner>()
   const initializeConfig = await loadRuntimeConfig(env, cwd, {
     platform: args?.platform,
     homedir: args?.homedir,
@@ -228,16 +235,47 @@ export async function runAppServer(args?: {
       showContextMeter: initializeConfig?.ui.showContextMeter ?? true,
     },
     turnRunner: lazyTurnRunner ?? undefined,
-    resolveTurnRunner: async () => {
+    resolveTurnRunner: async (resolverArgs) => {
       if (lazyTurnRunner) return lazyTurnRunner
-      const runtime = await createRuntime({ cwd, env })
-      lazyTurnRunner = new TurnRunner({
+      const runtimeCwd = resolverArgs?.cwd ?? cwd
+      const runtimeFlags = createRuntimeFlags(env)
+      const runtimeConfig = await loadRuntimeConfig(env, runtimeCwd, {
+        platform: args?.platform,
+        homedir: args?.homedir,
+      })
+      const runtimeFlagFingerprint = JSON.stringify(runtimeFlags)
+      const runtimeProfile = resolveRuntimeModelProfile({
+        cfg: runtimeConfig,
+        runtimeFlagFingerprint,
+      })
+      const runtimeConfigFingerprint = buildOpaqueFingerprint(
+        JSON.stringify({
+          runtimeFlags,
+          runtimeConfig,
+        }),
+      )
+      const runnerCacheKey = `${path.resolve(runtimeCwd)}::${runtimeProfile.fingerprint}::${runtimeConfigFingerprint}`
+      const existingThreadRunner = resolverArgs?.threadId ? turnRunnerByThreadId.get(resolverArgs.threadId) ?? null : null
+      const cachedRunner = turnRunnerByProfileFingerprint.get(runnerCacheKey)
+      if (cachedRunner) {
+        if (resolverArgs?.threadId && existingThreadRunner && existingThreadRunner !== cachedRunner) {
+          const existingPlanPath = existingThreadRunner.getPlanPath?.(resolverArgs.threadId) ?? null
+          if (existingPlanPath) {
+            cachedRunner.adoptPlanPath?.(resolverArgs.threadId, existingPlanPath)
+          }
+        }
+        latestResolvedTurnRunner = cachedRunner
+        if (resolverArgs?.threadId) turnRunnerByThreadId.set(resolverArgs.threadId, cachedRunner)
+        return cachedRunner
+      }
+      const runtime = await createRuntime({ cwd: runtimeCwd, env, runtimeFlags })
+      const runner = new TurnRunner({
         engine: runtime.engine,
         tools: runtime.tools,
         allowedSubagents: runtime.allowedSubagents,
         model: runtime.cfg.llm.model,
         thinkingEnabled: runtime.cfg.llm.thinkingMode,
-        cwd,
+        cwd: runtimeCwd,
         env,
         platform: args?.platform,
         homedir: args?.homedir,
@@ -245,12 +283,22 @@ export async function runAppServer(args?: {
         emitNotification: server.createTurnNotificationEmitter(),
         defaultInputTtlMs,
         maxPendingInputsPerThread,
+        runtimeFlags: runtime.runtimeFlags,
         ensureThreadFilePath:
           typeof threadStore.ensureThreadFile === 'function'
             ? ({ threadId, cwd: threadCwd }) => threadStore.ensureThreadFile!({ threadId, cwd: threadCwd })
             : undefined,
       })
-      return lazyTurnRunner
+      turnRunnerByProfileFingerprint.set(runnerCacheKey, runner)
+      if (resolverArgs?.threadId && existingThreadRunner && existingThreadRunner !== runner) {
+        const existingPlanPath = existingThreadRunner.getPlanPath?.(resolverArgs.threadId) ?? null
+        if (existingPlanPath) {
+          runner.adoptPlanPath?.(resolverArgs.threadId, existingPlanPath)
+        }
+      }
+      latestResolvedTurnRunner = runner
+      if (resolverArgs?.threadId) turnRunnerByThreadId.set(resolverArgs.threadId, runner)
+      return runner
     },
     resolveContextDiagnostics: async ({
       threadId,
@@ -262,6 +310,11 @@ export async function runAppServer(args?: {
       format,
     }) => {
       const runtime = await createRuntime({ cwd: dispatchCwd, env })
+      const runtimeFlagFingerprint = JSON.stringify(runtime.runtimeFlags ?? {})
+      const runtimeProfile = resolveRuntimeModelProfile({
+        cfg: runtime.cfg,
+        runtimeFlagFingerprint,
+      })
       const sessionFilePath = await findSessionFileBySessionId({
         cwd: dispatchCwd,
         env,
@@ -270,7 +323,10 @@ export async function runAppServer(args?: {
         sessionId: threadId,
       })
       const replay = sessionFilePath ? await readSessionFile(sessionFilePath) : null
-      const livePlanPath = lazyTurnRunner?.getPlanPath?.(threadId) ?? null
+      const livePlanPath =
+        turnRunnerByThreadId.get(threadId)?.getPlanPath?.(threadId) ??
+        latestResolvedTurnRunner?.getPlanPath?.(threadId) ??
+        null
       const restoreContext = sessionFilePath
         ? await resolveSessionMemoryRestoreContext({
             sessionFilePath,
@@ -317,6 +373,7 @@ export async function runAppServer(args?: {
       const diagnostics = buildContextDiagnosticsPayload({
         cwd: dispatchCwd,
         cfg: runtime.cfg,
+        runtimeModelProfile: runtimeProfile,
         runtimeFlags: runtime.runtimeFlags,
         allowedSubagents: runtime.allowedSubagents,
         mode: diagnosticsMode,

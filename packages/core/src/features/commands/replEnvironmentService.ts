@@ -2,10 +2,20 @@ import path from 'node:path'
 import { getConfigPaths } from '../../adapters/fs/configPaths'
 import { createNodeFileStore } from '../../adapters/fs/nodeFileStore'
 import { detectWorkspaceRoots, type WorkspaceRootsResult } from '../../adapters/fs/workspaceRoots'
-import { getKnownContextWindowTokens } from '../../chat/context/modelWindow'
 import { loadRuntimeConfig } from '../../config/config'
+import { resolveRuntimeModelProfile } from '../../config/runtimeModelProfile'
 import { updateConfigPatchFile } from '../../config/settings/persist'
 import type { ModelTier } from '../../config/modelTier'
+import { normalizeModelIdentity, shouldPersistContextWindowSource } from '../../core/models/modelCapability'
+import type {
+  CapabilityConfidence,
+  CapabilitySource,
+  ConfigBudgetSource,
+  TierContextWindowBindingMapping,
+  TierContextWindowConfidenceMapping,
+  TierContextWindowMapping,
+  TierContextWindowSourceMapping,
+} from '../../config/settings/schema'
 
 function toPositiveInt(value: unknown): number | null {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
@@ -13,26 +23,136 @@ function toPositiveInt(value: unknown): number | null {
   return Math.round(n)
 }
 
-const DEFAULT_TIER_CONTEXT_WINDOW_TOKENS: Record<ModelTier, number> = {
-  haiku: 32768,
-  sonnet: 32768,
-  opus: 32768,
+const CAPABILITY_SOURCES = new Set<CapabilitySource>([
+  'provider_list',
+  'provider_detail',
+  'catalog',
+  'heuristic',
+  'known_model_map',
+])
+
+function isCapabilitySource(source: ConfigBudgetSource | CapabilitySource): source is CapabilitySource {
+  return CAPABILITY_SOURCES.has(source as CapabilitySource)
+}
+
+function confidenceForSource(source: CapabilitySource): CapabilityConfidence {
+  if (source === 'known_model_map') return 'known'
+  if (source === 'catalog') return 'catalog'
+  if (source === 'heuristic') return 'heuristic'
+  return 'detected'
 }
 
 function resolveTierContextWindowTokens(args: {
   current?: Partial<Record<ModelTier, number>>
-  fallback?: number
   nextTier: ModelTier
   nextTokens: number
-}): Record<ModelTier, number> {
-  const fallback = toPositiveInt(args.fallback) ?? 32768
+}): TierContextWindowMapping {
   const current = args.current ?? {}
-  return {
-    haiku: toPositiveInt(current.haiku) ?? fallback,
-    sonnet: toPositiveInt(current.sonnet) ?? fallback,
-    opus: toPositiveInt(current.opus) ?? fallback,
-    [args.nextTier]: args.nextTokens,
+  const next: TierContextWindowMapping = {}
+  for (const tier of ['haiku', 'sonnet', 'opus'] as const) {
+    const currentTokens = toPositiveInt(current[tier])
+    if (currentTokens != null) next[tier] = currentTokens
   }
+  next[args.nextTier] = args.nextTokens
+  return next
+}
+
+function resolveTierContextWindowSources(args: {
+  current?: TierContextWindowSourceMapping
+  nextTier: ModelTier
+  nextSource: CapabilitySource
+}): TierContextWindowSourceMapping | undefined {
+  if (!args.current) return { [args.nextTier]: args.nextSource }
+  return {
+    ...args.current,
+    [args.nextTier]: args.nextSource,
+  }
+}
+
+function resolveTierContextWindowConfidence(args: {
+  current?: TierContextWindowConfidenceMapping
+  nextTier: ModelTier
+  nextConfidence: CapabilityConfidence
+}): TierContextWindowConfidenceMapping | undefined {
+  if (!args.current) return { [args.nextTier]: args.nextConfidence }
+  return {
+    ...args.current,
+    [args.nextTier]: args.nextConfidence,
+  }
+}
+
+function clearTierContextWindowSource(args: {
+  current?: TierContextWindowSourceMapping
+  nextTier: ModelTier
+}): TierContextWindowSourceMapping | undefined {
+  if (!args.current) return undefined
+  const next = { ...args.current }
+  delete next[args.nextTier]
+  return Object.keys(next).length > 0 ? next : {}
+}
+
+function clearTierContextWindowConfidence(args: {
+  current?: TierContextWindowConfidenceMapping
+  nextTier: ModelTier
+}): TierContextWindowConfidenceMapping | undefined {
+  if (!args.current) return undefined
+  const next = { ...args.current }
+  delete next[args.nextTier]
+  return Object.keys(next).length > 0 ? next : {}
+}
+
+function clearTierContextWindowBinding(args: {
+  current?: TierContextWindowBindingMapping
+  nextTier: ModelTier
+}): TierContextWindowBindingMapping | undefined {
+  if (!args.current) return undefined
+  const next = { ...args.current }
+  delete next[args.nextTier]
+  return Object.keys(next).length > 0 ? next : {}
+}
+
+function resolveTierContextWindowBindings(args: {
+  current?: TierContextWindowBindingMapping
+  provider: 'anthropic' | 'openai' | 'gemini'
+  baseUrl: string
+  nextTier: ModelTier
+  nextBinding: NonNullable<TierContextWindowBindingMapping[ModelTier]>
+}): TierContextWindowBindingMapping | undefined {
+  if (!args.current) {
+    return {
+      [args.nextTier]: normalizeModelIdentity({
+        provider: args.nextBinding.provider,
+        baseUrl: args.nextBinding.baseUrl,
+        model: args.nextBinding.model,
+      }),
+    }
+  }
+  return {
+    ...args.current,
+    [args.nextTier]: args.nextBinding,
+  }
+}
+
+function shouldPersistRuntimeProfile(args: {
+  source: ConfigBudgetSource | CapabilitySource
+  tokens?: number
+}): boolean {
+  if (!toPositiveInt(args.tokens)) return false
+  if (args.source === 'env_override' || args.source === 'binding_mismatch' || args.source === 'none') return false
+  if (isCapabilitySource(args.source)) {
+    return shouldPersistContextWindowSource(args.source)
+  }
+  return true
+}
+
+function shouldPersistTierBindingForRuntimeSource(source: ConfigBudgetSource | CapabilitySource): boolean {
+  return !(
+    source === 'env_override' ||
+    source === 'legacy_config' ||
+    source === 'migrated_legacy' ||
+    source === 'binding_mismatch' ||
+    source === 'none'
+  )
 }
 
 export function resolveUserAgentsDir(args?: {
@@ -64,32 +184,74 @@ export async function persistDefaultModelTier(args: {
 
   // Keep context meter aligned with active model after /model changes.
   const runtimeCfg = await loadRuntimeConfig(env, cwd, { fileStore: store })
-  const activeModel = String(runtimeCfg.llm.model || '').trim()
+  const runtimeProfile = resolveRuntimeModelProfile({ cfg: runtimeCfg })
+  const activeModel = String(runtimeProfile.model || '').trim()
   if (!activeModel) return
-  const effectiveTier = runtimeCfg.llm.defaultTier ?? args.nextTier
-  const envContextWindowOverride = toPositiveInt(env.FORMAX_CONTEXT_WINDOW_TOKENS)
-  const persistedContextWindowFallback =
-    envContextWindowOverride === null ? toPositiveInt(runtimeCfg.llm.contextWindowTokens) : null
-
-  const detectedWindowTokens =
-    toPositiveInt(runtimeCfg.llm.tierContextWindowTokens?.[effectiveTier]) ??
-    toPositiveInt(
-      getKnownContextWindowTokens({
-        provider: runtimeCfg.llm.provider,
-        model: activeModel,
-      }),
-    ) ??
-    persistedContextWindowFallback
+  const effectiveTier = runtimeProfile.activeTier
+  if (
+    !shouldPersistRuntimeProfile({
+      source: runtimeProfile.contextWindowTokensSource,
+      tokens: runtimeProfile.contextWindowTokens,
+    })
+  ) {
+    return
+  }
+  const detectedWindowTokens = toPositiveInt(runtimeProfile.contextWindowTokens)
   if (!detectedWindowTokens) return
+  const persistedContextWindowFallback = toPositiveInt(runtimeCfg.llm.contextWindowTokens)
   const nextTierContextWindowTokens = resolveTierContextWindowTokens({
     current: runtimeCfg.llm.tierContextWindowTokens,
-    fallback: persistedContextWindowFallback ?? DEFAULT_TIER_CONTEXT_WINDOW_TOKENS[effectiveTier],
     nextTier: effectiveTier,
-    nextTokens: detectedWindowTokens,
+    nextTokens: detectedWindowTokens ?? persistedContextWindowFallback ?? 32768,
   })
+  const nextBinding = normalizeModelIdentity({
+    provider: runtimeProfile.provider,
+    baseUrl: runtimeProfile.baseUrl,
+    model: runtimeProfile.model,
+  })
+  const nextTierContextWindowBindings = shouldPersistTierBindingForRuntimeSource(runtimeProfile.contextWindowTokensSource)
+    ? resolveTierContextWindowBindings({
+        current: runtimeCfg.llm.tierContextWindowBindings as TierContextWindowBindingMapping | undefined,
+        provider: runtimeProfile.provider,
+        baseUrl: runtimeProfile.baseUrl,
+        nextTier: effectiveTier,
+        nextBinding,
+      })
+    : clearTierContextWindowBinding({
+        current: runtimeCfg.llm.tierContextWindowBindings as TierContextWindowBindingMapping | undefined,
+        nextTier: effectiveTier,
+      })
+  const nextTierContextWindowSources = isCapabilitySource(runtimeProfile.contextWindowTokensSource)
+    ? resolveTierContextWindowSources({
+        current: runtimeCfg.llm.tierContextWindowSources as TierContextWindowSourceMapping | undefined,
+        nextTier: effectiveTier,
+        nextSource: runtimeProfile.contextWindowTokensSource,
+      })
+    : clearTierContextWindowSource({
+        current: runtimeCfg.llm.tierContextWindowSources as TierContextWindowSourceMapping | undefined,
+        nextTier: effectiveTier,
+      })
+  const nextTierContextWindowConfidence = isCapabilitySource(runtimeProfile.contextWindowTokensSource)
+    ? resolveTierContextWindowConfidence({
+        current: runtimeCfg.llm.tierContextWindowConfidence as TierContextWindowConfidenceMapping | undefined,
+        nextTier: effectiveTier,
+        nextConfidence: confidenceForSource(runtimeProfile.contextWindowTokensSource),
+      })
+    : clearTierContextWindowConfidence({
+        current: runtimeCfg.llm.tierContextWindowConfidence as TierContextWindowConfidenceMapping | undefined,
+        nextTier: effectiveTier,
+      })
   if (
     runtimeCfg.llm.contextWindowTokens === detectedWindowTokens &&
-    runtimeCfg.llm.tierContextWindowTokens?.[effectiveTier] === detectedWindowTokens
+    runtimeCfg.llm.tierContextWindowTokens?.[effectiveTier] === detectedWindowTokens &&
+    (!nextTierContextWindowBindings ||
+      (runtimeCfg.llm.tierContextWindowBindings?.[effectiveTier]?.model === nextBinding.model &&
+        runtimeCfg.llm.tierContextWindowBindings?.[effectiveTier]?.provider === nextBinding.provider &&
+        runtimeCfg.llm.tierContextWindowBindings?.[effectiveTier]?.baseUrl === nextBinding.baseUrl)) &&
+    (!nextTierContextWindowSources ||
+      runtimeCfg.llm.tierContextWindowSources?.[effectiveTier] === nextTierContextWindowSources[effectiveTier]) &&
+    (!nextTierContextWindowConfidence ||
+      runtimeCfg.llm.tierContextWindowConfidence?.[effectiveTier] === nextTierContextWindowConfidence[effectiveTier])
   ) {
     return
   }
@@ -101,6 +263,9 @@ export async function persistDefaultModelTier(args: {
       llm: {
         contextWindowTokens: detectedWindowTokens,
         tierContextWindowTokens: nextTierContextWindowTokens,
+        ...(nextTierContextWindowSources ? { tierContextWindowSources: nextTierContextWindowSources } : {}),
+        ...(nextTierContextWindowConfidence ? { tierContextWindowConfidence: nextTierContextWindowConfidence } : {}),
+        ...(nextTierContextWindowBindings ? { tierContextWindowBindings: nextTierContextWindowBindings } : {}),
       },
     },
     label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',

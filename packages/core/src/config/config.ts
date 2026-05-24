@@ -5,7 +5,15 @@ import { createNodeFileStore } from './nodeFileStore.js'
 import { loadConfigFiles } from './configFiles.js'
 import { getConfigPaths } from './configPaths.js'
 import { resolveActiveModel } from './modelTier.js'
-import type { ModelTier, ProviderId } from '../config/settings/schema.js'
+import type {
+  CapabilityConfidence,
+  CapabilitySource,
+  ConfigBudgetSource,
+  ModelIdentity,
+  ModelSource,
+  ModelTier,
+  ProviderId,
+} from '../config/settings/schema.js'
 
 export type RuntimeConfig = {
   llm: {
@@ -13,12 +21,20 @@ export type RuntimeConfig = {
     baseUrl: string
     apiKey: string
     model: string
+    modelSource?: ModelSource
     configuredModel?: string
     tierModels?: Partial<Record<ModelTier, string>>
     tierContextWindowTokens?: Partial<Record<ModelTier, number>>
+    tierContextWindowSources?: Partial<Record<ModelTier, CapabilitySource>>
+    tierContextWindowConfidence?: Partial<Record<ModelTier, CapabilityConfidence>>
+    tierContextWindowBindings?: Partial<Record<ModelTier, ModelIdentity>>
     defaultTier?: ModelTier
+    authRef?: string
     timeoutMs: number
     contextWindowTokens?: number
+    contextWindowTokensSource?: ConfigBudgetSource | CapabilitySource
+    contextWindowTokensBoundModel?: string
+    contextWindowTokensBinding?: ModelIdentity
     thinkingMode: boolean
   }
   paths: {
@@ -55,6 +71,21 @@ function parsePositiveEnvInt(value: string | undefined): number | undefined {
   const parsed = Number(raw)
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return undefined
   return parsed
+}
+
+function sameBinding(args: {
+  binding: ModelIdentity | undefined
+  provider: ProviderId
+  baseUrl: string
+  model: string
+}): boolean {
+  const binding = args.binding
+  if (!binding) return false
+  return (
+    binding.provider === args.provider &&
+    normalizeBaseUrl(binding.baseUrl) === normalizeBaseUrl(args.baseUrl) &&
+    String(binding.model || '').trim() === String(args.model || '').trim()
+  )
 }
 
 export async function loadRuntimeConfig(
@@ -104,7 +135,7 @@ export async function loadRuntimeConfig(
   const apiKey = resolved.auth?.apiKey || ''
   const provider = resolved.config.llm.provider
   const baseUrl = normalizeBaseUrl(resolved.config.llm.baseUrl || env.FORMAX_BASE_URL || '')
-  const { defaultTier, model } = resolveActiveModel({
+  const { defaultTier, model, modelSource } = resolveActiveModel({
     defaultTierRaw: resolved.config.llm.defaultTier,
     configuredModel: resolved.config.llm.model,
     configuredTierModels: resolved.config.llm.tierModels,
@@ -113,10 +144,38 @@ export async function loadRuntimeConfig(
   const configuredModel = String(resolved.config.llm.model || '').trim()
   const tierModels = resolved.config.llm.tierModels
   const tierContextWindowTokens = resolved.config.llm.tierContextWindowTokens
+  const tierContextWindowSources = resolved.config.llm.tierContextWindowSources
+  const tierContextWindowConfidence = resolved.config.llm.tierContextWindowConfidence
+  const tierContextWindowBindings = resolved.config.llm.tierContextWindowBindings
+  const authRef = String(resolved.config.llm.authRef || 'default').trim() || 'default'
   const timeoutMs = resolved.config.llm.timeoutMs || 600000
   const envContextWindowTokens = parsePositiveEnvInt(env.FORMAX_CONTEXT_WINDOW_TOKENS)
   const tierContextWindow = defaultTier ? tierContextWindowTokens?.[defaultTier] : undefined
-  const contextWindowTokens = envContextWindowTokens ?? tierContextWindow ?? resolved.config.llm.contextWindowTokens
+  const tierContextWindowBinding = defaultTier ? tierContextWindowBindings?.[defaultTier] : undefined
+  const tierContextWindowBindingMatches = defaultTier
+    ? sameBinding({
+        binding: tierContextWindowBinding,
+        provider,
+        baseUrl,
+        model,
+      })
+    : false
+  const contextWindowTokensSource: ConfigBudgetSource | CapabilitySource =
+    envContextWindowTokens != null
+      ? 'env_override'
+      : tierContextWindow != null
+        ? tierContextWindowBinding
+          ? (tierContextWindowBindingMatches
+              ? (defaultTier ? tierContextWindowSources?.[defaultTier] ?? 'tier_config' : 'tier_config')
+              : 'binding_mismatch')
+          : 'migrated_legacy'
+        : resolved.config.llm.contextWindowTokens != null
+          ? 'legacy_config'
+          : 'none'
+  const contextWindowTokens =
+    envContextWindowTokens ??
+    (contextWindowTokensSource === 'binding_mismatch' ? undefined : tierContextWindow) ??
+    resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const showContextMeter = resolved.config.ui.showContextMeter
@@ -131,12 +190,30 @@ export async function loadRuntimeConfig(
       baseUrl,
       apiKey,
       model,
+      modelSource,
       configuredModel,
       ...(tierModels ? { tierModels } : {}),
       ...(tierContextWindowTokens ? { tierContextWindowTokens } : {}),
+      ...(tierContextWindowSources ? { tierContextWindowSources } : {}),
+      ...(tierContextWindowConfidence ? { tierContextWindowConfidence } : {}),
+      ...(tierContextWindowBindings ? { tierContextWindowBindings } : {}),
       defaultTier,
+      authRef,
       timeoutMs,
       ...(contextWindowTokens ? { contextWindowTokens } : {}),
+      contextWindowTokensSource,
+      ...(contextWindowTokensSource !== 'binding_mismatch' &&
+      contextWindowTokensSource !== 'migrated_legacy' &&
+      contextWindowTokensSource !== 'legacy_config' &&
+      contextWindowTokensSource !== 'env_override' &&
+      contextWindowTokensSource !== 'none' &&
+      tierContextWindowBindingMatches &&
+      tierContextWindowBinding
+        ? {
+            contextWindowTokensBoundModel: tierContextWindowBinding.model,
+            contextWindowTokensBinding: tierContextWindowBinding,
+          }
+        : {}),
       thinkingMode,
     },
     paths: {

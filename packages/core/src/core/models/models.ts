@@ -145,7 +145,10 @@ function mapRawModelsToAnthropicInfo(modelsData: any[]): ModelInfo[] {
     model: model.modelName || model.id || model.name || model.model || 'unknown',
     provider: 'anthropic',
     max_tokens: model.max_tokens || model.context_length || 8192,
-    contextWindowTokens: extractContextWindowTokens(model) ?? model.max_tokens,
+    // Do not treat max_tokens as context window for Anthropic-compatible catalogs.
+    // Many providers use max_tokens for output limit only; if explicit context metadata
+    // is missing we want setup to keep probing detail endpoints/catalog instead.
+    contextWindowTokens: extractContextWindowTokens(model),
     supports_reasoning_effort: false,
     supports_vision: Boolean(model.supports_vision ?? true),
     supports_function_calling: model.supports_function_calling ?? true,

@@ -13,6 +13,10 @@ function sameTierContextWindowTokens(
   return a.haiku === b.haiku && a.sonnet === b.sonnet && a.opus === b.opus
 }
 
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
 export type ReadConfigPatchResult = {
   patch: FormaxConfigV1Patch
   warnings: string[]
@@ -84,6 +88,15 @@ export function stripDefaultsFromPatch(patch: FormaxConfigV1Patch): FormaxConfig
     if (llm.defaultTier === DEFAULT_CONFIG.llm.defaultTier) delete llm.defaultTier
     if (sameTierContextWindowTokens(llm.tierContextWindowTokens, DEFAULT_CONFIG.llm.tierContextWindowTokens)) {
       delete llm.tierContextWindowTokens
+    }
+    if (sameJsonValue(llm.tierContextWindowSources, DEFAULT_CONFIG.llm.tierContextWindowSources)) {
+      delete llm.tierContextWindowSources
+    }
+    if (sameJsonValue(llm.tierContextWindowConfidence, DEFAULT_CONFIG.llm.tierContextWindowConfidence)) {
+      delete llm.tierContextWindowConfidence
+    }
+    if (sameJsonValue(llm.tierContextWindowBindings, DEFAULT_CONFIG.llm.tierContextWindowBindings)) {
+      delete llm.tierContextWindowBindings
     }
     if (llm.timeoutMs === DEFAULT_CONFIG.llm.timeoutMs) delete llm.timeoutMs
     if (llm.authRef === DEFAULT_CONFIG.llm.authRef) delete llm.authRef

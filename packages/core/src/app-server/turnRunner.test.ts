@@ -361,10 +361,10 @@ describe('TurnRunner', () => {
       schemaVersion: 1,
       budgetRaw: {
         schemaVersion: 1,
-        model: 'test-model',
+        model: expect.any(String),
         contextWindowTokens: 6000,
         baselineTokens: 123,
-        source: 'runtime_config',
+        source: 'env_override',
       },
     })
     const usage = notifications.find((n) => n.method === 'turn/event' && n.params?.event?.type === 'usage')

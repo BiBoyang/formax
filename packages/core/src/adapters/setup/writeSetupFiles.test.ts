@@ -311,6 +311,234 @@ describe('writeSetupFiles', () => {
     }
   })
 
+  it('does not persist heuristic context window snapshots as authoritative config', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-heuristic-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'unknown-model',
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierContextWindowTokens: {
+          haiku: 32768,
+          sonnet: 32768,
+          opus: 32768,
+        },
+        tierContextWindowSources: {
+          haiku: 'heuristic',
+          sonnet: 'heuristic',
+          opus: 'heuristic',
+        },
+        tierContextWindowConfidence: {
+          haiku: 'heuristic',
+          sonnet: 'heuristic',
+          opus: 'heuristic',
+        },
+        tierContextWindowBindings: {
+          haiku: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'unknown-model' },
+          sonnet: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'unknown-model' },
+          opus: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'unknown-model' },
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowSources).toBeUndefined()
+      expect(config.llm.tierContextWindowConfidence).toBeUndefined()
+      expect(config.llm.tierContextWindowBindings).toBeUndefined()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('persists setup tier snapshots per tier source instead of keying off sonnet only', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-mixed-tier-source-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'sonnet-model',
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierContextWindowTokens: {
+          haiku: 64000,
+          sonnet: 32768,
+          opus: 256000,
+        },
+        tierContextWindowSources: {
+          haiku: 'provider_detail',
+          sonnet: 'heuristic',
+          opus: 'catalog',
+        },
+        tierContextWindowConfidence: {
+          haiku: 'detected',
+          sonnet: 'heuristic',
+          opus: 'catalog',
+        },
+        tierContextWindowBindings: {
+          haiku: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'haiku-model' },
+          sonnet: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'sonnet-model' },
+          opus: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'opus-model' },
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowTokens).toEqual({
+        haiku: 64000,
+        opus: 256000,
+      })
+      expect(config.llm.tierContextWindowSources).toEqual({
+        haiku: 'provider_detail',
+        opus: 'catalog',
+      })
+      expect(config.llm.tierContextWindowConfidence).toEqual({
+        haiku: 'detected',
+        opus: 'catalog',
+      })
+      expect(config.llm.tierContextWindowBindings).toEqual({
+        haiku: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'haiku-model' },
+        opus: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'opus-model' },
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not persist tier tokens for tiers that have no persisted source metadata', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-partial-tier-source-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'sonnet-model',
+        contextWindowTokens: 128000,
+        contextWindowSource: 'provider_detail',
+        tierContextWindowTokens: {
+          haiku: 32768,
+          sonnet: 128000,
+          opus: 32768,
+        },
+        tierContextWindowSources: {
+          sonnet: 'provider_detail',
+        },
+        tierContextWindowConfidence: {
+          sonnet: 'detected',
+        },
+        tierContextWindowBindings: {
+          sonnet: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'sonnet-model' },
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBe(128000)
+      expect(config.llm.tierContextWindowTokens).toEqual({
+        sonnet: 128000,
+      })
+      expect(config.llm.tierContextWindowSources).toEqual({
+        sonnet: 'provider_detail',
+      })
+      expect(config.llm.tierContextWindowConfidence).toEqual({
+        sonnet: 'detected',
+      })
+      expect(config.llm.tierContextWindowBindings).toEqual({
+        sonnet: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'sonnet-model' },
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('clears previously persisted authoritative snapshots when rerun setup only has heuristics', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-clear-heuristic-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'anthropic',
+            model: 'old-model',
+            contextWindowTokens: 200000,
+            tierContextWindowTokens: { sonnet: 200000 },
+            tierContextWindowSources: { sonnet: 'provider_detail' },
+            tierContextWindowConfidence: { sonnet: 'detected' },
+            tierContextWindowBindings: {
+              sonnet: {
+                provider: 'anthropic',
+                baseUrl: 'https://api.anthropic.com/v1',
+                model: 'old-model',
+              },
+            },
+          },
+        }),
+        'utf8',
+      )
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'new-model',
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierContextWindowTokens: { sonnet: 32768 },
+        tierContextWindowSources: { sonnet: 'heuristic' },
+        tierContextWindowConfidence: { sonnet: 'heuristic' },
+        tierContextWindowBindings: {
+          sonnet: { provider: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'new-model' },
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowSources).toBeUndefined()
+      expect(config.llm.tierContextWindowConfidence).toBeUndefined()
+      expect(config.llm.tierContextWindowBindings).toBeUndefined()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
 })
 
 function configPathWithin(target: string, parent: string): boolean {

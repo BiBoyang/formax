@@ -1,5 +1,6 @@
-import type { ModelTier, ProviderId, TierContextWindowMapping } from '../../config/settings/schema.js'
+import type { CapabilityConfidence, CapabilitySource, ModelIdentity, ModelTier, ProviderId, TierContextWindowMapping } from '../../config/settings/schema.js'
 import type { ErrorCode } from '../errors/codes.js'
+import type { ModelContextWindowMetadata } from '../models/modelCapability.js'
 
 export type SetupProviderOption = {
   id: ProviderId
@@ -35,13 +36,18 @@ export type SetupDraft = {
   model: string
   tierModels: SetupTierModels
   tierContextWindowTokens: TierContextWindowMapping
+  tierContextWindowSources?: Partial<Record<ModelTier, CapabilitySource>>
+  tierContextWindowConfidence?: Partial<Record<ModelTier, CapabilityConfidence>>
+  tierContextWindowBindings?: Partial<Record<ModelTier, ModelIdentity>>
   contextWindowTokens?: number
+  contextWindowBinding?: ModelIdentity
 }
 
 export type ConnectionTestOk = {
   ok: true
   models: string[]
   modelContextWindows?: Record<string, number>
+  modelContextWindowMetadata?: Record<string, ModelContextWindowMetadata>
 }
 
 export type ConnectionTestError = {

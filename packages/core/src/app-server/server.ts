@@ -87,7 +87,7 @@ export type AppServerOptions = {
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
-  resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
+  resolveTurnRunner?: (args?: { cwd?: string; threadId?: string }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   resolveContextDiagnostics?: (args: {
     threadId: string
     cwd: string
@@ -119,7 +119,10 @@ export class AppServer {
   > &
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
-  private readonly resolveTurnRunner?: () => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
+  private readonly resolveTurnRunner?: (args?: {
+    cwd?: string
+    threadId?: string
+  }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly resolveContextDiagnostics?: AppServerOptions['resolveContextDiagnostics']
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   private readonly serverInstanceId: string
@@ -141,6 +144,7 @@ export class AppServer {
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
   private readonly durableSnipByThreadId = new Map<string, ThreadDurableSnipSummary | null>()
   private readonly latestRequestCollapseByThreadId = new Map<string, LatestRequestCollapseSummary | null>()
+  private readonly activeTurnRunnerByThreadId = new Map<string, Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>()
   private readonly liveCompactBoundaryByThreadId = new Map<
     string,
     { turnId: string; boundary: CompactBoundaryMeta; previousBoundary?: CompactBoundaryMeta | null }
@@ -391,7 +395,8 @@ export class AppServer {
     if (req.method === 'turn/start') {
       try {
         const params = parseTurnStartParams(req.params)
-        const runner = await this.getTurnRunner()
+        const runner = await this.getTurnRunner({ cwd: params.cwd, threadId: params.threadId })
+        this.activeTurnRunnerByThreadId.set(params.threadId, runner)
         const exitPlanReminder = this.resolveExitPlanReminder({
           threadId: params.threadId,
           requestedMode: params.mode,
@@ -412,6 +417,12 @@ export class AppServer {
         }
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
+        if (req.params && typeof req.params === 'object' && !Array.isArray(req.params)) {
+          const maybeThreadId = (req.params as { threadId?: unknown }).threadId
+          if (typeof maybeThreadId === 'string' && maybeThreadId.trim()) {
+            this.activeTurnRunnerByThreadId.delete(maybeThreadId)
+          }
+        }
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }
     }
@@ -428,10 +439,16 @@ export class AppServer {
             }),
           ]
         }
+        let dispatchCwd = params.cwd ? path.resolve(params.cwd) : null
+        const resolveDispatchCwd = async (): Promise<string> => {
+          if (dispatchCwd) return dispatchCwd
+          const thread = await this.threadStore.readThread(params.threadId)
+          dispatchCwd = thread.thread.cwd
+          return dispatchCwd
+        }
 
         if (commandRouting.commandName === '/todos' || commandRouting.commandName === '/context') {
-          const thread = await this.threadStore.readThread(params.threadId)
-          const dispatchCwd = params.cwd ? path.resolve(params.cwd) : thread.thread.cwd
+          const resolvedDispatchCwd = await resolveDispatchCwd()
           const rawParams = req.params && typeof req.params === 'object' && !Array.isArray(req.params) ? req.params : null
           const modeExplicit = Boolean(
             rawParams &&
@@ -457,7 +474,7 @@ export class AppServer {
             }
             const effect = await this.resolveContextDiagnostics({
               threadId: params.threadId,
-              cwd: dispatchCwd,
+              cwd: resolvedDispatchCwd,
               mode: params.mode ?? 'normal',
               modeExplicit,
               includeExitPlanReminder: this.resolveExitPlanReminder({
@@ -479,7 +496,7 @@ export class AppServer {
               ]
             }
 
-          const slashRegistry = createSlashCommandRegistry({ cwd: dispatchCwd })
+          const slashRegistry = createSlashCommandRegistry({ cwd: resolvedDispatchCwd })
           const normalizedDispatchCommand = commandRouting.commandArgs
             ? `${commandRouting.commandName} ${commandRouting.commandArgs}`
             : commandRouting.commandName
@@ -496,7 +513,13 @@ export class AppServer {
           ]
         }
 
-        const runner = await this.getTurnRunner()
+        const runner = params.cwd
+          ? await this.getTurnRunner({ cwd: path.resolve(params.cwd), threadId: params.threadId })
+          : await this.getTurnRunner({
+              cwd: this.turnRunner ? undefined : await resolveDispatchCwd(),
+              threadId: params.threadId,
+            })
+        this.activeTurnRunnerByThreadId.set(params.threadId, runner)
         const exitPlanReminder = this.resolveExitPlanReminder({
           threadId: params.threadId,
           requestedMode: params.mode,
@@ -520,6 +543,12 @@ export class AppServer {
         }
         return [makeSuccessResponse(req.id, { ...result, command: params.command, dispatched: true })]
       } catch (err) {
+        if (req.params && typeof req.params === 'object' && !Array.isArray(req.params)) {
+          const maybeThreadId = (req.params as { threadId?: unknown }).threadId
+          if (typeof maybeThreadId === 'string' && maybeThreadId.trim()) {
+            this.activeTurnRunnerByThreadId.delete(maybeThreadId)
+          }
+        }
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }
     }
@@ -527,7 +556,7 @@ export class AppServer {
     if (req.method === 'turn/interrupt') {
       try {
         const params = parseTurnInterruptParams(req.params)
-        const runner = await this.getTurnRunner()
+        const runner = await this.getTurnRunner({ threadId: params.threadId })
         const result = await runner.interruptTurn(params)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
@@ -558,7 +587,7 @@ export class AppServer {
             }),
           ]
         }
-        const runner = await this.getTurnRunner()
+        const runner = await this.getTurnRunner({ threadId: params.threadId })
         const result = await runner.submitInput(params)
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
@@ -587,14 +616,19 @@ export class AppServer {
     return { code: JSON_RPC_ERRORS.INTERNAL_ERROR, message }
   }
 
-  private async getTurnRunner(): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>> {
+  private async getTurnRunner(args?: {
+    cwd?: string
+    threadId?: string
+  }): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>> {
     if (this.turnRunner) return this.turnRunner
+    if (args?.threadId) {
+      const activeRunner = this.activeTurnRunnerByThreadId.get(args.threadId)
+      if (activeRunner) return activeRunner
+    }
     if (!this.resolveTurnRunner) {
       throw new Error('Turn runner is not configured')
     }
-    const resolved = await this.resolveTurnRunner()
-    this.turnRunner = resolved
-    return resolved
+    return this.resolveTurnRunner(args)
   }
 
   private resolveExitPlanReminder(args: {
@@ -777,12 +811,14 @@ export class AppServer {
         })
       }
     } else if (method === 'turn/completed' && turnId) {
+      this.activeTurnRunnerByThreadId.delete(threadId)
       const pending = this.liveCompactBoundaryByThreadId.get(threadId)
       if (pending?.turnId === turnId) {
         this.rememberLatestCompactBoundary(threadId, pending.boundary)
         this.liveCompactBoundaryByThreadId.delete(threadId)
       }
     } else if (method === 'turn/failed' && turnId) {
+      this.activeTurnRunnerByThreadId.delete(threadId)
       const pending = this.liveCompactBoundaryByThreadId.get(threadId)
       if (pending?.turnId === turnId) {
         this.liveCompactBoundaryByThreadId.delete(threadId)

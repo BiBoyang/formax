@@ -12,6 +12,40 @@ export type OutputStyle = z.infer<typeof OutputStyleSchema>
 export const ModelTierSchema = z.enum(['haiku', 'sonnet', 'opus'])
 export type ModelTier = z.infer<typeof ModelTierSchema>
 
+export const CapabilitySourceSchema = z.enum([
+  'provider_list',
+  'provider_detail',
+  'catalog',
+  'heuristic',
+  'known_model_map',
+])
+export type CapabilitySource = z.infer<typeof CapabilitySourceSchema>
+
+export const CapabilityConfidenceSchema = z.enum(['detected', 'catalog', 'heuristic', 'known'])
+export type CapabilityConfidence = z.infer<typeof CapabilityConfidenceSchema>
+
+export const ConfigBudgetSourceSchema = z.enum([
+  'env_override',
+  'tier_config',
+  'legacy_config',
+  'migrated_legacy',
+  'binding_mismatch',
+  'none',
+])
+export type ConfigBudgetSource = z.infer<typeof ConfigBudgetSourceSchema>
+
+export const ModelSourceSchema = z.enum(['tier_env', 'legacy_sonnet_model', 'tier_model', 'default_model'])
+export type ModelSource = z.infer<typeof ModelSourceSchema>
+
+export const ModelIdentitySchema = z
+  .object({
+    provider: ProviderIdSchema,
+    baseUrl: z.string(),
+    model: z.string(),
+  })
+  .strict()
+export type ModelIdentity = z.infer<typeof ModelIdentitySchema>
+
 export const TierModelMappingSchema = z
   .object({
     haiku: z.string(),
@@ -23,12 +57,39 @@ export type TierModelMapping = z.infer<typeof TierModelMappingSchema>
 
 export const TierContextWindowMappingSchema = z
   .object({
-    haiku: z.number().int().positive(),
-    sonnet: z.number().int().positive(),
-    opus: z.number().int().positive(),
+    haiku: z.number().int().positive().optional(),
+    sonnet: z.number().int().positive().optional(),
+    opus: z.number().int().positive().optional(),
   })
   .strict()
 export type TierContextWindowMapping = z.infer<typeof TierContextWindowMappingSchema>
+
+export const TierContextWindowSourceMappingSchema = z
+  .object({
+    haiku: CapabilitySourceSchema.optional(),
+    sonnet: CapabilitySourceSchema.optional(),
+    opus: CapabilitySourceSchema.optional(),
+  })
+  .strict()
+export type TierContextWindowSourceMapping = z.infer<typeof TierContextWindowSourceMappingSchema>
+
+export const TierContextWindowConfidenceMappingSchema = z
+  .object({
+    haiku: CapabilityConfidenceSchema.optional(),
+    sonnet: CapabilityConfidenceSchema.optional(),
+    opus: CapabilityConfidenceSchema.optional(),
+  })
+  .strict()
+export type TierContextWindowConfidenceMapping = z.infer<typeof TierContextWindowConfidenceMappingSchema>
+
+export const TierContextWindowBindingMappingSchema = z
+  .object({
+    haiku: ModelIdentitySchema.optional(),
+    sonnet: ModelIdentitySchema.optional(),
+    opus: ModelIdentitySchema.optional(),
+  })
+  .strict()
+export type TierContextWindowBindingMapping = z.infer<typeof TierContextWindowBindingMappingSchema>
 
 const TimeoutMsSchema = z.number().int().positive()
 const ContextWindowTokensSchema = z.number().int().positive()
@@ -43,6 +104,9 @@ export const LlmConfigSchema = z
     defaultTier: ModelTierSchema.default('sonnet'),
     tierModels: TierModelMappingSchema.optional(),
     tierContextWindowTokens: TierContextWindowMappingSchema.optional(),
+    tierContextWindowSources: TierContextWindowSourceMappingSchema.optional(),
+    tierContextWindowConfidence: TierContextWindowConfidenceMappingSchema.optional(),
+    tierContextWindowBindings: TierContextWindowBindingMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.default(600000),
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
@@ -61,6 +125,9 @@ export const LlmConfigPatchSchema = z
     defaultTier: ModelTierSchema.optional(),
     tierModels: TierModelMappingSchema.optional(),
     tierContextWindowTokens: TierContextWindowMappingSchema.optional(),
+    tierContextWindowSources: TierContextWindowSourceMappingSchema.optional(),
+    tierContextWindowConfidence: TierContextWindowConfidenceMappingSchema.optional(),
+    tierContextWindowBindings: TierContextWindowBindingMappingSchema.optional(),
     timeoutMs: TimeoutMsSchema.optional(),
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),

@@ -264,6 +264,56 @@ describe('createSetupSession', () => {
     expect(state.draft.contextWindowTokens).toBe(128000)
   })
 
+  it('clears stale tier capability metadata when an advanced model is cleared', async () => {
+    const testConnection = vi.fn(async () => okWithContext(['known-model'], { 'known-model': 128000 }))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('openai')
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    await s.next()
+
+    s.setModel('known-model')
+    s.setModelMode('advanced')
+
+    let state = s.getState()
+    expect(state.modelTier).toBe('haiku')
+    expect(state.draft.tierContextWindowSources).toEqual({
+      haiku: 'provider_list',
+      sonnet: 'provider_list',
+      opus: 'provider_list',
+    })
+
+    s.setModel('')
+
+    state = s.getState()
+    expect(state.draft.tierModels.haiku).toBe('')
+    expect(state.draft.tierContextWindowTokens.haiku).toBe(32768)
+    expect(state.draft.tierContextWindowSources).toEqual({
+      sonnet: 'provider_list',
+      opus: 'provider_list',
+    })
+    expect(state.draft.tierContextWindowConfidence).toEqual({
+      sonnet: 'detected',
+      opus: 'detected',
+    })
+    expect(state.draft.tierContextWindowBindings).toEqual({
+      sonnet: {
+        provider: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'known-model',
+      },
+      opus: {
+        provider: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'known-model',
+      },
+    })
+  })
+
   it('quick mode maps one model to all tiers', async () => {
     const testConnection = vi.fn(async () => okWithContext(['m1'], { m1: 64000 }))
     const s = createSetupSession({ providers: PROVIDERS, testConnection })

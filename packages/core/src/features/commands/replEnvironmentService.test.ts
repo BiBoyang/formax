@@ -93,7 +93,16 @@ describe('replEnvironmentService', () => {
       nextPatch: {
         llm: {
           contextWindowTokens: 180000,
-          tierContextWindowTokens: { haiku: 32768, sonnet: 180000, opus: 32768 },
+          tierContextWindowTokens: { sonnet: 180000 },
+          tierContextWindowSources: { sonnet: 'known_model_map' },
+          tierContextWindowConfidence: { sonnet: 'known' },
+          tierContextWindowBindings: {
+            sonnet: {
+              provider: 'anthropic',
+              baseUrl: 'https://example.com/v1',
+              model: 'm-sonnet',
+            },
+          },
         },
       },
       label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
@@ -136,14 +145,50 @@ describe('replEnvironmentService', () => {
       nextPatch: {
         llm: {
           contextWindowTokens: 200000,
-          tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 200000 },
+          tierContextWindowTokens: { opus: 200000 },
+          tierContextWindowSources: { opus: 'known_model_map' },
+          tierContextWindowConfidence: { opus: 'known' },
+          tierContextWindowBindings: {
+            opus: {
+              provider: 'anthropic',
+              baseUrl: 'https://example.com/v1',
+              model: 'm-opus',
+            },
+          },
         },
       },
       label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
     })
   })
 
-  it('prefers stored tier context window over known model map', async () => {
+  it('does not promote a legacy mirror into tier binding metadata during /model migration', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-sonnet',
+        configuredModel: 'm-sonnet',
+        tierModels: { haiku: 'm-haiku', sonnet: 'm-sonnet', opus: 'm-opus' },
+        defaultTier: 'sonnet',
+        contextWindowTokens: 180000,
+        contextWindowTokensSource: 'legacy_config',
+        tierContextWindowTokens: { haiku: 70000, sonnet: 180000, opus: 64000 },
+        tierContextWindowBindings: undefined,
+      },
+    })
+
+    await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextPatch: { llm: { defaultTier: 'sonnet' } },
+      }),
+    )
+  })
+
+  it('does not rewrite when runtime config already resolved the active tier snapshot', async () => {
     mocks.loadRuntimeConfig.mockResolvedValueOnce({
       llm: {
         provider: 'anthropic',
@@ -151,25 +196,50 @@ describe('replEnvironmentService', () => {
         apiKey: 'sk-test',
         model: 'm-sonnet',
         defaultTier: 'sonnet',
-        contextWindowTokens: 64000,
+        contextWindowTokens: 180000,
+        contextWindowTokensSource: 'known_model_map',
         tierContextWindowTokens: { haiku: 70000, sonnet: 180000, opus: 64000 },
+        tierContextWindowSources: { sonnet: 'known_model_map' },
+        tierContextWindowConfidence: { sonnet: 'known' },
+        tierContextWindowBindings: {
+          sonnet: { provider: 'anthropic', baseUrl: 'https://example.com/v1', model: 'm-sonnet' },
+        },
       },
     })
     mocks.getKnownContextWindowTokens.mockReturnValueOnce(200000)
 
     await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
 
-    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(2, {
-      fileStore: { kind: 'store' },
-      filePath: '/repo/.formax/config.json',
-      nextPatch: {
-        llm: {
-          contextWindowTokens: 180000,
-          tierContextWindowTokens: { haiku: 70000, sonnet: 180000, opus: 64000 },
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves matching tier bindings when /model sync sees a tier_config budget', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'm-sonnet',
+        defaultTier: 'sonnet',
+        contextWindowTokens: 180000,
+        contextWindowTokensSource: 'tier_config',
+        tierContextWindowTokens: { sonnet: 180000 },
+        tierContextWindowBindings: {
+          sonnet: { provider: 'anthropic', baseUrl: 'https://example.com/v1', model: 'm-sonnet' },
         },
+        tierContextWindowSources: undefined,
+        tierContextWindowConfidence: undefined,
       },
-      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
     })
+
+    await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextPatch: { llm: { defaultTier: 'sonnet' } },
+      }),
+    )
   })
 
   it('does not rewrite context window when detection matches current value', async () => {
@@ -178,10 +248,16 @@ describe('replEnvironmentService', () => {
         provider: 'anthropic',
         baseUrl: 'https://example.com/v1',
         apiKey: 'sk-test',
-        model: 'm-sonnet',
+        model: 'm-haiku',
         defaultTier: 'haiku',
         contextWindowTokens: 180000,
+        contextWindowTokensSource: 'known_model_map',
         tierContextWindowTokens: { haiku: 180000, sonnet: 32768, opus: 32768 },
+        tierContextWindowSources: { haiku: 'known_model_map' },
+        tierContextWindowConfidence: { haiku: 'known' },
+        tierContextWindowBindings: {
+          haiku: { provider: 'anthropic', baseUrl: 'https://example.com/v1', model: 'm-haiku' },
+        },
       },
     })
 
@@ -217,7 +293,16 @@ describe('replEnvironmentService', () => {
       nextPatch: {
         llm: {
           contextWindowTokens: 220000,
-          tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 220000 },
+          tierContextWindowTokens: { opus: 220000 },
+          tierContextWindowSources: { opus: 'known_model_map' },
+          tierContextWindowConfidence: { opus: 'known' },
+          tierContextWindowBindings: {
+            opus: {
+              provider: 'anthropic',
+              baseUrl: 'https://example.com/v1',
+              model: 'm-opus',
+            },
+          },
         },
       },
       label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
@@ -233,6 +318,7 @@ describe('replEnvironmentService', () => {
         model: 'unknown-model',
         defaultTier: 'haiku',
         contextWindowTokens: 50000,
+        contextWindowTokensSource: 'env_override',
         tierContextWindowTokens: undefined,
       },
     })
@@ -250,6 +336,43 @@ describe('replEnvironmentService', () => {
         nextPatch: { llm: { defaultTier: 'haiku' } },
       }),
     )
+  })
+
+  it('clears stale capability source/confidence when /model falls back to legacy scalar budget', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'unknown-model',
+        defaultTier: 'sonnet',
+        contextWindowTokens: 50000,
+        contextWindowTokensSource: 'legacy_config',
+        tierContextWindowTokens: { sonnet: 50000 },
+        tierContextWindowSources: { sonnet: 'provider_detail' },
+        tierContextWindowConfidence: { sonnet: 'detected' },
+        tierContextWindowBindings: {
+          sonnet: { provider: 'anthropic', baseUrl: 'https://example.com/v1', model: 'old-model' },
+        },
+      },
+    })
+
+    await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenNthCalledWith(2, {
+      fileStore: { kind: 'store' },
+      filePath: '/repo/.formax/config.json',
+      nextPatch: {
+        llm: {
+          contextWindowTokens: 50000,
+          tierContextWindowTokens: { sonnet: 50000 },
+          tierContextWindowSources: {},
+          tierContextWindowConfidence: {},
+          tierContextWindowBindings: {},
+        },
+      },
+      label: 'llm.contextWindowTokens/llm.tierContextWindowTokens',
+    })
   })
 
   it('loadWorkspaceRoots delegates to detectWorkspaceRoots with node file store', async () => {

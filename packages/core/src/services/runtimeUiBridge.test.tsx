@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => {
     SetupWizard,
     TranscriptPerfScreen,
     setupMode: 'done' as 'done' | 'cancel' | 'missing-provider',
+    setupDraft: null as any,
     lastSetupProps: null as any,
     lastRenderInstance: null as null | { unmount: ReturnType<typeof vi.fn> },
   }
@@ -95,6 +96,7 @@ describe('runtimeUiBridge', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.setupMode = 'done'
+    mocks.setupDraft = null
     mocks.lastSetupProps = null
     mocks.lastRenderInstance = null
 
@@ -108,14 +110,16 @@ describe('runtimeUiBridge', () => {
         queueMicrotask(async () => {
           if (!mocks.lastSetupProps) return
           if (mocks.setupMode === 'done') {
-            await mocks.lastSetupProps.onWrite({
-              provider: 'openai',
-              baseUrl: 'https://example.com/v1',
-              apiKey: 'key',
-              model: 'gpt-4o-mini',
-              tierModels: { fast: 'gpt-4o-mini' },
-              contextWindowTokens: 8192,
-            })
+            await mocks.lastSetupProps.onWrite(
+              mocks.setupDraft ?? {
+                provider: 'openai',
+                baseUrl: 'https://example.com/v1',
+                apiKey: 'key',
+                model: 'gpt-4o-mini',
+                tierModels: { fast: 'gpt-4o-mini' },
+                contextWindowTokens: 8192,
+              },
+            )
             mocks.lastSetupProps.onDone()
             return
           }
@@ -190,6 +194,56 @@ describe('runtimeUiBridge', () => {
     })
     expect(mocks.lastSetupProps.testConnection).toBe(mocks.testSetupConnection)
     expect(mocks.lastRenderInstance?.unmount).toHaveBeenCalledTimes(1)
+  })
+
+  it('runLegacySetupWizard preserves partial tier capability metadata', async () => {
+    mocks.setupMode = 'done'
+    mocks.setupDraft = {
+      provider: 'openai',
+      baseUrl: 'https://example.com/v1',
+      apiKey: 'key',
+      model: 'gpt-4o-mini',
+      tierModels: {
+        haiku: 'custom-haiku',
+        sonnet: 'gpt-4o-mini',
+        opus: 'custom-opus',
+      },
+      tierContextWindowTokens: {
+        haiku: 32768,
+        sonnet: 128000,
+        opus: 32768,
+      },
+      tierContextWindowSources: {
+        sonnet: 'provider_detail',
+      },
+      tierContextWindowConfidence: {
+        sonnet: 'detected',
+      },
+      tierContextWindowBindings: {
+        sonnet: {
+          provider: 'openai',
+          baseUrl: 'https://example.com/v1',
+          model: 'gpt-4o-mini',
+        },
+      },
+      contextWindowTokens: 128000,
+    }
+
+    await expect(runLegacySetupWizard({ cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })).resolves.toBeUndefined()
+
+    expect(mocks.writeSetupFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tierContextWindowSources: { sonnet: 'provider_detail' },
+        tierContextWindowConfidence: { sonnet: 'detected' },
+        tierContextWindowBindings: {
+          sonnet: {
+            provider: 'openai',
+            baseUrl: 'https://example.com/v1',
+            model: 'gpt-4o-mini',
+          },
+        },
+      }),
+    )
   })
 
   it('runLegacySetupWizard rejects when canceled', async () => {

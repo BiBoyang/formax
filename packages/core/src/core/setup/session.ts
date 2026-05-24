@@ -1,3 +1,6 @@
+import type { ModelContextWindowMetadata } from '../models/modelCapability.js'
+import { createModelContextWindowMetadata } from '../models/modelCapability.js'
+import { inferContextWindowTokens } from '../models/inferContextWindowTokens.js'
 import type { ModelTier, ProviderId } from '../../config/settings/schema.js'
 import type {
   ConnectionTestResult,
@@ -18,6 +21,7 @@ export type SetupSessionState = {
   providers: SetupProviderOption[]
   availableModels: string[]
   modelContextWindows: Record<string, number>
+  modelContextWindowMetadata: Record<string, ModelContextWindowMetadata>
   modelTier: ModelTier | null
   test: { status: 'idle' | 'running' | 'error'; lastError: ConnectionTestResult | null }
   error: string | null
@@ -70,17 +74,6 @@ function normalizeBaseUrl(_provider: ProviderId, input: string): string {
   return trimmed
 }
 
-function inferContextWindowTokens(model: string): number {
-  const m = String(model || '').trim().toLowerCase()
-  if (!m) return 32768
-  if (m.startsWith('claude-')) return 200000
-  if (m.startsWith('gpt-4o') || m.startsWith('gpt-4.1') || m.startsWith('gpt-4-turbo')) return 128000
-  if (m === 'gpt-4' || m.startsWith('gpt-4-')) return 8192
-  if (m.startsWith('gpt-3.5')) return 16385
-  if (m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) return 128000
-  return 32768
-}
-
 export function createSetupSession(args: {
   providers: SetupProviderOption[]
   testConnection: ConnectionTester
@@ -103,6 +96,7 @@ export function createSetupSession(args: {
     providers: args.providers,
     availableModels: [],
     modelContextWindows: {},
+    modelContextWindowMetadata: {},
     modelTier: null,
     test: { status: 'idle', lastError: null },
     error: null,
@@ -121,6 +115,7 @@ export function createSetupSession(args: {
   const resetTest = () => {
     state.availableModels = []
     state.modelContextWindows = {}
+    state.modelContextWindowMetadata = {}
     state.test = { status: 'idle', lastError: null }
     modelTierIndex = 0
     syncModelTierState()
@@ -131,29 +126,92 @@ export function createSetupSession(args: {
     state.draft.model = ''
     state.draft.tierModels = createEmptyTierModels()
     state.draft.tierContextWindowTokens = createDefaultTierContextWindows()
+    state.draft.tierContextWindowSources = undefined
+    state.draft.tierContextWindowConfidence = undefined
+    state.draft.tierContextWindowBindings = undefined
     state.draft.contextWindowTokens = undefined
+    state.draft.contextWindowBinding = undefined
     modelTierIndex = 0
     syncModelTierState()
+  }
+
+  const getMetadataForModel = (model: string): ModelContextWindowMetadata | null => {
+    const key = String(model || '').trim()
+    if (!key) return null
+    const existing = state.modelContextWindowMetadata[key]
+    if (existing) return existing
+    const detected = state.modelContextWindows[key]
+    if (Number.isFinite(detected) && detected > 0 && state.draft.provider) {
+      return createModelContextWindowMetadata({
+        provider: state.draft.provider,
+        baseUrl: state.draft.baseUrl,
+        model: key,
+        tokens: detected,
+        source: 'provider_list',
+        confidence: 'detected',
+      })
+    }
+    if (!state.draft.provider) return null
+    return createModelContextWindowMetadata({
+      provider: state.draft.provider,
+      baseUrl: state.draft.baseUrl,
+      model: key,
+      tokens: inferContextWindowTokens(key),
+      source: 'heuristic',
+      confidence: 'heuristic',
+    })
+  }
+
+  const applyMetadataToTier = (tier: ModelTier, metadata: ModelContextWindowMetadata | null) => {
+    if (!metadata) return
+    state.draft.tierContextWindowTokens = {
+      ...state.draft.tierContextWindowTokens,
+      [tier]: metadata.tokens,
+    }
+    state.draft.tierContextWindowSources = {
+      ...(state.draft.tierContextWindowSources || {}),
+      [tier]: metadata.source,
+    }
+    state.draft.tierContextWindowConfidence = {
+      ...(state.draft.tierContextWindowConfidence || {}),
+      [tier]: metadata.confidence,
+    }
+    state.draft.tierContextWindowBindings = {
+      ...(state.draft.tierContextWindowBindings || {}),
+      [tier]: metadata.binding,
+    }
+  }
+
+  const clearMetadataForTier = (tier: ModelTier) => {
+    const nextSources = state.draft.tierContextWindowSources ? { ...state.draft.tierContextWindowSources } : undefined
+    const nextConfidence = state.draft.tierContextWindowConfidence
+      ? { ...state.draft.tierContextWindowConfidence }
+      : undefined
+    const nextBindings = state.draft.tierContextWindowBindings ? { ...state.draft.tierContextWindowBindings } : undefined
+    if (nextSources) delete nextSources[tier]
+    if (nextConfidence) delete nextConfidence[tier]
+    if (nextBindings) delete nextBindings[tier]
+    state.draft.tierContextWindowSources = nextSources && Object.keys(nextSources).length > 0 ? nextSources : undefined
+    state.draft.tierContextWindowConfidence =
+      nextConfidence && Object.keys(nextConfidence).length > 0 ? nextConfidence : undefined
+    state.draft.tierContextWindowBindings =
+      nextBindings && Object.keys(nextBindings).length > 0 ? nextBindings : undefined
   }
 
   const updateDraftContextWindow = (model: string) => {
     const key = String(model || '').trim()
     if (!key) {
       state.draft.contextWindowTokens = undefined
+      state.draft.contextWindowBinding = undefined
       return
     }
-    const fromDetection = state.modelContextWindows[key]
-    state.draft.contextWindowTokens = Number.isFinite(fromDetection) && fromDetection > 0
-      ? Math.round(fromDetection)
-      : inferContextWindowTokens(key)
+    const metadata = getMetadataForModel(key)
+    state.draft.contextWindowTokens = metadata?.tokens ?? inferContextWindowTokens(key)
+    state.draft.contextWindowBinding = metadata?.binding
   }
 
   const inferWindowForModel = (model: string): number => {
-    const key = String(model || '').trim()
-    if (!key) return 32768
-    const detected = state.modelContextWindows[key]
-    if (Number.isFinite(detected) && detected > 0) return Math.round(detected)
-    return inferContextWindowTokens(key)
+    return getMetadataForModel(model)?.tokens ?? inferContextWindowTokens(model)
   }
 
   const setError = (message: string | null) => {
@@ -237,12 +295,25 @@ export function createSetupSession(args: {
       if (quickModel) {
         state.draft.model = quickModel
         state.draft.tierModels = { haiku: quickModel, sonnet: quickModel, opus: quickModel }
-        const windowTokens = inferWindowForModel(quickModel)
+        const metadata = getMetadataForModel(quickModel)
+        const windowTokens = metadata?.tokens ?? inferContextWindowTokens(quickModel)
         state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
+        state.draft.tierContextWindowSources = metadata
+          ? { haiku: metadata.source, sonnet: metadata.source, opus: metadata.source }
+          : undefined
+        state.draft.tierContextWindowConfidence = metadata
+          ? { haiku: metadata.confidence, sonnet: metadata.confidence, opus: metadata.confidence }
+          : undefined
+        state.draft.tierContextWindowBindings = metadata
+          ? { haiku: metadata.binding, sonnet: metadata.binding, opus: metadata.binding }
+          : undefined
       } else {
         state.draft.model = ''
         state.draft.tierModels = createEmptyTierModels()
         state.draft.tierContextWindowTokens = createDefaultTierContextWindows()
+        state.draft.tierContextWindowSources = undefined
+        state.draft.tierContextWindowConfidence = undefined
+        state.draft.tierContextWindowBindings = undefined
       }
     } else {
       const seed = state.draft.model.trim()
@@ -251,6 +322,29 @@ export function createSetupSession(args: {
           haiku: pickTierModel(tierModels.haiku, seed),
           sonnet: pickTierModel(tierModels.sonnet, seed),
           opus: pickTierModel(tierModels.opus, seed),
+        }
+        const metadata = getMetadataForModel(seed)
+        if (metadata) {
+          state.draft.tierContextWindowTokens = {
+            haiku: metadata.tokens,
+            sonnet: metadata.tokens,
+            opus: metadata.tokens,
+          }
+          state.draft.tierContextWindowSources = {
+            haiku: metadata.source,
+            sonnet: metadata.source,
+            opus: metadata.source,
+          }
+          state.draft.tierContextWindowConfidence = {
+            haiku: metadata.confidence,
+            sonnet: metadata.confidence,
+            opus: metadata.confidence,
+          }
+          state.draft.tierContextWindowBindings = {
+            haiku: metadata.binding,
+            sonnet: metadata.binding,
+            opus: metadata.binding,
+          }
         }
       }
       state.draft.model = state.draft.tierModels.sonnet.trim()
@@ -267,16 +361,29 @@ export function createSetupSession(args: {
     if (state.draft.modelMode === 'quick') {
       state.draft.model = value
       state.draft.tierModels = { haiku: value, sonnet: value, opus: value }
-      const windowTokens = inferWindowForModel(value)
+      const metadata = getMetadataForModel(value)
+      const windowTokens = metadata?.tokens ?? inferContextWindowTokens(value)
       state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
+      state.draft.tierContextWindowSources = metadata
+        ? { haiku: metadata.source, sonnet: metadata.source, opus: metadata.source }
+        : undefined
+      state.draft.tierContextWindowConfidence = metadata
+        ? { haiku: metadata.confidence, sonnet: metadata.confidence, opus: metadata.confidence }
+        : undefined
+      state.draft.tierContextWindowBindings = metadata
+        ? { haiku: metadata.binding, sonnet: metadata.binding, opus: metadata.binding }
+        : undefined
       updateDraftContextWindow(state.draft.model)
     } else {
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
       state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
+      const metadata = getMetadataForModel(value)
       state.draft.tierContextWindowTokens = {
         ...state.draft.tierContextWindowTokens,
-        [tier]: inferWindowForModel(value),
+        [tier]: metadata?.tokens ?? inferContextWindowTokens(value),
       }
+      if (metadata) applyMetadataToTier(tier, metadata)
+      else clearMetadataForTier(tier)
       if (tier === 'sonnet') {
         state.draft.model = value
         updateDraftContextWindow(state.draft.model)
@@ -356,6 +463,7 @@ export function createSetupSession(args: {
     if (res.ok === true) {
       state.availableModels = res.models
       state.modelContextWindows = { ...(res.modelContextWindows || {}) }
+      state.modelContextWindowMetadata = { ...(res.modelContextWindowMetadata || {}) }
       state.test = { status: 'idle', lastError: null }
       state.step = 'modelMode'
       modelTierIndex = 0
