@@ -317,6 +317,7 @@ describe('TaskSubAgentToolHandler', () => {
     const parsed = JSON.parse(String(result.content))
     expect(parsed.status).toBe('error')
     expect(parsed.error).toBe('boom')
+    expect(parsed.transcript).toContain('Error: boom')
     expect(parsed.agent_id).toBe('agent-1')
   })
 

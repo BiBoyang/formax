@@ -194,6 +194,44 @@ class StringThrowClient {
   }
 }
 
+class AbortFetchClient {
+  async streamOnce(): Promise<StreamTurnResult> {
+    throw Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })
+  }
+}
+
+class FlakyFetchClient {
+  public calls = 0
+
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+    this.calls++
+    if (this.calls === 1) {
+      throw Object.assign(new TypeError('fetch failed'), {
+        cause: new Error('connect ECONNRESET api.example.test'),
+      })
+    }
+
+    args.onEvent({ type: 'assistant_delta', text: 'retry ok' } as any)
+    return {
+      assistantBlocks: [{ type: 'text', text: 'retry ok' }],
+      stopReason: 'end_turn',
+      toolResults: [],
+    }
+  }
+}
+
+class ProgressThenFetchFailClient {
+  public calls = 0
+
+  async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+    this.calls++
+    args.onEvent({ type: 'assistant_delta', text: 'partial' } as any)
+    throw Object.assign(new TypeError('fetch failed'), {
+      cause: new Error('socket hang up'),
+    })
+  }
+}
+
 describe('SubAgentRunner', () => {
   it('filters tools by allowlist and forbids nested tools', async () => {
     const client = new RecordingClient('ok')
@@ -690,5 +728,79 @@ describe('SubAgentRunner', () => {
     })
     expect(failed.success).toBe(false)
     expect(failed.error).toBe('string-error')
+  })
+
+  it('normalizes abort-like subagent failures to Request aborted', async () => {
+    const runner = createSubAgentRunner({
+      client: new AbortFetchClient() as any,
+      executor: createToolExecutor([]),
+      allTools: [tool('Read')],
+    })
+
+    const result = await runner.run({
+      cwd: TEST_CWD,
+      agent: {
+        name: 'agent-abort',
+        description: 'abort',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Request aborted')
+  })
+
+  it('retries one initial fetch failure before surfacing a network error', async () => {
+    const client = new FlakyFetchClient()
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor: createToolExecutor([]),
+      allTools: [tool('Read')],
+    })
+    const events: string[] = []
+
+    const result = await runner.run({
+      cwd: TEST_CWD,
+      agent: {
+        name: 'agent-retry',
+        description: 'retry',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task',
+      onEvent: (event) => events.push(event.type),
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.response).toBe('retry ok')
+    expect(client.calls).toBe(2)
+    expect(events).not.toContain('error')
+    expect(events.at(-1)).toBe('complete')
+  })
+
+  it('does not retry network failures once the subagent already emitted progress', async () => {
+    const client = new ProgressThenFetchFailClient()
+    const runner = createSubAgentRunner({
+      client: client as any,
+      executor: createToolExecutor([]),
+      allTools: [tool('Read')],
+    })
+
+    const result = await runner.run({
+      cwd: TEST_CWD,
+      agent: {
+        name: 'agent-progress',
+        description: 'progress',
+        tools: ['Read'],
+        systemPrompt: 'x',
+      },
+      task: 'task',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('TypeError: fetch failed (cause: socket hang up)')
+    expect(client.calls).toBe(1)
   })
 })

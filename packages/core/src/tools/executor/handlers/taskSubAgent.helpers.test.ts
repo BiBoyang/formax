@@ -149,11 +149,13 @@ describe('taskSubAgent helpers', () => {
       entries: entries as any,
       responseText: 'response',
       doneLine: 'Done (1 tool use · 10 tokens · 1s)',
+      errorLine: 'Error: fetch failed',
       runningHintLine: 'ctrl+b to run in background',
     })
     expect(transcript.join('\n')).toContain('Prompt:')
     expect(transcript.join('\n')).toContain('Response:')
-    expect(transcript[transcript.length - 1]).toContain('Done')
+    expect(transcript.join('\n')).toContain('Done (1 tool use · 10 tokens · 1s)')
+    expect(transcript.join('\n')).toContain('Error: fetch failed')
 
     const blankHeaderTranscript = taskSubAgentTestExports.renderTaskTranscriptLines({
       taskPrompt: '',
@@ -258,6 +260,9 @@ describe('taskSubAgent helpers', () => {
     expect(taskSubAgentTestExports.formatTokenCount(999)).toBe('999')
     expect(taskSubAgentTestExports.formatTokenCount(1200)).toBe('1.2k')
     expect(taskSubAgentTestExports.formatTokenCount(120000)).toBe('120k')
+    expect(taskSubAgentTestExports.formatTaskFailureText('boom')).toBe('Error: boom')
+    expect(taskSubAgentTestExports.formatTaskFailureText('Error: boom')).toBe('Error: boom')
+    expect(taskSubAgentTestExports.formatTaskFailureText('')).toBe('Error: Agent failed')
     expect(taskSubAgentTestExports.formatTokenCount(2000000)).toBe('2.0m')
     expect(taskSubAgentTestExports.formatTokenCount(Number.NaN)).toBe('')
     expect(taskSubAgentTestExports.formatDuration(500)).toBe('1s')

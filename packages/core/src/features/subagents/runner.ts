@@ -9,10 +9,12 @@ import type { StreamEvent, StreamSink } from '../../streaming/types'
 import type { SubAgentConfig, SubAgentResult } from './types'
 import { randomUUID } from 'node:crypto'
 import { SUBAGENT_DENY_TOOLS } from '../../tools/executor/subagentDenyTools'
+import { formatErrorWithCauses, isAbortLikeError, isRetriableNetworkError } from '../../shared/utils/errorHandling'
 
 const DEFAULT_SUMMARY_MAX_CHARS = 500
 const SUMMARY_TRUNCATION_SUFFIX = '…'
 const READONLY_SUBAGENT_DENY_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const
+const SUBAGENT_INITIAL_REQUEST_MAX_ATTEMPTS = 2
 
 export interface SubAgentRunner {
   run(args: {
@@ -123,55 +125,90 @@ export function createSubAgentRunner(deps: {
         currentMode = next
       }
 
-      let summary = ''
-      let response = ''
-      const handleEvent: StreamSink = (ev: StreamEvent) => {
-        onEvent?.(ev)
-        if (ev.type === 'assistant_delta' && typeof ev.text === 'string') {
-          response += ev.text
-        }
-      }
       const resolvedPromptBudget = promptBudget === undefined ? (deps.promptBudget ?? null) : promptBudget
 
-      try {
-        const nextHistory = await engine.runTurn({
-          history: resumeSession?.history ?? [],
-          user: { role: 'user', content: [{ type: 'text', text: task }] },
-          system,
-          tools: allowedTools,
-          onEvent: handleEvent,
-          cwd: runCwd,
-          signal,
-          model,
-          promptBudget: resolvedPromptBudget,
-          exec: {
-            agentDepth: 1,
-            replMode: currentMode,
-            getReplMode,
-            setReplMode,
-            interactive,
-            allowTools: Array.from(allowed),
-            denyTools,
-          },
-        })
-        sessions.set(agentId, { agentName: agent.name, cwd: runCwd, history: nextHistory })
+      for (let attempt = 0; attempt < SUBAGENT_INITIAL_REQUEST_MAX_ATTEMPTS; attempt++) {
+        let response = ''
+        let sawProgress = false
+        let pendingErrorEvent: Extract<StreamEvent, { type: 'error' }> | null = null
+        const handleEvent: StreamSink = (ev: StreamEvent) => {
+          if (ev.type === 'error') {
+            pendingErrorEvent = ev
+            return
+          }
 
-        const trimmed = response.trim()
-        const limited =
-          trimmed.length > DEFAULT_SUMMARY_MAX_CHARS
-            ? trimmed.slice(0, DEFAULT_SUMMARY_MAX_CHARS) + SUMMARY_TRUNCATION_SUFFIX
-            : trimmed
-
-        return { agentId, response: trimmed, summary: limited, success: true }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        return {
-          agentId,
-          response: '',
-          summary: '',
-          success: false,
-          error: msg,
+          onEvent?.(ev)
+          if (ev.type !== 'usage' && ev.type !== 'complete') sawProgress = true
+          if (ev.type === 'assistant_delta' && typeof ev.text === 'string') {
+            response += ev.text
+          }
         }
+
+        try {
+          const nextHistory = await engine.runTurn({
+            history: resumeSession?.history ?? [],
+            user: { role: 'user', content: [{ type: 'text', text: task }] },
+            system,
+            tools: allowedTools,
+            onEvent: handleEvent,
+            cwd: runCwd,
+            signal,
+            model,
+            promptBudget: resolvedPromptBudget,
+            exec: {
+              agentDepth: 1,
+              replMode: currentMode,
+              getReplMode,
+              setReplMode,
+              interactive,
+              allowTools: Array.from(allowed),
+              denyTools,
+            },
+          })
+          sessions.set(agentId, { agentName: agent.name, cwd: runCwd, history: nextHistory })
+
+          const trimmed = response.trim()
+          const limited =
+            trimmed.length > DEFAULT_SUMMARY_MAX_CHARS
+              ? trimmed.slice(0, DEFAULT_SUMMARY_MAX_CHARS) + SUMMARY_TRUNCATION_SUFFIX
+              : trimmed
+
+          return { agentId, response: trimmed, summary: limited, success: true }
+        } catch (error) {
+          if (isAbortLikeError(error, signal)) {
+            if (pendingErrorEvent) onEvent?.(pendingErrorEvent)
+            return {
+              agentId,
+              response: '',
+              summary: '',
+              success: false,
+              error: 'Request aborted',
+            }
+          }
+
+          const shouldRetry =
+            attempt + 1 < SUBAGENT_INITIAL_REQUEST_MAX_ATTEMPTS &&
+            !sawProgress &&
+            isRetriableNetworkError(error)
+          if (shouldRetry) continue
+
+          if (pendingErrorEvent) onEvent?.(pendingErrorEvent)
+          return {
+            agentId,
+            response: '',
+            summary: '',
+            success: false,
+            error: formatErrorWithCauses(error),
+          }
+        }
+      }
+
+      return {
+        agentId,
+        response: '',
+        summary: '',
+        success: false,
+        error: 'Sub-agent failed unexpectedly',
       }
     },
   }

@@ -249,6 +249,7 @@ export function createTaskSubAgentToolHandler(deps: {
             durationMs,
             isError: !result.success,
           }),
+          errorLine: !result.success && result.error ? formatTaskFailureText(result.error) : undefined,
         })
 
         const payload: Record<string, any> = {
@@ -267,7 +268,7 @@ export function createTaskSubAgentToolHandler(deps: {
           agent_id: result.agentId,
           summary:
             limited ||
-            (result.success ? '(no output)' : `Error: ${result.error || 'Agent failed'}`),
+            (result.success ? '(no output)' : formatTaskFailureText(result.error)),
           json: JSON.stringify(payload, null, 2),
           is_error: !result.success,
         }
@@ -497,6 +498,7 @@ function renderTaskTranscriptLines(args: {
   entries: NestedToolEntry[]
   responseText: string
   doneLine?: string
+  errorLine?: string
   runningHintLine?: string
 }): string[] {
   const lines: string[] = []
@@ -537,6 +539,7 @@ function renderTaskTranscriptLines(args: {
   }
 
   if (args.doneLine) lines.push(args.doneLine)
+  if (args.errorLine) lines.push(args.errorLine)
   if (!args.doneLine && args.runningHintLine && args.entries.some((entry) => entry.status === 'running')) {
     lines.push(args.runningHintLine)
   }
@@ -583,6 +586,12 @@ function renderDoneLine(args: { toolUses: number; usage: TokenUsage; durationMs:
 
   const parts = [toolUsesPart, tokensPart, duration].filter(Boolean).join(' · ')
   return `Done (${parts})`
+}
+
+function formatTaskFailureText(error: string | undefined): string {
+  const normalized = String(error || '').trim()
+  if (!normalized) return 'Error: Agent failed'
+  return normalized.startsWith('Error: ') ? normalized : `Error: ${normalized}`
 }
 
 function splitLines(s: string): string[] {
@@ -650,6 +659,7 @@ export const taskSubAgentTestExports = {
   renderTaskTranscriptLines,
   renderNestedToolResultLines,
   renderDoneLine,
+  formatTaskFailureText,
   splitLines,
   truncateTextByChars,
   sumTokens,
