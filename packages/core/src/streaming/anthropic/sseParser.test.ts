@@ -67,6 +67,33 @@ describe('SSE Streaming Parser', () => {
     expect(callbacks.thinkingStops).toEqual([{ index: 0 }])
   })
 
+  it('preserves redacted_thinking blocks for tool-use round trips', async () => {
+    const callbacks = createMockCallbacks()
+    const events = [
+      { type: 'message_start', message: { id: 'msg_1', role: 'assistant' } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'redacted_thinking', data: 'encrypted-data' } },
+      { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'tool_1', name: 'Read' } },
+      { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"file_path":"a.ts"}' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'content_block_stop', index: 1 },
+      { type: 'message_delta', delta: { stop_reason: 'tool_use' } },
+      { type: 'message_stop' },
+    ]
+
+    const result = await parseAnthropicSSEStream(createMockSSEStream(events), callbacks)
+
+    expect(result.contentBlocks[0]).toEqual({ index: 0, type: 'redacted_thinking', data: 'encrypted-data' })
+    expect(result.contentBlocks[1]).toMatchObject({
+      index: 1,
+      type: 'tool_use',
+      id: 'tool_1',
+      name: 'Read',
+      input: { file_path: 'a.ts' },
+    })
+    expect(callbacks.thinkingDeltas).toEqual([])
+    expect(callbacks.thinkingStops).toEqual([])
+  })
+
   /**
    * Property 2: SSE Text Delta Accumulation
    * 

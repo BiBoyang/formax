@@ -251,6 +251,113 @@ describe('pruneForPromptBudget', () => {
     expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 1_000, effectiveContextWindowPercent: 1 })
   })
 
+  it('preserves assistant thinking protocol blocks when reducing tool-use history', () => {
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'start' }] },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'thinking', thinking: 'kept reasoning', signature: 'sig-1' },
+          { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
+          { type: 'text', text: 'drop visible prelude ' + 'y'.repeat(100_000) },
+          { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/repo/a.ts' } },
+        ],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result', tool_use_id: 't1', content: 'result' }],
+      },
+    ]
+
+    const out = pruneForPromptBudget({
+      system: [],
+      messages,
+      contextWindowTokens: 1_000,
+      effectiveContextWindowPercent: 1,
+    })
+
+    expect(out.pruned).toBe(true)
+    expectNoOrphanTools(out.messages as any)
+    const assistant = out.messages.find((message: any) => message?.role === 'assistant') as any
+    expect(assistant?.content).toEqual([
+      { type: 'thinking', thinking: 'kept reasoning', signature: 'sig-1' },
+      { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
+      { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/repo/a.ts' } },
+    ])
+    expect(JSON.stringify(out.messages)).not.toContain('drop visible prelude')
+  })
+
+  it('does not preserve standalone assistant thinking when reducing history', () => {
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'start' }] },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'thinking', thinking: 'standalone hidden reasoning', signature: 'sig-standalone' },
+          { type: 'redacted_thinking', data: 'standalone-redacted-thinking' },
+          { type: 'text', text: 'visible reply ' + 'x'.repeat(100_000) },
+        ],
+      },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'thinking', thinking: 'tool reasoning', signature: 'sig-tool' },
+          { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/repo/a.ts' } },
+        ],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result', tool_use_id: 't1', content: 'result' }],
+      },
+    ]
+
+    const out = pruneForPromptBudget({
+      system: [],
+      messages,
+      contextWindowTokens: 1_000,
+      effectiveContextWindowPercent: 1,
+    })
+
+    const rendered = JSON.stringify(out.messages)
+    expect(out.pruned).toBe(true)
+    expect(rendered).not.toContain('standalone hidden reasoning')
+    expect(rendered).not.toContain('standalone-redacted-thinking')
+    expect(rendered).not.toContain('visible reply')
+    expect(rendered).toContain('tool reasoning')
+    expectNoOrphanTools(out.messages as any)
+  })
+
+  it('omits thinking blocks before budget reduction when requested', () => {
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'important user context' }] },
+      {
+        role: 'assistant' as const,
+        content: [
+          { type: 'thinking', thinking: 'x'.repeat(100_000), signature: 'sig-large' },
+          { type: 'redacted_thinking', data: 'y'.repeat(100_000) },
+          { type: 'text', text: 'short answer' },
+        ],
+      },
+    ]
+
+    const out = pruneForPromptBudget({
+      system: [],
+      messages,
+      contextWindowTokens: 1_000,
+      effectiveContextWindowPercent: 1,
+      omitThinkingBlocks: true,
+    })
+
+    const rendered = JSON.stringify(out.messages)
+    expect(out.pruned).toBe(true)
+    expect(rendered).toContain('important user context')
+    expect(rendered).toContain('short answer')
+    expect(rendered).not.toContain('sig-large')
+    expect(rendered).not.toContain('x'.repeat(100))
+    expect(rendered).not.toContain('y'.repeat(100))
+    expectFitsBudget({ system: [], messages: out.messages as any, contextWindowTokens: 1_000, effectiveContextWindowPercent: 1 })
+  })
+
   it('handles malformed/sparse messages and mixed block kinds while forcing fallback', () => {
     const sparse: any[] = new Array(3)
     sparse[0] = {
@@ -344,6 +451,7 @@ describe('pruneForPromptBudget', () => {
           role: 'assistant',
           content: [
             { type: 'thinking', thinking: 'internal reasoning' },
+            { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
             { type: 'tool_result', content: { nested: true } },
             { type: 'tool_use', id: 'u1', name: 'Read' },
             { type: 'unknown_kind', value: 1 },
@@ -357,7 +465,8 @@ describe('pruneForPromptBudget', () => {
     expect(out.pruned).toBe(true)
     expect(out.messages.length).toBeGreaterThan(0)
     const flattened = JSON.stringify(out.messages)
-    expect(flattened).toContain('internal reasoning')
+    expect(flattened).not.toContain('internal reasoning')
+    expect(flattened).not.toContain('encrypted-redacted-thinking')
     expect(flattened).not.toContain('[object Object]')
     expect(flattened).toContain('unknown_kind')
   })

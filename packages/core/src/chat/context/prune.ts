@@ -30,7 +30,11 @@ function dropLeadingToolResultMessages(messages: PromptMessage[]): PromptMessage
 
 function keepOnlyToolBlocks(msg: PromptMessage): PromptMessage | null {
   if (msg.role === 'assistant') {
-    const next = msg.content.filter((b: any) => b?.type === 'tool_use')
+    const hasToolUse = msg.content.some((b: any) => b?.type === 'tool_use')
+    if (!hasToolUse) return null
+    const next = msg.content.filter((b: any) =>
+      b?.type === 'tool_use' || b?.type === 'thinking' || b?.type === 'redacted_thinking',
+    )
     return next.length > 0 ? { ...msg, content: next as any } : null
   }
 
@@ -62,12 +66,33 @@ function normalizeToolPairs(messages: PromptMessage[]): PromptMessage[] {
   return dropOrphanToolBlocks(messages).messages
 }
 
+function stripThinkingBlocks(messages: PromptMessage[]): { messages: PromptMessage[]; changed: boolean } {
+  let changed = false
+  const out: PromptMessage[] = []
+
+  for (const message of messages) {
+    if (!message || !Array.isArray(message.content)) continue
+    const content = message.content.filter((block: any) => {
+      const keep = block?.type !== 'thinking' && block?.type !== 'redacted_thinking'
+      if (!keep) changed = true
+      return keep
+    })
+    if (content.length === 0) {
+      changed = true
+      continue
+    }
+    out.push(content.length === message.content.length ? message : { ...message, content: content as any })
+  }
+
+  return { messages: changed ? out : messages, changed }
+}
+
 function squashToSingleTextMessage(msg: PromptMessage, maxChars: number): PromptMessage {
   const chunks: string[] = []
   for (const b of msg.content as any[]) {
     if (!b || typeof b !== 'object') continue
     if (b.type === 'text') chunks.push(String(b.text ?? ''))
-    else if (b.type === 'thinking') chunks.push(String(b.thinking ?? ''))
+    else if (b.type === 'thinking' || b.type === 'redacted_thinking') continue
     else if (b.type === 'tool_result') chunks.push(toolResultContentToText(b.content))
     else if (b.type === 'tool_use') chunks.push(`[tool_use ${String(b.name ?? '')}]`)
     else chunks.push(JSON.stringify(b))
@@ -173,6 +198,7 @@ export function pruneForPromptBudget(args: {
   effectiveContextWindowPercent?: number
   autoCompactLimitPercent?: number
   baselineTokens?: number
+  omitThinkingBlocks?: boolean
 }): { messages: PromptMessage[]; pruned: boolean } {
   const budget = computeContextBudget({
     contextWindowTokens: args.contextWindowTokens,
@@ -181,13 +207,15 @@ export function pruneForPromptBudget(args: {
     baselineTokens: args.baselineTokens,
   })
 
-  const initialEstimate = estimatePromptTokens({ system: args.system, messages: args.messages })
+  const input = args.omitThinkingBlocks ? stripThinkingBlocks(args.messages) : { messages: args.messages, changed: false }
+
+  const initialEstimate = estimatePromptTokens({ system: args.system, messages: input.messages })
   if (initialEstimate <= budget.effectiveLimitTokens) {
-    return { messages: args.messages, pruned: false }
+    return { messages: input.messages, pruned: input.changed }
   }
 
   // Pass 1: truncate tool_result payloads (keeps tool pairs intact, only shortens content).
-  const truncated = args.messages.map(truncateHotContent)
+  const truncated = input.messages.map(truncateHotContent)
   const truncatedEstimate = estimatePromptTokens({ system: args.system, messages: truncated })
   if (truncatedEstimate <= budget.effectiveLimitTokens) {
     return { messages: truncated, pruned: true }

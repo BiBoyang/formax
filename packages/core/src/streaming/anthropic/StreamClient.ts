@@ -230,13 +230,22 @@ function collectFallbackToolResultContent(messages: PromptMessage[]): Map<string
   return out
 }
 
-function clonePromptMessages(messages: PromptMessage[]): PromptMessage[] {
-  return messages.map((message) => ({
-    role: message.role,
-    content: Array.isArray(message.content)
-      ? message.content.map((block) => (block && typeof block === 'object' ? { ...(block as any) } : block))
-      : message.content,
-  }))
+function clonePromptMessages(messages: PromptMessage[], opts?: { omitThinking?: boolean }): PromptMessage[] {
+  const out: PromptMessage[] = []
+  for (const message of messages) {
+    const content = Array.isArray(message.content)
+      ? message.content
+          .filter((block) => {
+            if (opts?.omitThinking !== true) return true
+            const type = (block as any)?.type
+            return type !== 'thinking' && type !== 'redacted_thinking'
+          })
+          .map((block) => (block && typeof block === 'object' ? { ...(block as any) } : block))
+      : message.content
+    if (opts?.omitThinking === true && Array.isArray(content) && content.length === 0) continue
+    out.push({ role: message.role, content })
+  }
+  return out
 }
 
 function findLastCacheControlMessageIndex(messages: PromptMessage[]): number {
@@ -305,7 +314,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
   }
 
   async streamOnce(args: StreamOnceArgs): Promise<StreamTurnResult> {
-    const thinkingEnabled = args.thinkingEnabled ?? true
+    const requestedThinkingEnabled = args.thinkingEnabled ?? true
     const modelForRequest = String(args.model || this.config.model || '').trim() || this.config.model
     const normalizedPrompt = normalizeAnthropicPromptCachingLayout({
       system: args.system,
@@ -331,16 +340,22 @@ export class AnthropicStreamClient implements LlmStreamClient {
             plan: args.cacheEditPlan,
           })
         : normalizedPrompt
-    const buildBasePayload = (prompt: { system: PromptBlock[]; messages: PromptMessage[] }) => ({
+    const thinkingEnabled = requestedThinkingEnabled
+    const buildBasePayload = (
+      prompt: { system: PromptBlock[]; messages: PromptMessage[] },
+      opts?: { omitThinking?: boolean },
+    ) => ({
       stream: true,
       model: modelForRequest,
       max_tokens: args.maxTokens ?? 16000,
-      messages: clonePromptMessages(prompt.messages),
+      messages: clonePromptMessages(prompt.messages, opts),
       system: prompt.system,
       tools: args.tools,
     })
     const basePayload = buildBasePayload(requestPrompt)
     const fallbackBasePayload = buildBasePayload(fallbackPrompt)
+    const noThinkingBasePayload = buildBasePayload(requestPrompt, { omitThinking: true })
+    const noThinkingFallbackBasePayload = buildBasePayload(fallbackPrompt, { omitThinking: true })
 
     const payload = thinkingEnabled
       ? {
@@ -350,7 +365,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
             budget_tokens: Math.min(4096, basePayload.max_tokens),
           },
         }
-      : basePayload
+      : noThinkingBasePayload
     const fallbackPayload = thinkingEnabled
       ? {
           ...fallbackBasePayload,
@@ -359,7 +374,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
             budget_tokens: Math.min(4096, fallbackBasePayload.max_tokens),
           },
         }
-      : fallbackBasePayload
+      : noThinkingFallbackBasePayload
 
     const controller = new AbortController()
     const timeoutId = setTimeout(
@@ -403,7 +418,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
           response = await fetch(`${this.config.baseUrl}/messages`, {
             method: 'POST',
             headers: noThinkingHeaders,
-            body: JSON.stringify(basePayload),
+            body: JSON.stringify(noThinkingBasePayload),
             signal: combinedSignal,
           })
 
@@ -416,7 +431,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
               response = await fetch(`${this.config.baseUrl}/messages`, {
                 method: 'POST',
                 headers: stripAnthropicBetaHeaders(this.headers),
-                body: JSON.stringify(fallbackBasePayload),
+                body: JSON.stringify(noThinkingFallbackBasePayload),
                 signal: combinedSignal,
               })
               if (!response.ok) {
@@ -443,7 +458,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
               response = await fetch(`${this.config.baseUrl}/messages`, {
                 method: 'POST',
                 headers: stripAnthropicBetaHeaders(this.headers),
-                body: JSON.stringify(fallbackBasePayload),
+                body: JSON.stringify(noThinkingFallbackBasePayload),
                 signal: combinedSignal,
               })
               if (!response.ok) {
@@ -559,6 +574,9 @@ export class AnthropicStreamClient implements LlmStreamClient {
           return block.signature
             ? ({ type: 'thinking', thinking: block.thinking || '', signature: block.signature } as PromptBlock)
             : ({ type: 'thinking', thinking: block.thinking || '' } as PromptBlock)
+        }
+        if (block.type === 'redacted_thinking') {
+          return { type: 'redacted_thinking', data: block.data || '' } as PromptBlock
         }
         return block as any
       })

@@ -6,7 +6,7 @@
 - 上游返回 `500 new_api_error`，提示“模型负载已达上限”，但同 key 在官方链路可用。
 - 在 Formax 链路中常见“第 N 轮（例如第 3/4 轮）突然失败”。
 
-## 本次确认的两个独立问题
+## 本次确认的独立问题
 
 ### 1) 历史消息里 `thinking.signature` 丢失（协议字段缺失）
 - 症状：
@@ -37,6 +37,20 @@
 - 参考提交：
   - `189e61d fix(streaming): align anthropic headers with stable profile`
 
+### 3) request-time prune 裁掉 tool-use turn 的 thinking 协议块
+- 症状：
+  - subagent / 长工具链在已经完成多次工具调用后，末尾突然返回：
+    `The content[].thinking in the thinking mode must be passed back to the API.`
+  - 常见于 prompt budget 压力较大、进入 terminal `prune` 的请求。
+- 根因：
+  - Anthropic extended thinking + tool use 要求把工具回合中的 `thinking` / `redacted_thinking` blocks 原样随 tool result 回传；
+  - `pruneForPromptBudget()` 的 essential-tail 路径曾只保留 assistant 的 `tool_use` blocks，丢掉同一 assistant turn 的 `thinking.signature` / `redacted_thinking` 协议伴随块；
+  - fallback no-thinking 请求若继续携带历史 thinking blocks，也会形成不一致 payload。
+- 修复落点：
+  - `packages/core/src/chat/context/prune.ts`
+  - `packages/core/src/streaming/anthropic/sseParser.ts`
+  - `packages/core/src/streaming/anthropic/StreamClient.ts`
+
 ## 重要：不要把 auto-title 请求混入主链路统计
 - auto-title 请求通常特征：
   - `tools = 0`
@@ -54,4 +68,3 @@
    - `status` 统计
    - 失败 request id + 抓包文件路径
 5. 若出现“第 N 轮失败”，优先检查历史中的 `thinking.signature` 是否完整透传。
-

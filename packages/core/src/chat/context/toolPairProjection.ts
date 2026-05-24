@@ -34,11 +34,32 @@ export function dropOrphanToolBlocks(messages: PromptMessage[]): DropOrphanToolB
       continue
     }
 
+    const hasAnyToolUse =
+      message.role === 'assistant' && message.content.some((block: any) => block?.type === 'tool_use')
+    const keptToolUseIds =
+      message.role === 'assistant'
+        ? new Set(
+            message.content
+              .filter((block: any) => block?.type === 'tool_use' && pairedIds.has(String(block.id)))
+              .map((block: any) => String(block.id)),
+          )
+        : null
+    const hasKeptToolUse = Boolean(keptToolUseIds && keptToolUseIds.size > 0)
+
     const nextContent = message.content.filter((block: any) => {
       if (message.role === 'assistant' && block?.type === 'tool_use') {
         const keep = pairedIds.has(String(block.id))
         if (!keep) droppedOrphanToolBlockCount += 1
         return keep
+      }
+      if (
+        message.role === 'assistant' &&
+        (block?.type === 'thinking' || block?.type === 'redacted_thinking')
+      ) {
+        if (!hasAnyToolUse) return true
+        if (hasKeptToolUse) return true
+        droppedOrphanToolBlockCount += 1
+        return false
       }
       if (message.role === 'user' && block?.type === 'tool_result') {
         const keep = pairedIds.has(String(block.tool_use_id))

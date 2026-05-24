@@ -1,6 +1,6 @@
 # Context Strategy Stack 合同（唯一事实源）
 
-最后更新：2026-05-21
+最后更新：2026-05-24
 状态：规范性（Normative）
 
 本文档定义 Formax query-time context middle layer 的唯一事实源，并定义该 middle layer 与更上层 durable compression projection 的边界。
@@ -135,6 +135,11 @@ Claude Code exposes a durable side-state pattern for tool-result content replace
 
 `CSS-304`  
 `prune` 的规范语义 MUST 是 terminal fallback：它的职责是保证最终 request-time payload 进入预算，而不是抢在前置 reducers/projection 之前充当普通变换步骤。
+
+`CSS-304a`
+When `prune` reduces an assistant message that contains `tool_use` blocks, it MUST preserve provider protocol companion blocks required to round-trip that tool-use turn. For Anthropic thinking mode, this includes `thinking` blocks with signatures and `redacted_thinking` blocks. Prune MAY drop visible text from that assistant message, but it MUST NOT reduce an Anthropic tool-use assistant turn to bare `tool_use` blocks when the companion thinking blocks are present in the source history.
+
+When a request path explicitly disables thinking, request-time prune MAY omit `thinking` / `redacted_thinking` blocks before estimating and reducing the request envelope, matching provider adapters that strip those blocks before send. This omission is request-only and MUST NOT rewrite persisted history.
 
 `CSS-305`  
 若 stage 只影响 request-time projection，runtime 返回结构 MUST 能将其 effects 与 persisted `history` 基线分离表达；不得要求调用方从最终 history 倒推 request-only effects。

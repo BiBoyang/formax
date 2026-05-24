@@ -28,6 +28,11 @@ export type ThinkingBlock = {
   signature?: string
 }
 
+export type RedactedThinkingBlock = {
+  type: 'redacted_thinking'
+  data: string
+}
+
 export type AnthropicCacheEditDelete = {
   type: 'delete'
   cacheReference: string
@@ -48,6 +53,7 @@ export type PromptBlock =
   | ToolUseBlock
   | ToolResultBlock
   | ThinkingBlock
+  | RedactedThinkingBlock
   // Allow forward-compatible blocks without breaking callers
   | Record<string, any>
 

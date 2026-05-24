@@ -726,6 +726,169 @@ describe('AnthropicStreamClient.streamOnce', () => {
     )
   })
 
+  it('strips historical thinking blocks when thinkingEnabled is false', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'private reasoning', signature: 'sig-1' },
+            { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
+            { type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'ok' }],
+        },
+      ],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      thinkingEnabled: false,
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.thinking).toBeUndefined()
+    expect(body.messages[0].content).toEqual([
+      expect.objectContaining({ type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } }),
+    ])
+    expect(JSON.stringify(body.messages)).not.toContain('"thinking"')
+    expect(JSON.stringify(body.messages)).not.toContain('"redacted_thinking"')
+  })
+
+  it('keeps thinking payload for active tool-result turns without thinking companions', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'ok' }],
+        },
+      ],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      thinkingEnabled: true,
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(init.headers['anthropic-beta']).toBe(
+      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+    )
+  })
+
+  it('keeps thinking payload for active tool-result turns with redacted thinking companions', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      body: {} as any,
+    })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
+            { type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'ok' }],
+        },
+      ],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+      thinkingEnabled: true,
+    })
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0]
+    const body = JSON.parse(init.body)
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(body.messages[0].content[0]).toEqual({
+      type: 'redacted_thinking',
+      data: 'encrypted-redacted-thinking',
+    })
+  })
+
   it('retries without thinking when provider rejects thinking fields', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
 
@@ -781,6 +944,75 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(secondInit.headers['anthropic-beta']).toBe(
       'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
     )
+  })
+
+  it('strips historical thinking blocks when retrying without thinking', async () => {
+    const { AnthropicStreamClient } = await import('./StreamClient')
+
+    ;(globalThis.fetch as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => 'The `content[].thinking` in the thinking mode must be passed back to the API.',
+        body: null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+    parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+      return {
+        contentBlocks: [{ type: 'text', text: 'ok' }],
+        stopReason: 'end_turn',
+        usage: undefined,
+      }
+    })
+
+    const client = new AnthropicStreamClient({
+      apiKey: 'k',
+      baseUrl: 'http://example',
+      model: 'm',
+      timeoutMs: 1000,
+    })
+
+    await client.streamOnce({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'private reasoning', signature: 'sig-1' },
+            { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
+            { type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'ok' }],
+        },
+      ],
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+    })
+
+    expect((globalThis.fetch as any).mock.calls).toHaveLength(2)
+
+    const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
+    const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
+    const firstBody = JSON.parse(firstInit.body)
+    const secondBody = JSON.parse(secondInit.body)
+    expect(JSON.stringify(firstBody.messages)).toContain('"thinking"')
+    expect(JSON.stringify(firstBody.messages)).toContain('"redacted_thinking"')
+    expect(secondBody.thinking).toBeUndefined()
+    expect(secondBody.messages[0].content).toEqual([
+      expect.objectContaining({ type: 'tool_use', id: 'call_1', name: 'Read', input: { file_path: 'a.ts' } }),
+    ])
+    expect(JSON.stringify(secondBody.messages)).not.toContain('"thinking"')
+    expect(JSON.stringify(secondBody.messages)).not.toContain('"redacted_thinking"')
   })
 
   it('retries once without beta headers when provider rejects anthropic-beta', async () => {
@@ -1463,6 +1695,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
         contentBlocks: [
           { type: 'text', text: 'hello' },
           { type: 'thinking', thinking: 'think' },
+          { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
           { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
           { type: 'foo', bar: 1 },
         ],
@@ -1493,6 +1726,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     expect(out.assistantBlocks).toEqual([
       { type: 'text', text: 'hello' },
       { type: 'thinking', thinking: 'think' },
+      { type: 'redacted_thinking', data: 'encrypted-redacted-thinking' },
       { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'echo 1' } },
       { type: 'foo', bar: 1 },
     ])

@@ -14,13 +14,14 @@ import type { TokenUsage } from '../types'
 
 export interface ContentBlock {
   index: number
-  type: 'text' | 'tool_use' | 'thinking'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
   text?: string
   id?: string      // for tool_use
   name?: string    // for tool_use
   input?: any      // for tool_use, parsed from JSON
   thinking?: string // for thinking blocks
   signature?: string // for thinking blocks
+  data?: string // for redacted_thinking blocks
 }
 
 export interface SSECallbacks {
@@ -219,6 +220,12 @@ function handleSSEEvent(
         }
         if (block.thinking) {
           callbacks.onThinkingDelta(block.thinking, index)
+        }
+      } else if (block?.type === 'redacted_thinking') {
+        contentBlocks[index] = {
+          index,
+          type: 'redacted_thinking',
+          data: block.data || '',
         }
       }
       break

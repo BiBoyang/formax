@@ -79,7 +79,7 @@ Formax 的“上下文管理”分两条线：
 
 - **位置**：`packages/core/src/features/repl/useReplController.ts`
 - **用途**：发送给模型的对话历史（`historyRef.current`）。
-- **核心约束**：必须在预算内，并且在任何截断/压缩后保持 tool_use/tool_result 成对不变量。
+- **核心约束**：必须在预算内，并且在任何截断/压缩后保持 tool_use/tool_result 成对不变量；对 Anthropic thinking 工具回合，还必须保留同一 assistant turn 的 `thinking.signature` / `redacted_thinking` 协议伴随块，不能裁成裸 `tool_use`。
 - **补充约束**：当前主链已开始显式区分：
   - `history`：会进入持久 loop / 下轮 baseline 的历史
   - `requestHistory`：仅用于“本轮发给模型”的请求投影视图

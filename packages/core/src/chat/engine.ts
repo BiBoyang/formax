@@ -277,6 +277,7 @@ export function createChatEngine(deps: {
                 effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
                 autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
                 baselineTokens: promptBudget.baselineTokens,
+                omitThinkingBlocks: thinkingEnabled === false,
               }).messages
             : getContinuationMessagesAfterLatestCompactBoundary(requestLoopMessages)
 
@@ -303,6 +304,7 @@ export function createChatEngine(deps: {
                   effectiveContextWindowPercent: promptBudget.effectiveContextWindowPercent,
                   autoCompactLimitPercent: promptBudget.autoCompactLimitPercent,
                   baselineTokens: promptBudget.baselineTokens,
+                  omitThinkingBlocks: thinkingEnabled === false,
                 }).messages
               : injectedWithUserPromptSubmit
           const toolsForCall = resolveToolsForCall?.() ?? tools
