@@ -297,11 +297,12 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   } = props
   const [showErrorDetails, setShowErrorDetails] = useState(false)
   const [openToolIds, dispatchOpenToolIds] = useReducer(openIdsReducer, new Set<string>())
+  const hasActiveTurn = Boolean(activeTurnId)
 
   const showTurnLoading = Boolean(activeThreadId) &&
     connectionStatus === 'connected' &&
     !isInterrupting &&
-    (isSending || Boolean(activeTurnId))
+    (isSending || hasActiveTurn)
   const {
     transcriptRenderView,
     showJumpToBottom,
@@ -353,6 +354,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     surfaceKind === 'thread' &&
     connectionStatus === 'connected' &&
     !isSending &&
+    !hasActiveTurn &&
     Boolean(inputText.trim())
   const canSubmitInDraft =
     surfaceKind === 'newThreadDraft' &&
@@ -381,6 +383,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 connectionStatus={connectionStatus}
                 canSubmit={canSubmitInDraft}
                 isInputDisabled={!draftCwd}
+                showInterrupt={false}
                 isSending={isSending}
                 isInterrupting={isInterrupting}
                 onInterrupt={onInterrupt}
@@ -448,6 +451,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
               onModeChange={onModeChange}
               connectionStatus={connectionStatus}
               canSubmit={canSubmitInThread}
+              showInterrupt={hasActiveTurn || isInterrupting}
               isSending={isSending}
               isInterrupting={isInterrupting}
               onInterrupt={onInterrupt}

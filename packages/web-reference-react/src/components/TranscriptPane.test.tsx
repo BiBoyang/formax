@@ -141,7 +141,7 @@ describe('TranscriptPane', () => {
     )
   })
 
-  it('enforces send/interrupt states with current composer behavior', () => {
+  it('enforces send/interrupt states with active turn semantics', () => {
     const onInputTextChange = vi.fn()
     const onSend = vi.fn((event) => event.preventDefault())
     const onInterrupt = vi.fn()
@@ -184,9 +184,9 @@ describe('TranscriptPane', () => {
       <TranscriptPane
         {...baseProps({
           activeThreadId: 'thread-1',
+          activeTurnId: 'turn-1',
           connectionStatus: 'connected',
           inputText: 'hello',
-          isSending: true,
           onInputTextChange,
           onSend,
           onInterrupt,
@@ -194,8 +194,11 @@ describe('TranscriptPane', () => {
       />,
     )
 
+    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
     const interruptButton = screen.getByRole('button', { name: 'Interrupt turn' })
     expect(interruptButton).toBeEnabled()
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    expect(onSend).toHaveBeenCalledTimes(1)
     fireEvent.click(interruptButton)
     expect(onInterrupt).toHaveBeenCalledTimes(1)
   })

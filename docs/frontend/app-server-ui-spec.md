@@ -193,6 +193,7 @@ Transcript 类型要求（必须可区分）：
 
 1. `Send` disabled 条件：
    - `connectionStatus !== connected`
+   - `activeTurnId != null`
    - `activeThreadId == null` 且当前不是已选 path 的 `newThreadDraft`
    - 当前是 `newThreadDraft` 但 `draftCwd == null`
 2. `Interrupt` disabled 条件：

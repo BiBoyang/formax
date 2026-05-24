@@ -98,6 +98,7 @@ export type ComposerDockProps = {
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   canSubmit: boolean
   isInputDisabled?: boolean
+  showInterrupt?: boolean
   isSending: boolean
   isInterrupting: boolean
   onInterrupt: () => void
@@ -242,7 +243,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                 showContextMeter={props.showContextMeter}
                 className="mr-2"
               />
-              {props.isSending || props.isInterrupting ? (
+              {props.showInterrupt || props.isInterrupting ? (
                 <Button
                   type="button"
                   aria-label={t('transcript.interruptTurn')}
