@@ -56,12 +56,17 @@ export function deriveContextMeterView(args: {
       ? args.activeTurnId
       : null
     : args.raw.latestUsageTurnId ?? null
+  const fallbackLatestUsageTurnId = args.raw.latestUsageTurnId ?? null
   const liveUsage = liveTurnId ? args.raw.liveUsageByTurnId[liveTurnId] : undefined
-  if (liveUsage) {
+  const fallbackLatestUsage = !liveUsage && !args.raw.snapshot && fallbackLatestUsageTurnId
+    ? args.raw.liveUsageByTurnId[fallbackLatestUsageTurnId]
+    : undefined
+  const usageForDisplay = liveUsage ?? fallbackLatestUsage
+  if (usageForDisplay) {
     const stats = computeContextMeterStats({
       config: { ...budgetInput, baselineTokens: 0 },
       usedTokens: sumContextMeterLiveInputTokens({
-        usage: liveUsage.usage,
+        usage: usageForDisplay.usage,
         provider: args.raw.budgetRaw?.provider,
       }),
     })

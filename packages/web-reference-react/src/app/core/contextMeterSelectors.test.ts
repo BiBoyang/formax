@@ -93,6 +93,19 @@ describe('context meter selectors', () => {
     expect(view.usedTokens).toBe(50000)
   })
 
+  it('keeps latest usage visible while a new active turn waits for first usage when no snapshot exists', () => {
+    const raw = baseRaw()
+    raw.latestUsageTurnId = 'turn-1'
+    raw.liveUsageByTurnId['turn-1'] = {
+      usage: { input_tokens: 1000 },
+    }
+
+    const view = deriveContextMeterView({ raw, activeTurnId: 'turn-2' })
+
+    expect(view.source).toBe('usage')
+    expect(view.usedTokens).toBe(1000)
+  })
+
   it('does not double-count OpenAI cached prompt tokens for live usage', () => {
     const raw = baseRaw()
     raw.budgetRaw = raw.budgetRaw ? { ...raw.budgetRaw, provider: 'openai' } : raw.budgetRaw
