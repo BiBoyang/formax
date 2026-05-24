@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
+import { RpcRequestError } from '../rpcClient'
 
 vi.mock('../app/core/userSettings', async () => {
   const actual = await vi.importActual<typeof import('../app/core/userSettings')>('../app/core/userSettings')
@@ -749,6 +750,771 @@ describe('App thread history integration', () => {
         ),
       ).toBe(true)
     })
+  })
+
+  it('retires stale approval input locally when submit returns INPUT_EXPIRED', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        throw new RpcRequestError({
+          code: -32602,
+          message: 'INPUT_EXPIRED',
+          data: { kind: 'INPUT_EXPIRED' },
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-expired:1',
+          traceId: 'trace-approval-expired',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-expired',
+          input: {
+            inputId: 'input-approval-expired-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-expired',
+            toolUseId: 'approval-tool-expired-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+      expect(screen.getByTestId('composer')).toBeInTheDocument()
+      expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+    })
+  })
+
+  it('retires stale approval input locally when submit returns not_pending', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return { accepted: false, status: 'not_pending' }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-not-pending:1',
+          traceId: 'trace-approval-not-pending',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-not-pending',
+          input: {
+            inputId: 'input-approval-not-pending-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-not-pending',
+            toolUseId: 'approval-tool-not-pending-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+      expect(screen.getByTestId('composer')).toBeInTheDocument()
+      expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+    })
+  })
+
+  it('retires active-thread approval badge after the turn already ended', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return { accepted: false, status: 'not_pending' }
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-terminal-active:1',
+          traceId: 'trace-approval-terminal-active',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-terminal-active',
+          input: {
+            inputId: 'input-approval-terminal-active-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-terminal-active',
+            toolUseId: 'approval-tool-terminal-active-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/failed',
+        params: {
+          eventId: 'turn-approval-terminal-active:2',
+          traceId: 'trace-approval-terminal-active',
+          replaySeq: 2,
+          seq: 2,
+          threadId: 'thread-alpha',
+          turn: {
+            id: 'turn-approval-terminal-active',
+            threadId: 'thread-alpha',
+            status: 'failed',
+          },
+          error: 'turn failed',
+        },
+      })
+    })
+
+    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+      expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+    })
+  })
+
+  it('retires stale approval cache even when submit expires after switching threads', async () => {
+    let rejectSubmit: ((error: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return new Promise((_resolve, reject) => {
+          rejectSubmit = reject
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-expired-switch:1',
+          traceId: 'trace-approval-expired-switch',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-expired-switch',
+          input: {
+            inputId: 'input-approval-expired-switch-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-expired-switch',
+            toolUseId: 'approval-tool-expired-switch-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    await act(async () => {
+      rejectSubmit?.(
+        new RpcRequestError({
+          code: -32602,
+          message: 'INPUT_EXPIRED',
+          data: { kind: 'INPUT_EXPIRED' },
+        }),
+      )
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+  })
+
+  it('retires stale approval cache even when submit returns not_pending after switching threads', async () => {
+    let resolveSubmit: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return new Promise((resolve) => {
+          resolveSubmit = resolve
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-not-pending-switch:1',
+          traceId: 'trace-approval-not-pending-switch',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-not-pending-switch',
+          input: {
+            inputId: 'input-approval-not-pending-switch-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-not-pending-switch',
+            toolUseId: 'approval-tool-not-pending-switch-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    await act(async () => {
+      resolveSubmit?.({ accepted: false, status: 'not_pending' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('input-approval-dock-host')).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+  })
+
+  it('retires only the targeted cached approval when sibling inputs share the turn', async () => {
+    let resolveSubmit: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return new Promise((resolve) => {
+          resolveSubmit = resolve
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-multi-cache:1',
+          traceId: 'trace-approval-multi-cache',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-multi-cache',
+          input: {
+            inputId: 'input-approval-multi-cache-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-multi-cache',
+            toolUseId: 'approval-tool-multi-cache-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file-a.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-multi-cache:2',
+          traceId: 'trace-approval-multi-cache',
+          replaySeq: 2,
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-multi-cache',
+          input: {
+            inputId: 'input-approval-multi-cache-2',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-multi-cache',
+            toolUseId: 'approval-tool-multi-cache-2',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:02.000Z',
+            expiresAt: '2030-02-10T00:05:02.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file-b.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    expect(screen.getAllByText('approval:pending')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    await act(async () => {
+      resolveSubmit?.({ accepted: false, status: 'not_pending' })
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+    expect(screen.getAllByText('approval:pending')).toHaveLength(1)
+    expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
+  })
+
+  it('keeps a newer cached approval pending when the same tool use re-prompts before an old submit settles', async () => {
+    let resolveSubmit: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+            {
+              id: 'thread-beta',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:20.000Z',
+              updatedAt: '2026-02-10T00:00:30.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'beta',
+              label: 'Beta Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-beta') {
+          return {
+            data: [{ id: 'b-1', kind: 'message', role: 'assistant', text: 'beta reply' }],
+            nextCursor: null,
+          }
+        }
+      }
+      if (method === 'turn/input/submit') {
+        return new Promise((resolve) => {
+          resolveSubmit = resolve
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-reprompt-cache:1',
+          traceId: 'trace-approval-reprompt-cache',
+          seq: 1,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-reprompt-cache',
+          input: {
+            inputId: 'input-approval-reprompt-cache-1',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-reprompt-cache',
+            toolUseId: 'approval-tool-reprompt-cache-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:01.000Z',
+            expiresAt: '2030-02-10T00:05:01.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
+    await screen.findByText('beta reply')
+
+    await act(async () => {
+      rpcMock.emitNotification({
+        method: 'turn/inputRequested',
+        params: {
+          eventId: 'turn-approval-reprompt-cache:2',
+          traceId: 'trace-approval-reprompt-cache',
+          replaySeq: 2,
+          seq: 2,
+          threadId: 'thread-alpha',
+          turnId: 'turn-approval-reprompt-cache',
+          input: {
+            inputId: 'input-approval-reprompt-cache-2',
+            threadId: 'thread-alpha',
+            turnId: 'turn-approval-reprompt-cache',
+            toolUseId: 'approval-tool-reprompt-cache-1',
+            kind: 'approval',
+            status: 'pending',
+            createdAt: '2026-02-10T00:00:02.000Z',
+            expiresAt: '2030-02-10T00:05:02.000Z',
+            payload: {
+              toolName: 'Edit',
+              action: { kind: 'fs.write', path: '/repo/file.ts' },
+              effectiveDecision: { decision: 'ask' },
+            },
+          },
+        },
+      })
+      resolveSubmit?.({ accepted: false, status: 'not_pending' })
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
   })
 
 

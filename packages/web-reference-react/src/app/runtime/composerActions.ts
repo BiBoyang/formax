@@ -2,7 +2,7 @@ import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { resolveCommandRouting } from '../../semantics'
 import { isWebSupportedCommand } from '../core/commandSupport'
 import { parseInputSubmitResponse, parseTurnStartLikeResponse } from '../core/rpcContracts'
-import { toSubmitUiStatus } from '../core/threadTransforms'
+import { toSubmitUiStatus, type RpcErrorDetails } from '../core/threadTransforms'
 import type { PendingInput } from '../../types'
 import type { AppAction } from '../../store'
 import type { CreatedThreadResult } from './threadActions'
@@ -29,7 +29,7 @@ export type ComposerActionsContext = {
   setIsInterruptingTurn: (value: boolean) => void
   setIsSubmittingInput: (value: boolean) => void
   setSubmitStatusByInputId: (updater: (prev: Record<string, { status: string; kind: 'success' | 'error'; message?: string }>) => Record<string, { status: string; kind: 'success' | 'error'; message?: string }>) => void
-  toRpcError: (method: string, error: unknown) => { code?: number; message: string }
+  toRpcError: (method: string, error: unknown) => RpcErrorDetails
   nowMs: () => number
   startThread: () => Promise<void>
   createThreadOnServerInCwd: (cwd: string) => Promise<CreatedThreadResult | null>
@@ -42,9 +42,33 @@ export type ComposerActionsContext = {
   refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
   getCurrentActiveThreadId: () => string | null
   getCurrentNewThreadDraft: () => NewThreadDraftState
+  retirePendingInputLocally: (args: {
+    input: PendingInput
+    status?: 'expired' | 'canceled' | 'failed'
+    reason?: string
+  }) => void
 }
 
 export function createComposerActions(ctx: ComposerActionsContext) {
+  const resolveRpcErrorKind = (data: unknown): string | null => {
+    if (!data || typeof data !== 'object') return null
+    const kind = (data as { kind?: unknown }).kind
+    return typeof kind === 'string' && kind.trim().length > 0 ? kind : null
+  }
+
+  const resolveLocalRetire = (
+    status: string,
+  ): { status: 'expired' | 'canceled' | 'failed'; reason?: string } | null => {
+    switch (status) {
+      case 'expired':
+        return { status: 'expired', reason: 'input_expired' }
+      case 'canceled':
+        return { status: 'canceled', reason: 'turn_interrupted' }
+      default:
+        return null
+    }
+  }
+
   const startTurn = async () => {
     const text = ctx.inputText.trim()
     if (!text || ctx.isSendingTurn) return
@@ -216,9 +240,38 @@ export function createComposerActions(ctx: ComposerActionsContext) {
           message: uiStatus.message,
         },
       }))
+      const localRetire = resolveLocalRetire(status)
+      if (localRetire) {
+        ctx.retirePendingInputLocally({
+          input,
+          ...localRetire,
+        })
+      } else if (status === 'not_pending') {
+        ctx.retirePendingInputLocally({
+          input,
+          reason: 'input_not_pending',
+        })
+      }
       ctx.log(`Input submit: ${status}`, uiStatus.kind === 'error' ? 'error' : 'info', input.turnId)
     } catch (error) {
       const details = ctx.toRpcError('turn/input/submit', error)
+      const errorKind = resolveRpcErrorKind(details.data)
+      if (errorKind === 'INPUT_EXPIRED') {
+        const uiStatus = toSubmitUiStatus('expired')
+        ctx.setSubmitStatusByInputId((prev) => ({
+          ...prev,
+          [input.inputId]: {
+            status: 'expired',
+            kind: uiStatus.kind,
+            message: uiStatus.message,
+          },
+        }))
+        const localRetire = resolveLocalRetire('expired')
+        if (localRetire) {
+          ctx.retirePendingInputLocally({ input, ...localRetire })
+        }
+        return
+      }
       ctx.setSubmitStatusByInputId((prev) => ({
         ...prev,
         [input.inputId]: {

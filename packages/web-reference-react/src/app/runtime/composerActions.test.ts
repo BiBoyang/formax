@@ -43,7 +43,7 @@ function createBaseContext(overrides: Partial<ComposerActionsContext> = {}): Com
     setIsInterruptingTurn: vi.fn(),
     setIsSubmittingInput: vi.fn(),
     setSubmitStatusByInputId: vi.fn(),
-    toRpcError: vi.fn(() => ({ message: 'boom' })),
+    toRpcError: vi.fn((method: string) => ({ at: '2026-02-20T00:00:00.000Z', method, message: 'boom' })),
     nowMs: vi.fn(() => 123),
     startThread: vi.fn(async () => {}),
     createThreadOnServerInCwd: vi.fn(async (cwd: string): Promise<CreatedThreadResult> => ({
@@ -56,6 +56,7 @@ function createBaseContext(overrides: Partial<ComposerActionsContext> = {}): Com
     refreshWorkspaceDiff: vi.fn(async () => undefined),
     getCurrentActiveThreadId: vi.fn(() => currentActiveThreadId),
     getCurrentNewThreadDraft: vi.fn(() => currentNewThreadDraft),
+    retirePendingInputLocally: vi.fn(),
     ...overrides,
   }
 }
@@ -326,5 +327,73 @@ describe('composerActions', () => {
     })
     expect(ctx.setIsSubmittingInput).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsSubmittingInput).toHaveBeenLastCalledWith(false)
+  })
+
+  it('locally resolves stale pending input when submit returns INPUT_EXPIRED', async () => {
+    const input = createPendingInput()
+    const error = new Error('INPUT_EXPIRED')
+    const ctx = createBaseContext({
+      getPendingInputById: vi.fn(() => input),
+      request: vi.fn(async () => {
+        throw error
+      }),
+      toRpcError: vi.fn((method: string) => ({
+        at: '2026-02-20T00:00:00.000Z',
+        method,
+        code: -32602,
+        message: 'INPUT_EXPIRED',
+        data: { kind: 'INPUT_EXPIRED' },
+      })),
+    })
+
+    const actions = createComposerActions(ctx)
+    await expect(actions.submitInputById(input.inputId, { decision: 'approve' })).resolves.toBeUndefined()
+
+    expect(ctx.retirePendingInputLocally).toHaveBeenCalledWith({
+      input,
+      status: 'expired',
+      reason: 'input_expired',
+    })
+    expect(ctx.setSubmitStatusByInputId).toHaveBeenCalled()
+    const submitStatusCalls = vi.mocked(ctx.setSubmitStatusByInputId).mock.calls
+    const updater = submitStatusCalls[submitStatusCalls.length - 1]?.[0]
+    expect(typeof updater).toBe('function')
+    expect(
+      updater ? updater({}) : null,
+    ).toEqual({
+      'input-1': {
+        status: 'expired',
+        kind: 'error',
+        message: 'Input expired; trigger the action again',
+      },
+    })
+  })
+
+  it('retires terminal pending input when submit returns not_pending', async () => {
+    const input = createPendingInput()
+    const ctx = createBaseContext({
+      getPendingInputById: vi.fn(() => input),
+      request: vi.fn(async () => ({ status: 'not_pending' })),
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.submitInputById(input.inputId, { decision: 'approve' })
+
+    expect(ctx.retirePendingInputLocally).toHaveBeenCalledWith({
+      input,
+      reason: 'input_not_pending',
+    })
+    const submitStatusCalls = vi.mocked(ctx.setSubmitStatusByInputId).mock.calls
+    const updater = submitStatusCalls[submitStatusCalls.length - 1]?.[0]
+    expect(typeof updater).toBe('function')
+    expect(
+      updater ? updater({}) : null,
+    ).toEqual({
+      'input-1': {
+        status: 'not_pending',
+        kind: 'error',
+        message: 'Input is no longer pending; refresh or re-run the action',
+      },
+    })
   })
 })

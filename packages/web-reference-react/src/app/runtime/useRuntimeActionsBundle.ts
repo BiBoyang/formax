@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
-import type { ArchiveThreadLike } from '../../semantics'
+import type { ArchiveThreadLike, ThreadRuntimeState } from '../../semantics'
+import type { CanonicalEvent } from '../../semantics'
 import type { PendingInput, TranscriptItem } from '../../types'
 import { createComposerActions, type ComposerActionsContext } from './composerActions'
 import {
@@ -28,7 +29,8 @@ type ThreadDeps = {
   threadsRef: { current: ThreadListItem[] }
   sortedThreadsRef: { current: ThreadListItem[] }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
-  runtimeStateByThreadRef: ThreadActionsContext['runtimeStateByThreadRef']
+  setLogsByThreadId: (updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>) => void
+  runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
   cacheThreadMode: ThreadActionsContext['cacheThreadMode']
   replayCursorByThreadRef: ThreadActionsContext['replayCursorByThreadRef']
   setMode: ThreadActionsContext['setMode']
@@ -72,6 +74,37 @@ type UseRuntimeActionsBundleArgs = {
 
 export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
   const { core, thread, composer } = args
+
+  const patchCachedInputState = (args: {
+    logs: TranscriptItem[]
+    input: PendingInput
+    status?: 'expired' | 'canceled' | 'failed'
+  }): TranscriptItem[] => {
+    let changed = false
+    const nextLogs = args.logs.map((item) => {
+      if (item.kind !== 'tool_call') return item
+      if (item.turnId !== args.input.turnId || item.toolUseId !== args.input.toolUseId) return item
+      if (args.status && item.inputState?.kind === args.input.kind && item.inputState?.status === args.status) {
+        return item
+      }
+      changed = true
+      if (!args.status) {
+        const { inputState: _inputState, ...rest } = item
+        return rest
+      }
+      return {
+        ...item,
+        inputState: {
+          kind: args.input.kind,
+          status: args.status,
+        },
+      }
+    })
+    return changed ? nextLogs : args.logs
+  }
+
+  const hasTurnFooter = (logs: TranscriptItem[], turnId: string): boolean =>
+    logs.some((item) => item.kind === 'turn_footer' && item.turnId === turnId)
 
   const threadActionsState = useMemo(
     () => ({
@@ -183,8 +216,119 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
   }, [thread.selectThreadRef, selectThread])
 
   const { interruptTurn, submitInputById, onSend } = useMemo(
-    () =>
-      createComposerActions({
+    () => {
+      const retirePendingInputLocally = (args: {
+        input: PendingInput
+        status?: 'expired' | 'canceled' | 'failed'
+        reason?: string
+      }) => {
+        const updateCachedLogs = (logs: TranscriptItem[] | undefined) => {
+          if (!logs) return null
+          const siblingPendingInputExists = Object.values(
+            thread.runtimeStateByThreadRef.current[args.input.threadId]?.pendingInputs ?? {},
+          ).some(
+            (pending) =>
+              pending.inputId !== args.input.inputId &&
+              pending.turnId === args.input.turnId &&
+              pending.toolUseId === args.input.toolUseId,
+          )
+          if (siblingPendingInputExists) return null
+          const nextLogs = patchCachedInputState({
+            logs,
+            input: args.input,
+            status: args.status,
+          })
+          if (nextLogs === logs) return null
+          thread.logsByThreadIdRef.current = {
+            ...thread.logsByThreadIdRef.current,
+            [args.input.threadId]: nextLogs,
+          }
+          thread.setLogsByThreadId((prev) => ({
+            ...prev,
+            [args.input.threadId]: nextLogs,
+          }))
+          return nextLogs
+        }
+
+        const ts = new Date(composer.nowMs()).toISOString()
+        const runtimeState = thread.runtimeStateByThreadRef.current[args.input.threadId]
+        if (runtimeState?.pendingInputs[args.input.inputId]) {
+          const nextPendingInputs = { ...runtimeState.pendingInputs }
+          delete nextPendingInputs[args.input.inputId]
+          thread.runtimeStateByThreadRef.current[args.input.threadId] = {
+            ...runtimeState,
+            pendingInputs: nextPendingInputs,
+            updatedAt: ts,
+          }
+        }
+
+        const replaySeq =
+          thread.replayCursorByThreadRef.current[args.input.threadId] ??
+          thread.runtimeStateByThreadRef.current[args.input.threadId]?.lastReplaySeq ??
+          1
+        if (args.status) {
+          const payload =
+            args.input.payload && typeof args.input.payload === 'object'
+              ? (args.input.payload as Record<string, unknown>)
+              : null
+          const toolName =
+            payload && typeof payload.toolName === 'string' && payload.toolName.trim().length > 0
+              ? payload.toolName
+              : undefined
+          const event: CanonicalEvent = {
+            schemaVersion: 1,
+            kind: 'tool_input_state',
+            threadId: args.input.threadId,
+            turnId: args.input.turnId,
+            toolUseId: args.input.toolUseId,
+            inputKind: args.input.kind,
+            status: args.status,
+            ...(toolName ? { toolName } : {}),
+            replaySeq,
+            eventId: `local:${args.input.threadId}:${args.input.turnId}:${args.input.inputId}:${args.status}`,
+            ts,
+            source: 'ui',
+          }
+          if (thread.activeThreadIdRef.current === args.input.threadId) {
+            const activeLogs = thread.stateLogsRef.current
+            if (hasTurnFooter(activeLogs, args.input.turnId)) {
+              const nextLogs = updateCachedLogs(activeLogs)
+              if (nextLogs) {
+                core.dispatch({
+                  type: 'replace_logs',
+                  logs: nextLogs,
+                })
+              }
+            } else {
+              core.dispatch({
+                type: 'apply_canonical_event',
+                event,
+              })
+            }
+          } else {
+            updateCachedLogs(thread.logsByThreadIdRef.current[args.input.threadId])
+          }
+        } else if (thread.activeThreadIdRef.current === args.input.threadId) {
+          const nextLogs = updateCachedLogs(thread.stateLogsRef.current)
+          if (nextLogs) {
+            core.dispatch({
+              type: 'replace_logs',
+              logs: nextLogs,
+            })
+          }
+        } else {
+          updateCachedLogs(thread.logsByThreadIdRef.current[args.input.threadId])
+        }
+
+        core.dispatch({
+          type: 'input_resolved',
+          inputId: args.input.inputId,
+          status: args.status,
+          ...(args.reason ? { reason: args.reason } : {}),
+        })
+      }
+
+      return createComposerActions({
         inputText: composer.inputText,
         setInputText: composer.setInputText,
         isSendingTurn: composer.isSendingTurn,
@@ -217,7 +361,9 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
         refreshWorkspaceDiff: thread.refreshWorkspaceDiff,
         getCurrentActiveThreadId: () => thread.activeThreadIdRef.current,
         getCurrentNewThreadDraft: () => composer.newThreadDraftRef.current,
-      }),
+        retirePendingInputLocally,
+      })
+    },
     [
       activateCreatedThread,
       core.dispatch,
@@ -245,10 +391,15 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       startThread,
       thread.activeThreadIdRef,
       thread.createdThreadCwdByIdRef,
+      thread.logsByThreadIdRef,
       thread.pendingInputsRef,
+      thread.replayCursorByThreadRef,
       thread.refreshThreads,
       thread.refreshWorkspaceDiff,
+      thread.runtimeStateByThreadRef,
       thread.selectedCwdRef,
+      thread.setLogsByThreadId,
+      thread.stateLogsRef,
       thread.threadsRef,
     ],
   )

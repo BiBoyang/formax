@@ -443,6 +443,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       threadsRef,
       sortedThreadsRef,
       logsByThreadIdRef,
+      setLogsByThreadId,
       runtimeStateByThreadRef,
       cacheThreadMode,
       replayCursorByThreadRef,
