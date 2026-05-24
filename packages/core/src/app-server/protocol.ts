@@ -40,8 +40,14 @@ export type ThreadSummary = Thread & {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  titleSource?: ThreadTitleSource
+  titleStatus?: ThreadTitleStatus
   archivedAt?: string | null
 }
+
+export type ThreadTitleSource = 'manual' | 'auto_title' | 'legacy' | null
+
+export type ThreadTitleStatus = 'ready' | 'untitled' | 'auto_retryable' | 'auto_exhausted'
 
 export type ThreadStartParams = {
   cwd?: string

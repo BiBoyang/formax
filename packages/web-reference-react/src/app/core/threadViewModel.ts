@@ -4,12 +4,54 @@ export type ThreadViewModel = ThreadSummary & {
   title: string
 }
 
-export function selectThreadTitle(thread: Pick<ThreadSummary, 'label' | 'lastUserPrompt'> | undefined): string {
+function displayWidthOfCodePoint(codePoint: number): number {
+  if (
+    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+    (codePoint >= 0x2329 && codePoint <= 0x232a) ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6)
+  ) {
+    return 2
+  }
+  return 1
+}
+
+export function compactThreadTitleForDisplay(title: string): string {
+  const normalized = title.replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+
+  let width = 0
+  let out = ''
+  let truncated = false
+  let nextCharAfterCut = ''
+  for (const char of normalized) {
+    const charWidth = displayWidthOfCodePoint(char.codePointAt(0) ?? 0)
+    if (width + charWidth > 50) {
+      truncated = true
+      nextCharAfterCut = char
+      break
+    }
+    out += char
+    width += charWidth
+  }
+  const trimmed = out.trimEnd()
+  if (truncated && /[^\x00-\x7F]/.test(trimmed) && /[A-Za-z0-9_./-]/.test(nextCharAfterCut)) {
+    return trimmed.replace(/[A-Za-z0-9_./-]+$/, '').trimEnd()
+  }
+  return trimmed
+}
+
+export function selectThreadTitle(
+  thread: (Pick<ThreadSummary, 'label'> & Partial<Pick<ThreadSummary, 'lastUserPrompt'>>) | undefined,
+): string {
   if (!thread) return 'New Thread'
   const label = thread.label?.trim()
-  if (label) return label
-  const prompt = thread.lastUserPrompt?.trim()
-  if (prompt) return prompt
+  if (label) return compactThreadTitleForDisplay(label)
   return 'New Thread'
 }
 

@@ -1090,6 +1090,8 @@ describe('ThreadStore', () => {
     const listed = await store.listThreads({ limit: 20 })
     const row = listed.data.find((thread) => thread.id === started.id)
     expect(row?.label).toBe('Renamed Thread')
+    expect(row?.titleSource).toBe('manual')
+    expect(row?.titleStatus).toBe('ready')
   })
 
   it('preserves provisional createdAt/label when materializing thread file', async () => {
@@ -1103,6 +1105,8 @@ describe('ThreadStore', () => {
     const listed = await store.listThreads({ limit: 20 })
     const row = listed.data.find((thread) => thread.id === started.id)
     expect(row?.label).toBe('Renamed Before First Turn')
+    expect(row?.titleSource).toBe('manual')
+    expect(row?.titleStatus).toBe('ready')
     expect(row?.createdAt).toBe(started.createdAt)
   })
 

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { displayThreadTitle, summarizeToolEvent, toToolUseId, toTurnFooterStatus } from './threadTransforms'
 
 describe('threadTransforms', () => {
-  it('picks thread title from label, then prompt, then fallback', () => {
+  it('picks thread title from label, then fallback', () => {
     expect(displayThreadTitle({ id: 't1', label: '  Label  ' } as any)).toBe('Label')
-    expect(displayThreadTitle({ id: 't1', label: '  ', lastUserPrompt: 'Prompt' } as any)).toBe('Prompt')
+    expect(displayThreadTitle({ id: 't1', label: '  ', lastUserPrompt: 'Prompt' } as any)).toBe('New Thread')
     expect(displayThreadTitle(undefined)).toBe('New Thread')
   })
 

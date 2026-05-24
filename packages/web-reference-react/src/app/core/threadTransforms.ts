@@ -2,6 +2,7 @@ import { RpcRequestError } from '../../rpcClient'
 import type { ThreadSummary } from '../../types'
 import type { ThreadRuntimeState } from '../../semantics'
 import type { PendingInput } from '../../types'
+import { selectThreadTitle } from './threadViewModel'
 
 export type RpcErrorDetails = {
   at: string
@@ -17,12 +18,7 @@ export type SubmitUiStatus = {
 }
 
 export function displayThreadTitle(thread: ThreadSummary | undefined): string {
-  if (!thread) return 'New Thread'
-  const label = thread.label?.trim()
-  if (label) return label
-  const prompt = thread.lastUserPrompt?.trim()
-  if (prompt) return prompt
-  return 'New Thread'
+  return selectThreadTitle(thread)
 }
 
 export function toRuntimePendingInputsById(pendingInputs: PendingInput[]): ThreadRuntimeState['pendingInputs'] {

@@ -174,10 +174,14 @@ type Thread = {
 ```ts
 {
   messageCount: number | null
-  lastUserPrompt: string | null
-  label: string | null
+  lastUserPrompt: string | null // preview/snippet only
+  label: string | null // formal title
+  titleSource?: 'manual' | 'auto_title' | 'legacy' | null
+  titleStatus?: 'ready' | 'untitled' | 'auto_retryable' | 'auto_exhausted'
 }
 ```
+
+`lastUserPrompt` is not a title fallback. Clients should display `label` when present and an explicit placeholder when absent.
 
 ## 4.2 Turn 状态
 

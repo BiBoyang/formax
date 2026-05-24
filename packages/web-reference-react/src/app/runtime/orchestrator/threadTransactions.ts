@@ -12,6 +12,8 @@ export type ThreadListItem = {
   messageCount?: number | null
   label?: string | null
   lastUserPrompt?: string | null
+  titleSource?: ThreadSummary['titleSource']
+  titleStatus?: ThreadSummary['titleStatus']
 }
 
 export type SelectThreadOptions = { restoreOnReplayFailure?: boolean }
@@ -52,6 +54,8 @@ function toThreadSummary(thread: ThreadListItem): ThreadSummary {
     messageCount: typeof thread.messageCount === 'number' ? thread.messageCount : 0,
     label: thread.label ?? null,
     lastUserPrompt: thread.lastUserPrompt ?? null,
+    titleSource: thread.titleSource ?? null,
+    titleStatus: thread.titleStatus ?? (thread.label ? 'ready' : 'untitled'),
   }
 }
 

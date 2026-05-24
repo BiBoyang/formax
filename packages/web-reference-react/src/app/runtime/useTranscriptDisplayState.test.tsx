@@ -40,7 +40,7 @@ describe('useTranscriptDisplayState', () => {
     )
 
     expect(result.current.activeThread?.id).toBe('thread-1')
-    expect(result.current.activeThreadTitle).toBe('Thread prompt')
+    expect(result.current.activeThreadTitle).toBe('New Thread')
     expect(result.current.activeHistoryLoading).toBe(true)
     expect(result.current.historyMore).toBe(true)
     expect(result.current.activeLogs).toEqual([{ id: 'msg-1', kind: 'message', role: 'assistant', text: 'visible message' }])

@@ -632,7 +632,7 @@ describe('App thread history integration', () => {
     expect(await screen.findByRole('button', { name: /Renamed Session/i })).toBeInTheDocument()
   })
 
-  it('updates header title after turn completion refreshes thread list and hides thread id subtitle', async () => {
+  it('shows untitled thread before turn completion refreshes generated title', async () => {
     let listVersion = 0
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
@@ -672,11 +672,12 @@ describe('App thread history integration', () => {
       return {}
     })
 
+    window.history.replaceState(null, '', '/?thread=thread-alpha')
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /hello there/i }))
+    expect(await screen.findByText('alpha reply')).toBeInTheDocument()
     const header = await screen.findByRole('banner')
-    expect(within(header).getByText('hello there')).toBeInTheDocument()
+    expect(within(header).getByText('New Thread')).toBeInTheDocument()
     expect(screen.queryByText('thread thread-a')).not.toBeInTheDocument()
 
     listVersion = 1

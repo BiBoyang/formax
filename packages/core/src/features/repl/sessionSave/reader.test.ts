@@ -6,6 +6,7 @@ import { getArchivedSessionsRoot, getSessionFilePath, getSessionsRoot } from './
 import { collectSessionCandidates as collectSessionCandidatesFromDiscovery } from './discovery'
 import { mergeLegacyToolFieldsIntoPersisted } from './legacyCompat'
 import {
+  computeSessionTitleStatus,
   detailLinesFromPersistedTool,
   findLatestSessionFile,
   findSessionFileBySessionId,
@@ -49,6 +50,13 @@ describe('sessionSave/reader helpers', () => {
     expect(coerceNonEmptyString('  hi  ')).toBe('hi')
     expect(coerceNonEmptyString('   ')).toBeNull()
     expect(coerceNonEmptyString(1 as any)).toBeNull()
+    expect(
+      computeSessionTitleStatus({
+        label: null,
+        messageCount: 13,
+        autoTitleAttemptCount: 1,
+      }),
+    ).toBe('auto_exhausted')
   })
 
   it('covers persisted tool display normalization branches', () => {
@@ -256,7 +264,13 @@ describe('sessionSave/reader helpers', () => {
           cwd: tmp,
           provider: 'anthropic',
         }),
-        JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:01.000Z', name: 'session_rename', data: { label: 'L' } }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.000Z',
+          name: 'session_rename',
+          data: { label: 'L', source: 'auto_title' },
+        }),
         JSON.stringify({
           type: 'event',
           v: 1,
@@ -269,7 +283,7 @@ describe('sessionSave/reader helpers', () => {
           v: 1,
           ts: '2026-02-02T00:00:03.000Z',
           name: 'ui_stats',
-          data: { uiMsgCount: 3, firstUserPrompt: 'first' },
+          data: { uiMsgCount: 3, firstUserPrompt: 'first', lastUserPrompt: 'latest' },
         }),
         JSON.stringify({
           type: 'ui_msg',
@@ -301,6 +315,7 @@ describe('sessionSave/reader helpers', () => {
     expect(summary.messageCount).toBe(3)
     expect(summary.lastUserPrompt).toBe('first')
     expect(summary.label).toBe('L')
+    expect(summary.titleSource).toBe('auto_title')
     expect(summary.latestTurnCwd).toContain('nested')
 
     expect(coerceString('  x  ')).toBe('x')
@@ -400,6 +415,51 @@ describe('sessionSave/reader helpers', () => {
     expect(listedArchived.some((s) => s.meta.sessionId === 'sid-archived')).toBe(true)
   })
 
+  it('counts auto-title attempts outside the tail summary window', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-auto-title-count-'))
+    const sessionFile = path.join(tmp, 'session.jsonl')
+    await fs.writeFile(
+      sessionFile,
+      [
+        JSON.stringify({
+          type: 'session_meta',
+          v: 1,
+          ts: '2026-02-02T00:00:00.000Z',
+          sessionId: 's1',
+          startedAt: '2026-02-02T00:00:00.000Z',
+          cwd: tmp,
+          provider: 'anthropic',
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:01.000Z',
+          name: 'auto_title_attempt',
+          data: { status: 'failed' },
+        }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:02.000Z',
+          name: 'auto_title_attempt',
+          data: { status: 'empty' },
+        }),
+        JSON.stringify({ type: 'ui_msg', v: 1, ts: '2026-02-02T00:00:03.000Z', msg: { id: 'big', role: 'assistant', content: 'x'.repeat(300 * 1024) } }),
+        JSON.stringify({
+          type: 'event',
+          v: 1,
+          ts: '2026-02-02T00:00:04.000Z',
+          name: 'ui_stats',
+          data: { uiMsgCount: 1, firstUserPrompt: 'first' },
+        }),
+      ].join('\n') + '\n',
+      'utf8',
+    )
+
+    const summary = await readTailSummaryData(sessionFile)
+    expect(summary.autoTitleAttemptCount).toBe(2)
+  })
+
   it('covers catch/fallback branches in reader helpers', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-reader-catch-'))
     const missing = path.join(tmp, 'missing.jsonl')
@@ -407,6 +467,8 @@ describe('sessionSave/reader helpers', () => {
       messageCount: null,
       lastUserPrompt: null,
       label: null,
+      titleSource: null,
+      autoTitleAttemptCount: 0,
       latestTurnCwd: null,
     })
     expect(await readSessionPreview(missing)).toEqual([])
@@ -795,7 +857,7 @@ describe('sessionSave/reader helpers', () => {
           v: 1,
           ts: '2026-02-02T00:00:03.000Z',
           name: 'ui_stats',
-          data: { uiMsgCount: 9, firstUserPrompt: 'preferred-title' },
+          data: { uiMsgCount: 9, firstUserPrompt: 'preferred-title', lastUserPrompt: 'latest-title' },
         }),
         JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:04.000Z', name: '  ', data: {} }),
         JSON.stringify({ type: 'event', v: 1, ts: '2026-02-02T00:00:05.000Z', name: 'ui_stats', data: 1 }),

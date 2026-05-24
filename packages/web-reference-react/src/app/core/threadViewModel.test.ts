@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  compactThreadTitleForDisplay,
   selectSortedThreadViewModels,
   selectThreadTitle,
   selectThreadViewModelById,
@@ -17,11 +18,34 @@ const baseThread = {
 }
 
 describe('threadViewModel selectors', () => {
-  it('builds display title from label, then prompt, then fallback', () => {
+  it('builds display title from label, then fallback', () => {
     expect(selectThreadTitle({ label: '  Named  ', lastUserPrompt: 'Prompt' })).toBe('Named')
-    expect(selectThreadTitle({ label: '  ', lastUserPrompt: '  Prompt  ' })).toBe('Prompt')
+    expect(selectThreadTitle({ label: '  ', lastUserPrompt: '  Prompt  ' })).toBe('New Thread')
     expect(selectThreadTitle({ label: null, lastUserPrompt: '   ' })).toBe('New Thread')
     expect(selectThreadTitle(undefined)).toBe('New Thread')
+  })
+
+  it('compacts long CJK and mixed labels for display', () => {
+    expect(compactThreadTitleForDisplay('我现在这个项目有个桌面版本但是目前必须先配置baseurl和apikey')).toBe(
+      '我现在这个项目有个桌面版本但是目前必须先配置',
+    )
+    expect(compactThreadTitleForDisplay(`${'修'.repeat(21)} README 更多内容`)).toBe(`${'修'.repeat(21)} README`)
+    expect(compactThreadTitleForDisplay(`${'修'.repeat(21)} README.md 更多内容`)).toBe('修'.repeat(21))
+    expect(
+      selectThreadTitle({
+        label: '我现在这个项目有个桌面版本，但是呢目前必须要先在命令行中去使用formax setup 输入baseurl apikey',
+        lastUserPrompt: 'ignored',
+      }),
+    ).toBe('我现在这个项目有个桌面版本，但是呢目前必须要先在命')
+  })
+
+  it('does not use long CJK prompt fallback as a formal title', () => {
+    expect(
+      selectThreadTitle({
+        label: null,
+        lastUserPrompt: '我现在这个项目有个桌面版本，但是呢目前必须要先在命令行中去使用formax setup 输入baseurl apikey',
+      }),
+    ).toBe('New Thread')
   })
 
   it('maps thread summary into a thread view model with title', () => {
@@ -40,7 +64,7 @@ describe('threadViewModel selectors', () => {
     ])
 
     expect(models.map((thread) => thread.id)).toEqual(['newer', 'older', 'fallback'])
-    expect(models.map((thread) => thread.title)).toEqual(['Newest', 'Old prompt', 'New Thread'])
+    expect(models.map((thread) => thread.title)).toEqual(['Newest', 'New Thread', 'New Thread'])
   })
 
   it('parses each updatedAt value once per thread while sorting', () => {

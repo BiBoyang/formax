@@ -60,4 +60,43 @@ describe('shouldGenerateSessionTitle', () => {
       }),
     ).toBe(false)
   })
+
+  it('blocks protected title sources and exhausted retry budgets', () => {
+    expect(
+      shouldGenerateSessionTitle({
+        hasLabel: false,
+        titleSource: 'manual',
+        attemptedInProcess: false,
+        candidateUserText: 'title me',
+        messageCount: 1,
+      }),
+    ).toBe(false)
+    expect(
+      shouldGenerateSessionTitle({
+        hasLabel: false,
+        titleSource: 'legacy',
+        attemptedInProcess: false,
+        candidateUserText: 'title me',
+        messageCount: 1,
+      }),
+    ).toBe(false)
+    expect(
+      shouldGenerateSessionTitle({
+        hasLabel: false,
+        attemptedInProcess: false,
+        candidateUserText: 'title me',
+        messageCount: 1,
+        failedAttemptCount: 3,
+      }),
+    ).toBe(false)
+    expect(
+      shouldGenerateSessionTitle({
+        hasLabel: false,
+        attemptedInProcess: false,
+        candidateUserText: 'title me',
+        messageCount: 1,
+        failedAttemptCount: 2,
+      }),
+    ).toBe(true)
+  })
 })

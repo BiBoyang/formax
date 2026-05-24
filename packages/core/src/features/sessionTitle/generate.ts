@@ -25,14 +25,52 @@ function extractLastAssistantText(history: ChatHistory): string {
   return ''
 }
 
+function displayWidthOfCodePoint(codePoint: number): number {
+  if (
+    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+    (codePoint >= 0x2329 && codePoint <= 0x232a) ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6)
+  ) {
+    return 2
+  }
+  return 1
+}
+
+function truncateToDisplayWidth(value: string, maxColumns: number): string {
+  let width = 0
+  let out = ''
+  let truncated = false
+  let nextCharAfterCut = ''
+  for (const char of value) {
+    const charWidth = displayWidthOfCodePoint(char.codePointAt(0) ?? 0)
+    if (width + charWidth > maxColumns) {
+      truncated = true
+      nextCharAfterCut = char
+      break
+    }
+    out += char
+    width += charWidth
+  }
+  const trimmed = out.trimEnd()
+  if (truncated && /[^\x00-\x7F]/.test(trimmed) && /[A-Za-z0-9_./-]/.test(nextCharAfterCut)) {
+    return trimmed.replace(/[A-Za-z0-9_./-]+$/, '').trimEnd()
+  }
+  return trimmed
+}
+
 export function normalizeSessionTitle(raw: string): string | null {
   const normalized = raw
     .replace(/^["'`]+|["'`]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim()
   if (!normalized) return null
-  if (normalized.length <= 50) return normalized
-  return normalized.slice(0, 50).trimEnd()
+  return truncateToDisplayWidth(normalized.slice(0, 50), 50)
 }
 
 const CLAUDE_TITLE_SYSTEM_PROMPTS = [

@@ -130,3 +130,4 @@
 - [2026-05-21 - Pending restore compact consumption](./2026-05-21-pending-restore-compact-consumption.md)
 - [2026-05-21 - Request collapse boundary generation](./2026-05-21-request-collapse-boundary-generation.md)
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)
+- [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)

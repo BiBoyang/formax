@@ -171,6 +171,12 @@ Visible Web context-meter rendering MUST honor `initialize.result.ui.showContext
 `WEB-506`
 Web MUST derive displayed context percentages locally from raw budget, usage, and snapshot facts. `percentRemaining`, `percentUsed`, labels, colors, and warning tones are render/view-model projections, not protocol authority.
 
+`WEB-507`
+Web MUST consume app-server title semantics directly. `ThreadSummary.label` is the only formal title text; `lastUserPrompt` is preview/snippet data and MUST NOT be used as active header or left-rail title fallback. When no label exists, Web renders a placeholder title such as `New Thread`.
+
+`WEB-508`
+`thread/updated` is a metadata refresh notification. After sequenced-notification gating, Web MAY refresh thread list state, but MUST NOT insert `thread/updated` into canonical transcript projection, history hydrate rows, or visible transcript logs.
+
 ## 7. Compression Projection Facts
 
 `WEB-601`

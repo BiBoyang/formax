@@ -1,6 +1,6 @@
 # Session Persistence Contract（唯一事实源）
 
-最后更新：2026-05-11  
+最后更新：2026-05-24
 状态：规范性（Normative）
 
 本文档定义 Formax 本地 session 文件、resume 语义、以及 app-server 恢复 stale input 的共享合同。
@@ -75,7 +75,20 @@ app-server `thread/start` 当前 MUST 返回 provisional thread。
 当 app-server 后续需要 durable thread file 时，MUST 通过当前 `ensureThreadFile(...)` 路径收敛：
 1. 先查找现有 session 文件
 2. 若仍不存在且 thread 仍是 provisional，则创建新 session 文件
-3. 若 provisional thread 已有 label，创建文件时 MUST 一并写入 `session_rename`
+3. 若 provisional thread 已有 label，创建文件时 MUST 一并写入 `session_rename { label, source: "manual" }`
+
+`SES-103A`
+`session_rename` is the durable authority for formal thread titles. Its stable payload is:
+1. `label: string`
+2. `source?: "manual" | "auto_title"`
+
+Missing or unknown `source` MUST be projected as `legacy`. Legacy labels are formal labels and MUST be protected from automatic overwrite.
+
+`SES-103B`
+`lastUserPrompt` in session summaries is preview/snippet compatibility data only. Readers MAY preserve legacy `firstUserPrompt`-preferred projection for existing non-web consumers and old session files, but title generation/title display MUST NOT treat it as a formal title fallback.
+
+`SES-103C`
+Automatic title failures MAY be recorded as best-effort `auto_title_attempt` events. Stable statuses are `empty`, `failed`, and `persist_error`. These events count toward retry diagnostics/budget; aborted/interrupted generation MUST NOT consume retry budget. A successful generated title is represented by `session_rename { label, source: "auto_title" }`, not by a success attempt event.
 
 `SES-104`  
 对仍然是 provisional 且尚未物化文件的 thread 执行 `thread/resume` 时，MUST 返回该 thread 本身，且 `staleInputs` MUST 为空数组。

@@ -1171,6 +1171,7 @@ describe('TurnRunner', () => {
       })
       const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
       expect(String(failed.params?.error || '')).toContain('flush failed')
+      expect(notifications.some((n) => n.method === 'thread/updated')).toBe(false)
     } finally {
       openSpy.mockRestore()
     }
@@ -2419,9 +2420,13 @@ describe('TurnRunner', () => {
     expect(filePath).toBeTruthy()
     const summary = await readSessionSummary(filePath!)
     expect(summary.label).toBe('Auto Title Test')
+    const updatedIndex = notifications.findIndex((n) => n.method === 'thread/updated')
+    const completedIndex = notifications.findIndex((n) => n.method === 'turn/completed')
+    expect(updatedIndex).toBeGreaterThanOrEqual(0)
+    expect(updatedIndex).toBeLessThan(completedIndex)
   })
 
-  it('updates existing session title when topic changes', async () => {
+  it('does not update existing session title when topic changes', async () => {
     const fixture = await createThreadFixture()
     const seedWriter = await SessionWriter.openExisting({
       filePath: (
@@ -2486,7 +2491,8 @@ describe('TurnRunner', () => {
     })
     expect(filePath).toBeTruthy()
     const summary = await readSessionSummary(filePath!)
-    expect(summary.label).toBe('New Topic')
+    expect(summary.label).toBe('Old Topic')
+    expect(notifications.some((n) => n.method === 'thread/updated')).toBe(false)
   })
 
   it('maps /init to init prompt for model while keeping user transcript text', async () => {

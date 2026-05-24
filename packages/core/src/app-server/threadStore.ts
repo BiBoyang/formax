@@ -175,6 +175,8 @@ function toThreadSummary(
     messageCount: summary.messageCount,
     lastUserPrompt: summary.lastUserPrompt,
     label: summary.label,
+    titleSource: summary.titleSource,
+    titleStatus: summary.titleStatus,
     archivedAt,
   }
 }
@@ -202,6 +204,8 @@ function toThreadSummaryFromProvisional(
     messageCount: 0,
     lastUserPrompt: null,
     label: thread.label,
+    titleSource: thread.label ? 'manual' : null,
+    titleStatus: thread.label ? 'ready' : 'untitled',
     archivedAt,
   }
 }
@@ -591,7 +595,7 @@ export class ThreadStore {
       })
       try {
         if (provisional.label) {
-          await writer.appendEvent('session_rename', { label: provisional.label })
+          await writer.appendEvent('session_rename', { label: provisional.label, source: 'manual' })
         }
       } finally {
         await writer.shutdown()
@@ -985,7 +989,7 @@ export class ThreadStore {
 
     const writer = await SessionWriter.openExisting({ filePath })
     try {
-      await writer.appendEvent('session_rename', { label: params.label })
+      await writer.appendEvent('session_rename', { label: params.label, source: 'manual' })
     } finally {
       await writer.shutdown()
     }

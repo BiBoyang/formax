@@ -59,7 +59,7 @@ export async function runNewSessionAction(args: {
 
 export async function renameSessionAction(filePath: string, label: string): Promise<void> {
   const writer = await SessionWriter.openExisting({ filePath })
-  await writer.appendEvent('session_rename', { label })
+  await writer.appendEvent('session_rename', { label, source: 'manual' })
   await writer.shutdown()
 }
 

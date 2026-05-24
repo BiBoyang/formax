@@ -33,6 +33,21 @@ function createContext(overrides: Partial<ProcessNotificationContext> = {}): Pro
 }
 
 describe('processNotification', () => {
+  it('refreshes threads for thread/updated without transcript projection', () => {
+    const ctx = createContext()
+    processNotification(
+      {
+        jsonrpc: '2.0',
+        method: 'thread/updated',
+        params: { threadId: 'thread-1', replaySeq: 3 },
+      },
+      ctx,
+    )
+
+    expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+  })
+
   it('[invariant:notification-order] skips side effects when sequenced notification is rejected', () => {
     const shouldProcessSequencedNotification = vi.fn(() => false)
     const ctx = createContext({

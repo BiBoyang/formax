@@ -89,6 +89,8 @@ function areThreadSummariesEqual(a: ThreadSummary, b: ThreadSummary): boolean {
     a.messageCount === b.messageCount &&
     a.lastUserPrompt === b.lastUserPrompt &&
     a.label === b.label &&
+    a.titleSource === b.titleSource &&
+    a.titleStatus === b.titleStatus &&
     (a.archivedAt ?? null) === (b.archivedAt ?? null)
   )
 }

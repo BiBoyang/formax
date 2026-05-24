@@ -312,6 +312,7 @@ export class AppServer {
       try {
         const params = parseThreadRenameParams(req.params)
         const result = await this.threadStore.renameThread(params)
+        this.emitServerNotification('thread/updated', { threadId: params.threadId, thread: result.thread })
         return [makeSuccessResponse(req.id, result)]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]

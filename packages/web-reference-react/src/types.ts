@@ -37,6 +37,8 @@ export type ThreadSummary = {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  titleSource?: 'manual' | 'auto_title' | 'legacy' | null
+  titleStatus?: 'ready' | 'untitled' | 'auto_retryable' | 'auto_exhausted'
   archivedAt?: string | null
 }
 

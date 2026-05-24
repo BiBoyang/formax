@@ -59,10 +59,10 @@ describe('maybeAutoGenerateSessionTitle', () => {
       },
     })
     expect(second).toBeNull()
-    expect(runTurnCalls).toBe(2)
+    expect(runTurnCalls).toBe(1)
   })
 
-  it('checks topic and keeps existing label when not a new topic', async () => {
+  it('skips topic detection and keeps existing labels', async () => {
     const fixture = await createSessionFixture()
     const writer = await SessionWriter.openExisting({ filePath: fixture.filePath })
     await writer.appendEvent('session_rename', { label: 'Manual Name' })
@@ -92,13 +92,13 @@ describe('maybeAutoGenerateSessionTitle', () => {
     })
 
     expect(generated).toBeNull()
-    expect(runTurnCalls).toBe(1)
+    expect(runTurnCalls).toBe(0)
     const summary = await readSessionSummary(fixture.filePath)
     expect(summary.label).toBe('Manual Name')
-    expect(checkedTopicPromptKeys.size).toBe(1)
+    expect(checkedTopicPromptKeys.size).toBe(0)
   })
 
-  it('updates existing label when topic detector returns a new title', async () => {
+  it('does not overwrite existing labels when topic detector would return a new title', async () => {
     const fixture = await createSessionFixture()
     const writer = await SessionWriter.openExisting({ filePath: fixture.filePath })
     await writer.appendEvent('session_rename', { label: 'Old Label' })
@@ -125,9 +125,10 @@ describe('maybeAutoGenerateSessionTitle', () => {
       },
     })
 
-    expect(generated).toBe('Approval 交互')
+    expect(generated).toBeNull()
     const summary = await readSessionSummary(fixture.filePath)
-    expect(summary.label).toBe('Approval 交互')
+    expect(summary.label).toBe('Old Label')
+    expect(checkedTopicPromptKeys.size).toBe(0)
   })
 
   it('parses topic decision JSON and normalizes title', async () => {
@@ -198,49 +199,50 @@ describe('maybeAutoGenerateSessionTitle', () => {
     expect(attempted.has(fixture.sessionId)).toBe(false)
   })
 
-  it('rolls back attempted session id when title generation throws', async () => {
+  it('records a failed attempt and rolls back attempted session id when title generation throws', async () => {
     const fixture = await createSessionFixture()
     const attempted = new Set<string>()
 
-    await expect(
-      maybeAutoGenerateSessionTitle({
-        filePath: fixture.filePath,
-        cwd: fixture.cwd,
-        attemptedSessionIds: attempted,
-        userText: 'title please',
-        engine: {
-          async runTurn() {
-            throw new Error('boom')
-          },
+    const generated = await maybeAutoGenerateSessionTitle({
+      filePath: fixture.filePath,
+      cwd: fixture.cwd,
+      attemptedSessionIds: attempted,
+      userText: 'title please',
+      engine: {
+        async runTurn() {
+          throw new Error('boom')
         },
-      }),
-    ).rejects.toThrow('boom')
+      },
+    })
 
+    expect(generated).toBeNull()
     expect(attempted.has(fixture.sessionId)).toBe(false)
+    const summary = await readSessionSummary(fixture.filePath)
+    expect(summary.autoTitleAttemptCount).toBe(1)
+    expect(summary.titleStatus).toBe('auto_retryable')
   })
 
-  it('removes checked topic key when topic detection throws', async () => {
+  it('does not run topic detection for existing labels when the detector would throw', async () => {
     const fixture = await createSessionFixture()
     const writer = await SessionWriter.openExisting({ filePath: fixture.filePath })
     await writer.appendEvent('session_rename', { label: 'Manual Name' })
     await writer.shutdown()
 
     const checkedTopicPromptKeys = new Set<string>()
-    await expect(
-      maybeAutoGenerateSessionTitle({
-        filePath: fixture.filePath,
-        cwd: fixture.cwd,
-        attemptedSessionIds: new Set<string>(),
-        checkedTopicPromptKeys,
-        userText: 'new topic?',
-        engine: {
-          async runTurn() {
-            throw new Error('topic fail')
-          },
+    const generated = await maybeAutoGenerateSessionTitle({
+      filePath: fixture.filePath,
+      cwd: fixture.cwd,
+      attemptedSessionIds: new Set<string>(),
+      checkedTopicPromptKeys,
+      userText: 'new topic?',
+      engine: {
+        async runTurn() {
+          throw new Error('topic fail')
         },
-      }),
-    ).rejects.toThrow('topic fail')
+      },
+    })
 
+    expect(generated).toBeNull()
     expect(checkedTopicPromptKeys.size).toBe(0)
   })
 })

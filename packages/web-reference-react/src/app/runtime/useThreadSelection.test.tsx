@@ -37,7 +37,7 @@ describe('useThreadSelection', () => {
     )
 
     expect(result.current.sortedThreads.map((thread) => thread.id)).toEqual(['thread-newer', 'thread-older'])
-    expect(result.current.sortedThreads.map((thread) => thread.title)).toEqual(['Newest', 'older prompt'])
+    expect(result.current.sortedThreads.map((thread) => thread.title)).toEqual(['Newest', 'New Thread'])
 
     await waitFor(() => {
       expect(setSelectedCwd).toHaveBeenCalledWith('/repo-a')

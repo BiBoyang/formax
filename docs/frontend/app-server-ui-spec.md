@@ -91,6 +91,8 @@ Transcript 类型要求（必须可区分）：
 
 1. 顶栏的 thread 标题、workspace label、open-folder action 必须跟随当前 surface owner，而不是继续读旧的 workspace selection。
 2. 真实 `thread` surface 下：
+   - thread title MUST render `ThreadSummary.label` when present；
+   - thread title MUST NOT fall back to `lastUserPrompt`；unlabeled threads render `New Thread`；
    - workspace label 显示 `activeThread.cwd` 的目录名；
    - open-folder action 只允许作用于 `activeThread.cwd`。
 3. `newThreadDraft` surface 下：

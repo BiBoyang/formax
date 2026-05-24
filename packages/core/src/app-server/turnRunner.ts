@@ -516,6 +516,7 @@ export class TurnRunner {
     let errorMessage: string | null = null
     let pendingDurableSnipCommit: Record<string, unknown> | null = null
     let pendingContextCollapseCommit: ContextCollapseCommittedEntry | null = null
+    let titleUpdated = false
 
     try {
       writer = await SessionWriter.openExisting({ filePath: running.filePath })
@@ -935,7 +936,7 @@ export class TurnRunner {
         lastUserPrompt: running.inputText,
       })
       if (shouldAutoGenerateTitle) {
-        await maybeAutoGenerateSessionTitle({
+        const generatedTitle = await maybeAutoGenerateSessionTitle({
           filePath: running.filePath,
           engine: this.engine,
           cwd: running.cwd,
@@ -947,6 +948,9 @@ export class TurnRunner {
           assistantText,
           signal: running.abortController.signal,
         }).catch(() => null)
+        if (generatedTitle) {
+          titleUpdated = true
+        }
       }
       status = 'completed'
     } catch (err) {
@@ -1008,6 +1012,11 @@ export class TurnRunner {
     }
 
     if (status === 'completed') {
+      if (titleUpdated) {
+        this.emitTurnNotification(running, 'thread/updated', 'system', {
+          threadId: running.threadId,
+        })
+      }
       this.emitTurnNotification(running, 'turn/completed', 'engine', {
         turn: {
           id: running.turnId,

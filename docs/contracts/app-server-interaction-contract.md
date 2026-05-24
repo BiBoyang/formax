@@ -1,6 +1,6 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-04-04
+更新时间：2026-05-24
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
@@ -95,6 +95,12 @@
   - `limit` 默认 20，最大 200
   - `cursor` 为非负整数字符串偏移量
 - 返回：`{ data, nextCursor }`
+- `ThreadSummary` title fields:
+  - `label` is the formal thread title. It MAY come from manual rename or LLM auto-title.
+  - `lastUserPrompt` is preview/snippet data only. Clients MUST NOT render it as the formal title fallback.
+  - `titleSource` MAY be `manual`, `auto_title`, `legacy`, or `null`.
+  - `titleStatus` MAY be `ready`, `untitled`, `auto_retryable`, or `auto_exhausted`.
+  - When `label == null`, clients SHOULD render an explicit placeholder such as `New Thread` as title text.
 
 ## 2.4 thread/read
 
@@ -169,6 +175,13 @@
 - 并发约束：
   - 同一 `threadId` 同时最多 1 个 in-flight turn
   - 冲突时返回 `INVALID_PARAMS`（`Turn already running...`）
+
+## 2.5.0 Title Update Notifications
+
+- `thread/updated` is the generic server notification for thread metadata changes, including manual rename and successful auto-title persistence.
+- `thread/updated.params` MUST include `threadId` and the standard replay sequencing wrapper added by app-server notifications.
+- When the updated `ThreadSummary` is cheaply available, the notification MAY include `thread`; clients MUST still tolerate a notification that only carries `threadId`.
+- `thread/updated` MUST NOT be projected into transcript content. GUI clients should refresh thread list state after sequenced-notification gating.
 
 ## 2.5.1 command/dispatch
 

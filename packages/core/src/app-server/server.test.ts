@@ -319,6 +319,17 @@ describe('AppServer', () => {
     )
     expect((renameOut[0] as any).result.thread.id).toBe('t-1')
     expect((renameOut[0] as any).result.thread.label).toBe('Renamed in web')
+    expect(notifications).toContainEqual(
+      expect.objectContaining({
+        jsonrpc: '2.0',
+        method: 'thread/updated',
+        params: expect.objectContaining({
+          threadId: 't-1',
+          replaySeq: expect.any(Number),
+          thread: expect.objectContaining({ label: 'Renamed in web' }),
+        }),
+      }),
+    )
 
     const hideOut = await server.handleMessage(request(8, 'thread/group/hide', { cwd: '/tmp/workspace' }))
     expect((hideOut[0] as any).result.hiddenGroupCwds).toEqual(['/tmp/workspace'])

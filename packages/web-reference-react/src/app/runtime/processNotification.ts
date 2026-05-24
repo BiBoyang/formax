@@ -284,6 +284,11 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
       break
     }
 
+    case 'thread/updated': {
+      void ctx.refreshThreads().catch(() => undefined)
+      break
+    }
+
     default:
       break
   }

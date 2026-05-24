@@ -256,7 +256,7 @@ describe('sessionActions', () => {
     await renameSessionAction('/tmp/session.jsonl', 'Pinned Session')
 
     expect(openExistingMock).toHaveBeenCalledWith({ filePath: '/tmp/session.jsonl' })
-    expect(appendEvent).toHaveBeenCalledWith('session_rename', { label: 'Pinned Session' })
+    expect(appendEvent).toHaveBeenCalledWith('session_rename', { label: 'Pinned Session', source: 'manual' })
     expect(shutdown).toHaveBeenCalledTimes(1)
   })
 })

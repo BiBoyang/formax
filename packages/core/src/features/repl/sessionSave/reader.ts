@@ -39,6 +39,36 @@ export type SessionSummary = {
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  titleSource: SessionTitleSource
+  titleStatus: SessionTitleStatus
+  autoTitleAttemptCount: number
+}
+
+export type SessionTitleSource = 'manual' | 'auto_title' | 'legacy' | null
+
+export type SessionTitleStatus = 'ready' | 'untitled' | 'auto_retryable' | 'auto_exhausted'
+
+export const DEFAULT_AUTO_TITLE_MAX_ATTEMPTS = 3
+export const DEFAULT_AUTO_TITLE_MAX_MESSAGE_COUNT = 12
+
+export function parseSessionTitleSource(value: unknown): Exclude<SessionTitleSource, null> {
+  return value === 'manual' || value === 'auto_title' ? value : 'legacy'
+}
+
+export function computeSessionTitleStatus(args: {
+  label: string | null
+  messageCount: number | null
+  autoTitleAttemptCount: number
+  maxAttempts?: number
+  maxMessageCount?: number
+}): SessionTitleStatus {
+  if (args.label) return 'ready'
+  const maxMessageCount = args.maxMessageCount ?? DEFAULT_AUTO_TITLE_MAX_MESSAGE_COUNT
+  if (args.messageCount != null && args.messageCount > maxMessageCount) return 'auto_exhausted'
+  const maxAttempts = args.maxAttempts ?? DEFAULT_AUTO_TITLE_MAX_ATTEMPTS
+  if (args.autoTitleAttemptCount > 0 && args.autoTitleAttemptCount < maxAttempts) return 'auto_retryable'
+  if (args.autoTitleAttemptCount >= maxAttempts) return 'auto_exhausted'
+  return 'untitled'
 }
 
 export function detailLinesFromPersistedTool(args: { summary: string; detailLines: string[] }): string[] {
@@ -378,18 +408,56 @@ export async function readTailText(filePath: string, maxBytes: number): Promise<
   }
 }
 
+async function countAutoTitleAttempts(filePath: string): Promise<number> {
+  let count = 0
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  })
+  try {
+    for await (const line of rl) {
+      const parsed = parseJsonLine(line)
+      if (!isObject(parsed) || parsed.type !== 'event') continue
+      if (coerceString(parsed.name) !== 'auto_title_attempt') continue
+      const data = isObject(parsed.data) ? parsed.data : {}
+      const status = coerceString((data as any).status)
+      if (status === 'empty' || status === 'failed' || status === 'persist_error') {
+        count += 1
+      }
+    }
+  } finally {
+    rl.close()
+  }
+  return count
+}
+
 export async function readTailSummaryData(filePath: string): Promise<{
   messageCount: number | null
   lastUserPrompt: string | null
   label: string | null
+  titleSource: SessionTitleSource
+  autoTitleAttemptCount: number
   latestTurnCwd: string | null
 }> {
-  const tail = await readTailText(filePath, 256 * 1024).catch(() => '')
-  if (!tail) return { messageCount: null, lastUserPrompt: null, label: null, latestTurnCwd: null }
+  const [tail, fullAutoTitleAttemptCount] = await Promise.all([
+    readTailText(filePath, 256 * 1024).catch(() => ''),
+    countAutoTitleAttempts(filePath).catch(() => 0),
+  ])
+  if (!tail) {
+    return {
+      messageCount: null,
+      lastUserPrompt: null,
+      label: null,
+      titleSource: null,
+      autoTitleAttemptCount: fullAutoTitleAttemptCount,
+      latestTurnCwd: null,
+    }
+  }
 
   let messageCount: number | null = null
-  let titleSeedPrompt: string | null = null
+  let lastUserPrompt: string | null = null
   let label: string | null = null
+  let titleSource: SessionTitleSource = null
   let latestTurnCwd: string | null = null
 
   const lines = tail.split('\n').map((l) => l.trimEnd()).filter(Boolean)
@@ -405,28 +473,31 @@ export async function readTailSummaryData(filePath: string): Promise<{
 
     if (name === 'session_rename' && !label) {
       label = coerceString((data as any).label)
-      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
+      if (label) {
+        titleSource = parseSessionTitleSource((data as any).source)
+      }
+      if (messageCount !== null && lastUserPrompt && label && latestTurnCwd) break
       continue
     }
 
     if (name === 'app_turn_started' && !latestTurnCwd) {
       latestTurnCwd = coerceString((data as any).cwd)
-      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
+      if (messageCount !== null && lastUserPrompt && label && latestTurnCwd) break
       continue
     }
 
     if (name === 'ui_stats') {
       if (messageCount === null) messageCount = coerceNumber((data as any).uiMsgCount)
-      if (!titleSeedPrompt) {
-        titleSeedPrompt =
+      if (!lastUserPrompt) {
+        lastUserPrompt =
           coerceString((data as any).firstUserPrompt) ??
           coerceString((data as any).lastUserPrompt)
       }
-      if (messageCount !== null && titleSeedPrompt && label && latestTurnCwd) break
+      if (messageCount !== null && lastUserPrompt && label && latestTurnCwd) break
     }
   }
 
-  return { messageCount, lastUserPrompt: titleSeedPrompt, label, latestTurnCwd }
+  return { messageCount, lastUserPrompt, label, titleSource, autoTitleAttemptCount: fullAutoTitleAttemptCount, latestTurnCwd }
 }
 
 export async function readSessionSummary(filePath: string): Promise<SessionSummary> {
@@ -455,6 +526,13 @@ export async function readSessionSummary(filePath: string): Promise<SessionSumma
     messageCount: tail.messageCount,
     lastUserPrompt: tail.lastUserPrompt,
     label: tail.label,
+    titleSource: tail.titleSource,
+    titleStatus: computeSessionTitleStatus({
+      label: tail.label,
+      messageCount: tail.messageCount,
+      autoTitleAttemptCount: tail.autoTitleAttemptCount,
+    }),
+    autoTitleAttemptCount: tail.autoTitleAttemptCount,
   }
 }
 

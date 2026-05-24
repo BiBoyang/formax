@@ -14,6 +14,21 @@ describe('sessionTitle generate helpers', () => {
     expect(normalized).toBe('x'.repeat(50))
   })
 
+  it('normalizes CJK titles by display width instead of UTF-16 length only', () => {
+    const normalized = normalizeSessionTitle('我现在这个项目有个桌面版本但是目前必须先配置baseurl和apikey')
+    expect(normalized).toBe('我现在这个项目有个桌面版本但是目前必须先配置')
+  })
+
+  it('keeps complete ASCII words when mixed-language titles are display-width truncated', () => {
+    const normalized = normalizeSessionTitle(`${'修'.repeat(21)} README 更多内容`)
+    expect(normalized).toBe(`${'修'.repeat(21)} README`)
+  })
+
+  it('removes partial file tokens when mixed-language titles are display-width truncated', () => {
+    const normalized = normalizeSessionTitle(`${'修'.repeat(21)} README.md 更多内容`)
+    expect(normalized).toBe('修'.repeat(21))
+  })
+
   it('uses streamed assistant deltas when generating a title', async () => {
     const runTurn = vi.fn(async (args: any) => {
       args.onEvent?.({ type: 'tool_update', text: 'ignored' })
