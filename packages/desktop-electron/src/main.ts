@@ -1232,6 +1232,7 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: false,
       preload: preloadPath,
     },
   })
