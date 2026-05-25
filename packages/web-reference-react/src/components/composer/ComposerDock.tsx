@@ -135,7 +135,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
     <div
       data-testid="composer"
       data-layout-variant={props.layoutVariant ?? 'bottom'}
-      className={cn('composer', props.layoutVariant === 'centered' ? 'w-full' : 'p-4 pb-8')}
+      className={cn('composer', props.layoutVariant === 'centered' ? 'w-full' : 'px-4 pb-8')}
     >
       <div ref={composerRootRef} className="max-w-3xl mx-auto relative">
         {props.showJumpToBottom ? (

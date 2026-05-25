@@ -1,0 +1,127 @@
+@custom-variant electron (:where([data-codex-window-type="electron"]) &);
+@custom-variant extension (:where([data-codex-window-type="extension"]) &);
+
+:where(.codex-md-host) .border-token-border {
+  border-color: var(--color-token-border);
+}
+
+:where(.codex-md-host) .border-token-input-background {
+  border-color: var(--color-token-input-background);
+}
+
+:where(.codex-md-host) .text-token-description-foreground {
+  color: var(--color-token-description-foreground);
+}
+
+:where(.codex-md-host) .text-token-foreground {
+  color: var(--color-token-foreground);
+}
+
+:where(.codex-md-host) .text-token-text-tertiary {
+  color: var(--color-token-text-tertiary);
+}
+
+:where(.codex-md-host) .bg-token-list-hover-background {
+  background-color: var(--color-token-list-hover-background);
+}
+
+:where(.codex-md-host) .bg-token-text-code-block-background {
+  background-color: var(--color-token-text-code-block-background);
+}
+
+:where(.codex-md-host) .bg-token-toolbar-hover-background {
+  background-color: var(--color-token-toolbar-hover-background);
+}
+
+:where(.codex-md-host) .text-size-chat {
+  font-size: var(--codex-chat-font-size);
+  line-height: calc(var(--codex-chat-font-size) + 8px);
+}
+
+:where(.codex-md-host) .text-size-chat-sm {
+  font-size: calc(var(--codex-chat-font-size) - 1px);
+  line-height: calc(var(--codex-chat-font-size) + 7px);
+}
+
+:where(.codex-md-host) .heading-lg {
+  font-size: var(--text-heading-lg);
+  line-height: 1.2;
+}
+
+:where(.codex-md-host) .heading-base {
+  font-size: var(--text-heading-md);
+  line-height: 1.33;
+}
+
+:where(.codex-md-host) .heading-subsection {
+  font-size: var(--text-heading-sm);
+  line-height: 1.33;
+}
+
+:where(.codex-md-host) .contain-inline-size {
+  contain: inline-size;
+}
+
+:where(.codex-md-host) .cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+:where(.codex-md-host) .user-select-none {
+  user-select: none;
+}
+
+:where(.codex-md-host) .icon-xs {
+  width: 16px;
+  height: 16px;
+}
+
+:where(.codex-md-host) .icon-sm {
+  width: 20px;
+  height: 20px;
+}
+
+:where(.codex-md-host) .whitespace-pre\! {
+  white-space: pre !important;
+}
+
+:where(.codex-md-host) .no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+:where(.codex-md-host) .blend {
+  background-blend-mode: normal;
+}
+
+:where(.codex-md-host) .bg-token-list-hover-background\/60 {
+  background-color: color-mix(in oklab, var(--color-token-list-hover-background) 60%, transparent);
+}
+
+:where(.codex-md-host) .bg-token-foreground\/10 {
+  background-color: color-mix(in oklab, var(--color-token-foreground) 10%, transparent);
+}
+
+:where(.codex-md-host) .codex-md-copy-button,
+:where(.codex-md-host) .codex-md-icon-button {
+  border-color: transparent;
+  color: var(--color-token-text-tertiary);
+}
+
+:where(.codex-md-host) .codex-md-copy-button:enabled:hover,
+:where(.codex-md-host) .codex-md-icon-button:enabled:hover,
+:where(.codex-md-host) .codex-md-copy-button[data-state="open"],
+:where(.codex-md-host) .codex-md-icon-button[data-state="open"] {
+  background-color: var(--color-token-list-hover-background);
+}
+
+.codex-md-host[data-codex-window-type="electron"] .electron\:bg-token-list-hover-background\/60 {
+  background-color: color-mix(in oklab, var(--color-token-list-hover-background) 60%, transparent);
+}
+
+.codex-md-host[data-codex-window-type="extension"] .extension\:leading-normal {
+  line-height: 1.5;
+}
+
+.codex-md-host[data-codex-window-type="extension"] .extension\:bg-token-foreground\/10 {
+  background-color: color-mix(in oklab, var(--color-token-foreground) 10%, transparent);
+}

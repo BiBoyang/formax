@@ -1,0 +1,69 @@
+/*
+ * Codex runtime baseline.
+ *
+ * Source evidence:
+ * - codex-md-extract/runtime-css-vars.css exported from the running Codex app.
+ * - codex-md-extract/webview/assets/app-main-Dqf4TBdO.css for the body/code reset.
+ *
+ * Keep this file to runtime tokens and app-level reset only. Component-specific
+ * structure still belongs in codex-md.css and must be backed by captured DOM.
+ */
+.codex-md-host {
+  --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-default: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --vscode-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vscode-editor-font-family: "SFMono-Regular", ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: var(--vscode-font-family, var(--font-sans-default));
+  --font-mono: var(--vscode-editor-font-family, var(--font-mono-default));
+  --spacing: 0.25rem;
+  --text-sm: 12px;
+  --text-sm--line-height: calc(1.25 / .875);
+  --text-base: 14px;
+  --text-base--line-height: calc(1.5 / 1);
+  --text-heading-lg: 24px;
+  --text-heading-md: 18px;
+  --text-heading-sm: 18px;
+  --radius-sm-base: .375rem;
+  --radius-md-base: .5rem;
+  --radius-lg-base: .625rem;
+  --radius-full: 9999px;
+  --corner-radius-scale: 1.25;
+  --radius-sm: calc(var(--radius-sm-base) * var(--corner-radius-scale));
+  --radius-md: calc(var(--radius-md-base) * var(--corner-radius-scale));
+  --radius-lg: calc(var(--radius-lg-base) * var(--corner-radius-scale));
+  --vscode-font-size: 14px;
+  --vscode-editor-font-size: 12px;
+  --vscode-chat-font-size: var(--vscode-font-size);
+  --vscode-chat-editor-font-size: var(--vscode-editor-font-size);
+  --codex-chat-font-size: 14px;
+  --codex-chat-code-font-size: 12px;
+  --padding-toolbar: calc(var(--spacing) * 4);
+  --markdown-wide-block-max-height: 80vh;
+  --color-text-foreground: #0d0d0d;
+  --color-token-foreground: var(--color-text-foreground);
+  --color-token-editor-foreground: var(--color-token-foreground);
+  --color-token-description-foreground: rgba(13, 13, 13, 0.495);
+  --color-token-text-tertiary: var(--color-token-description-foreground);
+  --color-token-input-background: rgba(255, 255, 255, 0.96);
+  --color-token-input-border: rgba(13, 13, 13, 0.078);
+  --color-token-border: rgba(13, 13, 13, 0.078);
+  --color-token-list-hover-background: rgba(13, 13, 13, 0.053);
+  --color-token-text-code-block-background: rgba(13, 13, 13, 0.078);
+  --color-token-text-link-foreground: #0169cc;
+  --color-token-text-link-active-foreground: #0169cc;
+  --color-token-link: #0169cc;
+  --color-token-toolbar-hover-background: transparent;
+  color: var(--color-token-editor-foreground);
+  font-family: var(--vscode-font-family);
+  font-weight: var(--vscode-font-weight);
+  background-color: transparent;
+  padding: 0;
+}
+
+.codex-md-host .codex-md {
+  color: var(--color-token-editor-foreground);
+  font-family: var(--vscode-font-family);
+  font-weight: var(--vscode-font-weight);
+  background-color: transparent;
+  padding: 0;
+}

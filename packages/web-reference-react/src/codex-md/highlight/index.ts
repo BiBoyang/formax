@@ -1,0 +1,1 @@
+export { defaultHighlighter } from "./defaultHighlighter";

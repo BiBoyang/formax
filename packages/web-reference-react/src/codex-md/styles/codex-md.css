@@ -1,0 +1,423 @@
+@layer components {
+  .codex-md {
+    --codex-md-spacing: var(--spacing, 0.25rem);
+    --codex-md-chat-font-size: var(--codex-chat-font-size, 14px);
+    --codex-md-chat-line-height: calc(var(--codex-md-chat-font-size) + 8px);
+    --codex-md-text-sm: var(--text-sm, 12px);
+    --codex-md-text-sm-line-height: var(--text-sm--line-height, calc(1.25 / 0.875));
+    --codex-md-radius-lg: var(--radius-lg, 0.625rem);
+    --codex-md-radius-full: var(--radius-full, 9999px);
+    --codex-md-bg: var(--color-token-main-surface-primary, #ffffff);
+    --codex-md-bg-subtle: var(--color-token-bg-secondary, #f7f7f8);
+    --codex-md-bg-hover: var(--color-token-list-hover-background, rgba(13, 13, 13, 0.053));
+    --codex-md-border: var(--color-token-border, rgba(13, 13, 13, 0.078));
+    --codex-md-border-strong: var(--color-token-border-heavy, rgba(13, 13, 13, 0.117));
+    --codex-md-text: var(--color-token-foreground, #0d0d0d);
+    --codex-md-text-muted: var(--color-token-description-foreground, rgba(13, 13, 13, 0.495));
+    --codex-md-text-subtle: var(--color-token-text-tertiary, rgba(13, 13, 13, 0.495));
+    --codex-md-token-description-foreground: var(--color-token-description-foreground, color-mix(in oklab, var(--codex-md-text) 50%, transparent));
+    --codex-md-token-text-tertiary: var(--color-token-text-tertiary, color-mix(in oklab, var(--codex-md-text) 50%, transparent));
+    --codex-md-token-input-background: var(--color-token-input-background, var(--codex-md-bg));
+    --codex-md-link: var(--color-token-link, #0169cc);
+    --codex-md-code-bg: var(--color-token-text-code-block-background, color-mix(in oklab, var(--codex-md-text) 8%, transparent));
+    --codex-md-code-border: var(--color-token-input-background, rgba(255, 255, 255, 0.96));
+    --codex-md-chip-bg: transparent;
+    --codex-md-chip-border: transparent;
+    --codex-md-focus: rgba(11, 87, 208, 0.28);
+    --codex-md-note-bg: rgba(11, 87, 208, 0.07);
+    --codex-md-note-border: rgba(11, 87, 208, 0.22);
+    --codex-md-tip-bg: rgba(22, 163, 74, 0.08);
+    --codex-md-tip-border: rgba(22, 163, 74, 0.22);
+    --codex-md-warning-bg: rgba(217, 119, 6, 0.09);
+    --codex-md-warning-border: rgba(217, 119, 6, 0.26);
+    --codex-md-caution-bg: rgba(220, 38, 38, 0.08);
+    --codex-md-caution-border: rgba(220, 38, 38, 0.24);
+    color: var(--codex-md-text);
+    font-family: var(--font-sans, Inter, -apple-system, system-ui, "Segoe UI", sans-serif);
+    font-size: var(--codex-md-chat-font-size);
+    line-height: var(--codex-md-chat-line-height);
+    overflow-wrap: anywhere;
+  }
+
+  .codex-md[data-theme="dark"] {
+    --codex-md-bg: #15171c;
+    --codex-md-bg-subtle: #1f232b;
+    --codex-md-bg-hover: rgba(226, 232, 240, 0.075);
+    --codex-md-border: rgba(226, 232, 240, 0.14);
+    --codex-md-border-strong: rgba(226, 232, 240, 0.2);
+    --codex-md-text: #e5e7eb;
+    --codex-md-text-muted: #a3aab8;
+    --codex-md-text-subtle: #8c96a8;
+    --codex-md-link: #8ab4ff;
+    --codex-md-code-bg: #111827;
+    --codex-md-code-border: rgba(226, 232, 240, 0.12);
+    --codex-md-chip-bg: transparent;
+    --codex-md-chip-border: transparent;
+    --codex-md-focus: rgba(138, 180, 255, 0.32);
+    --codex-md-note-bg: rgba(138, 180, 255, 0.12);
+    --codex-md-note-border: rgba(138, 180, 255, 0.24);
+    --codex-md-tip-bg: rgba(74, 222, 128, 0.12);
+    --codex-md-tip-border: rgba(74, 222, 128, 0.24);
+    --codex-md-warning-bg: rgba(251, 191, 36, 0.12);
+    --codex-md-warning-border: rgba(251, 191, 36, 0.26);
+    --codex-md-caution-bg: rgba(248, 113, 113, 0.12);
+    --codex-md-caution-border: rgba(248, 113, 113, 0.25);
+  }
+
+  .codex-md-math {
+    font-family: KaTeX_Main, "Times New Roman", serif;
+  }
+
+  .codex-md-math-display {
+    display: block;
+    margin: 0.75rem 0;
+    overflow-x: auto;
+  }
+
+  .codex-md-list-item > .codex-md-paragraph {
+    margin: 0;
+  }
+
+  .group\/inline-mention:focus-visible,
+  .codex-md-copy-button:focus-visible,
+  .codex-md-icon-button:focus-visible {
+    outline: 1px solid var(--color-token-focus-border, var(--codex-md-focus));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /*
+   * The rules below are retained for already aligned code and Mermaid blocks.
+   * Base markdown rules above intentionally map to captured Codex DOM/CSS
+   * instead of browser defaults.
+   */
+
+  .codex-md-admonition {
+    margin: 0;
+  }
+
+  .codex-md-admonition-body {
+    margin-top: 0;
+  }
+
+  .codex-md-definition-list {
+    margin: 0;
+  }
+
+  .codex-md-definition-term,
+  .codex-md-definition-description,
+  .codex-md-footnote-ref,
+  .codex-md-footnotes,
+  .codex-md-footnote-definition,
+  .codex-md-footnote-marker,
+  .codex-md-footnote-content,
+  .codex-md-footnote-backref,
+  .codex-md-details,
+  .codex-md-details-body {
+    all: unset;
+  }
+}
+
+@layer components {
+  /*
+   * Existing code-card and wide-block styles continue below.
+   */
+
+  .codex-md-code-block {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    contain: inline-size;
+    margin: calc(var(--codex-md-spacing) * 2) 0;
+    overflow: clip;
+    border: 1px solid var(--codex-md-token-input-background);
+    border-radius: var(--codex-md-radius-lg);
+    background: var(--codex-md-code-bg);
+  }
+
+  .codex-md-code-header {
+    display: flex;
+    align-items: center;
+    border-top-left-radius: var(--codex-md-radius-lg);
+    border-top-right-radius: var(--codex-md-radius-lg);
+    color: var(--codex-md-token-description-foreground);
+    padding-block: calc(var(--codex-md-spacing) * 1);
+    padding-inline-start: calc(var(--codex-md-spacing) * 2);
+    padding-inline-end: calc(var(--codex-md-spacing) * 2);
+    font-family: var(--font-sans, Inter, -apple-system, system-ui, "Segoe UI", sans-serif);
+    font-size: var(--codex-md-text-sm);
+    line-height: var(--codex-md-text-sm-line-height);
+    user-select: none;
+  }
+
+  .codex-md-code-language {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .codex-md-code-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .codex-md-code-action-group {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+  }
+
+  .codex-md-code-action-tooltip {
+    display: contents;
+  }
+
+  .codex-md-copy-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--codex-md-spacing) * 1);
+    border: 1px solid transparent;
+    border-radius: var(--codex-md-radius-full);
+    background: transparent;
+    color: var(--codex-md-token-text-tertiary);
+    padding: calc(var(--codex-md-spacing) * 0.5);
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .codex-md-copy-icon {
+    flex-shrink: 0;
+  }
+
+  .codex-md-icon-xs {
+    width: 16px;
+    height: 16px;
+  }
+
+  .codex-md-icon-2xs {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  .codex-md-copy-button:hover {
+    background: var(--codex-md-bg-hover);
+    color: var(--codex-md-text);
+  }
+
+  .codex-md-code-body {
+    overflow: auto;
+    padding: calc(var(--codex-md-spacing) * 2);
+    font-size: var(--codex-md-chat-font-size);
+  }
+
+  .codex-md-code-code {
+    font-family: var(--font-mono, ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace);
+    line-height: 1.5;
+    white-space: pre !important;
+  }
+
+  .codex-md-code-code.hljs {
+    color: #383a42;
+    background: transparent;
+  }
+
+  .codex-md-code-code .hljs-comment,
+  .codex-md-code-code .hljs-quote {
+    color: #a0a1a7;
+    font-style: italic;
+  }
+
+  .codex-md-code-code .hljs-doctag,
+  .codex-md-code-code .hljs-keyword,
+  .codex-md-code-code .hljs-formula {
+    color: #a626a4;
+  }
+
+  .codex-md-code-code .hljs-section,
+  .codex-md-code-code .hljs-name,
+  .codex-md-code-code .hljs-selector-tag,
+  .codex-md-code-code .hljs-deletion,
+  .codex-md-code-code .hljs-subst {
+    color: #e45649;
+  }
+
+  .codex-md-code-code .hljs-string,
+  .codex-md-code-code .hljs-regexp,
+  .codex-md-code-code .hljs-addition,
+  .codex-md-code-code .hljs-attribute,
+  .codex-md-code-code .hljs-meta-string {
+    color: #50a14f;
+  }
+
+  .codex-md-code-code .hljs-built_in,
+  .codex-md-code-code .hljs-class .hljs-title {
+    color: #c18401;
+  }
+
+  .codex-md-code-code .hljs-attr,
+  .codex-md-code-code .hljs-variable,
+  .codex-md-code-code .hljs-template-variable,
+  .codex-md-code-code .hljs-type,
+  .codex-md-code-code .hljs-selector-class,
+  .codex-md-code-code .hljs-selector-attr,
+  .codex-md-code-code .hljs-selector-pseudo,
+  .codex-md-code-code .hljs-number {
+    color: #986801;
+  }
+
+  .codex-md-code-code .hljs-symbol,
+  .codex-md-code-code .hljs-bullet,
+  .codex-md-code-code .hljs-link,
+  .codex-md-code-code .hljs-meta,
+  .codex-md-code-code .hljs-selector-id,
+  .codex-md-code-code .hljs-title {
+    color: #4078f2;
+  }
+
+  .codex-md-code-pre {
+    margin: 0;
+    overflow-x: auto;
+    padding: 0.85rem 1rem;
+    font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+
+  .codex-md-code-pre .hljs {
+    color: inherit;
+    background: transparent;
+  }
+
+  .codex-md-code-pre .hljs-comment,
+  .codex-md-code-pre .hljs-quote {
+    color: #7a8496;
+    font-style: italic;
+  }
+
+  .codex-md-code-pre .hljs-keyword,
+  .codex-md-code-pre .hljs-selector-tag,
+  .codex-md-code-pre .hljs-subst {
+    color: #b526b9;
+  }
+
+  .codex-md-code-pre .hljs-string,
+  .codex-md-code-pre .hljs-attribute,
+  .codex-md-code-pre .hljs-symbol,
+  .codex-md-code-pre .hljs-bullet {
+    color: #2f954a;
+  }
+
+  .codex-md-code-pre .hljs-number,
+  .codex-md-code-pre .hljs-literal,
+  .codex-md-code-pre .hljs-variable,
+  .codex-md-code-pre .hljs-template-variable,
+  .codex-md-code-pre .hljs-tag .hljs-attr {
+    color: #c18401;
+  }
+
+  .codex-md-code-pre .hljs-title,
+  .codex-md-code-pre .hljs-section,
+  .codex-md-code-pre .hljs-built_in,
+  .codex-md-code-pre .hljs-name {
+    color: #4078f2;
+  }
+
+  .codex-md-code-pre .hljs-type,
+  .codex-md-code-pre .hljs-class .hljs-title {
+    color: #c18401;
+  }
+
+  .codex-md-code-pre .hljs-addition,
+  .codex-md-code-pre .hljs-meta .hljs-string {
+    color: #3f9b4f;
+  }
+
+  .codex-md-code-pre .hljs-deletion {
+    color: #ef4b43;
+  }
+
+  .codex-md-mermaid-frame {
+    position: relative;
+  }
+
+  .codex-md-mermaid-toolbar {
+    position: absolute;
+    top: calc(var(--codex-md-spacing) * 2);
+    right: calc(var(--codex-md-spacing) * 2);
+    z-index: 10;
+    display: flex;
+    gap: calc(var(--codex-md-spacing) * 1);
+  }
+
+  .codex-md-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--codex-md-spacing) * 1);
+    width: 24px;
+    height: 24px;
+    border: 1px solid transparent;
+    border-radius: var(--codex-md-radius-full);
+    background: transparent;
+    color: var(--codex-md-token-text-tertiary);
+    padding: calc(var(--codex-md-spacing) * 1);
+    font-size: 16px;
+    line-height: 24px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .codex-md-icon-button:hover {
+    background: var(--codex-md-bg-hover);
+  }
+
+  .codex-md-icon-button[data-active="true"] {
+    background: color-mix(in srgb, var(--codex-md-text) 5%, transparent);
+    color: var(--codex-md-text);
+  }
+
+  .codex-md-mermaid-diagram {
+    position: relative;
+    overflow-x: auto;
+    border: 1px solid var(--codex-md-token-input-background);
+    border-radius: var(--codex-md-radius-lg);
+    background: color-mix(in srgb, var(--codex-md-code-bg) 10%, transparent);
+    padding: calc(var(--codex-md-spacing) * 3) calc(var(--codex-md-spacing) * 4);
+  }
+
+  .codex-md-mermaid-diagram-actual {
+    max-height: var(--markdown-wide-block-max-height);
+    overflow: auto;
+  }
+
+  .codex-md-mermaid-diagram > svg {
+    max-width: 100%;
+    height: auto;
+    text-align: left;
+  }
+
+  .codex-md-mermaid-error-text {
+    margin: 0;
+    border-top: 1px solid var(--codex-md-border);
+    padding: 0.55rem 0.75rem;
+    color: #c2410c;
+    font-size: 0.82rem;
+  }
+
+  .codex-md-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+}

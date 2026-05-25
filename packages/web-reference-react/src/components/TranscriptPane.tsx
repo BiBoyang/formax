@@ -217,14 +217,14 @@ const TranscriptItemRow = memo(function TranscriptItemRow(props: TranscriptItemR
         <div className={cn('flex w-full mb-1', item.role === 'user' ? 'justify-end' : 'justify-start')}>
           <div
             className={cn(
-              'max-w-[85%] transition-all duration-300',
+              'transition-all duration-300',
               item.role === 'user'
-                ? 'rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20'
-                : 'text-foreground py-2'
+                ? 'max-w-[85%] rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20'
+                : 'w-full text-foreground py-2'
             )}
           >
             {item.role === 'assistant' ? (
-              <MarkdownRenderer text={item.text} cacheKey={item.id} className="ui-text-base leading-relaxed" />
+              <MarkdownRenderer text={item.text} cacheKey={item.id} className="ui-text-base leading-relaxed" cwd={activeThreadCwd} />
             ) : (
               <div className="ui-text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
                 {item.text}

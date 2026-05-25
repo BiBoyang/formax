@@ -1,136 +1,50 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
-vi.mock('../app/core/markdownShikiRuntime', () => ({
-  createMarkdownShikiRuntime: vi.fn(async () => ({
-    normalizeLanguage: (raw: string | undefined) => {
-      const normalized = (raw ?? '').trim().toLowerCase()
-      if (!normalized) return 'text'
-      if (normalized === 'js') return 'javascript'
-      return normalized
-    },
-    ensureLanguageLoaded: vi.fn(async () => undefined),
-    highlighter: {
-      codeToHtml: (code: string, options: { lang: string }) =>
-        `<pre><code class="language-${options.lang}">${code}</code></pre>`,
-    },
-  })),
-}))
-
 describe('MarkdownRenderer', () => {
-  it('schedules code highlighting via idle callback and reuses highlighted cache', async () => {
-    const originalRic = (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback
-    const originalCic = (window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback
-    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
-      callback({
-        didTimeout: false,
-        timeRemaining: () => 50,
-      } as IdleDeadline)
-      return 1
-    })
-    const cancelIdleCallback = vi.fn()
+  it('renders structured markdown with code block controls', () => {
+    const { container } = render(<MarkdownRenderer text={'# Title\n\n```ts\nconst done = true\n```'} />)
 
-    ;(window as Window & { requestIdleCallback?: (callback: IdleRequestCallback) => number }).requestIdleCallback = requestIdleCallback
-    ;(window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback = cancelIdleCallback
-
-    try {
-      const cacheKey = `markdown-idle-${Math.random().toString(36).slice(2)}`
-      const markdown = '```js\nconst answer = 42\n```'
-
-      const first = render(<MarkdownRenderer text={markdown} cacheKey={cacheKey} />)
-      await waitFor(() => {
-        expect(requestIdleCallback).toHaveBeenCalledTimes(1)
-        expect(first.container.querySelector('[data-copy-code]')).not.toBeNull()
-      })
-      first.unmount()
-
-      const second = render(<MarkdownRenderer text={markdown} cacheKey={cacheKey} />)
-      await waitFor(() => {
-        expect(second.container.querySelector('[data-copy-code]')).not.toBeNull()
-      })
-      expect(requestIdleCallback).toHaveBeenCalledTimes(1)
-      second.unmount()
-    } finally {
-      ;(window as Window & { requestIdleCallback?: unknown }).requestIdleCallback = originalRic
-      ;(window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback = originalCic
-    }
+    expect(screen.getByRole('heading', { name: 'Title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '复制' })).toBeInTheDocument()
+    expect(container.querySelector('.codex-md-code-body code')?.textContent).toBe('const done = true')
   })
 
-  it('prefers worker rendering path when Worker is available', async () => {
-    const originalRic = (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback
-    const originalCic = (window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback
-    const originalWorker = (window as Window & { Worker?: unknown }).Worker
+  it('routes file citation clicks through onOpenFile', () => {
+    const onOpenFile = vi.fn()
+    render(<MarkdownRenderer text='See [guide](./docs/guide.md:3)' onOpenFile={onOpenFile} />)
 
-    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
-      callback({
-        didTimeout: false,
-        timeRemaining: () => 50,
-      } as IdleDeadline)
-      return 1
+    fireEvent.click(screen.getByRole('button', { name: 'guide (line 3)' }))
+
+    expect(onOpenFile).toHaveBeenCalledWith({
+      path: './docs/guide.md',
+      label: 'guide',
+      line: 3,
+      endLine: undefined,
     })
-    const cancelIdleCallback = vi.fn()
+  })
 
-    let shouldFailWorkerRender = false
-    class MockWorker {
-      onmessage: ((event: MessageEvent<{ id: number; ok: boolean; html?: string; error?: string }>) => void) | null = null
-      onerror: ((event: Event) => void) | null = null
-      terminate = vi.fn()
+  it('keeps relative file links clickable when onOpenFile is not provided', () => {
+    render(<MarkdownRenderer text='See [guide](./docs/guide.md:3)' />)
 
-      postMessage(payload: unknown) {
-        const id = (payload as { id?: unknown } | null)?.id
-        if (typeof id !== 'number') return
-        if (shouldFailWorkerRender) {
-          this.onmessage?.({
-            data: {
-              id,
-              ok: false,
-              error: 'worker_render_failed',
-            },
-          } as MessageEvent<{ id: number; ok: boolean; error: string }>)
-          return
-        }
-        this.onmessage?.({
-          data: {
-            id,
-            ok: true,
-            html: '<div data-component="markdown-code"><pre><code>worker-code</code></pre><button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>',
-          },
-        } as MessageEvent<{ id: number; ok: boolean; html: string }>)
-      }
-    }
+    const link = screen.getByRole('link', { name: 'guide (line 3)' })
+    expect(link).toHaveAttribute('href', './docs/guide.md:3')
+  })
 
-    const workerCtor = vi.fn(() => new MockWorker())
+  it('routes external link clicks through onExternalLinkClick', () => {
+    const onExternalLinkClick = vi.fn()
+    render(<MarkdownRenderer text='Visit [OpenAI](https://openai.com)' onExternalLinkClick={onExternalLinkClick} />)
 
-    ;(window as Window & { requestIdleCallback?: (callback: IdleRequestCallback) => number }).requestIdleCallback = requestIdleCallback
-    ;(window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback = cancelIdleCallback
-    ;(window as Window & { Worker?: unknown }).Worker = workerCtor as unknown as typeof Worker
+    fireEvent.click(screen.getByRole('link', { name: 'OpenAI' }))
 
-    try {
-      const cacheKey = `markdown-worker-${Math.random().toString(36).slice(2)}`
-      const markdown = '```js\nconsole.log(\"worker\")\n```'
+    expect(onExternalLinkClick).toHaveBeenCalledWith('https://openai.com', expect.any(Object))
+  })
 
-      const view = render(<MarkdownRenderer text={markdown} cacheKey={cacheKey} />)
-      await waitFor(() => {
-        expect(workerCtor).toHaveBeenCalledTimes(1)
-        expect(view.container.querySelector('[data-copy-code]')).not.toBeNull()
-      })
-      view.unmount()
+  it('does not classify bare host-style links as file citations', () => {
+    render(<MarkdownRenderer text='Visit [OpenAI](openai.com)' />)
 
-      shouldFailWorkerRender = true
-      const fallbackCacheKey = `markdown-worker-fallback-${Math.random().toString(36).slice(2)}`
-      const fallbackMarkdown = '```js\nconsole.log(\"worker-fallback\")\n```'
-      const fallbackView = render(<MarkdownRenderer text={fallbackMarkdown} cacheKey={fallbackCacheKey} />)
-      await waitFor(() => {
-        expect(fallbackView.container.querySelector('[data-copy-code]')).not.toBeNull()
-        expect(fallbackView.container.querySelector('code.language-javascript')).not.toBeNull()
-      })
-      expect(workerCtor).toHaveBeenCalledTimes(1)
-      fallbackView.unmount()
-    } finally {
-      ;(window as Window & { requestIdleCallback?: unknown }).requestIdleCallback = originalRic
-      ;(window as Window & { cancelIdleCallback?: unknown }).cancelIdleCallback = originalCic
-      ;(window as Window & { Worker?: unknown }).Worker = originalWorker
-    }
+    const link = screen.getByRole('link', { name: 'OpenAI' })
+    expect(link).toHaveAttribute('href', 'openai.com')
   })
 })

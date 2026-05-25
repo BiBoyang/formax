@@ -40,10 +40,10 @@ This file is the "where to change what" index for `packages/web-reference-react`
 - Composer submit gating / centered-vs-bottom layout: `src/components/composer/ComposerDock.tsx`
 - Tool transcript rendering: `src/components/tool/*`
 - Scroll boundary helper: `src/components/scrollBoundary.ts`
-- Markdown rendering worker + runtime:
-  - UI renderer: `src/components/MarkdownRenderer.tsx`
-  - Worker: `src/workers/markdownRender.worker.ts`
-  - Runtime utilities: `src/app/core/markdown*`
+- Markdown rendering:
+  - UI renderer entry: `src/components/MarkdownRenderer.tsx`
+  - Codex markdown subsystem: `src/codex-md/*`
+  - Syntax highlighting runtime: `src/app/core/markdownShikiRuntime.ts`
 
 ### Terminal
 

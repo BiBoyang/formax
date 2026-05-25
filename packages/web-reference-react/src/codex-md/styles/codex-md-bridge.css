@@ -1,0 +1,16 @@
+.codex-md-host {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.codex-md-host .codex-md {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.codex-md-host .codex-md .codex-md-code-block,
+.codex-md-host .codex-md .codex-md-mermaid-frame,
+.codex-md-host .codex-md .codex-md-mermaid-diagram,
+.codex-md-host .codex-md table {
+  max-width: 100%;
+}
