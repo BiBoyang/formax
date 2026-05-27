@@ -134,3 +134,7 @@
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)
 - [2026-05-24 - Context window source / binding / runtime profile](./2026-05-24-context-window-source-binding-runtime-profile.md)
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)
+
+## Desktop / Setup
+
+- [2026-05-27 - Electron/Web Setup Wizard Boundary](./2026-05-27-electron-web-setup-wizard-boundary.md)
