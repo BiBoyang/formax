@@ -622,6 +622,28 @@ describe('App thread history integration', () => {
     }
   })
 
+  it('derives bridge url from the desktop bridge port when runtime config is absent', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      bridgePort: 4888,
+      windowControls: {},
+    }
+    try {
+      render(<App />)
+      await waitFor(() => {
+        expect(rpcMock.connectUrls[0]).toBe('ws://localhost:4888')
+      })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
   it('uses setup entrypoint without starting the main app runtime for explicit setup route', async () => {
     const runtimeWindow = window as Window & { __FORMAX_SETUP_MODE__?: string }
     runtimeWindow.__FORMAX_SETUP_MODE__ = 'allow'
@@ -639,6 +661,7 @@ describe('App thread history integration', () => {
       })
     } finally {
       delete runtimeWindow.__FORMAX_SETUP_MODE__
+      window.localStorage.removeItem('formaxSetupRestartRequired')
     }
   })
 
@@ -716,6 +739,7 @@ describe('App thread history integration', () => {
     window.formaxDesktop = {
       mode: 'dev',
       startUrl: 'http://127.0.0.1:3781',
+      managedRuntime: true,
       windowControls: {},
       setup: { complete: vi.fn(async () => true), cancel: vi.fn(async () => true) },
     }
@@ -770,6 +794,40 @@ describe('App thread history integration', () => {
     } finally {
       delete runtimeWindow.__FORMAX_SETUP_MODE__
       window.localStorage.removeItem('formaxSetupRestartRequired')
+    }
+  })
+
+  it('keeps desktop dev setup mode on the restart gate after this desktop wrote setup', async () => {
+    const runtimeWindow = window as Window & { __FORMAX_SETUP_MODE__?: string }
+    const originalDesktopBridge = window.formaxDesktop
+    runtimeWindow.__FORMAX_SETUP_MODE__ = 'allow'
+    window.localStorage.setItem('formaxSetupRestartRequired', 'desktop')
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      managedRuntime: false,
+      windowControls: {},
+      setup: { complete: vi.fn(async () => true), cancel: vi.fn(async () => true) },
+    }
+    const previousRequestImpl = rpcMock.getRequestImpl()
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: true, restartRequired: true }
+      return previousRequestImpl(method, params)
+    })
+    try {
+      render(<App />)
+      expect(await screen.findByTestId('setup-restart-required')).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('Restart the desktop dev/preview runtime')
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+      expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
+    } finally {
+      delete runtimeWindow.__FORMAX_SETUP_MODE__
+      window.localStorage.removeItem('formaxSetupRestartRequired')
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
     }
   })
 
@@ -1281,7 +1339,7 @@ describe('App thread history integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Restart the web server')
-    expect(window.localStorage.getItem('formaxSetupRestartRequired')).toBe('1')
+    expect(window.localStorage.getItem('formaxSetupRestartRequired')).toBe('browser')
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
   })
@@ -1292,6 +1350,7 @@ describe('App thread history integration', () => {
     window.formaxDesktop = {
       mode: 'dev',
       startUrl: 'http://127.0.0.1:3781',
+      managedRuntime: true,
       windowControls: {},
       setup: { complete, cancel: vi.fn(async () => true) },
     }
@@ -1328,6 +1387,56 @@ describe('App thread history integration', () => {
         expect(complete).toHaveBeenCalledTimes(2)
       })
       expect(rpcMock.requests.filter((request) => request.method === 'bridge/setup/session/commit')).toHaveLength(1)
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
+    }
+  })
+
+  it('keeps desktop dev setup on the setup page after writing setup', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const complete = vi.fn(async () => true)
+    window.localStorage.removeItem('formaxSetupRestartRequired')
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      managedRuntime: false,
+      windowControls: {},
+      setup: { complete, cancel: vi.fn(async () => true) },
+    }
+    window.history.replaceState(null, '', '/setup')
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'write',
+          draft: {
+            provider: 'anthropic',
+            anthropicVendor: 'deepseek',
+            baseUrl: 'https://api.example.com',
+            apiKeyPresent: true,
+            modelMode: 'quick',
+            model: 'sonnet-model',
+            tierModels: { haiku: '', sonnet: '', opus: '' },
+          },
+        })
+      }
+      if (method === 'bridge/setup/session/commit') return { ok: true }
+      return {}
+    })
+
+    try {
+      render(<App />)
+      expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Restart the desktop dev/preview runtime')
+      expect(window.localStorage.getItem('formaxSetupRestartRequired')).toBe('desktop')
+      expect(complete).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     } finally {
       if (originalDesktopBridge) {
         window.formaxDesktop = originalDesktopBridge

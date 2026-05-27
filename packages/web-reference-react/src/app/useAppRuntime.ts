@@ -62,6 +62,14 @@ function resolveBridgeUrl(): string {
   if (typeof fromRuntimeConfig === 'string' && fromRuntimeConfig.trim()) {
     return fromRuntimeConfig
   }
+  const envBridgeUrl = import.meta.env.VITE_FORMAX_BRIDGE_URL
+  if (typeof envBridgeUrl === 'string' && envBridgeUrl.trim()) return envBridgeUrl
+  const desktopBridgePort = window.formaxDesktop?.bridgePort
+  if (typeof desktopBridgePort === 'number' && Number.isInteger(desktopBridgePort) && desktopBridgePort >= 1 && desktopBridgePort <= 65535) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const hostname = window.location.hostname || '127.0.0.1'
+    return `${protocol}//${hostname}:${desktopBridgePort}`
+  }
   return DEFAULT_BRIDGE_URL
 }
 

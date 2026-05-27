@@ -24,6 +24,8 @@ type DesktopTerminalEvent =
 type FormaxDesktopBridge = {
   mode: string
   startUrl: string
+  bridgePort?: number
+  managedRuntime?: boolean
   pickProjectFolder?: () => Promise<string | null>
   windowControls?: {
     close?: () => Promise<boolean>

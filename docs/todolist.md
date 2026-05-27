@@ -39,7 +39,7 @@
 - [x] Update `docs/contracts/config-settings-contract.md` only to state that GUI setup reuses the same config/auth write path as TUI setup, unless persistence semantics change.
 - [x] Update `docs/contracts/model-settings-contract.md` only if setup model/context-window write behavior changes.
 - [x] Update `CODEMAP.md` and package-local CODEMAP/README entries if new setup route, bridge service, or Electron setup window ownership points are added.
-- [ ] Add a short learning note under `docs/learnings/` after the architecture lands.
+- [x] Add a short learning note under `docs/learnings/` after the architecture lands.
 
 ### 1.2 Data model
 - [x] Define `SetupStatusResult` with `schemaVersion`, `complete`, redacted `reason`, redacted effective provider/baseUrl/model summary, API key source, and warnings.
@@ -182,15 +182,15 @@
 - [x] Cover browser-only explicit setup mode commit and post-commit refresh/restart fallback when desktop IPC is unavailable.
 
 ### 4.5 Electron validation
-- [ ] Add targeted unit tests where practical for setup URL resolution and IPC handler behavior.
-- [ ] Manually smoke `bun run desktop:electron:dev` with setup incomplete.
-- [ ] Manually smoke `bun run desktop:electron:dev` with setup complete.
-- [ ] Manually smoke `bun run desktop:electron:preview` with setup incomplete.
-- [ ] Manually smoke direct `/setup` URL load in preview/packaged runtime.
-- [ ] Manually smoke setup commit -> managed runtime restart -> fresh main initialize path.
-- [ ] Manually smoke cancel/close incomplete setup and relaunch behavior.
-- [ ] Manually smoke packaged/unpacked launch path if this loop changes packaged managed runtime behavior.
-- [ ] Capture screenshots or terminal evidence for setup window and main window transition if UI changes are included in the PR.
+- [x] Add targeted unit tests where practical for setup URL resolution and IPC handler behavior; remaining desktop main-process URL/IPC lifecycle coverage is validated by Electron smoke because the main process does not expose stable unit-test seams.
+- [x] Manually smoke `bun run desktop:electron:dev` with setup incomplete.
+- [x] Manually smoke `bun run desktop:electron:dev` with setup complete.
+- [x] Manually smoke `bun run desktop:electron:preview` with setup incomplete.
+- [x] Manually smoke direct `/setup` URL load in preview/packaged runtime.
+- [x] Manually smoke setup commit -> managed runtime restart -> fresh main initialize path.
+- [x] Manually smoke cancel/close incomplete setup and relaunch behavior.
+- [x] Manually smoke packaged/unpacked launch path if this loop changes packaged managed runtime behavior.
+- [x] Capture screenshots or terminal evidence for setup window and main window transition if UI changes are included in the PR.
 
 ## 5. Recommended Execution Order
 
@@ -237,7 +237,7 @@ Review gate for this loop:
 - [x] Add Web UI tests proving setup route sends no main app runtime/thread/diff RPCs under retry/reconnect.
 - [x] Add Web UI tests proving setup RPC responses do not enter transcript/projection/replay state.
 - [x] Run targeted Web Vitest tests.
-- [ ] Run Browser/Playwright spot check for `/setup` visual state if a dev server is practical.
+- [x] Run Browser/Playwright spot check for `/setup` visual state if a dev server is practical.
 - [x] Run `codex review` for this loop.
 
 ### Loop 4: Electron setup window orchestration
@@ -263,8 +263,8 @@ Review gate for this loop:
 
 - [x] Verify preview and packaged/unpacked runtime paths still copy and serve the setup route.
 - [x] Verify preview/packaged direct `/setup` URL load.
-- [ ] Verify preview/packaged setup commit -> runtime restart -> fresh main initialize.
-- [ ] Verify preview/packaged cancel/close incomplete setup and relaunch behavior.
+- [x] Verify preview/packaged setup commit -> runtime restart -> fresh main initialize.
+- [x] Verify preview/packaged cancel/close incomplete setup and relaunch behavior.
 - [x] Update desktop README and CODEMAP/package CODEMAP entries.
 - [x] Add learning note under `docs/learnings/`.
 - [x] Run targeted CLI, bridge, Web, and desktop checks from prior loops.
@@ -273,16 +273,23 @@ Review gate for this loop:
 
 ## 6. Acceptance Criteria
 
-- [ ] A fresh Electron launch with no persisted setup opens a separate setup window and not the main app.
-- [ ] Completing setup writes config/auth through `writeSetupFiles` and preserves model context-window provenance rules.
-- [ ] Setup completion closes the setup window, restarts managed runtime, and opens the main app successfully.
-- [ ] After setup completion, the main app opens only after the restarted runtime reports complete setup status.
-- [ ] If post-restart setup status is still incomplete, Electron opens/focuses setup instead of opening the main app.
-- [ ] A configured Electron launch opens the main app directly.
-- [ ] `/setup` does not initialize the main app runtime or touch thread/transcript state.
-- [ ] `bridge/setup/*` responses never use app-server notification envelopes and never enter replay cursor, Web parity adapters, transcript projection, or visible transcript logs.
-- [ ] Default `formax web` still rejects missing setup unless setup mode is explicitly allowed.
-- [ ] Setup session/create/action/commit methods are unavailable unless setup mode is explicitly allowed.
-- [ ] No setup protocol or UI path leaks raw API keys in responses, logs, or persisted UI state.
-- [ ] Raw API key references are cleaned up on commit, cancel, dispose, stale timeout, socket close, and service shutdown.
-- [ ] The implementation has targeted tests for setup service, bridge wiring, CLI startup mode, Web setup UI, and desktop orchestration.
+- [x] A fresh Electron launch with no persisted setup opens a separate setup window and not the main app.
+- [x] Completing setup writes config/auth through `writeSetupFiles` and preserves model context-window provenance rules.
+- [x] Setup completion closes the setup window, restarts managed runtime, and opens the main app successfully.
+- [x] After setup completion, the main app opens only after the restarted runtime reports complete setup status.
+- [x] If post-restart setup status is still incomplete, Electron opens/focuses setup instead of opening the main app.
+- [x] A configured Electron launch opens the main app directly.
+- [x] `/setup` does not initialize the main app runtime or touch thread/transcript state.
+- [x] `bridge/setup/*` responses never use app-server notification envelopes and never enter replay cursor, Web parity adapters, transcript projection, or visible transcript logs.
+- [x] Default `formax web` still rejects missing setup unless setup mode is explicitly allowed.
+- [x] Setup session/create/action/commit methods are unavailable unless setup mode is explicitly allowed.
+- [x] No setup protocol or UI path leaks raw API keys in responses, logs, or persisted UI state.
+- [x] Raw API key references are cleaned up on commit, cancel, dispose, stale timeout, socket close, and service shutdown.
+- [x] The implementation has targeted tests for setup service, bridge wiring, CLI startup mode, Web setup UI, and desktop orchestration.
+
+Evidence captured on 2026-05-27:
+- Electron setup window screenshot: `.tmp/setup-wizard-evidence/01-electron-setup-incomplete.png`
+- Electron main window after setup commit/restart screenshot: `.tmp/setup-wizard-evidence/02-electron-main-after-setup.png`
+- Electron configured relaunch main window screenshot: `.tmp/setup-wizard-evidence/03-electron-main-configured-relaunch.png`
+- Web reference dev root setup gate screenshot: `.tmp/setup-wizard-evidence/04-web-reference-dev-root-setup.png`
+- Electron smoke summary: `.tmp/setup-wizard-evidence/summary.json`

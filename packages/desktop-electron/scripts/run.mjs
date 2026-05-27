@@ -56,6 +56,11 @@ function normalizeHostname(hostname) {
   return hostname
 }
 
+function isLoopbackHost(host) {
+  const normalized = normalizeHostname(String(host || '').trim()).toLowerCase()
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
+}
+
 function resolveStartUrl() {
   const fromEnv = process.env.FORMAX_ELECTRON_START_URL
   if (!fromEnv || !fromEnv.trim()) {
@@ -92,6 +97,17 @@ function resolveStartUrl() {
       uiPort: DEFAULT_UI_PORT,
     }
   }
+}
+
+function resolveBridgePort() {
+  const raw = process.env.FORMAX_ELECTRON_BRIDGE_PORT
+  if (!raw || !raw.trim()) return DEFAULT_BRIDGE_PORT
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    process.stderr.write(`[formax-desktop] invalid FORMAX_ELECTRON_BRIDGE_PORT, fallback to default: ${raw}\n`)
+    return DEFAULT_BRIDGE_PORT
+  }
+  return parsed
 }
 
 function delay(ms) {
@@ -193,7 +209,8 @@ function terminateProcess(child) {
   })
 }
 
-function createRuntimeCommand(mode, repoRoot, host, uiPort) {
+function createRuntimeCommand(mode, repoRoot, host, uiPort, bridgePort) {
+  const setupModeArgs = isLoopbackHost(host) ? ['--setup-mode', 'allow'] : []
   if (mode === 'preview') {
     return {
       command: 'node',
@@ -205,7 +222,8 @@ function createRuntimeCommand(mode, repoRoot, host, uiPort) {
         '--ui-port',
         String(uiPort),
         '--bridge-port',
-        String(DEFAULT_BRIDGE_PORT),
+        String(bridgePort),
+        ...setupModeArgs,
       ],
       cwd: repoRoot,
     }
@@ -221,9 +239,10 @@ function createRuntimeCommand(mode, repoRoot, host, uiPort) {
       '--host',
       host,
       '--bridge-port',
-      String(DEFAULT_BRIDGE_PORT),
+      String(bridgePort),
       '--ui-port',
       String(uiPort),
+      ...setupModeArgs,
     ],
     cwd: repoRoot,
   }
@@ -237,12 +256,13 @@ async function main() {
   const repoRoot = path.resolve(appRoot, '..', '..')
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
   const { startUrl, host, uiPort } = resolveStartUrl()
+  const bridgePort = resolveBridgePort()
 
   if (mode === 'preview') {
     await ensurePreviewArtifacts(repoRoot)
   }
 
-  const runtimeConfig = createRuntimeCommand(mode, repoRoot, host, uiPort)
+  const runtimeConfig = createRuntimeCommand(mode, repoRoot, host, uiPort, bridgePort)
 
   let runtimeChild = null
   let electronChild = null
@@ -300,6 +320,7 @@ async function main() {
   const electronEnv = {
     ...process.env,
     FORMAX_ELECTRON_START_URL: startUrl,
+    FORMAX_ELECTRON_BRIDGE_PORT: String(bridgePort),
     FORMAX_ELECTRON_MODE: mode,
     FORMAX_ELECTRON_OPEN_DEVTOOLS: mode === 'debug' ? '1' : '0',
   }

@@ -29,11 +29,21 @@ type SetupStatusResult = {
 }
 
 const SETUP_RESTART_REQUIRED_KEY = 'formaxSetupRestartRequired'
+type SetupRestartRequiredKind = 'browser' | 'desktop'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
   const value = (window as Window & { __FORMAX_BRIDGE_URL__?: unknown }).__FORMAX_BRIDGE_URL__
-  return typeof value === 'string' && value.trim() ? value : DEFAULT_BRIDGE_URL
+  if (typeof value === 'string' && value.trim()) return value
+  const envBridgeUrl = import.meta.env.VITE_FORMAX_BRIDGE_URL
+  if (typeof envBridgeUrl === 'string' && envBridgeUrl.trim()) return envBridgeUrl
+  const desktopBridgePort = window.formaxDesktop?.bridgePort
+  if (typeof desktopBridgePort === 'number' && Number.isInteger(desktopBridgePort) && desktopBridgePort >= 1 && desktopBridgePort <= 65535) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const hostname = window.location.hostname || '127.0.0.1'
+    return `${protocol}//${hostname}:${desktopBridgePort}`
+  }
+  return DEFAULT_BRIDGE_URL
 }
 
 function resolveSetupRoute(): boolean {
@@ -43,7 +53,8 @@ function resolveSetupRoute(): boolean {
 
 function shouldCheckSetupStatus(): boolean {
   if (typeof window === 'undefined') return false
-  const setupMode = (window as Window & { __FORMAX_SETUP_MODE__?: unknown }).__FORMAX_SETUP_MODE__
+  const injectedSetupMode = (window as Window & { __FORMAX_SETUP_MODE__?: unknown }).__FORMAX_SETUP_MODE__
+  const setupMode = injectedSetupMode ?? import.meta.env.VITE_FORMAX_SETUP_MODE
   const pathname = window.location.pathname
   if (setupMode !== 'allow') return false
   if (pathname === '/' || pathname.endsWith('/') || pathname.endsWith('/index.html')) return true
@@ -55,22 +66,38 @@ function isDesktopSetupHost(): boolean {
   return typeof window !== 'undefined' && Boolean(window.formaxDesktop)
 }
 
-function setBrowserSetupRestartRequired(required: boolean): void {
+function readSetupRestartRequired(): SetupRestartRequiredKind | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = window.localStorage.getItem(SETUP_RESTART_REQUIRED_KEY)
+    if (value === 'desktop') return 'desktop'
+    if (value === 'browser' || value === '1') return 'browser'
+  } catch {
+    return null
+  }
+  return null
+}
+
+function setSetupRestartRequiredStorage(kind: SetupRestartRequiredKind | null): void {
   if (typeof window === 'undefined') return
   try {
-    if (required) window.localStorage.setItem(SETUP_RESTART_REQUIRED_KEY, '1')
+    if (kind) window.localStorage.setItem(SETUP_RESTART_REQUIRED_KEY, kind)
     else window.localStorage.removeItem(SETUP_RESTART_REQUIRED_KEY)
   } catch {
     // Ignore storage failures; the visible setup message remains the source of truth.
   }
 }
 
-function BrowserSetupRestartRequired() {
+function SetupRestartRequired(props: { kind: SetupRestartRequiredKind }) {
+  const message =
+    props.kind === 'desktop'
+      ? 'Restart the desktop dev/preview runtime, then reopen the app.'
+      : 'Restart the web server, then refresh this page.'
   return (
     <I18nProvider language="en-US">
       <main data-testid="setup-restart-required" style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
         <h1>Setup complete</h1>
-        <p role="alert">Restart the web server, then refresh this page.</p>
+        <p role="alert">{message}</p>
       </main>
     </I18nProvider>
   )
@@ -101,7 +128,7 @@ function SetupEntrypoint() {
   const [modelValue, setModelValue] = useState('')
   const [setupWritten, setSetupWritten] = useState(false)
   const [setupUnavailable, setSetupUnavailable] = useState(false)
-  const [setupRestartRequired, setSetupRestartRequired] = useState(false)
+  const [setupRestartRequired, setSetupRestartRequired] = useState<SetupRestartRequiredKind | null>(null)
   const [transitionPending, setTransitionPending] = useState(false)
   const sessionIdRef = useRef<string | null>(null)
   const sessionRef = useRef<SetupSessionView | null>(null)
@@ -133,12 +160,23 @@ function SetupEntrypoint() {
             const status = statusResult as SetupStatusResult
             if (status.complete === true) {
               client.disconnect()
-              if (status.restartRequired === true && !isDesktopSetupHost()) {
-                setBrowserSetupRestartRequired(true)
-                setSetupRestartRequired(true)
-                return null
+              if (status.restartRequired === true) {
+                if (isDesktopSetupHost()) {
+                  if (window.formaxDesktop?.managedRuntime !== true) {
+                    setSetupRestartRequiredStorage('desktop')
+                    setSetupRestartRequired('desktop')
+                    return null
+                  }
+                } else {
+                  setSetupRestartRequiredStorage('browser')
+                  setSetupRestartRequired('browser')
+                  return null
+                }
               }
-              setBrowserSetupRestartRequired(false)
+              if (readSetupRestartRequired()) {
+                setSetupRestartRequiredStorage(null)
+                setSetupRestartRequired(null)
+              }
               setSetupUnavailable(true)
               return null
             }
@@ -269,13 +307,21 @@ function SetupEntrypoint() {
         }
         setSetupWritten(true)
       }
-      const desktopCompleted = await window.formaxDesktop?.setup?.complete?.()
-      if (window.formaxDesktop && desktopCompleted !== true) {
-        setMessage('Setup was written, but desktop restart failed. Retry desktop restart.')
+      const desktopBridge = window.formaxDesktop
+      if (desktopBridge) {
+        if (desktopBridge.managedRuntime === true) {
+          const desktopCompleted = await desktopBridge.setup?.complete?.()
+          if (desktopCompleted !== true) {
+            setMessage('Setup was written, but desktop restart failed. Retry desktop restart.')
+            return
+          }
+          return
+        }
+        setSetupRestartRequiredStorage('desktop')
+        setSetupRestartRequired('desktop')
         return
       }
-      if (window.formaxDesktop) return
-      setBrowserSetupRestartRequired(true)
+      setSetupRestartRequiredStorage('browser')
       setMessage('Setup was written. Restart the web server, then refresh this page.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err))
@@ -288,7 +334,7 @@ function SetupEntrypoint() {
   const canEditConnectionFields = canEditModelFields && session?.step !== 'modelMode' && session?.step !== 'model'
 
   if (setupRestartRequired) {
-    return <BrowserSetupRestartRequired />
+    return <SetupRestartRequired kind={setupRestartRequired} />
   }
 
   if (setupUnavailable) {
@@ -432,14 +478,14 @@ function SetupEntrypoint() {
 function SetupStatusGate() {
   const client = useMemo(() => new RpcClient(), [])
   const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
-  const [browserRestartRequired, setBrowserRestartRequired] = useState(false)
+  const [restartRequired, setRestartRequired] = useState<SetupRestartRequiredKind | null>(null)
   const [statusError, setStatusError] = useState('')
   const [retryAttempt, setRetryAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     setStatusError('')
-    setBrowserRestartRequired(false)
+    setRestartRequired(null)
     setSetupRequired(null)
     client.connect(resolveBridgeUrl(), {
       onStatus: (nextStatus) => {
@@ -449,13 +495,24 @@ function SetupStatusGate() {
             if (cancelled) return
             const status = result as SetupStatusResult
             client.disconnect()
-            if (status.complete === true && !isDesktopSetupHost()) {
+            if (status.complete === true) {
               if (status.restartRequired === true) {
-                setBrowserSetupRestartRequired(true)
-                setBrowserRestartRequired(true)
-                return
+                if (isDesktopSetupHost()) {
+                  if (window.formaxDesktop?.managedRuntime !== true) {
+                    setSetupRestartRequiredStorage('desktop')
+                    setRestartRequired('desktop')
+                    return
+                  }
+                } else {
+                  setSetupRestartRequiredStorage('browser')
+                  setRestartRequired('browser')
+                  return
+                }
               }
-              setBrowserSetupRestartRequired(false)
+              if (readSetupRestartRequired()) {
+                setSetupRestartRequiredStorage(null)
+                setRestartRequired(null)
+              }
             }
             setSetupRequired(status.complete !== true)
           })
@@ -480,8 +537,8 @@ function SetupStatusGate() {
     }
   }, [client, retryAttempt])
 
-  if (browserRestartRequired) {
-    return <BrowserSetupRestartRequired />
+  if (restartRequired) {
+    return <SetupRestartRequired kind={restartRequired} />
   }
 
   if (setupRequired === null && !statusError) {

@@ -45,6 +45,8 @@ type TerminalEvent =
 type FormaxDesktopRuntimeInfo = {
   mode: string
   startUrl: string
+  bridgePort: number
+  managedRuntime: boolean
   pickProjectFolder: () => Promise<string | null>
   windowControls: {
     close: () => Promise<boolean>
@@ -317,9 +319,18 @@ function createSetupBridge(): FormaxDesktopRuntimeInfo['setup'] {
   })
 }
 
+function resolveBridgePort(): number {
+  const raw = process.env.FORMAX_ELECTRON_BRIDGE_PORT
+  const parsed = Number.parseInt(String(raw || ''), 10)
+  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) return parsed
+  return 3777
+}
+
 const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
   mode: process.env.FORMAX_ELECTRON_MODE ?? 'dev',
   startUrl: process.env.FORMAX_ELECTRON_START_URL ?? 'http://127.0.0.1:3781',
+  bridgePort: resolveBridgePort(),
+  managedRuntime: process.env.FORMAX_ELECTRON_MANAGED_RUNTIME_ACTIVE === '1',
   pickProjectFolder: async () => {
     const selected = await ipcRenderer.invoke(PICK_PROJECT_FOLDER_CHANNEL)
     if (typeof selected === 'string' && selected.trim()) return selected

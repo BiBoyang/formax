@@ -12,6 +12,7 @@ type CliOptions = {
   host?: string
   bridgePort?: number
   uiPort?: number
+  setupMode?: 'require-config' | 'allow'
 }
 
 function parsePort(value: string, flag: string): number {
@@ -47,12 +48,27 @@ function parseArgs(argv: string[]): CliOptions {
       i += 1
       continue
     }
+    if (token === '--setup-mode') {
+      const value = argv[i + 1]
+      if (!value) throw new Error('Missing value for --setup-mode')
+      if (value !== 'require-config' && value !== 'allow') {
+        throw new Error('Invalid --setup-mode: expected require-config or allow')
+      }
+      out.setupMode = value
+      i += 1
+      continue
+    }
+    if (token === '--allow-setup') {
+      out.setupMode = 'allow'
+      continue
+    }
     if (token === '-h' || token === '--help') {
       process.stdout.write(
         [
-          'Usage: formax-web-reference [--host 127.0.0.1] [--bridge-port 3777] [--ui-port 3781]',
+          'Usage: formax-web-reference [--host 127.0.0.1] [--bridge-port 3777] [--ui-port 3781] [--setup-mode require-config|allow]',
           '',
           'Starts app-server WebSocket dev bridge and the React web reference client (Vite).',
+          'Use --setup-mode allow when Electron dev should open setup before the main page.',
         ].join('\n') + '\n',
       )
       process.exit(0)
@@ -70,6 +86,7 @@ async function main(): Promise<void> {
   const bridge = await startAppServerDevBridge({
     host,
     ...(args.bridgePort !== undefined ? { port: args.bridgePort } : {}),
+    setupMode: args.setupMode ?? 'require-config',
   })
 
   const entrypointDir = path.dirname(fileURLToPath(import.meta.url))
@@ -84,6 +101,11 @@ async function main(): Promise<void> {
   const web: ChildProcess = spawn(npmCmd, ['run', 'dev', '--', '--host', host, '--port', String(uiPort)], {
     cwd: webCwd,
     stdio: 'inherit',
+    env: {
+      ...process.env,
+      VITE_FORMAX_BRIDGE_URL: bridge.url,
+      VITE_FORMAX_SETUP_MODE: args.setupMode ?? 'require-config',
+    },
   })
 
   process.stderr.write(renderWebLogo())

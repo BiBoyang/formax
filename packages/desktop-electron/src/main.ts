@@ -1435,6 +1435,9 @@ async function bootstrap(): Promise<void> {
     }
   }
 
+  process.env.FORMAX_ELECTRON_MANAGED_RUNTIME_ACTIVE =
+    managedRuntimeChild && managedRuntimeChild.exitCode == null && !managedRuntimeChild.killed ? '1' : '0'
+
   await createMainWindow(await resolveInitialWindowUrl(startUrl))
 
   app.on('activate', () => {
