@@ -55,6 +55,7 @@ export type SetupBridgeAction =
   | { type: 'setApiKey'; apiKey: string }
   | { type: 'setModelMode'; mode: SetupModelMode }
   | { type: 'setModel'; model: string }
+  | { type: 'setTierModel'; tier: ModelTier; model: string }
   | { type: 'next' }
   | { type: 'back' }
 
@@ -423,6 +424,9 @@ export function createSetupBridgeService(args: {
           break
         case 'setModel':
           entry.session.setModel(action.model)
+          break
+        case 'setTierModel':
+          entry.session.setTierModel(action.tier, action.model)
           break
         case 'next':
           await entry.session.next()

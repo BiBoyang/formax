@@ -245,6 +245,41 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('accepts setup tier model actions over JSON-RPC', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":1,"method":"bridge/setup/session/create"}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+    const created = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    const sessionId = created.result.id
+
+    socket.emitMessage(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'bridge/setup/session/action',
+        params: { sessionId, action: { type: 'setTierModel', tier: 'haiku', model: 'deepseek-v4-flash' } },
+      }) + '\n',
+    )
+
+    await waitFor(() => socket.send.mock.calls.length > 1)
+    const action = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+    expect(action.error).toBeUndefined()
+    expect(action.result).toMatchObject({
+      ok: true,
+      session: {
+        draft: {
+          tierModels: { haiku: 'deepseek-v4-flash' },
+        },
+      },
+    })
+
+    await bridge.close()
+  })
+
   it('rejects setup session mutations from websockets that did not create the session', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
     const onConnection = getConnectionHandler()

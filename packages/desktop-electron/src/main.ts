@@ -14,6 +14,10 @@ const LOAD_RETRY_INTERVAL_MS = 500
 const MANAGED_RUNTIME_WAIT_TIMEOUT_MS = 30_000
 const MANAGED_RUNTIME_WAIT_POLL_MS = 250
 const MANAGED_RUNTIME_KILL_GRACE_MS = 4_000
+const MAIN_WINDOW_WIDTH = 1440
+const MAIN_WINDOW_HEIGHT = 920
+const SETUP_WINDOW_WIDTH = 800
+const SETUP_WINDOW_HEIGHT = 600
 const WINDOW_TRANSPARENCY_FADE_SETTLE_MS = 160
 const DESKTOP_CHROME_HEIGHT_PX = 56
 const MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX = 20
@@ -813,6 +817,14 @@ function buildSetupStatusUrl(startUrl: string): string {
   return parsed.toString()
 }
 
+function isSetupWindowUrl(startUrl: string): boolean {
+  try {
+    return new URL(startUrl).pathname.endsWith('/setup')
+  } catch {
+    return false
+  }
+}
+
 function resolveUrlBasePath(pathname: string): string {
   if (pathname.endsWith('/')) return pathname
   const lastSegment = pathname.split('/').pop() ?? ''
@@ -1359,18 +1371,32 @@ function wireNavigationGuards(window: BrowserWindow): void {
 
 async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
   const preloadPath = path.join(__dirname, 'preload.js')
+  const isSetupWindow = isSetupWindowUrl(startUrl)
   const supportsWindowTransparency = process.platform === 'darwin' || process.platform === 'win32'
 
   const window = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    ...(supportsWindowTransparency ? { transparent: true, backgroundColor: '#00000000' } : {}),
-    ...(process.platform === 'darwin'
+    width: isSetupWindow ? SETUP_WINDOW_WIDTH : MAIN_WINDOW_WIDTH,
+    height: isSetupWindow ? SETUP_WINDOW_HEIGHT : MAIN_WINDOW_HEIGHT,
+    ...(isSetupWindow
+      ? {
+          resizable: false,
+          maximizable: false,
+          fullscreenable: false,
+        }
+      : {}),
+    ...(!isSetupWindow && supportsWindowTransparency ? { transparent: true, backgroundColor: '#00000000' } : {}),
+    ...(process.platform === 'darwin' && !isSetupWindow
       ? {
           frame: false,
           titleBarStyle: 'hidden',
           visualEffectState: 'active',
           vibrancy: initialWindowAppearanceState.windowTransparencyEnabled ? 'sidebar' : undefined,
+        }
+      : {}),
+    ...(process.platform === 'darwin' && isSetupWindow
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
         }
       : {}),
     webPreferences: {
@@ -1392,7 +1418,7 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
     windowAppearanceQueueByWebContentsId.delete(webContentsId)
   })
 
-  if (process.platform === 'darwin' && typeof window.setWindowButtonPosition === 'function') {
+  if (process.platform === 'darwin' && !isSetupWindow && typeof window.setWindowButtonPosition === 'function') {
     window.setWindowButtonPosition(MAC_TRAFFIC_LIGHT_POSITION)
   }
 

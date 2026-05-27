@@ -656,12 +656,79 @@ describe('App thread history integration', () => {
     try {
       render(<App />)
       expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+      expect(screen.getByTestId('setup-compact-screen')).toBeInTheDocument()
+      expect(screen.getByTestId('setup-logo')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Provider' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'OpenAI-compatible' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Anthropic-compatible' })).toBeInTheDocument()
+      expect(screen.queryByText(/Bridge:/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Step:/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Write setup' })).not.toBeInTheDocument()
       await waitFor(() => {
         expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
       })
     } finally {
       delete runtimeWindow.__FORMAX_SETUP_MODE__
       window.localStorage.removeItem('formaxSetupRestartRequired')
+    }
+  })
+
+  it('skips the backend welcome step before showing provider choices', async () => {
+    window.history.replaceState(null, '', '/setup')
+    const actionRequests: unknown[] = []
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') return createSetupSessionView({ step: 'welcome' })
+      if (method === 'bridge/setup/session/action') {
+        actionRequests.push(params)
+        return { ok: true, session: createSetupSessionView({ step: 'provider' }) }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: 'OpenAI-compatible' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Provider' })).toBeInTheDocument()
+    expect(actionRequests).toHaveLength(1)
+    expect(actionRequests[0]).toMatchObject({ action: { type: 'next' } })
+  })
+
+  it('keeps desktop setup window controls outside the centered setup block', async () => {
+    const originalDesktopBridge = window.formaxDesktop
+    const minimize = vi.fn(async () => true)
+    const cancel = vi.fn(async () => true)
+    window.formaxDesktop = {
+      mode: 'dev',
+      startUrl: 'http://127.0.0.1:3781',
+      windowControls: { minimize },
+      setup: { complete: vi.fn(async () => true), cancel },
+    }
+    window.history.replaceState(null, '', '/setup')
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') return createSetupSessionView()
+      return {}
+    })
+
+    try {
+      render(<App />)
+
+      expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+      expect(screen.getByTestId('setup-window-drag-region')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Minimize' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+      await waitFor(() => {
+        expect(minimize).toHaveBeenCalledTimes(1)
+        expect(cancel).toHaveBeenCalledTimes(1)
+      })
+    } finally {
+      if (originalDesktopBridge) {
+        window.formaxDesktop = originalDesktopBridge
+      } else {
+        delete window.formaxDesktop
+      }
     }
   })
 
@@ -817,7 +884,7 @@ describe('App thread history integration', () => {
     try {
       render(<App />)
       expect(await screen.findByTestId('setup-restart-required')).toBeInTheDocument()
-      expect(screen.getByRole('alert')).toHaveTextContent('Restart the desktop dev/preview runtime')
+      expect(screen.getByRole('alert')).toHaveTextContent('Restart desktop runtime')
       expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
       expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
     } finally {
@@ -962,10 +1029,12 @@ describe('App thread history integration', () => {
     render(<App />)
 
     expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
-    expect(screen.getByLabelText('Base URL')).toBeDisabled()
-    expect(screen.getByLabelText('API key')).toBeDisabled()
-    expect(screen.getByLabelText('Model mode')).toBeDisabled()
-    expect(screen.getByLabelText('Model')).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'Review' })).toBeInTheDocument()
+    expect(screen.getByText('Base URL')).toBeInTheDocument()
+    expect(screen.getByText('https://api.example.com')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Model mode')).not.toBeInTheDocument()
   })
 
   it('locks connection fields after the setup connection test passes', async () => {
@@ -981,8 +1050,8 @@ describe('App thread history integration', () => {
             baseUrl: 'https://api.example.com',
             apiKeyPresent: true,
             modelMode: 'quick',
-            model: '',
-            tierModels: { haiku: '', sonnet: '', opus: '' },
+            model: 'deepseek-chat',
+            tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
           },
         })
       }
@@ -992,21 +1061,149 @@ describe('App thread history integration', () => {
     render(<App />)
 
     expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
-    expect(screen.getByLabelText('Provider')).toBeDisabled()
-    expect(screen.getByLabelText('Anthropic-compatible backend')).toBeDisabled()
-    expect(screen.getByLabelText('Base URL')).toBeDisabled()
-    expect(screen.getByLabelText('API key')).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'Model' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenAI-compatible' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'DeepSeek' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Model mode')).not.toBeDisabled()
     expect(screen.getByLabelText('Model')).not.toBeDisabled()
+  })
+
+  it('shows a default model selection and expands all advanced tiers', async () => {
+    window.history.replaceState(null, '', '/setup')
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'modelMode',
+          availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+          draft: {
+            provider: 'anthropic',
+            anthropicVendor: 'deepseek',
+            baseUrl: 'https://api.example.com',
+            apiKeyPresent: true,
+            modelMode: 'quick',
+            model: '',
+            tierModels: { haiku: '', sonnet: '', opus: '' },
+          },
+        })
+      }
+      if (method === 'bridge/setup/session/action') {
+        const action = (params as { action?: { type?: string; mode?: string } }).action
+        if (action?.type === 'setModelMode' && action.mode === 'advanced') {
+          return {
+            ok: true,
+            session: createSetupSessionView({
+              step: 'modelMode',
+              availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+              draft: {
+                provider: 'anthropic',
+                anthropicVendor: 'deepseek',
+                baseUrl: 'https://api.example.com',
+                apiKeyPresent: true,
+                modelMode: 'advanced',
+                model: 'deepseek-chat',
+                tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
+              },
+            }),
+          }
+        }
+        return {
+          ok: true,
+          session: createSetupSessionView({
+            step: 'modelMode',
+            availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+            draft: {
+              provider: 'anthropic',
+              anthropicVendor: 'deepseek',
+              baseUrl: 'https://api.example.com',
+              apiKeyPresent: true,
+              modelMode: 'quick',
+              model: 'deepseek-chat',
+              tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
+            },
+          }),
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('Model')).toHaveValue('deepseek-chat')
+    fireEvent.change(screen.getByLabelText('Model mode'), { target: { value: 'advanced' } })
+
+    expect(await screen.findByLabelText('haiku model')).toHaveValue('deepseek-chat')
+    expect(screen.getByLabelText('sonnet model')).toHaveValue('deepseek-chat')
+    expect(screen.getByLabelText('opus model')).toHaveValue('deepseek-chat')
+  })
+
+  it('advances advanced model setup to review with one Next click', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let nextCount = 0
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'modelMode',
+          availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+          draft: {
+            provider: 'anthropic',
+            anthropicVendor: 'deepseek',
+            baseUrl: 'https://api.example.com',
+            apiKeyPresent: true,
+            modelMode: 'advanced',
+            model: 'deepseek-chat',
+            tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
+          },
+        })
+      }
+      if (method === 'bridge/setup/session/action') {
+        const action = (params as { action?: { type?: string } }).action
+        if (action?.type === 'next') nextCount += 1
+        const stepByNext = [
+          { step: 'model', modelTier: 'haiku' },
+          { step: 'model', modelTier: 'sonnet' },
+          { step: 'model', modelTier: 'opus' },
+          { step: 'confirm', modelTier: null },
+        ][Math.max(0, Math.min(nextCount - 1, 3))]
+        return {
+          ok: true,
+          session: createSetupSessionView({
+            ...stepByNext,
+            availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+            draft: {
+              provider: 'anthropic',
+              anthropicVendor: 'deepseek',
+              baseUrl: 'https://api.example.com',
+              apiKeyPresent: true,
+              modelMode: 'advanced',
+              model: 'deepseek-chat',
+              tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
+            },
+          }),
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('haiku model')).toHaveValue('deepseek-chat')
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByRole('heading', { name: 'Review' })).toBeInTheDocument()
+    expect(nextCount).toBe(4)
   })
 
   it('clears the API key input when the setup session is replaced', async () => {
     window.history.replaceState(null, '', '/setup')
     rpcMock.setRequestImpl((method) => {
       if (method === 'bridge/setup/status') return { ok: true, complete: false }
-      if (method === 'bridge/setup/session/create') return createSetupSessionView({ id: 'setup-1' })
+      if (method === 'bridge/setup/session/create') return createSetupSessionView({ id: 'setup-1', step: 'apiKey' })
       if (method === 'bridge/setup/session/action') {
-        return { ok: true, session: createSetupSessionView({ id: 'setup-2' }) }
+        return { ok: true, session: createSetupSessionView({ id: 'setup-2', step: 'apiKey' }) }
       }
       return {}
     })
@@ -1028,6 +1225,7 @@ describe('App thread history integration', () => {
       if (method === 'bridge/setup/status') return { ok: true, complete: false }
       if (method === 'bridge/setup/session/create') {
         return createSetupSessionView({
+          step: 'baseUrl',
           draft: {
             provider: 'anthropic',
             anthropicVendor: 'deepseek',
@@ -1041,7 +1239,21 @@ describe('App thread history integration', () => {
       }
       if (method === 'bridge/setup/session/action') {
         return new Promise((resolve) => {
-          pendingActions.push(() => resolve({ ok: true, session: createSetupSessionView() }))
+          pendingActions.push(() => resolve({
+            ok: true,
+            session: createSetupSessionView({
+              step: 'baseUrl',
+              draft: {
+                provider: 'anthropic',
+                anthropicVendor: 'deepseek',
+                baseUrl: 'https://api.example.com/v1',
+                apiKeyPresent: false,
+                modelMode: 'quick',
+                model: '',
+                tierModels: { haiku: '', sonnet: '', opus: '' },
+              },
+            }),
+          }))
         })
       }
       return {}
@@ -1050,18 +1262,14 @@ describe('App thread history integration', () => {
     render(<App />)
 
     const baseUrlInput = await screen.findByLabelText('Base URL') as HTMLInputElement
-    const modelInput = screen.getByLabelText('Model') as HTMLInputElement
     fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.com/v1' } })
-    fireEvent.change(modelInput, { target: { value: 'claude-sonnet' } })
 
     expect(baseUrlInput.value).toBe('https://api.example.com/v1')
-    expect(modelInput.value).toBe('claude-sonnet')
 
     await act(async () => {
       pendingActions.splice(0).forEach((resolve) => resolve())
     })
     expect(baseUrlInput.value).toBe('https://api.example.com/v1')
-    expect(modelInput.value).toBe('claude-sonnet')
   })
 
   it('syncs setup base URL when provider actions reset it', async () => {
@@ -1085,6 +1293,7 @@ describe('App thread history integration', () => {
         return {
           ok: true,
           session: createSetupSessionView({
+            step: 'baseUrl',
             draft: {
               provider: 'openai',
               anthropicVendor: null,
@@ -1102,8 +1311,7 @@ describe('App thread history integration', () => {
 
     render(<App />)
 
-    const providerSelect = await screen.findByLabelText('Provider')
-    fireEvent.change(providerSelect, { target: { value: 'openai' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'OpenAI-compatible' }))
 
     await waitFor(() => {
       expect(screen.getByLabelText('Base URL')).toHaveValue('https://api.openai.com/v1')
@@ -1116,6 +1324,8 @@ describe('App thread history integration', () => {
       if (method === 'bridge/setup/status') return { ok: true, complete: false }
       if (method === 'bridge/setup/session/create') {
         return createSetupSessionView({
+          step: 'model',
+          availableModels: ['old-model', 'fresh-model'],
           draft: {
             provider: 'anthropic',
             anthropicVendor: 'deepseek',
@@ -1131,14 +1341,16 @@ describe('App thread history integration', () => {
         return {
           ok: true,
           session: createSetupSessionView({
+            step: 'model',
+            availableModels: ['fresh-model'],
             draft: {
               provider: 'anthropic',
               anthropicVendor: 'deepseek',
               baseUrl: 'https://proxy.example.com/anthropic',
               apiKeyPresent: true,
-              modelMode: 'quick',
-              model: '',
-              tierModels: { haiku: '', sonnet: '', opus: '' },
+              modelMode: 'advanced',
+              model: 'fresh-model',
+              tierModels: { haiku: 'fresh-model', sonnet: 'fresh-model', opus: 'fresh-model' },
             },
           }),
         }
@@ -1148,14 +1360,15 @@ describe('App thread history integration', () => {
 
     render(<App />)
 
-    const baseUrlInput = await screen.findByLabelText('Base URL')
     await waitFor(() => {
       expect(screen.getByLabelText('Model')).toHaveValue('old-model')
     })
-    fireEvent.change(baseUrlInput, { target: { value: 'https://proxy.example.com/anthropic' } })
+    fireEvent.change(screen.getByLabelText('Model mode'), { target: { value: 'advanced' } })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Model')).toHaveValue('')
+      expect(screen.getByLabelText('haiku model')).toHaveValue('fresh-model')
+      expect(screen.getByLabelText('sonnet model')).toHaveValue('fresh-model')
+      expect(screen.getByLabelText('opus model')).toHaveValue('fresh-model')
     })
   })
 
@@ -1165,6 +1378,7 @@ describe('App thread history integration', () => {
       if (method === 'bridge/setup/status') return { ok: true, complete: false }
       if (method === 'bridge/setup/session/create') {
         return createSetupSessionView({
+          step: 'baseUrl',
           draft: {
             provider: 'openai',
             anthropicVendor: null,
@@ -1180,6 +1394,7 @@ describe('App thread history integration', () => {
         return {
           ok: true,
           session: createSetupSessionView({
+            step: 'baseUrl',
             draft: {
               provider: 'openai',
               anthropicVendor: null,
@@ -1306,7 +1521,7 @@ describe('App thread history integration', () => {
     render(<App />)
     expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('commit transport failed')
   })
@@ -1336,7 +1551,7 @@ describe('App thread history integration', () => {
     render(<App />)
     expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Restart the web server')
     expect(window.localStorage.getItem('formaxSetupRestartRequired')).toBe('browser')
@@ -1379,10 +1594,10 @@ describe('App thread history integration', () => {
       render(<App />)
       expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       expect(await screen.findByRole('alert')).toHaveTextContent('Retry desktop restart')
 
-      fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       await waitFor(() => {
         expect(complete).toHaveBeenCalledTimes(2)
       })
@@ -1432,8 +1647,8 @@ describe('App thread history integration', () => {
       render(<App />)
       expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Write setup' }))
-      expect(await screen.findByRole('alert')).toHaveTextContent('Restart the desktop dev/preview runtime')
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Restart desktop runtime')
       expect(window.localStorage.getItem('formaxSetupRestartRequired')).toBe('desktop')
       expect(complete).not.toHaveBeenCalled()
       expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()

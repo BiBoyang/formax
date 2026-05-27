@@ -35,6 +35,7 @@ export type SetupSession = {
   setApiKey: (apiKey: string) => void
   setModelMode: (mode: SetupModelMode) => void
   setModel: (model: string) => void
+  setTierModel: (tier: ModelTier, model: string) => void
   back: () => void
   next: () => Promise<void>
 }
@@ -356,6 +357,22 @@ export function createSetupSession(args: {
     setError(null)
   }
 
+  const applyAdvancedTierModel = (tier: ModelTier, model: string) => {
+    const value = String(model || '').trim()
+    state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
+    const metadata = getMetadataForModel(value)
+    state.draft.tierContextWindowTokens = {
+      ...state.draft.tierContextWindowTokens,
+      [tier]: metadata?.tokens ?? inferContextWindowTokens(value),
+    }
+    if (metadata) applyMetadataToTier(tier, metadata)
+    else clearMetadataForTier(tier)
+    if (tier === 'sonnet') {
+      state.draft.model = value
+      updateDraftContextWindow(state.draft.model)
+    }
+  }
+
   const setModel = (model: string) => {
     const value = String(model || '').trim()
     if (state.draft.modelMode === 'quick') {
@@ -376,19 +393,14 @@ export function createSetupSession(args: {
       updateDraftContextWindow(state.draft.model)
     } else {
       const tier = ADVANCED_MODEL_TIERS[Math.max(0, Math.min(modelTierIndex, ADVANCED_MODEL_TIERS.length - 1))]
-      state.draft.tierModels = { ...state.draft.tierModels, [tier]: value }
-      const metadata = getMetadataForModel(value)
-      state.draft.tierContextWindowTokens = {
-        ...state.draft.tierContextWindowTokens,
-        [tier]: metadata?.tokens ?? inferContextWindowTokens(value),
-      }
-      if (metadata) applyMetadataToTier(tier, metadata)
-      else clearMetadataForTier(tier)
-      if (tier === 'sonnet') {
-        state.draft.model = value
-        updateDraftContextWindow(state.draft.model)
-      }
+      applyAdvancedTierModel(tier, value)
     }
+    setError(null)
+  }
+
+  const setTierModel = (tier: ModelTier, model: string) => {
+    if (!ADVANCED_MODEL_TIERS.includes(tier)) return
+    applyAdvancedTierModel(tier, model)
     setError(null)
   }
 
@@ -587,6 +599,7 @@ export function createSetupSession(args: {
     setApiKey,
     setModelMode,
     setModel,
+    setTierModel,
     back,
     next,
   }

@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AppShell } from './app/ui/AppShell'
 import { I18nProvider } from './app/i18n/I18nProvider'
 import { useAppRuntime } from './app/useAppRuntime'
 import { DEFAULT_BRIDGE_URL } from './app/core/constants'
 import { RpcClient } from './rpcClient'
-
-type SetupSessionView = {
-  id: string
-  step: string
-  error: string | null
-  availableModels: string[]
-  modelTier: 'haiku' | 'sonnet' | 'opus' | null
-  draft: {
-    provider: string | null
-    anthropicVendor: string | null
-    baseUrl: string
-    apiKeyPresent: boolean
-    modelMode: 'quick' | 'advanced'
-    model: string
-    tierModels: Record<'haiku' | 'sonnet' | 'opus', string>
-  }
-}
+import {
+  MODEL_TIERS,
+  SetupRestartRequired,
+  SetupWizardScreen,
+  setupModelInputValue,
+  type SetupAction,
+  type SetupRestartRequiredKind,
+  type SetupSessionView,
+} from './setup/SetupWizardScreen'
 
 type SetupStatusResult = {
   ok: boolean
@@ -29,7 +21,6 @@ type SetupStatusResult = {
 }
 
 const SETUP_RESTART_REQUIRED_KEY = 'formaxSetupRestartRequired'
-type SetupRestartRequiredKind = 'browser' | 'desktop'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -88,21 +79,6 @@ function setSetupRestartRequiredStorage(kind: SetupRestartRequiredKind | null): 
   }
 }
 
-function SetupRestartRequired(props: { kind: SetupRestartRequiredKind }) {
-  const message =
-    props.kind === 'desktop'
-      ? 'Restart the desktop dev/preview runtime, then reopen the app.'
-      : 'Restart the web server, then refresh this page.'
-  return (
-    <I18nProvider language="en-US">
-      <main data-testid="setup-restart-required" style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-        <h1>Setup complete</h1>
-        <p role="alert">{message}</p>
-      </main>
-    </I18nProvider>
-  )
-}
-
 export function resolveRuntimeRouteAfterSetup(): string {
   if (typeof window === 'undefined') return '/'
   const { pathname, search, hash } = window.location
@@ -110,12 +86,6 @@ export function resolveRuntimeRouteAfterSetup(): string {
   const basePath = pathname.slice(0, -'/setup'.length)
   const runtimePath = basePath ? (basePath.endsWith('/') ? basePath : `${basePath}/`) : '/'
   return `${runtimePath}${search}${hash}`
-}
-
-function setupModelInputValue(session: SetupSessionView): string {
-  return session.draft.modelMode === 'advanced' && session.modelTier
-    ? session.draft.tierModels[session.modelTier]
-    : session.draft.model
 }
 
 function SetupEntrypoint() {
@@ -228,6 +198,21 @@ function SetupEntrypoint() {
   }, [session?.id, session?.step])
 
   useEffect(() => {
+    if (!session || (session.step !== 'modelMode' && session.step !== 'model') || transitionPendingRef.current) return
+    const defaultModel = session.availableModels[0]
+    if (!defaultModel) return
+    if (session.draft.modelMode === 'quick') {
+      if (!session.draft.model.trim()) void applyAction({ type: 'setModel', model: defaultModel })
+      return
+    }
+    for (const tier of MODEL_TIERS) {
+      if (!session.draft.tierModels[tier].trim()) {
+        void applyAction({ type: 'setTierModel', tier, model: defaultModel })
+      }
+    }
+  }, [session?.id, session?.step, session?.draft.modelMode, session?.availableModels.join('|')])
+
+  useEffect(() => {
     if (!session) {
       setModelValue('')
       return
@@ -235,7 +220,7 @@ function SetupEntrypoint() {
     setModelValue(setupModelInputValue(session))
   }, [session?.id, session?.step, session?.draft.modelMode, session?.modelTier])
 
-  const runAction = async (action: Record<string, unknown>) => {
+  const runAction = async (action: SetupAction) => {
     const sessionId = sessionIdRef.current
     if (!sessionId) return
     setMessage('')
@@ -277,13 +262,13 @@ function SetupEntrypoint() {
     }
   }
 
-  const applyAction = (action: Record<string, unknown>): Promise<void> => {
+  const applyAction = (action: SetupAction): Promise<void> => {
     const next = actionQueueRef.current.then(() => runAction(action))
     actionQueueRef.current = next.catch(() => undefined)
     return next
   }
 
-  const applyTransition = (action: Record<string, unknown>): Promise<void> => {
+  const applyTransition = (action: SetupAction): Promise<void> => {
     if (transitionPendingRef.current) return Promise.resolve()
     transitionPendingRef.current = true
     setTransitionPending(true)
@@ -293,6 +278,11 @@ function SetupEntrypoint() {
     })
     return next
   }
+
+  useEffect(() => {
+    if (session?.step !== 'welcome' || transitionPendingRef.current) return
+    void applyTransition({ type: 'next' })
+  }, [session?.id, session?.step])
 
   const commit = async () => {
     if (!session || transitionPendingRef.current) return
@@ -328,8 +318,6 @@ function SetupEntrypoint() {
     }
   }
 
-  const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties
-  const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties
   const canEditModelFields = session?.step !== 'confirm' && session?.step !== 'write'
   const canEditConnectionFields = canEditModelFields && session?.step !== 'modelMode' && session?.step !== 'model'
 
@@ -346,132 +334,23 @@ function SetupEntrypoint() {
   }
 
   return (
-    <I18nProvider language="en-US">
-      <div style={{ minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
-        {window.formaxDesktop ? (
-          <header
-            style={{
-              height: 48,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 12px',
-              ...dragStyle,
-            }}
-          >
-            <strong>Formax Setup</strong>
-            <div style={{ display: 'flex', gap: 8, ...noDragStyle }}>
-              <button type="button" onClick={() => void window.formaxDesktop?.windowControls?.minimize?.()}>Minimize</button>
-              <button type="button" onClick={() => void window.formaxDesktop?.setup?.cancel?.()}>Close</button>
-            </div>
-          </header>
-        ) : null}
-        <main data-testid="setup-entrypoint" style={{ maxWidth: 720, margin: '48px auto', padding: '0 24px' }}>
-          <h1>Setup</h1>
-        <p>Bridge: {status}</p>
-        {message ? <p role="alert">{message}</p> : null}
-        {session ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (transitionPendingRef.current) return
-              if (session.step === 'write') void commit()
-              else void applyTransition({ type: 'next' })
-            }}
-          >
-            <p>Step: {session.step}</p>
-            {session.error ? <p role="alert">{session.error}</p> : null}
-            <label>
-              Provider
-              <select
-                value={session.draft.provider ?? ''}
-                disabled={!canEditConnectionFields}
-                onChange={(event) => void applyAction({ type: 'setProvider', provider: event.target.value })}
-              >
-                <option value="">Select provider</option>
-                <option value="anthropic">Anthropic-compatible</option>
-                <option value="openai">OpenAI-compatible</option>
-              </select>
-            </label>
-            {session.draft.provider === 'anthropic' ? (
-              <label>
-                Anthropic-compatible backend
-                <select
-                  value={session.draft.anthropicVendor ?? 'deepseek'}
-                  disabled={!canEditConnectionFields}
-                  onChange={(event) => void applyAction({ type: 'setAnthropicVendor', vendor: event.target.value })}
-                >
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="glm">GLM</option>
-                  <option value="kimi">Kimi</option>
-                  <option value="minimax">MiniMax</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </label>
-            ) : null}
-            <label>
-              Base URL
-              <input
-                value={baseUrlValue}
-                disabled={!canEditConnectionFields}
-                onChange={(event) => {
-                  setBaseUrlValue(event.target.value)
-                  void applyAction({ type: 'setBaseUrl', baseUrl: event.target.value })
-                }}
-              />
-            </label>
-            <label>
-              API key
-              <input
-                type="password"
-                value={apiKeyValue}
-                placeholder={session.draft.apiKeyPresent ? 'Saved for this setup session' : ''}
-                disabled={!canEditConnectionFields}
-                onChange={(event) => {
-                  setApiKeyValue(event.target.value)
-                  void applyAction({ type: 'setApiKey', apiKey: event.target.value })
-                }}
-              />
-            </label>
-            <label>
-              Model mode
-              <select
-                value={session.draft.modelMode}
-                disabled={!canEditModelFields}
-                onChange={(event) => void applyAction({ type: 'setModelMode', mode: event.target.value })}
-              >
-                <option value="quick">Quick</option>
-                <option value="advanced">Advanced</option>
-              </select>
-            </label>
-            <label>
-              {session.draft.modelMode === 'advanced' && session.modelTier
-                ? `${session.modelTier} model`
-                : 'Model'}
-              <input
-                list="setup-models"
-                value={modelValue}
-                disabled={!canEditModelFields}
-                onChange={(event) => {
-                  setModelValue(event.target.value)
-                  void applyAction({ type: 'setModel', model: event.target.value })
-                }}
-              />
-              <datalist id="setup-models">
-                {session.availableModels.map((model) => <option key={model} value={model} />)}
-              </datalist>
-            </label>
-            <div>
-              <button type="button" onClick={() => void applyTransition({ type: 'back' })} disabled={transitionPending}>Back</button>
-              <button type="submit" disabled={transitionPending}>Next</button>
-              <button type="button" onClick={() => void commit()} disabled={session.step !== 'write' || transitionPending}>Write setup</button>
-            </div>
-          </form>
-        ) : null}
-        </main>
-      </div>
-    </I18nProvider>
+    <SetupWizardScreen
+      status={status}
+      session={session}
+      message={message}
+      apiKeyValue={apiKeyValue}
+      baseUrlValue={baseUrlValue}
+      modelValue={modelValue}
+      transitionPending={transitionPending}
+      canEditConnectionFields={canEditConnectionFields}
+      canEditModelFields={canEditModelFields}
+      onAction={applyAction}
+      onTransition={applyTransition}
+      onCommit={commit}
+      onApiKeyValueChange={setApiKeyValue}
+      onBaseUrlValueChange={setBaseUrlValue}
+      onModelValueChange={setModelValue}
+    />
   )
 }
 

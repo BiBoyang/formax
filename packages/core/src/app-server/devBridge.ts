@@ -11,6 +11,7 @@ import { testSetupConnection } from '../adapters/setup/connectionTest.js'
 import { writeSetupFiles } from '../adapters/setup/writeSetupFiles.js'
 import { createSetupBridgeService, type SetupBridgeAction } from '../core/setup/bridgeService.js'
 import type { SetupProviderOption } from '../core/setup/types.js'
+import type { ModelTier } from '../config/settings/schema.js'
 import {
   authorizeBridgeConnection,
   buildWsUrl,
@@ -145,6 +146,7 @@ function createSetupJsonRpcError(id: unknown, code: number, message: string): st
 function parseSetupAction(value: unknown): SetupBridgeAction | null {
   if (!value || typeof value !== 'object') return null
   const action = value as Record<string, unknown>
+  const isModelTier = (tier: unknown): tier is ModelTier => tier === 'haiku' || tier === 'sonnet' || tier === 'opus'
   switch (action.type) {
     case 'setProvider':
       return action.provider === 'anthropic' || action.provider === 'openai' || action.provider === 'gemini'
@@ -169,6 +171,10 @@ function parseSetupAction(value: unknown): SetupBridgeAction | null {
         : null
     case 'setModel':
       return typeof action.model === 'string' ? { type: 'setModel', model: action.model } : null
+    case 'setTierModel':
+      return isModelTier(action.tier) && typeof action.model === 'string'
+        ? { type: 'setTierModel', tier: action.tier, model: action.model }
+        : null
     case 'next':
       return { type: 'next' }
     case 'back':
