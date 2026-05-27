@@ -1,116 +1,288 @@
-# Model Context Window Stability Todo
+# Electron Setup Wizard Todo
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] 当前问题主线不是单一 provider 字段误读，而是 `model identity`、`model capability`、`persisted override`、`effective runtime budget` 混成了多个裸数字字段。
-- [x] setup 当前会把 provider list explicit metadata、detail probe、`models.dev` catalog、heuristic fallback 最终压平成可消费窗口值，需要额外 provenance 才能稳定。
-- [x] runtime `contextWindowTokens` 之前只暴露数值优先级，不暴露 source / binding。
-- [x] Web / app-server 之前会缓存 `TurnRunner` 的 runtime/client，但 turn 内又会重新读取 config budget，存在 cached model 与 fresh budget 混用风险。
-- [x] Anthropic-compatible provider 的 `max_tokens` 语义不稳定；实现已改为不再直接把它当作 context window。
+- [x] Electron desktop currently hosts the existing Web runtime and should not maintain a second renderer stack.
+- [x] Packaged Electron starts the managed runtime through `cli.mjs web --host ... --ui-port ... --bridge-port ...`.
+- [x] `formax web` currently exits before starting the Web UI when runtime config has no API key.
+- [x] The existing TUI setup flow already has a reusable core state machine in `packages/core/src/core/setup/session.ts`.
+- [x] Setup connection probing already lives in `packages/core/src/adapters/setup/connectionTest.ts`.
+- [x] Setup config/auth persistence already lives in `packages/core/src/adapters/setup/writeSetupFiles.ts`.
+- [x] Setup must preserve model context-window provenance and must not persist heuristic fallback as authoritative config.
+- [x] Setup is config/auth/model initialization; it is not transcript, REPL, turn, replay, or canonical semantics.
+- [x] The aligned architecture is: Vite `/setup` top-level route, Electron separate Setup BrowserWindow, `bridge/setup/*` side-channel RPC for setup business operations, Electron IPC only for setup complete/cancel window orchestration, `formax web --allow-setup` for desktop first-run, and managed runtime restart after successful setup.
 
 ### 0.2 Goals
-- [x] 给 context window 引入明确的 source / binding / runtime ownership，避免不同来源的数字互相冒充。
-- [x] 稳定 setup 到写盘的能力探测链路，避免 heuristic 或低置信度来源被静默持久化成“真实窗口”。
-- [x] 让 app-server / Web turn 执行使用同一个 runtime model profile，消除 cached model 与 fresh budget 脱节。
-- [x] 在不改变当前用户可见模型选择语义的前提下，给后续结构化重构留清晰迁移路径。
+- [ ] Allow Electron first-run users to complete setup without running terminal `formax setup`.
+- [ ] Open a separate setup window when setup is incomplete; open the main desktop window directly when setup is complete.
+- [ ] Reuse the canonical setup session, connection test, and write paths instead of creating a second setup backend.
+- [ ] Keep `/setup` isolated from main Web app runtime initialization so it does not trigger `initialize`, `thread/list`, diff refresh, or replay.
+- [ ] Keep ordinary `formax web` behavior stable by requiring an explicit setup-allowed mode for first-run Web setup.
+- [ ] Restart Electron managed runtime after setup commit so new app-server/Web state is based on fresh runtime config.
 
 ### 0.3 Non-goals
-- [x] 本任务不重构大范围 context compression / transcript / tool runtime 子系统。
-- [x] 本任务不顺手 redesign setup UI 或 Web GUI 视觉表现。
-- [x] 本任务不在第一轮就引入完整 capability cache / provider adapter registry 重构。
-- [x] 本任务不立即移除 legacy `llm.contextWindowTokens`；先把它降级为兼容 mirror。
+- [x] Do not redesign `/config` or broaden this into a general settings UI.
+- [x] Do not rewrite the TUI SetupWizard.
+- [x] Do not add transcript/replay/canonical semantics for setup.
+- [x] Do not move setup write or connection-test ownership into Electron main.
+- [x] Do not add a hand-written standalone HTML setup page or second renderer stack.
+- [x] Do not implement app-server `setup/*` as stable thread/turn protocol unless bridge side-channel proves insufficient.
+- [x] Do not make browser-only Web first-run setup a full product target in the first implementation loop.
 
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [x] 更新 `docs/contracts/model-settings-contract.md`，明确区分 active model identity、detected capability、persisted tier snapshot / override、effective runtime prompt budget。
-- [x] 在合同中补充 invariant：同一 turn 的 runtime model 与 runtime budget 必须来自同一份 frozen profile；persisted snapshot 绑定 model identity；env override 不得写回；legacy scalar 只作兼容 mirror。
-- [x] 保持短期只扩展现有 `model-settings-contract`，不额外拆 capability canonical doc。
-- [x] 补充 `docs/learnings/2026-05-24-context-window-source-binding-runtime-profile.md` 记录收敛原则。
+- [x] Add a documented bridge setup API section for `bridge/setup/*` in the appropriate API reference or a focused bridge setup contract.
+- [ ] Keep `docs/contracts/semantics-contract.md` unchanged unless implementation accidentally introduces setup into transcript/replay semantics.
+- [ ] Update `docs/contracts/app-server-interaction-contract.md` only if setup methods become formal app-server protocol methods instead of bridge side-channel methods.
+- [ ] Update `docs/contracts/config-settings-contract.md` only to state that GUI setup reuses the same config/auth write path as TUI setup, unless persistence semantics change.
+- [ ] Update `docs/contracts/model-settings-contract.md` only if setup model/context-window write behavior changes.
+- [x] Update `CODEMAP.md` and package-local CODEMAP/README entries if new setup route, bridge service, or Electron setup window ownership points are added.
+- [ ] Add a short learning note under `docs/learnings/` after the architecture lands.
 
 ### 1.2 Data model
-- [x] 定义最小新增状态：model context window source、confidence、bound model identity、runtime profile fingerprint。
-- [x] 固定 source taxonomy：`CapabilitySource`、`ConfigBudgetSource`、`ModelSource`。
-- [x] 明确哪些来源可作为 persisted snapshot，哪些来源只能作为 runtime fallback。
-- [x] 将 `binding_mismatch` 提升为正式 resolution path，而不是隐式继续吃旧 tier 数值。
-- [x] 保留 legacy mirror，但不再把它当成新的 tier truth。
+- [ ] Define `SetupStatusResult` with `schemaVersion`, `complete`, redacted `reason`, redacted effective provider/baseUrl/model summary, API key source, and warnings.
+- [ ] Define a runtime-owned read-only HTTP setup status endpoint, preferably `GET /__formax/setup/status`, for Electron main probing.
+- [ ] Ensure HTTP setup status and `bridge/setup/status` share the same setup status service and redacted schema.
+- [ ] Define HTTP status endpoint security: read-only, no raw auth material, no write/test/commit operations, loopback-only for desktop managed runtime; if non-loopback dev hosting is allowed, require token protection or disable the endpoint.
+- [ ] Define `SetupSessionView` as a redacted view over `SetupSessionState`; raw API key must not be returned to renderer after it is submitted.
+- [ ] Define raw API key server-side lifetime: the raw key may exist only in an ephemeral active setup session secret slot and must not be included in `SetupSessionView`, action history, diagnostics, audit details, logs, JSON-RPC errors, or test fixtures.
+- [ ] Define secret cleanup triggers: commit, cancel, dispose, stale-session timeout, socket close, and service shutdown must delete raw API key references.
+- [ ] Define setup session TTL, max lifetime, max active sessions, and stale-session behavior, especially for sessions holding a secret.
+- [ ] Define setup session ownership and lifetime: `sessionId`, stale-session behavior, dispose/cancel behavior, and cleanup after commit.
+- [ ] Define setup action input shape before UI work: provider, anthropic vendor, base URL, API key, model mode, model selection, next, back.
+- [ ] Treat API key submission as a secret-bearing setup operation, not a normal loggable action; decide whether it is a dedicated method or a flagged action before bridge wiring.
+- [ ] Define commit result shape, including config path/auth path/logs dir/warnings and whether runtime restart is required.
+- [ ] Define how env-provided API key affects setup status: env key can make setup complete but must not be written back to auth store unless the user explicitly submits a new key.
+- [ ] Define invalid config/auth behavior: status should surface warnings and allow repair through setup without leaking secret material.
+- [ ] Define setup RPC response boundary: `bridge/setup/*` responses must not carry turn/replay envelope fields such as `replaySeq`, `traceId`, `seq`, `eventId`, or notification `source`.
+- [ ] Define browser-only explicit setup mode behavior: `formax web` remains not setup-capable by default; explicit setup mode may commit through bridge but only gets refresh/restart guidance instead of Electron window orchestration.
 
 ### 1.3 Types / Interfaces
-- [x] 扩展 setup connection 结果，保留兼容 `modelContextWindows`，同时新增 provenance metadata。
-- [x] 扩展 runtime config 返回值，增加 `contextWindowTokensSource`、`contextWindowTokensBoundModel`、`modelSource` 等字段。
-- [x] 引入 `RuntimeModelProfile` 与 profile fingerprint。
-- [x] 统一 setup 与 detection 的 heuristic helper，避免 fallback 规则分叉。
+- [ ] Add core-owned setup bridge service types near setup/runtime ownership rather than in React components.
+- [ ] Add redaction helpers for setup state and status so bridge responses never expose raw API keys.
+- [ ] Extend Web RPC typing or local setup RPC helpers for `bridge/setup/*`.
+- [ ] Extend `FormaxDesktopBridge` typing with `setup.complete()` and `setup.cancel()` only.
+- [ ] Extend web command options with `setupMode: 'require-config' | 'allow'`.
+- [ ] Add `--setup-mode require-config|allow` as the canonical parser model, with `--allow-setup` allowed as shorthand for `--setup-mode allow`.
 
 ## 2. Runtime / Platform
 
-### 2.1 Provider capability detection
-- [x] 保持探测顺序：explicit metadata → detail probe → catalog → heuristic。
-- [x] 在 `connectionTest` 保留 provenance。
-- [x] 对 Anthropic-compatible / OpenAI-compatible 分开约束可视为 context window 的字段。
-- [x] 把 `known_model_map` 留在 runtime/config resolution，而不是混入 provider-facing detection。
+### 2.1 Setup service
+- [ ] Create a core setup bridge service that owns setup status, session creation, session actions, commit, cancel, and dispose.
+- [ ] Reuse `createSetupSession` for setup flow state.
+- [ ] Reuse `testSetupConnection` for connection testing.
+- [ ] Reuse `writeSetupFiles` for config/auth persistence.
+- [ ] Preserve setup model context-window source/confidence/binding metadata through the Web setup flow.
+- [ ] Ensure commit rejects missing provider/baseUrl/apiKey/model states rather than relying on UI-only validation.
+- [ ] Ensure all setup errors map to stable JSON-RPC errors or structured result errors without leaking API keys.
 
-### 2.2 Setup state and persistence
-- [x] setup session 现在让 tier model 与 tier context metadata 同步推进，quick / advanced 模式切换时一起复制。
-- [x] `writeSetupFiles` 只持久化与已选 tier model 绑定的 snapshot / override。
-- [x] heuristic fallback 默认不再被 setup 静默固化成 authoritative snapshot。
+### 2.2 Bridge side-channel
+- [ ] Gate setup side-channel methods by setup mode: setup session/create/action/commit must require `setupMode='allow'`.
+- [ ] Allow only redacted read-only status probing outside setup mode if needed; do not allow write/test/commit operations when setup mode is not allowed.
+- [ ] Register `bridge/setup/status`.
+- [ ] Register `bridge/setup/session/create`.
+- [ ] Register `bridge/setup/session/action`.
+- [ ] Register `bridge/setup/session/commit`.
+- [ ] Register `bridge/setup/session/cancel` or `bridge/setup/session/dispose`.
+- [ ] Ensure `bridge/setup/*` messages are handled by the bridge and are not forwarded to app-server stdio.
+- [ ] Ensure `bridge/setup/*` uses JSON-RPC request/response only and never emits app-server notifications.
+- [ ] Ensure setup RPC responses are not passed into replay cursor, Web parity adapters, transcript projection, or visible transcript logs.
+- [ ] Ensure existing bridge token/origin/rate-limit protections cover setup methods.
+- [ ] Ensure setup side-channel methods share payload-size, rate-limit, and security enforcement with existing bridge RPC paths.
+- [ ] Ensure setup side-channel methods are available in the runtime path used by `formax web`, desktop dev/preview, and packaged managed runtime.
 
-### 2.3 Config resolution
-- [x] `loadRuntimeConfig` 仍保持 effective value 行为，但同时返回 source / binding metadata。
-- [x] `/model` sync 改为 source-aware，并通过 `resolveRuntimeModelProfile(...)` 解析 effective source / binding。
-- [x] env override 仍然优先，但被明确为 runtime override，而不是 capability。
-- [x] `known_model_map` 现在只在 runtime/config resolution 主线生效。
+### 2.3 Web command startup
+- [ ] Extend `parseWebCommandArgs` with `setupMode`, including canonical `--setup-mode require-config|allow` and optional `--allow-setup` shorthand.
+- [ ] Update CLI dispatch so default `formax web` keeps the existing setup-required error.
+- [ ] Update CLI dispatch so `formax web --allow-setup` starts Web UI and bridge even when API key is missing.
+- [ ] Update desktop managed runtime args to pass `--allow-setup`.
+- [ ] Update CLI/web command tests to cover default missing-config rejection and setup-allowed startup.
 
-### 2.4 App-server / Web runtime ownership
-- [x] `TurnRunner` 现在在 turn 开始时冻结 `RuntimeModelProfile`，同一 turn 不再独立 reload model/budget/provider。
-- [x] app-server `resolveTurnRunner` 改为 profile-keyed cache / rebuild 策略。
-- [x] diagnostics 与 actual turn 都通过 shared runtime profile resolver 收敛到同一 ownership。
-- [x] turn 内 model、budget、provider/cache-editing 判定来自同一份 frozen profile。
+### 2.4 Electron orchestration
+- [ ] Add a setup status probe after managed runtime readiness and before main window creation using the runtime-owned read-only HTTP status endpoint.
+- [ ] Prefer runtime-owned status for authority; Electron main should not directly parse config/auth as the source of truth.
+- [ ] Add `createSetupWindow(setupUrl)` with a singleton setup-window guard.
+- [ ] Keep setup BrowserWindow separate from the main BrowserWindow and load `/setup`.
+- [ ] Add preload IPC for `formaxDesktop.setup.complete()` and `formaxDesktop.setup.cancel()`.
+- [ ] On setup completion, close setup window, restart managed runtime, re-probe setup status, then open main window.
+- [ ] Ensure main window opens only after restarted runtime reports complete setup status.
+- [ ] If post-restart setup status remains incomplete, reopen/focus setup instead of opening main.
+- [ ] Abandon or close old WebSocket clients before loading the post-setup main window.
+- [ ] On setup cancel/close while incomplete, avoid opening main window; quit or keep a clear desktop fallback behavior.
+- [ ] Define cancel behavior explicitly before implementation: recommended v1 is quit on Windows/Linux; on macOS keep app alive without main window and reopen/focus setup on activate.
+- [ ] Ensure macOS activate behavior focuses an existing setup window instead of opening a main window while setup remains incomplete.
 
 ## 3. Frontend Boundary
 
-### 3.1 Diagnostics and explainability
-- [x] context meter / diagnostics raw budget 现在暴露更细的 source，而不是只有 `runtime_config` / `known_model_window`。
-- [x] 可观测面增加了 bound model 与 profile fingerprint。
+### 3.1 Route ownership
+- [ ] Add a top-level `/setup` route switch before calling `useAppRuntime`.
+- [ ] Ensure `/setup` does not call `useAppRuntime`, `useRpcConnectionEffect`, `initializeRuntime`, `thread/list`, diff refresh, or replay.
+- [ ] Ensure importing/rendering `SetupRoot` does not import or execute `AppShell`/`useAppRuntime` side effects.
+- [ ] Keep the existing main app route behavior unchanged when path is not `/setup`.
+- [ ] Avoid adding a global React router unless the setup route actually needs it; a minimal pathname switch is preferred for the first implementation.
 
-### 3.2 Scope guard
-- [x] 保持当前 UI copy 和主交互语义稳定，没有额外视觉或交互重排。
-- [x] runtime ownership 问题没有下沉成前端组件局部 workaround。
+### 3.2 Web setup UI
+- [ ] Build `SetupRoot` and setup components under a focused Web setup folder.
+- [ ] Mirror the current TUI setup flow: provider, Anthropic-compatible vendor, base URL, API key, connection test, model mode, model selection, confirm/write, done.
+- [ ] Use existing Web design tokens and components; do not create a visually unrelated setup experience.
+- [ ] Keep API key input local and masked; do not display raw key in logs, notices, serialized state, or diagnostics.
+- [ ] Render connection-test loading and errors with enough detail to recover, using existing setup hint/error mapping where practical.
+- [ ] Render commit warnings after successful write where useful.
+- [ ] After commit, call `window.formaxDesktop.setup.complete()` when available.
+- [ ] In browser-only `--allow-setup` mode, show a graceful post-commit fallback that asks the user to refresh or restart rather than calling desktop IPC.
+
+### 3.3 Main app fallback
+- [ ] If a user manually opens `/` while setup is incomplete in desktop mode, avoid starting a broken main workflow.
+- [ ] Decide whether the main route redirects to `/setup`, shows a setup-required fallback, or relies entirely on Electron window orchestration.
+- [ ] Keep this fallback renderer-local and out of canonical transcript/thread semantics.
 
 ## 4. Tests
 
-### 4.1 Detection and setup tests
-- [x] 扩展 `packages/core/src/adapters/setup/connectionTest.test.ts`，覆盖 detected/detail probe/catalog/heuristic source 与 `max_tokens` 回归。
-- [x] 扩展 `packages/core/src/core/setup/session.test.ts`，锁住 quick / advanced source 复制与 metadata fallback。
-- [x] 扩展 `packages/core/src/adapters/setup/writeSetupFiles.test.ts`，覆盖 authoritative snapshot 与 low-confidence fallback 写盘边界。
+### 4.1 Core setup service tests
+- [ ] Cover status when config/auth are missing.
+- [ ] Cover status when env API key is present.
+- [ ] Cover status with invalid config/auth warnings.
+- [ ] Cover redacted setup session view after API key is submitted.
+- [ ] Cover raw API key cleanup on commit, cancel, dispose, stale-session timeout, socket close, and service shutdown.
+- [ ] Cover setup session TTL/max lifetime and max active session behavior.
+- [ ] Cover session action progression through quick setup.
+- [ ] Cover session action progression through advanced haiku/sonnet/opus setup.
+- [ ] Cover connection-test failure and recovery.
+- [ ] Cover commit calling `writeSetupFiles` with tier model/context-window metadata.
+- [ ] Cover stale session and cancel/dispose behavior.
 
-### 4.2 Config and command tests
-- [x] 扩展 `packages/core/src/config/config.branches.test.ts`，覆盖 source/binding metadata、env override、binding mismatch。
-- [x] 新增 `packages/core/src/config/runtimeModelProfile.test.ts`，覆盖 persisted source、known-model fallback、binding mismatch。
-- [x] 扩展 `packages/core/src/features/commands/replEnvironmentService.test.ts`，覆盖 source-aware `/model` sync 与 env-only override 不写盘。
+### 4.2 Bridge tests
+- [ ] Extend `devBridge.test.ts` or adjacent bridge tests for `bridge/setup/*`.
+- [ ] Add tests that setup session/create/action/commit methods return an error when `setupMode` is not `allow`.
+- [ ] Assert setup methods are not forwarded to app-server stdio.
+- [ ] Assert `bridge/setup/*` responses do not include `replaySeq`, `traceId`, `seq`, `eventId`, or app-server notification envelope fields.
+- [ ] Assert malformed setup params return JSON-RPC errors.
+- [ ] Assert setup methods are protected by existing token/origin checks.
+- [ ] Assert setup methods share bridge payload-size/rate-limit/security behavior with existing bridge RPC.
+- [ ] Assert raw API key is not emitted in bridge responses or audit details.
+- [ ] Assert secret-bearing setup calls are excluded from action/audit detail payloads.
+- [ ] Add tests for local HTTP setup status: redacted response, loopback/token behavior, same schema as `bridge/setup/status`, and no write/test/commit operations.
 
-### 4.3 App-server / runtime tests
-- [x] 更新 `packages/core/src/app-server/turnRunner.test.ts`，锁住 frozen profile 下的 context meter raw 行为。
-- [x] 更新 `packages/core/src/app-server/index.coverage.test.ts`，锁住 profile-keyed runner cache 与 live plan diagnostics。
-- [x] 更新 `packages/core/src/chat/context/contextDiagnostics.test.ts`，锁住 diagnostics payload 与 runtime profile source 对齐。
+### 4.3 CLI / runtime web tests
+- [ ] Update `runtime/cli/main.test.ts` for default missing-config rejection.
+- [ ] Add test for `web --setup-mode allow` and `web --allow-setup` starting despite missing API key.
+- [ ] Update `webCommand.test.ts` for setup mode parsing, shorthand parsing, invalid mode, and help text.
+- [ ] Add/adjust runtime web tests for `/setup` SPA fallback if needed.
+- [ ] Add runtime web tests for read-only HTTP setup status when setup mode is allowed.
 
-## 5. Execution Result
+### 4.4 Web UI tests
+- [ ] Add React tests proving `/setup` renders setup UI without invoking `useAppRuntime`.
+- [ ] Assert `/setup` sends no `initialize`, `thread/list`, `thread/messages`, `thread/replay`, `turn/start`, or diff bridge requests under initial load, retry, and reconnect.
+- [ ] Assert setup RPC responses are not dispatched into transcript logs, projection store, replay cursor, or Web parity adapters.
+- [ ] Add Web setup flow tests with mocked `bridge/setup/*` RPC.
+- [ ] Cover connection-test error rendering.
+- [ ] Cover commit success and desktop complete IPC call.
+- [ ] Cover browser-only explicit setup mode commit and post-commit refresh/restart fallback when desktop IPC is unavailable.
 
-### Loop 1
-- [x] 收敛 canonical 定义、source taxonomy、shared helper、基础类型与 targeted tests。
+### 4.5 Electron validation
+- [ ] Add targeted unit tests where practical for setup URL resolution and IPC handler behavior.
+- [ ] Manually smoke `bun run desktop:electron:dev` with setup incomplete.
+- [ ] Manually smoke `bun run desktop:electron:dev` with setup complete.
+- [ ] Manually smoke `bun run desktop:electron:preview` with setup incomplete.
+- [ ] Manually smoke direct `/setup` URL load in preview/packaged runtime.
+- [ ] Manually smoke setup commit -> managed runtime restart -> fresh main initialize path.
+- [ ] Manually smoke cancel/close incomplete setup and relaunch behavior.
+- [ ] Manually smoke packaged/unpacked launch path if this loop changes packaged managed runtime behavior.
+- [ ] Capture screenshots or terminal evidence for setup window and main window transition if UI changes are included in the PR.
 
-### Loop 2
-- [x] 完成 connectionTest provenance、setup session metadata 与 write boundary 收敛。
+## 5. Recommended Execution Order
 
-### Loop 3
-- [x] 完成 runtime config source/binding 元数据、`resolveRuntimeModelProfile(...)`、`/model` source-aware sync。
+### Loop 1: Define setup API and startup mode
+Review gate for this loop:
+- Blocking: setup status/session contracts are wrong or leak secrets; setup mode parsing/gating is wrong; CLI default `formax web` behavior regresses; explicit setup mode cannot start without existing auth; raw API key lifetime/cleanup is undefined or unsafe; bridge response boundary would allow setup data into turn/replay/projection/log semantics.
+- Non-blocking: final Web setup UI polish, Electron BrowserWindow orchestration, preview/packaged smoke, final docs/CODEMAP promotion, and full TUI copy parity unless they expose a contract bug in this loop.
 
-### Loop 4a
-- [x] 让 `TurnRunner` 冻结 turn 级 runtime profile，消除 turn 内独立 reload 分叉。
+- [ ] Add setup status/session/action/commit type definitions and redaction helpers.
+- [ ] Define `setupMode: 'require-config' | 'allow'`, parser behavior, and `--allow-setup` shorthand.
+- [ ] Define setup mode gating for status vs session/create/action/commit.
+- [ ] Define runtime-owned read-only HTTP setup status probe and how it shares the bridge setup status service/schema.
+- [ ] Define secret-bearing API key handling, cleanup triggers, setup session TTL, and max session behavior.
+- [ ] Define bridge setup response boundary: no turn/replay envelope and no projection/log dispatch.
+- [ ] Add focused setup bridge service tests for status and redacted session view.
+- [ ] Implement the core setup bridge service without wiring it to Web or Electron yet.
+- [ ] Add setup mode parsing and CLI dispatch behavior.
+- [ ] Run targeted tests for setup service and web command parsing/dispatch.
+- [ ] Run `codex review` for this loop.
 
-### Loop 4b
-- [x] 将 app-server runtime cache 切到 profile-keyed，并让 diagnostics / actual turn 共享 owner。
+### Loop 2: Wire bridge side-channel
+Review gate for this loop:
+- Blocking: `bridge/setup/*` bypasses setup mode gating; setup methods are forwarded to app-server stdio; setup responses leak raw secrets or notification/replay envelope fields; HTTP status is not redacted/read-only; bridge token/origin/payload protections are skipped; setup sessions are not disposed on socket close or service shutdown.
+- Non-blocking: final SetupRoot component structure, Electron window lifecycle polish, packaged runtime validation, and final user-facing setup copy unless they reveal a bridge/protocol contract bug.
 
-### Loop 5
-- [x] 在 diagnostics / context meter 暴露 source / bound model / profile fingerprint。
-- [x] 完成文档、learnings、targeted tests、type-check 与最终 review 收口。
+- [ ] Register `bridge/setup/*` in the WebSocket bridge.
+- [ ] Ensure setup side-channel methods do not forward to app-server stdio.
+- [ ] Add local read-only HTTP setup status endpoint for Electron main probing.
+- [ ] Add bridge tests for success, malformed params, auth/origin protection, setup mode gating, no notification envelope fields, and no API-key leakage.
+- [ ] Add HTTP setup status tests for redaction, loopback/token behavior, shared schema, and no write methods.
+- [ ] Update API reference or focused bridge setup contract for `bridge/setup/*`.
+- [ ] Run targeted bridge/protocol tests.
+- [ ] Run `codex review` for this loop.
+
+### Loop 3: Add Web `/setup` route and setup UI
+Review gate for this loop:
+- Blocking: `/setup` initializes main runtime/thread/diff/replay paths; configured users are routed into setup from `/`; incomplete users in setup-allowed mode cannot reach setup; explicit `/setup` cannot render in dev/preview; setup UI can commit unvalidated connection/model state; setup RPC results enter transcript/projection/replay state; raw API keys are displayed or retained in renderer state.
+- Non-blocking: final visual polish, full TUI copy parity, component extraction beyond current maintainability, full browser-only setup productization, and Electron packaged smoke unless they break the route isolation or setup state contract.
+
+- [ ] Add top-level `/setup` switch before `useAppRuntime`.
+- [ ] Add setup RPC client helpers for `bridge/setup/*`.
+- [ ] Implement SetupRoot and Web setup flow against setup session actions.
+- [ ] Add Web UI tests for route isolation, full quick flow, failure flow, and commit completion.
+- [ ] Add Web UI tests proving setup route sends no main app runtime/thread/diff RPCs under retry/reconnect.
+- [ ] Add Web UI tests proving setup RPC responses do not enter transcript/projection/replay state.
+- [ ] Run targeted Web Vitest tests.
+- [ ] Run Browser/Playwright spot check for `/setup` visual state if a dev server is practical.
+- [ ] Run `codex review` for this loop.
+
+### Loop 4: Electron setup window orchestration
+Review gate for this loop:
+- Blocking: Electron cannot distinguish complete vs incomplete setup before opening windows; setup completion does not restart/re-probe managed runtime; main window can open while setup remains incomplete; restart failure leaves setup unrecoverable; cancel/close opens a broken main workflow; macOS activate opens main while setup is incomplete; old setup WebSocket clients remain authoritative after restart.
+- Non-blocking: final setup UI styling, full packaged/unpacked smoke matrix, screenshot capture, and docs cleanup unless they reveal an Electron lifecycle or startup correctness bug in this loop.
+
+- [ ] Pass `--allow-setup` from Electron managed runtime startup.
+- [ ] Add runtime-owned HTTP setup status probe before window creation.
+- [ ] Add setup BrowserWindow singleton and `/setup` loading.
+- [ ] Add desktop setup complete/cancel IPC.
+- [ ] Implement setup completion transition: close setup window, restart managed runtime, re-probe, open main window.
+- [ ] Implement cancel/close behavior while setup is incomplete.
+- [ ] Ensure post-restart incomplete status reopens/focuses setup instead of opening main.
+- [ ] Ensure old WebSocket clients are abandoned/closed before main window loads.
+- [ ] Run targeted desktop build/type checks and manual desktop dev smoke.
+- [ ] Run `codex review` for this loop.
+
+### Loop 5: Packaged/runtime hardening and docs
+Review gate for this loop:
+- Blocking: preview/packaged runtime cannot serve `/setup`; setup commit/restart fails in preview/packaged paths; CODEMAP/canonical docs contradict shipped ownership; acceptance criteria remain unverifiable; prior loop checks regress.
+- Non-blocking: optional screenshots or extra manual evidence when the same behavior is already covered by targeted checks, unless the PR explicitly requires that evidence.
+
+- [ ] Verify preview and packaged/unpacked runtime paths still copy and serve the setup route.
+- [ ] Verify preview/packaged direct `/setup` URL load.
+- [ ] Verify preview/packaged setup commit -> runtime restart -> fresh main initialize.
+- [ ] Verify preview/packaged cancel/close incomplete setup and relaunch behavior.
+- [ ] Update desktop README and CODEMAP/package CODEMAP entries.
+- [ ] Add learning note under `docs/learnings/`.
+- [ ] Run targeted CLI, bridge, Web, and desktop checks from prior loops.
+- [ ] Run manual preview/packaged smoke where feasible.
+- [ ] Run `codex review` for this loop.
+
+## 6. Acceptance Criteria
+
+- [ ] A fresh Electron launch with no persisted setup opens a separate setup window and not the main app.
+- [ ] Completing setup writes config/auth through `writeSetupFiles` and preserves model context-window provenance rules.
+- [ ] Setup completion closes the setup window, restarts managed runtime, and opens the main app successfully.
+- [ ] After setup completion, the main app opens only after the restarted runtime reports complete setup status.
+- [ ] If post-restart setup status is still incomplete, Electron opens/focuses setup instead of opening the main app.
+- [ ] A configured Electron launch opens the main app directly.
+- [ ] `/setup` does not initialize the main app runtime or touch thread/transcript state.
+- [ ] `bridge/setup/*` responses never use app-server notification envelopes and never enter replay cursor, Web parity adapters, transcript projection, or visible transcript logs.
+- [ ] Default `formax web` still rejects missing setup unless setup mode is explicitly allowed.
+- [ ] Setup session/create/action/commit methods are unavailable unless setup mode is explicitly allowed.
+- [ ] No setup protocol or UI path leaks raw API keys in responses, logs, or persisted UI state.
+- [ ] Raw API key references are cleaned up on commit, cancel, dispose, stale timeout, socket close, and service shutdown.
+- [ ] The implementation has targeted tests for setup service, bridge wiring, CLI startup mode, Web setup UI, and desktop orchestration.

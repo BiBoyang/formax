@@ -1,10 +1,16 @@
 import { createServer, type IncomingMessage } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { PassThrough } from 'node:stream'
 import { appendFile, lstat, mkdir, readFile, readlink } from 'node:fs/promises'
 import path from 'node:path'
 import { WebSocket, WebSocketServer } from 'ws'
+import { createNodeFileStore } from '../config/nodeFileStore.js'
+import { testSetupConnection } from '../adapters/setup/connectionTest.js'
+import { writeSetupFiles } from '../adapters/setup/writeSetupFiles.js'
+import { createSetupBridgeService, type SetupBridgeAction } from '../core/setup/bridgeService.js'
+import type { SetupProviderOption } from '../core/setup/types.js'
 import {
   authorizeBridgeConnection,
   buildWsUrl,
@@ -31,6 +37,7 @@ export type AppServerDevBridgeOptions = {
   maxEventBytes?: number
   maxPendingInputsPerThread?: number
   defaultInputTtlMs?: number
+  setupMode?: 'require-config' | 'allow'
   rpcOverrides?: {
     readDiff?: (cwd: string, params: BridgeReadDiffParams | undefined) => Promise<BridgeReadDiffResult>
     readDiffSummary?: (cwd: string, params: BridgeReadDiffSummaryParams | undefined) => Promise<BridgeReadDiffSummaryResult>
@@ -100,6 +107,12 @@ type BridgeAuditEntry = {
   details?: Record<string, unknown>
 }
 
+const SETUP_PROVIDERS: SetupProviderOption[] = [
+  { id: 'anthropic', label: 'Anthropic' },
+  { id: 'openai', label: 'OpenAI-compatible' },
+  { id: 'gemini', label: 'Gemini', disabled: true },
+]
+
 function normalizeMaxBytes(value: unknown, fallback = 180 * 1024): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
@@ -123,6 +136,46 @@ function writeJsonlLine(stream: PassThrough, text: string): void {
   const line = text.trim()
   if (!line) return
   stream.write(line + '\n')
+}
+
+function createSetupJsonRpcError(id: unknown, code: number, message: string): string {
+  return JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })
+}
+
+function parseSetupAction(value: unknown): SetupBridgeAction | null {
+  if (!value || typeof value !== 'object') return null
+  const action = value as Record<string, unknown>
+  switch (action.type) {
+    case 'setProvider':
+      return action.provider === 'anthropic' || action.provider === 'openai' || action.provider === 'gemini'
+        ? ({ type: 'setProvider', provider: action.provider as any })
+        : null
+    case 'setAnthropicVendor':
+      return action.vendor === 'deepseek' ||
+        action.vendor === 'anthropic' ||
+        action.vendor === 'glm' ||
+        action.vendor === 'kimi' ||
+        action.vendor === 'minimax' ||
+        action.vendor === 'custom'
+        ? ({ type: 'setAnthropicVendor', vendor: action.vendor as any })
+        : null
+    case 'setBaseUrl':
+      return typeof action.baseUrl === 'string' ? { type: 'setBaseUrl', baseUrl: action.baseUrl } : null
+    case 'setApiKey':
+      return typeof action.apiKey === 'string' ? { type: 'setApiKey', apiKey: action.apiKey } : null
+    case 'setModelMode':
+      return action.mode === 'quick' || action.mode === 'advanced'
+        ? ({ type: 'setModelMode', mode: action.mode as any })
+        : null
+    case 'setModel':
+      return typeof action.model === 'string' ? { type: 'setModel', model: action.model } : null
+    case 'next':
+      return { type: 'next' }
+    case 'back':
+      return { type: 'back' }
+    default:
+      return null
+  }
 }
 
 function broadcastLine(clients: Iterable<WebSocket>, line: string): void {
@@ -698,6 +751,36 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
   const clients = new Set<WebSocket>()
   let outputBuffer = ''
   let closed = false
+  const setupFileStore = createNodeFileStore()
+  const setupService = createSetupBridgeService({
+    providers: SETUP_PROVIDERS,
+    fileStore: setupFileStore,
+    testConnection: testSetupConnection,
+    createSessionId: randomUUID,
+    cwd: options.cwd,
+    env: options.env,
+    writeSetup: async (draft, writeOptions) => {
+      if (!draft.provider) throw new Error('Missing provider')
+      return writeSetupFiles({
+        fileStore: setupFileStore,
+        cwd: options.cwd,
+        env: options.env,
+        provider: draft.provider,
+        baseUrl: draft.baseUrl,
+        apiKey: draft.apiKey,
+        persistApiKey: writeOptions?.persistApiKey,
+        authRef: writeOptions?.authRef,
+        model: draft.model,
+        tierModels: draft.tierModels,
+        tierContextWindowTokens: draft.tierContextWindowTokens,
+        tierContextWindowSources: draft.tierContextWindowSources,
+        tierContextWindowConfidence: draft.tierContextWindowConfidence,
+        tierContextWindowBindings: draft.tierContextWindowBindings,
+        contextWindowTokens: draft.contextWindowTokens,
+        contextWindowSource: draft.tierContextWindowSources?.sonnet,
+      })
+    },
+  })
 
   audit.write({
     ts: new Date().toISOString(),
@@ -709,6 +792,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
       hasToken: Boolean(options.security?.authToken),
       allowedOrigins: options.security?.allowedOrigins?.length ?? 0,
       rateLimit,
+      setupMode: options.setupMode ?? 'require-config',
     },
   })
 
@@ -760,8 +844,11 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
     })
 
     clients.add(socket)
+    const setupSessionIds = new Set<string>()
     socket.on('close', () => {
       clients.delete(socket)
+      for (const sessionId of setupSessionIds) setupService.disposeSession(sessionId)
+      setupSessionIds.clear()
       audit.write({
         ts: new Date().toISOString(),
         event: 'connection_close',
@@ -820,6 +907,72 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
           parsed.jsonrpc === '2.0' &&
           parsed.id !== undefined &&
           typeof parsed.method === 'string'
+
+        if (isRequest && String(parsed.method).startsWith('bridge/setup/')) {
+          audit.write({
+            ts: new Date().toISOString(),
+            event: 'bridge_rpc',
+            details: {
+              method: parsed.method,
+              remoteAddress,
+            },
+          })
+          const setupAllowed = options.setupMode === 'allow'
+          const params = (parsed.params ?? {}) as Record<string, unknown>
+          void (async () => {
+            if (parsed.method === 'bridge/setup/status') return setupService.status()
+            if (!setupAllowed) {
+              throw Object.assign(new Error('Setup mode is not enabled for this bridge.'), { code: -32003 })
+            }
+            if (parsed.method === 'bridge/setup/session/create') {
+              const session = setupService.createSession()
+              setupSessionIds.add(session.id)
+              return session
+            }
+            if (parsed.method === 'bridge/setup/session/action') {
+              const sessionId = typeof params.sessionId === 'string' ? params.sessionId : ''
+              const action = parseSetupAction(params.action)
+              if (!sessionId || !action) {
+                throw Object.assign(new Error('Invalid setup session action.'), { code: -32602 })
+              }
+              if (!setupSessionIds.has(sessionId)) {
+                return { ok: false, code: 'session_not_found', message: 'Setup session was not found or has expired.' }
+              }
+              return setupService.applyAction(sessionId, action)
+            }
+            if (parsed.method === 'bridge/setup/session/commit') {
+              const sessionId = typeof params.sessionId === 'string' ? params.sessionId : ''
+              if (!sessionId) throw Object.assign(new Error('Missing setup session id.'), { code: -32602 })
+              if (!setupSessionIds.has(sessionId)) {
+                return { ok: false, code: 'session_not_found', message: 'Setup session was not found or has expired.' }
+              }
+              const result = await setupService.commit(sessionId)
+              if (result.ok) setupSessionIds.delete(sessionId)
+              return result
+            }
+            if (parsed.method === 'bridge/setup/session/dispose') {
+              const sessionId = typeof params.sessionId === 'string' ? params.sessionId : ''
+              if (!sessionId) throw Object.assign(new Error('Missing setup session id.'), { code: -32602 })
+              if (!setupSessionIds.has(sessionId)) {
+                return { ok: false, code: 'session_not_found', message: 'Setup session was not found or has expired.' }
+              }
+              setupService.disposeSession(sessionId)
+              setupSessionIds.delete(sessionId)
+              return { ok: true }
+            }
+            throw Object.assign(new Error(`Unknown setup method: ${parsed.method}`), { code: -32601 })
+          })()
+            .then((result) => {
+              if (socket.readyState !== WebSocket.OPEN) return
+              socket.send(JSON.stringify({ jsonrpc: '2.0', id: parsed.id, result }))
+            })
+            .catch((error) => {
+              if (socket.readyState !== WebSocket.OPEN) return
+              const code = typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : -32603
+              socket.send(createSetupJsonRpcError(parsed.id, code, error instanceof Error ? error.message : String(error)))
+            })
+          continue
+        }
 
         if (
           isRequest &&
@@ -944,6 +1097,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
 
       input.end()
       output.end()
+      setupService.shutdown()
       await runPromise.catch(() => undefined)
       await audit.flush()
     },

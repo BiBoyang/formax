@@ -28,14 +28,14 @@ import { formatCliHelp } from './help.js'
 import type { JsonEnvelope } from './json.js'
 import { toJson } from './json.js'
 import { formatServeCommandHelp, parseServeCommandArgs, type ServeCommandOptions } from './serveCommand.js'
-import { formatWebCommandHelp, parseWebCommandArgs } from './webCommand.js'
+import { formatWebCommandHelp, parseWebCommandArgs, type WebCommandOptions } from './webCommand.js'
 import pkg from '../../../package.json'
 
 export type CliDispatchResult =
   | { kind: 'repl' }
   | { kind: 'app-server' }
   | { kind: 'serve'; options: ServeCommandOptions }
-  | { kind: 'web'; options: { host: string; uiPort: number; bridgePort: number } }
+  | { kind: 'web'; options: WebCommandOptions }
   | { kind: 'handled'; exitCode: number; stdout: string; stderr: string }
 
 type ConnectionTester = (args: { provider: ProviderId; baseUrl: string; apiKey: string }) => Promise<ConnectionTestResult>
@@ -61,6 +61,11 @@ function resolveTarGz(tarGz?: (args: { sourceDir: string; outPath: string }) => 
   outPath: string
 }) => Promise<void> {
   return tarGz ?? createTarGz
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase()
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]'
 }
 
 function okJson(command: string, data: unknown, warnings: string[] = [], meta?: Record<string, unknown>): string {
@@ -397,13 +402,22 @@ export async function dispatchCli(
       }
     }
 
-    const runtime = await loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir })
-    if (!runtime.llm.apiKey.trim()) {
+    if (parsedWeb.options.setupMode === 'require-config') {
+      const runtime = await loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir })
+      if (!runtime.llm.apiKey.trim()) {
+        return {
+          kind: 'handled',
+          exitCode: ExitCode.Error,
+          stdout: '',
+          stderr: 'Formax Web UI requires setup first.\nRun `formax setup` in your terminal, then retry `formax web`.\n',
+        }
+      }
+    } else if (!isLoopbackHost(parsedWeb.options.host)) {
       return {
         kind: 'handled',
-        exitCode: ExitCode.Error,
+        exitCode: ExitCode.Usage,
         stdout: '',
-        stderr: 'Formax Web UI requires setup first.\nRun `formax setup` in your terminal, then retry `formax web`.\n',
+        stderr: 'Formax Web setup mode can only bind to a loopback host.\nUse --host 127.0.0.1 with --setup-mode allow.\n',
       }
     }
 

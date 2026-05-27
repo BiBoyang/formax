@@ -38,6 +38,7 @@
 - Skills 目录与调用行为唯一事实源：`docs/contracts/skills-contract.md`
 - Slash command 发现 / dispatch / subline / injection 唯一事实源：`docs/contracts/slash-command-contract.md`
 - 模型设置唯一事实源（tier / active model / context window / `/model`）：`docs/contracts/model-settings-contract.md`
+- Setup Wizard 唯一事实源（Electron/Web setup gate / bridge side-channel / credential 语义）：`docs/contracts/setup-wizard-contract.md`
 - app-server 行为合同（protocol behavior）：`docs/contracts/app-server-interaction-contract.md`
 - Web 窗口透明构造合同（整窗透明 / 右侧白底 / 左上左下圆角）：`docs/contracts/web/window-transparency-construct.md`
 

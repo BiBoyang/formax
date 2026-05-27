@@ -214,6 +214,66 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('disposes setup sessions owned by a websocket when it closes', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":1,"method":"bridge/setup/session/create"}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+    const created = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    const sessionId = created.result.id
+    expect(typeof sessionId).toBe('string')
+
+    ;(socket.close as any)()
+
+    const secondSocket = createMockSocket()
+    onConnection?.(secondSocket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+    secondSocket.emitMessage(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'bridge/setup/session/action',
+        params: { sessionId, action: { type: 'next' } },
+      }) + '\n',
+    )
+    await waitFor(() => secondSocket.send.mock.calls.length > 0)
+    const action = JSON.parse(String(secondSocket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(action.result).toMatchObject({ ok: false, code: 'session_not_found' })
+
+    await bridge.close()
+  })
+
+  it('rejects setup session mutations from websockets that did not create the session', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
+    const onConnection = getConnectionHandler()
+    const ownerSocket = createMockSocket()
+    const otherSocket = createMockSocket()
+    onConnection?.(ownerSocket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+    onConnection?.(otherSocket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    ownerSocket.emitMessage('{"jsonrpc":"2.0","id":1,"method":"bridge/setup/session/create"}\n')
+    await waitFor(() => ownerSocket.send.mock.calls.length > 0)
+    const created = JSON.parse(String(ownerSocket.send.mock.calls[0]?.[0] ?? '{}'))
+    const sessionId = created.result.id
+    expect(typeof sessionId).toBe('string')
+
+    otherSocket.emitMessage(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'bridge/setup/session/action',
+        params: { sessionId, action: { type: 'next' } },
+      }) + '\n',
+    )
+    await waitFor(() => otherSocket.send.mock.calls.length > 0)
+    const action = JSON.parse(String(otherSocket.send.mock.calls[0]?.[0] ?? '{}'))
+    expect(action.result).toMatchObject({ ok: false, code: 'session_not_found' })
+
+    await bridge.close()
+  })
+
   it('forwards non-JSON lines to app-server input', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777 })
     const onConnection = getConnectionHandler()

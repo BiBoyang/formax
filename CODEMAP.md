@@ -62,7 +62,12 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Setup / Dialogs (Overlays)
 - First-run setup wizard (UI): `packages/core/src/tui/SetupWizard.tsx`
 - Setup session + state machine: `packages/core/src/core/setup/session.ts`
+- Web/Electron Setup Wizard contract: `docs/contracts/setup-wizard-contract.md`
+- Web setup bridge service (status/session/action/commit): `packages/core/src/core/setup/bridgeService.ts`
 - Setup persistence + connection checks: `packages/core/src/adapters/setup/writeSetupFiles.ts`, `packages/core/src/adapters/setup/connectionTest.ts`
+- Web setup side-channel wiring: `packages/core/src/app-server/devBridge.ts`, `packages/core/src/runtime/web/localUi.ts`
+- Web setup route/UI: `packages/web-reference-react/src/App.tsx`
+- Electron setup window + IPC handoff: `packages/desktop-electron/src/main.ts`, `packages/desktop-electron/src/preload.ts`
 - Overlay manager (open/close dialogs): `packages/core/src/features/repl/overlays/OverlayManager.ts`
 - Agents dialog (overlay UI): `packages/core/src/tui/agents/AgentsDialog.tsx`
 - Permissions dialog (overlay UI): `packages/core/src/tui/permissions/PermissionsDialog.tsx`

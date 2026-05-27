@@ -72,6 +72,87 @@ describe('writeSetupFiles', () => {
     }
   })
 
+  it('preserves existing auth entry when API key persistence is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-env-auth-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const authPath = path.join(globalConfigDir, 'auth.json')
+      await store.writeJsonAtomic(authPath, {
+        version: 1,
+        providers: {
+          anthropic: {
+            default: { apiKey: 'sk-stale' },
+          },
+        },
+      })
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: 'sk-env' } as any,
+        platform: 'linux',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-env',
+        persistApiKey: false,
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.authRef).toBe('default')
+      const auth = JSON.parse(await fs.readFile(res.authPath, 'utf8'))
+      expect(auth.providers.anthropic.default.apiKey).toBe('sk-stale')
+      expect(JSON.stringify(auth)).not.toContain('sk-env')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('can write an env-only authRef without modifying existing auth entries', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-env-auth-ref-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const authPath = path.join(globalConfigDir, 'auth.json')
+      await store.writeJsonAtomic(authPath, {
+        version: 1,
+        providers: {
+          anthropic: {
+            default: { apiKey: 'sk-stale' },
+          },
+          openai: {
+            other: { apiKey: 'sk-other' },
+          },
+        },
+      })
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir, FORMAX_API_KEY: 'sk-env' } as any,
+        platform: 'linux',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-env',
+        persistApiKey: false,
+        authRef: '__formax_env__',
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.authRef).toBe('__formax_env__')
+      const auth = JSON.parse(await fs.readFile(res.authPath, 'utf8'))
+      expect(auth.providers.anthropic.default.apiKey).toBe('sk-stale')
+      expect(auth.providers.openai.other.apiKey).toBe('sk-other')
+      expect(JSON.stringify(auth)).not.toContain('sk-env')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('preserves unrelated config fields when updating', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-preserve-'))
     try {

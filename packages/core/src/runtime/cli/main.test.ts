@@ -115,6 +115,7 @@ describe('dispatchCli', () => {
       host: '127.0.0.1',
       uiPort: 3781,
       bridgePort: 3777,
+      setupMode: 'require-config',
     })
   })
 
@@ -128,7 +129,71 @@ describe('dispatchCli', () => {
       host: '0.0.0.0',
       uiPort: 4080,
       bridgePort: 4077,
+      setupMode: 'require-config',
     })
+  })
+
+  it('dispatches web with setup mode allow when auth is missing', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-web-setup-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      const globalConfigDir = path.join(dir, 'global')
+      await fs.mkdir(projectDir, { recursive: true })
+
+      const res = await dispatchCli(['web', '--allow-setup'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('web')
+      if (res.kind !== 'web') return
+      expect(res.options).toEqual({
+        host: '127.0.0.1',
+        uiPort: 3781,
+        bridgePort: 3777,
+        setupMode: 'allow',
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('dispatches web with setup mode allow even when config is invalid', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-cli-web-setup-allow-invalid-'))
+    try {
+      const store = createNodeFileStore()
+      const projectDir = path.join(dir, 'repo')
+      const globalConfigDir = path.join(dir, 'global')
+      await fs.mkdir(projectDir, { recursive: true })
+      await store.writeTextAtomic(path.join(globalConfigDir, 'config.json'), '{ invalid json')
+
+      const res = await dispatchCli(['web', '--setup-mode', 'allow'], {
+        fileStore: store,
+        cwd: projectDir,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        homedir: dir,
+        platform: 'linux',
+      })
+
+      expect(res.kind).toBe('web')
+      if (res.kind !== 'web') return
+      expect(res.options.setupMode).toBe('allow')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects setup mode allow on non-loopback hosts', async () => {
+    const res = await dispatchCli(['web', '--host', '0.0.0.0', '--setup-mode', 'allow'])
+
+    expect(res.kind).toBe('handled')
+    if (res.kind !== 'handled') return
+    expect(res.exitCode).toBe(2)
+    expect(res.stderr).toContain('loopback')
   })
 
   it('returns setup-required error for web when auth is missing', async () => {

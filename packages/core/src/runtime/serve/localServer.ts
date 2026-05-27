@@ -2,6 +2,7 @@ import { startAppServerDevBridge } from '../../app-server/devBridge.js'
 import type { BridgeSecurityOptions } from '../network/runtime.js'
 import { displayHostForLogs } from '../network/runtime.js'
 import type { ServeCommandOptions } from '../cli/serveCommand.js'
+import type { WebCommandOptions } from '../cli/webCommand.js'
 
 export type ServeBridgeHandle = {
   url: string
@@ -26,7 +27,11 @@ function buildRateLimitOptions(options: ServeCommandOptions):
   }
 }
 
-export async function startServeBridge(options: ServeCommandOptions): Promise<ServeBridgeHandle> {
+export type ServeBridgeOptions = ServeCommandOptions & {
+  setupMode?: WebCommandOptions['setupMode']
+}
+
+export async function startServeBridge(options: ServeBridgeOptions): Promise<ServeBridgeHandle> {
   const bridge = await startAppServerDevBridge({
     host: options.host,
     port: options.port,
@@ -40,6 +45,7 @@ export async function startServeBridge(options: ServeCommandOptions): Promise<Se
         : undefined,
     rateLimit: buildRateLimitOptions(options),
     auditLogFile: options.auditLogFile,
+    setupMode: options.setupMode,
   })
 
   return {

@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,6 +12,9 @@ import {
 import { startServeBridge } from '../serve/localServer.js'
 import type { WebCommandOptions } from '../cli/webCommand.js'
 import { renderWebLogo } from './logo.js'
+import { createNodeFileStore } from '../../config/nodeFileStore.js'
+import { createSetupBridgeService } from '../../core/setup/bridgeService.js'
+import type { SetupProviderOption } from '../../core/setup/types.js'
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -26,11 +30,17 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 }
 
+const SETUP_PROVIDERS: SetupProviderOption[] = [
+  { id: 'anthropic', label: 'Anthropic' },
+  { id: 'openai', label: 'OpenAI-compatible' },
+  { id: 'gemini', label: 'Gemini', disabled: true },
+]
+
 function contentTypeFor(filePath: string): string {
   return CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream'
 }
 
-function runtimeBridgeScript(bridgePort: number, bridgeToken: string): string {
+function runtimeBridgeScript(bridgePort: number, bridgeToken: string, setupMode: WebCommandOptions['setupMode']): string {
   return (
     `<script>(function(){` +
     `var protocol=window.location.protocol==='https:'?'wss':'ws';` +
@@ -38,6 +48,7 @@ function runtimeBridgeScript(bridgePort: number, bridgeToken: string): string {
     `if(hostname.indexOf(':')!==-1&&hostname.charAt(0)!=='['){hostname='['+hostname+']';}` +
     `var token=${JSON.stringify(bridgeToken)};` +
     `window.__FORMAX_BRIDGE_URL__=protocol+'://'+hostname+':${bridgePort}'+'?token='+encodeURIComponent(token);` +
+    `window.__FORMAX_SETUP_MODE__=${JSON.stringify(setupMode)};` +
     `})();</script>`
   )
 }
@@ -62,8 +73,13 @@ async function resolveWebAssetsDir(): Promise<string | null> {
   return null
 }
 
-function injectRuntimeConfig(indexHtml: string, bridgePort: number, bridgeToken: string): string {
-  const configScript = runtimeBridgeScript(bridgePort, bridgeToken)
+function injectRuntimeConfig(
+  indexHtml: string,
+  bridgePort: number,
+  bridgeToken: string,
+  setupMode: WebCommandOptions['setupMode'],
+): string {
+  const configScript = runtimeBridgeScript(bridgePort, bridgeToken, setupMode)
   if (indexHtml.includes('</head>')) {
     return indexHtml.replace('</head>', `${configScript}</head>`)
   }
@@ -82,19 +98,30 @@ async function closeServer(server: ReturnType<typeof createServer>): Promise<voi
   await new Promise<void>((resolve) => server.close(() => resolve()))
 }
 
+function httpSetupStatusPayload(status: { complete?: unknown }): { schemaVersion: 1; complete: boolean } {
+  return { schemaVersion: 1, complete: status.complete === true }
+}
+
+function shouldServeSpaIndexPath(pathname: string): boolean {
+  if (pathname.includes('/__formax/')) return false
+  return pathname === '/index.html' || pathname.endsWith('/setup') || path.extname(pathname) === ''
+}
+
 async function startStaticWebServer(args: {
   host: string
   uiPort: number
   rootDir: string
   bridgePort: number
   bridgeToken: string
+  setupMode: WebCommandOptions['setupMode']
+  setupStatus?: () => Promise<unknown>
 }): Promise<{ url: string; close: () => Promise<void> }> {
   const indexPath = path.join(args.rootDir, 'index.html')
   const indexBuffer = await readStaticFile(indexPath)
   if (!indexBuffer) {
     throw new Error(`Missing Web UI index: ${indexPath}`)
   }
-  const indexHtml = injectRuntimeConfig(indexBuffer.toString('utf8'), args.bridgePort, args.bridgeToken)
+  const indexHtml = injectRuntimeConfig(indexBuffer.toString('utf8'), args.bridgePort, args.bridgeToken, args.setupMode)
 
   const server = createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -111,7 +138,18 @@ async function startStaticWebServer(args: {
     }
     const pathname = decoded.pathname === '/' ? '/index.html' : decoded.pathname
 
-    if (pathname === '/index.html') {
+    if (pathname.endsWith('/__formax/setup/status') && args.setupStatus) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      res.statusCode = 200
+      if (req.method === 'HEAD') {
+        res.end()
+        return
+      }
+      res.end(JSON.stringify(httpSetupStatusPayload(await args.setupStatus())))
+      return
+    }
+
+    if (shouldServeSpaIndexPath(pathname)) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.statusCode = 200
       if (req.method === 'HEAD') {
@@ -132,17 +170,6 @@ async function startStaticWebServer(args: {
 
     const payload = await readStaticFile(candidatePath)
     if (!payload) {
-      const shouldFallbackToIndex = path.extname(pathname) === ''
-      if (shouldFallbackToIndex) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8')
-        res.statusCode = 200
-        if (req.method === 'HEAD') {
-          res.end()
-          return
-        }
-        res.end(indexHtml)
-        return
-      }
       res.statusCode = 404
       res.end('Not Found')
       return
@@ -186,11 +213,21 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
   }
 
   const bridgeToken = createBridgeAuthToken()
+  const setupStatusService = createSetupBridgeService({
+    providers: SETUP_PROVIDERS,
+    fileStore: createNodeFileStore(),
+    testConnection: async () => ({ ok: false, code: 'setup_required' as any, message: 'Status-only setup service' }),
+    createSessionId: randomUUID,
+    writeSetup: async () => {
+      throw new Error('Status-only setup service cannot write setup.')
+    },
+  })
   const bridge = await startServeBridge({
     host: options.host,
     port: options.bridgePort,
     token: bridgeToken,
     allowedOrigins: [],
+    setupMode: options.setupMode,
   })
 
   let webServer: { url: string; close: () => Promise<void> } | null = null
@@ -201,6 +238,8 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
       rootDir: assetsDir,
       bridgePort: options.bridgePort,
       bridgeToken,
+      setupMode: options.setupMode,
+      setupStatus: options.setupMode === 'allow' ? () => setupStatusService.status() : undefined,
     })
   } catch (err) {
     await bridge.close()
@@ -213,12 +252,16 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
     `[formax] app-server bridge: ws://${connectHost}:${options.bridgePort} (token-protected; browser token is injected automatically)\n`,
   )
   process.stderr.write(`[formax] web ui: http://${connectHost}:${options.uiPort}\n`)
+  if (options.setupMode === 'allow') {
+    process.stderr.write('[formax] setup mode: allowed\n')
+  }
 
   let shuttingDown = false
   const shutdown = async () => {
     if (shuttingDown) return
     shuttingDown = true
     await Promise.allSettled([bridge.close(), webServer?.close()])
+    setupStatusService.shutdown()
   }
 
   process.once('SIGINT', () => {
@@ -227,4 +270,11 @@ export async function runWebUi(options: WebCommandOptions): Promise<void> {
   process.once('SIGTERM', () => {
     void shutdown().finally(() => process.exit(0))
   })
+}
+
+export const __localUiTestHooks = {
+  runtimeBridgeScript,
+  injectRuntimeConfig,
+  httpSetupStatusPayload,
+  shouldServeSpaIndexPath,
 }

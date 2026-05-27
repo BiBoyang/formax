@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_WEB_BRIDGE_PORT,
   DEFAULT_WEB_HOST,
+  DEFAULT_WEB_SETUP_MODE,
   DEFAULT_WEB_UI_PORT,
   formatWebCommandHelp,
   parseWebCommandArgs,
@@ -16,6 +17,7 @@ describe('parseWebCommandArgs', () => {
       host: DEFAULT_WEB_HOST,
       uiPort: DEFAULT_WEB_UI_PORT,
       bridgePort: DEFAULT_WEB_BRIDGE_PORT,
+      setupMode: DEFAULT_WEB_SETUP_MODE,
     })
   })
 
@@ -27,7 +29,34 @@ describe('parseWebCommandArgs', () => {
       host: '0.0.0.0',
       uiPort: 4010,
       bridgePort: 4009,
+      setupMode: DEFAULT_WEB_SETUP_MODE,
     })
+  })
+
+  it('parses setup mode options', () => {
+    const explicit = parseWebCommandArgs(['--setup-mode', 'allow'])
+    expect(explicit.ok).toBe(true)
+    if (!explicit.ok) return
+    expect(explicit.options.setupMode).toBe('allow')
+
+    const shorthand = parseWebCommandArgs(['--allow-setup'])
+    expect(shorthand.ok).toBe(true)
+    if (!shorthand.ok) return
+    expect(shorthand.options.setupMode).toBe('allow')
+  })
+
+  it('returns error for invalid setup mode options', () => {
+    const missing = parseWebCommandArgs(['--setup-mode'])
+    expect(missing.ok).toBe(false)
+    if (missing.ok) return
+    const missingError = missing as { ok: false; message: string }
+    expect(missingError.message).toContain('Missing value for --setup-mode')
+
+    const invalid = parseWebCommandArgs(['--setup-mode', 'setup'])
+    expect(invalid.ok).toBe(false)
+    if (invalid.ok) return
+    const invalidError = invalid as { ok: false; message: string }
+    expect(invalidError.message).toContain('Invalid --setup-mode')
   })
 
   it('returns error for invalid ports', () => {
@@ -103,5 +132,6 @@ describe('formatWebCommandHelp', () => {
     expect(help).toContain('Formax Web UI')
     expect(help).toContain('Usage:')
     expect(help).toContain('formax web')
+    expect(help).toContain('--setup-mode')
   })
 })

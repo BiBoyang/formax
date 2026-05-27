@@ -37,6 +37,7 @@ const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
 const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 const TERMINAL_CHANNEL = 'formax:desktop:terminal'
 const TERMINAL_EVENT_CHANNEL = 'formax:desktop:terminal:event'
+const SETUP_CHANNEL = 'formax:desktop:setup'
 const TERMINAL_OUTPUT_MAX_BYTES = 512 * 1024
 const DEFAULT_TERMINAL_COLS = 120
 const DEFAULT_TERMINAL_ROWS = 36
@@ -46,6 +47,7 @@ type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 type DesktopTerminalAction = 'ensure-session' | 'get-snapshot' | 'write' | 'resize' | 'destroy-session'
+type DesktopSetupAction = 'complete' | 'cancel'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -92,12 +94,24 @@ type ManagedRuntimeConfig = {
 let managedRuntimeChild: ChildProcess | null = null
 let managedRuntimeStopTimer: NodeJS.Timeout | null = null
 let managedRuntimeStopping = false
+let managedRuntimeSetupMode: 'require-config' | 'allow' | null = null
 const windowAppearanceStateByWebContentsId = new Map<number, WindowAppearanceState>()
 const windowAppearanceQueueByWebContentsId = new Map<number, Promise<void>>()
 const terminalSessionsByWebContentsId = new Map<number, Map<string, TerminalSession>>()
 let terminalSpawnHelperChecked = false
 let initialWindowAppearanceState: WindowAppearanceState = createDefaultWindowAppearanceState()
 let preventSleepBlockerId: number | null = null
+
+class ManagedRuntimeStartupError extends Error {
+  constructor(
+    message: string,
+    readonly setupMode: 'require-config' | 'allow',
+    readonly stderrTail: string,
+  ) {
+    super(message)
+    this.name = 'ManagedRuntimeStartupError'
+  }
+}
 
 const MAC_OPEN_TARGET_CANDIDATES: Array<{ id: OpenTargetDescriptor['id']; label: string; appName: string }> = [
   { id: 'vscode', label: 'VS Code', appName: 'Visual Studio Code' },
@@ -703,6 +717,16 @@ function writeRuntimeStream(prefix: string, chunk: string | Buffer): void {
   }
 }
 
+function appendRuntimeStderrTail(current: string, chunk: string | Buffer): string {
+  const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+  return (current + text).slice(-8192)
+}
+
+function isSetupRequiredManagedRuntimeError(error: unknown): boolean {
+  if (!(error instanceof ManagedRuntimeStartupError) || error.setupMode !== 'require-config') return false
+  return /requires setup first|formax setup|failed to parse .*config|invalid config|missing_(api_key|base_url|model)|zoderror/i.test(error.stderrTail)
+}
+
 function requestManagedRuntimeShutdown(): void {
   const child = managedRuntimeChild
   if (!child || child.exitCode != null || child.killed) return
@@ -715,12 +739,26 @@ function requestManagedRuntimeShutdown(): void {
   }
 
   managedRuntimeStopTimer = setTimeout(() => {
-    if (child.exitCode == null && !child.killed) {
+    if (child.exitCode == null) {
       child.kill('SIGKILL')
     }
   }, MANAGED_RUNTIME_KILL_GRACE_MS)
 
   managedRuntimeStopTimer.unref()
+}
+
+async function waitForManagedRuntimeExit(child: ChildProcess | null): Promise<void> {
+  if (!child || child.exitCode != null) return
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Timed out waiting for managed runtime to exit'))
+    }, MANAGED_RUNTIME_KILL_GRACE_MS + 1000)
+    timer.unref()
+    child.once('exit', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
 }
 
 async function waitForUiReady(startUrl: string, child: ChildProcess): Promise<void> {
@@ -757,12 +795,59 @@ async function waitForUiReady(startUrl: string, child: ChildProcess): Promise<vo
   throw new Error(`Timed out waiting for managed runtime UI at ${startUrl}`)
 }
 
-async function startManagedRuntimeIfNeeded(startUrl: string): Promise<void> {
+function buildSetupUrl(startUrl: string): string {
+  const parsed = new URL(startUrl)
+  const basePath = resolveUrlBasePath(parsed.pathname)
+  parsed.pathname = path.posix.join(basePath, 'setup')
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString()
+}
+
+function buildSetupStatusUrl(startUrl: string): string {
+  const parsed = new URL(startUrl)
+  const basePath = resolveUrlBasePath(parsed.pathname)
+  parsed.pathname = path.posix.join(basePath, '__formax/setup/status')
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString()
+}
+
+function resolveUrlBasePath(pathname: string): string {
+  if (pathname.endsWith('/')) return pathname
+  const lastSegment = pathname.split('/').pop() ?? ''
+  if (lastSegment.includes('.')) return path.posix.dirname(pathname)
+  return pathname
+}
+
+async function shouldOpenSetupWindow(startUrl: string): Promise<boolean> {
+  if (!isAllowedLocalUrl(startUrl)) return false
+  try {
+    const statusUrl = buildSetupStatusUrl(startUrl)
+    const response = await fetch(statusUrl, { method: 'GET', cache: 'no-store' })
+    if (response.status === 404 || response.status === 405 || response.status === 501) return false
+    if (!response.ok) return true
+    const body = await response.json() as { complete?: unknown }
+    return body.complete === false
+  } catch (error) {
+    process.stderr.write(`[formax-desktop] setup status probe failed: ${String(error)}\n`)
+    return true
+  }
+}
+
+async function resolveInitialWindowUrl(startUrl: string): Promise<string> {
+  return (await shouldOpenSetupWindow(startUrl)) ? buildSetupUrl(startUrl) : startUrl
+}
+
+async function startManagedRuntimeIfNeeded(startUrl: string, setupMode: 'require-config' | 'allow' = 'require-config'): Promise<void> {
   const config = resolveManagedRuntimeConfig(startUrl)
   if (!config) return
 
   if (managedRuntimeChild && managedRuntimeChild.exitCode == null && !managedRuntimeChild.killed) {
-    return
+    if (managedRuntimeSetupMode === setupMode) return
+    const exitPromise = waitForManagedRuntimeExit(managedRuntimeChild)
+    requestManagedRuntimeShutdown()
+    await exitPromise
   }
 
   const runtimeArgs = [
@@ -774,6 +859,8 @@ async function startManagedRuntimeIfNeeded(startUrl: string): Promise<void> {
     String(config.uiPort),
     '--bridge-port',
     String(config.bridgePort),
+    '--setup-mode',
+    setupMode,
   ]
 
   process.stderr.write(
@@ -791,17 +878,21 @@ async function startManagedRuntimeIfNeeded(startUrl: string): Promise<void> {
 
   managedRuntimeStopping = false
   managedRuntimeChild = child
+  managedRuntimeSetupMode = setupMode
+  let stderrTail = ''
 
   child.stdout?.on('data', (chunk) => {
     writeRuntimeStream('formax-runtime:stdout', chunk)
   })
   child.stderr?.on('data', (chunk) => {
+    stderrTail = appendRuntimeStderrTail(stderrTail, chunk)
     writeRuntimeStream('formax-runtime:stderr', chunk)
   })
 
   child.once('exit', (code, signal) => {
     if (managedRuntimeChild === child) {
       managedRuntimeChild = null
+      managedRuntimeSetupMode = null
     }
 
     if (managedRuntimeStopTimer) {
@@ -818,7 +909,8 @@ async function startManagedRuntimeIfNeeded(startUrl: string): Promise<void> {
     process.stderr.write('[formax-desktop] managed runtime is ready\n')
   } catch (error) {
     requestManagedRuntimeShutdown()
-    throw error
+    const message = error instanceof Error ? error.message : String(error)
+    throw new ManagedRuntimeStartupError(message, setupMode, stderrTail)
   }
 }
 
@@ -1058,6 +1150,7 @@ function registerDesktopIpcHandlers(): void {
   ipcMain.removeHandler(POWER_MANAGEMENT_CHANNEL)
   ipcMain.removeHandler(OPEN_TARGETS_CHANNEL)
   ipcMain.removeHandler(TERMINAL_CHANNEL)
+  ipcMain.removeHandler(SETUP_CHANNEL)
 
   ipcMain.handle(PICK_PROJECT_FOLDER_CHANNEL, async (event) => {
     const ownerWindow = resolveOwnerWindow(event)
@@ -1070,6 +1163,58 @@ function registerDesktopIpcHandlers(): void {
       : await dialog.showOpenDialog(dialogOptions)
     if (result.canceled) return null
     return result.filePaths[0] ?? null
+  })
+
+  ipcMain.handle(SETUP_CHANNEL, async (event, action: DesktopSetupAction) => {
+    const ownerWindow = resolveOwnerWindow(event)
+    if (action === 'cancel') {
+      ownerWindow?.close()
+      return true
+    }
+    if (action !== 'complete') return false
+
+    const startUrl = getStartUrl()
+    const child = managedRuntimeChild
+    ownerWindow?.hide()
+    try {
+      const exitPromise = waitForManagedRuntimeExit(child)
+      requestManagedRuntimeShutdown()
+      await exitPromise
+      await startManagedRuntimeIfNeeded(startUrl, 'require-config')
+      const nextUrl = await resolveInitialWindowUrl(startUrl)
+      if (nextUrl === buildSetupUrl(startUrl)) {
+        if (ownerWindow && !ownerWindow.isDestroyed()) {
+          await ownerWindow.loadURL(nextUrl)
+          ownerWindow.show()
+        } else {
+          await createMainWindow(nextUrl)
+        }
+        return false
+      }
+      await createMainWindow(nextUrl)
+      if (ownerWindow && !ownerWindow.isDestroyed()) {
+        setImmediate(() => {
+          if (!ownerWindow.isDestroyed()) ownerWindow.close()
+        })
+      }
+      return true
+    } catch (error) {
+      process.stderr.write(`[formax-desktop] setup completion failed: ${String(error)}\n`)
+      if (ownerWindow && !ownerWindow.isDestroyed()) {
+        if (isSetupRequiredManagedRuntimeError(error)) {
+          try {
+            await startManagedRuntimeIfNeeded(startUrl, 'allow')
+            await ownerWindow.loadURL(buildSetupUrl(startUrl))
+          } catch (recoveryError) {
+            process.stderr.write(`[formax-desktop] setup recovery failed: ${String(recoveryError)}\n`)
+          }
+        }
+        if (!ownerWindow.isDestroyed()) {
+          ownerWindow.show()
+        }
+      }
+      return false
+    }
   })
 
   ipcMain.handle(WINDOW_CONTROL_CHANNEL, (event, action: DesktopWindowControl) => {
@@ -1276,17 +1421,25 @@ async function bootstrap(): Promise<void> {
   registerDesktopIpcHandlers()
 
   try {
-    await startManagedRuntimeIfNeeded(startUrl)
+    await startManagedRuntimeIfNeeded(startUrl, 'require-config')
   } catch (error) {
+    if (!isSetupRequiredManagedRuntimeError(error)) throw error
     const message = error instanceof Error ? error.stack ?? error.message : String(error)
     process.stderr.write(`[formax-desktop] managed runtime startup failed: ${message}\n`)
+    try {
+      await startManagedRuntimeIfNeeded(startUrl, 'allow')
+    } catch (setupError) {
+      const setupMessage = setupError instanceof Error ? setupError.stack ?? setupError.message : String(setupError)
+      process.stderr.write(`[formax-desktop] setup runtime startup failed: ${setupMessage}\n`)
+      throw setupError
+    }
   }
 
-  await createMainWindow(startUrl)
+  await createMainWindow(await resolveInitialWindowUrl(startUrl))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length > 0) return
-    void createMainWindow(startUrl)
+    void resolveInitialWindowUrl(startUrl).then((url) => createMainWindow(url))
   })
 
   app.on('before-quit', () => {

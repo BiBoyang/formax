@@ -113,6 +113,7 @@ export async function writeSetupFiles(args: {
   provider: ProviderId
   baseUrl: string
   apiKey: string
+  persistApiKey?: boolean
   model: string
   tierModels?: TierModelMapping
   tierContextWindowTokens?: TierContextWindowMapping
@@ -200,14 +201,16 @@ export async function writeSetupFiles(args: {
   const validated = FormaxConfigV1Schema.parse(merged)
   await args.fileStore.writeJsonAtomic(configPath, validated)
 
-  const authRes = await authSet({
-    fileStore: args.fileStore,
-    authPath,
-    provider: args.provider,
-    authRef,
-    apiKey: args.apiKey,
-  })
-  warnings.push(...authRes.warnings)
+  if (args.persistApiKey !== false) {
+    const authRes = await authSet({
+      fileStore: args.fileStore,
+      authPath,
+      provider: args.provider,
+      authRef,
+      apiKey: args.apiKey,
+    })
+    warnings.push(...authRes.warnings)
+  }
 
   await fs.mkdir(logsDir, { recursive: true })
 

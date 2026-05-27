@@ -8,12 +8,14 @@ const POWER_MANAGEMENT_CHANNEL = 'formax:desktop:power-management'
 const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 const TERMINAL_CHANNEL = 'formax:desktop:terminal'
 const TERMINAL_EVENT_CHANNEL = 'formax:desktop:terminal:event'
+const SETUP_CHANNEL = 'formax:desktop:setup'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 type DesktopTerminalAction = 'ensure-session' | 'get-snapshot' | 'write' | 'resize' | 'destroy-session'
+type DesktopSetupAction = 'complete' | 'cancel'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -69,6 +71,10 @@ type FormaxDesktopRuntimeInfo = {
     resize: (threadId: string, cols: number, rows: number) => Promise<boolean>
     destroySession: (threadId: string) => Promise<boolean>
     subscribe: (listener: (event: TerminalEvent) => void) => () => void
+  }
+  setup: {
+    complete: () => Promise<boolean>
+    cancel: () => Promise<boolean>
   }
 }
 
@@ -304,6 +310,13 @@ function createTerminalBridge(): FormaxDesktopRuntimeInfo['terminal'] {
   })
 }
 
+function createSetupBridge(): FormaxDesktopRuntimeInfo['setup'] {
+  return Object.freeze({
+    complete: async () => ipcRenderer.invoke(SETUP_CHANNEL, 'complete' satisfies DesktopSetupAction),
+    cancel: async () => ipcRenderer.invoke(SETUP_CHANNEL, 'cancel' satisfies DesktopSetupAction),
+  })
+}
+
 const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
   mode: process.env.FORMAX_ELECTRON_MODE ?? 'dev',
   startUrl: process.env.FORMAX_ELECTRON_START_URL ?? 'http://127.0.0.1:3781',
@@ -362,6 +375,7 @@ const runtimeInfo: FormaxDesktopRuntimeInfo = Object.freeze({
     },
   }),
   terminal: createTerminalBridge(),
+  setup: createSetupBridge(),
 })
 
 contextBridge.exposeInMainWorld('formaxDesktop', runtimeInfo)
