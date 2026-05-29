@@ -89,5 +89,5 @@ The desktop shell uses the existing Web renderer and opens a separate setup wind
 - In `debug` mode, main process inspector runs on `9229` via `electron:start:debug`.
 - Navigation is restricted to local URLs (`127.0.0.1`, `localhost`, `::1`); external links open in system browser.
 - `build:mac` disables identity auto discovery to keep local packaging deterministic (`CSC_IDENTITY_AUTO_DISCOVERY=false`).
-- `build:*` scripts now copy root CLI bundle into embedded runtime (`runtime/cli.mjs`) and copy web assets (`runtime/web/*`).
+- `build:*` scripts now build a self-contained desktop CLI bundle into embedded runtime (`runtime/cli.mjs`) and copy web assets (`runtime/web/*`).
 - Packaged app launch attempts to auto-start embedded runtime; if setup is incomplete it opens setup recovery, and for non-setup startup failures the window renders a fallback guidance page instead of entering a broken main app.

@@ -12,7 +12,7 @@
     "dev": "npm run build:main && node ./scripts/run.mjs --mode dev",
     "debug": "npm run build:main && node ./scripts/run.mjs --mode debug",
     "preview": "npm run build:main && node ./scripts/run.mjs --mode preview",
-    "build:unpacked": "npm run build:main && npm run build:runtime && electron-builder --dir",
+    "build:unpacked": "npm run build:main && npm run build:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "build:mac": "npm run build:main && npm run build:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac:arm64": "npm run build:main && npm run build:runtime && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --publish never",
     "build": "npm run build:unpacked"
