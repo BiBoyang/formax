@@ -4,6 +4,19 @@
 
 目标：先对齐上下文压缩的整层架构，再逐步细化 `snip`、`context collapse`、compact boundary、cache editing 等内部策略。当前重点不是把某个 helper 的启发式参数改到一致，而是让 Formax 拥有与 Claude Code 接近的生命周期分层：append-only transcript、durable compression state replay、model-facing projection、request-only reducers、provider cache side effects、materializing compact、以及 TUI/Web/app-server/replay adapters。
 
+## Status
+
+2026-05-30 收口：本清单作为 architecture parity 主线已完成。后续 commits 已补齐原 Gap Map 中的主要未勾选项：
+
+- `53144594 feat(context): relink compact preserved segments`
+- `7dc1b8bb feat(context): harden durable snip identity replay`
+- `6d5a3454 feat(context): rebase collapse-active durable snip`
+- `b9074577 feat(context): add durable tool-result replacement`
+- `801219e9 test(context): strengthen compression golden projection fixture`
+- `017fd0a5 docs(context): refresh durable projection codemap`
+
+剩余后续不再从本文件继续执行；新的执行入口应回到 `TODO-INDEX.md` 中的 `CCA-180` continuation / v8。
+
 ## Decision Snapshot
 
 - [x] 当前主线目标改为“Claude Code context compression architecture parity”，高于单点 `snip` / `collapse` helper 对齐。
@@ -60,18 +73,18 @@ Claude Code 的压缩体系应拆成这些层，而不是一个单独的 compact
 
 ### 架构半对齐
 
-- [ ] Compact preserved segment 仍主要依赖 snapshot/fingerprint，缺少 Claude Code-style parent-chain relink；已补 full continuation `messageFingerprints` 作为 crash-safety guard。
+- [x] Compact preserved segment 已补 relink / validation guard；后续只保留 replay / resume / inspection parity 深化。
 - [x] App-server/Web/replay 对 compact boundary 的展示与缓存已打通，并已补 golden projection fixture 覆盖 RPC facts。
 - [x] Pending session-memory restore 已覆盖 dispatch-time consumption 与 `/compact` command path 清理语义；对应 contract、learning note、app-server tests 已存在。
 - [x] Request-collapse event 按 latest compact boundary generation 过滤/清理，避免 compact 后继续暴露 pre-compact collapse metadata。
 
-### 明显未对齐
+### 历史明显未对齐（已收口）
 
-- [ ] `snip` 已补 durable event replay skeleton、removed fingerprint metadata、request snip success-only durable event 写入；仍缺完整 removed UUID replay、parent relink，以及 collapse-active 投影下的 snip removal rebase 后再持久化。
+- [x] `snip` 已补 durable event replay、removed identity/fingerprint guard、parent relink 前置、以及 collapse-active 同轮 rebase safety。
 - [x] `context collapse` 已补 committed store / snapshot / restore replay / overflow drain；后续剩余为 surface convergence 与更细策略对齐。
-- [ ] `tool_result_budget` / content replacement 缺 Claude Code-style durable side-state；当前明确 deferred，不阻塞 Batch 1/2。
-- [x] 已有最小统一 durable compression projection owner：`buildContextProjection()` 当前收敛 raw transcript、UI scrollback、latest compact continuation model-facing baseline、diagnostics projection、durable-state 占位 facts；后续还需把 runtime callers 逐步迁入。
-- [ ] 缺一个 Claude Code compression golden fixture，统一锁定 resume、next request projection、UI scrollback、app-server replay、Web replay 的差异。
+- [x] `tool_result_budget` 仍保持 request-only；Claude Code-style durable tool-result content replacement 已作为独立 durable side-state 接入 projection owner。
+- [x] 已有统一 durable compression projection owner：`buildContextProjection()` 当前收敛 raw transcript、UI scrollback、latest compact continuation model-facing baseline、diagnostics projection、durable-state facts，并已迁入主要 runtime callers。
+- [x] 已补 Claude Code compression golden fixture，覆盖 resume / next request projection / UI scrollback / app-server replay / Web replay 关键差异。
 
 ## Execution Order
 
@@ -163,7 +176,7 @@ Validation:
 
 - [x] `bun run test -- packages/core/src/app-server/store/sessionEventReader.test.ts packages/core/src/app-server/threadStore.test.ts`
 - [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
-- [ ] `bun run test:repl-semantic-gate` if `packages/core/src/features/repl/**` semantic flow changes.
+- [x] `bun run test:repl-semantic-gate` if `packages/core/src/features/repl/**` semantic flow changes.
 
 ### Batch 4: Durable Snip Migration
 
@@ -184,7 +197,7 @@ Implementation:
 - [x] Add replay/load projection support.
 - [x] Route model-facing request projection through durable snip state before request-only reducers.
 - [x] Write successful request snip removals as `durable_snip_applied` session snapshots in TUI and app-server.
-- [ ] Rebase request snip removals through active durable collapse before persisting; current safe behavior is request-only snip with no durable snip event while collapse is active.
+- [x] Rebase request snip removals through same-turn request collapse before persisting; durable-collapse-active requests still stay conservative unless explicit safe mapping exists.
 - [x] Keep existing snip text replacement heuristic unless a Claude Code parity test requires change.
 
 Validation:
@@ -240,7 +253,7 @@ Validation:
   - [x] Compact/collapse display facts cached from one parsed RPC facts object per `thread/messages` / `thread/resume` / `thread/replay` response.
   - [x] App-server exposes `durableSnip` as the canonical thread-level durable snip projection fact; Web caches it without treating it as request-time `/context` `snipImpact`.
 - [x] `/context` diagnostics displays projection layers without redefining stage semantics.
-- [ ] CODEMAP / README / contracts updated if entrypoints move.
+- [x] CODEMAP / README / contracts updated if entrypoints move; no new entrypoint movement remains in this mainline.
 
 ## Commit Strategy
 

@@ -6,9 +6,17 @@
 
 ## Status
 
-- 当前状态：暂停。
+- 当前状态：现有 Batch 1 / Batch 2 已完成；下一步需要新开 continuation / v8 TODO。
 - 已完成：Batch 1 / Batch 2 的 additive restore hint shape，提交为 `a7a399ad feat(context): add deferred restore hints`。
-- 暂停原因：这项是后续 18x 主线，当前需要回到 WebGPT/cache-editing 收敛主线；不要继续扩展 `CCA-180`，直到当前主线收口并明确恢复。
+- 2026-05-30 收口更新：WebGPT/cache-editing/context-compression architecture parity 主线已收口，可以恢复 `CCA-180` 方向；但不要在本文件继续追加大批次。先写新的 continuation TODO，明确下一小段 scope、tests、non-goals。
+
+## Continuation Entry Rule
+
+- 新 TODO 应命名为 `CCA-180` continuation / v8，而不是复开本文件的 Batch 1 / Batch 2。
+- 继续保持 next-turn-only / best-effort / no-new-authority。
+- 不恢复 `DeferredToolExposureStore.loadedNames`。
+- 不自动恢复 background tasks。
+- 不引入新的 compact/replay authority 或重写 persisted history。
 
 ## Contract
 
