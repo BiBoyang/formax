@@ -1,311 +1,297 @@
-# CCA-181 Preserved-Segment Relink Validation Parity Todo
+# Post-CCA-181 Compression Boundary + Reactive Compact Rolling Todo
 
-日期：2026-05-30
+日期：2026-05-31
 
-当前执行入口只看这个文件。上一份 `CCA-180 Deferred-Task Restore Utility Continuation / v8 Todo` 已完成并进入 Git 历史；本文件接续 `TODO-INDEX.md` 中的下一条推荐主线：`CCA-181 preserved-segment relink parity`。
+当前执行入口只看这个文件。上一份 `CCA-181 Preserved-Segment Relink Validation Parity Todo` 已完成并进入 Git 历史；本文件接续 `TODO-INDEX.md` 中的 post-CCA-181 推荐顺序：先锁住 `microcompact` / `tool_result_budget` / durable replacement 的 request-time vs durable projection 边界，再进入 `CCA-182 reactive compact shaping v3`。
 
-本 TODO 的目标不是“重写成 Claude Code 的 storage model”，而是把 Formax 已有 preserved-segment metadata / relink guard 推进到更可靠的 replay / resume / inspection validation parity。
+本 TODO 是 rolling todo：Batch 1 先做边界审计和测试收口；Batch 2 做 `CCA-182` characterization / prep；Batch 3 才进入 reactive compact shaping 的最小实现 slice。执行时仍然一批一批完成、验证、review、提交，不在一个 commit 里混完全部批次。
+
+WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch 1 必须更硬地锁住 `microcompact` / `tool_result_budget` / durable replacement 的边界；Batch 2 必须 characterization-first；Batch 3 不预设 broad reactive compact shaping，只实现 Batch 2 证明出来的一个最小缺口。
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed Facts
 
-- [x] `CCA-180` restore continuity hints 已完成，`pendingSessionMemoryRestore` 继续保持 next-turn-only / best-effort / no-new-authority。
-- [x] `TODO-INDEX.md` 当前把 `CCA-181 preserved-segment relink parity` 排在下一候选主线首位。
-- [x] Formax 已有 compact `preservedSegment` metadata，包含 continuation count、preserved-tail count、summary/head/tail fingerprints，以及新 boundary 的 ordered identities / fingerprints。
-- [x] Formax 已有 `relinkLatestCompactPreservedContinuation(...)`，会在 compact summary 匹配、preserved tail 整体缺失且可唯一匹配时 relink。
-- [x] Formax 已有 `continuationMatchesPreservedSegment(...)`，可验证 continuation view 与 boundary preserved metadata 是否匹配。
-- [x] Durable projection replay 中，preserved-segment relink 已要求先于 durable snip removal / durable collapse replacement。
-- [x] app-server / Web surfaces 已能携带 deeper compact-boundary facts，包括 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment`。
-- [x] 当前 gap 不是“没有 preserved segment”，而是 replay / resume / inspection surfaces 是否都稳定消费同一 relink/validation truth。
+- [x] `microcompact` 与 `tool_result_budget` 已同时存在于 current middle-layer stack。
+- [x] 当前 middle-layer stage 顺序是 `microcompact -> tool_result_budget -> snip -> collapse -> prune`。
+- [x] `microcompact` 与 `tool_result_budget` 当前都属于 request-time reducer；默认不写回 persisted history。
+- [x] Claude Code-style cached microcompact 是 request/API cache-edit side effect：不重写 local message content，cache edits 只在 provider request layer 消费。
+- [x] Claude Code-style time-based microcompact 是 cold-cache request projection path：content-clear 较旧 compactable tool results，至少保留一个最近 compactable result，并让 cached-MC state 失效/重置。
+- [x] Formax `tool_result_budget` 是 Formax request-time reducer，不等同于 Claude Code durable content-replacement side-state 或 cache-editing internals。
+- [x] `buildContextProjection()` 是 durable projection owner，先产出 model-facing baseline，再交给 request-time middle-layer stack。
+- [x] durable tool-result content replacement 已有 explicit side-state / session event / projection replay 代码路径。
+- [x] `tool_result_budget` 当前会跳过已经带 durable replacement marker 的 tool result，避免二次 budget-stub。
+- [x] request-time collapse 已有 `latestRequestCollapse` surface；durable collapse store / archived spans 仍不是当前主线。
+- [x] `CCA-181` 已把 preserved-segment / `boundaryFingerprint` / Web compact-boundary cache generation key 收口。
+- [x] `TODO-INDEX.md` 当前建议 post-`CCA-181` 先做 durable tool-result replacement summary surface / boundary follow-up，再进入 `CCA-182`。
 
 ### 0.2 Goals
 
-- [x] 明确 CCA-181 的 canonical validation contract：relink 只能补全已验证的 missing preserved tail，只影响 model-facing baseline，不能重排、重复、删除或写回 raw transcript / UI scrollback。
-- [x] 先审计已有 compact/projection/app-server/Web coverage，再补 compact continuation validation 的真实缺口：partial preserved tail、duplicate matches、identity/fingerprint drift、summary mismatch、legacy boundary fallback、contiguity/order mismatch。
-- [x] 验证 preserved-segment relink 在 model-facing projection 中先于 durable snip / collapse 发生。
-- [x] 以 verify-first / patch-if-needed 方式验证 replay / resume / read / messages / diagnostics surfaces 都保留同一份 canonical `preservedSegment` facts。
-- [x] 验证 Web parser/cache 不会把 `preservedSegment` 降级、清空、跨 boundary generation 继承、或重建成第二套 summary。
-- [x] diagnostics 默认 tests-only；只有现有 `/context --json` 或 projection facts 无法检查 preserved-segment parity 时，才新增 bounded read-only validation signal。
-- [x] 完成后更新 TODO index、learning note、必要 contracts / README。
+- [ ] 锁住 Claude Code-style `microcompact` lifecycle roles、Formax request-time `tool_result_budget`、explicit durable tool-result content replacement replay 三者的阶段边界。
+- [ ] 验证 cache-editing microcompact、time-based microcompact、no-op microcompact 三条路径互斥且均为 request-time 行为；analysis-only surfaces 不得触发 content-clearing。
+- [ ] 验证 request-time reducers 只影响本次 request projection，不反向成为 durable state 或 persisted history mutation。
+- [ ] 验证 durable tool-result content replacement 只能来自 explicit durable side-state，并且只在 `buildContextProjection()` replay。
+- [ ] 验证 durable replacement replay 发生在 request-time `tool_result_budget` 之前，且不会被 `tool_result_budget` 二次替换。
+- [ ] 默认不新增 app-server / Web durable replacement stable surface；只有审计发现 concrete consumer 且 canonical docs 先定义最小 bounded surface，才补 wiring。
+- [ ] 为 `CCA-182 reactive compact shaping v3` 写 characterization-first prep：先锁 overflow / retry / fallback / event semantics，再决定实现 slice。
+- [ ] 让 WebGPT review 一份 rolling todo，而不是每个小阶段都重新问一次。
 
 ### 0.3 Non-goals
 
-- [x] 不引入 Claude Code parentUuid / transcript UUID storage rewrite。
-- [x] 不引入 partial-compact store。
-- [x] 不引入 archived collapse spans。
-- [x] 不重写 replay-time projection owner。
-- [x] 不把 preserved-segment validation 变成 destructive raw transcript rewrite。
-- [x] 不让 Web 从 transcript rows 自行重建 compact summary 或 preserved segment。
-- [x] 不在本主线处理 durable tool-result replacement summary surface。
-- [x] 不在本主线处理 `CCA-182` reactive compact shaping / provider-specific overflow telemetry。
-- [x] 不定义 collapse different-id overlap 大策略，除非发现真实 failing fixture。
-
-### 0.4 Loop 0 Coverage Audit
-
-| Area | Current evidence | Action |
-| --- | --- | --- |
-| explicit identity relink success | `compact.test.ts` already covered same-content continuation vs explicit preserved identity | already-covered |
-| legacy fingerprint fallback | `compact.test.ts` already covered old single-message and multi-message boundaries | already-covered |
-| duplicate pre-boundary refs | added `compact.test.ts` duplicate fingerprint regression | missing-characterization -> covered |
-| partial preserved tail after summary | added `compact.test.ts` partial-tail skip regression | missing-characterization -> covered |
-| complete preserved tail after summary | added `compact.test.ts` no-duplicate no-op regression | missing-characterization -> covered |
-| summary mismatch | added `compact.test.ts` summary fingerprint mismatch regression | missing-characterization -> covered |
-| ordered / contiguous explicit refs | added `compact.test.ts` non-contiguous and out-of-order explicit ref regressions; implementation now requires contiguous pre-boundary refs | implementation-failing -> fixed |
-| malformed identity/fingerprint/count metadata | added `compact.test.ts` malformed metadata regressions; implementation now skips malformed arrays/counts | implementation-failing -> fixed |
-| zero preserved tail | added `continuationMatchesPreservedSegment(...)` zero-tail validation assertion | strengthen -> covered |
-| relink before durable snip | `contextProjection.test.ts` already covered success; added skipped-relink coordinate guard regression | strengthen -> covered |
-| diagnostics fields | existing diagnostics expose `preservedSegment`; no stable validation status added in Loop 0 | defer |
-| app-server/Web surface parity | CCA-172 coverage exists; verify-first loops remain pending | defer |
+- [x] 不新增 `tool_result_budget` stage；它已经存在。
+- [x] 不把 `microcompact` 与 `tool_result_budget` 合并成一个概念。
+- [x] 不改 middle-layer stage 顺序，除非 Batch 1 发现明确 contract bug 并先更新 canonical docs。
+- [x] 不把 request-time `tool_result_budget` 持久化。
+- [x] 不从 transcript rows 推断 durable tool-result replacement state。
+- [x] 不从 budget stub text、durable-looking marker、rendered tool-result text 推断 durable replacement state。
+- [x] 不在 Batch 1 实现完整 durable replacement store、archived spans 或 committed collapse store。
+- [x] 不在 Batch 1 进入 `CCA-182` runtime/provider retry 行为改动。
+- [x] 不把 `latestRequestCollapse` 当成 durable collapse store。
+- [x] 不让 Web 自行重建 compression facts；Web 只消费 app-server / RPC facts。
+- [x] 不复制 Claude Code `contentReplacementState` / cache-editing / context-collapse store 的存储 internals；只对齐 lifecycle role、projection boundary、retry boundary。
+- [x] 不把 Claude Code 当前 query helper order 当作 Formax stage-order authority；Formax 继续以 `context-strategy-stack-contract.md` 的 canonical order 为准。
+- [x] 不把 context-compression-lab teaching helpers 升级为生产实现目标。
 
 ## 1. Definitions First
 
-### 1.0 Canonical Validation Contract
-
-- [x] Relink is model-facing only; it MUST NOT mutate raw transcript, UI scrollback, or persisted JSONL rows.
-- [x] Relink MAY run only for the latest compact boundary with `preservedSegment` metadata.
-- [x] Relink MAY only fill a wholly missing preserved tail immediately after a compact summary whose fingerprint matches `preservedSegment.summaryFingerprint`.
-- [x] Complete preserved tail already present after the summary is valid/no-op.
-- [x] Partial preserved tail already present after the summary MUST skip relink to avoid duplicate or ambiguous splice.
-- [x] Summary fingerprint mismatch MUST skip relink.
-- [x] Explicit identity refs, when present, MUST resolve uniquely, preserve `preservedSegment` order, and fingerprint-match.
-- [x] Explicit preserved-tail refs SHOULD resolve as one contiguous pre-boundary segment unless sparse-tail semantics are intentionally documented before implementation.
-- [x] Legacy boundaries without identity metadata MAY use only guarded count/head/tail/full-fingerprint uniqueness fallback where available.
-- [x] Duplicate matches, missing refs, malformed counts, identity drift, fingerprint drift, or ambiguous legacy fallback MUST skip relink.
-- [x] Durable snip/collapse MUST continue to rely on their own coordinate guards; relink status MUST NOT become a new downstream authority.
-- [x] Diagnostics MAY report projection-observed status/reason, but MUST NOT participate in relink, replay, cache merge, or persisted session reconstruction decisions.
-
 ### 1.1 Canonical Docs
 
-- [x] 检查并更新 `docs/contracts/session-persistence-contract.md` 的 preserved-segment relink 条款，确保 replay / resume / inspection validation parity 写清楚。
-- [x] 检查并更新 `docs/contracts/context-strategy-stack-contract.md`，确认 relink-before-snip/collapse 顺序与 validation owner 一致。
-- [x] 检查并更新 `docs/contracts/app-server-interaction-contract.md`，确保 `thread/read` / `thread/messages` / `thread/replay` / `thread/resume` 对 deeper compact-boundary fields 的语义一致。
-- [x] 检查并更新 `docs/contracts/web-parity-adapter-contract.md`，确保 Web 只解析 app-server canonical preserved facts，不重建第二套 relink state。
-- [x] 检查并更新 `packages/core/src/chat/context/README.md`，只记录 implementation ownership，不重复 canonical contract。
-- [x] 若实现只补 tests / diagnostics wording，不新增 stable fields，则避免新增平行设计文档。
+- [ ] Re-read `docs/contracts/context-strategy-stack-contract.md` sections for `CSS-303` / `CSS-303a` / `CSS-308` / `CSS-310a`.
+- [ ] Re-read `docs/contracts/session-persistence-contract.md` durable replacement and reactive compact event sections.
+- [ ] Re-read `docs/contracts/app-server-interaction-contract.md` compression surface sections.
+- [ ] Re-read `docs/contracts/web-parity-adapter-contract.md` server-owned compression facts section.
+- [ ] Default-defer stable app-server/Web durable replacement surface unless a concrete consumer is found; tests/docs are enough for Batch 1 by default.
+- [ ] If a new stable surface is needed, update canonical docs before implementation.
+- [ ] If no new stable surface is needed, record the reason in TODO / learning note and keep implementation to tests/docs.
 
-### 1.2 Data Model
+### 1.2 Data Model / Ownership
 
-- [x] 保持现有 `preservedSegment` schema additive / backward-compatible。
-- [x] 明确 required validation inputs：
-  - [x] `continuationMessageCount`
-  - [x] `preservedTailMessageCount`
-  - [x] `summaryFingerprint`
-  - [x] `headFingerprint`
-  - [x] `tailFingerprint`
-  - [x] optional `messageFingerprints`
-  - [x] optional `messageIdentities`
-  - [x] optional named `summaryIdentity` / `headIdentity` / `anchorIdentity` / `tailIdentity`
-- [x] 明确 old boundary fallback：缺少 identity metadata 时，只允许 fingerprint/count guard，不允许 destructive identity-based replay。
-- [x] 明确 mismatch / duplicate / partial-tail cases must skip relink and preserve current continuation.
-- [x] 明确 same-boundary merge 与 different-boundary generation 的区别：omitted optional facts 只能在同一 canonical boundary 上保留缓存，不能跨新 boundary generation 继承旧 `preservedSegment`。
-- [x] 若新增 diagnostics 字段，必须是 read-only validation fact，不参与 replay authority。
+- [ ] Confirm durable tool-result content replacement remains explicit durable replay side-state, keyed by stable source scope / tool-use identity, with current `DurableToolResultContentReplacementState` only as the implementation anchor.
+- [ ] Confirm durable replacement state scoping against compact-boundary generation is enough to avoid stale carryover.
+- [ ] Confirm `replacementContent` is model-facing only and does not mutate raw transcript or UI scrollback.
+- [ ] Confirm `originalContentFingerprint` drift guard is sufficient for destructive replacement replay.
+- [ ] Confirm sidechain-scoped replacement events are ignored on the main-thread path unless explicitly requested.
+- [ ] Confirm request-time `tool_result_budget` facts remain middle-layer stage facts, not durable projection facts and not a surrogate for Claude Code cache-editing/content-replacement state.
+- [ ] Confirm Web/app-server naming does not blur request-time `tool_result_budget` with durable replacement replay.
 
 ### 1.3 Types / Interfaces
 
-- [x] 检查 `CompactPreservedSegment` / `CompactBoundaryMeta` 类型是否已经能表达 validation parity 需要的 facts。
-- [x] 如需新增 validation result type，优先放在 compact/context diagnostics owner 层，不放到 Web reducer。
-- [x] app-server compact-boundary payload 类型必须继续与 core `CompactBoundaryMeta` 对齐。
-- [x] Web parser types 必须接受 complete preservedSegment fields，并对 malformed optional fields 使用 omit/unavailable 策略。
+- [ ] Audit internal durable replacement projection fact shape for minimum bounded diagnostics metadata; do not make the fact a second durable authority.
+- [ ] Audit whether app-server RPC contracts currently expose durable projection facts beyond `durableSnip`.
+- [ ] If adding a surface, define a minimal `durableToolResultContentReplacement` summary with bounded metadata only: status, applied count, skipped count, source scope, generation key/fingerprint, and skipped/drift reason.
+- [ ] If adding Web parser/cache support, use explicit null vs omitted semantics consistent with `latestCompactBoundary`, `durableSnip`, and `latestRequestCollapse`.
+- [ ] Keep replacement content out of broad UI chrome unless there is a concrete inspection use case.
+- [ ] Ensure `/context --json` / diagnostics never expose full `replacementContent` by default.
 
-## 2. Runtime / Platform
+## 2. Runtime / Platform Boundaries
 
-### 2.1 Core Compact / Relink
+### 2.1 Request-Time Stack
 
-- [x] Characterize current relink behavior for explicit identities, legacy fingerprints, duplicate matches, partial tail, and summary mismatch.
-- [x] Strengthen `continuationMatchesPreservedSegment(...)` tests for ordered identity/fingerprint matching.
-- [x] Verify missing preserved tail is relinked only when every required ref uniquely resolves before boundary.
-- [x] Verify explicit refs resolve in order and as a contiguous pre-boundary segment, or explicitly document sparse-tail semantics before allowing non-contiguous relink.
-- [x] Verify partial preserved tail already present after summary does not trigger duplicate relink.
-- [x] Verify complete preserved tail already present after summary is valid/no-op.
-- [x] Verify same-content non-preserved continuation messages do not steal explicit preserved identity.
-- [x] Verify drifted explicit identity in continuation skips relink rather than replacing user-visible continuation.
-- [x] Verify malformed `messageIdentities` / `messageFingerprints` length or count metadata skips validation/relink safely.
-- [x] Verify no-preserved-tail boundary remains valid with null head/tail fingerprints.
+- [ ] Add/verify tests that `executeMiddleLayerStrategyStack()` always reports `tool_result_budget` as `scope: request_history_projection`.
+- [ ] Add/verify tests that `persistedHistoryCandidate` remains the original history when `tool_result_budget` applies.
+- [ ] Add/verify tests that `tool_result_budget` does not mutate the input message objects in-place.
+- [ ] Add/verify tests that `tool_result_budget` durable marker skipping is identity-specific: only the same tool-use id / explicit durable marker suppresses budget replacement.
+- [ ] Add/verify tests that cache-editing microcompact plans provider request side effects without mutating local history or persisted history.
+- [ ] Add/verify tests that time-based microcompact, when enabled for explicit main-thread send source and cold-cache gap, content-clears only request projection, keeps at least one recent compactable tool result, emits no cache edit plan for that turn, and marks cached-MC invalidation as runtime side effect only.
+- [ ] Add/verify tests that microcompact is no-op when cache editing is unavailable and the cold-cache time-based trigger has not fired; it must not fall back to legacy stale-result stubbing.
+- [ ] Add/verify tests that `/context`, diagnostics, and analysis-only compact inspection paths cannot trigger time-based content-clearing.
+- [ ] Add/verify tests for Formax's contract-backed order: durable projection baseline -> `microcompact` -> request-time `tool_result_budget` -> `snip` -> `collapse` -> terminal `prune`; do not assert Claude helper-order equivalence.
+- [ ] Add/verify tests that stage facts distinguish `microcompact` savings from `tool_result_budget` savings.
 
-### 2.2 Durable Projection Coordinate Guard
+### 2.2 Durable Projection Replay
 
-- [x] Add/strengthen tests that preserved-segment relink happens before durable snip removal.
-- [x] Add/strengthen tests that preserved-segment relink happens before durable collapse replacement only if current collapse replay fixtures expose that path.
-- [x] Verify skipped relink does not bypass durable snip/collapse's own coordinate guards.
-- [x] Do not introduce committed collapse store, archived spans, range-rewrite metadata, or collapse overlap policy in CCA-181.
-- [x] Verify raw transcript / UI scrollback remains unchanged; only model-facing baseline is affected.
+- [ ] Add/verify tests that `buildContextProjection()` applies durable tool-result replacement to `modelFacingBaseline`.
+- [ ] Add/verify tests that `rawTranscript` and `uiScrollback` remain unchanged after durable replacement replay.
+- [ ] Add/verify table-driven skip matrix: missing target, duplicate target, fingerprint drift, malformed entries, non-tool targets, ambiguous targets, and mixed apply/skip.
+- [ ] Add/verify tests that durable replacement fact includes applied / skipped counts without becoming a second authority.
+- [ ] Add/verify tests that durable replay order is compact boundary / preserved-segment relink -> durable snip -> durable collapse -> durable tool-result content replacement -> request-time middle-layer stack.
+- [ ] Add/verify tests that durable-replaced tool results are not budget-stubbed again by `tool_result_budget`.
+- [ ] Add/verify tests that if durable replacement is skipped due drift/duplicate/ambiguity, the tool result remains eligible for normal request-time `tool_result_budget`.
+- [ ] Add/verify tests that collapse/prune before durable replacement only replaces surviving unique post-collapse tool results.
+- [ ] Add/verify tests that durable replacement does not break tool-use/tool-result pairing.
 
-### 2.3 App-Server / Replay / Resume Verification
+### 2.3 Session Event / Restore Path
 
-- [x] Verify `thread/resume` exposes canonical `latestCompactBoundary.preservedSegment` after file-backed restore.
-- [x] Verify `thread/replay` exposes the same preservedSegment facts before and after replay pagination boundaries.
-- [x] Verify `thread/read` and `thread/messages` preserve deeper compact-boundary fields instead of downgrading to a shallow summary.
-- [x] Verify omitted compact-boundary facts do not clear cached preservedSegment; explicit null remains the only cache-clearing signal.
-- [x] Verify resume/read/messages/replay use the same canonical compact protocol source, not per-surface reconstruction.
-- [x] Patch implementation only if verification finds shallow downgrade, tri-state drift, or source divergence.
+- [ ] Add/verify tests for reading the latest durable replacement event from session files.
+- [ ] Add/verify tests for compact-boundary fingerprint scoping and clearing stale replacements after generation changes.
+- [ ] Add/verify tests that malformed durable replacement events are ignored without clearing valid previous state.
+- [ ] Add/verify tests that a malformed durable replacement event after a valid event does not clear the previous valid replacement state.
+- [ ] Add/verify tests that invalid / unknown `sourceProjectionKind` is ignored.
+- [ ] Add/verify tests that sidechain events do not affect main-thread state.
+- [ ] Add/verify `contextCompressionService` path: fallback durable replacement state is scoped to history before projection.
+- [ ] Add/verify `contextCompressionService` path: raw/future `history` remains original, `requestHistory` receives durable replacement replay, no budget stub is added on already durable-replaced results, and request-time facts remain request-time only.
+- [ ] Add/verify two-run replay: request-time reducers do not create durable projection state on a later `buildContextProjection(history)`.
 
-### 2.4 Diagnostics / Inspection
+### 2.4 Diagnostics / App-Server Surface
 
-- [x] Lock `/context --json` or context diagnostics payload for preservedSegment presence and basic validation facts.
-- [x] Prefer tests-only; add stable validation diagnostics only if existing diagnostics cannot inspect preserved-segment parity.
-- [x] If adding validation diagnostics, include only projection-observed read-only status/reason such as matched / skipped / missing / duplicate / drift.
-- [x] Keep diagnostics bounded and non-authoritative.
-- [x] Ensure diagnostics do not introduce a second relink path.
+- [ ] Audit `/context --json` / context diagnostics for durable projection facts.
+- [ ] Decide whether diagnostics need a compact durable replacement summary.
+- [ ] If diagnostics surface is added, expose bounded projection metadata only: status, replacement count, skipped count, source scope, generation key/fingerprint, and skipped/drift reason; do not dump full replacement content by default.
+- [ ] If no diagnostics/app-server/Web surface is added, add explicit negative tests that they do not infer durable replacement from budget stubs, durable replacement markers, or transcript rows.
+- [ ] Audit app-server `thread/resume`, `thread/read`, `thread/messages`, and `thread/replay` for compression projection facts.
+- [ ] If app-server surface is added, ensure all four surfaces use one server-owned projection facts path and preserve bounded metadata semantics.
+- [ ] Ensure omitted fields do not clear cached Web facts; explicit null is the clearing signal if a cache is introduced.
 
 ## 3. Frontend Boundary
 
-- [x] Web RPC parser accepts complete `preservedSegment` with identities/fingerprints if surfaced.
-- [x] Web RPC parser keeps old shallow compact-boundary payloads compatible.
-- [x] Web thread cache keeps deep equality over preservedSegment fields for change detection.
-- [x] Web cache merge/retention distinguishes omitted optional fields from explicit null and does not carry old `preservedSegment` across a different compact boundary generation.
-- [x] Out-of-order same-boundary regression: deep replay/resume compact boundary followed by later read/messages boundary with the same `boundaryFingerprint` but omitted optional nested details must not clear or downgrade cached deep compact-boundary facts.
-- [x] Malformed optional preservedSegment details are omitted/unavailable, not response-fatal.
-- [x] Explicit null compact boundary clears cache; omitted/malformed optional details must not clear authoritative cache.
-- [x] Web does not infer preservedSegment from transcript rows.
-- [x] No UI redesign; if UI text changes, keep it diagnostic-only and backed by app-server payload.
+- [ ] Audit Web `types.ts`, RPC parsers, cache helpers, and runtime orchestrator for existing compression facts handling.
+- [ ] If a durable replacement surface is added, parse it as server-owned fact only.
+- [ ] Ensure Web does not infer durable replacement from transcript rows, `TOOL_RESULT_BUDGET_STUB_PREFIX`, durable replacement markers, durable-looking text, ordinary tool row summaries, or rendered tool-result text.
+- [ ] Ensure Web does not display request-time `tool_result_budget` impact as durable replacement state.
+- [ ] If no surface is added, keep frontend work to negative parser/cache/hydrate/replay regressions proving no local inference.
+- [ ] Add positive parser/cache regressions only if a Web-visible server-owned surface is introduced.
+- [ ] Keep UI unchanged unless a concrete diagnostic display is required.
 
-## 4. Tests
+## 4. CCA-182 Reactive Compact Prep
 
-### 4.1 Core Compact Tests
+### 4.1 Existing Path Characterization
 
-- [x] `packages/core/src/chat/context/compact.test.ts`: explicit identity relink success.
-- [x] `packages/core/src/chat/context/compact.test.ts`: legacy fingerprint fallback success.
-- [x] `packages/core/src/chat/context/compact.test.ts`: duplicate pre-boundary matches skip relink.
-- [x] `packages/core/src/chat/context/compact.test.ts`: partial preserved tail already present skips relink.
-- [x] `packages/core/src/chat/context/compact.test.ts`: complete preserved tail already present is valid/no-op.
-- [x] `packages/core/src/chat/context/compact.test.ts`: summary fingerprint mismatch skips relink.
-- [x] `packages/core/src/chat/context/compact.test.ts`: identity drift / fingerprint drift skips relink.
-- [x] `packages/core/src/chat/context/compact.test.ts`: non-contiguous or out-of-order explicit refs skip relink unless sparse-tail semantics are explicitly documented.
-- [x] `packages/core/src/chat/context/compact.test.ts`: malformed identity/fingerprint/count metadata skips safely.
-- [x] `packages/core/src/chat/context/compact.test.ts`: continuation validation detects ordered identity/fingerprint mismatch.
+- [ ] Trace `sendMainTurn` overflow catch path and assert current order: initial request projection -> provider error classification -> optional initial request-collapse pending-candidate handling -> `runReactiveCompact()` -> exactly one retry.
+- [ ] Trace `contextCompressionService.runReactiveCompact()` output: history, requestHistory, user, cacheEditPlan, collapse state, snip state, reactive compact state.
+- [ ] Trace `reactive_compact_applied` session event writer / reader.
+- [ ] Trace diagnostics surfaces for existing `latestReactiveCompact`; do not add thread-surface tests unless Batch 2 selects a server-owned surface change.
+- [ ] Add send-path characterization: overflow-like provider errors trigger `runReactiveCompact()` once and retry with reactive `history`, `requestHistory`, `requestUser`, and `cacheEditPlan`.
+- [ ] Add send-path characterization: retry overflow or retry provider failure does not run a second reactive compact and does not persist completed reactive snip / collapse durable state.
+- [ ] Add send-path characterization: abort-like errors, including abort errors whose message looks overflow-like, preserve abort outcome and never call `runReactiveCompact()`.
+- [ ] Add send-path characterization: auth/rate-limit errors are non-eligible at both classifier and send-path level.
+- [ ] Add send-path characterization: failed `runReactiveCompact()` surfaces the original provider overflow error, except abort-like compact cancellation preserves abort semantics.
+- [ ] Add characterization for pending initial request-collapse commit candidates: record current diagnostics-only `commit:null` behavior, or capture the failing test that proves the candidate must be drained before reactive full compact.
+- [ ] Characterize collapse-drain-before-reactive behavior: pending/staged request-collapse commit candidates are drained first if contract requires it, then reactive full compact is attempted, with single-shot guards for both paths.
+- [ ] Characterize reactive compact retry guard persistence across stop-hook blocking / continuation paths so prompt-too-long cannot enter compact -> retry -> hook -> compact loops.
+- [ ] Characterize cache-edit plan handling after reactive compact: cache edits from the failed oversized request must not be reused blindly; retry should recompute request projection/cache plan from the reactive-prepared baseline.
+- [ ] Add session-event characterization for `reactive_compact_applied`: latest valid event wins; malformed/unknown trigger/strategy are ignored without clearing previous valid event; explicitly decide whether failed reactive retry still records the fallback-applied fact.
 
-### 4.2 Durable Projection Tests
+### 4.2 CCA-182 Contract Prep
 
-- [x] `packages/core/src/chat/context/contextProjection.test.ts`: relink before durable snip replay.
-- [x] `packages/core/src/chat/context/contextProjection.test.ts`: relink before durable collapse replacement only if existing fixtures expose committed collapse replay.
-- [x] `packages/core/src/chat/context/contextProjectionBaseline.test.ts`: preservedSegment facts remain stable in golden projection fixture.
-- [x] Negative guard: skipped relink does not duplicate preserved tail, mutate raw transcript, or bypass downstream durable coordinate guards.
+- [ ] Define the exact reactive compact trigger taxonomy, including mixed overflow+auth/rate-limit messages and structured provider errors if supported.
+- [ ] Define whether an initial request-collapse commit candidate is a durable drained commit before reactive compact or only an inspection fact until retry success; document append-only rollback implications.
+- [ ] Define which request-time facts may carry into reactive retry and which must be recomputed from the reactive-prepared baseline; default to recompute unless the fact is explicitly durable/projection-owned.
+- [ ] Define `reactive_compact_applied` lifecycle semantics: "fallback applied and retry attempted" vs "retry completed"; add an outcome field only if a failing characterization requires it.
+- [ ] Define cache-edit plan lifecycle after reactive compact: previous request-side cache edits are not durable state; retry cache edits must be absent or recomputed from the compacted baseline.
+- [ ] Keep app-server/Web work limited to existing `/context` diagnostics unless Batch 2 identifies a missing server-owned fact.
+- [ ] Keep durable collapse store / archived spans deferred unless characterization proves it is required.
 
-### 4.3 App-Server Tests
+### 4.3 CCA-182 Minimal Implementation Slice
 
-- [x] `packages/core/src/app-server/threadStore.test.ts`: file-backed resume returns compact boundary with preservedSegment.
-- [x] `packages/core/src/app-server/server.test.ts`: replay mirrors cached preservedSegment facts.
-- [x] `packages/core/src/app-server/server.test.ts`: read/messages/replay/resume keep deep compact-boundary parity.
-- [x] `packages/core/src/app-server/server.test.ts`: omitted compact facts do not clear cached preservedSegment; explicit null does.
-- [x] `packages/core/src/app-server/threadStore.test.ts` or `store/sessionEventReader.test.ts`: persisted session reader preserves boundary metadata needed for validation.
+- [ ] Pick one minimal implementation target from Batch 2 findings.
+- [ ] Default candidate is pending initial request-collapse commit drainage before reactive full compact if characterization proves the candidate is currently lost.
+- [ ] Prefer strengthening trigger classification / event facts / retry diagnostics before changing compaction materialization.
+- [ ] Keep the change inside `sendMainTurn`, session-event writer callbacks, and existing context-collapse committed-event/snapshot paths where possible.
+- [ ] Add targeted tests for the selected slice.
+- [ ] Update contracts before runtime behavior changes.
+- [ ] Keep behavior change small enough for one focused review.
 
-### 4.4 Diagnostics Tests
+## 5. Tests
 
-- [x] `packages/core/src/chat/context/contextDiagnostics.test.ts`: diagnostics includes preservedSegment summary/fingerprints/validation facts.
-- [x] If validation status is added, cover success and skip reasons.
-- [x] Ensure diagnostics remain bounded and do not include raw message bodies.
+### 5.1 Core Context Tests
 
-### 4.5 Web Tests
+- [ ] `packages/core/src/chat/context/middleLayerStrategyStack.test.ts`: request-time `tool_result_budget` scope / persistedHistoryCandidate / stage facts / Formax order / microcompact branch boundaries.
+- [ ] `packages/core/src/chat/context/microCompact.test.ts` or equivalent: cache-editing/time-based/no-op microcompact branch boundaries; time-based keeps at least one recent compactable result, short-circuits cache-editing, emits no cache edits, and analysis-only surfaces do not content-clear.
+- [ ] `packages/core/src/chat/context/toolResultBudget.test.ts`: durable marker specificity, no in-place mutation, eligible result selection, reverse fixture for skipped durable replacement remaining budget-eligible.
+- [ ] `packages/core/src/chat/context/contextProjection.test.ts`: durable replacement replay, skip matrix, raw/UI unchanged, ordering with collapse/snip, collapse-before-replacement fixture.
+- [ ] `packages/core/src/chat/context/contextProjectionBaseline.test.ts`: projection views and durable-state facts remain named and stable.
+- [ ] `packages/core/src/chat/context/contextDiagnostics.test.ts` or equivalent: bounded summary, no default full `replacementContent` exposure.
 
-- [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: complete preservedSegment payload parses.
-- [x] `packages/web-reference-react/src/app/core/rpcContracts.test.ts`: replay/resume payloads preserve deep compact-boundary facts.
-- [x] `packages/web-reference-react/src/app/core/threadCache.test.ts`: omitted/malformed optional preservedSegment does not clear authoritative cache.
-- [x] `packages/web-reference-react/src/app/core/threadCache.test.ts`: out-of-order same-boundary payload with omitted optional nested details does not downgrade earlier deep replay/resume `preservedSegment`.
-- [x] `packages/web-reference-react/src/app/core/threadCache.test.ts`: omitted optional fields do not carry old `preservedSegment` across a different compact boundary generation.
+### 5.2 Session / Runtime Tests
 
-## 5. Recommended Execution Order
+- [ ] `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`: event parsing, malformed ignore, source scope, compact generation scoping.
+- [ ] `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`: durable replacement before request-only budget, no double-stub, raw history/requestHistory split, reactive retry recomputes request projection/cache edit plan from compacted baseline.
+- [ ] `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts` (Batch 2): eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, pending collapse candidate handling, stop-hook/continuation guard.
+- [ ] `packages/core/src/features/repl/controller/send/reactiveCompact.test.ts` (Batch 2): reactive error classification and structured provider error shapes.
+- [ ] `packages/core/src/features/repl/sessionSave/reactiveCompactEvents.test.ts` (Batch 2): latest reactive compact event reading, malformed/latest-valid semantics, lifecycle meaning.
 
-### Loop 0: Coverage Audit + Contract Freeze
+### 5.3 App-Server / Web Tests
 
-- [x] Audit current preserved-segment implementation and tests for gaps against this todo.
-- [x] Produce a coverage audit table marking planned cases as already-covered / strengthen / missing-characterization / implementation-failing / defer.
-- [x] Remove or merge duplicate checklist items before adding new fixtures.
-- [x] Freeze the canonical validation contract, including contiguous-vs-sparse preserved-tail semantics; default to contiguous unless intentionally documented otherwise.
-- [x] Add missing characterization tests for duplicate match, partial tail, complete-tail no-op, summary mismatch, ordered/contiguous validation, and malformed metadata.
-- [x] Characterize one relink-before-durable-snip projection fixture here if current coverage is unclear; leave full coordinate guard to Loop 2.
-- [x] Freeze whether any new diagnostics field is needed; default to tests-only unless inspection lacks required signal.
-- [x] Update canonical docs only where current contracts are too vague.
-- [x] Run targeted core compact tests.
-- [x] Run `bun run type-check` if types/contracts changed.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] If durable replacement surface is added, update `packages/core/src/app-server/server.test.ts` and `threadStore.test.ts` through one server-owned projection facts path.
+- [ ] If durable replacement surface is added, update Web RPC parser/cache/runtime tests for explicit null vs omitted semantics.
+- [ ] If no surface is added, add only negative no-inference tests:
+  - [ ] `packages/core/src/app-server/threadStore.test.ts`: tool rows containing `TOOL_RESULT_BUDGET_STUB_PREFIX` stay ordinary timeline rows and produce no durable replacement summary.
+  - [ ] `packages/core/src/app-server/server.test.ts`: current thread surfaces do not add `durableToolResultContentReplacement` without a contract-backed field.
+  - [ ] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: uncontracted durable replacement fields and budget-stub row text are ignored as compression facts.
+  - [ ] `packages/web-reference-react/src/app/core/threadCache.test.ts`: omitted/uncontracted durable replacement facts do not mutate existing compression-fact cache.
+  - [ ] `packages/web-reference-react/src/app/runtime/threadDataOps.test.ts` or `packages/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`: hydrate/replay does not derive durable replacement from tool row text/summary/detailLines.
+- [ ] Keep CCA-182 Web work limited to facts already exposed by app-server; no local inference.
 
-Suggested commit: `test(context): characterize preserved segment relink parity`
+## 6. Recommended Execution Order
 
-### Loop 1: Core Relink / Validation Parity Patch-if-needed
+### Batch 1: Tool Result Reducer / Durable Replacement / Microcompact Boundary Audit
 
-- [x] If Loop 0 tests already pass, Loop 1 may be docs/tests-only.
-- [x] Implement the smallest core changes required by Loop 0 failing characterization tests.
-- [x] Keep relink non-destructive and model-facing only.
-- [x] Preserve legacy boundary fallback while preferring explicit identity refs only when they are explicit, unique, ordered, and fingerprint-matched.
-- [x] Legacy fallback must require guarded count/head/tail and any available full-message fingerprint uniqueness.
-- [x] Verify partial/duplicate/drift cases skip relink.
-- [x] Verify continuation validation handles ordered identity and fingerprint lists.
-- [x] Run targeted `compact.test.ts`.
-- [x] Run `bun run type-check` if types changed.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Audit current `microcompact`, `tool_result_budget`, durable replacement, and projection ordering.
+- [ ] Update this TODO with exact files / gaps found during audit.
+- [ ] Add/strengthen core request-time boundary tests, including cache-editing/time-based/no-op microcompact branch behavior and analysis-only no content-clearing.
+- [ ] Add/strengthen durable projection replay tests.
+- [ ] Add/strengthen session event / runtime fallback tests.
+- [ ] Default-defer app-server/Web durable replacement stable surface; reverse this only if the audit identifies a concrete consumer and contracts are updated before wiring.
+- [ ] Add app-server/Web no-inference negative tests if no stable surface is added.
+- [ ] Update canonical docs if behavior or surface semantics are clarified.
+- [ ] Add/update a learning note under `docs/learnings/`.
+- [ ] Run targeted Batch 1 tests only: core context, durable replacement session events, contextCompressionService, contextDiagnostics, and app-server/Web no-inference tests.
+- [ ] Run `bun run type-check`.
+- [ ] Run `codex review` for this loop after targeted verification passes.
 
-Suggested commit: `fix(context): validate preserved segment relink parity`
+Suggested commit: `test(context): guard tool result replacement boundaries`
 
-### Loop 2: Durable Projection Coordinate Guard
+### Batch 2: CCA-182 Reactive Compact Characterization Prep
 
-- [x] Strengthen projection tests proving relink runs before durable snip.
-- [x] Strengthen projection tests for collapse replacement ordering only if current fixtures expose committed durable collapse replay.
-- [x] Verify skipped relink does not bypass downstream durable coordinate guards.
-- [x] Do not introduce a new global rule that relink skip automatically disables all durable stages unless required by an existing validation invariant.
-- [x] Do not introduce committed collapse store, archived spans, range-rewrite metadata, or collapse overlap policy in CCA-181.
-- [x] Verify raw transcript / UI scrollback remains unchanged.
-- [x] Run targeted projection tests.
-- [x] Run `bun run type-check`.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Audit reactive compact send-path and session event ownership.
+- [ ] Add send-path characterization for eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, cacheEditPlan replacement, and pending collapse candidate handling.
+- [ ] Add session event characterization for `reactive_compact_applied` valid/latest/malformed semantics.
+- [ ] Add diagnostics characterization for existing `latestReactiveCompact`.
+- [ ] Update contracts / TODO with exactly one selected Batch 3 implementation target, or record "no implementation after characterization."
+- [ ] Run targeted reactive compact / sendMainTurn / session event / diagnostics tests.
+- [ ] Run `bun run type-check`.
+- [ ] Run `codex review` for this loop after targeted verification passes.
 
-Suggested commit: `test(context): guard preserved segment projection coordinates`
+Suggested commit: `test(context): characterize reactive compact fallback`
 
-### Loop 3: App-Server / Inspection Surface Verification
+### Batch 3: CCA-182 Minimal Implementation Slice
 
-- [x] Verify-first / patch-if-needed: implement only if tests find shallow downgrade, tri-state drift, or source divergence.
-- [x] Ensure threadStore resume/replay surfaces preserve canonical `preservedSegment` facts.
-- [x] Ensure read/messages surfaces preserve deep compact-boundary facts after resume/replay parity is locked.
-- [x] Ensure app-server cache tri-state preserves deep compact-boundary facts.
-- [x] Add diagnostics tests only if current diagnostics cannot expose validation parity adequately.
-- [x] Update app-server interaction contract and context README as needed.
-- [x] Run targeted app-server and diagnostics tests.
-- [x] Run `bun run type-check`.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Implement only the single failing/selected CCA-182 behavior from Batch 2; default candidate is pending initial request-collapse commit drainage before reactive full compact if characterization proves the candidate is currently lost.
+- [ ] Keep the change inside `sendMainTurn`, session-event writer callbacks, and the existing context-collapse committed-event/snapshot path; do not change compact materialization.
+- [ ] Do not introduce durable collapse store, archived spans, or Web-local inference.
+- [ ] Update app-server/Web only if Batch 2 selected a contract-backed server-owned `latestReactiveCompact` surface; otherwise limit UI work to `/context` diagnostics parser/report tests.
+- [ ] Add targeted regression tests for the chosen behavior: single retry, abort/auth/rate-limit non-trigger, failed compact/retry cleanup, and cacheEditPlan request-only scope.
+- [ ] Update canonical docs / learning note.
+- [ ] Run targeted tests.
+- [ ] Run `bun run type-check`.
+- [ ] Run `codex review` for this loop after targeted verification passes.
 
-Suggested commit: `test(app-server): verify preserved segment facts across surfaces`
+Suggested commit: `fix(context): shape reactive compact fallback`
 
-### Loop 4: Web Parser / Cache Regression Guard
+### Batch 4: Closure / Next-Todo Routing
 
-- [x] Ensure Web RPC parsers preserve full `preservedSegment` details.
-- [x] Ensure Web cache deep equality includes all meaningful preservedSegment fields.
-- [x] Add malformed/omitted/explicit-null parser/cache regressions.
-- [x] Add out-of-order same-boundary regression: deep replay/resume payload followed by same-`boundaryFingerprint` read/messages payload with omitted optional nested details must not clear or downgrade deep compact-boundary facts.
-- [x] Add different-boundary guard: omitted optional fields must not cause Web to carry old `preservedSegment` across a new compact boundary generation.
-- [x] Ensure Web does not infer preservedSegment from transcript rows.
-- [x] Run targeted Web parser/cache tests.
-- [x] Run `npm run type-check` in `packages/web-reference-react`.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Update `plans/context-compression-alignment-loop/TODO-INDEX.md`.
+- [ ] Ensure stable facts live in canonical docs, not only this TODO.
+- [ ] Decide whether the next mainline is durable collapse store, reactive compact continuation, or another projection-surface follow-up.
+- [ ] Add/update learning note for the final state.
+- [ ] Run docs/path checks through `bun run type-check`.
+- [ ] Run `codex review` for this loop after targeted verification passes.
 
-Suggested commit: `test(web): preserve compact segment parity in rpc cache`
+Suggested commit: `docs(context): close compression boundary rolling plan`
 
-### Loop 5: Closure / Deferral Routing
+## 7. Deferral Register
 
-- [x] Update `plans/context-compression-alignment-loop/TODO-INDEX.md` after CCA-181 lands.
-- [x] Add/update a learning note under `docs/learnings/`.
-- [x] Keep durable tool-result replacement summary surface as a separate projection-surface follow-up.
-- [x] Keep `CCA-182` reactive compact shaping as a later runtime/provider mainline.
-- [x] Keep collapse different-id overlap deferred unless a concrete failing fixture appears.
-- [x] Record that CCA-181 landed as validation hardening plus surface/cache parity, not as a storage-model rewrite.
-- [x] Run docs/path checks through `bun run type-check` if docs changed.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Full durable collapse store / archived spans: defer unless Batch 2 proves CCA-182 requires it.
+- [ ] Collapse different-id overlap policy: defer until a concrete failing fixture appears.
+- [ ] Web UI redesign for compression facts: defer; parser/cache/diagnostic correctness first.
+- [ ] Persisting request-time `tool_result_budget`: explicitly out of scope.
+- [ ] ParentUuid / transcript UUID storage rewrite: explicitly out of scope.
+- [ ] Broad provider cache-editing redesign: defer unless reactive compact prep proves current cache plan handling is wrong.
+- [ ] Claude Code content-replacement/cache-editing storage internals: explicitly out of scope; only lifecycle role parity is in scope.
+- [ ] Claude Code exact query helper order: explicitly out of scope; Formax canonical stage order remains contract-owned.
+- [ ] `latestReactiveCompact` on `thread/resume` / `thread/read` / `thread/messages` / `thread/replay`: defer unless Batch 2 selects a server-owned fact surface beyond `/context`.
+- [ ] `reactive_compact_applied` outcome schema: defer unless failed-retry characterization shows current "applied" semantics are misleading.
+- [ ] Reactive cache-edit redesign: defer; only assert retry uses the recomputed reactive `cacheEditPlan` and never persists it.
 
-Suggested commit: `docs(context): close CCA-181 preserved segment parity`
+## 8. Completion Criteria
 
-## 6. Deferral Register
-
-- [x] Durable tool-result replacement summary surface: valuable, but belongs to projection-surface follow-up.
-- [x] `CCA-182` reactive compact shaping: provider-specific overflow/retry/telemetry work, not preserved-segment validation.
-- [x] Collapse different-id overlap policy: defer until a concrete failing fixture exists.
-- [x] ParentUuid / transcript UUID storage rewrite: explicitly not part of Formax CCA-181.
-- [x] Full partial-compact store / archived span design: defer; this todo only validates current preserved-segment relink and surfaces.
-
-## 7. Completion Criteria
-
-- [x] Core relink validation covers success, legacy fallback, duplicate, partial, drift, and summary mismatch cases.
-- [x] Durable projection ordering tests prove relink-before-snip/collapse where relevant.
-- [x] App-server replay/resume/read/messages preserve the same canonical preservedSegment facts.
-- [x] Diagnostics are either tests-only or expose enough bounded read-only information to inspect preserved-segment parity without becoming authority.
-- [x] Web parser/cache preserves deep compact-boundary facts, handles same-boundary omitted nested details vs explicit-null correctly, blocks cross-generation preservedSegment carryover, and does not reconstruct preservedSegment locally.
-- [x] Contracts / README / learning note are aligned.
-- [x] TODO index points to the next real follow-up after CCA-181.
+- [ ] `microcompact`, `tool_result_budget`, and durable replacement boundaries are test-locked and documented.
+- [ ] Microcompact branch behavior is test-locked: cache-editing is request/API side effect, time-based is cold-cache request projection clearing, and unavailable/missed paths no-op without legacy stubbing.
+- [ ] Request-time reducers do not masquerade as durable projection state.
+- [ ] Durable replacement replay is validated, scoped, and protected against double-stub / drift regressions.
+- [ ] Diagnostics / app-server / Web either expose a bounded server-owned durable replacement fact or explicitly do not infer one.
+- [ ] Reactive compact characterization includes collapse drain ordering, retry guard persistence, cache-edit plan lifecycle, failed compact/retry cleanup, and `reactive_compact_applied` lifecycle semantics.
+- [ ] CCA-182 has characterization tests and a minimal implementation slice selected from observed gaps.
+- [ ] CCA-182 implementation slice, if executed, has targeted tests and clean review.
+- [ ] Contracts / README / learning notes are aligned.
+- [ ] TODO index points to the next real follow-up after this rolling plan.

@@ -2,7 +2,7 @@
 
 只保留未完成项。已完成项不回填，历史以 Git commit 为准。
 
-更新时间：2026-05-30
+更新时间：2026-05-31
 
 ## 当前状态
 
@@ -13,7 +13,8 @@
 - WebGPT / subagent 审查收敛修复清单已收口；后续不再从该清单继续派生大批次。
 - `CCA-180` 现有 Batch 1 / Batch 2 已完成；下一步如恢复该方向，应先写一个 continuation TODO，而不是重做现有批次。
 - `CCA-180` continuation / v8 已完成；active working TODO 已全部勾选，后续从 deferral register 选择下一主线。
-- `CCA-181` preserved-segment relink validation parity 已完成；active working TODO 见 [todolist.md](./todolist.md)。
+- `CCA-181` preserved-segment relink validation parity 已完成。
+- post-`CCA-181` compression boundary + reactive compact rolling TODO 已写入 [todolist.md](./todolist.md)。
 
 ## 已收口主线
 
@@ -26,11 +27,12 @@
 
 ## 下一条推荐主线
 
-- projection-surface follow-up：
-  - durable tool-result replacement summary surface 仍是独立候选，不属于已完成的 `CCA-180` restore continuity hints。
+- compression-boundary follow-up：
+  - 当前 active working TODO：[todolist.md](./todolist.md)。
+  - 先锁住 Claude Code-style `microcompact` lifecycle、Formax `tool_result_budget`、durable tool-result replacement 的 request-time vs durable projection 边界。
 - `CCA-182` reactive compact shaping v3：
-  - 继续作为后续 runtime/provider mainline 候选。
-  - 不与已完成的 preserved-segment validation parity 混在同一个 TODO 中执行。
+  - 已纳入当前 rolling TODO 的 Batch 2 / Batch 3。
+  - Batch 2 先做 characterization prep；Batch 3 才进入最小 implementation slice。
 - 后续阶段参考清单：
   - [NEXT-TODO-2026-04-07.md](./NEXT-TODO-2026-04-07.md)
 - 历史暂停状态：
@@ -38,13 +40,15 @@
 
 ## 当前推荐顺序
 
-1. durable tool-result replacement summary surface 可作为 projection-surface 小 follow-up 单独推进。
-2. `CCA-182` reactive compact shaping v3 继续靠后；优先级低于 projection-surface follow-up。
-3. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
+1. 当前 rolling TODO Batch 1：tool-result reducer / durable replacement / microcompact boundary audit。
+2. 当前 rolling TODO Batch 2：`CCA-182` reactive compact characterization prep。
+3. 当前 rolling TODO Batch 3：`CCA-182` minimal implementation slice。
+4. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
 
 ## 说明
 
-- 当前建议：post-`CCA-181` 后进入 durable tool-result replacement summary surface 这一 projection-surface follow-up；不要把它混入 reactive compact shaping。
+- 当前建议：执行 [todolist.md](./todolist.md) 的 rolling plan；先完成 Batch 1 边界审计，再进入 `CCA-182` prep / implementation。
+- 2026-05-31 规划说明：新增 post-`CCA-181` rolling TODO，用一份计划覆盖 tool-result boundary audit 与 `CCA-182` prep / implementation，减少每个小阶段都重新询问 WebGPT 的成本。
 - 2026-05-30 执行说明：`CCA-181` preserved-segment relink validation parity 已完成。实现收紧了 relink metadata validation、contiguous explicit refs、durable projection ordering guard、app-server / Web preservedSegment parity，并把 Web compact-boundary cache generation key 收敛到 matching `boundaryFingerprint`。
 - 2026-05-30 执行说明：`CCA-180` continuation / v8 已完成，新增 structured `tool_reference` restore extraction、structured task continuity hints、pending restore diagnostics、Web v8 parser compatibility 与 no-new-authority guards。
 - 2026-05-30 收口：architecture parity、cache-editing、WebGPT bugfix 三条 2026-05-20/21 主线均已完成，不再作为“当前主线”继续推进。
@@ -78,5 +82,5 @@
   - deferred-task restore utility v7
   - preserved-segment relink parity（已完成）
   - reactive compact shaping v3
-- WebGPT/cache-editing、deferred-task restore utility continuation 与 preserved-segment relink parity 均已收口，当前优先推进 projection-surface follow-up。
+- WebGPT/cache-editing、deferred-task restore utility continuation 与 preserved-segment relink parity 均已收口，当前优先推进 compression-boundary follow-up。
 - 仍然不建议直接进入完整 collapse store / archived span 设计。
