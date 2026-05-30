@@ -12,6 +12,7 @@
 - Claude Code cache editing microcompact 迁移清单已收口。
 - WebGPT / subagent 审查收敛修复清单已收口；后续不再从该清单继续派生大批次。
 - `CCA-180` 现有 Batch 1 / Batch 2 已完成；下一步如恢复该方向，应先写一个 continuation TODO，而不是重做现有批次。
+- `CCA-180` continuation / v8 已完成；active working TODO 已全部勾选，后续从 deferral register 选择下一主线。
 
 ## 已收口主线
 
@@ -24,10 +25,11 @@
 
 ## 下一条推荐主线
 
-- `CCA-180` continuation / v8：
-  - 先基于已完成的 [CCA-180-DEFERRED-TASK-RESTORE-UTILITY-TODO-2026-05-21.md](./CCA-180-DEFERRED-TASK-RESTORE-UTILITY-TODO-2026-05-21.md) 写新的 continuation TODO。
-  - 目标仍是 deferred-task restore utility，但必须保持 next-turn-only / best-effort / no-new-authority。
-  - 不恢复 `DeferredToolExposureStore.loadedNames`，不自动恢复 background tasks，不引入新的 compact/replay authority。
+- `CCA-181` preserved-segment relink parity：
+  - 当前 relink 已有实现，后续重点应是 replay / resume / inspection validation parity。
+  - 不做 storage-model rewrite，不引入 Claude Code parentUuid-style partial-compact store。
+- projection-surface follow-up：
+  - durable tool-result replacement summary surface 仍是独立候选，不属于已完成的 `CCA-180` restore continuity hints。
 - 后续阶段参考清单：
   - [NEXT-TODO-2026-04-07.md](./NEXT-TODO-2026-04-07.md)
 - 历史暂停状态：
@@ -35,15 +37,15 @@
 
 ## 当前推荐顺序
 
-1. 先写 `CCA-180 continuation / v8` 的新 TODO，只覆盖 deferred-task restore utility 的下一小段。
-2. 再执行 continuation 的 tests-first 小批次；不要顺手扩展 compact/replay authority。
-3. `CCA-181` preserved-segment relink parity 只作为下一候选：当前 relink 已有实现，后续重点应是 replay / resume / inspection validation parity。
-4. `CCA-182` reactive compact shaping v3 继续靠后；优先级低于 restore continuity。
-5. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
+1. `CCA-181` preserved-segment relink parity 作为下一候选：当前 relink 已有实现，后续重点应是 replay / resume / inspection validation parity。
+2. durable tool-result replacement summary surface 可作为 projection-surface 小 follow-up 单独推进。
+3. `CCA-182` reactive compact shaping v3 继续靠后；优先级低于 validation/parity follow-up。
+4. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
 
 ## 说明
 
 - 当前建议：post-compression-closure，恢复到 `CCA-180` continuation 规划。
+- 2026-05-30 执行说明：`CCA-180` continuation / v8 已完成，新增 structured `tool_reference` restore extraction、structured task continuity hints、pending restore diagnostics、Web v8 parser compatibility 与 no-new-authority guards。
 - 2026-05-30 收口：architecture parity、cache-editing、WebGPT bugfix 三条 2026-05-20/21 主线均已完成，不再作为“当前主线”继续推进。
 - 2026-05-21 历史说明：Claude Code cache editing microcompact 迁移清单要求在恢复 `CCA-180` 前先锁住 request-only side-channel 与 Anthropic payload 语义；该要求已满足。
 - 2026-05-21 历史说明：Claude Code context compression architecture parity 清单把主线从“单点 cache-editing/WebGPT 收口”升级为“整层压缩架构对齐”。`snip` 与 `context collapse` 后续按 durable projection subsystem 处理，而不是先调 helper 内部启发式。

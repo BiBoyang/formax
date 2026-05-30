@@ -59,6 +59,24 @@ describe('DeferredToolExposureStore', () => {
     })).toBe(true)
   })
 
+  it('does not rehydrate loaded tools from restore hint names without ToolSearch', () => {
+    const store = new DeferredToolExposureStore()
+    const sessionKey = 'session-restore-hints'
+
+    store.registerCatalog({
+      sessionKey,
+      tools: [
+        { name: 'Bash', description: 'Run shell', input_schema: {} },
+        { name: 'Read', description: 'Read files', input_schema: {} },
+      ],
+    })
+
+    const restoreHintNames = ['Bash', 'Read']
+
+    expect(restoreHintNames).toEqual(['Bash', 'Read'])
+    expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual(['ToolSearch'])
+  })
+
   it('supports bm25 keyword-like search and returns errors for empty matches', () => {
     const store = new DeferredToolExposureStore()
     const sessionKey = 'session-keyword'

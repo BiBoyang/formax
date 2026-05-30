@@ -328,6 +328,70 @@ function parseRequiredNullableString(value: unknown): string | null | undefined 
   return trimmed ? trimmed : undefined
 }
 
+type ParsedTaskContinuityHint = SessionMemoryRestoreSummary['recentTaskContinuityHints'][number]
+
+function parseTaskContinuityHints(value: unknown): ParsedTaskContinuityHint[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return []
+  return value
+    .map((entry) => parseTaskContinuityHint(entry))
+    .filter((entry): entry is ParsedTaskContinuityHint => Boolean(entry))
+}
+
+function parseTaskContinuityHint(value: unknown): ParsedTaskContinuityHint | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (record.schemaVersion !== 1) return null
+  const subagentType = typeof record.subagentType === 'string' ? record.subagentType.trim() : ''
+  const description = typeof record.description === 'string' ? record.description.trim() : ''
+  if (!subagentType || !description) return null
+  const lastObservedStatus =
+    record.lastObservedStatus === 'completed' ||
+    record.lastObservedStatus === 'background_requested' ||
+    record.lastObservedStatus === 'unknown'
+      ? record.lastObservedStatus
+      : 'unknown'
+  const evidenceSource =
+    record.evidenceSource === 'task_tool_result' || record.evidenceSource === 'task_tool_use'
+      ? record.evidenceSource
+      : 'task_tool_use'
+  const evidenceConfidence =
+    record.evidenceConfidence === 'high' || record.evidenceConfidence === 'medium' || record.evidenceConfidence === 'low'
+      ? record.evidenceConfidence
+      : 'medium'
+  return {
+    schemaVersion: 1,
+    subagentType,
+    description,
+    runInBackgroundRequested: record.runInBackgroundRequested === true,
+    resumeHint: parseRequiredNullableString(record.resumeHint) ?? null,
+    lastObservedStatus,
+    lastSummary: parseRequiredNullableString(record.lastSummary) ?? null,
+    evidenceSource,
+    evidenceConfidence,
+  }
+}
+
+function parseRestoreDiagnostics(value: unknown): SessionMemoryRestoreSummary['restoreDiagnostics'] | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  if (record.schemaVersion !== 1 || record.status !== 'pending' || record.source !== 'session_memory_sidecar') {
+    return undefined
+  }
+  const confidence =
+    record.confidence === 'high' || record.confidence === 'medium' || record.confidence === 'low'
+      ? record.confidence
+      : null
+  if (!confidence) return undefined
+  return {
+    schemaVersion: 1,
+    status: 'pending',
+    source: 'session_memory_sidecar',
+    confidence,
+  }
+}
+
 function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreSummary | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
@@ -341,6 +405,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
   const recentDeferredToolNames =
     record.recentDeferredToolNames === undefined ? [] : parseRequiredStringList(record.recentDeferredToolNames)
   const recentTaskHints = record.recentTaskHints === undefined ? [] : parseRequiredStringList(record.recentTaskHints)
+  const recentTaskContinuityHints = parseTaskContinuityHints(record.recentTaskContinuityHints)
+  const restoreDiagnostics = parseRestoreDiagnostics(record.restoreDiagnostics)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
@@ -367,6 +433,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
     recentSubagentTypes,
     recentDeferredToolNames,
     recentTaskHints,
+    recentTaskContinuityHints,
+    ...(restoreDiagnostics ? { restoreDiagnostics } : {}),
     planPath,
     planExcerpt,
     todoSummary,

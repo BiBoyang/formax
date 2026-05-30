@@ -60,6 +60,7 @@
 - `docs/learnings/2026-04-06-context-collapse-impact-diagnostics.md`
 - `docs/learnings/2026-05-24-anthropic-thinking-prune-protocol.md`
 - `docs/learnings/2026-05-24-context-window-source-binding-runtime-profile.md`
+- `docs/learnings/2026-05-30-structured-restore-continuity-hints.md`
 - `docs/learnings/2026-04-06-collapse-recap-contributor-kind.md`
 - `docs/learnings/2026-04-06-collapse-recap-metadata.md`
 - `docs/learnings/2026-04-07-runtime-collapse-state-plumbing.md`

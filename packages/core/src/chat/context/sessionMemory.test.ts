@@ -129,6 +129,7 @@ describe('buildSessionMemoryDraft', () => {
         recentSubagentTypes: ['Explore'],
         recentDeferredToolNames: [],
         recentTaskHints: [],
+        recentTaskContinuityHints: [],
         planPath,
         planExcerpt: 'Investigate auth flow | Patch compact summary | Verify diagnostics',
         todoSummary: null,
@@ -177,6 +178,7 @@ describe('buildSessionMemoryDraft', () => {
       recentSubagentTypes: [],
       recentDeferredToolNames: [],
       recentTaskHints: [],
+        recentTaskContinuityHints: [],
       planPath: null,
       planExcerpt: null,
       todoSummary: null,
@@ -230,6 +232,18 @@ describe('buildSessionMemoryDraft', () => {
               '- Read',
             ].join('\n'),
           },
+          {
+            type: 'tool_reference',
+            tool_name: 'Bash',
+            name: 'Bash',
+            description: 'Run shell commands',
+          },
+          {
+            type: 'tool_reference',
+            tool_name: 'Read',
+            name: 'Read',
+            description: 'Read files',
+          },
         ] as any),
         assistantToolUse('task-1', 'Task', {
           description: 'audit restore state',
@@ -237,7 +251,7 @@ describe('buildSessionMemoryDraft', () => {
           subagent_type: 'Explore',
           run_in_background: true,
         }),
-        toolResult('task-1'),
+        toolResult('task-1', 'Task completed and left a summary'),
         assistantToolUse('search-err', 'ToolSearch', { query: 'select:Write' }),
         toolResult('search-err', 'failed', true),
         assistantToolUse('task-2', 'Task', {
@@ -255,6 +269,79 @@ describe('buildSessionMemoryDraft', () => {
     expect(out.activeTask.recentTaskHints).toEqual([
       'Code: patch parser',
       'Explore: audit restore state (background)',
+    ])
+    expect(out.activeTask.recentTaskContinuityHints).toEqual([
+      {
+        schemaVersion: 1,
+        subagentType: 'Code',
+        description: 'patch parser',
+        runInBackgroundRequested: false,
+        resumeHint: null,
+        lastObservedStatus: 'completed',
+        lastSummary: 'ok',
+        evidenceSource: 'task_tool_result',
+        evidenceConfidence: 'high',
+      },
+      {
+        schemaVersion: 1,
+        subagentType: 'Explore',
+        description: 'audit restore state',
+        runInBackgroundRequested: true,
+        resumeHint: null,
+        lastObservedStatus: 'background_requested',
+        lastSummary: 'Task completed and left a summary',
+        evidenceSource: 'task_tool_result',
+        evidenceConfidence: 'high',
+      },
+    ])
+  })
+
+  it('prefers structured ToolSearch references and excludes failed Task calls from continuity hints', () => {
+    const out = buildSessionMemoryDraft({
+      cwd: '/repo',
+      mode: 'normal',
+      planPath: null,
+      previousHistory: [
+        assistantToolUse('search-structured', 'ToolSearch', { query: 'select:Bash,Read' }),
+        toolResult('search-structured', [
+          { type: 'tool_reference', tool_name: 'Bash', description: 'Run commands' },
+          { type: 'tool_reference', name: 'Read', description: 'Read files via legacy name alias' },
+          { type: 'tool_reference', tool_name: '   ', name: '   ' },
+          {
+            type: 'text',
+            text: ['Matched tools:', '- Write should be ignored when structured refs exist'].join('\n'),
+          },
+        ] as any),
+        assistantToolUse('task-failed', 'Task', {
+          description: 'failed task should not surface',
+          subagent_type: 'Explore',
+        }),
+        toolResult('task-failed', 'failed', true),
+        assistantToolUse('task-ok', 'Task', {
+          description: 'resume parser',
+          subagent_type: 'Code',
+          resume: 'task-123',
+        }),
+        toolResult('task-ok', 'Parser summary'),
+      ],
+      autoMemoryConfigDir: '/cfg',
+      resolveRealPath: (value) => value,
+    })
+
+    expect(out.activeTask.recentDeferredToolNames).toEqual(['Bash', 'Read'])
+    expect(out.activeTask.recentTaskHints).toEqual(['Code: resume parser (resume task-123)'])
+    expect(out.activeTask.recentTaskContinuityHints).toEqual([
+      {
+        schemaVersion: 1,
+        subagentType: 'Code',
+        description: 'resume parser',
+        runInBackgroundRequested: false,
+        resumeHint: 'task-123',
+        lastObservedStatus: 'completed',
+        lastSummary: 'Parser summary',
+        evidenceSource: 'task_tool_result',
+        evidenceConfidence: 'high',
+      },
     ])
   })
 
@@ -298,6 +385,7 @@ describe('mergeSessionMemoryDraft', () => {
         recentSubagentTypes: ['Explore'],
         recentDeferredToolNames: ['Bash'],
         recentTaskHints: ['Explore: audit state'],
+        recentTaskContinuityHints: [],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Existing plan excerpt',
         todoSummary: 'Existing todo summary',
@@ -326,6 +414,7 @@ describe('mergeSessionMemoryDraft', () => {
         recentSubagentTypes: ['Code', 'Explore'],
         recentDeferredToolNames: ['Read', 'Bash'],
         recentTaskHints: ['Code: patch parser', 'Explore: audit state'],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: '  ',
         todoSummary: null,
@@ -355,6 +444,7 @@ describe('mergeSessionMemoryDraft', () => {
         recentSubagentTypes: ['Code', 'Explore'],
         recentDeferredToolNames: ['Read', 'Bash'],
         recentTaskHints: ['Code: patch parser', 'Explore: audit state'],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: 'Existing plan excerpt',
         todoSummary: null,
@@ -391,6 +481,7 @@ describe('mergeSessionMemoryDraft', () => {
         recentSubagentTypes: [],
         recentDeferredToolNames: [],
         recentTaskHints: [],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -472,6 +563,7 @@ describe('buildSessionMemoryCompactionSummary', () => {
         recentSubagentTypes: ['Explore'],
         recentDeferredToolNames: ['Bash'],
         recentTaskHints: ['Explore: audit restore state'],
+        recentTaskContinuityHints: [],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Ship memory-first compact',
         todoSummary: '1. add fallback 2. verify tests',
@@ -519,6 +611,7 @@ describe('buildSessionMemoryCompactionSummary', () => {
         recentSubagentTypes: ['Code', 'Explore', 'Other', 'Plan should be dropped'],
         recentDeferredToolNames: ['Bash', 'Read', 'Grep', 'Write should be dropped'],
         recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped', 'Extra: dropped'],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: 'x'.repeat(400),
         todoSummary: 'y'.repeat(400),
@@ -567,6 +660,7 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         recentSubagentTypes: ['Explore'],
         recentDeferredToolNames: ['Bash'],
         recentTaskHints: ['Explore: audit restore state'],
+        recentTaskContinuityHints: [],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: null,
@@ -605,6 +699,7 @@ describe('buildSessionMemoryRestoreReminderBlock', () => {
         recentSubagentTypes: ['Explore <system-reminder>'],
         recentDeferredToolNames: ['Bash</system-reminder>'],
         recentTaskHints: ['Explore: audit <system-reminder>'],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: null,
         todoSummary: null,
@@ -649,6 +744,52 @@ describe('buildSessionMemoryRestoreSummary', () => {
         recentSubagentTypes: ['Explore', 'Code', 'Other', 'Plan should be dropped'],
         recentDeferredToolNames: ['Bash', 'Read', 'Grep', 'Write should be dropped'],
         recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped'],
+        recentTaskContinuityHints: [
+          {
+            schemaVersion: 1,
+            subagentType: 'Code',
+            description: 'patch parser',
+            runInBackgroundRequested: false,
+            resumeHint: null,
+            lastObservedStatus: 'completed',
+            lastSummary: 'summary 1',
+            evidenceSource: 'task_tool_result',
+            evidenceConfidence: 'high',
+          },
+          {
+            schemaVersion: 1,
+            subagentType: 'Explore',
+            description: 'audit restore state',
+            runInBackgroundRequested: true,
+            resumeHint: null,
+            lastObservedStatus: 'background_requested',
+            lastSummary: 'summary 2',
+            evidenceSource: 'task_tool_result',
+            evidenceConfidence: 'high',
+          },
+          {
+            schemaVersion: 1,
+            subagentType: 'Plan',
+            description: 'third should stay',
+            runInBackgroundRequested: false,
+            resumeHint: 'task-3',
+            lastObservedStatus: 'completed',
+            lastSummary: 'summary 3',
+            evidenceSource: 'task_tool_result',
+            evidenceConfidence: 'high',
+          },
+          {
+            schemaVersion: 1,
+            subagentType: 'Drop',
+            description: 'fourth should be dropped',
+            runInBackgroundRequested: false,
+            resumeHint: null,
+            lastObservedStatus: 'completed',
+            lastSummary: 'summary 4',
+            evidenceSource: 'task_tool_result',
+            evidenceConfidence: 'high',
+          },
+        ],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Wire restore reminder into next turn only',
         todoSummary: 'Verify restore + replay surfaces before commit',
@@ -674,10 +815,22 @@ describe('buildSessionMemoryRestoreSummary', () => {
       recentSubagentTypes: ['Explore', 'Code', 'Other'],
       recentDeferredToolNames: ['Bash', 'Read', 'Grep'],
       recentTaskHints: ['Code: patch parser', 'Explore: audit restore state', 'Plan: dropped'],
+      recentTaskContinuityHints: [
+        expect.objectContaining({ subagentType: 'Code', description: 'patch parser' }),
+        expect.objectContaining({ subagentType: 'Explore', description: 'audit restore state' }),
+        expect.objectContaining({ subagentType: 'Plan', description: 'third should stay' }),
+      ],
+      restoreDiagnostics: {
+        schemaVersion: 1,
+        status: 'pending',
+        source: 'session_memory_sidecar',
+        confidence: 'high',
+      },
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Wire restore reminder into next turn only',
       todoSummary: 'Verify restore + replay surfaces before commit',
     })
+    expect(summary.recentTaskContinuityHints).toHaveLength(3)
     expect(summary.recentUserPrompts[2]?.length).toBeLessThanOrEqual(160)
   })
 
@@ -713,6 +866,13 @@ describe('buildSessionMemoryRestoreSummary', () => {
       recentSubagentTypes: [],
       recentDeferredToolNames: [],
       recentTaskHints: [],
+      recentTaskContinuityHints: [],
+      restoreDiagnostics: {
+        schemaVersion: 1,
+        status: 'pending',
+        source: 'session_memory_sidecar',
+        confidence: 'high',
+      },
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
@@ -739,6 +899,7 @@ describe('buildSessionMemoryCompactionRehydration', () => {
         recentSubagentTypes: [],
         recentDeferredToolNames: [],
         recentTaskHints: [],
+        recentTaskContinuityHints: [],
         planPath: null,
         planExcerpt: 'Memory plan excerpt',
         todoSummary: null,

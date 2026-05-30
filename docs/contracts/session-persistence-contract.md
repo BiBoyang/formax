@@ -113,8 +113,10 @@ Automatic title failures MAY be recorded as best-effort `auto_title_attempt` eve
 1. MUST 基于与 next-turn-only reminder block 相同的 canonical restore-artifacts 路径派生
 2. MUST NOT 重新引入第二套 reminder 组装路径
 3. MUST NOT 升级 sidecar 成为新的 persisted authority
-4. SHOULD 只暴露恢复当前任务语义真正有用的最小 structured task state（如 `mode`、`planPath`、`recentFiles`、`recentUserPrompts`、`recentSkills`、`recentSubagentTypes`、`recentDeferredToolNames`、`recentTaskHints`、`planExcerpt`、`todoSummary`）
-5. `recentDeferredToolNames` / `recentTaskHints` MUST be bounded best-effort hints derived from prior successful tool calls; they MUST NOT rehydrate deferred tool runtime state, resume background tasks, or become a new persisted authority.
+4. SHOULD 只暴露恢复当前任务语义真正有用的最小 structured task state（如 `mode`、`planPath`、`recentFiles`、`recentUserPrompts`、`recentSkills`、`recentSubagentTypes`、`recentDeferredToolNames`、`recentTaskHints`、`recentTaskContinuityHints`、`restoreDiagnostics`、`planExcerpt`、`todoSummary`）
+5. `recentDeferredToolNames` / `recentTaskHints` / `recentTaskContinuityHints` MUST be bounded best-effort hints derived from prior successful tool calls; they MUST NOT rehydrate deferred tool runtime state, resume background tasks, or become a new persisted authority.
+6. `recentTaskContinuityHints` MUST remain transcript-derived observation only. Failed/error `Task` calls MUST NOT be rendered as recoverable continuity hints.
+7. `restoreDiagnostics` MAY describe pending/source/confidence for the whole pending restore artifact. Consumed state MUST continue to be represented publicly by `pendingSessionMemoryRestore: null`, not by a durable consumed event.
 
 `SES-107`
 Context-compression message identity metadata MAY be carried under `PromptMessage.meta.messageIdentity` and compact preserved-segment metadata. The minimum identity shape is:

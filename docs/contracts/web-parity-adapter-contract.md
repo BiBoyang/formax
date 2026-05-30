@@ -125,6 +125,12 @@ Web renderer MAY expose `Task` tool `detailLines` as bounded nested progress / e
 `WEB-304`  
 turn footer 的 `createdAt` 在 projection rebuild 时 SHOULD 尽量保持稳定；Web 不应因为局部 patch 而无意义刷新 footer identity。
 
+`WEB-305`
+Web RPC parsers MAY accept additive `pendingSessionMemoryRestore` v8 fields such as `recentTaskContinuityHints` and `restoreDiagnostics`, but they MUST treat them as app-server facts only. Web MUST NOT scan transcript rows to reconstruct restore utility, rebuild reminder text, or infer deferred tool/task runtime state.
+
+`WEB-306`
+Malformed optional v8 restore fields MUST be treated as omitted/unavailable. They MUST NOT reject the whole thread response and MUST NOT clear existing authoritative caches. Explicit `null` remains reserved for fields whose app-server contract defines null semantics, such as `pendingSessionMemoryRestore: null`.
+
 ## 5. Notification Cursor 与排序（`turnEventCursor.ts`）
 
 `WEB-401`  

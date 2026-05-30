@@ -338,6 +338,23 @@ export type RpcSessionMemoryRestoreSummary = {
   recentSubagentTypes: string[]
   recentDeferredToolNames: string[]
   recentTaskHints: string[]
+  recentTaskContinuityHints: Array<{
+    schemaVersion: 1
+    subagentType: string
+    description: string
+    runInBackgroundRequested: boolean
+    resumeHint: string | null
+    lastObservedStatus: 'completed' | 'background_requested' | 'unknown'
+    lastSummary: string | null
+    evidenceSource: 'task_tool_use' | 'task_tool_result'
+    evidenceConfidence: 'high' | 'medium' | 'low'
+  }>
+  restoreDiagnostics?: {
+    schemaVersion: 1
+    status: 'pending'
+    source: 'session_memory_sidecar'
+    confidence: 'high' | 'medium' | 'low'
+  }
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -802,6 +819,68 @@ function parseOptionalNullableLatestReactiveCompactField(
   return parsed ? { present: true, value: parsed } : null
 }
 
+type RpcTaskContinuityHint = RpcSessionMemoryRestoreSummary['recentTaskContinuityHints'][number]
+
+function parseTaskContinuityHints(value: unknown): RpcTaskContinuityHint[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return []
+  return value
+    .map((entry) => parseTaskContinuityHint(entry))
+    .filter((entry): entry is RpcTaskContinuityHint => Boolean(entry))
+}
+
+function parseTaskContinuityHint(value: unknown): RpcTaskContinuityHint | null {
+  const record = asOptionalRecord(value)
+  if (!record || record.schemaVersion !== 1) return null
+  const subagentType = typeof record.subagentType === 'string' && record.subagentType.trim() ? record.subagentType : null
+  const description = typeof record.description === 'string' && record.description.trim() ? record.description : null
+  if (!subagentType || !description) return null
+  const lastObservedStatus =
+    record.lastObservedStatus === 'completed' ||
+    record.lastObservedStatus === 'background_requested' ||
+    record.lastObservedStatus === 'unknown'
+      ? record.lastObservedStatus
+      : 'unknown'
+  const evidenceSource =
+    record.evidenceSource === 'task_tool_result' || record.evidenceSource === 'task_tool_use'
+      ? record.evidenceSource
+      : 'task_tool_use'
+  const evidenceConfidence =
+    record.evidenceConfidence === 'high' || record.evidenceConfidence === 'medium' || record.evidenceConfidence === 'low'
+      ? record.evidenceConfidence
+      : 'medium'
+  return {
+    schemaVersion: 1,
+    subagentType,
+    description,
+    runInBackgroundRequested: record.runInBackgroundRequested === true,
+    resumeHint: parseRequiredNullableString(record.resumeHint)?.value ?? null,
+    lastObservedStatus,
+    lastSummary: parseRequiredNullableString(record.lastSummary)?.value ?? null,
+    evidenceSource,
+    evidenceConfidence,
+  }
+}
+
+function parseRestoreDiagnostics(value: unknown): RpcSessionMemoryRestoreSummary['restoreDiagnostics'] | undefined {
+  const record = asOptionalRecord(value)
+  if (!record) return undefined
+  if (record.schemaVersion !== 1 || record.status !== 'pending' || record.source !== 'session_memory_sidecar') {
+    return undefined
+  }
+  const confidence =
+    record.confidence === 'high' || record.confidence === 'medium' || record.confidence === 'low'
+      ? record.confidence
+      : null
+  if (!confidence) return undefined
+  return {
+    schemaVersion: 1,
+    status: 'pending',
+    source: 'session_memory_sidecar',
+    confidence,
+  }
+}
+
 function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryRestoreSummary | null {
   const record = asOptionalRecord(value)
   if (!record) return null
@@ -816,6 +895,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
     record.recentDeferredToolNames === undefined ? { value: [] } : parseRequiredStringList(record.recentDeferredToolNames)
   const recentTaskHints =
     record.recentTaskHints === undefined ? { value: [] } : parseRequiredStringList(record.recentTaskHints)
+  const recentTaskContinuityHints = parseTaskContinuityHints(record.recentTaskContinuityHints)
+  const restoreDiagnostics = parseRestoreDiagnostics(record.restoreDiagnostics)
   const planPath = parseRequiredNullableString(record.planPath)
   const planExcerpt = parseRequiredNullableString(record.planExcerpt)
   const todoSummary = parseRequiredNullableString(record.todoSummary)
@@ -842,6 +923,8 @@ function parseSessionMemoryRestoreSummary(value: unknown): RpcSessionMemoryResto
     recentSubagentTypes: recentSubagentTypes.value,
     recentDeferredToolNames: recentDeferredToolNames.value,
     recentTaskHints: recentTaskHints.value,
+    recentTaskContinuityHints,
+    ...(restoreDiagnostics ? { restoreDiagnostics } : {}),
     planPath: planPath.value,
     planExcerpt: planExcerpt.value,
     todoSummary: todoSummary.value,

@@ -150,6 +150,7 @@ describe('rpcParsers', () => {
         recentSubagentTypes: ['Explore'],
         recentDeferredToolNames: ['Bash', 'Read'],
         recentTaskHints: ['Explore: audit restore state'],
+      recentTaskContinuityHints: [],
         planPath: '/repo/.formax/plan.md',
         planExcerpt: 'Finish restore utility',
         todoSummary: null,
@@ -221,6 +222,7 @@ describe('rpcParsers', () => {
       recentSubagentTypes: ['Explore'],
       recentDeferredToolNames: ['Bash', 'Read'],
       recentTaskHints: ['Explore: audit restore state'],
+      recentTaskContinuityHints: [],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
@@ -262,9 +264,72 @@ describe('rpcParsers', () => {
       recentSubagentTypes: [],
       recentDeferredToolNames: [],
       recentTaskHints: [],
+      recentTaskContinuityHints: [],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,
+    })
+  })
+
+  it('parses additive v8 restore hints and drops malformed optional hint rows', () => {
+    const parsed = asThreadReplay({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: ['/repo/src/session.ts'],
+        recentUserPrompts: ['Recover plan context'],
+        recentSkills: [],
+        recentSubagentTypes: [],
+        recentDeferredToolNames: ['Bash'],
+        recentTaskHints: ['Code: patch parser'],
+        recentTaskContinuityHints: [
+          {
+            schemaVersion: 1,
+            subagentType: 'Code',
+            description: 'patch parser',
+            runInBackgroundRequested: false,
+            resumeHint: 'task-123',
+            lastObservedStatus: 'completed',
+            lastSummary: 'Parser summary',
+            evidenceSource: 'task_tool_result',
+            evidenceConfidence: 'high',
+          },
+          { schemaVersion: 1, subagentType: '', description: 'drop me' },
+        ],
+        restoreDiagnostics: {
+          schemaVersion: 1,
+          status: 'pending',
+          source: 'session_memory_sidecar',
+          confidence: 'high',
+        },
+        planPath: '/repo/.formax/plan.md',
+        planExcerpt: 'Finish restore utility',
+        todoSummary: null,
+      },
+    })
+
+    expect(parsed.pendingSessionMemoryRestore?.recentTaskContinuityHints).toEqual([
+      {
+        schemaVersion: 1,
+        subagentType: 'Code',
+        description: 'patch parser',
+        runInBackgroundRequested: false,
+        resumeHint: 'task-123',
+        lastObservedStatus: 'completed',
+        lastSummary: 'Parser summary',
+        evidenceSource: 'task_tool_result',
+        evidenceConfidence: 'high',
+      },
+    ])
+    expect(parsed.pendingSessionMemoryRestore?.restoreDiagnostics).toEqual({
+      schemaVersion: 1,
+      status: 'pending',
+      source: 'session_memory_sidecar',
+      confidence: 'high',
     })
   })
 

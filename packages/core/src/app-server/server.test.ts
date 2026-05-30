@@ -1754,6 +1754,13 @@ describe('AppServer', () => {
       recentSubagentTypes: ['Explore'],
       recentDeferredToolNames: ['Bash', 'Read'],
       recentTaskHints: ['Explore: audit restore state'],
+      recentTaskContinuityHints: [],
+      restoreDiagnostics: {
+        schemaVersion: 1,
+        status: 'pending',
+        source: 'session_memory_sidecar',
+        confidence: 'high',
+      },
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Finish restore utility',
       todoSummary: null,

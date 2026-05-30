@@ -127,6 +127,13 @@ export function buildCompressionProjectionGoldenFixture(): CompressionProjection
       recentSubagentTypes: ['explorer'],
       recentDeferredToolNames: ['Read'],
       recentTaskHints: ['Check projection parity surfaces'],
+      recentTaskContinuityHints: [],
+      restoreDiagnostics: {
+        schemaVersion: 1,
+        status: 'pending',
+        source: 'session_memory_sidecar',
+        confidence: 'high',
+      },
       planPath: '/repo/plans/context-compression-alignment-loop/CLAUDE-CODE-COMPRESSION-ARCHITECTURE-PARITY-TODO-2026-05-21.md',
       planExcerpt: 'Surface and recovery convergence',
       todoSummary: 'Cache compact/snip/collapse facts from one projection shape',

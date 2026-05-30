@@ -86,7 +86,7 @@ deferred exposure 的 catalog/session 状态 MUST 由 shared resolver/store 管�
 `FORMAX_DEFERRED_TOOL_SOFT_FALLBACK` MAY 提供兼容性 direct-call 补救路径，但它 MUST NOT 改变 canonical request framing，也 MUST NOT 取代 shared resolver 作为工具暴露真值。
 
 `PTE-208`
-session-memory restore MAY expose `recentDeferredToolNames` as a bounded next-turn hint derived from prior successful `ToolSearch` calls. This hint MUST NOT rehydrate `DeferredToolExposureStore.loadedNames`, MUST NOT make those tools visible without the normal `ToolSearch`-first resolver path, and MUST remain best-effort restore context only.
+session-memory restore MAY expose `recentDeferredToolNames` as a bounded next-turn hint derived from prior successful `ToolSearch` calls. Extraction SHOULD prefer structured `tool_reference` blocks and MAY fall back to legacy text sections for older sessions. This hint MUST NOT rehydrate `DeferredToolExposureStore.loadedNames`, MUST NOT make those tools visible without the normal `ToolSearch`-first resolver path, and MUST remain best-effort restore context only.
 
 ## 4. Skills 呈现合同
 

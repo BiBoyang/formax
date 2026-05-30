@@ -111,6 +111,23 @@ export type SessionMemoryRestoreSummary = {
   recentSubagentTypes: string[]
   recentDeferredToolNames: string[]
   recentTaskHints: string[]
+  recentTaskContinuityHints: Array<{
+    schemaVersion: 1
+    subagentType: string
+    description: string
+    runInBackgroundRequested: boolean
+    resumeHint: string | null
+    lastObservedStatus: 'completed' | 'background_requested' | 'unknown'
+    lastSummary: string | null
+    evidenceSource: 'task_tool_use' | 'task_tool_result'
+    evidenceConfidence: 'high' | 'medium' | 'low'
+  }>
+  restoreDiagnostics?: {
+    schemaVersion: 1
+    status: 'pending'
+    source: 'session_memory_sidecar'
+    confidence: 'high' | 'medium' | 'low'
+  }
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null

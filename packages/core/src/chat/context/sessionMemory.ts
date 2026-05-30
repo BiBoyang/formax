@@ -24,11 +24,13 @@ const SESSION_MEMORY_RECENT_SKILLS_LIMIT = 3
 const SESSION_MEMORY_RECENT_SUBAGENT_TYPES_LIMIT = 3
 const SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT = 3
 const SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT = 3
+const SESSION_MEMORY_RECENT_TASK_CONTINUITY_HINTS_LIMIT = 3
 const SESSION_MEMORY_SUMMARY_RECENT_FILES_LIMIT = 3
 const SESSION_MEMORY_SUMMARY_RECENT_SKILLS_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_RECENT_SUBAGENT_TYPES_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_RECENT_DEFERRED_TOOL_NAMES_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_RECENT_TASK_HINTS_LIMIT = 2
+const SESSION_MEMORY_SUMMARY_RECENT_TASK_CONTINUITY_HINTS_LIMIT = 2
 const SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS = 96
 const SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS = 160
 const SESSION_MEMORY_SUMMARY_SKILL_MAX_CHARS = 80
@@ -39,6 +41,25 @@ const SESSION_MEMORY_SUMMARY_PLAN_EXCERPT_MAX_CHARS = 240
 const SESSION_MEMORY_SUMMARY_TODO_MAX_CHARS = 240
 const SESSION_MEMORY_SUMMARY_WORKSPACE_MAX_CHARS = 180
 const SESSION_MEMORY_SUMMARY_MEMORY_PATH_MAX_CHARS = 180
+
+export type SessionMemoryTaskContinuityHint = {
+  schemaVersion: 1
+  subagentType: string
+  description: string
+  runInBackgroundRequested: boolean
+  resumeHint: string | null
+  lastObservedStatus: 'completed' | 'background_requested' | 'unknown'
+  lastSummary: string | null
+  evidenceSource: 'task_tool_use' | 'task_tool_result'
+  evidenceConfidence: 'high' | 'medium' | 'low'
+}
+
+export type SessionMemoryRestoreDiagnostics = {
+  schemaVersion: 1
+  status: 'pending'
+  source: 'session_memory_sidecar'
+  confidence: 'high' | 'medium' | 'low'
+}
 
 export type SessionMemoryDraft = {
   schemaVersion: 1
@@ -54,6 +75,7 @@ export type SessionMemoryDraft = {
     recentSubagentTypes: string[]
     recentDeferredToolNames: string[]
     recentTaskHints: string[]
+    recentTaskContinuityHints: SessionMemoryTaskContinuityHint[]
     planPath: string | null
     planExcerpt: string | null
     todoSummary: string | null
@@ -81,6 +103,8 @@ export type SessionMemoryRestoreSummary = {
   recentSubagentTypes: string[]
   recentDeferredToolNames: string[]
   recentTaskHints: string[]
+  recentTaskContinuityHints: SessionMemoryTaskContinuityHint[]
+  restoreDiagnostics: SessionMemoryRestoreDiagnostics
   planPath: string | null
   planExcerpt: string | null
   todoSummary: string | null
@@ -156,6 +180,10 @@ export function buildSessionMemoryDraft(args: {
         SESSION_MEMORY_RECENT_DEFERRED_TOOL_NAMES_LIMIT,
       ),
       recentTaskHints: collectRecentTaskHints(args.previousHistory, SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT),
+      recentTaskContinuityHints: collectRecentTaskContinuityHints(
+        args.previousHistory,
+        SESSION_MEMORY_RECENT_TASK_CONTINUITY_HINTS_LIMIT,
+      ),
       planPath: rehydration.planPath,
       planExcerpt: rehydration.planExcerpt,
       todoSummary: rehydration.todoSummary,
@@ -212,6 +240,11 @@ export function mergeSessionMemoryDraft(base: SessionMemoryDraft, patch: Session
         older: base.activeTask.recentTaskHints,
         limit: SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT,
       }),
+      recentTaskContinuityHints: mergeRecentTaskContinuityHints({
+        newer: nextActiveTask.recentTaskContinuityHints,
+        older: base.activeTask.recentTaskContinuityHints,
+        limit: SESSION_MEMORY_RECENT_TASK_CONTINUITY_HINTS_LIMIT,
+      }),
       planPath: readNullableString(nextActiveTask.planPath, base.activeTask.planPath),
       planExcerpt: readNullableString(nextActiveTask.planExcerpt, base.activeTask.planExcerpt),
       todoSummary: readNullableString(nextActiveTask.todoSummary, base.activeTask.todoSummary),
@@ -263,7 +296,7 @@ export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): 
   const recentDeferredToolNames = normalizeStringList(draft.activeTask.recentDeferredToolNames)
     .slice(0, SESSION_MEMORY_SUMMARY_RECENT_DEFERRED_TOOL_NAMES_LIMIT)
   if (recentDeferredToolNames.length > 0) {
-    lines.push(`Recently loaded deferred tools: ${recentDeferredToolNames.join(', ')}`)
+    lines.push(`Recent deferred tool hints from prior ToolSearch calls (not currently loaded): ${recentDeferredToolNames.join(', ')}`)
   }
 
   const recentTaskHints = normalizeStringList(draft.activeTask.recentTaskHints)
@@ -271,6 +304,19 @@ export function buildSessionMemoryCompactionSummary(draft: SessionMemoryDraft): 
   if (recentTaskHints.length > 0) {
     lines.push('Recent delegated task hints:')
     for (const hint of recentTaskHints) lines.push(`- ${truncateForSummary(hint, SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS)}`)
+  }
+
+  const recentTaskContinuityHints = normalizeTaskContinuityHints(draft.activeTask.recentTaskContinuityHints)
+    .slice(0, SESSION_MEMORY_SUMMARY_RECENT_TASK_CONTINUITY_HINTS_LIMIT)
+  if (recentTaskContinuityHints.length > 0) {
+    lines.push('Structured delegated task continuity hints (best-effort; tasks are not resumed automatically):')
+    for (const hint of recentTaskContinuityHints) {
+      const parts = [`${hint.subagentType}: ${hint.description}`]
+      if (hint.runInBackgroundRequested) parts.push('(background requested; not resumed)')
+      if (hint.resumeHint) parts.push(`(prior resume hint ${hint.resumeHint})`)
+      if (hint.lastObservedStatus !== 'unknown') parts.push(`(${hint.lastObservedStatus})`)
+      lines.push(`- ${truncateForSummary(parts.join(' '), SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS)}`)
+    }
   }
 
   if (draft.activeTask.mode !== 'normal') {
@@ -345,6 +391,9 @@ export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): Ses
   const recentTaskHints = normalizeStringList(draft.activeTask.recentTaskHints)
     .slice(0, SESSION_MEMORY_RECENT_TASK_HINTS_LIMIT)
     .map((value) => truncateForSummary(value, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS))
+  const recentTaskContinuityHints = normalizeTaskContinuityHints(draft.activeTask.recentTaskContinuityHints)
+    .slice(0, SESSION_MEMORY_RECENT_TASK_CONTINUITY_HINTS_LIMIT)
+    .map(truncateTaskContinuityHintForSummary)
 
   return {
     schemaVersion: 1,
@@ -355,6 +404,13 @@ export function buildSessionMemoryRestoreSummary(draft: SessionMemoryDraft): Ses
     recentSubagentTypes,
     recentDeferredToolNames,
     recentTaskHints,
+    recentTaskContinuityHints,
+    restoreDiagnostics: {
+      schemaVersion: 1,
+      status: 'pending',
+      source: 'session_memory_sidecar',
+      confidence: 'high',
+    },
     planPath: truncateNullableSummaryField(draft.activeTask.planPath, SESSION_MEMORY_SUMMARY_PLAN_PATH_MAX_CHARS),
     planExcerpt: truncateNullableSummaryField(
       draft.activeTask.planExcerpt,
@@ -548,7 +604,57 @@ function collectRecentTaskHints(messages: PromptMessage[], limit: number): strin
   return values
 }
 
+function collectRecentTaskContinuityHints(messages: PromptMessage[], limit: number): SessionMemoryTaskContinuityHint[] {
+  const keep = Math.max(0, Math.floor(limit))
+  if (keep <= 0) return []
+
+  const successfulToolResults = collectSuccessfulToolResults(messages)
+  if (successfulToolResults.size === 0) return []
+
+  const values: SessionMemoryTaskContinuityHint[] = []
+  const seen = new Set<string>()
+  for (let index = messages.length - 1; index >= 0 && values.length < keep; index -= 1) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    for (let blockIndex = message.content.length - 1; blockIndex >= 0 && values.length < keep; blockIndex -= 1) {
+      const block = (message.content as any[])[blockIndex]
+      if (block?.type !== 'tool_use' || block?.name !== 'Task') continue
+      if (typeof block?.id !== 'string' || !successfulToolResults.has(block.id)) continue
+      const input = block.input && typeof block.input === 'object' ? block.input as Record<string, unknown> : {}
+      const subagentType = readNonEmptyString(input.subagent_type)
+      const description = readNonEmptyString(input.description)
+      if (!subagentType || !description) continue
+      const runInBackgroundRequested = input.run_in_background === true
+      const resumeHint = readNonEmptyString(input.resume)
+      const lastSummary = truncateNullableSummaryField(
+        extractToolResultText(successfulToolResults.get(block.id)),
+        SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS,
+      )
+      const hint: SessionMemoryTaskContinuityHint = {
+        schemaVersion: 1,
+        subagentType,
+        description,
+        runInBackgroundRequested,
+        resumeHint,
+        lastObservedStatus: runInBackgroundRequested ? 'background_requested' : 'completed',
+        lastSummary,
+        evidenceSource: lastSummary ? 'task_tool_result' : 'task_tool_use',
+        evidenceConfidence: 'high',
+      }
+      const key = taskContinuityHintKey(hint)
+      if (seen.has(key)) continue
+      seen.add(key)
+      values.push(hint)
+    }
+  }
+
+  return values
+}
+
 function extractLoadedDeferredToolNames(content: unknown): string[] {
+  const structuredNames = extractToolReferenceNames(content)
+  if (structuredNames.length > 0) return structuredNames
+
   const text = extractToolResultText(content)
   if (!text) return []
 
@@ -583,6 +689,17 @@ function extractLoadedDeferredToolNames(content: unknown): string[] {
   return out
 }
 
+function extractToolReferenceNames(content: unknown): string[] {
+  if (!Array.isArray(content)) return []
+  const out: string[] = []
+  for (const block of content as any[]) {
+    if (block?.type !== 'tool_reference') continue
+    const name = readNonEmptyString(block.tool_name) ?? readNonEmptyString(block.name)
+    if (name) out.push(name)
+  }
+  return out
+}
+
 function extractToolResultText(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -591,6 +708,91 @@ function extractToolResultText(content: unknown): string {
     if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
   }
   return parts.join('\n')
+}
+
+function normalizeTaskContinuityHints(value: unknown): SessionMemoryTaskContinuityHint[] {
+  if (!Array.isArray(value)) return []
+  const out: SessionMemoryTaskContinuityHint[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    const hint = normalizeTaskContinuityHint(item)
+    if (!hint) continue
+    const key = taskContinuityHintKey(hint)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(hint)
+  }
+  return out
+}
+
+function normalizeTaskContinuityHint(value: unknown): SessionMemoryTaskContinuityHint | null {
+  if (!isRecord(value) || value.schemaVersion !== 1) return null
+  const subagentType = readNonEmptyString(value.subagentType)
+  const description = readNonEmptyString(value.description)
+  if (!subagentType || !description) return null
+  const lastObservedStatus =
+    value.lastObservedStatus === 'completed' ||
+    value.lastObservedStatus === 'background_requested' ||
+    value.lastObservedStatus === 'unknown'
+      ? value.lastObservedStatus
+      : 'unknown'
+  const evidenceSource =
+    value.evidenceSource === 'task_tool_result' || value.evidenceSource === 'task_tool_use'
+      ? value.evidenceSource
+      : 'task_tool_use'
+  const evidenceConfidence =
+    value.evidenceConfidence === 'high' || value.evidenceConfidence === 'medium' || value.evidenceConfidence === 'low'
+      ? value.evidenceConfidence
+      : 'medium'
+  return {
+    schemaVersion: 1,
+    subagentType,
+    description,
+    runInBackgroundRequested: value.runInBackgroundRequested === true,
+    resumeHint: readNullableString(value.resumeHint, null),
+    lastObservedStatus,
+    lastSummary: readNullableString(value.lastSummary, null),
+    evidenceSource,
+    evidenceConfidence,
+  }
+}
+
+function mergeRecentTaskContinuityHints(args: {
+  newer?: unknown
+  older?: unknown
+  limit: number
+}): SessionMemoryTaskContinuityHint[] {
+  const keep = Math.max(0, Math.floor(args.limit))
+  if (keep <= 0) return []
+  const out: SessionMemoryTaskContinuityHint[] = []
+  const seen = new Set<string>()
+  for (const hint of [...normalizeTaskContinuityHints(args.newer), ...normalizeTaskContinuityHints(args.older)]) {
+    const key = taskContinuityHintKey(hint)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(hint)
+    if (out.length >= keep) break
+  }
+  return out
+}
+
+function truncateTaskContinuityHintForSummary(hint: SessionMemoryTaskContinuityHint): SessionMemoryTaskContinuityHint {
+  return {
+    ...hint,
+    subagentType: truncateForSummary(hint.subagentType, SESSION_MEMORY_SUMMARY_SUBAGENT_TYPE_MAX_CHARS),
+    description: truncateForSummary(hint.description, SESSION_MEMORY_SUMMARY_RECENT_PROMPT_MAX_CHARS),
+    resumeHint: truncateNullableSummaryField(hint.resumeHint, SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS),
+    lastSummary: truncateNullableSummaryField(hint.lastSummary, SESSION_MEMORY_SUMMARY_TASK_HINT_MAX_CHARS),
+  }
+}
+
+function taskContinuityHintKey(hint: SessionMemoryTaskContinuityHint): string {
+  return [
+    hint.subagentType,
+    hint.description,
+    hint.runInBackgroundRequested ? 'background' : 'foreground',
+    hint.resumeHint ?? '',
+  ].join('\u0000')
 }
 
 function formatStrategyLines(strategy: SessionMemoryDraft['currentStrategy']): string[] {

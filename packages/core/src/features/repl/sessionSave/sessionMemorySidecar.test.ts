@@ -24,6 +24,7 @@ function createDraft(): SessionMemoryDraft {
       recentSubagentTypes: ['Explore'],
       recentDeferredToolNames: ['Bash'],
       recentTaskHints: ['Explore: audit restore state'],
+      recentTaskContinuityHints: [],
       planPath: '/repo/.formax/plan.md',
       planExcerpt: 'Investigate auth flow',
       todoSummary: 'todo summary',

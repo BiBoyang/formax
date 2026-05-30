@@ -57,10 +57,13 @@
     - `recentSubagentTypes`
     - `recentDeferredToolNames`
     - `recentTaskHints`
+    - `recentTaskContinuityHints`
+    - `restoreDiagnostics`
     - `planPath`
     - `planExcerpt`
     - `todoSummary`
-  - `recentDeferredToolNames` / `recentTaskHints` are next-turn restore hints only; they MUST NOT imply that app-server has restored deferred tool runtime loaded state or resumed delegated/background tasks.
+  - `recentDeferredToolNames` / `recentTaskHints` / `recentTaskContinuityHints` are next-turn restore hints only; they MUST NOT imply that app-server has restored deferred tool runtime loaded state or resumed delegated/background tasks.
+  - `restoreDiagnostics` describes the whole pending restore artifact while it is pending. After consumption, the public stable signal remains `pendingSessionMemoryRestore: null`; app-server MUST NOT expose a replay-authoritative consumed lifecycle state.
   - `pendingSessionMemoryRestore` MUST 与同一 session 的 next-turn-only reminder block 使用同一条 canonical restore-artifacts 路径；客户端不得重新组装第二套 restore utility
   - `latestCompactBoundary` 当前为 restore surface 上可选的最近 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`

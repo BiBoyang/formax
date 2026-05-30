@@ -1,330 +1,304 @@
-# Context Compression WebGPT Bugfix TODO
+# CCA-180 Deferred-Task Restore Utility Continuation / v8 Todo
+
+日期：2026-05-30
+
+当前执行入口只看这个文件。旧 WebGPT bugfix todolist 已完成并进入 Git 历史；本文件接续
+`CCA-180-DEFERRED-TASK-RESTORE-UTILITY-TODO-2026-05-21.md`，只推进 restore continuity hints 的下一段。
+
+## 0. Context and Boundary
+
+### 0.1 Confirmed Facts
+
+- [x] `CCA-180` v7 Batch 1 / Batch 2 已完成，提交为 `a7a399ad feat(context): add deferred restore hints`。
+- [x] WebGPT/cache-editing/context-compression architecture parity 主线已收口，可以恢复 `CCA-180` 方向。
+- [x] 两轮 WebGPT 复核都收敛到同一结论：下一条稍长主线应是 `CCA-180 continuation / v8`。
+- [x] v8 的核心问题不是 runtime resume，而是 restore continuity hints 的可靠性、结构化、diagnostics 和跨端兼容。
+- [x] 当前 `recentDeferredToolNames` 仍需要强化：优先从 structured `tool_reference` blocks 提取，保留 legacy text fallback。
+- [x] 当前 `recentTaskHints: string[]` 仍需要强化：新增 additive structured task hints，同时保留 legacy 字符串数组。
+- [x] `pendingSessionMemoryRestore` 需要可观察 diagnostics，但不能变成 persisted authority。
+
+### 0.2 Goals
+
+- [x] 将 deferred tool restore hints 从文本 section 解析推进到 structured `tool_reference` first。
+- [x] 为 delegated/background task continuity 增加 bounded structured hints。
+- [x] 为 pending restore utility 增加 source/confidence/status 级别 diagnostics。
+- [x] 保持 Web/RPC 对 v7 flat payload 和 v8 optional structured payload 的兼容。
+- [x] 改善 next-turn system reminder 文案，让 hints 不被误读为 restored state。
+- [x] 增加 no-new-authority regression guards，防止 restore hints 反向变成 runtime rehydration。
+
+### 0.3 Non-goals
+
+- [x] 不 rehydrate `DeferredToolExposureStore.loadedNames`。
+- [x] 不自动恢复 background tasks / delegated tasks。
+- [x] 不启动 polling、task registry、remote session reconnect 或 local async agent resume。
+- [x] 不改写 persisted transcript。
+- [x] 不新增 compact / replay / projection authority。
+- [x] 不把 request-only hints 升级为 durable state。
+- [x] 不让 Web/app-server/parser 自行扫描 transcript 组装第二套 restore utility。
+- [x] 不在 v8 处理 `CCA-181` preserved-segment relink parity。
+- [x] 不在 v8 处理 `CCA-182` reactive compact shaping / media overflow classification / telemetry。
+- [x] 不在 v8 处理 durable tool-result replacement summary surface；该项保留为独立 projection-surface follow-up。
+- [x] 不实现 Claude Code-style full background task resume。
+
+## 1. Definitions First
+
+### 1.1 Canonical Docs
+
+- [x] 检查 `docs/contracts/session-persistence-contract.md` 是否需要补充 v8 structured restore hint 语义。
+- [x] 检查 `docs/contracts/prompt-tool-exposure-contract.md` 是否需要补充 `tool_reference` restore hints 不等于 loaded tools。
+- [x] 检查 `docs/contracts/app-server-interaction-contract.md` 是否需要补充 pending restore diagnostics。
+- [x] 检查 `docs/contracts/web-parity-adapter-contract.md` 是否需要补充 v7/v8 parser compatibility。
+- [x] 若 v8 只改变既有字段的 additive optional shape，优先更新现有 canonical docs，不新增平行设计文档。
+
+### 1.2 Data Model
+
+- [x] 保留 `recentDeferredToolNames: string[]` public shape。
+- [x] 新增 bounded structured task hint field，同时保留 `recentTaskHints: string[]`。
+- [x] structured task hint field is additive and transcript-derived only。
+- [x] 结构化 task hint 使用弱 runtime 语义字段名，至少表达：
+  - [x] `subagentType`
+  - [x] `description`
+  - [x] `runInBackgroundRequested`
+  - [x] `resumeHint` / `resumeSignal` / `resumeReference`，仅表示 prior Task input 中出现过 resume signal，不表示 runtime resume。
+  - [x] `lastObservedStatus` / `outcome`，仅表示 transcript-derived observation，不表示 task registry 当前状态。
+  - [x] `lastSummary` if derivable from bounded transcript content
+  - [x] `evidenceSource`
+  - [x] `evidenceConfidence`
+- [x] `restoreDiagnostics.source/confidence/status` 只描述 whole pending restore artifact；per-task evidence 使用 `evidenceSource/evidenceConfidence`。
+- [x] v8 public task continuity hints 默认只采集 successful Task calls。
+- [x] failed/error Task calls 只做 characterization 和 excluded guard，不进入 reminder-rendered task continuity hints；未来若需要暴露失败任务，另开 diagnostics-only 字段。
+- [x] 新增 restore diagnostics optional field，表达 pending/source/confidence/status。
+- [x] 明确 consumed state 仍通过 `pendingSessionMemoryRestore: null` 表达，不新增 persisted consumed event。
+- [x] 对所有新字符串字段设置 list length / per-field length / delimiter sanitization bounds。
+
+### 1.3 Types / Interfaces
+
+- [x] 更新 core restore summary / session-memory draft types。
+- [x] 更新 app-server response types，只增加 optional v8 fields。
+- [x] 更新 Web RPC contracts/parsers，old v7 payload 必须继续 parse。
+- [x] 对 malformed optional v8 fields 使用 unavailable/omit/null 的既有三态策略，不 reject 整个 response。
+- [x] 保持 explicit `null` 与 omitted 的语义差异。
+
+## 2. Runtime / Platform
+
+### 2.1 Session Memory Restore Assembly
+
+- [x] 优先从 successful ToolSearch result 的 structured `tool_reference` blocks 派生 `recentDeferredToolNames`。
+- [x] 保留 old sessions 的 legacy text-section fallback。
+- [x] 忽略 failed ToolSearch result。
+- [x] 保持 bounded / dedupe / newest-first 语义。
+- [x] 从 successful Task calls 派生 bounded structured task hints。
+- [x] Characterize failed Task calls and exclude them from public v8 continuity hints。
+- [x] 不得把 failed/error Task calls 渲染成可恢复任务。
+
+### 2.2 Restore Reminder Rendering
+
+- [x] 将 structured task hints 渲染为 next-turn-only restore continuity hints。
+- [x] deferred tool wording 必须明确：这是 prior successful ToolSearch hints，不是 loaded tools。
+- [x] background task wording 必须明确：没有自动恢复、没有启动 polling。
+- [x] 保留 delimiter sanitization 和 text size bounds。
+- [x] 保持 reminder injected blocks ephemeral，不写回 persisted history。
+
+### 2.3 App-Server Restore Surface
 
-日期：2026-05-22
+- [x] `thread/resume` 暴露 pending restore diagnostics。
+- [x] pre-consumption `thread/replay` 与 `thread/resume` 看到同一 pending restore facts。
+- [x] successful dispatch 消费 pending restore 后，后续 replay/resume 返回 `pendingSessionMemoryRestore: null`。
+- [x] pre-dispatch failure 后仍保留 pending restore。
+- [x] diagnostics 不成为 replay authority，不写入 raw transcript rows。
+
+### 2.4 No-New-Authority Guardrails
+
+- [x] restore hints 不 mutate `DeferredToolExposureStore.loadedNames`。
+- [x] restore hints 不 register/resume background tasks。
+- [x] restore hints 不触发 task polling。
+- [x] restore hints 不进入 durable projection state。
+- [x] restore reminder injected block 不写回 persisted history。
 
-当前执行入口只看这个文件。旧 Gate 已完成并进入 git 历史。本文件已根据
-`repomix-output/07-optimization-audit/response/{05.1,06.1,02.1}.md` 复审意见重排。
-
-## 当前结论
-
-- [x] 可以开始执行，但不能按“大 Batch 1”一次性做。
-- [x] 每个条目按一个小 commit 执行：tests first → 实现 → targeted tests → `type-check`（如涉及类型/跨包）→ codex review → 修复 findings → commit。
-- [x] `SDK durable snip resume parity` 可以先做；但 `SDK same-turn snip + collapse rebase` 不单独提前做，必须和 same-turn dependency / policy 一起处理。
-- [x] `success-boundary` 必须前置到 cleanup 前，避免失败 turn 留下 replay-authoritative durable state。
-- [x] `session reader strictness` 是 correctness hardening，但不要和 runtime wiring / success-boundary 混在同一 commit。
-- [x] `Batch 3` 只作为 cleanup backlog，不能作为一个大 refactor commit。
-
-## 通用 Commit Gate
-
-每个 commit 都执行：
-
-- [x] 明确本 commit 只解决一个问题域。
-- [x] 先补 regression / characterization test。
-- [x] 只改实现到让该测试通过，不顺手重构。
-- [x] 跑本 commit 的 targeted tests。
-- [x] 如改类型、跨 package import、公共 contract，跑 `bun run type-check`。
-- [x] `mkdir -p .tmp/codex-review-result`
-- [x] `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
-- [x] `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
-- [x] 修完 review findings。
-- [x] commit。
-
-## Commit 1: SDK Durable Snip Resume Parity
-
-建议提交名：`fix(sdk): replay durable snip state on file-backed resume`
-
-主要文件：
-
-- `packages/core/src/sdk/query/runner.ts`
-- `packages/core/src/sdk/query.options-alignment.test.ts`
-- 可能需要 `packages/core/src/features/repl/sessionSave/index.ts` 或相邻 export。
-
-Tasks:
-
-- [x] 新增 SDK resume regression：session JSONL 含 `durable_snip_applied`。
-- [x] 断言 `runtime.engine.runTurn()` 收到的 `requestHistory` 不包含 snipped message。
-- [x] 断言 `history` / persisted raw transcript 仍保留原始消息。
-- [x] 新增 compact-boundary resume regression：active history 已裁掉 boundary 时，仍按 replay history 保留 boundary-scoped durable snip。
-- [x] SDK `query()` path 读取 `readDurableSnipStateFromSession()`。
-- [x] 每次 attempt 按 `currentHistory` 调 `scopeDurableSnipStateToHistory()`。
-- [x] SDK durable snip scoping 使用 `replayHistory` 作为 generation 参考，避免 compact boundary 被 active history 裁掉后清空有效 snip。
-- [x] 将 scoped snip state 传入 `prepareTurnRequestProjection({ durableState: { snip, collapse, toolResultContentReplacement } })`。
-- [x] 不在本 commit 处理 SDK same-turn snip + collapse rebase。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
-- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 2: Boundaryless Durable Snip Scoping
-
-建议提交名：`fix(context): preserve durable snip state on boundaryless resumes`
-
-主要文件：
-
-- `packages/core/src/chat/context/contextProjection.ts`
-- `packages/core/src/chat/context/contextProjection.test.ts`
-- `packages/core/src/chat/context/turnRequestProjection.test.ts`
-
-Tasks:
-
-- [x] 新增 `scopeDurableSnipStateToHistory()` regression：history 无 compact boundary，但 state 有 `activeCompactBoundaryFingerprint` 和 removals 时，应保留 removals。
-- [x] 保留现有 “观察到 newer compact boundary 时清空旧 generation snip” 测试。
-- [x] 将 snip scoping 调整为与 tool-result replacement 一致：只有 observed boundary 存在且 mismatch 时清空。
-- [x] 不在本 commit 让 `buildContextProjection().facts.activeCompactBoundaryFingerprint` 从 snip state fallback；public facts 语义保持不变。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts packages/core/src/chat/context/turnRequestProjection.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 3: Same-Turn Snip + Collapse Safety Policy
-
-建议提交名：`fix(context): avoid unsafe same-turn snip collapse commits`
-
-主要文件：
-
-- `packages/core/src/chat/context/contextProjection.ts`
-- `packages/core/src/chat/context/contextProjection.test.ts`
-- `packages/core/src/features/repl/controller/send/contextCompressionService.ts`
-- `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- `packages/core/src/app-server/turnRunner.ts`
-- `packages/core/src/app-server/turnRunner.test.ts`
-- `packages/core/src/sdk/query/runner.ts`
-- `packages/core/src/sdk/query.options-alignment.test.ts`
-
-Decision:
-
-- [x] 先采用最小安全策略：same-turn request snip applied 且 collapse applied 时，collapse 仍可用于当轮 request，但不持久化依赖该 request snip 的 durable collapse commit。
-- [x] 不在本 commit 引入 dependency metadata schema，除非 tests 证明 skip policy 不可行。
-
-Tasks:
-
-- [x] 新增 same-turn persistence regression：request snip + request collapse 同轮生效时，snip 可持久化但 collapse commit 为 null。
-- [x] REPL/app-server/SDK 对 same-turn snip+collapse 使用统一 policy：不写 unsafe durable collapse commit。
-- [x] 保留无 snip 场景 collapse commit 行为。
-- [x] 保留 request-only collapse 当轮生效行为。
-- [x] SDK 不再单独只补 rebase；如仍需要 rebase，只能在本 commit 与 dependency/safety policy 一起完成。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
-- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts`
-- [x] `bun run test -- packages/core/src/sdk/query.options-alignment.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 4: Durable Commit Success Boundary
-
-建议提交名：`fix(context): gate durable compression commits on successful turns`
-
-主要文件：
-
-- `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
-- `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
-- `packages/core/src/app-server/turnRunner.ts`
-- `packages/core/src/app-server/turnRunner.test.ts`
-- `packages/core/src/features/repl/controller/session/sessionEvents.ts` if needed.
-
-Clarification:
-
-- [x] 区分 request attempt diagnostic event、pending collapse drain、durable future-state commit。
-- [x] 不写反合同测试：如果当前设计需要 overflow 前 drain pending collapse commit，必须单独建模，不能把 pending 当 completed durable success。
-
-Tasks:
-
-- [x] REPL test：initial overflow + `prepared.collapseState.commit` + `runReactiveCompact` reject，不应留下 completed-turn durable snip/collapse success state。
-- [x] REPL test：initial overflow + reactive compact success + retry `engine.runTurn` reject/abort，不应留下 completed-turn durable snip/collapse success state。
-- [x] App-server test：durable snip/collapse candidate 存在，但 history snapshot append 或 flush 失败时，reader / replay surface 不暴露 completed durable state。
-- [x] App-server completed turn 仍能持久化 durable snip/collapse，并更新 in-memory collapse store。
-- [x] interrupted/failed turn 不写 completed durable snip/collapse success state。
-- [x] 如实现 pending event，pending event 必须 reader-invisible。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/features/repl/controller/send/sendMainTurn.test.ts`
-- [x] `bun run test -- packages/core/src/app-server/turnRunner.test.ts packages/core/src/app-server/server.test.ts`
-- [x] `bun run test -- packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 5: App-Server Compact Boundary Cache Tri-State
-
-建议提交名：`fix(app-server): preserve replay compact boundary cache on omitted facts`
-
-主要文件：
-
-- `packages/core/src/app-server/server.ts`
-- `packages/core/src/app-server/server.test.ts`
-
-Tasks:
-
-- [x] 新增 replay cache test：已有 cached `latestCompactBoundary` 后，partial result 省略该字段时不得清空 cache。
-- [x] 新增 explicit null test：`latestCompactBoundary: null` 应清空 cache。
-- [x] 修改 `rememberLatestCompactBoundary()`：`undefined` 表示 omitted / no update；只有 explicit `null` 才写 null。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/app-server/server.test.ts`
-- [x] 通用 Commit Gate。
-
-## Commit 6: Web Compression Fact Tri-State Parsing
-
-建议提交名：`fix(web): preserve compression fact tri-state parsing`
-
-主要文件：
-
-- `packages/web-reference-react/src/app/core/rpcParsers.ts`
-- `packages/web-reference-react/src/app/core/rpcParsers.test.ts`
-- `packages/web-reference-react/src/app/core/threadCache.test.ts`
-
-Decision:
-
-- [x] malformed-present compression fact object 使用 omit / non-authoritative，不 reject 整个 response。
-
-Tasks:
-
-- [x] 新增 parser/cache test：`thread/messages` 返回 malformed `latestCompactBoundary` / `durableSnip` / `latestRequestCollapse` object 时，不应输出 explicit null，也不应清空已有 authoritative cache。
-- [x] 新增 explicit null test：raw field 为 `null` 时才输出 null 并清空 cache。
-- [x] 保留 omitted test：raw field absent 时不输出字段且不覆盖 cache。
-- [x] 修改 `asThreadMessages()` 三态处理：absent = omit，explicit null = null，valid object = value，invalid object = omit。
-
-Validation:
-
-- [x] `bun run test -- packages/web-reference-react/src/app/core/rpcParsers.test.ts packages/web-reference-react/src/app/core/threadCache.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 7: MicroCompact Durable-Replaced Tool Result Guard
-
-建议提交名：`fix(context): skip durable-replaced tool results in microcompact`
-
-主要文件：
-
-- `packages/core/src/chat/context/microCompact.ts`
-- `packages/core/src/chat/context/microCompact.test.ts`
-- `packages/core/src/chat/context/toolResultBudget.ts` if sharing predicate.
-- `packages/core/src/chat/context/toolResultBudget.test.ts` if sharing predicate.
-
-Tasks:
-
-- [x] 新增 cache-editing microcompact regression：带 `meta.durableToolResultContentReplacementToolUseIds` 的 long tool result 不产生 cache edit plan / fallback stub。
-- [x] 新增 time-based microcompact regression：old assistant timestamp + durable-replaced old result，不被 `TIME_BASED_MC_CLEARED_MESSAGE` 覆盖。
-- [x] 在 `collectTimeBasedToolResultRefs()` 跳过 durable-replaced tool result。
-- [x] 在 `collectEligibleToolResults()` 跳过 durable-replaced tool result。
-- [x] 如抽 helper，只抽 predicate，不改 microcompact 策略顺序。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/chat/context/microCompact.test.ts packages/core/src/chat/context/toolResultBudget.test.ts`
-- [x] `bun run test -- packages/core/src/chat/context/turnRequestProjection.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 8: Durable Collapse Replay Idempotency
-
-建议提交名：`fix(context): make durable collapse replay idempotent`
-
-主要文件：
-
-- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
-- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-- `packages/core/src/chat/context/contextCollapseStore.ts`
-- `packages/core/src/chat/context/contextProjection.test.ts`
-
-Tasks:
-
-- [x] 新增 duplicate same-id `context_collapse_committed` replay test：snapshot 只保留一条或 projection 与单 event 等价。
-- [x] 实现 same-id committed collapse replay 幂等，避免 retry/重复 JSONL 行二次 collapse 删除尾部。
-- [x] 不在本 commit 定义 all different-id overlap policy。
-- [x] 如需记录 different-id overlap，先加 characterization / deferred note，不做大策略变更。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-- [x] `bun run test -- packages/core/src/chat/context/contextProjection.test.ts`
-- [x] `bun run type-check`
-- [x] 通用 Commit Gate。
-
-## Commit 9: Malformed Collapse Committed Range Strictness
-
-建议提交名：`fix(session): reject malformed collapse committed ranges`
-
-主要文件：
-
-- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
-- `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-
-Tasks:
-
-- [x] 新增 malformed range tests：负数、反向 range、非有限 number、超大不安全整数。
-- [x] JSONL-level 非有限 number case 使用 JSON 能实际表达的输入；parser-level 可单独覆盖 `Number.isFinite`。
-- [x] `parseCommittedRange()` 严格要求 safe integer、`startIndex >= 0`、`endIndexExclusive > startIndex`。
-- [x] 不满足条件时 reject event，不进入 constructor normalize。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.test.ts`
-- [x] 通用 Commit Gate。
-
-## Commit 10: Malformed Durable Snip Snapshot Strictness
-
-建议提交名：`fix(session): reject malformed durable snip snapshots`
-
-主要文件：
-
-- `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
-- `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-
-Tasks:
-
-- [x] 新增 mixed valid/invalid removals test：snapshot event 中任一 removal invalid 时整条 event 不接受，保留前一 valid snapshot。
-- [x] 保留 empty `removals: []` 可作为 intentional clear。
-- [x] 修改 `parseRemovals()` 为 strict all-or-nothing。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.test.ts`
-- [x] 通用 Commit Gate。
-
-## Commit 11: Malformed Durable Tool Replacement Scope Strictness
-
-建议提交名：`fix(session): reject malformed durable tool replacement scopes`
-
-主要文件：
-
-- `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.ts`
-- `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
-
-Tasks:
-
-- [x] 新增 malformed-present `sourceScope` test：不能 fallback 到 main_thread。
-- [x] 保留 sourceScope 缺省时 legacy main_thread fallback。
-- [x] 字段 present 但 `parseSourceScope()` 失败时 reject event。
-
-Validation:
-
-- [x] `bun run test -- packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`
-- [x] 通用 Commit Gate。
-
-## Cleanup Backlog: Only After Commits 1-11
-
-每项必须独立 commit，不能合成一个大 cleanup batch。
-
-- [x] `refactor(session): share strict event parsing helpers`
-- [x] `refactor(context): share durable projection scoping helper`
-- [x] `refactor(web): centralize compression fact tri-state helper`
-- [x] `refactor(context): share durable commit candidate helpers`
-- [x] `docs(context): refresh CODEMAP durable projection owners`
-
-## Explicitly Deferred
-
-- [x] 不在 correctness commits 中做测试文件大规模重命名。
-- [x] 不在 correctness commits 中重排 compression golden fixture。
-- [x] 不在 correctness commits 中抽大型 runtime object。
-- [x] 不在 correctness commits 中改变 Claude Code 对齐目标或上下文压缩策略。
-- [x] 不在 duplicate same-id 修复里同时定义 different-id overlap 大策略。
+## 3. Frontend Boundary
+
+- [x] Web RPC parser 接受 old v7 flat restore payload。
+- [x] Web RPC parser 接受 new v8 structured task hints 和 diagnostics。
+- [x] malformed optional v8 objects 不清空既有 authoritative cache。
+- [x] unknown extra fields 不破坏 parser。
+- [x] Web 不自行重建 reminder text。
+- [x] Web 不从 transcript rows 推断第二套 restore utility。
+
+## 4. Tests
+
+### 4.1 Core Restore Tests
+
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: structured-only `tool_reference` ToolSearch result。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: mixed structured + text ToolSearch result。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: legacy text-only ToolSearch result。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: failed ToolSearch ignored。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: Task `run_in_background` / resume signal / success / error characterization。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: structured task hints bounded, deduped, sanitized。
+- [x] `packages/core/src/chat/context/sessionMemory.test.ts`: reminder text says hints are best-effort and not recovered runtime state。
+
+### 4.2 App-Server Tests
+
+- [x] `packages/core/src/app-server/server.test.ts`: resume returns pending diagnostics。
+- [x] `packages/core/src/app-server/server.test.ts`: replay mirrors pending diagnostics before consumption。
+- [x] `packages/core/src/app-server/server.test.ts`: successful dispatch clears pending restore。
+- [x] `packages/core/src/app-server/server.test.ts`: pre-dispatch failure retains pending restore。
+- [x] `packages/core/src/app-server/threadStore.test.ts`: diagnostics do not persist as transcript authority。
+- [x] `packages/core/src/app-server/turnRunner.test.ts`: injected restore block remains next-turn-only if turn runner owns consumption path。
+
+### 4.3 Deferred Runtime Guard Tests
+
+- [x] `packages/core/src/tools/runtime/deferredToolExposure.test.ts`: resume restore hints do not auto-load deferred tools。
+- [x] `packages/core/src/tools/modules/toolSearch/handler.test.ts`: structured `tool_reference` output shape remains available for restore extraction。
+- [x] app-server or session-memory mock test: structured background task hint does not register/resume/poll tasks。
+
+### 4.4 Web Parser Tests
+
+- [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: old v7 payload remains accepted。
+- [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: new v8 structured fields parse。
+- [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: malformed optional structured fields are ignored or nulled according to parser strictness。
+- [x] `packages/web-reference-react/src/app/core/rpcContracts.test.ts`: contract fixture includes v8 optional fields and preserves v7 compatibility。
+
+### 4.5 Projection Stability Tests
+
+- [x] `packages/core/src/chat/context/contextProjection.test.ts`: v8 restore-hint work does not change durable projection facts。
+- [x] Compression projection golden fixture: durable tool-result replacement / preserved segment facts remain unchanged unless separately scoped。
+
+## 5. Recommended Execution Order
+
+### Loop 0: Characterize and Freeze Boundaries
+
+- [x] Add characterization tests for current restore hint source boundaries.
+- [x] Lock failed ToolSearch / failed Task exclusion behavior.
+- [x] Lock next-turn-only pending restore consumption behavior.
+- [x] Lock legacy schema-v1 restore summary compatibility.
+- [x] Freeze v8 field names before implementation: `resumeHint` / `resumeSignal`, `lastObservedStatus` / `outcome`, `evidenceSource`, `evidenceConfidence`.
+- [x] Decide and document failed/error Task public hint policy; default is exclusion from reminder-rendered task continuity hints.
+- [x] Update canonical docs only where current contracts are too vague for v8.
+- [x] Run targeted tests touched in this loop.
+- [x] Run `bun run type-check` if public types/contracts changed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `test(context): characterize restore continuity hint gaps`
+
+### Loop 1: Structured ToolSearch Restore Hints
+
+- [x] Prefer structured `tool_reference` blocks for `recentDeferredToolNames`.
+- [x] Keep legacy text-section fallback.
+- [x] Ignore failed ToolSearch results.
+- [x] Preserve bounded/dedupe/newest-first semantics.
+- [x] Add structured-only, mixed, text-only, malformed, and failed-result tests.
+- [x] Add no-auto-load regression for deferred tool runtime state.
+- [x] Run targeted core/deferred runtime tests.
+- [x] Run `bun run type-check` if types changed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `fix(context): derive deferred restore hints from tool references`
+
+### Loop 2: Structured Delegated Task Hints
+
+- [x] Add additive structured task hint field.
+- [x] Preserve legacy `recentTaskHints: string[]`.
+- [x] Bound list length and per-field text length.
+- [x] Characterize success/error/background/resume cases.
+- [x] Keep Loop 2 core-only unless shared public types force broader type-checks; app-server exposure happens in Loop 3 and Web parser behavior happens in Loop 4.
+- [x] Render legacy reminder text unchanged through Loop 4; structured rendering starts in Loop 5.
+- [x] Add no-task-runtime-resume regression.
+- [x] Run targeted session-memory tests.
+- [x] Run Web parser tests only if shared public payload types are introduced in this loop.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `feat(context): add structured task restore hints`
+
+### Loop 3: Restore Diagnostics and App-Server Lifecycle
+
+- [x] Add optional restore diagnostics surface.
+- [x] Represent pending/source/confidence/status.
+- [x] Keep consumed state as `pendingSessionMemoryRestore: null`.
+- [x] Verify replay before consumption sees pending diagnostics.
+- [x] Verify replay after successful dispatch sees null.
+- [x] Verify pre-dispatch failure retains pending restore.
+- [x] After consumption, public stable signal is `pendingSessionMemoryRestore: null`; do not require a durable/public `consumed` diagnostics state.
+- [x] Ensure diagnostics do not persist into JSONL/raw transcript authority.
+- [x] Run targeted app-server/thread-store tests.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `feat(app-server): expose restore utility diagnostics`
+
+### Loop 4: Web/RPC Parser Compatibility
+
+- [x] Extend Web RPC contracts for optional v8 structured fields.
+- [x] Parse old v7 payloads unchanged.
+- [x] Parse new v8 structured task hints and diagnostics.
+- [x] Treat malformed optional v8 objects according to existing parser tri-state rules.
+- [x] Treat malformed optional v8 fields as omitted/unavailable; they must not reject the whole response or clear existing authoritative caches.
+- [x] Reserve explicit `null` for fields whose contract defines null semantics, such as `pendingSessionMemoryRestore: null`.
+- [x] Drop invalid structured-array items where possible instead of rejecting the whole response.
+- [x] Confirm Web does not assemble restore utility from transcript rows.
+- [x] Run targeted Web parser/contract tests.
+- [x] Run `npm run type-check` in `packages/web-reference-react`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `feat(web): parse structured restore continuity hints`
+
+### Loop 5: Reminder Rendering Quality
+
+- [x] Render structured task hints into one-turn system reminder text.
+- [x] Make deferred tool wording explicitly ToolSearch-first and non-loaded.
+- [x] Make background task wording explicitly not-resumed.
+- [x] Preserve delimiter sanitization and text size bounds.
+- [x] Verify reminder injected blocks are not persisted.
+- [x] Run targeted session-memory/app-server tests.
+- [x] Run `bun run type-check` if shared types changed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `feat(context): render structured restore continuity hints`
+
+### Loop 6: Cross-Surface Golden Guard
+
+- [x] Extend a golden restore fixture with structured deferred tool + task hints.
+- [x] Reuse or minimally extend restore-surface fixtures for assertions only.
+- [x] Assert resume/replay share pending restore facts.
+- [x] Assert read/messages/replay/resume compression facts remain unchanged.
+- [x] Assert no deferred tool store/task runtime side effect happens during restore.
+- [x] Assert Web parser output matches app-server payload.
+- [x] Do not add preserved-segment relink behavior, durable tool-result replacement summary surface, or reactive compact shaping in this loop.
+- [x] Split into Loop 6a core/app-server guards and Loop 6b Web fixture compatibility if this grows beyond one reviewable commit.
+- [x] Run targeted core/app-server/Web tests.
+- [x] Run `bun run type-check`.
+- [x] Run `npm run type-check` in `packages/web-reference-react` if Web contracts changed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `test(context): guard restore hints against runtime rehydration`
+
+### Loop 7: Planning Closure and Deferrals
+
+- [x] Update `plans/context-compression-alignment-loop/TODO-INDEX.md` after v8 lands.
+- [x] Record `CCA-181` preserved-segment relink parity as next validation mainline candidate.
+- [x] Record `CCA-182` reactive compact shaping as later runtime mainline candidate.
+- [x] Record durable tool-result replacement summary surface as a separate projection-surface follow-up.
+- [x] Record full background task resume as a separate high-risk task-runtime mainline.
+- [x] Add/update a short learning note under `docs/learnings/` if v8 changes behavior-alignment mapping decisions.
+- [x] Run docs/link checks if available for touched docs.
+- [x] Run `codex review` for this loop after targeted verification passes.
+
+Suggested commit: `docs(context): close CCA-180 v8 restore continuity plan`
+
+## 6. Deferral Register
+
+- [x] `CCA-181`: preserved-segment relink parity should focus on replay / resume / inspection validation parity, not storage rewrite.
+- [x] `CCA-182`: reactive compact shaping / provider-specific overflow shaping / telemetry remain later runtime work.
+- [x] Durable tool-result replacement summary surface remains a separate projection-surface follow-up.
+- [x] Collapse different-id overlap policy remains deferred unless a concrete failing fixture appears.
+- [x] Claude Code-style full background task resume remains a separate high-risk task-runtime mainline.
+
+## 7. Completion Criteria
+
+- [x] `recentDeferredToolNames` is derived from structured `tool_reference` blocks first, with legacy fallback.
+- [x] structured task hints are available, bounded, and additive.
+- [x] pending restore diagnostics are exposed without becoming persisted authority.
+- [x] Web parses both v7 and v8 payloads safely.
+- [x] reminder text clearly communicates hints, not restored runtime state.
+- [x] no-new-authority guard tests cover deferred tool store, task runtime, persisted history, and durable projection state.
+- [x] TODO index is updated to mark v8 complete and route follow-ups.
