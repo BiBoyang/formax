@@ -9,6 +9,7 @@ import { writeSessionMemoryFile } from '../features/repl/sessionSave/sessionMemo
 import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
+  buildCompactPreservedSegmentMeta,
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
 } from '../chat/context/compact.js'
@@ -431,6 +432,7 @@ describe('ThreadStore', () => {
     const readOut = await store.readThread(thread.id)
     expect(readOut.latestCompactBoundary).toEqual({
       schemaVersion: 1,
+      boundaryFingerprint: expect.any(String),
       trigger: 'auto',
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 2048,
@@ -440,6 +442,7 @@ describe('ThreadStore', () => {
     const messagesOut = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
     expect(messagesOut.latestCompactBoundary).toEqual({
       schemaVersion: 1,
+      boundaryFingerprint: expect.any(String),
       trigger: 'auto',
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 2048,
@@ -474,6 +477,7 @@ describe('ThreadStore', () => {
     const resumed = await store.resumeThread(thread.id)
     expect(resumed.latestCompactBoundary).toEqual({
       schemaVersion: 1,
+      boundaryFingerprint: expect.any(String),
       trigger: 'reactive',
       triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
       preTokens: 4096,
@@ -561,6 +565,12 @@ describe('ThreadStore', () => {
     const thread = await store.startThread({})
     const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
     const writer = await SessionWriter.openExisting({ filePath })
+    const preservedTail = { role: 'assistant', content: [{ type: 'text', text: 'preserved assistant tail' }] } as any
+    const compactSummary = { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] } as any
+    const preservedSegment = buildCompactPreservedSegmentMeta({
+      summaryMessage: compactSummary,
+      preservedTail: [preservedTail],
+    })
     await writer.appendStableMsg({
       id: 'u-cross-surface',
       role: 'user',
@@ -569,6 +579,7 @@ describe('ThreadStore', () => {
     })
     await writer.appendHistorySnapshot([
       { role: 'user', content: [{ type: 'text', text: 'before compact' }] },
+      preservedTail,
       {
         role: 'assistant',
         content: [{ type: 'text', text: '' }],
@@ -579,10 +590,11 @@ describe('ThreadStore', () => {
             triggerReason: { kind: 'auto_threshold' },
             preTokens: 4096,
             summaryKind: 'session_memory',
+            preservedSegment,
           },
         },
       },
-      { role: 'user', content: [{ type: 'text', text: 'compacted summary' }] },
+      compactSummary,
       { role: 'user', content: [{ type: 'text', text: 'post compact prompt' }] },
     ] as any)
     await writer.appendEvent('request_collapse_applied', {
@@ -595,10 +607,12 @@ describe('ThreadStore', () => {
 
     const expectedBoundary = {
       schemaVersion: 1,
+      boundaryFingerprint: expect.any(String),
       trigger: 'auto',
       triggerReason: { kind: 'auto_threshold' },
       preTokens: 4096,
       summaryKind: 'session_memory',
+      preservedSegment,
     }
     const expectedCollapse = {
       phase: 'reactive_retry',

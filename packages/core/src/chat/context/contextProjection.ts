@@ -323,6 +323,7 @@ export function buildContextProjection(args: {
   })
   const modelFacingBaseline = toolResultContentReplacementProjection.messages
   const uiScrollback = buildUiScrollback(args.history)
+  const latestCompactBoundary = findLatestCompactBoundary(args.history)
   const durableState = buildDurableProjectionState({
     snip: snipProjection.fact,
     collapse: collapseProjection.fact,
@@ -336,7 +337,10 @@ export function buildContextProjection(args: {
     diagnosticsProjection: modelFacingBaseline,
     durableState,
     facts: {
-      latestCompactBoundary: findLatestCompactBoundary(args.history),
+      latestCompactBoundary:
+        latestCompactBoundary && latestCompactBoundaryFingerprint
+          ? { ...latestCompactBoundary, boundaryFingerprint: latestCompactBoundaryFingerprint }
+          : latestCompactBoundary,
       activeCompactBoundaryFingerprint,
       rawTranscriptMessageCount: args.history.length,
       modelFacingBaselineMessageCount: modelFacingBaseline.length,

@@ -266,6 +266,7 @@ describe('threadDataOps', () => {
   it('refreshes cached compact boundary when deeper inspection fields change under the same shallow summary', async () => {
     const cachedBoundary: CompactBoundarySummary = {
       schemaVersion: 1,
+      boundaryFingerprint: 'boundary-1',
       trigger: 'auto',
       preTokens: 2048,
       summaryKind: 'session_memory',
@@ -313,6 +314,119 @@ describe('threadDataOps', () => {
 
     expect(ctx.setLatestCompactBoundaryByThreadId).toHaveBeenCalled()
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
+  })
+
+  it('preserves cached nested preservedSegment facts when history refresh returns the same boundary core', async () => {
+    const cachedBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      boundaryFingerprint: 'boundary-1',
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+        messageFingerprints: ['summary-fp', 'tail-fp'],
+        messageIdentities: [
+          { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+          { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+        ],
+      },
+    }
+    const shallowBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      boundaryFingerprint: 'boundary-1',
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      latestCompactBoundaryByThreadIdRef: {
+        current: { 'thread-1': cachedBoundary },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+      latestCompactBoundary: shallowBoundary,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(cachedBoundary)
+  })
+
+  it('preserves cached deep inspection fields when history refresh returns the same shallow boundary', async () => {
+    const cachedBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      boundaryFingerprint: 'boundary-1',
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 3,
+        keepMinTokens: 900,
+        keepMinUserTurns: 2,
+      },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [{ kind: 'plan_state', priority: 'high', status: 'applied' }],
+      },
+      rehydrationCost: {
+        sectionCount: 2,
+        estimatedTokens: 144,
+      },
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const shallowBoundary: CompactBoundarySummary = {
+      schemaVersion: 1,
+      boundaryFingerprint: 'boundary-1',
+      trigger: 'auto',
+      preTokens: 2048,
+      summaryKind: 'session_memory',
+    }
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-next' }),
+      activeThreadIdRef: { current: 'thread-1' },
+      latestCompactBoundaryByThreadIdRef: {
+        current: { 'thread-1': cachedBoundary },
+      },
+    })
+    const { parseThreadMessagesResponse } = await import('../core/rpcContracts')
+    vi.mocked(parseThreadMessagesResponse).mockReturnValueOnce({
+      data: [],
+      nextCursor: 'cursor-next',
+      latestCompactBoundary: shallowBoundary,
+    })
+    const ops = createThreadDataOps(ctx)
+
+    await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
+
+    expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(cachedBoundary)
   })
 
   it('preserves cached latest request collapse when response omits the field', async () => {

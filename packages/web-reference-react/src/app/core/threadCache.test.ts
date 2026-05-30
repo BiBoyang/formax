@@ -7,6 +7,7 @@ import {
   withThreadCacheSlice,
   withoutRecordKey,
 } from './threadCache'
+import { mergeCompactBoundarySummaryForCache } from './compactBoundarySummary'
 import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
 
 const latestCompactBoundary: CompactBoundarySummary = {
@@ -41,10 +42,12 @@ function applyFactsForTest(
 ): ThreadCacheState {
   let next = cache
   if (facts.latestCompactBoundary !== undefined) {
+    const currentBoundary = next.latestCompactBoundaryByThreadId[threadId] ?? null
+    const nextBoundary = mergeCompactBoundarySummaryForCache(currentBoundary, facts.latestCompactBoundary)
     next = withThreadCacheSlice(
       next,
       'latestCompactBoundaryByThreadId',
-      withRecordValue(next.latestCompactBoundaryByThreadId, threadId, facts.latestCompactBoundary),
+      withRecordValue(next.latestCompactBoundaryByThreadId, threadId, nextBoundary),
     )
   }
   if (facts.durableSnip !== undefined) {
@@ -138,5 +141,152 @@ describe('threadCache helpers', () => {
     expect(next.latestCompactBoundaryByThreadId['thread-1']).toBeNull()
     expect(next.durableSnipByThreadId['thread-1']).toBeNull()
     expect(next.latestRequestCollapseByThreadId['thread-1']).toBeNull()
+  })
+
+  it('keeps nested preservedSegment facts when a later same-boundary payload omits optional details', () => {
+    const deepBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-1',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 3,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+        messageFingerprints: ['summary-fp', 'head-fp', 'tail-fp'],
+        messageIdentities: [
+          { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+          { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+          { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+        ],
+        summaryIdentity: { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+        headIdentity: { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+        anchorIdentity: { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+        tailIdentity: { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+      },
+    }
+    const cache: ThreadCacheState = {
+      ...INITIAL_THREAD_CACHE_STATE,
+      latestCompactBoundaryByThreadId: { 'thread-1': deepBoundary },
+    }
+
+    const shallowPreservedSegmentBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-1',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 3,
+        preservedTailMessageCount: 2,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+
+    const next = applyFactsForTest(cache, 'thread-1', { latestCompactBoundary: shallowPreservedSegmentBoundary })
+
+    expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(deepBoundary)
+  })
+
+  it('does not carry boundaryFingerprint into a raw payload that only matches preservedSegment core', () => {
+    const fingerprintedBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-1',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const rawEventBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const cache: ThreadCacheState = {
+      ...INITIAL_THREAD_CACHE_STATE,
+      latestCompactBoundaryByThreadId: { 'thread-1': fingerprintedBoundary },
+    }
+
+    const next = applyFactsForTest(cache, 'thread-1', { latestCompactBoundary: rawEventBoundary })
+
+    expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(rawEventBoundary)
+  })
+
+  it('keeps cached deep inspection fields when a later same-boundary payload omits them', () => {
+    const deepBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-1',
+      keepStrategy: {
+        kind: 'keep_combo',
+        keepLastTurns: 3,
+        keepMinTokens: 900,
+        keepMinUserTurns: 2,
+      },
+      rehydrationPlan: {
+        schemaVersion: 1,
+        items: [{ kind: 'plan_state', priority: 'high', status: 'applied' }],
+      },
+      rehydrationCost: {
+        sectionCount: 2,
+        estimatedTokens: 144,
+      },
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'tail-fp',
+        tailFingerprint: 'tail-fp',
+      },
+    }
+    const cache: ThreadCacheState = {
+      ...INITIAL_THREAD_CACHE_STATE,
+      latestCompactBoundaryByThreadId: { 'thread-1': deepBoundary },
+    }
+
+    const next = applyFactsForTest(cache, 'thread-1', {
+      latestCompactBoundary: { ...latestCompactBoundary, boundaryFingerprint: 'boundary-1' },
+    })
+
+    expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(deepBoundary)
+  })
+
+  it('does not carry preservedSegment facts across a different compact boundary generation', () => {
+    const deepBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-1',
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: 'summary-fp',
+        headFingerprint: 'head-fp',
+        tailFingerprint: 'head-fp',
+      },
+    }
+    const newerShallowBoundary: CompactBoundarySummary = {
+      ...latestCompactBoundary,
+      boundaryFingerprint: 'boundary-2',
+      preTokens: 8192,
+    }
+    const cache: ThreadCacheState = {
+      ...INITIAL_THREAD_CACHE_STATE,
+      latestCompactBoundaryByThreadId: { 'thread-1': deepBoundary },
+    }
+
+    const next = applyFactsForTest(cache, 'thread-1', { latestCompactBoundary: newerShallowBoundary })
+
+    expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(newerShallowBoundary)
   })
 })

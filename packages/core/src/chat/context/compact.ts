@@ -117,6 +117,7 @@ export type PromptMessageIdentity = {
 
 export type CompactBoundaryMeta = {
   schemaVersion: 1
+  boundaryFingerprint?: string
   trigger?: CompactBoundaryTrigger
   triggerReason?: CompactTriggerReason
   preTokens?: number
@@ -651,6 +652,7 @@ function relinkLatestCompactPreservedContinuation(args: {
     return args.continuationMessages
   }
   const expectedTailRefs = resolvePreservedTailRefs(preservedSegment)
+  if (expectedTailRefs === null) return args.continuationMessages
 
   const preBoundaryMessages = args.history.slice(0, args.boundaryIndex)
   const relinkedTail =
@@ -678,11 +680,17 @@ function resolveTailMessagesByRefs(args: {
   preBoundaryMessages: PromptMessage[]
 }): PromptMessage[] | null {
   const out: PromptMessage[] = []
+  const indexes: number[] = []
   for (const ref of args.refs) {
-    const matches = args.preBoundaryMessages.filter((message) => messageMatchesPreservedRef(message, ref))
+    const matches: Array<{ message: PromptMessage; index: number }> = []
+    args.preBoundaryMessages.forEach((message, index) => {
+      if (messageMatchesPreservedRef(message, ref)) matches.push({ message, index })
+    })
     if (matches.length !== 1) return null
-    out.push(matches[0]!)
+    out.push(matches[0]!.message)
+    indexes.push(matches[0]!.index)
   }
+  if (indexes.some((index, position) => position > 0 && index !== indexes[position - 1]! + 1)) return null
   return out
 }
 
@@ -705,14 +713,49 @@ function resolveLegacyHeadTailRange(args: {
   return matches.length === 1 ? matches[0]! : null
 }
 
-function resolvePreservedTailRefs(preservedSegment: CompactPreservedSegment): PreservedMessageRef[] {
+function resolvePreservedTailRefs(preservedSegment: CompactPreservedSegment): PreservedMessageRef[] | null {
+  if (!isValidPreservedSegmentCounts(preservedSegment)) return null
   const identities = preservedSegment.messageIdentities?.slice(1)
-  if (Array.isArray(identities) && identities.length > 0) return identities
+  if (Array.isArray(preservedSegment.messageIdentities)) {
+    if (preservedSegment.messageIdentities.length !== preservedSegment.continuationMessageCount) return null
+    if (!preservedSegment.messageIdentities[0] || preservedSegment.messageIdentities[0].fingerprint !== preservedSegment.summaryFingerprint) {
+      return null
+    }
+    if (!preservedRefsMatchBoundaryFingerprints(identities ?? [], preservedSegment)) return null
+    return identities ?? []
+  }
   const fingerprints = preservedSegment.messageFingerprints?.slice(1)
-  if (Array.isArray(fingerprints) && fingerprints.length > 0) {
+  if (Array.isArray(preservedSegment.messageFingerprints)) {
+    if (preservedSegment.messageFingerprints.length !== preservedSegment.continuationMessageCount) return null
+    if (preservedSegment.messageFingerprints[0] !== preservedSegment.summaryFingerprint) return null
+    if (!preservedRefsMatchBoundaryFingerprints(fingerprints?.map((fingerprint) => ({ fingerprint })) ?? [], preservedSegment)) {
+      return null
+    }
     return fingerprints.map((fingerprint) => ({ fingerprint }))
   }
   return []
+}
+
+function isValidPreservedSegmentCounts(preservedSegment: CompactPreservedSegment): boolean {
+  return (
+    Number.isSafeInteger(preservedSegment.continuationMessageCount) &&
+    Number.isSafeInteger(preservedSegment.preservedTailMessageCount) &&
+    preservedSegment.continuationMessageCount >= 1 &&
+    preservedSegment.preservedTailMessageCount >= 0 &&
+    preservedSegment.continuationMessageCount === preservedSegment.preservedTailMessageCount + 1
+  )
+}
+
+function preservedRefsMatchBoundaryFingerprints(
+  refs: PreservedMessageRef[],
+  preservedSegment: CompactPreservedSegment,
+): boolean {
+  if (refs.length !== preservedSegment.preservedTailMessageCount) return false
+  if (refs.length === 0) return preservedSegment.headFingerprint == null && preservedSegment.tailFingerprint == null
+  return (
+    refs[0]!.fingerprint === preservedSegment.headFingerprint &&
+    refs[refs.length - 1]!.fingerprint === preservedSegment.tailFingerprint
+  )
 }
 
 function messageMatchesPreservedRef(message: PromptMessage, ref: PreservedMessageRef): boolean {
@@ -742,6 +785,7 @@ export function continuationMatchesPreservedSegment(args: {
 }): boolean {
   const preservedSegment = args.boundary?.preservedSegment
   if (!preservedSegment) return false
+  if (!isValidPreservedSegmentCounts(preservedSegment)) return false
   if (args.continuationMessages.length !== preservedSegment.continuationMessageCount) return false
   const summaryMessage = args.continuationMessages[0]
   if (!summaryMessage) return false
@@ -750,14 +794,16 @@ export function continuationMatchesPreservedSegment(args: {
   const messageIdentities = preservedSegment.messageIdentities
   if (Array.isArray(messageIdentities)) {
     if (messageIdentities.length !== args.continuationMessages.length) return false
-    return args.continuationMessages.every((message, index) =>
-      messageMatchesPreservedRef(message, messageIdentities[index]!),
-    )
+    if (!preservedRefsMatchBoundaryFingerprints(messageIdentities.slice(1), preservedSegment)) return false
+    return args.continuationMessages.every((message, index) => messageMatchesPreservedRef(message, messageIdentities[index]!))
   }
 
   const messageFingerprints = preservedSegment.messageFingerprints
   if (Array.isArray(messageFingerprints)) {
     if (messageFingerprints.length !== args.continuationMessages.length) return false
+    if (!preservedRefsMatchBoundaryFingerprints(messageFingerprints.slice(1).map((fingerprint) => ({ fingerprint })), preservedSegment)) {
+      return false
+    }
     return args.continuationMessages.every(
       (message, index) => fingerprintPromptMessage(message) === messageFingerprints[index],
     )

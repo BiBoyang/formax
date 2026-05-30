@@ -587,6 +587,7 @@ describe('AppServer', () => {
     const threadId = 'thread-compact-parity'
     const expectedBoundary = {
       schemaVersion: 1,
+      boundaryFingerprint: expect.any(String),
       trigger: 'reactive',
       triggerReason: { kind: 'reactive_error', detail: 'maximum context length exceeded' },
       preTokens: 4096,

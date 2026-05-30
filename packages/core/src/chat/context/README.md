@@ -156,7 +156,7 @@ Formax 的“上下文管理”分两条线：
 - 当前 `middleLayerStrategyStack` 里也已引入第一条真正独立的新中间层策略：`toolResultBudget` 会单独给 tool-result group 计预算；超预算时优先在 request-time projection 上做 replacement，再把结果交给 `collapse`，并通过 `toolResultBudgetImpact` + `assembledLedger` 暴露收益
 - 当前 `middleLayerStrategyStack` 里也已引入最小 `snip` 层：它只会在 request-time projection 上裁短较老的 assistant 纯文本消息，并通过 `snipImpact` 暴露命中消息数、保留的 recent eligible messages、以及估算节省量
 - 当前 next-turn diagnostics 与 runtime 已共用同一套 adaptive microcompact policy，但旧的 user-turn/stub fallback 已被 Claude Code-style cache-editing / cold-cache time-based semantics 取代。`microCompactImpact` 中仍可能保留历史字段用于兼容解析，但当前规范语义以 `docs/contracts/context-strategy-stack-contract.md` 为准。
-- 当前 `latestCompactBoundary` 也会暴露最小 `preservedSegment` metadata，便于后续 resume / partial compact / diagnostics 对齐
+- 当前 `latestCompactBoundary` 也会暴露最小 `boundaryFingerprint` 与 `preservedSegment` metadata，便于 resume / partial compact / diagnostics 对齐。`boundaryFingerprint` 是 projection/app-server 的 read-only generation fact，不写回 persisted boundary metadata；preserved-segment relink 只影响 model-facing continuation / projection baseline，不写回 raw transcript、UI scrollback 或 persisted JSONL；显式 identity/fingerprint refs 必须唯一、按顺序、并解析为 boundary 前连续 preserved-tail segment，否则跳过 relink。
 - 当前 system prompt diagnostics 已支持 per-system-section breakdown：会把 system 拆成 `Identity`、heading 前 `Preamble`、以及顶层 `# section`，`top contributors` 不再只把 system 当作单个黑盒 contributor
 - 当前 `nextTurnFixed` diagnostics 已支持 lifecycle markers：会以非破坏性投影方式比较 `snapshot`、`post_microcompact`、`post_prune`、`post_compact` 四个阶段的估算差异
 - 当前 diagnostics 也会解释 compact / prune 原因：latest boundary 可暴露结构化 `triggerReason`，`nextTurnFixed` 会额外给出 `autoCompactSkipReason` 与 `pruneSkipReason`，并且两者都按真实运行时顺序推导
@@ -200,7 +200,7 @@ Formax 的“上下文管理”分两条线：
   - 当前该摘要除了 `mode / files / plan / todo`，也会带上 bounded 的 higher-order task utility（如最近 skills 与最近 subagent types）
 - app-server `thread/replay` 当前也会直接返回 canonical `latestCompactBoundary`，这样 replay / inspection path 能继续消费 compact protocol fact，而不必改走新的 summary 组装路径
   - app-server `thread/resume` 当前也会直接返回 `latestCompactBoundary`，让 restore surface 与 `thread/read` / `thread/messages` 共用同一份 canonical compact protocol facts
-  - Web strict/permissive parser 与 thread-scoped compact-boundary cache 当前也会保留 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 这组 deeper inspection fields，避免 history / replay / resume / read 因消费路径不同而退化成第二套较浅的 compact summary
+  - Web strict/permissive parser 与 thread-scoped compact-boundary cache 当前也会保留 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 这组 deeper inspection fields，避免 history / replay / resume / read 因消费路径不同而退化成第二套较浅的 compact summary；omitted optional fields 只能在 `boundaryFingerprint` 相同的同一 boundary 上保留已有 deep facts，不能按 preserved-segment core facts 猜测同代，也不能跨新的 compact boundary generation 继承旧 `preservedSegment`
   - 当前恢复链不会因为 sidecar 刷新失败而中断；JSONL replay 仍然是唯一权威历史来源
 
 ---

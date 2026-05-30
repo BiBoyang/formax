@@ -20,9 +20,22 @@ import {
   type ThreadArchivedHandlerDeps,
 } from './notifications/handleThreadArchived'
 import { withDevPerformanceSync } from '../core/devPerformance'
-import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
+import {
+  areCompactBoundarySummariesEqual,
+  isSameCompactBoundaryGenerationForCache,
+  mergeCompactBoundarySummaryForCache,
+} from '../core/compactBoundarySummary'
 import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import { withRecordValue } from '../core/threadCache'
+
+function compactBoundaryEventShape(boundary: CompactBoundarySummary): CompactBoundarySummary {
+  const { boundaryFingerprint: _boundaryFingerprint, preservedSegment: _preservedSegment, ...rest } = boundary
+  return rest
+}
+
+function areCompactBoundaryEventShapesEqual(left: CompactBoundarySummary, right: CompactBoundarySummary): boolean {
+  return areCompactBoundarySummariesEqual(compactBoundaryEventShape(left), compactBoundaryEventShape(right))
+}
 
 export type UseRuntimeEventOrchestratorArgs = {
   devPerfEnabled: boolean
@@ -121,26 +134,48 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
   >({})
 
   const cacheLatestCompactBoundary = useCallback(
-    (threadId: string, boundary: CompactBoundarySummary | null | undefined): void => {
+    (
+      threadId: string,
+      boundary: CompactBoundarySummary | null | undefined,
+      options?: { replayCompactBoundaryTurnIds?: readonly string[] },
+    ): void => {
       if (boundary === undefined) return
       const current = latestCompactBoundaryByThreadIdRef.current[threadId] ?? null
-      if (areLatestCompactBoundaryEqual(current, boundary)) return
-      const pending = liveCompactBoundaryByThreadRef.current[threadId]
+      const nextBoundary = mergeCompactBoundarySummaryForCache(current, boundary)
+      if (areLatestCompactBoundaryEqual(current, nextBoundary)) return
+      let pending = liveCompactBoundaryByThreadRef.current[threadId]
+      if (
+        pending &&
+        options?.replayCompactBoundaryTurnIds?.includes(pending.turnId) &&
+        nextBoundary &&
+        areCompactBoundaryEventShapesEqual(nextBoundary, pending.boundary)
+      ) {
+        pending = {
+          ...pending,
+          boundary: nextBoundary,
+        }
+        liveCompactBoundaryByThreadRef.current = {
+          ...liveCompactBoundaryByThreadRef.current,
+          [threadId]: pending,
+        }
+      }
       if (
         pending &&
         pending.previousBoundary === undefined &&
-        !areLatestCompactBoundaryEqual(boundary, pending.boundary)
+        nextBoundary &&
+        !isSameCompactBoundaryGenerationForCache(pending.boundary, nextBoundary) &&
+        !areLatestCompactBoundaryEqual(nextBoundary, pending.boundary)
       ) {
         liveCompactBoundaryByThreadRef.current = {
           ...liveCompactBoundaryByThreadRef.current,
           [threadId]: {
             ...pending,
-            previousBoundary: boundary,
+            previousBoundary: nextBoundary,
           },
         }
       }
-      latestCompactBoundaryByThreadIdRef.current = withRecordValue(latestCompactBoundaryByThreadIdRef.current, threadId, boundary)
-      setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, boundary))
+      latestCompactBoundaryByThreadIdRef.current = withRecordValue(latestCompactBoundaryByThreadIdRef.current, threadId, nextBoundary)
+      setLatestCompactBoundaryByThreadId((prev) => withRecordValue(prev, threadId, nextBoundary))
     },
     [areLatestCompactBoundaryEqual, latestCompactBoundaryByThreadIdRef, setLatestCompactBoundaryByThreadId],
   )

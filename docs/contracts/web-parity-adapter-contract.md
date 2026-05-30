@@ -129,6 +129,9 @@ turn footer 的 `createdAt` 在 projection rebuild 时 SHOULD 尽量保持稳定
 Web RPC parsers MAY accept additive `pendingSessionMemoryRestore` v8 fields such as `recentTaskContinuityHints` and `restoreDiagnostics`, but they MUST treat them as app-server facts only. Web MUST NOT scan transcript rows to reconstruct restore utility, rebuild reminder text, or infer deferred tool/task runtime state.
 
 `WEB-306`
+Web MUST treat `latestCompactBoundary.preservedSegment` as an app-server compact protocol fact. Web MAY parse, cache, and compare preserved-segment fields, but MUST NOT infer preservedSegment from transcript rows, compact summary text, or local replay state. Omitted optional preserved-segment fields MUST NOT clear an existing same-boundary deep cache entry; explicit `latestCompactBoundary: null` remains the clearing signal. `latestCompactBoundary.boundaryFingerprint` is the compact-boundary generation key for cache merge decisions. Without a matching `boundaryFingerprint`, Web MUST NOT merge or carry older compact-boundary deep facts, even if preserved-segment core fingerprints happen to match.
+
+`WEB-306`
 Malformed optional v8 restore fields MUST be treated as omitted/unavailable. They MUST NOT reject the whole thread response and MUST NOT clear existing authoritative caches. Explicit `null` remains reserved for fields whose app-server contract defines null semantics, such as `pendingSessionMemoryRestore: null`.
 
 ## 5. Notification Cursor 与排序（`turnEventCursor.ts`）

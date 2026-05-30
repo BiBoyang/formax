@@ -6,7 +6,7 @@ import {
   parseThreadListResponse,
   parseThreadMessagesResponse,
 } from '../core/rpcContracts'
-import { areCompactBoundarySummariesEqual } from '../core/compactBoundarySummary'
+import { areCompactBoundarySummariesEqual, mergeCompactBoundarySummaryForCache } from '../core/compactBoundarySummary'
 import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey, type ThreadCompressionProjectionFacts } from '../core/threadCache'
@@ -78,10 +78,11 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     if (boundary === undefined) {
       return
     }
-    const nextBoundary = boundary
+    const currentBoundary = ctx.latestCompactBoundaryByThreadIdRef.current[threadId] ?? null
+    const nextBoundary = mergeCompactBoundarySummaryForCache(currentBoundary, boundary)
     if (
       areLatestCompactBoundaryEqual(
-        ctx.latestCompactBoundaryByThreadIdRef.current[threadId] ?? null,
+        currentBoundary,
         nextBoundary,
       )
     ) {

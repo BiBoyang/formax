@@ -561,6 +561,46 @@ describe('compaction summary helpers', () => {
     ])
   })
 
+  it('does not duplicate a preserved tail that is already fully present after the summary', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved assistant'), txt('user', 'preserved user')]
+    const nextPrompt = txt('user', 'next prompt')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail }),
+    })
+
+    expect(
+      getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, summary, ...preservedTail, nextPrompt]),
+    ).toEqual([summary, ...preservedTail, nextPrompt])
+  })
+
+  it('skips relink when only part of the preserved tail is already present after the summary', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved assistant'), txt('user', 'preserved user')]
+    const nextPrompt = txt('user', 'next prompt')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail }),
+    })
+
+    expect(
+      getContinuationMessagesAfterLatestCompactBoundary([
+        ...preservedTail,
+        boundary,
+        summary,
+        preservedTail[0]!,
+        nextPrompt,
+      ]),
+    ).toEqual([summary, preservedTail[0]!, nextPrompt])
+  })
+
   it('skips relink when a drifted continuation message already carries the preserved explicit identity', () => {
     const summary = txt('user', 'compact summary')
     const identity = {
@@ -590,6 +630,102 @@ describe('compaction summary helpers', () => {
       summary,
       driftedTail,
     ])
+  })
+
+  it('skips relink when the compact summary fingerprint does not match the preserved segment', () => {
+    const summary = txt('user', 'compact summary')
+    const wrongSummary = txt('user', 'different compact summary')
+    const preservedTail = [txt('assistant', 'preserved assistant')]
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail }),
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, wrongSummary])).toEqual([
+      wrongSummary,
+    ])
+  })
+
+  it('skips explicit relink when preserved refs resolve to a non-contiguous pre-boundary tail', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved head'), txt('user', 'preserved tail')]
+    const unrelated = txt('assistant', 'unrelated message between preserved refs')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail }),
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([preservedTail[0]!, unrelated, preservedTail[1]!, boundary, summary])).toEqual([
+      summary,
+    ])
+  })
+
+  it('skips relink when preserved refs match duplicate pre-boundary messages', () => {
+    const summary = txt('user', 'compact summary')
+    const duplicate = txt('assistant', 'duplicate preserved text')
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: {
+        schemaVersion: 1,
+        continuationMessageCount: 2,
+        preservedTailMessageCount: 1,
+        summaryFingerprint: fingerprintPromptMessage(summary),
+        headFingerprint: fingerprintPromptMessage(duplicate),
+        tailFingerprint: fingerprintPromptMessage(duplicate),
+        messageFingerprints: [fingerprintPromptMessage(summary), fingerprintPromptMessage(duplicate)],
+      },
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([duplicate, duplicate, boundary, summary])).toEqual([summary])
+  })
+
+  it('skips relink for out-of-order explicit preserved refs', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved head'), txt('user', 'preserved tail')]
+    const preservedSegment = buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail })
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: {
+        ...preservedSegment,
+        messageIdentities: [
+          preservedSegment.messageIdentities![0]!,
+          preservedSegment.messageIdentities![2]!,
+          preservedSegment.messageIdentities![1]!,
+        ],
+      },
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, summary])).toEqual([summary])
+  })
+
+  it('skips relink for malformed preserved identity metadata instead of falling back silently', () => {
+    const summary = txt('user', 'compact summary')
+    const preservedTail = [txt('assistant', 'preserved head'), txt('user', 'preserved tail')]
+    const preservedSegment = buildCompactPreservedSegmentMeta({ summaryMessage: summary, preservedTail })
+    const boundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 123,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: {
+        ...preservedSegment,
+        messageIdentities: preservedSegment.messageIdentities?.slice(0, 2),
+      },
+    })
+
+    expect(getContinuationMessagesAfterLatestCompactBoundary([...preservedTail, boundary, summary])).toEqual([summary])
   })
 
   it('does not relink when the preserved tail anchor is missing', () => {
@@ -762,6 +898,44 @@ describe('compaction summary helpers', () => {
         continuationMessages: [summary, preservedTail[0]!, txt('user', 'mutated middle'), preservedTail[2]!],
       }),
     ).toBe(false)
+
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: {
+          schemaVersion: 1,
+          preservedSegment: {
+            ...preservedSegment,
+            preservedTailMessageCount: 2,
+          },
+        },
+        continuationMessages: [summary, ...preservedTail],
+      }),
+    ).toBe(false)
+
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: {
+          schemaVersion: 1,
+          preservedSegment: {
+            ...preservedSegment,
+            messageIdentities: undefined,
+            messageFingerprints: preservedSegment.messageFingerprints?.slice(0, 2),
+          },
+        },
+        continuationMessages: [summary, ...preservedTail],
+      }),
+    ).toBe(false)
+
+    const zeroTailSegment = buildCompactPreservedSegmentMeta({
+      summaryMessage: summary,
+      preservedTail: [],
+    })
+    expect(
+      continuationMatchesPreservedSegment({
+        boundary: { schemaVersion: 1, preservedSegment: zeroTailSegment },
+        continuationMessages: [summary],
+      }),
+    ).toBe(true)
   })
 
   it('records explicit and legacy fallback identities for compact continuation messages', () => {

@@ -30,6 +30,18 @@ function shouldUseHistoryFallbackAfterReplayLoop(args: {
   return args.fromStart && !args.receivedEntries
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function getCompactBoundaryReplayTurnId(entry: ReplayResult['data'][number]): string | null {
+  if (entry.method !== 'turn/event') return null
+  const params = asRecord(entry.params)
+  const event = asRecord(params?.event)
+  if (event?.type !== 'compact_boundary') return null
+  return typeof params?.turnId === 'string' && params.turnId ? params.turnId : null
+}
+
 export function resolveReplayCursorProgress(args: {
   after: number
   nextCursor: number
@@ -56,7 +68,11 @@ export type ReplayThreadEventsContext = {
   logsByThreadIdRef: { current: Record<string, unknown[]> }
   stateLogsRef: { current: unknown[] }
   transcriptSourceByThreadRef: { current: Record<string, ThreadTranscriptSource> }
-  cacheLatestCompactBoundary: (threadId: string, boundary: CompactBoundarySummary | null | undefined) => void
+  cacheLatestCompactBoundary: (
+    threadId: string,
+    boundary: CompactBoundarySummary | null | undefined,
+    options?: { replayCompactBoundaryTurnIds?: readonly string[] },
+  ) => void
   cacheDurableSnip: (threadId: string, durableSnip: DurableSnipSummary | null | undefined) => void
   cacheLatestRequestCollapse: (threadId: string, collapse: RequestCollapseSummary | null | undefined) => void
   dispatch: Dispatch<AppAction>
@@ -200,8 +216,15 @@ export async function replayThreadEvents(
     return ctx.parseThreadReplayResponse(baselineResult)
   }
 
-  const cacheThreadCompressionProjectionFacts = (facts: ThreadCompressionProjectionFacts): void => {
-    ctx.cacheLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+  const cacheThreadCompressionProjectionFacts = (
+    facts: ThreadCompressionProjectionFacts,
+    options?: { replayCompactBoundaryTurnIds?: readonly string[] },
+  ): void => {
+    if (options) {
+      ctx.cacheLatestCompactBoundary(threadId, facts.latestCompactBoundary, options)
+    } else {
+      ctx.cacheLatestCompactBoundary(threadId, facts.latestCompactBoundary)
+    }
     ctx.cacheDurableSnip(threadId, facts.durableSnip)
     ctx.cacheLatestRequestCollapse(threadId, facts.latestRequestCollapse)
   }
@@ -282,15 +305,25 @@ export async function replayThreadEvents(
     }
 
     const incrementalEntries = shouldUseIncrementalReplayData(replay) ? replay.data : []
+    const replayCompactBoundaryTurnIds = new Set<string>()
     for (const entry of incrementalEntries) {
       receivedEntries = true
+      const compactBoundaryTurnId = getCompactBoundaryReplayTurnId(entry)
+      if (compactBoundaryTurnId) {
+        replayCompactBoundaryTurnIds.add(compactBoundaryTurnId)
+      }
       ctx.handleNotification({
         jsonrpc: '2.0',
         method: entry.method,
         ...(entry.params === undefined ? {} : { params: entry.params }),
       })
     }
-    cacheThreadCompressionProjectionFacts(replay)
+    cacheThreadCompressionProjectionFacts(
+      replay,
+      replayCompactBoundaryTurnIds.size > 0
+        ? { replayCompactBoundaryTurnIds: [...replayCompactBoundaryTurnIds] }
+        : undefined,
+    )
 
     const { nextAfter, shouldContinue } = resolveReplayCursorProgress({
       after,

@@ -189,6 +189,19 @@ export type RpcCompactPreservedSegment = {
   headFingerprint: string | null
   tailFingerprint: string | null
   messageFingerprints?: string[]
+  messageIdentities?: RpcCompactPreservedMessageIdentity[]
+  summaryIdentity?: RpcCompactPreservedMessageIdentity
+  headIdentity?: RpcCompactPreservedMessageIdentity | null
+  anchorIdentity?: RpcCompactPreservedMessageIdentity | null
+  tailIdentity?: RpcCompactPreservedMessageIdentity | null
+}
+
+export type RpcCompactPreservedMessageIdentity = {
+  schemaVersion: 1
+  id: string
+  parentId: string | null
+  fingerprint: string
+  source: 'explicit' | 'legacy_fallback'
 }
 
 export type RpcCompactTriggerReason = {
@@ -198,6 +211,7 @@ export type RpcCompactTriggerReason = {
 
 export type RpcLatestCompactBoundary = {
   schemaVersion: 1
+  boundaryFingerprint?: string
   trigger?: 'manual' | 'auto' | 'reactive'
   triggerReason?: RpcCompactTriggerReason
   preTokens?: number

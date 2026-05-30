@@ -30,6 +30,34 @@ describe('rpcParsers', () => {
     })
   })
 
+  it('omits malformed optional preservedSegment identity details without dropping core facts', () => {
+    const parsed = asThreadMessages({
+      data: [],
+      latestCompactBoundary: {
+        schemaVersion: 1,
+        preservedSegment: {
+          schemaVersion: 1,
+          continuationMessageCount: 2,
+          preservedTailMessageCount: 1,
+          summaryFingerprint: 'summary-fp',
+          headFingerprint: 'tail-fp',
+          tailFingerprint: 'tail-fp',
+          messageIdentities: [{ schemaVersion: 1, id: '', parentId: null, fingerprint: 'tail-fp', source: 'explicit' }],
+          headIdentity: { schemaVersion: 1, id: '', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+        },
+      },
+    })
+
+    expect(parsed.latestCompactBoundary?.preservedSegment).toEqual({
+      schemaVersion: 1,
+      continuationMessageCount: 2,
+      preservedTailMessageCount: 1,
+      summaryFingerprint: 'summary-fp',
+      headFingerprint: 'tail-fp',
+      tailFingerprint: 'tail-fp',
+    })
+  })
+
   it('omits absent thread/messages compression facts', () => {
     const parsed = asThreadMessages({ data: [] })
 
@@ -86,6 +114,16 @@ describe('rpcParsers', () => {
           headFingerprint: 'head-fp',
           tailFingerprint: 'tail-fp',
           messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
+          messageIdentities: [
+            { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+            { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+            { schemaVersion: 1, id: 'middle-id', parentId: null, fingerprint: 'middle-fp', source: 'legacy_fallback' },
+            { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+          ],
+          summaryIdentity: { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+          headIdentity: { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+          anchorIdentity: { schemaVersion: 1, id: 'middle-id', parentId: null, fingerprint: 'middle-fp', source: 'legacy_fallback' },
+          tailIdentity: { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
         },
       },
     })
@@ -123,6 +161,16 @@ describe('rpcParsers', () => {
         headFingerprint: 'head-fp',
         tailFingerprint: 'tail-fp',
         messageFingerprints: ['summary-fp', 'head-fp', 'middle-fp', 'tail-fp'],
+        messageIdentities: [
+          { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+          { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+          { schemaVersion: 1, id: 'middle-id', parentId: null, fingerprint: 'middle-fp', source: 'legacy_fallback' },
+          { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
+        ],
+        summaryIdentity: { schemaVersion: 1, id: 'summary-id', parentId: null, fingerprint: 'summary-fp', source: 'explicit' },
+        headIdentity: { schemaVersion: 1, id: 'head-id', parentId: null, fingerprint: 'head-fp', source: 'explicit' },
+        anchorIdentity: { schemaVersion: 1, id: 'middle-id', parentId: null, fingerprint: 'middle-fp', source: 'legacy_fallback' },
+        tailIdentity: { schemaVersion: 1, id: 'tail-id', parentId: null, fingerprint: 'tail-fp', source: 'explicit' },
       },
     })
     expect(parsed.data[0]).toMatchObject({ kind: 'message', text: 'hello' })

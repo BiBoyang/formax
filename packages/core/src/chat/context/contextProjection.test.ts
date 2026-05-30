@@ -114,8 +114,11 @@ describe('buildContextProjection', () => {
       textMessage('assistant', 'post-boundary answer'),
     ])
     expect(projection.diagnosticsProjection).toEqual(projection.modelFacingBaseline)
-    expect(projection.facts.latestCompactBoundary).toEqual(latestBoundary.meta?.compactBoundary)
     expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fingerprintCompactBoundaryMessage(latestBoundary))
+    expect(projection.facts.latestCompactBoundary).toEqual({
+      ...latestBoundary.meta?.compactBoundary,
+      boundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
+    })
     expect(projection.facts.rawTranscriptMessageCount).toBe(history.length)
     expect(projection.facts.modelFacingBaselineMessageCount).toBe(3)
   })
@@ -149,8 +152,11 @@ describe('buildContextProjection', () => {
       textMessage('assistant', 'latest preserved assistant'),
     ])
     expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('old compact summary')
-    expect(projection.facts.latestCompactBoundary).toEqual(latestBoundary.meta?.compactBoundary)
     expect(projection.facts.activeCompactBoundaryFingerprint).toBe(fingerprintCompactBoundaryMessage(latestBoundary))
+    expect(projection.facts.latestCompactBoundary).toEqual({
+      ...latestBoundary.meta?.compactBoundary,
+      boundaryFingerprint: fingerprintCompactBoundaryMessage(latestBoundary),
+    })
   })
 
   it('exposes message identity diagnostics without changing projection membership', () => {
@@ -547,6 +553,102 @@ describe('buildContextProjection', () => {
       applied: true,
       removedMessageCount: 1,
       droppedOrphanToolBlockCount: 0,
+    })
+  })
+
+  it('keeps durable snip guarded when compact preserved segment relink is skipped', () => {
+    const summary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const preservedTail = [textMessage('assistant', 'preserved head'), textMessage('user', 'preserved tail')]
+    const unrelated = textMessage('assistant', 'non-contiguous separator')
+    const laterUser = textMessage('user', 'later request')
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(2),
+      preservedSegment: buildCompactPreservedSegmentMeta({
+        summaryMessage: summary,
+        preservedTail,
+      }),
+    })
+    const projection = buildContextProjection({
+      history: [preservedTail[0]!, unrelated, preservedTail[1]!, compactBoundary, summary, laterUser],
+      durableState: {
+        snip: {
+          schemaVersion: 1,
+          removals: [
+            {
+              kind: 'model_facing_index_range',
+              startIndex: 1,
+              endIndexExclusive: 2,
+              removedMessageFingerprints: [fingerprintPromptMessage(preservedTail[0]!)],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(projection.rawTranscript).toEqual([preservedTail[0]!, unrelated, preservedTail[1]!, compactBoundary, summary, laterUser])
+    expect(projection.modelFacingBaseline).toEqual([summary, laterUser])
+    expect(projection.durableState.snip).toMatchObject({
+      applied: false,
+      reason: 'skipped durable snip removals due to identity/fingerprint drift',
+      removedMessageCount: 0,
+      removals: [],
+    })
+  })
+
+  it('relinks compact preserved segment before applying durable collapse replay', () => {
+    const summary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const preservedTail = textMessage('assistant', 'preserved tail recovered for collapse coordinates')
+    const olderUser = textMessage('user', 'older request')
+    const recentAssistant = textMessage('assistant', 'recent answer')
+    const recap = textMessage('user', '<system-reminder>committed collapse recap</system-reminder>')
+    const compactBoundary = buildCompactBoundaryMessage({
+      trigger: 'manual',
+      preTokens: 4096,
+      summaryKind: 'model_summary',
+      keepStrategy: buildAutoCompactKeepStrategy(1),
+      preservedSegment: buildCompactPreservedSegmentMeta({
+        summaryMessage: summary,
+        preservedTail: [preservedTail],
+      }),
+    })
+    const projection = buildContextProjection({
+      history: [preservedTail, compactBoundary, summary, olderUser, recentAssistant],
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          entries: [
+            createContextCollapseCommittedEntry({
+              id: 'collapse-after-relink',
+              createdAtMs: 1000,
+              source: 'request_collapse',
+              collapsedRange: { kind: 'model_facing_index_range', startIndex: 1, endIndexExclusive: 3 },
+              compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+              recapMessage: recap,
+              metadata: {
+                schemaVersion: 1,
+                kind: 'request_recap',
+                keepLastTurns: 1,
+                preservedTailMessageCount: 1,
+                retainedCompactSummary: true,
+                recentUserPromptCount: 1,
+                recentFileCount: 0,
+                earlierToolResultBlockCount: 0,
+                recapFingerprint: 'collapse-after-relink-fingerprint',
+              },
+            }),
+          ],
+        },
+      },
+    })
+
+    expect(projection.rawTranscript).toEqual([preservedTail, compactBoundary, summary, olderUser, recentAssistant])
+    expect(projection.modelFacingBaseline).toEqual([summary, recap, recentAssistant])
+    expect(projection.durableState.collapse).toMatchObject({
+      applied: true,
+      replacedMessageCount: 2,
     })
   })
 

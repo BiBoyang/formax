@@ -67,6 +67,7 @@
   - `pendingSessionMemoryRestore` MUST 与同一 session 的 next-turn-only reminder block 使用同一条 canonical restore-artifacts 路径；客户端不得重新组装第二套 restore utility
   - `latestCompactBoundary` 当前为 restore surface 上可选的最近 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
+    - `boundaryFingerprint?`
     - `trigger?`
     - `triggerReason?`
     - `preTokens?`
@@ -88,6 +89,7 @@
     - `recapFingerprint?`
   - `thread/resume` 返回的 `latestRequestCollapse` MUST 与同一 session 的 `thread/read` / `thread/messages` / `thread/replay` 使用相同 request-time collapse event 来源；客户端不得从 restored history 或 timeline rows 反推第二套 collapse summary
 - `thread/resume` / `thread/read` / `thread/messages` / `thread/replay` MUST 通过同一组 server-side projection facts 缓存与解析路径暴露 `latestCompactBoundary`、`durableSnip` 和 `latestRequestCollapse`；新增 surface 不得分别扫描 compact、snip 与 request-collapse 来源后再自行拼装响应。
+- 对 `latestCompactBoundary.preservedSegment` 而言，omitted optional fields 只能表示该 response 没有提供更深 facts，MUST NOT 被客户端解释为 authoritative clear；显式 `latestCompactBoundary: null` 才表示清除 compact-boundary cache。服务端若返回新的 compact boundary generation，SHOULD 尽量提供完整 preservedSegment facts，避免客户端跨 generation 继承旧 preservedSegment。
 - 失败条件：
   - 线程不存在 -> `INVALID_PARAMS` + `Thread not found...`
 
@@ -111,6 +113,7 @@
 - 返回：`{ thread, transcriptPreview, latestCompactBoundary?, durableSnip?, latestRequestCollapse? }`
   - `latestCompactBoundary` 当前为可选最小 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
+    - `boundaryFingerprint?`
     - `trigger?`
     - `triggerReason?`
     - `preTokens?`
@@ -140,6 +143,7 @@
       - `Task` 工具的 `detailLines` MAY 包含 bounded nested tool progress / error 摘要，供 GUI 展示 sub-agent 是否仍在工作或已失败；这些 lines 不表示 parent turn 存在新的 interactive input，也不得改变 sub-agent no-prompt 语义。
   - `latestCompactBoundary` 当前为可选最小 compact boundary 摘要；若存在，稳定字段 SHOULD 至少包含：
     - `schemaVersion`
+    - `boundaryFingerprint?`
     - `trigger?`
     - `triggerReason?`
     - `preTokens?`

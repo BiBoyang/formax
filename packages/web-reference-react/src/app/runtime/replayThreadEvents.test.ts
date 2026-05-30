@@ -225,7 +225,9 @@ it('caches replay latest compact boundary while replaying the live compact event
   const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
   expect(ok).toBe(true)
-  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary, {
+    replayCompactBoundaryTurnIds: [TEST_TURN_ID],
+  })
   expect(handleNotification).toHaveBeenCalledWith({
     jsonrpc: '2.0',
     method: 'turn/event',
@@ -272,7 +274,9 @@ it('keeps replay compact metadata when it differs from an in-flight compact even
   const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
 
   expect(ok).toBe(true)
-  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, previousCompactBoundary)
+  expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, previousCompactBoundary, {
+    replayCompactBoundaryTurnIds: [TEST_TURN_ID],
+  })
   expect(handleNotification).toHaveBeenCalledWith({
     jsonrpc: '2.0',
     method: 'turn/event',

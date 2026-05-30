@@ -552,6 +552,258 @@ describe('useRuntimeEventOrchestrator', () => {
     expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(previousBoundary)
   })
 
+  it('does not use same-turn live compact event metadata enrichment as the rollback boundary', async () => {
+    const liveBoundary = createBoundary({
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 4096,
+      summaryKind: 'session_memory',
+    })
+    const enrichedLiveBoundary = {
+      ...liveBoundary,
+      boundaryFingerprint: 'compact-boundary-live-1',
+    }
+    let latestCompactBoundaryByThread: Record<string, CompactBoundarySummary | null> = {}
+    const latestCompactBoundaryByThreadIdRef = {
+      current: latestCompactBoundaryByThread,
+    }
+    const setLatestCompactBoundaryByThreadId = vi.fn(
+      (updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>) => {
+        latestCompactBoundaryByThread = updater(latestCompactBoundaryByThread)
+        latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThread
+      },
+    )
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request: vi.fn(async () => ({
+          data: [
+            {
+              replaySeq: 51,
+              method: 'turn/event',
+              params: {
+                replaySeq: 51,
+                eventId: 'evt-51',
+                ts: '2026-02-18T00:00:09.000Z',
+                source: 'engine',
+                threadId: 'thread-1',
+                turnId: 'turn-live-enriched',
+                event: {
+                  type: 'compact_boundary',
+                  boundary: enrichedLiveBoundary,
+                },
+              },
+            },
+          ],
+          nextCursor: 51,
+          latestCursor: 51,
+          hasGap: false,
+          state: null,
+          latestCompactBoundary: enrichedLiveBoundary,
+          pendingSessionMemoryRestore: null,
+        })),
+        dispatch: vi.fn(),
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification: () => true,
+        runtimeStateByThreadRef: { current: {} },
+        replayCursorByThreadRef: { current: { 'thread-1': 0 } },
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef,
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId,
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+
+    act(() => {
+      result.current.handleNotification({
+        jsonrpc: '2.0',
+        method: 'turn/event',
+        params: {
+          replaySeq: 50,
+          eventId: 'evt-50',
+          ts: '2026-02-18T00:00:08.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turnId: 'turn-live-enriched',
+          event: {
+            type: 'compact_boundary',
+            boundary: liveBoundary,
+          },
+        },
+      })
+    })
+    expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(liveBoundary)
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+    expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(enrichedLiveBoundary)
+
+    act(() => {
+      result.current.handleNotification({
+        jsonrpc: '2.0',
+        method: 'turn/failed',
+        params: {
+          replaySeq: 51,
+          eventId: 'evt-51',
+          ts: '2026-02-18T00:00:09.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-live-enriched', threadId: 'thread-1', status: 'failed' },
+          error: 'compact failed before persistence',
+        },
+      })
+    })
+
+    expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toBeNull()
+  })
+
+  it('preserves a committed compact snapshot with matching shallow fields when a pending compact fails', async () => {
+    const liveBoundary = createBoundary({
+      trigger: 'auto',
+      triggerReason: { kind: 'auto_threshold' },
+      preTokens: 4096,
+      summaryKind: 'session_memory',
+    })
+    const committedBoundary = {
+      ...liveBoundary,
+      boundaryFingerprint: 'committed-boundary-1',
+    }
+    let latestCompactBoundaryByThread: Record<string, CompactBoundarySummary | null> = {}
+    const latestCompactBoundaryByThreadIdRef = {
+      current: latestCompactBoundaryByThread,
+    }
+    const setLatestCompactBoundaryByThreadId = vi.fn(
+      (updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>) => {
+        latestCompactBoundaryByThread = updater(latestCompactBoundaryByThread)
+        latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThread
+      },
+    )
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request: vi.fn(async () => ({
+          data: [],
+          nextCursor: 0,
+          latestCursor: 0,
+          hasGap: false,
+          state: null,
+          latestCompactBoundary: committedBoundary,
+          pendingSessionMemoryRestore: null,
+        })),
+        dispatch: vi.fn(),
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification: () => true,
+        runtimeStateByThreadRef: { current: {} },
+        replayCursorByThreadRef: { current: { 'thread-1': 0 } },
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef,
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId,
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+
+    act(() => {
+      result.current.handleNotification({
+        jsonrpc: '2.0',
+        method: 'turn/event',
+        params: {
+          replaySeq: 60,
+          eventId: 'evt-60',
+          ts: '2026-02-18T00:00:10.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turnId: 'turn-live-with-committed-snapshot',
+          event: {
+            type: 'compact_boundary',
+            boundary: liveBoundary,
+          },
+        },
+      })
+    })
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+    expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(committedBoundary)
+
+    act(() => {
+      result.current.handleNotification({
+        jsonrpc: '2.0',
+        method: 'turn/failed',
+        params: {
+          replaySeq: 61,
+          eventId: 'evt-61',
+          ts: '2026-02-18T00:00:11.000Z',
+          source: 'engine',
+          threadId: 'thread-1',
+          turn: { id: 'turn-live-with-committed-snapshot', threadId: 'thread-1', status: 'failed' },
+          error: 'compact failed before persistence',
+        },
+      })
+    })
+
+    expect(latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(committedBoundary)
+  })
+
   it('clears the live compact boundary when the first compact turn fails without prior metadata', () => {
     const liveBoundary = createBoundary({
       trigger: 'auto',

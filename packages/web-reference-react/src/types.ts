@@ -61,6 +61,7 @@ export type DurableSnipSummary = {
 
 export type CompactBoundarySummary = {
   schemaVersion: 1
+  boundaryFingerprint?: string
   trigger?: 'manual' | 'auto' | 'reactive'
   triggerReason?: {
     kind: 'auto_threshold' | 'manual' | 'reactive_error'
@@ -99,7 +100,20 @@ export type CompactBoundarySummary = {
     headFingerprint: string | null
     tailFingerprint: string | null
     messageFingerprints?: string[]
+    messageIdentities?: CompactPreservedMessageIdentity[]
+    summaryIdentity?: CompactPreservedMessageIdentity
+    headIdentity?: CompactPreservedMessageIdentity | null
+    anchorIdentity?: CompactPreservedMessageIdentity | null
+    tailIdentity?: CompactPreservedMessageIdentity | null
   }
+}
+
+export type CompactPreservedMessageIdentity = {
+  schemaVersion: 1
+  id: string
+  parentId: string | null
+  fingerprint: string
+  source: 'explicit' | 'legacy_fallback'
 }
 
 export type SessionMemoryRestoreSummary = {

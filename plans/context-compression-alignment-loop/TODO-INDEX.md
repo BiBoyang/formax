@@ -13,6 +13,7 @@
 - WebGPT / subagent 审查收敛修复清单已收口；后续不再从该清单继续派生大批次。
 - `CCA-180` 现有 Batch 1 / Batch 2 已完成；下一步如恢复该方向，应先写一个 continuation TODO，而不是重做现有批次。
 - `CCA-180` continuation / v8 已完成；active working TODO 已全部勾选，后续从 deferral register 选择下一主线。
+- `CCA-181` preserved-segment relink validation parity 已完成；active working TODO 见 [todolist.md](./todolist.md)。
 
 ## 已收口主线
 
@@ -25,11 +26,11 @@
 
 ## 下一条推荐主线
 
-- `CCA-181` preserved-segment relink parity：
-  - 当前 relink 已有实现，后续重点应是 replay / resume / inspection validation parity。
-  - 不做 storage-model rewrite，不引入 Claude Code parentUuid-style partial-compact store。
 - projection-surface follow-up：
   - durable tool-result replacement summary surface 仍是独立候选，不属于已完成的 `CCA-180` restore continuity hints。
+- `CCA-182` reactive compact shaping v3：
+  - 继续作为后续 runtime/provider mainline 候选。
+  - 不与已完成的 preserved-segment validation parity 混在同一个 TODO 中执行。
 - 后续阶段参考清单：
   - [NEXT-TODO-2026-04-07.md](./NEXT-TODO-2026-04-07.md)
 - 历史暂停状态：
@@ -37,14 +38,14 @@
 
 ## 当前推荐顺序
 
-1. `CCA-181` preserved-segment relink parity 作为下一候选：当前 relink 已有实现，后续重点应是 replay / resume / inspection validation parity。
-2. durable tool-result replacement summary surface 可作为 projection-surface 小 follow-up 单独推进。
-3. `CCA-182` reactive compact shaping v3 继续靠后；优先级低于 validation/parity follow-up。
-4. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
+1. durable tool-result replacement summary surface 可作为 projection-surface 小 follow-up 单独推进。
+2. `CCA-182` reactive compact shaping v3 继续靠后；优先级低于 projection-surface follow-up。
+3. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
 
 ## 说明
 
-- 当前建议：post-compression-closure，恢复到 `CCA-180` continuation 规划。
+- 当前建议：post-`CCA-181` 后进入 durable tool-result replacement summary surface 这一 projection-surface follow-up；不要把它混入 reactive compact shaping。
+- 2026-05-30 执行说明：`CCA-181` preserved-segment relink validation parity 已完成。实现收紧了 relink metadata validation、contiguous explicit refs、durable projection ordering guard、app-server / Web preservedSegment parity，并把 Web compact-boundary cache generation key 收敛到 matching `boundaryFingerprint`。
 - 2026-05-30 执行说明：`CCA-180` continuation / v8 已完成，新增 structured `tool_reference` restore extraction、structured task continuity hints、pending restore diagnostics、Web v8 parser compatibility 与 no-new-authority guards。
 - 2026-05-30 收口：architecture parity、cache-editing、WebGPT bugfix 三条 2026-05-20/21 主线均已完成，不再作为“当前主线”继续推进。
 - 2026-05-21 历史说明：Claude Code cache editing microcompact 迁移清单要求在恢复 `CCA-180` 前先锁住 request-only side-channel 与 Anthropic payload 语义；该要求已满足。
@@ -73,9 +74,9 @@
 - `CCA-171` 已完成，higher-order restore utility v6 现在会在 canonical `pendingSessionMemoryRestore` / next-turn reminder 路径中额外暴露 bounded 的 `recentSkills` 与 `recentSubagentTypes`，让 restore surface 能恢复更高阶任务状态，而不引入新的 persisted authority。
 - `CCA-172` 已完成，Web `thread/messages` inspection path 现在也会保留 canonical `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 这组 deeper compact-boundary fields；thread-scoped compact-boundary cache 也已改成用同一套 deep equality 刷新，避免 history/replay/read/resume 因消费路径不同而退化成不同深度的 compact summary。
 - post-`CCA-172` mainline re-rank 已完成。
-- 新的 18x 候选主线恢复为后续候选：
+- 新的 18x 候选主线已恢复并进入排序：
   - deferred-task restore utility v7
-  - preserved-segment relink parity
+  - preserved-segment relink parity（已完成）
   - reactive compact shaping v3
-- WebGPT/cache-editing 收敛主线已收口，当前优先恢复 deferred-task restore utility continuation。
+- WebGPT/cache-editing、deferred-task restore utility continuation 与 preserved-segment relink parity 均已收口，当前优先推进 projection-surface follow-up。
 - 仍然不建议直接进入完整 collapse store / archived span 设计。
