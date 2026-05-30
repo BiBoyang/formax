@@ -262,7 +262,9 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 1. 当前 SHOULD 至少包含：`triggerKind`、`strategy`
 2. 当前 MAY 包含 `triggerDetail`，用于 diagnostics / inspection surface 解释最近一次 overflow 来源
 3. 当前 `strategy` 允许的稳定值至少包括：`session_memory`、`model_summary`
-4. 当前 MUST 只描述 reactive fallback 事实；不得被解释为 persisted history 已被 rewrite
+4. 当前 MUST 只描述 reactive fallback 已准备并进入 retry attempt；不得被解释为 retry 已完成，也不得被解释为 persisted history 已被 rewrite
+5. reader MUST 采用 latest valid event 语义；malformed / unknown `triggerKind` / unknown `strategy` records MUST 被忽略，且 MUST NOT 清空之前已读取到的 valid event
+6. 若 failed reactive retry 之后仍存在该 event，consumer MUST 将其理解为 fallback fact，而不是 turn success fact
 
 `SES-305`  
 `listSessions(options)` 与 `getSessionMessages(sessionId, options)` MUST 共享同一目录作用域规则：

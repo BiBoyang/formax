@@ -4,7 +4,7 @@
 
 当前执行入口只看这个文件。上一份 `CCA-181 Preserved-Segment Relink Validation Parity Todo` 已完成并进入 Git 历史；本文件接续 `TODO-INDEX.md` 中的 post-CCA-181 推荐顺序：先锁住 `microcompact` / `tool_result_budget` / durable replacement 的 request-time vs durable projection 边界，再进入 `CCA-182 reactive compact shaping v3`。
 
-本 TODO 是 rolling todo：Batch 1 先做边界审计和测试收口；Batch 2 做 `CCA-182` characterization / prep；Batch 3 才进入 reactive compact shaping 的最小实现 slice。执行时仍然一批一批完成、验证、review、提交，不在一个 commit 里混完全部批次。
+本 TODO 是 rolling todo：Batch 1 先做边界审计和测试收口；Batch 2 做 `CCA-182` characterization / prep；Batch 3 只实现 Batch 2 证明出来的最小 reactive compact slice。执行时仍然一批一批完成、验证、review、提交，不在一个 commit 里混完全部批次。
 
 WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch 1 必须更硬地锁住 `microcompact` / `tool_result_budget` / durable replacement 的边界；Batch 2 必须 characterization-first；Batch 3 不预设 broad reactive compact shaping，只实现 Batch 2 证明出来的一个最小缺口。
 
@@ -33,7 +33,7 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 - [x] 验证 durable tool-result content replacement 只能来自 explicit durable side-state，并且只在 `buildContextProjection()` replay。
 - [x] 验证 durable replacement replay 发生在 request-time `tool_result_budget` 之前，且不会被 `tool_result_budget` 二次替换。
 - [x] 默认不新增 app-server / Web durable replacement stable surface；只有审计发现 concrete consumer 且 canonical docs 先定义最小 bounded surface，才补 wiring。
-- [ ] 为 `CCA-182 reactive compact shaping v3` 写 characterization-first prep：先锁 overflow / retry / fallback / event semantics，再决定实现 slice。
+- [x] 为 `CCA-182 reactive compact shaping v3` 写 characterization-first prep：先锁 overflow / retry / fallback / event semantics，再决定实现 slice。
 - [x] 让 WebGPT review 一份 rolling todo，而不是每个小阶段都重新问一次。
 
 ### 0.3 Non-goals
@@ -146,40 +146,40 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 
 ### 4.1 Existing Path Characterization
 
-- [ ] Trace `sendMainTurn` overflow catch path and assert current order: initial request projection -> provider error classification -> optional initial request-collapse pending-candidate handling -> `runReactiveCompact()` -> exactly one retry.
-- [ ] Trace `contextCompressionService.runReactiveCompact()` output: history, requestHistory, user, cacheEditPlan, collapse state, snip state, reactive compact state.
-- [ ] Trace `reactive_compact_applied` session event writer / reader.
-- [ ] Trace diagnostics surfaces for existing `latestReactiveCompact`; do not add thread-surface tests unless Batch 2 selects a server-owned surface change.
-- [ ] Add send-path characterization: overflow-like provider errors trigger `runReactiveCompact()` once and retry with reactive `history`, `requestHistory`, `requestUser`, and `cacheEditPlan`.
-- [ ] Add send-path characterization: retry overflow or retry provider failure does not run a second reactive compact and does not persist completed reactive snip / collapse durable state.
-- [ ] Add send-path characterization: abort-like errors, including abort errors whose message looks overflow-like, preserve abort outcome and never call `runReactiveCompact()`.
-- [ ] Add send-path characterization: auth/rate-limit errors are non-eligible at both classifier and send-path level.
-- [ ] Add send-path characterization: failed `runReactiveCompact()` surfaces the original provider overflow error, except abort-like compact cancellation preserves abort semantics.
-- [ ] Add characterization for pending initial request-collapse commit candidates: record current diagnostics-only `commit:null` behavior, or capture the failing test that proves the candidate must be drained before reactive full compact.
-- [ ] Characterize collapse-drain-before-reactive behavior: pending/staged request-collapse commit candidates are drained first if contract requires it, then reactive full compact is attempted, with single-shot guards for both paths.
-- [ ] Characterize reactive compact retry guard persistence across stop-hook blocking / continuation paths so prompt-too-long cannot enter compact -> retry -> hook -> compact loops.
-- [ ] Characterize cache-edit plan handling after reactive compact: cache edits from the failed oversized request must not be reused blindly; retry should recompute request projection/cache plan from the reactive-prepared baseline.
-- [ ] Add session-event characterization for `reactive_compact_applied`: latest valid event wins; malformed/unknown trigger/strategy are ignored without clearing previous valid event; explicitly decide whether failed reactive retry still records the fallback-applied fact.
+- [x] Trace `sendMainTurn` overflow catch path and assert current order: initial request projection -> provider error classification -> optional initial request-collapse pending-candidate handling -> `runReactiveCompact()` -> exactly one retry.
+- [x] Trace `contextCompressionService.runReactiveCompact()` output: history, requestHistory, user, cacheEditPlan, collapse state, snip state, reactive compact state.
+- [x] Trace `reactive_compact_applied` session event writer / reader.
+- [x] Trace diagnostics surfaces for existing `latestReactiveCompact`; no thread-surface change selected in Batch 2.
+- [x] Add send-path characterization: overflow-like provider errors trigger `runReactiveCompact()` once and retry with reactive `history`, `requestHistory`, `requestUser`, and `cacheEditPlan`.
+- [x] Add send-path characterization: retry overflow or retry provider failure does not run a second reactive compact and does not persist completed reactive snip / reactive collapse durable state.
+- [x] Add send-path characterization: abort-like errors, including abort errors whose message looks overflow-like, preserve abort outcome and never call `runReactiveCompact()`.
+- [x] Add send-path characterization: auth/rate-limit errors are non-eligible at both classifier and send-path level.
+- [x] Add send-path characterization: failed `runReactiveCompact()` surfaces the original provider overflow error, except abort-like compact cancellation preserves abort semantics.
+- [x] Add characterization for pending initial request-collapse commit candidates: contract requires the pending commit to be drained before reactive full compact.
+- [x] Characterize collapse-drain-before-reactive behavior: pending/staged request-collapse commit candidates are attempted first if contract requires it, persistence failure does not block reactive recovery, then reactive full compact is attempted with single-shot guards for both paths.
+- [x] Characterize reactive compact retry guard at `sendMainTurn` level: prompt-too-long retry failure does not enter compact -> retry -> compact loops; hook-specific continuation looping remains deferred unless a failing fixture appears.
+- [x] Characterize cache-edit plan handling after reactive compact: cache edits from the failed oversized request are replaced by the reactive-prepared cacheEditPlan.
+- [x] Add session-event characterization for `reactive_compact_applied`: latest valid event wins; malformed/unknown trigger/strategy are ignored without clearing previous valid event; failed reactive retry still records fallback-prepared / retry-attempted fact.
 
 ### 4.2 CCA-182 Contract Prep
 
-- [ ] Define the exact reactive compact trigger taxonomy, including mixed overflow+auth/rate-limit messages and structured provider errors if supported.
-- [ ] Define whether an initial request-collapse commit candidate is a durable drained commit before reactive compact or only an inspection fact until retry success; document append-only rollback implications.
-- [ ] Define which request-time facts may carry into reactive retry and which must be recomputed from the reactive-prepared baseline; default to recompute unless the fact is explicitly durable/projection-owned.
-- [ ] Define `reactive_compact_applied` lifecycle semantics: "fallback applied and retry attempted" vs "retry completed"; add an outcome field only if a failing characterization requires it.
-- [ ] Define cache-edit plan lifecycle after reactive compact: previous request-side cache edits are not durable state; retry cache edits must be absent or recomputed from the compacted baseline.
-- [ ] Keep app-server/Web work limited to existing `/context` diagnostics unless Batch 2 identifies a missing server-owned fact.
-- [ ] Keep durable collapse store / archived spans deferred unless characterization proves it is required.
+- [x] Define the exact reactive compact trigger taxonomy, including mixed overflow+auth/rate-limit messages; structured provider-error object matching remains unsupported until a typed provider shape is introduced.
+- [x] Define whether an initial request-collapse commit candidate is a durable drained commit before reactive compact or only an inspection fact until retry success; it is attempted as a durable drained commit when a valid commit candidate exists, but persistence failure must not suppress the overflow retry.
+- [x] Define which request-time facts may carry into reactive retry and which must be recomputed from the reactive-prepared baseline; retry uses reactive-prepared `history`, `requestHistory`, `requestUser`, and `cacheEditPlan`.
+- [x] Define `reactive_compact_applied` lifecycle semantics: fallback prepared and retry attempted; it does not mean retry completed.
+- [x] Define cache-edit plan lifecycle after reactive compact: previous request-side cache edits are not durable state; retry cache edits are recomputed/replaced from the compacted baseline.
+- [x] Keep app-server/Web work limited to existing `/context` diagnostics; Batch 2 identified no missing thread surface.
+- [x] Keep full durable collapse store / archived spans deferred; Batch 2 only required draining existing collapse commit candidates before reactive compact.
 
 ### 4.3 CCA-182 Minimal Implementation Slice
 
-- [ ] Pick one minimal implementation target from Batch 2 findings.
-- [ ] Default candidate is pending initial request-collapse commit drainage before reactive full compact if characterization proves the candidate is currently lost.
-- [ ] Prefer strengthening trigger classification / event facts / retry diagnostics before changing compaction materialization.
-- [ ] Keep the change inside `sendMainTurn`, session-event writer callbacks, and existing context-collapse committed-event/snapshot paths where possible.
-- [ ] Add targeted tests for the selected slice.
-- [ ] Update contracts before runtime behavior changes.
-- [ ] Keep behavior change small enough for one focused review.
+- [x] Pick one minimal implementation target from Batch 2 findings: pending initial request-collapse commit drainage before reactive full compact.
+- [x] Default candidate is pending initial request-collapse commit drainage before reactive full compact if characterization proves the candidate is currently lost.
+- [x] Prefer strengthening trigger classification / event facts / retry diagnostics before changing compaction materialization.
+- [x] Keep the change inside `sendMainTurn`, session-event writer callbacks, and existing context-collapse committed-event/snapshot paths where possible.
+- [x] Add targeted tests for the selected slice.
+- [x] Update contracts before runtime behavior changes.
+- [x] Keep behavior change small enough for one focused review.
 
 ## 5. Tests
 
@@ -196,9 +196,9 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 
 - [x] `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`: event parsing, malformed ignore, source scope, compact generation scoping.
 - [x] `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`: durable replacement before request-only budget, no double-stub, raw history/requestHistory split, reactive retry recomputes request projection/cache edit plan from compacted baseline.
-- [ ] `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts` (Batch 2): eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, pending collapse candidate handling, stop-hook/continuation guard.
-- [ ] `packages/core/src/features/repl/controller/send/reactiveCompact.test.ts` (Batch 2): reactive error classification and structured provider error shapes.
-- [ ] `packages/core/src/features/repl/sessionSave/reactiveCompactEvents.test.ts` (Batch 2): latest reactive compact event reading, malformed/latest-valid semantics, lifecycle meaning.
+- [x] `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts` (Batch 2/3): eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, pending collapse candidate drainage, cacheEditPlan replacement.
+- [x] `packages/core/src/features/repl/controller/send/reactiveCompact.test.ts` (Batch 2): reactive error classification, mixed auth/rate-limit + overflow precedence, and unsupported loose object shapes.
+- [x] `packages/core/src/features/repl/sessionSave/reactiveCompactEvents.test.ts` (Batch 2): latest reactive compact event reading, malformed/latest-valid semantics, lifecycle meaning.
 
 ### 5.3 App-Server / Web Tests
 
@@ -233,55 +233,55 @@ Suggested commit: `test(context): guard tool result replacement boundaries`
 
 ### Batch 2: CCA-182 Reactive Compact Characterization Prep
 
-- [ ] Audit reactive compact send-path and session event ownership.
-- [ ] Add send-path characterization for eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, cacheEditPlan replacement, and pending collapse candidate handling.
-- [ ] Add session event characterization for `reactive_compact_applied` valid/latest/malformed semantics.
-- [ ] Add diagnostics characterization for existing `latestReactiveCompact`.
-- [ ] Update contracts / TODO with exactly one selected Batch 3 implementation target, or record "no implementation after characterization."
-- [ ] Run targeted reactive compact / sendMainTurn / session event / diagnostics tests.
-- [ ] Run `bun run type-check`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Audit reactive compact send-path and session event ownership.
+- [x] Add send-path characterization for eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, cacheEditPlan replacement, and pending collapse candidate handling.
+- [x] Add session event characterization for `reactive_compact_applied` valid/latest/malformed semantics.
+- [x] Add diagnostics characterization for existing `latestReactiveCompact`.
+- [x] Update contracts / TODO with exactly one selected Batch 3 implementation target: pending request-collapse commit drainage before reactive compact.
+- [x] Run targeted reactive compact / sendMainTurn / session event / diagnostics tests.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 Suggested commit: `test(context): characterize reactive compact fallback`
 
 ### Batch 3: CCA-182 Minimal Implementation Slice
 
-- [ ] Implement only the single failing/selected CCA-182 behavior from Batch 2; default candidate is pending initial request-collapse commit drainage before reactive full compact if characterization proves the candidate is currently lost.
-- [ ] Keep the change inside `sendMainTurn`, session-event writer callbacks, and the existing context-collapse committed-event/snapshot path; do not change compact materialization.
-- [ ] Do not introduce durable collapse store, archived spans, or Web-local inference.
-- [ ] Update app-server/Web only if Batch 2 selected a contract-backed server-owned `latestReactiveCompact` surface; otherwise limit UI work to `/context` diagnostics parser/report tests.
-- [ ] Add targeted regression tests for the chosen behavior: single retry, abort/auth/rate-limit non-trigger, failed compact/retry cleanup, and cacheEditPlan request-only scope.
-- [ ] Update canonical docs / learning note.
-- [ ] Run targeted tests.
-- [ ] Run `bun run type-check`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Implement only the single failing/selected CCA-182 behavior from Batch 2: pending initial request-collapse commit drainage before reactive full compact.
+- [x] Keep the change inside `sendMainTurn`, session-event writer callbacks, and the existing context-collapse committed-event/snapshot path; do not change compact materialization.
+- [x] Do not introduce durable collapse store, archived spans, or Web-local inference.
+- [x] Update app-server/Web only if Batch 2 selected a contract-backed server-owned `latestReactiveCompact` surface; no such surface was selected.
+- [x] Add targeted regression tests for the chosen behavior: single retry, abort/auth/rate-limit non-trigger, failed compact/retry cleanup, cacheEditPlan request-only scope, and drainage persistence failure isolation.
+- [x] Update canonical docs / learning note.
+- [x] Run targeted tests.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 Suggested commit: `fix(context): shape reactive compact fallback`
 
 ### Batch 4: Closure / Next-Todo Routing
 
-- [ ] Update `plans/context-compression-alignment-loop/TODO-INDEX.md`.
-- [ ] Ensure stable facts live in canonical docs, not only this TODO.
-- [ ] Decide whether the next mainline is durable collapse store, reactive compact continuation, or another projection-surface follow-up.
-- [ ] Add/update learning note for the final state.
-- [ ] Run docs/path checks through `bun run type-check`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Update `plans/context-compression-alignment-loop/TODO-INDEX.md`.
+- [x] Ensure stable facts live in canonical docs, not only this TODO.
+- [x] Decide whether the next mainline is durable collapse store, reactive compact continuation, or another projection-surface follow-up: next recommended TODO is app-server / SDK reactive compact parity audit; durable collapse store remains deferred.
+- [x] Add/update learning note for the final state.
+- [x] Run docs/path checks through `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 Suggested commit: `docs(context): close compression boundary rolling plan`
 
 ## 7. Deferral Register
 
-- [ ] Full durable collapse store / archived spans: defer unless Batch 2 proves CCA-182 requires it.
-- [ ] Collapse different-id overlap policy: defer until a concrete failing fixture appears.
-- [ ] Web UI redesign for compression facts: defer; parser/cache/diagnostic correctness first.
-- [ ] Persisting request-time `tool_result_budget`: explicitly out of scope.
-- [ ] ParentUuid / transcript UUID storage rewrite: explicitly out of scope.
-- [ ] Broad provider cache-editing redesign: defer unless reactive compact prep proves current cache plan handling is wrong.
-- [ ] Claude Code content-replacement/cache-editing storage internals: explicitly out of scope; only lifecycle role parity is in scope.
-- [ ] Claude Code exact query helper order: explicitly out of scope; Formax canonical stage order remains contract-owned.
-- [ ] `latestReactiveCompact` on `thread/resume` / `thread/read` / `thread/messages` / `thread/replay`: defer unless Batch 2 selects a server-owned fact surface beyond `/context`.
-- [ ] `reactive_compact_applied` outcome schema: defer unless failed-retry characterization shows current "applied" semantics are misleading.
-- [ ] Reactive cache-edit redesign: defer; only assert retry uses the recomputed reactive `cacheEditPlan` and never persists it.
+- [x] Full durable collapse store / archived spans: deferred; Batch 2/3 only required pending collapse commit drainage before reactive compact.
+- [x] Collapse different-id overlap policy: deferred until a concrete failing fixture appears.
+- [x] Web UI redesign for compression facts: deferred; parser/cache/diagnostic correctness first.
+- [x] Persisting request-time `tool_result_budget`: explicitly out of scope.
+- [x] ParentUuid / transcript UUID storage rewrite: explicitly out of scope.
+- [x] Broad provider cache-editing redesign: deferred; current scope only replaces failed-request cacheEditPlan with reactive-prepared cacheEditPlan.
+- [x] Claude Code content-replacement/cache-editing storage internals: explicitly out of scope; only lifecycle role parity is in scope.
+- [x] Claude Code exact query helper order: explicitly out of scope; Formax canonical stage order remains contract-owned.
+- [x] `latestReactiveCompact` on `thread/resume` / `thread/read` / `thread/messages` / `thread/replay`: deferred because Batch 2 selected no server-owned fact surface beyond `/context`.
+- [x] `reactive_compact_applied` outcome schema: deferred because current semantics are now documented as fallback-prepared / retry-attempted, not retry-completed.
+- [x] Reactive cache-edit redesign: deferred; current scope asserts retry uses the recomputed reactive `cacheEditPlan` and never persists it.
 
 ## 8. Completion Criteria
 
@@ -290,8 +290,8 @@ Suggested commit: `docs(context): close compression boundary rolling plan`
 - [x] Request-time reducers do not masquerade as durable projection state.
 - [x] Durable replacement replay is validated, scoped, and protected against double-stub / drift regressions.
 - [x] Diagnostics / app-server / Web either expose a bounded server-owned durable replacement fact or explicitly do not infer one.
-- [ ] Reactive compact characterization includes collapse drain ordering, retry guard persistence, cache-edit plan lifecycle, failed compact/retry cleanup, and `reactive_compact_applied` lifecycle semantics.
-- [ ] CCA-182 has characterization tests and a minimal implementation slice selected from observed gaps.
-- [ ] CCA-182 implementation slice, if executed, has targeted tests and clean review.
-- [ ] Contracts / README / learning notes are aligned.
-- [ ] TODO index points to the next real follow-up after this rolling plan.
+- [x] Reactive compact characterization includes collapse drain ordering, retry guard persistence, cache-edit plan lifecycle, failed compact/retry cleanup, and `reactive_compact_applied` lifecycle semantics.
+- [x] CCA-182 has characterization tests and a minimal implementation slice selected from observed gaps.
+- [x] CCA-182 implementation slice, if executed, has targeted tests and clean review.
+- [x] Contracts / README / learning notes are aligned.
+- [x] TODO index points to the next real follow-up after this rolling plan.

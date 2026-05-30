@@ -314,10 +314,12 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
           detail: reactiveErrorInfo.detail.slice(0, 200),
         }
         if (prepared.collapseState.commit) {
-          await recordRequestCollapse('initial', {
-            ...prepared.collapseState,
-            commit: null,
-          })
+          try {
+            await recordRequestCollapse('initial', prepared.collapseState)
+          } catch {
+            // Durable drainage is best-effort on the overflow recovery path;
+            // session persistence failures must not suppress the reactive retry.
+          }
         }
         let reactivePrepared
         try {

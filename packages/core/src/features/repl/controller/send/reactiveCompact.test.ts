@@ -18,10 +18,17 @@ describe('isReactiveCompactEligibleError', () => {
     expect(isReactiveCompactEligibleError(new Error('authentication failed'))).toBe(false)
   })
 
+  it('lets auth and rate-limit signals win over overflow-like text', () => {
+    expect(isReactiveCompactEligibleError(new Error('API Error: 429 rate limit exceeded; prompt is too long'))).toBe(false)
+    expect(classifyReactiveCompactError(new Error('HTTP 401 unauthorized: maximum context length exceeded'))).toBeNull()
+    expect(classifyReactiveCompactError(new Error('authentication failed; context length exceeded'))).toBeNull()
+  })
+
   it('returns false for unrelated errors or empty values', () => {
     expect(isReactiveCompactEligibleError(new Error('tool failed'))).toBe(false)
     expect(isReactiveCompactEligibleError('')).toBe(false)
     expect(isReactiveCompactEligibleError(null)).toBe(false)
+    expect(isReactiveCompactEligibleError({ message: 'HTTP 413: request too large' })).toBe(false)
   })
 
   it('classifies common overflow patterns into stable trigger kinds', () => {

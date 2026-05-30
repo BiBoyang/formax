@@ -14,7 +14,7 @@
 - `CCA-180` 现有 Batch 1 / Batch 2 已完成；下一步如恢复该方向，应先写一个 continuation TODO，而不是重做现有批次。
 - `CCA-180` continuation / v8 已完成；active working TODO 已全部勾选，后续从 deferral register 选择下一主线。
 - `CCA-181` preserved-segment relink validation parity 已完成。
-- post-`CCA-181` compression boundary + reactive compact rolling TODO 已写入 [todolist.md](./todolist.md)。
+- post-`CCA-181` compression boundary + reactive compact rolling TODO 已完成；Batch 1 锁住 `microcompact` / `tool_result_budget` / durable replacement 边界，Batch 2/3 收口 TUI `sendMainTurn` reactive compact fallback drainage。
 
 ## 已收口主线
 
@@ -27,12 +27,12 @@
 
 ## 下一条推荐主线
 
-- compression-boundary follow-up：
-  - 当前 active working TODO：[todolist.md](./todolist.md)。
-  - 先锁住 Claude Code-style `microcompact` lifecycle、Formax `tool_result_budget`、durable tool-result replacement 的 request-time vs durable projection 边界。
+- post rolling-plan follow-up：
+  - [todolist.md](./todolist.md) 已完成后应随收口 commit 保留为历史计划；不要从已完成 Batch 重新派生工作。
+  - 如继续推进 context compression parity，下一份 TODO 建议单独审计 app-server / SDK request paths 是否需要 TUI `sendMainTurn` 同等级别的 reactive compact fallback，而不是直接进入完整 durable collapse store / archived spans。
 - `CCA-182` reactive compact shaping v3：
-  - 已纳入当前 rolling TODO 的 Batch 2 / Batch 3。
-  - Batch 2 先做 characterization prep；Batch 3 才进入最小 implementation slice。
+  - 当前 rolling TODO 的 Batch 2 / Batch 3 已完成：characterization-first 后只实现 pending request-collapse commit drainage before reactive compact。
+  - 未选择新增 `latestReactiveCompact` thread surface，也未选择 broad outcome schema。
 - 后续阶段参考清单：
   - [NEXT-TODO-2026-04-07.md](./NEXT-TODO-2026-04-07.md)
 - 历史暂停状态：
@@ -40,14 +40,14 @@
 
 ## 当前推荐顺序
 
-1. 当前 rolling TODO Batch 1：tool-result reducer / durable replacement / microcompact boundary audit。
-2. 当前 rolling TODO Batch 2：`CCA-182` reactive compact characterization prep。
-3. 当前 rolling TODO Batch 3：`CCA-182` minimal implementation slice。
-4. collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
+1. 提交当前 rolling TODO 收口结果。
+2. 若继续 context compression parity，写一份新的 app-server / SDK reactive compact parity audit TODO。
+3. durable collapse store / archived spans 与 collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
 
 ## 说明
 
-- 当前建议：执行 [todolist.md](./todolist.md) 的 rolling plan；先完成 Batch 1 边界审计，再进入 `CCA-182` prep / implementation。
+- 当前建议：当前 [todolist.md](./todolist.md) 已完成；下一步不要重跑该 rolling plan，应新建更窄的 app-server / SDK reactive compact parity audit TODO，或在没有实际需求时暂停 context-compression 主线。
+- 2026-05-31 执行说明：post-`CCA-181` rolling TODO 已完成。Batch 1 明确 durable tool-result replacement 不新增 stable app-server/Web surface，只暴露 bounded diagnostics；Batch 2/3 锁住 reactive compact trigger / retry / cacheEditPlan / event semantics，并把 pending request-collapse commit drainage 放到 reactive full compact 前，同时隔离 drainage persistence failure，避免阻断 overflow retry。
 - 2026-05-31 规划说明：新增 post-`CCA-181` rolling TODO，用一份计划覆盖 tool-result boundary audit 与 `CCA-182` prep / implementation，减少每个小阶段都重新询问 WebGPT 的成本。
 - 2026-05-30 执行说明：`CCA-181` preserved-segment relink validation parity 已完成。实现收紧了 relink metadata validation、contiguous explicit refs、durable projection ordering guard、app-server / Web preservedSegment parity，并把 Web compact-boundary cache generation key 收敛到 matching `boundaryFingerprint`。
 - 2026-05-30 执行说明：`CCA-180` continuation / v8 已完成，新增 structured `tool_reference` restore extraction、structured task continuity hints、pending restore diagnostics、Web v8 parser compatibility 与 no-new-authority guards。
