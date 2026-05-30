@@ -124,6 +124,28 @@ describe('threadCache helpers', () => {
     expect(next.latestRequestCollapseByThreadId['thread-1']).toEqual(latestRequestCollapse)
   })
 
+  it('ignores uncontracted durable replacement facts when applying compression cache facts', () => {
+    const cache: ThreadCacheState = {
+      ...INITIAL_THREAD_CACHE_STATE,
+      latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
+      durableSnipByThreadId: { 'thread-1': durableSnip },
+      latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+    }
+
+    const next = applyFactsForTest(cache, 'thread-1', {
+      durableToolResultContentReplacement: {
+        status: 'active',
+        replacementContent: '[durable replacement should not enter cache]',
+      },
+    } as any)
+
+    expect(next).toBe(cache)
+    expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(latestCompactBoundary)
+    expect(next.durableSnipByThreadId['thread-1']).toEqual(durableSnip)
+    expect(next.latestRequestCollapseByThreadId['thread-1']).toEqual(latestRequestCollapse)
+    expect(Object.prototype.hasOwnProperty.call(next, 'durableToolResultContentReplacementByThreadId')).toBe(false)
+  })
+
   it('clears cached compression facts only for explicit null facts', () => {
     const cache: ThreadCacheState = {
       ...INITIAL_THREAD_CACHE_STATE,

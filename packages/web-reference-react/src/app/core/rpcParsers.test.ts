@@ -66,6 +66,35 @@ describe('rpcParsers', () => {
     expect(Object.prototype.hasOwnProperty.call(parsed, 'latestRequestCollapse')).toBe(false)
   })
 
+  it('does not infer durable replacement facts from uncontracted fields or budget-stub tool rows', () => {
+    const parsed = asThreadMessages({
+      data: [
+        {
+          id: 'tool-1',
+          kind: 'tool',
+          toolName: 'Read',
+          status: 'completed',
+          summary: '[Tool result replaced by budget: Read /repo/a.ts]',
+          detailLines: ['durable tool-result replacement marker: tool-1'],
+        },
+      ],
+      durableToolResultContentReplacement: {
+        status: 'active',
+        replacementContent: '[durable replacement should be ignored]',
+      },
+    } as any)
+
+    expect(parsed.data).toEqual([
+      expect.objectContaining({
+        kind: 'tool',
+        toolName: 'Read',
+        summary: '[Tool result replaced by budget: Read /repo/a.ts]',
+        detailLines: ['durable tool-result replacement marker: tool-1'],
+      }),
+    ])
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'durableToolResultContentReplacement')).toBe(false)
+  })
+
   it('parses thread message rows and filters invalid entries', () => {
     const parsed = asThreadMessages({
       data: [

@@ -247,6 +247,15 @@ query 持久化后的 session 文件 MUST 至少支撑以下能力继续工作�
 3. 当前 SHOULD 尽量携带最小 request-recap metadata，用于后续 diagnostics / replay tooling / state-store 设计；最小集合 MAY 包含 `keepLastTurns`、`preservedTailMessageCount`、`retainedCompactSummary`、`recapFingerprint`
 4. 当前 MUST 只描述 request-time projection；不得被解释为 persisted history 已被 rewrite
 
+`SES-304E.1`
+当 session 文件包含 durable tool-result content replacement event 时，reader MUST 把它视为 explicit durable projection side-state，而不是 request-time `tool_result_budget` fact。
+该 event：
+1. MUST 使用 `source = "tool_result_content_replacement"` 与 `schemaVersion = 1`
+2. SHOULD 携带 `sourceScope`；缺省可按 legacy main-thread 处理，但 malformed present `sourceScope` MUST 被忽略
+3. MAY 携带 `sourceProjectionKind = "model_facing_baseline"`；若 `sourceProjectionKind` present 且不是 `"model_facing_baseline"`，reader MUST 忽略该 event
+4. malformed event MUST NOT 清空之前已经读取到的 valid replacement state
+5. main-thread restore MUST NOT 消费 sidechain-scoped replacement events，除非调用方显式请求该 sidechain scope
+
 `SES-304F`
 当一次真实模型请求因为上下文超限类错误触发 reactive compact fallback 且 fallback 成功进入重试时，session 持久化当前 SHOULD 追加最小运行时事件 `reactive_compact_applied`。  
 该事件：

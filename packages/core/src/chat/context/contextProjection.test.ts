@@ -730,6 +730,196 @@ describe('buildContextProjection', () => {
     expect(projection.facts.appliedDurableStages).toEqual(['tool_result_content_replacement'])
   })
 
+  it('skips missing, duplicate, drifted, malformed, and ambiguous durable tool-result replacements', () => {
+    const driftedContent = 'drifted current content'
+    const history: PromptMessage[] = [
+      assistantToolUse('missing-tool'),
+      assistantToolUse('duplicate-tool'),
+      userToolResult('duplicate-tool'),
+      userToolResult('duplicate-tool'),
+      assistantToolUse('drifted-tool'),
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'drifted-tool', content: driftedContent }] as any,
+      },
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'non-tool target' }] as any,
+      },
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'missing-tool',
+              replacementContent: '[missing replacement]',
+            },
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'duplicate-tool',
+              replacementContent: '[duplicate replacement]',
+            },
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'drifted-tool',
+              replacementContent: '[drifted replacement]',
+              originalContentFingerprint: fingerprintToolResultContent('original content before drift'),
+            },
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'text-only',
+              replacementContent: '[non-tool replacement]',
+            },
+            {
+              kind: 'not_supported',
+              toolUseId: '',
+              replacementContent: '[malformed replacement]',
+            } as any,
+          ],
+        },
+      },
+    })
+
+    expect(projection.modelFacingBaseline).toEqual(history)
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('[missing replacement]')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('[duplicate replacement]')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain('[drifted replacement]')
+    expect(projection.durableState.toolResultContentReplacement).toMatchObject({
+      stage: 'tool_result_content_replacement',
+      status: 'no_state',
+      applied: false,
+      replacementCount: 0,
+      skippedReplacementCount: 5,
+    })
+  })
+
+  it('applies valid durable replacements while counting skipped replacements', () => {
+    const validContent = 'large valid tool output'
+    const driftedContent = 'drifted current content'
+    const history: PromptMessage[] = [
+      assistantToolUse('valid-tool'),
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'valid-tool', content: validContent }] as any,
+      },
+      assistantToolUse('drifted-tool'),
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'drifted-tool', content: driftedContent }] as any,
+      },
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'valid-tool',
+              replacementContent: '[valid durable replacement]',
+              originalContentFingerprint: fingerprintToolResultContent(validContent),
+            },
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'drifted-tool',
+              replacementContent: '[drifted durable replacement]',
+              originalContentFingerprint: fingerprintToolResultContent('old drifted content'),
+            },
+          ],
+        },
+      },
+    })
+
+    expect(JSON.stringify(projection.modelFacingBaseline)).toContain('[valid durable replacement]')
+    expect(JSON.stringify(projection.modelFacingBaseline)).toContain(driftedContent)
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain(validContent)
+    expect(projection.durableState.toolResultContentReplacement).toMatchObject({
+      status: 'active',
+      applied: true,
+      replacementCount: 1,
+      skippedReplacementCount: 1,
+    })
+  })
+
+  it('applies durable collapse before durable tool-result replacement', () => {
+    const compactBoundary = boundary()
+    const compactSummary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
+    const recap = textMessage('user', '<system-reminder>collapsed duplicate tool result</system-reminder>')
+    const survivingContent = 'surviving result content'
+    const history: PromptMessage[] = [
+      compactBoundary,
+      compactSummary,
+      assistantToolUse('tool-1'),
+      userToolResult('tool-1'),
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: survivingContent }] as any,
+      },
+    ]
+
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        collapse: {
+          schemaVersion: 1,
+          entries: [
+            createContextCollapseCommittedEntry({
+              id: 'collapse-duplicate-tool-result',
+              createdAtMs: 1000,
+              source: 'request_collapse',
+              collapsedRange: { kind: 'model_facing_index_range', startIndex: 2, endIndexExclusive: 3 },
+              compactBoundaryFingerprint: fingerprintCompactBoundaryMessage(compactBoundary),
+              recapMessage: recap,
+              metadata: {
+                schemaVersion: 1,
+                kind: 'request_recap',
+                keepLastTurns: 1,
+                preservedTailMessageCount: 1,
+                retainedCompactSummary: true,
+                recentUserPromptCount: 0,
+                recentFileCount: 0,
+                earlierToolResultBlockCount: 1,
+                recapFingerprint: 'collapse-duplicate-tool-result-fingerprint',
+              },
+            }),
+          ],
+        },
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'tool-1',
+              replacementContent: '[replacement after collapse]',
+              originalContentFingerprint: fingerprintToolResultContent(survivingContent),
+            },
+          ],
+        },
+      },
+    })
+
+    expect(JSON.stringify(projection.modelFacingBaseline)).toContain('[replacement after collapse]')
+    expect(JSON.stringify(projection.modelFacingBaseline)).not.toContain(survivingContent)
+    expect(projection.durableState.collapse.applied).toBe(true)
+    expect(projection.durableState.toolResultContentReplacement).toMatchObject({
+      applied: true,
+      replacementCount: 1,
+      skippedReplacementCount: 0,
+    })
+    expect(projection.facts.appliedDurableStages).toEqual(['collapse', 'tool_result_content_replacement'])
+  })
+
   it('applies committed collapse entries to the model-facing projection while preserving raw scrollback', () => {
     const compactSummary = textMessage('user', buildCompactionSummaryUserText('compact summary'))
     const olderAssistant = textMessage('assistant', 'older assistant analysis')

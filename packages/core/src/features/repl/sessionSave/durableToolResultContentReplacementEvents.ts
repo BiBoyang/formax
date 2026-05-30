@@ -124,6 +124,9 @@ function applyDurableToolResultReplacementEvent(args: {
   const replacements = parseReplacements(args.data.replacements)
   if (!replacements) return args.state
   const baseProjectionFingerprint = coerceNonEmptyString(args.data.baseProjectionFingerprint)
+  if (args.data.sourceProjectionKind !== undefined && args.data.sourceProjectionKind !== 'model_facing_baseline') {
+    return args.state
+  }
   const sourceProjectionKind =
     args.data.sourceProjectionKind === 'model_facing_baseline' ? args.data.sourceProjectionKind : null
   return {

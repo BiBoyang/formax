@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyToolResultBudget, resolveAdaptiveToolResultBudgetPolicy } from './toolResultBudget'
+import { buildContextProjection, fingerprintToolResultContent } from './contextProjection'
 
 function assistantToolUse(id: string, name: string, input: Record<string, unknown>): any {
   return {
@@ -125,5 +126,109 @@ describe('toolResultBudget', () => {
     expect(out.applied).toBe(false)
     expect(out.impact.replacedBlocks).toBe(0)
     expect((out.messages[1]!.content[0] as any).content).toContain('[durable replacement]')
+  })
+
+  it('only honors durable replacement markers for the same tool_use_id', () => {
+    const messages = [
+      assistantToolUse('read-old', 'Read', { file_path: '/repo/old.ts' }),
+      {
+        ...userToolResult('read-old', 'a'.repeat(5000)),
+        meta: {
+          durableToolResultContentReplacementToolUseIds: ['other-tool'],
+        },
+      },
+      assistantToolUse('read-recent', 'Read', { file_path: '/repo/recent.ts' }),
+      userToolResult('read-recent', 'b'.repeat(5000)),
+    ] as any
+
+    const out = applyToolResultBudget({
+      messages,
+      policy: {
+        pressureTier: 'critical',
+        eligibleToolNames: ['Read'],
+        keepRecentToolResults: 1,
+        minResultChars: 1,
+        minResultCharsByName: {},
+        maxToolResultTokens: 1,
+      },
+    })
+
+    expect(out.applied).toBe(true)
+    expect(out.impact.replacedBlocks).toBe(1)
+    expect((out.messages[1]!.content[0] as any).content).toContain('[Tool result replaced by budget: Read /repo/old.ts')
+  })
+
+  it('does not mutate input messages in-place when applying replacements', () => {
+    const messages = [
+      assistantToolUse('read-old', 'Read', { file_path: '/repo/old.ts' }),
+      userToolResult('read-old', 'a'.repeat(5000)),
+      assistantToolUse('read-recent', 'Read', { file_path: '/repo/recent.ts' }),
+      userToolResult('read-recent', 'b'.repeat(5000)),
+    ] as any
+
+    const out = applyToolResultBudget({
+      messages,
+      policy: {
+        pressureTier: 'critical',
+        eligibleToolNames: ['Read'],
+        keepRecentToolResults: 1,
+        minResultChars: 1,
+        minResultCharsByName: {},
+        maxToolResultTokens: 1,
+      },
+    })
+
+    expect(out.applied).toBe(true)
+    expect(out.messages).not.toBe(messages)
+    expect(out.messages[1]).not.toBe(messages[1])
+    expect((messages[1]!.content[0] as any).content).toBe('a'.repeat(5000))
+    expect((out.messages[1]!.content[0] as any).content).toContain('[Tool result replaced by budget: Read /repo/old.ts')
+    expect(out.messages[3]).toBe(messages[3])
+    expect((messages[3]!.content[0] as any).content).toBe('b'.repeat(5000))
+  })
+
+  it('keeps drift-skipped durable replacement results eligible for request-time budget', () => {
+    const originalContent = 'a'.repeat(5000)
+    const history = [
+      assistantToolUse('read-old', 'Read', { file_path: '/repo/old.ts' }),
+      userToolResult('read-old', originalContent),
+    ] as any
+    const projection = buildContextProjection({
+      history,
+      durableState: {
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'read-old',
+              replacementContent: '[drifted durable replacement]',
+              originalContentFingerprint: fingerprintToolResultContent('old content before drift'),
+            },
+          ],
+        },
+      },
+    })
+
+    const out = applyToolResultBudget({
+      messages: projection.modelFacingBaseline,
+      policy: {
+        pressureTier: 'critical',
+        eligibleToolNames: ['Read'],
+        keepRecentToolResults: 0,
+        minResultChars: 1,
+        minResultCharsByName: {},
+        maxToolResultTokens: 1,
+      },
+    })
+
+    expect(projection.durableState.toolResultContentReplacement).toMatchObject({
+      applied: false,
+      replacementCount: 0,
+      skippedReplacementCount: 1,
+    })
+    expect(out.applied).toBe(true)
+    expect((out.messages[1]!.content[0] as any).content).toContain('[Tool result replaced by budget: Read /repo/old.ts')
   })
 })

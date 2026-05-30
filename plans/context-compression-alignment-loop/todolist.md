@@ -27,14 +27,14 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 
 ### 0.2 Goals
 
-- [ ] 锁住 Claude Code-style `microcompact` lifecycle roles、Formax request-time `tool_result_budget`、explicit durable tool-result content replacement replay 三者的阶段边界。
-- [ ] 验证 cache-editing microcompact、time-based microcompact、no-op microcompact 三条路径互斥且均为 request-time 行为；analysis-only surfaces 不得触发 content-clearing。
-- [ ] 验证 request-time reducers 只影响本次 request projection，不反向成为 durable state 或 persisted history mutation。
-- [ ] 验证 durable tool-result content replacement 只能来自 explicit durable side-state，并且只在 `buildContextProjection()` replay。
-- [ ] 验证 durable replacement replay 发生在 request-time `tool_result_budget` 之前，且不会被 `tool_result_budget` 二次替换。
-- [ ] 默认不新增 app-server / Web durable replacement stable surface；只有审计发现 concrete consumer 且 canonical docs 先定义最小 bounded surface，才补 wiring。
+- [x] 锁住 Claude Code-style `microcompact` lifecycle roles、Formax request-time `tool_result_budget`、explicit durable tool-result content replacement replay 三者的阶段边界。
+- [x] 验证 cache-editing microcompact、time-based microcompact、no-op microcompact 三条路径互斥且均为 request-time 行为；analysis-only surfaces 不得触发 content-clearing。
+- [x] 验证 request-time reducers 只影响本次 request projection，不反向成为 durable state 或 persisted history mutation。
+- [x] 验证 durable tool-result content replacement 只能来自 explicit durable side-state，并且只在 `buildContextProjection()` replay。
+- [x] 验证 durable replacement replay 发生在 request-time `tool_result_budget` 之前，且不会被 `tool_result_budget` 二次替换。
+- [x] 默认不新增 app-server / Web durable replacement stable surface；只有审计发现 concrete consumer 且 canonical docs 先定义最小 bounded surface，才补 wiring。
 - [ ] 为 `CCA-182 reactive compact shaping v3` 写 characterization-first prep：先锁 overflow / retry / fallback / event semantics，再决定实现 slice。
-- [ ] 让 WebGPT review 一份 rolling todo，而不是每个小阶段都重新问一次。
+- [x] 让 WebGPT review 一份 rolling todo，而不是每个小阶段都重新问一次。
 
 ### 0.3 Non-goals
 
@@ -56,91 +56,91 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 
 ### 1.1 Canonical Docs
 
-- [ ] Re-read `docs/contracts/context-strategy-stack-contract.md` sections for `CSS-303` / `CSS-303a` / `CSS-308` / `CSS-310a`.
-- [ ] Re-read `docs/contracts/session-persistence-contract.md` durable replacement and reactive compact event sections.
-- [ ] Re-read `docs/contracts/app-server-interaction-contract.md` compression surface sections.
-- [ ] Re-read `docs/contracts/web-parity-adapter-contract.md` server-owned compression facts section.
-- [ ] Default-defer stable app-server/Web durable replacement surface unless a concrete consumer is found; tests/docs are enough for Batch 1 by default.
-- [ ] If a new stable surface is needed, update canonical docs before implementation.
-- [ ] If no new stable surface is needed, record the reason in TODO / learning note and keep implementation to tests/docs.
+- [x] Re-read `docs/contracts/context-strategy-stack-contract.md` sections for `CSS-303` / `CSS-303a` / `CSS-308` / `CSS-310a`.
+- [x] Re-read `docs/contracts/session-persistence-contract.md` durable replacement and reactive compact event sections.
+- [x] Re-read `docs/contracts/app-server-interaction-contract.md` compression surface sections.
+- [x] Re-read `docs/contracts/web-parity-adapter-contract.md` server-owned compression facts section.
+- [x] Default-defer stable app-server/Web durable replacement surface unless a concrete consumer is found; tests/docs are enough for Batch 1 by default.
+- [x] No new stable app-server/Web durable replacement surface is needed in Batch 1; canonical docs were updated for bounded diagnostics and event-reader semantics only.
+- [x] If no new stable surface is needed, record the reason in TODO / learning note and keep implementation to tests/docs.
 
 ### 1.2 Data Model / Ownership
 
-- [ ] Confirm durable tool-result content replacement remains explicit durable replay side-state, keyed by stable source scope / tool-use identity, with current `DurableToolResultContentReplacementState` only as the implementation anchor.
-- [ ] Confirm durable replacement state scoping against compact-boundary generation is enough to avoid stale carryover.
-- [ ] Confirm `replacementContent` is model-facing only and does not mutate raw transcript or UI scrollback.
-- [ ] Confirm `originalContentFingerprint` drift guard is sufficient for destructive replacement replay.
-- [ ] Confirm sidechain-scoped replacement events are ignored on the main-thread path unless explicitly requested.
-- [ ] Confirm request-time `tool_result_budget` facts remain middle-layer stage facts, not durable projection facts and not a surrogate for Claude Code cache-editing/content-replacement state.
-- [ ] Confirm Web/app-server naming does not blur request-time `tool_result_budget` with durable replacement replay.
+- [x] Confirm durable tool-result content replacement remains explicit durable replay side-state, keyed by stable source scope / tool-use identity, with current `DurableToolResultContentReplacementState` only as the implementation anchor.
+- [x] Confirm durable replacement state scoping against compact-boundary generation is enough to avoid stale carryover.
+- [x] Confirm `replacementContent` is model-facing only and does not mutate raw transcript or UI scrollback.
+- [x] Confirm `originalContentFingerprint` drift guard is sufficient for destructive replacement replay.
+- [x] Confirm sidechain-scoped replacement events are ignored on the main-thread path unless explicitly requested.
+- [x] Confirm request-time `tool_result_budget` facts remain middle-layer stage facts, not durable projection facts and not a surrogate for Claude Code cache-editing/content-replacement state.
+- [x] Confirm Web/app-server naming does not blur request-time `tool_result_budget` with durable replacement replay.
 
 ### 1.3 Types / Interfaces
 
-- [ ] Audit internal durable replacement projection fact shape for minimum bounded diagnostics metadata; do not make the fact a second durable authority.
-- [ ] Audit whether app-server RPC contracts currently expose durable projection facts beyond `durableSnip`.
-- [ ] If adding a surface, define a minimal `durableToolResultContentReplacement` summary with bounded metadata only: status, applied count, skipped count, source scope, generation key/fingerprint, and skipped/drift reason.
-- [ ] If adding Web parser/cache support, use explicit null vs omitted semantics consistent with `latestCompactBoundary`, `durableSnip`, and `latestRequestCollapse`.
-- [ ] Keep replacement content out of broad UI chrome unless there is a concrete inspection use case.
-- [ ] Ensure `/context --json` / diagnostics never expose full `replacementContent` by default.
+- [x] Audit internal durable replacement projection fact shape for minimum bounded diagnostics metadata; do not make the fact a second durable authority.
+- [x] Audit whether app-server RPC contracts currently expose durable projection facts beyond `durableSnip`.
+- [x] Do not add a stable app-server/Web `durableToolResultContentReplacement` surface in Batch 1; `/context --json` exposes only bounded diagnostics metadata.
+- [x] No Web parser/cache support was added for a stable durable replacement surface; explicit null vs omitted semantics remain unchanged for existing compression facts.
+- [x] Keep replacement content out of broad UI chrome unless there is a concrete inspection use case.
+- [x] Ensure `/context --json` / diagnostics never expose full `replacementContent` by default.
 
 ## 2. Runtime / Platform Boundaries
 
 ### 2.1 Request-Time Stack
 
-- [ ] Add/verify tests that `executeMiddleLayerStrategyStack()` always reports `tool_result_budget` as `scope: request_history_projection`.
-- [ ] Add/verify tests that `persistedHistoryCandidate` remains the original history when `tool_result_budget` applies.
-- [ ] Add/verify tests that `tool_result_budget` does not mutate the input message objects in-place.
-- [ ] Add/verify tests that `tool_result_budget` durable marker skipping is identity-specific: only the same tool-use id / explicit durable marker suppresses budget replacement.
-- [ ] Add/verify tests that cache-editing microcompact plans provider request side effects without mutating local history or persisted history.
-- [ ] Add/verify tests that time-based microcompact, when enabled for explicit main-thread send source and cold-cache gap, content-clears only request projection, keeps at least one recent compactable tool result, emits no cache edit plan for that turn, and marks cached-MC invalidation as runtime side effect only.
-- [ ] Add/verify tests that microcompact is no-op when cache editing is unavailable and the cold-cache time-based trigger has not fired; it must not fall back to legacy stale-result stubbing.
-- [ ] Add/verify tests that `/context`, diagnostics, and analysis-only compact inspection paths cannot trigger time-based content-clearing.
-- [ ] Add/verify tests for Formax's contract-backed order: durable projection baseline -> `microcompact` -> request-time `tool_result_budget` -> `snip` -> `collapse` -> terminal `prune`; do not assert Claude helper-order equivalence.
-- [ ] Add/verify tests that stage facts distinguish `microcompact` savings from `tool_result_budget` savings.
+- [x] Add/verify tests that `executeMiddleLayerStrategyStack()` always reports `tool_result_budget` as `scope: request_history_projection`.
+- [x] Add/verify tests that `persistedHistoryCandidate` remains the original history when `tool_result_budget` applies.
+- [x] Add/verify tests that `tool_result_budget` does not mutate the input message objects in-place.
+- [x] Add/verify tests that `tool_result_budget` durable marker skipping is identity-specific: only the same tool-use id / explicit durable marker suppresses budget replacement.
+- [x] Add/verify tests that cache-editing microcompact plans provider request side effects without mutating local history or persisted history.
+- [x] Add/verify tests that time-based microcompact, when enabled for explicit main-thread send source and cold-cache gap, content-clears only request projection, keeps at least one recent compactable tool result, emits no cache edit plan for that turn, and marks cached-MC invalidation as runtime side effect only.
+- [x] Add/verify tests that microcompact is no-op when cache editing is unavailable and the cold-cache time-based trigger has not fired; it must not fall back to legacy stale-result stubbing.
+- [x] Add/verify tests that `/context`, diagnostics, and analysis-only compact inspection paths cannot trigger time-based content-clearing.
+- [x] Add/verify tests for Formax's contract-backed order: durable projection baseline -> `microcompact` -> request-time `tool_result_budget` -> `snip` -> `collapse` -> terminal `prune`; do not assert Claude helper-order equivalence.
+- [x] Add/verify tests that stage facts distinguish `microcompact` savings from `tool_result_budget` savings.
 
 ### 2.2 Durable Projection Replay
 
-- [ ] Add/verify tests that `buildContextProjection()` applies durable tool-result replacement to `modelFacingBaseline`.
-- [ ] Add/verify tests that `rawTranscript` and `uiScrollback` remain unchanged after durable replacement replay.
-- [ ] Add/verify table-driven skip matrix: missing target, duplicate target, fingerprint drift, malformed entries, non-tool targets, ambiguous targets, and mixed apply/skip.
-- [ ] Add/verify tests that durable replacement fact includes applied / skipped counts without becoming a second authority.
-- [ ] Add/verify tests that durable replay order is compact boundary / preserved-segment relink -> durable snip -> durable collapse -> durable tool-result content replacement -> request-time middle-layer stack.
-- [ ] Add/verify tests that durable-replaced tool results are not budget-stubbed again by `tool_result_budget`.
-- [ ] Add/verify tests that if durable replacement is skipped due drift/duplicate/ambiguity, the tool result remains eligible for normal request-time `tool_result_budget`.
-- [ ] Add/verify tests that collapse/prune before durable replacement only replaces surviving unique post-collapse tool results.
-- [ ] Add/verify tests that durable replacement does not break tool-use/tool-result pairing.
+- [x] Add/verify tests that `buildContextProjection()` applies durable tool-result replacement to `modelFacingBaseline`.
+- [x] Add/verify tests that `rawTranscript` and `uiScrollback` remain unchanged after durable replacement replay.
+- [x] Add/verify table-driven skip matrix: missing target, duplicate target, fingerprint drift, malformed entries, non-tool targets, ambiguous targets, and mixed apply/skip.
+- [x] Add/verify tests that durable replacement fact includes applied / skipped counts without becoming a second authority.
+- [x] Add/verify tests that durable replay order is compact boundary / preserved-segment relink -> durable snip -> durable collapse -> durable tool-result content replacement -> request-time middle-layer stack.
+- [x] Add/verify tests that durable-replaced tool results are not budget-stubbed again by `tool_result_budget`.
+- [x] Add/verify tests that if durable replacement is skipped due drift/duplicate/ambiguity, the tool result remains eligible for normal request-time `tool_result_budget`.
+- [x] Add/verify tests that collapse/prune before durable replacement only replaces surviving unique post-collapse tool results.
+- [x] Add/verify tests that durable replacement does not break tool-use/tool-result pairing.
 
 ### 2.3 Session Event / Restore Path
 
-- [ ] Add/verify tests for reading the latest durable replacement event from session files.
-- [ ] Add/verify tests for compact-boundary fingerprint scoping and clearing stale replacements after generation changes.
-- [ ] Add/verify tests that malformed durable replacement events are ignored without clearing valid previous state.
-- [ ] Add/verify tests that a malformed durable replacement event after a valid event does not clear the previous valid replacement state.
-- [ ] Add/verify tests that invalid / unknown `sourceProjectionKind` is ignored.
-- [ ] Add/verify tests that sidechain events do not affect main-thread state.
-- [ ] Add/verify `contextCompressionService` path: fallback durable replacement state is scoped to history before projection.
-- [ ] Add/verify `contextCompressionService` path: raw/future `history` remains original, `requestHistory` receives durable replacement replay, no budget stub is added on already durable-replaced results, and request-time facts remain request-time only.
-- [ ] Add/verify two-run replay: request-time reducers do not create durable projection state on a later `buildContextProjection(history)`.
+- [x] Add/verify tests for reading the latest durable replacement event from session files.
+- [x] Add/verify tests for compact-boundary fingerprint scoping and clearing stale replacements after generation changes.
+- [x] Add/verify tests that malformed durable replacement events are ignored without clearing valid previous state.
+- [x] Add/verify tests that a malformed durable replacement event after a valid event does not clear the previous valid replacement state.
+- [x] Add/verify tests that invalid / unknown `sourceProjectionKind` is ignored.
+- [x] Add/verify tests that sidechain events do not affect main-thread state.
+- [x] Add/verify `contextCompressionService` path: fallback durable replacement state is scoped to history before projection.
+- [x] Add/verify `contextCompressionService` path: raw/future `history` remains original, `requestHistory` receives durable replacement replay, no budget stub is added on already durable-replaced results, and request-time facts remain request-time only.
+- [x] Add/verify two-run replay: request-time reducers do not create durable projection state on a later `buildContextProjection(history)`.
 
 ### 2.4 Diagnostics / App-Server Surface
 
-- [ ] Audit `/context --json` / context diagnostics for durable projection facts.
-- [ ] Decide whether diagnostics need a compact durable replacement summary.
-- [ ] If diagnostics surface is added, expose bounded projection metadata only: status, replacement count, skipped count, source scope, generation key/fingerprint, and skipped/drift reason; do not dump full replacement content by default.
-- [ ] If no diagnostics/app-server/Web surface is added, add explicit negative tests that they do not infer durable replacement from budget stubs, durable replacement markers, or transcript rows.
-- [ ] Audit app-server `thread/resume`, `thread/read`, `thread/messages`, and `thread/replay` for compression projection facts.
-- [ ] If app-server surface is added, ensure all four surfaces use one server-owned projection facts path and preserve bounded metadata semantics.
-- [ ] Ensure omitted fields do not clear cached Web facts; explicit null is the clearing signal if a cache is introduced.
+- [x] Audit `/context --json` / context diagnostics for durable projection facts.
+- [x] Decide whether diagnostics need a compact durable replacement summary.
+- [x] If diagnostics surface is added, expose bounded projection metadata only: status, replacement count, skipped count, source scope, generation key/fingerprint, and skipped/drift reason; do not dump full replacement content by default.
+- [x] If no diagnostics/app-server/Web surface is added, add explicit negative tests that they do not infer durable replacement from budget stubs, durable replacement markers, or transcript rows.
+- [x] Audit app-server `thread/resume`, `thread/read`, `thread/messages`, and `thread/replay` for compression projection facts.
+- [x] No stable app-server durable replacement surface was added; current thread surfaces explicitly do not add `durableToolResultContentReplacement` without a contract-backed field.
+- [x] Ensure omitted fields do not clear cached Web facts; explicit null is the clearing signal if a cache is introduced.
 
 ## 3. Frontend Boundary
 
-- [ ] Audit Web `types.ts`, RPC parsers, cache helpers, and runtime orchestrator for existing compression facts handling.
-- [ ] If a durable replacement surface is added, parse it as server-owned fact only.
-- [ ] Ensure Web does not infer durable replacement from transcript rows, `TOOL_RESULT_BUDGET_STUB_PREFIX`, durable replacement markers, durable-looking text, ordinary tool row summaries, or rendered tool-result text.
-- [ ] Ensure Web does not display request-time `tool_result_budget` impact as durable replacement state.
-- [ ] If no surface is added, keep frontend work to negative parser/cache/hydrate/replay regressions proving no local inference.
-- [ ] Add positive parser/cache regressions only if a Web-visible server-owned surface is introduced.
-- [ ] Keep UI unchanged unless a concrete diagnostic display is required.
+- [x] Audit Web `types.ts`, RPC parsers, cache helpers, and runtime orchestrator for existing compression facts handling.
+- [x] No durable replacement surface was added; Web continues to parse only server-owned existing compression facts.
+- [x] Ensure Web does not infer durable replacement from transcript rows, `TOOL_RESULT_BUDGET_STUB_PREFIX`, durable replacement markers, durable-looking text, ordinary tool row summaries, or rendered tool-result text.
+- [x] Ensure Web does not display request-time `tool_result_budget` impact as durable replacement state.
+- [x] If no surface is added, keep frontend work to negative parser/cache/hydrate/replay regressions proving no local inference.
+- [x] No positive parser/cache regressions were added because no Web-visible server-owned durable replacement surface was introduced.
+- [x] Keep UI unchanged unless a concrete diagnostic display is required.
 
 ## 4. CCA-182 Reactive Compact Prep
 
@@ -185,49 +185,49 @@ WebGPT 2026-05-31 四份 review 的收敛结论：当前顺序正确，但 Batch
 
 ### 5.1 Core Context Tests
 
-- [ ] `packages/core/src/chat/context/middleLayerStrategyStack.test.ts`: request-time `tool_result_budget` scope / persistedHistoryCandidate / stage facts / Formax order / microcompact branch boundaries.
-- [ ] `packages/core/src/chat/context/microCompact.test.ts` or equivalent: cache-editing/time-based/no-op microcompact branch boundaries; time-based keeps at least one recent compactable result, short-circuits cache-editing, emits no cache edits, and analysis-only surfaces do not content-clear.
-- [ ] `packages/core/src/chat/context/toolResultBudget.test.ts`: durable marker specificity, no in-place mutation, eligible result selection, reverse fixture for skipped durable replacement remaining budget-eligible.
-- [ ] `packages/core/src/chat/context/contextProjection.test.ts`: durable replacement replay, skip matrix, raw/UI unchanged, ordering with collapse/snip, collapse-before-replacement fixture.
-- [ ] `packages/core/src/chat/context/contextProjectionBaseline.test.ts`: projection views and durable-state facts remain named and stable.
-- [ ] `packages/core/src/chat/context/contextDiagnostics.test.ts` or equivalent: bounded summary, no default full `replacementContent` exposure.
+- [x] `packages/core/src/chat/context/middleLayerStrategyStack.test.ts`: request-time `tool_result_budget` scope / persistedHistoryCandidate / stage facts / Formax order / microcompact branch boundaries.
+- [x] `packages/core/src/chat/context/microCompact.test.ts` or equivalent: cache-editing/time-based/no-op microcompact branch boundaries; time-based keeps at least one recent compactable result, short-circuits cache-editing, emits no cache edits, and analysis-only surfaces do not content-clear.
+- [x] `packages/core/src/chat/context/toolResultBudget.test.ts`: durable marker specificity, no in-place mutation, eligible result selection, reverse fixture for skipped durable replacement remaining budget-eligible.
+- [x] `packages/core/src/chat/context/contextProjection.test.ts`: durable replacement replay, skip matrix, raw/UI unchanged, ordering with collapse/snip, collapse-before-replacement fixture.
+- [x] `packages/core/src/chat/context/contextProjectionBaseline.test.ts`: projection views and durable-state facts remain named and stable.
+- [x] `packages/core/src/chat/context/contextDiagnostics.test.ts` or equivalent: bounded summary, no default full `replacementContent` exposure.
 
 ### 5.2 Session / Runtime Tests
 
-- [ ] `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`: event parsing, malformed ignore, source scope, compact generation scoping.
-- [ ] `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`: durable replacement before request-only budget, no double-stub, raw history/requestHistory split, reactive retry recomputes request projection/cache edit plan from compacted baseline.
+- [x] `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.test.ts`: event parsing, malformed ignore, source scope, compact generation scoping.
+- [x] `packages/core/src/features/repl/controller/send/contextCompressionService.test.ts`: durable replacement before request-only budget, no double-stub, raw history/requestHistory split, reactive retry recomputes request projection/cache edit plan from compacted baseline.
 - [ ] `packages/core/src/features/repl/controller/send/sendMainTurn.test.ts` (Batch 2): eligible/non-eligible provider errors, abort precedence, single retry, failed compact, failed retry cleanup, pending collapse candidate handling, stop-hook/continuation guard.
 - [ ] `packages/core/src/features/repl/controller/send/reactiveCompact.test.ts` (Batch 2): reactive error classification and structured provider error shapes.
 - [ ] `packages/core/src/features/repl/sessionSave/reactiveCompactEvents.test.ts` (Batch 2): latest reactive compact event reading, malformed/latest-valid semantics, lifecycle meaning.
 
 ### 5.3 App-Server / Web Tests
 
-- [ ] If durable replacement surface is added, update `packages/core/src/app-server/server.test.ts` and `threadStore.test.ts` through one server-owned projection facts path.
-- [ ] If durable replacement surface is added, update Web RPC parser/cache/runtime tests for explicit null vs omitted semantics.
-- [ ] If no surface is added, add only negative no-inference tests:
-  - [ ] `packages/core/src/app-server/threadStore.test.ts`: tool rows containing `TOOL_RESULT_BUDGET_STUB_PREFIX` stay ordinary timeline rows and produce no durable replacement summary.
-  - [ ] `packages/core/src/app-server/server.test.ts`: current thread surfaces do not add `durableToolResultContentReplacement` without a contract-backed field.
-  - [ ] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: uncontracted durable replacement fields and budget-stub row text are ignored as compression facts.
-  - [ ] `packages/web-reference-react/src/app/core/threadCache.test.ts`: omitted/uncontracted durable replacement facts do not mutate existing compression-fact cache.
-  - [ ] `packages/web-reference-react/src/app/runtime/threadDataOps.test.ts` or `packages/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`: hydrate/replay does not derive durable replacement from tool row text/summary/detailLines.
-- [ ] Keep CCA-182 Web work limited to facts already exposed by app-server; no local inference.
+- [x] No durable replacement surface was added; app-server tests assert current thread surfaces do not add `durableToolResultContentReplacement` without a contract-backed field.
+- [x] No Web RPC parser/cache positive support was added because no stable durable replacement surface exists.
+- [x] If no surface is added, add only negative no-inference tests:
+  - [x] `packages/core/src/app-server/threadStore.test.ts`: tool rows containing `TOOL_RESULT_BUDGET_STUB_PREFIX` stay ordinary timeline rows and produce no durable replacement summary.
+  - [x] `packages/core/src/app-server/server.test.ts`: current thread surfaces do not add `durableToolResultContentReplacement` without a contract-backed field.
+  - [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: uncontracted durable replacement fields and budget-stub row text are ignored as compression facts.
+  - [x] `packages/web-reference-react/src/app/core/threadCache.test.ts`: omitted/uncontracted durable replacement facts do not mutate existing compression-fact cache.
+  - [x] Hydrate/replay no-inference is covered at the RPC parser/cache boundary because runtime adapters only consume parsed `ThreadCompressionProjectionFacts`.
+- [x] Keep CCA-182 Web work limited to facts already exposed by app-server; no local inference.
 
 ## 6. Recommended Execution Order
 
 ### Batch 1: Tool Result Reducer / Durable Replacement / Microcompact Boundary Audit
 
-- [ ] Audit current `microcompact`, `tool_result_budget`, durable replacement, and projection ordering.
-- [ ] Update this TODO with exact files / gaps found during audit.
-- [ ] Add/strengthen core request-time boundary tests, including cache-editing/time-based/no-op microcompact branch behavior and analysis-only no content-clearing.
-- [ ] Add/strengthen durable projection replay tests.
-- [ ] Add/strengthen session event / runtime fallback tests.
-- [ ] Default-defer app-server/Web durable replacement stable surface; reverse this only if the audit identifies a concrete consumer and contracts are updated before wiring.
-- [ ] Add app-server/Web no-inference negative tests if no stable surface is added.
-- [ ] Update canonical docs if behavior or surface semantics are clarified.
-- [ ] Add/update a learning note under `docs/learnings/`.
-- [ ] Run targeted Batch 1 tests only: core context, durable replacement session events, contextCompressionService, contextDiagnostics, and app-server/Web no-inference tests.
-- [ ] Run `bun run type-check`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Audit current `microcompact`, `tool_result_budget`, durable replacement, and projection ordering.
+- [x] Update this TODO with exact files / gaps found during audit.
+- [x] Add/strengthen core request-time boundary tests, including cache-editing/time-based/no-op microcompact branch behavior and analysis-only no content-clearing.
+- [x] Add/strengthen durable projection replay tests.
+- [x] Add/strengthen session event / runtime fallback tests.
+- [x] Default-defer app-server/Web durable replacement stable surface; reverse this only if the audit identifies a concrete consumer and contracts are updated before wiring.
+- [x] Add app-server/Web no-inference negative tests if no stable surface is added.
+- [x] Update canonical docs if behavior or surface semantics are clarified.
+- [x] Add/update a learning note under `docs/learnings/`.
+- [x] Run targeted Batch 1 tests only: core context, durable replacement session events, contextCompressionService, contextDiagnostics, and app-server/Web no-inference tests.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 Suggested commit: `test(context): guard tool result replacement boundaries`
 
@@ -285,11 +285,11 @@ Suggested commit: `docs(context): close compression boundary rolling plan`
 
 ## 8. Completion Criteria
 
-- [ ] `microcompact`, `tool_result_budget`, and durable replacement boundaries are test-locked and documented.
-- [ ] Microcompact branch behavior is test-locked: cache-editing is request/API side effect, time-based is cold-cache request projection clearing, and unavailable/missed paths no-op without legacy stubbing.
-- [ ] Request-time reducers do not masquerade as durable projection state.
-- [ ] Durable replacement replay is validated, scoped, and protected against double-stub / drift regressions.
-- [ ] Diagnostics / app-server / Web either expose a bounded server-owned durable replacement fact or explicitly do not infer one.
+- [x] `microcompact`, `tool_result_budget`, and durable replacement boundaries are test-locked and documented.
+- [x] Microcompact branch behavior is test-locked: cache-editing is request/API side effect, time-based is cold-cache request projection clearing, and unavailable/missed paths no-op without legacy stubbing.
+- [x] Request-time reducers do not masquerade as durable projection state.
+- [x] Durable replacement replay is validated, scoped, and protected against double-stub / drift regressions.
+- [x] Diagnostics / app-server / Web either expose a bounded server-owned durable replacement fact or explicitly do not infer one.
 - [ ] Reactive compact characterization includes collapse drain ordering, retry guard persistence, cache-edit plan lifecycle, failed compact/retry cleanup, and `reactive_compact_applied` lifecycle semantics.
 - [ ] CCA-182 has characterization tests and a minimal implementation slice selected from observed gaps.
 - [ ] CCA-182 implementation slice, if executed, has targeted tests and clean review.

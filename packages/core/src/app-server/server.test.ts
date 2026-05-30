@@ -265,6 +265,7 @@ describe('AppServer', () => {
       estimatedTokensSaved: 256,
       recapFingerprint: 'feedface01234567',
     })
+    expect(Object.prototype.hasOwnProperty.call((resumeOut[0] as any).result, 'durableToolResultContentReplacement')).toBe(false)
 
     const listOut = await server.handleMessage(request(4, 'thread/list', { limit: 10 }))
     expect((listOut[0] as any).result.data).toHaveLength(1)
@@ -283,6 +284,7 @@ describe('AppServer', () => {
       estimatedTokensSaved: 120,
       recapFingerprint: 'abcdef0123456789',
     })
+    expect(Object.prototype.hasOwnProperty.call((readOut[0] as any).result, 'durableToolResultContentReplacement')).toBe(false)
 
     const replayOut = await server.handleMessage(request(6, 'thread/replay', { threadId: 't-1' }))
     expect((replayOut[0] as any).result.latestCompactBoundary).toEqual({
@@ -297,6 +299,7 @@ describe('AppServer', () => {
       estimatedTokensSaved: 120,
       recapFingerprint: 'abcdef0123456789',
     })
+    expect(Object.prototype.hasOwnProperty.call((replayOut[0] as any).result, 'durableToolResultContentReplacement')).toBe(false)
 
     const messagesOut = await server.handleMessage(request(6, 'thread/messages', { threadId: 't-1', limit: 2 }))
     expect((messagesOut[0] as any).result.data).toEqual([{ id: '0', kind: 'message', role: 'user', text: 'hi' }])
@@ -313,6 +316,7 @@ describe('AppServer', () => {
       estimatedTokensSaved: 64,
       recapFingerprint: 'fedcba9876543210',
     })
+    expect(Object.prototype.hasOwnProperty.call((messagesOut[0] as any).result, 'durableToolResultContentReplacement')).toBe(false)
 
     const renameOut = await server.handleMessage(
       request(8, 'thread/rename', { threadId: 't-1', label: 'Renamed in web' }),

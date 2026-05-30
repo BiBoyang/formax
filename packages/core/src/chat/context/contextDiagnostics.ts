@@ -50,6 +50,7 @@ import {
   type ContextProjectionDurableState,
   type ContextProjectionDurableInputState,
   type DurableProjectionStage,
+  type DurableToolResultContentReplacementProjectionFact,
 } from './contextProjection'
 import type { RuntimeModelProfile } from '../../core/models/modelCapability.js'
 
@@ -212,7 +213,25 @@ export type ContextProjectionLayerDiagnostics = {
   activeCompactBoundaryFingerprint: string | null
   modelFacingBaselineFingerprint: string
   appliedDurableStages: DurableProjectionStage[]
-  durableStages: ContextProjectionDurableState
+  durableStages: ContextProjectionDurableDiagnosticsState
+}
+
+type DurableToolResultContentReplacementDiagnosticsFact = Omit<
+  DurableToolResultContentReplacementProjectionFact,
+  'replacements'
+> & {
+  replacements: Array<{
+    kind: 'tool_result_block'
+    toolUseId: string
+    replacementContentLength: number
+    hasReplacementContent: boolean
+    originalContentFingerprint?: string
+    reason?: string
+  }>
+}
+
+type ContextProjectionDurableDiagnosticsState = Omit<ContextProjectionDurableState, 'toolResultContentReplacement'> & {
+  toolResultContentReplacement: DurableToolResultContentReplacementDiagnosticsFact
 }
 
 export type ContextDiagnosticsPayload = {
@@ -291,7 +310,28 @@ function buildProjectionLayerDiagnostics(args: {
     activeCompactBoundaryFingerprint: contextProjection.facts.activeCompactBoundaryFingerprint,
     modelFacingBaselineFingerprint: contextProjection.facts.modelFacingBaselineFingerprint,
     appliedDurableStages: [...contextProjection.facts.appliedDurableStages],
-    durableStages: contextProjection.durableState,
+    durableStages: normalizeDurableStagesForDiagnostics(contextProjection.durableState),
+  }
+}
+
+function normalizeDurableStagesForDiagnostics(
+  state: ContextProjectionDurableState,
+): ContextProjectionDurableDiagnosticsState {
+  return {
+    ...state,
+    toolResultContentReplacement: {
+      ...state.toolResultContentReplacement,
+      replacements: state.toolResultContentReplacement.replacements.map((replacement) => ({
+        kind: 'tool_result_block',
+        toolUseId: replacement.toolUseId,
+        replacementContentLength: replacement.replacementContent.length,
+        hasReplacementContent: replacement.replacementContent.length > 0,
+        ...(replacement.originalContentFingerprint
+          ? { originalContentFingerprint: replacement.originalContentFingerprint }
+          : {}),
+        ...(replacement.reason ? { reason: replacement.reason } : {}),
+      })),
+    },
   }
 }
 

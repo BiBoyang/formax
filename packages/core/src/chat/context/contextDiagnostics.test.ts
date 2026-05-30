@@ -25,6 +25,7 @@ import { buildPostCompactRehydration } from './postCompactRehydration'
 import { buildSessionMemoryCompactionRehydration, buildSessionMemoryCompactionSummary, buildSessionMemoryDraft } from './sessionMemory'
 import { CACHE_EDITING_BETA_HEADER } from './cacheEditing'
 import { createContextCollapseCommittedEntry } from './contextCollapseStore'
+import { fingerprintToolResultContent } from './contextProjection'
 
 describe('contextDiagnostics', () => {
   it('analyzes prompt slices, counts tool results, and detects microcompacted stubs', () => {
@@ -1212,6 +1213,91 @@ describe('contextDiagnostics', () => {
       replacedMessageCount: 2,
     })
     expect(JSON.stringify(parsed.nextTurnFixed)).not.toContain('older answer')
+  })
+
+  it('bounds durable tool-result replacement diagnostics without exposing replacement content', () => {
+    const replacementContent = '[durable replacement secret payload]'
+    const originalContent = 'large tool output'
+    const raw = buildContextDiagnosticsJson({
+      cwd: '/repo',
+      cfg: {
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-latest',
+          apiKey: '',
+          baseUrl: '',
+          timeoutMs: 60_000,
+          thinkingMode: true,
+          contextWindowTokens: 100_000,
+        },
+        context: {
+          effectiveContextWindowPercent: 0.95,
+          autoCompactTokenLimitPercent: 0.9,
+          baselineTokens: 12_000,
+          compactKeepLastTurns: 4,
+          enableAutoCompact: true,
+          autoCompactMinTurnsBetweenRuns: 8,
+        },
+        paths: { logsDir: '', subagentsDir: '', planDir: '' },
+        ui: {
+          assistantTextMode: 'buffered',
+          showContextMeter: true,
+          showAutoCompactNotice: true,
+          outputStyle: 'default',
+          verboseOutput: false,
+        },
+      } as any,
+      allowedSubagents: [],
+      mode: 'normal',
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/repo/a.ts' } }] as any,
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: originalContent }] as any,
+        },
+      ],
+      durableState: {
+        toolResultContentReplacement: {
+          schemaVersion: 1,
+          sourceScope: { kind: 'main_thread' },
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'tool-1',
+              replacementContent,
+              originalContentFingerprint: fingerprintToolResultContent(originalContent),
+              reason: 'test bounded diagnostics',
+            },
+          ],
+        },
+      },
+    })
+
+    const parsed = JSON.parse(raw)
+    const fact = parsed.projectionLayers.durableStages.toolResultContentReplacement
+    expect(fact).toMatchObject({
+      stage: 'tool_result_content_replacement',
+      status: 'active',
+      applied: true,
+      replacementCount: 1,
+      skippedReplacementCount: 0,
+      replacements: [
+        {
+          kind: 'tool_result_block',
+          toolUseId: 'tool-1',
+          replacementContentLength: replacementContent.length,
+          hasReplacementContent: true,
+          originalContentFingerprint: fingerprintToolResultContent(originalContent),
+          reason: 'test bounded diagnostics',
+        },
+      ],
+    })
+    expect(raw).not.toContain(replacementContent)
+    expect(fact.replacements[0]).not.toHaveProperty('replacementContent')
   })
 
   it('uses durable active compact fingerprint for boundaryless next-turn collapse estimates', () => {

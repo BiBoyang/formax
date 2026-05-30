@@ -179,6 +179,67 @@ describe('durableToolResultContentReplacementEvents', () => {
     expect(readDurableToolResultContentReplacementStateFromSessionSync({ filePath })).toEqual(expected)
   })
 
+  it('ignores malformed events after a valid replacement without clearing previous state', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-malformed-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify(replacementEvent({
+          toolUseId: 'valid-tool',
+          replacementContent: '[valid replacement]',
+          baseProjectionFingerprint: 'valid-baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
+        })),
+        JSON.stringify({
+          type: 'event',
+          name: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+          data: {
+            schemaVersion: 1,
+            source: 'tool_result_content_replacement',
+            sourceScope: { kind: 'main_thread' },
+            replacements: [{ kind: 'tool_result_block', toolUseId: '', replacementContent: '[malformed]' }],
+          },
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    await expect(readDurableToolResultContentReplacementStateFromSession({ filePath })).resolves.toMatchObject({
+      baseProjectionFingerprint: 'valid-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+      replacements: [{ toolUseId: 'valid-tool', replacementContent: '[valid replacement]' }],
+    })
+    expect(readDurableToolResultContentReplacementStateFromSessionSync({ filePath })).toMatchObject({
+      baseProjectionFingerprint: 'valid-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+      replacements: [{ toolUseId: 'valid-tool', replacementContent: '[valid replacement]' }],
+    })
+  })
+
+  it('ignores events with an unknown sourceProjectionKind', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-source-kind-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    const event = replacementEvent({
+      toolUseId: 'bad-source-kind-tool',
+      replacementContent: '[bad source kind replacement]',
+      baseProjectionFingerprint: 'bad-source-kind-baseline-fp',
+      sourceProjectionKind: 'model_facing_baseline',
+    })
+    ;(event.data as Record<string, unknown>).sourceProjectionKind = 'raw_transcript'
+
+    await fs.writeFile(filePath, JSON.stringify(event), 'utf8')
+
+    const expected = {
+      schemaVersion: 1,
+      sourceScope: { kind: 'main_thread' },
+      activeCompactBoundaryFingerprint: null,
+      replacements: [],
+    }
+    await expect(readDurableToolResultContentReplacementStateFromSession({ filePath })).resolves.toEqual(expected)
+    expect(readDurableToolResultContentReplacementStateFromSessionSync({ filePath })).toEqual(expected)
+  })
+
   it('clears stale replacement snapshots when compact-boundary generation changes', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-'))
     const filePath = path.join(dir, 'session.jsonl')

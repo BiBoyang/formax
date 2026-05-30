@@ -210,6 +210,7 @@
     - `mode: string`
     - `model: string`
     - `latestCompactBoundary: CompactBoundaryMeta | null`
+    - `projectionLayers: ContextProjectionLayerDiagnostics`
     - `contextMeterRaw: ContextMeterRaw`
     - `snapshot: ContextDiagnosticsSnapshot`
     - `nextTurnFixed: NextTurnFixedContextDiagnostics`
@@ -223,6 +224,7 @@
     - `snapshotRaw: ContextMeterSnapshotRaw`
   - `ContextMeterBudgetRaw` 当前稳定字段 MUST 包含：`schemaVersion`、`model`、`provider`、`contextWindowTokens`、`effectiveContextWindowPercent`、`autoCompactLimitPercent`、`baselineTokens`、`source ("runtime_config" | "known_model_window")`。
   - `ContextMeterSnapshotRaw` 当前稳定字段 MUST 包含 token/message 原始计数：`totalTokens`、`systemTokens`、`historyTokens`、`toolResultTokens`、`otherHistoryTokens`、`messageCount`、`userMessageCount`、`assistantMessageCount`、`toolResultBlockCount`、`microCompactedToolResultCount`。
+  - `local.diagnostics.projectionLayers.durableStages.toolResultContentReplacement` MUST expose bounded metadata only. It MAY include replacement count, skipped count, tool-use ids, replacement-content length, original-content fingerprint, and reason; it MUST NOT expose full `replacementContent` by default.
   - `local.diagnostics.snapshot` 当前稳定字段 MUST 包含：
     - `totalTokens`
     - `systemTokens`

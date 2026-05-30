@@ -13,6 +13,7 @@ import {
   fingerprintCompactBoundaryMessage,
   fingerprintPromptMessage,
 } from '../chat/context/compact.js'
+import { TOOL_RESULT_BUDGET_STUB_PREFIX } from '../chat/context/toolResultBudget.js'
 import { __threadStoreTestOnly, ThreadStore } from './threadStore.js'
 
 async function createStore() {
@@ -1237,6 +1238,42 @@ describe('ThreadStore', () => {
         }),
       ]),
     )
+  })
+
+  it('does not infer durable replacement summaries from budget-stub tool rows', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+
+    const filePath = await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+    const writer = await SessionWriter.openExisting({ filePath })
+    await writer.appendStableMsg({
+      id: 'tool-budget-stub',
+      role: 'tool',
+      content: `${TOOL_RESULT_BUDGET_STUB_PREFIX} Read /repo/a.ts]`,
+      timestamp: new Date('2026-02-08T00:00:01.000Z'),
+      toolInfo: {
+        name: 'Read',
+        toolUseId: 'read-1',
+        input: { file_path: '/repo/a.ts' },
+        status: 'completed',
+        result: 'durable tool-result replacement marker: read-1',
+        middleLines: [`${TOOL_RESULT_BUDGET_STUB_PREFIX} Read /repo/a.ts]`],
+      },
+    } as any)
+    await writer.shutdown()
+
+    const out = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
+    expect(out.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'tool',
+          toolUseId: 'read-1',
+          toolName: 'Read',
+          summary: `${TOOL_RESULT_BUDGET_STUB_PREFIX} Read /repo/a.ts]`,
+        }),
+      ]),
+    )
+    expect(Object.prototype.hasOwnProperty.call(out, 'durableToolResultContentReplacement')).toBe(false)
   })
 
   it('omits assistant thinking_block rows from thread/messages', async () => {
