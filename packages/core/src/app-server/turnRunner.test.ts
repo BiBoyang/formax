@@ -1293,6 +1293,151 @@ describe('TurnRunner', () => {
     }
   })
 
+  it('characterizes app-server context-overflow provider errors as fail-fast without reactive retry', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runTurn = vi.fn(async () => {
+      throw new Error('HTTP 413: request too large')
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(String(failed.params?.error || '')).toContain('HTTP 413: request too large')
+    expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
+  })
+
+  it('keeps app-server interrupted status before overflow-like error text', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runTurn = vi.fn(
+      async (args) =>
+        await new Promise<ChatHistory>((_, reject) => {
+          args.signal?.addEventListener(
+            'abort',
+            () => reject(new Error('Request aborted: prompt is too long')),
+            { once: true },
+          )
+        }),
+    )
+    const runner = new TurnRunner({
+      engine: { runTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+    await vi.waitFor(() => {
+      expect(runTurn).toHaveBeenCalledTimes(1)
+    })
+    await runner.interruptTurn({ threadId: fixture.threadId, turnId: started.turn.id })
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(failed.params?.turn?.status).toBe('interrupted')
+    expect(String(failed.params?.error || '')).toContain('Request aborted: prompt is too long')
+    expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
+  })
+
+  it('characterizes app-server auth/rate-limit errors with overflow-like text as fail-fast', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const runTurn = vi.fn(async () => {
+      throw new Error('API Error: 429 rate limit exceeded; prompt is too long')
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(String(failed.params?.error || '')).toContain('API Error: 429 rate limit exceeded; prompt is too long')
+    expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
+  })
+
+  it('does not commit app-server durable collapse state when a context-overflow turn fails', async () => {
+    const fixture = await createThreadFixture()
+    const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
+    const notifications: Notification[] = []
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot([
+      { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+      { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+    ] as ChatHistory)
+    await seedWriter.shutdown()
+
+    const appendEvent = vi.fn().mockResolvedValue(undefined)
+    const openSpy = vi.spyOn(SessionWriter, 'openExisting').mockResolvedValue({
+      appendEvent,
+      appendStableMsg: vi.fn().mockResolvedValue(undefined),
+      appendHistorySnapshot: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+    } as any)
+
+    try {
+      const runTurn = vi.fn(async () => {
+        throw new Error('HTTP 413: request too large')
+      })
+      const runner = new TurnRunner({
+        engine: { runTurn },
+        tools: [],
+        allowedSubagents: [],
+        model: 'test-model',
+        cwd: fixture.cwd,
+        env,
+        emitNotification(method, params) {
+          notifications.push({ method, params })
+        },
+      })
+
+      await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+
+      const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+      expect(runTurn).toHaveBeenCalledTimes(1)
+      expect(String(failed.params?.error || '')).toContain('HTTP 413: request too large')
+      expect(appendEvent).not.toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, expect.anything())
+      expect(appendEvent).not.toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, expect.anything())
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
   it('marks turn failed when writer flush rejects with non-Error value', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

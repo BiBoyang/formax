@@ -6,6 +6,7 @@ import type { PromptMessage } from '../prompts/index.js'
 import type { ToolDefinition } from '../tools/types.js'
 import { fingerprintToolResultContent } from '../chat/context/contextProjection.js'
 import { fingerprintCompactBoundaryMessage, fingerprintPromptMessage } from '../chat/context/compact.js'
+import { CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME } from '../features/repl/sessionSave/contextCollapseStoreEvents.js'
 import { DURABLE_SNIP_COMMITTED_EVENT_NAME } from '../features/repl/sessionSave/durableSnipStoreEvents.js'
 import { DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME } from '../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
 import { query } from './query.js'
@@ -714,6 +715,158 @@ describe('sdk query option alignment regressions', () => {
       ]),
     })
     expect(callArgs.requestHistory).toEqual(callArgs.history)
+  })
+
+  it('characterizes SDK context-overflow provider errors as fail-fast without reactive retry', async () => {
+    const runTurn = vi.fn(async () => {
+      throw new Error('HTTP 413: request too large')
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk overflow',
+      options: {
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('error_during_execution')
+    expect(result?.error).toContain('HTTP 413: request too large')
+  })
+
+  it('keeps SDK abort-like failures separate from overflow fallback candidates', async () => {
+    const abortController = new AbortController()
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      abortController.abort()
+      expect(turnArgs.signal?.aborted).toBe(true)
+      throw new Error('Request aborted: prompt is too long')
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk overflow-like abort',
+      options: {
+        abortController,
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('error_during_execution')
+    expect(result?.error).toContain('Request aborted: prompt is too long')
+  })
+
+  it('characterizes SDK auth/rate-limit errors with overflow-like text as fail-fast', async () => {
+    const runTurn = vi.fn(async () => {
+      throw new Error('API Error: 429 rate limit exceeded; prompt is too long')
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk rate limit',
+      options: {
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('error_during_execution')
+    expect(result?.error).toContain('API Error: 429 rate limit exceeded; prompt is too long')
+  })
+
+  it('keeps SDK structured-output retries separate from context-overflow failures', async () => {
+    const runTurn = vi.fn(async () => {
+      throw new Error('API Error: 400 prompt is too long: 214528 tokens')
+    })
+    state.createRuntime.mockResolvedValue(createRuntimeFixture(runTurn))
+
+    const messages = await collectMessages({
+      prompt: 'give structured output after overflow',
+      options: {
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+        },
+        outputFormat: {
+          type: 'json_schema',
+          maxRetries: 2,
+          schema: {
+            type: 'object',
+            properties: {
+              company_name: { type: 'string' },
+            },
+            required: ['company_name'],
+            additionalProperties: false,
+          },
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('error_during_execution')
+    expect(result?.error).toContain('API Error: 400 prompt is too long: 214528 tokens')
+  })
+
+  it('does not commit SDK durable collapse state when a context-overflow query fails', async () => {
+    const runTurn = vi.fn(async () => {
+      throw new Error('HTTP 413: request too large')
+    })
+    const runtime = createRuntimeFixture(runTurn)
+    runtime.cfg.llm = {
+      ...runtime.cfg.llm,
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-latest',
+      contextWindowTokens: 3000,
+    }
+    runtime.cfg.context = {
+      effectiveContextWindowPercent: 0.95,
+      autoCompactTokenLimitPercent: 0.9,
+      baselineTokens: 0,
+    }
+    state.createRuntime.mockResolvedValue(runtime)
+    const writer = createSessionWriterFixture()
+    state.createSessionWriter.mockResolvedValue({
+      writer,
+      meta: { sessionId: 'overflow-session-id' },
+      filePath: '/tmp/overflow-session.jsonl',
+    })
+
+    const messages = await collectMessages({
+      prompt: 'continue sdk overflow with collapse candidate',
+      history: [
+        { role: 'assistant', content: [{ type: 'text', text: `old-a ${'x'.repeat(5000)}` }] },
+        { role: 'assistant', content: [{ type: 'text', text: `old-b ${'y'.repeat(5000)}` }] },
+        { role: 'assistant', content: [{ type: 'text', text: `recent ${'z'.repeat(5000)}` }] },
+      ],
+      options: {
+        persistSession: true,
+        env: {
+          ...process.env,
+          FORMAX_API_KEY: 'sk-test',
+        },
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(writer.appendEvent).not.toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, expect.anything())
+    expect(writer.appendEvent).not.toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, expect.anything())
+    const result = messages.find((message): message is Extract<QueryMessage, { type: 'result' }> => message.type === 'result')
+    expect(result?.subtype).toBe('error_during_execution')
+    expect(result?.error).toContain('HTTP 413: request too large')
   })
 
   it('keeps debug compatibility behavior via hook-debug env wiring', async () => {
