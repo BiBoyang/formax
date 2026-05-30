@@ -6,6 +6,7 @@ import {
   fingerprintCompactBoundaryMessage,
   isCompactBoundaryMessage,
   readCompactBoundaryMeta,
+  type CompactTriggerReason,
 } from '../chat/context/compact.js'
 import type { ChatEngine, ChatHistory } from '../chat/engine.js'
 import type { ContextBudgetConfig } from '../chat/context/budget.js'
@@ -43,6 +44,16 @@ import {
   SessionWriter,
 } from '../features/repl/sessionSave/index.js'
 import { runCompactFlow } from '../features/repl/controller/send/compactFlow.js'
+import {
+  createContextCompressionService,
+  type RequestCollapseState,
+  type RequestSnipState,
+} from '../features/repl/controller/send/contextCompressionService.js'
+import {
+  classifyReactiveCompactError,
+  isReactiveCompactEligibleError,
+} from '../features/repl/controller/send/reactiveCompact.js'
+import { isAbortLikeError } from '../features/repl/controller/shared/utils.js'
 import type { Msg } from '../shared/toolMessageTypes.js'
 import { sourceFromInputKind } from '../shared/inputContracts.js'
 import { sourceFromRuntimeEventType } from '../shared/runtimeEventSource.js'
@@ -70,7 +81,7 @@ import {
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'
 import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
-import { loadRuntimeConfig } from '../config/config.js'
+import { loadRuntimeConfig, type RuntimeConfig } from '../config/config.js'
 import { resolveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
 import { createPlanSessionManager, type PlanSessionManager } from '../features/repl/planSession.js'
 import {
@@ -86,6 +97,10 @@ type TurnStartRuntimeParams = TurnStartParams & {
   pendingInjectedBlocks?: PromptBlock[]
   onPendingInjectedBlocksConsumed?: (args: { threadId: string; turnId: string }) => void | Promise<void>
 }
+
+type ReactiveCompactPreparation = Awaited<
+  ReturnType<ReturnType<typeof createContextCompressionService>['runReactiveCompact']>
+>
 
 export type TurnRunnerNotificationEmitter = (method: string, params?: unknown) => void
 
@@ -132,6 +147,7 @@ type RunningTurn = {
     isCommand: boolean
     instructions: string
   }
+  runtimeConfig: RuntimeConfig
   runtimeProfile: RuntimeModelProfile
   toolNameByUseId: Map<string, string>
   toolInputByUseId: Map<string, unknown>
@@ -277,6 +293,42 @@ async function commitPendingDurableCompressionState(args: {
       entry: args.contextCollapseCommit,
     }))
   }
+}
+
+function buildDurableSnipCommit(args: {
+  phase: 'initial' | 'reactive_retry'
+  state: RequestSnipState | null | undefined
+}): Record<string, unknown> | null {
+  if (!args.state?.applied || args.state.removals.length === 0) return null
+  return {
+    schemaVersion: 1,
+    source: 'request_snip',
+    phase: args.phase,
+    estimatedTokensSaved: args.state.estimatedTokensSaved,
+    removedMessageCount: args.state.removedMessageCount,
+    compactBoundaryFingerprint: args.state.compactBoundaryFingerprint,
+    baseProjectionFingerprint: args.state.baseProjectionFingerprint,
+    sourceProjectionKind: args.state.sourceProjectionKind,
+    removals: args.state.removals,
+  }
+}
+
+function buildContextCollapseCommitEntry(args: {
+  phase: 'initial' | 'reactive_retry'
+  state: RequestCollapseState | null | undefined
+  createdAtMs: number
+}): ContextCollapseCommittedEntry | null {
+  if (!args.state?.metadata || !args.state.commit) return null
+  const phaseSegment = args.phase === 'initial' ? '' : `${args.phase}:`
+  return createContextCollapseCommittedEntry({
+    id: `request-collapse:app-server:${phaseSegment}${args.state.metadata.recapFingerprint}`,
+    createdAtMs: args.createdAtMs,
+    source: 'request_collapse',
+    collapsedRange: args.state.commit.collapsedRange,
+    compactBoundaryFingerprint: args.state.commit.compactBoundaryFingerprint,
+    recapMessage: args.state.commit.recapMessage,
+    metadata: args.state.metadata,
+  })
 }
 
 export class TurnRunner {
@@ -438,6 +490,7 @@ export class TurnRunner {
         isCommand: commandRouting.isExactCompact,
         instructions: compactInstructions,
       },
+      runtimeConfig,
       runtimeProfile,
       toolNameByUseId: new Map<string, string>(),
       toolInputByUseId: new Map<string, unknown>(),
@@ -815,9 +868,10 @@ export class TurnRunner {
           enableCacheEditing: cacheEditingEnabled,
           enableTimeBasedMicroCompact: cacheEditingEnabled,
         })
-        const executionHistory = prepared.persistedHistory as ChatHistory
-        const executionRequestHistory = prepared.requestHistory as ChatHistory
-        const executionUser = prepared.requestUser as typeof user
+        let executionHistory = prepared.persistedHistory as ChatHistory
+        let executionRequestHistory = prepared.requestHistory as ChatHistory
+        let executionUser = prepared.requestUser as typeof user
+        let executionCacheEditPlan = prepared.cacheEditPlan
         const collapseFact = prepared.strategyFacts.collapse
         const snipFact = prepared.strategyFacts.snip
         const collapseCompactBoundaryFingerprint =
@@ -828,38 +882,6 @@ export class TurnRunner {
           ? requestHistoryContainsExactMessage({ messages: prepared.requestHistory, message: collapseRecapMessage })
           : false
 
-        await this.consumePendingInjectedBlocksForDispatch(running)
-        const nextHistory = await this.engine.runTurn({
-          history: executionHistory,
-          requestHistory: executionRequestHistory,
-          user,
-          requestUser: executionUser,
-          cacheEditPlan: prepared.cacheEditPlan,
-          system,
-          tools,
-          ...(toolExposure.resolveToolsForCall ? { resolveToolsForCall: toolExposure.resolveToolsForCall } : {}),
-          onEvent,
-          cwd: running.cwd,
-          signal: running.abortController.signal,
-          promptBudget,
-          model: running.runtimeProfile.model,
-          thinkingEnabled: running.runtimeProfile.thinkingMode,
-          exec: {
-            interactive: true,
-            replMode: running.replMode,
-            getReplMode,
-            setReplMode,
-            getPlanPath: () => running.planPath,
-            planPath: running.planPath,
-            trace: turnTrace,
-            ...(toolExposure.toolExposureSessionKey
-              ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey }
-              : {}),
-          },
-        })
-        if (running.abortController.signal.aborted) {
-          throw new Error('Request aborted')
-        }
         const rebasedCollapseHeadMessageCount = rebaseCollapseHeadCountAfterDurableSnip({
           collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
           snipRemovals: prepared.stack.snipRemovals,
@@ -885,20 +907,21 @@ export class TurnRunner {
             baseProjectionFingerprint: prepared.contextProjection.facts.modelFacingBaselineFingerprint,
             sourceProjectionKind: 'model_facing_baseline',
           })
-          pendingDurableSnipCommit = {
-            schemaVersion: 1,
-            source: 'request_snip',
+          pendingDurableSnipCommit = buildDurableSnipCommit({
             phase: 'initial',
-            estimatedTokensSaved: snipFact.estimatedTokensSaved,
-            removedMessageCount: snipSnapshot.removals.reduce(
-              (sum, removal) => sum + removal.endIndexExclusive - removal.startIndex,
-              0,
-            ),
-            compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
-            baseProjectionFingerprint: snipSnapshot.baseProjectionFingerprint,
-            sourceProjectionKind: snipSnapshot.sourceProjectionKind,
-            removals: snipSnapshot.removals,
-          }
+            state: {
+              applied: true,
+              estimatedTokensSaved: snipFact.estimatedTokensSaved,
+              removedMessageCount: snipSnapshot.removals.reduce(
+                (sum, removal) => sum + removal.endIndexExclusive - removal.startIndex,
+                0,
+              ),
+              compactBoundaryFingerprint: activeCompactBoundaryFingerprint,
+              baseProjectionFingerprint: snipSnapshot.baseProjectionFingerprint,
+              sourceProjectionKind: snipSnapshot.sourceProjectionKind,
+              removals: snipSnapshot.removals,
+            },
+          })
         }
         const collapseCommit = buildContextCollapseCommitStateCandidate({
           applied: collapseFact.applied,
@@ -909,17 +932,145 @@ export class TurnRunner {
           hasSameTurnSnip: prepared.stack.snipRemovals.length > 0,
           collapsedHeadMessageCount: rebasedCollapseHeadMessageCount,
         })
-        if (collapseCommit && collapseFact.metadata) {
-          const entry = createContextCollapseCommittedEntry({
-            id: `request-collapse:app-server:${collapseFact.metadata.recapFingerprint}`,
-            createdAtMs: Date.now(),
-            source: 'request_collapse',
-            collapsedRange: collapseCommit.collapsedRange,
-            compactBoundaryFingerprint: collapseCommit.compactBoundaryFingerprint,
-            recapMessage: collapseCommit.recapMessage,
+        pendingContextCollapseCommit = buildContextCollapseCommitEntry({
+          phase: 'initial',
+          createdAtMs: Date.now(),
+          state: {
+            applied: collapseFact.applied,
+            collapsedHeadMessageCount: collapseFact.collapsedHeadMessageCount,
+            estimatedTokensSaved: collapseFact.estimatedTokensSaved,
             metadata: collapseFact.metadata,
+            commit: collapseCommit,
+          },
+        })
+
+        const runEngineTurn = async () =>
+          this.engine.runTurn({
+            history: executionHistory,
+            requestHistory: executionRequestHistory,
+            user,
+            requestUser: executionUser,
+            cacheEditPlan: executionCacheEditPlan,
+            system,
+            tools,
+            ...(toolExposure.resolveToolsForCall ? { resolveToolsForCall: toolExposure.resolveToolsForCall } : {}),
+            onEvent,
+            cwd: running.cwd,
+            signal: running.abortController.signal,
+            promptBudget,
+            model: running.runtimeProfile.model,
+            thinkingEnabled: running.runtimeProfile.thinkingMode,
+            exec: {
+              interactive: true,
+              replMode: running.replMode,
+              getReplMode,
+              setReplMode,
+              getPlanPath: () => running.planPath,
+              planPath: running.planPath,
+              trace: turnTrace,
+              ...(toolExposure.toolExposureSessionKey
+                ? { toolExposureSessionKey: toolExposure.toolExposureSessionKey }
+                : {}),
+            },
           })
-          pendingContextCollapseCommit = entry
+
+        await this.consumePendingInjectedBlocksForDispatch(running)
+        let nextHistory: ChatHistory
+        try {
+          nextHistory = (await runEngineTurn()) as ChatHistory
+        } catch (error) {
+          const abortLike = running.abortController.signal.aborted || isAbortLikeError(error)
+          const reactiveErrorInfo = !abortLike ? classifyReactiveCompactError(error) : null
+          if (!abortLike && reactiveErrorInfo && isReactiveCompactEligibleError(error)) {
+            const initialCollapseCommit = pendingContextCollapseCommit
+            if (initialCollapseCommit) {
+              try {
+                await commitPendingDurableCompressionState({
+                  writer,
+                  filePath: running.filePath,
+                  contextCollapseStoreByFilePath: this.contextCollapseStoreByFilePath,
+                  durableSnipCommit: null,
+                  contextCollapseCommit: initialCollapseCommit,
+                })
+                pendingContextCollapseCommit = null
+              } catch {
+                // Reactive overflow recovery should not be suppressed by best-effort
+                // persistence of the already-prepared request collapse snapshot.
+              }
+            }
+
+            const compression = createContextCompressionService({
+              cfg: running.runtimeConfig,
+              engine: this.engine as ChatEngine,
+              mode: running.replMode,
+              getReplMode,
+              setReplMode,
+              getPlanPath: () => running.planPath,
+              cwd: running.cwd,
+              signal: running.abortController.signal,
+              promptBudget,
+              model: running.runtimeProfile.model,
+              thinkingEnabled: running.runtimeProfile.thinkingMode,
+              onCompactLifecycle: (event) => {
+                if (event.type === 'compact_started') {
+                  this.appendAppEvent(running, 'compact_started', { source: event.source })
+                } else if (event.type === 'compact_succeeded') {
+                  this.appendAppEvent(running, 'compact_succeeded', { source: event.source })
+                } else {
+                  this.appendAppEvent(running, 'compact_failed', {
+                    source: event.source,
+                    error: event.error,
+                  })
+                }
+              },
+              getSessionFilePath: () => running.filePath,
+              getContextCollapseStoreSnapshot: () => this.getContextCollapseStoreSnapshot(running.filePath),
+            })
+            const triggerReason: CompactTriggerReason = {
+              kind: 'reactive_error',
+              detail: reactiveErrorInfo.detail.slice(0, 200),
+            }
+            let reactivePrepared: ReactiveCompactPreparation
+            try {
+              reactivePrepared = await compression.runReactiveCompact({
+                contextWindowTokens: running.runtimeProfile.contextWindowTokens,
+                previousHistory: executionHistory,
+                user: executionUser,
+                system,
+                triggerReason,
+              })
+            } catch (reactiveError) {
+              const reactiveAbortLike = running.abortController.signal.aborted || isAbortLikeError(reactiveError)
+              throw reactiveAbortLike ? reactiveError : error
+            }
+
+            if (reactivePrepared.reactiveCompactState.applied && reactivePrepared.reactiveCompactState.strategy) {
+              this.appendAppEvent(running, 'reactive_compact_applied', {
+                triggerKind: reactiveErrorInfo.kind,
+                triggerDetail: reactiveErrorInfo.detail,
+                strategy: reactivePrepared.reactiveCompactState.strategy,
+              })
+            }
+            executionHistory = reactivePrepared.history
+            executionRequestHistory = reactivePrepared.requestHistory
+            executionUser = reactivePrepared.user as typeof user
+            executionCacheEditPlan = reactivePrepared.cacheEditPlan
+            pendingDurableSnipCommit = buildDurableSnipCommit({
+              phase: 'reactive_retry',
+              state: reactivePrepared.snipState,
+            })
+            pendingContextCollapseCommit = buildContextCollapseCommitEntry({
+              phase: 'reactive_retry',
+              createdAtMs: Date.now(),
+              state: reactivePrepared.collapseState,
+            })
+            nextHistory = (await runEngineTurn()) as ChatHistory
+          } else {
+            throw error
+          }
+        }
+        if (running.abortController.signal.aborted) {
+          throw new Error('Request aborted')
         }
         nextHistoryForSnapshot =
           running.semanticBlockCount + running.pendingInjectedBlockCount + exposureInjectedBlockCount > 0

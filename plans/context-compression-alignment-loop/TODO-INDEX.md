@@ -15,6 +15,7 @@
 - `CCA-180` continuation / v8 已完成；active working TODO 已全部勾选，后续从 deferral register 选择下一主线。
 - `CCA-181` preserved-segment relink validation parity 已完成。
 - post-`CCA-181` compression boundary + reactive compact rolling TODO 已完成；Batch 1 锁住 `microcompact` / `tool_result_budget` / durable replacement 边界，Batch 2/3 收口 TUI `sendMainTurn` reactive compact fallback drainage。
+- app-server / SDK reactive compact parity audit 已完成：GUI/app-server 对齐 TUI reactive compact fallback；SDK query 默认保持 fail-fast。
 
 ## 已收口主线
 
@@ -27,9 +28,6 @@
 
 ## 下一条推荐主线
 
-- app-server / SDK reactive compact parity audit：
-  - 当前 active working TODO：[todolist.md](./todolist.md)。
-  - 先 characterization app-server / SDK request paths 是否需要 TUI `sendMainTurn` 同等级别的 reactive compact fallback；不要直接进入完整 durable collapse store / archived spans。
 - `CCA-182` reactive compact shaping v3：
   - 当前 rolling TODO 的 Batch 2 / Batch 3 已完成：characterization-first 后只实现 pending request-collapse commit drainage before reactive compact。
   - 未选择新增 `latestReactiveCompact` thread surface，也未选择 broad outcome schema。
@@ -40,14 +38,14 @@
 
 ## 当前推荐顺序
 
-1. 当前 active TODO Batch 1：characterize app-server / SDK overflow behavior。
-2. 当前 active TODO Batch 2：选择 app-server / SDK parity direction。
-3. 只有 Batch 2 明确选择实现时，才进入 app-server / SDK minimal implementation slice。
-4. durable collapse store / archived spans 与 collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
+1. 当前 active TODO 收口验证：跑完 type-check / review 后提交。
+2. 暂停 context-compression 主线，除非真实使用或后续 WebGPT 审查提出新的具体缺口。
+3. durable collapse store / archived spans 与 collapse different-id overlap policy 暂不进入主线，除非真实 bug 或后续 collapse store 扩展需要它。
 
 ## 说明
 
-- 当前建议：执行 [todolist.md](./todolist.md) 的 app-server / SDK reactive compact parity audit；先 characterization，再决定是否实现。
+- 当前建议：[todolist.md](./todolist.md) 的 app-server / SDK reactive compact parity audit 已收口；后续不需要继续在该 TODO 上扩任务。
+- 2026-05-31 执行说明：app-server / GUI normal turn 已对齐 TUI reactive compact fallback，eligible provider overflow 会触发 reactive compact 并最多 retry 一次；SDK query 默认保持 fail-fast，避免隐藏 latency/cost/retry semantics。
 - 2026-05-31 执行说明：post-`CCA-181` rolling TODO 已完成。Batch 1 明确 durable tool-result replacement 不新增 stable app-server/Web surface，只暴露 bounded diagnostics；Batch 2/3 锁住 reactive compact trigger / retry / cacheEditPlan / event semantics，并把 pending request-collapse commit drainage 放到 reactive full compact 前，同时隔离 drainage persistence failure，避免阻断 overflow retry。
 - 2026-05-31 规划说明：新增 post-`CCA-181` rolling TODO，用一份计划覆盖 tool-result boundary audit 与 `CCA-182` prep / implementation，减少每个小阶段都重新询问 WebGPT 的成本。
 - 2026-05-30 执行说明：`CCA-181` preserved-segment relink validation parity 已完成。实现收紧了 relink metadata validation、contiguous explicit refs、durable projection ordering guard、app-server / Web preservedSegment parity，并把 Web compact-boundary cache generation key 收敛到 matching `boundaryFingerprint`。

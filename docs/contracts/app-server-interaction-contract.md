@@ -175,6 +175,12 @@
 
 - 入参：`{ threadId, input: { text }, cwd?: string }`
 - 返回：`{ turn: { id, threadId, status: "running" } }`
+- context-overflow recovery:
+  - app-server normal turns MUST match the interactive TUI reactive compact policy defined in `docs/contracts/context-strategy-stack-contract.md` `CSS-312`.
+  - When the initial provider request fails with an eligible context-overflow signal, app-server MUST run reactive compact preparation and retry the turn at most once with the reactive-prepared `history`, `requestHistory`, `requestUser`, and request-side `cacheEditPlan`.
+  - Abort / interrupted turns MUST keep `interrupted` semantics before overflow classification, and auth / rate-limit errors MUST remain fail-fast even when their messages contain overflow-like text.
+  - A reactive retry failure MUST end the turn with `turn/failed`; app-server MUST NOT start a second reactive compact loop.
+  - `reactive_compact_applied` means fallback preparation was applied and a retry was attempted. It MUST NOT be interpreted as proof that the retry succeeded.
 - mode 语义约束（当 `mode="plan"`）：
   - app-server MUST 为该 thread 维护稳定的 plan file 路径（跨多个 plan turn 保持一致，直到 thread 生命周期结束或显式切换上下文）。
   - app-server MUST 将该 plan path 同时注入：

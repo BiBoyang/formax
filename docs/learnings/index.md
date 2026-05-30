@@ -138,6 +138,7 @@
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)
 - [2026-05-24 - Context window source / binding / runtime profile](./2026-05-24-context-window-source-binding-runtime-profile.md)
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)
+- [2026-05-31 - App-server reactive compact parity](./2026-05-31-app-server-reactive-compact-parity.md)
 
 ## Desktop / Setup
 

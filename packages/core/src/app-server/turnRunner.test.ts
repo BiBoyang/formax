@@ -1293,11 +1293,36 @@ describe('TurnRunner', () => {
     }
   })
 
-  it('characterizes app-server context-overflow provider errors as fail-fast without reactive retry', async () => {
+  it('reactively compacts and retries app-server context-overflow provider errors once', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
-    const runTurn = vi.fn(async () => {
-      throw new Error('HTTP 413: request too large')
+    const seedWriter = await SessionWriter.openExisting({
+      filePath: (await findSessionFileBySessionId({ cwd: fixture.cwd, env: fixture.env, sessionId: fixture.threadId }))!,
+    })
+    await seedWriter.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'old question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'old answer' }] },
+    ] as ChatHistory)
+    await seedWriter.shutdown()
+
+    const runTurn = vi.fn(async (args: any) => {
+      const call = runTurn.mock.calls.length
+      if (call === 1) {
+        throw new Error('HTTP 413: request too large')
+      }
+      if (call === 2) {
+        return [
+          ...args.history,
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'reactive summary' }] },
+        ] as ChatHistory
+      }
+      args.onEvent?.({ type: 'assistant_delta', text: 'ok after retry' })
+      return [
+        ...args.history,
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'ok after retry' }] },
+      ] as ChatHistory
     })
     const runner = new TurnRunner({
       engine: { runTurn },
@@ -1313,10 +1338,28 @@ describe('TurnRunner', () => {
 
     await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
 
-    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
-    expect(runTurn).toHaveBeenCalledTimes(1)
-    expect(String(failed.params?.error || '')).toContain('HTTP 413: request too large')
-    expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+    expect(runTurn.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(runTurn.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ requestHistory: expect.any(Array) }))
+    expect(runTurn.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ tools: [] }))
+    expect(runTurn.mock.calls[2]?.[0]).toEqual(
+      expect.objectContaining({
+        requestHistory: expect.any(Array),
+        requestUser: expect.objectContaining({ role: 'user' }),
+      }),
+    )
+    expect(runTurn.mock.calls[2]?.[0]).toHaveProperty('cacheEditPlan')
+    expect(notifications.some((n) => n.method === 'turn/failed')).toBe(false)
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const raw = await fs.readFile(filePath!, 'utf8')
+    expect(raw).toContain('reactive_compact_applied')
+    expect(raw).toContain('ok after retry')
   })
 
   it('keeps app-server interrupted status before overflow-like error text', async () => {
@@ -1383,7 +1426,7 @@ describe('TurnRunner', () => {
     expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
   })
 
-  it('does not commit app-server durable collapse state when a context-overflow turn fails', async () => {
+  it('does not commit app-server durable snip when reactive compact fails', async () => {
     const fixture = await createThreadFixture()
     const env = { ...fixture.env, FORMAX_CONTEXT_WINDOW_TOKENS: '3000', FORMAX_BASELINE_TOKENS: '0' }
     const notifications: Notification[] = []
@@ -1429,9 +1472,9 @@ describe('TurnRunner', () => {
       await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
 
       const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
-      expect(runTurn).toHaveBeenCalledTimes(1)
+      expect(runTurn).toHaveBeenCalledTimes(2)
       expect(String(failed.params?.error || '')).toContain('HTTP 413: request too large')
-      expect(appendEvent).not.toHaveBeenCalledWith(CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, expect.anything())
+      expect(appendEvent).toHaveBeenCalledWith('compact_failed', expect.objectContaining({ source: 'reactive' }))
       expect(appendEvent).not.toHaveBeenCalledWith(DURABLE_SNIP_COMMITTED_EVENT_NAME, expect.anything())
     } finally {
       openSpy.mockRestore()
