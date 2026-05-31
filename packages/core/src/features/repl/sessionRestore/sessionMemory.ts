@@ -7,9 +7,9 @@ import {
   type SessionMemoryDraft,
   type SessionMemoryRestoreSummary,
 } from '../../../chat/context/sessionMemory'
-import type { ReplMode } from '../mode'
 import type { PromptBlock } from '../../../prompts'
-import { readSessionMemoryFile, writeSessionMemoryFile } from './sessionMemorySidecar'
+import type { ReplMode } from '../mode'
+import { readSessionMemoryFile, writeSessionMemoryFile } from '../sessionSave/sessionMemorySidecar'
 
 const sessionMemoryWriteQueue = new Map<string, Promise<void>>()
 

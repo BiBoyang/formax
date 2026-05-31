@@ -1,6 +1,6 @@
 import type { ChatHistory } from '../../../../chat/engine'
 import type { ReplMode } from '../../mode'
-import { persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
+import { persistSessionMemoryFromHistory } from '../../sessionRestore/sessionMemory'
 
 export async function persistRollingSessionMemory(args: {
   sessionFilePath: string

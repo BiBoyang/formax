@@ -101,7 +101,7 @@ export function createContextCompressionService(deps: {
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   getSessionFilePath?: () => string | null
   getContextCollapseStoreSnapshot?: () => ContextCollapseStoreSnapshot | null | Promise<ContextCollapseStoreSnapshot | null>
-  readSessionMemoryFile?: (sessionFilePath: string) => Promise<SessionMemoryDraft | null>
+  readSessionMemoryFile?: (sessionFilePath: string) => Promise<unknown>
   waitForSessionMemoryFlush?: (sessionFilePath: string) => Promise<void>
 }) {
   const buildBudgetConfig = (contextWindowTokens: number): ContextBudgetConfig => ({
@@ -310,7 +310,8 @@ export function createContextCompressionService(deps: {
 
     let draft: SessionMemoryDraft | null = null
     try {
-      draft = await (deps.readSessionMemoryFile ?? readSessionMemoryFile)(sessionFilePath)
+      const rawDraft = await (deps.readSessionMemoryFile ?? readSessionMemoryFile)(sessionFilePath)
+      draft = isSessionMemoryDraft(rawDraft) ? rawDraft : null
     } catch {
       return null
     }
@@ -698,4 +699,9 @@ export function createContextCompressionService(deps: {
       }
     },
   }
+}
+
+function isSessionMemoryDraft(value: unknown): value is SessionMemoryDraft {
+  if (!value || typeof value !== 'object') return false
+  return (value as { schemaVersion?: unknown }).schemaVersion === 1
 }

@@ -1,10 +1,20 @@
 import fs from 'node:fs'
 import readline from 'node:readline'
-import type { ReactiveCompactErrorKind } from '../controller/send/reactiveCompact'
+
+export type PersistedReactiveCompactErrorKind =
+  | 'http_413'
+  | 'request_too_large'
+  | 'input_too_long'
+  | 'prompt_too_long'
+  | 'maximum_context_length'
+  | 'context_length_exceeded'
+  | 'context_limit'
+  | 'too_many_tokens'
+  | 'reduce_messages_length'
 
 export type PersistedReactiveCompactEvent = {
   occurredAtMs: number
-  triggerKind: ReactiveCompactErrorKind
+  triggerKind: PersistedReactiveCompactErrorKind
   triggerDetail?: string
   strategy: 'session_memory' | 'model_summary'
 }
@@ -25,7 +35,7 @@ function parseOccurredAtMs(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function parseReactiveCompactTriggerKind(value: unknown): ReactiveCompactErrorKind | null {
+function parseReactiveCompactTriggerKind(value: unknown): PersistedReactiveCompactErrorKind | null {
   return value === 'http_413' ||
     value === 'request_too_large' ||
     value === 'input_too_long' ||

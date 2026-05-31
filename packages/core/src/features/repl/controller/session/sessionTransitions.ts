@@ -4,7 +4,7 @@ import type { Msg } from '../../../../shared/toolMessageTypes'
 import type { UserInputManager } from '../../../../tools/runtime/userInputManager'
 import { buildActiveHistoryFromSessionReplay } from '../../../../chat/context/compact'
 import type { ReplMode } from '../../mode'
-import { buildSessionMemoryRestoreInjectedBlocks, persistSessionMemoryFromHistory } from '../../sessionSave/sessionMemoryRefresh'
+import { buildSessionMemoryRestoreInjectedBlocks, persistSessionMemoryFromHistory } from '../../sessionRestore/sessionMemory'
 import type { PromptBlock } from '../../../../prompts'
 import { applyAbortToMessages } from './abortTranscript'
 

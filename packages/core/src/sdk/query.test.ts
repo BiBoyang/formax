@@ -39,7 +39,7 @@ vi.mock('../features/repl/sessionSave/writer.js', () => ({
   },
 }))
 
-vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
+vi.mock('../features/repl/sessionRestore/sessionMemory.js', () => ({
   persistSessionMemoryFromHistory: async (args: unknown) => await state.persistSessionMemoryForRestore(args),
   resolveSessionMemoryRestoreArtifacts: async (args: {
     sessionFilePath: string

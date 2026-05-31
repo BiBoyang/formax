@@ -6,7 +6,7 @@ import {
 import {
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreArtifacts,
-} from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
+} from '../../features/repl/sessionRestore/sessionMemory.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { QueryOptions } from '../types.js'

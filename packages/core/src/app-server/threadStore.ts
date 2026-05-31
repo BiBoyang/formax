@@ -10,7 +10,7 @@ import {
 import {
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreArtifacts,
-} from '../features/repl/sessionSave/sessionMemoryRefresh.js'
+} from '../features/repl/sessionRestore/sessionMemory.js'
 import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.js'
 import type { PromptBlock } from '../prompts/index.js'
 import { computeEditPatchStartLineNumber } from '../features/repl/controller/streaming/patchStartLineNumber.js'

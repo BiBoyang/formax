@@ -2,7 +2,7 @@ import { findLatestSessionFile, readSessionFile } from '../../features/repl/sess
 import {
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreArtifacts,
-} from '../../features/repl/sessionSave/sessionMemoryRefresh.js'
+} from '../../features/repl/sessionRestore/sessionMemory.js'
 import { buildActiveHistoryFromSessionReplay } from '../../chat/context/compact.js'
 import type { PromptBlock } from '../../prompts/index.js'
 

@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { SessionMemoryDraft } from '../../../chat/context/sessionMemory'
 
 const SESSION_MEMORY_FILE_SUFFIX = '.memory.json'
 
@@ -14,7 +13,7 @@ export function getSessionMemoryFilePath(sessionFilePath: string): string {
 
 export async function writeSessionMemoryFile(args: {
   sessionFilePath: string
-  draft: SessionMemoryDraft
+  draft: unknown
 }): Promise<string> {
   const targetPath = getSessionMemoryFilePath(args.sessionFilePath)
   await fs.mkdir(path.dirname(targetPath), { recursive: true })
@@ -24,10 +23,10 @@ export async function writeSessionMemoryFile(args: {
   return targetPath
 }
 
-export async function readSessionMemoryFile(sessionFilePath: string): Promise<SessionMemoryDraft | null> {
+export async function readSessionMemoryFile(sessionFilePath: string): Promise<unknown | null> {
   try {
     const raw = await fs.readFile(getSessionMemoryFilePath(sessionFilePath), 'utf8')
-    return JSON.parse(raw) as SessionMemoryDraft
+    return JSON.parse(raw) as unknown
   } catch {
     return null
   }

@@ -113,7 +113,7 @@ vi.mock('../features/repl/sessionSave/index.js', () => ({
     },
 }))
 
-vi.mock('../features/repl/sessionSave/sessionMemoryRefresh.js', () => ({
+vi.mock('../features/repl/sessionRestore/sessionMemory.js', () => ({
   persistSessionMemoryFromHistory: async () => {},
   resolveSessionMemoryRestoreContext: async () => state.restoreContext,
   resolveSessionMemoryRestoreArtifacts: async (args: { fallbackMode: 'normal' | 'acceptEdits' | 'plan'; fallbackPlanPath: string | null }) => ({

@@ -12,11 +12,11 @@
 - [x] User requested review to use `gpt-5.4` with medium reasoning.
 
 ### 0.2 Goals
-- [ ] Make `bun run check:layer-contracts` pass without refreshing the baseline or adding broad `allowedImports`.
+- [x] Make `bun run check:layer-contracts` pass without refreshing the baseline or adding broad `allowedImports`.
 - [ ] Keep `sessionSave` as Repo-owned raw JSONL/sidecar IO plus DTO parsing.
-- [ ] Move context-collapse, durable-snip, durable tool-result replacement, session-memory refresh, and prompt-block reconstruction semantics to Service-owned modules.
-- [ ] Preserve existing REPL, app-server, and SDK behavior while changing import direction.
-- [ ] Add focused DTO parser and Service replay tests before/with each behavior-preserving move.
+- [x] Move context-collapse, durable-snip, durable tool-result replacement, session-memory refresh, and prompt-block reconstruction semantics to Service-owned modules.
+- [x] Preserve existing REPL, app-server, and SDK behavior while changing import direction.
+- [x] Add focused DTO parser and Service replay tests before/with each behavior-preserving move.
 - [ ] Keep each loop reviewable and committed after passing targeted verification and `codex review`.
 
 ### 0.3 Non-goals
@@ -58,9 +58,9 @@
 - [x] Introduce Repo-local DTOs for context-collapse committed events.
 - [x] Introduce Repo-local DTOs for durable snip committed events.
 - [x] Introduce Repo-local DTOs for durable tool-result content replacement events.
-- [ ] Introduce Repo-local DTOs for reactive compact events, including a persisted error-kind union that does not import controller code.
-- [ ] Introduce a Repo-local `SessionMemorySidecarDto` or `unknown` boundary for sidecar read/write.
-- [ ] Introduce Service restore APIs that consume DTOs and return existing semantic state shapes.
+- [x] Introduce Repo-local DTOs for reactive compact events, including a persisted error-kind union that does not import controller code.
+- [x] Introduce a Repo-local `SessionMemorySidecarDto` or `unknown` boundary for sidecar read/write.
+- [x] Introduce Service restore APIs that consume DTOs and return existing semantic state shapes.
 - [x] Keep exported event-name constants stable for existing tests and writers.
 
 ## 2. Runtime / Platform
@@ -69,44 +69,44 @@
 - [x] Split `contextCollapseStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
 - [x] Split `durableSnipStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
 - [x] Split `durableToolResultContentReplacementEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
-- [ ] Split `reactiveCompactEvents.ts` so Repo parsing does not import REPL controller send code.
-- [ ] Split `sessionMemorySidecar.ts` so sidecar IO does not import `SessionMemoryDraft`.
-- [ ] Keep malformed record tolerance and latest-event selection behavior unchanged.
+- [x] Split `reactiveCompactEvents.ts` so Repo parsing does not import REPL controller send code.
+- [x] Split `sessionMemorySidecar.ts` so sidecar IO does not import `SessionMemoryDraft`.
+- [x] Keep malformed record tolerance and latest-event selection behavior unchanged.
 
 ### 2.2 Service restore modules
 - [x] Add Service-owned context-collapse restore that builds `ContextCollapseStoreSnapshot` from Repo DTOs.
 - [x] Add Service-owned durable-snip restore that builds `DurableSnipState` from Repo DTOs and applies active compact-boundary reset rules.
 - [x] Add Service-owned durable tool-result replacement restore that builds semantic replacement state and applies source-scope / active-boundary filtering.
-- [ ] Move `sessionMemoryRefresh.ts` semantics to Service-owned restore path, keeping Repo sidecar IO separate.
-- [ ] Ensure Service restore modules import Repo DTO readers, not the reverse.
-- [ ] Preserve existing sync and async restore call variants where current call sites require them.
+- [x] Move `sessionMemoryRefresh.ts` semantics to Service-owned restore path, keeping Repo sidecar IO separate.
+- [x] Ensure Service restore modules import Repo DTO readers, not the reverse.
+- [x] Preserve existing sync and async restore call variants where current call sites require them.
 
 ### 2.3 Call sites
-- [ ] Update REPL controller call sites to import Service restore functions when they need semantic state.
-- [ ] Update app-server call sites to import Service restore functions when they need semantic state.
-- [ ] Update SDK query/resume call sites to import Service restore functions when they need semantic state.
-- [ ] Keep writer/test imports for event constants pointed at Repo DTO modules when they only need persisted names.
-- [ ] Avoid changing runtime behavior, prompt history shape, replay facts, or persisted session rows.
+- [x] Update REPL controller call sites to import Service restore functions when they need semantic state.
+- [x] Update app-server call sites to import Service restore functions when they need semantic state.
+- [x] Update SDK query/resume call sites to import Service restore functions when they need semantic state.
+- [x] Keep writer/test imports for event constants pointed at Repo DTO modules when they only need persisted names.
+- [x] Avoid changing runtime behavior, prompt history shape, replay facts, or persisted session rows.
 
 ### 2.4 Boundary gates
 - [x] Run `bun run check:layer-contracts` after each loop that changes import direction.
 - [x] Run `bun run check:layer-coverage` if new Service/Repo paths are added.
 - [x] Run `bun run type-check` before final commit if the loop moves exported types or public imports.
-- [ ] Do not mark the task done until `bun run check:layer-contracts` is green.
+- [x] Do not mark the task done until `bun run check:layer-contracts` is green.
 
 ## 3. Frontend Boundary
 
 ### 3.1 User-visible behavior
-- [ ] Preserve Web/app-server replay fact shapes.
-- [ ] Preserve REPL resume, compact, durable snip, and session-memory restore behavior.
-- [ ] Preserve SDK resume/query behavior.
-- [ ] Do not change TUI/Web copy, spacing, or transcript rendering as part of this task.
+- [x] Preserve Web/app-server replay fact shapes.
+- [x] Preserve REPL resume, compact, durable snip, and session-memory restore behavior.
+- [x] Preserve SDK resume/query behavior.
+- [x] Do not change TUI/Web copy, spacing, or transcript rendering as part of this task.
 
 ### 3.2 Persistence surface
-- [ ] Preserve session JSONL event names.
-- [ ] Preserve sidecar file paths and write timing.
-- [ ] Preserve recovery behavior for malformed or partial session files.
-- [ ] Preserve old session compatibility for sessions written before this refactor.
+- [x] Preserve session JSONL event names.
+- [x] Preserve sidecar file paths and write timing.
+- [x] Preserve recovery behavior for malformed or partial session files.
+- [x] Preserve old session compatibility for sessions written before this refactor.
 
 ## 4. Tests
 
@@ -114,20 +114,20 @@
 - [x] Add/update `sessionSave/contextCollapseStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
 - [x] Add/update `sessionSave/durableSnipStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
 - [x] Add/update `sessionSave/durableToolResultContentReplacementEvents.test.ts` for DTO parsing and malformed event tolerance.
-- [ ] Add/update `sessionSave/reactiveCompactEvents.test.ts` for persisted DTO parsing without controller imports.
-- [ ] Add/update `sessionSave/sessionMemorySidecar.test.ts` for sidecar DTO/unknown read-write boundaries.
+- [x] Add/update `sessionSave/reactiveCompactEvents.test.ts` for persisted DTO parsing without controller imports.
+- [x] Add/update `sessionSave/sessionMemorySidecar.test.ts` for sidecar DTO/unknown read-write boundaries.
 
 ### 4.2 Service restore tests
 - [x] Add Service restore tests for context-collapse active compact-boundary transitions.
 - [x] Add Service restore tests for durable snip generation scoping and stale-state clearing.
 - [x] Add Service restore tests for durable tool-result replacement source-scope and compact-boundary filtering.
-- [ ] Add Service restore tests for session-memory refresh / restore block construction.
+- [x] Add Service restore tests for session-memory refresh / restore block construction.
 
 ### 4.3 Runtime parity tests
 - [x] Run existing `contextCompressionService.test.ts` cases that cover durable snip, durable tool replacement, session memory, and compact generation behavior.
 - [x] Run existing app-server tests that cover durable snip/collapse/tool replacement replay facts.
 - [x] Run existing SDK query/resume tests that cover session restore semantics.
-- [ ] Run targeted REPL controller/session tests for session memory flush/restore paths.
+- [x] Run targeted REPL controller/session tests for session memory flush/restore paths.
 
 ## 5. Recommended Execution Order
 
@@ -166,16 +166,16 @@ Review gate for this loop:
 - Blocking: Repo still imports REPL controller code, chat engine, session-memory semantics, prompts, or REPL mode; session-memory restore prompt blocks drift.
 - Non-blocking: broader prepare-turn-context unification.
 
-- [ ] Add or strengthen Repo DTO tests for reactive compact events.
-- [ ] Add or strengthen sidecar DTO/unknown boundary tests.
-- [ ] Move session-memory refresh semantics to Service-owned restore path.
-- [ ] Make `reactiveCompactEvents.ts` use Repo-local persisted DTO types.
-- [ ] Make `sessionMemorySidecar.ts` avoid importing Service semantic types.
-- [ ] Update REPL/app-server/SDK/runtime call sites to use Service restore APIs for session-memory semantics.
-- [ ] Run targeted session-memory/reactive compact tests.
-- [ ] Run `bun run check:layer-contracts` and confirm remaining sessionSave violations are gone or strictly reduced.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
-- [ ] Commit this loop after review passes.
+- [x] Add or strengthen Repo DTO tests for reactive compact events.
+- [x] Add or strengthen sidecar DTO/unknown boundary tests.
+- [x] Move session-memory refresh semantics to Service-owned restore path.
+- [x] Make `reactiveCompactEvents.ts` use Repo-local persisted DTO types.
+- [x] Make `sessionMemorySidecar.ts` avoid importing Service semantic types.
+- [x] Update REPL/app-server/SDK/runtime call sites to use Service restore APIs for session-memory semantics.
+- [x] Run targeted session-memory/reactive compact tests.
+- [x] Run `bun run check:layer-contracts` and confirm remaining sessionSave violations are gone or strictly reduced.
+- [x] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [x] Commit this loop after review passes.
 
 ### Loop 4: Final boundary convergence and documentation
 Review gate for this loop:

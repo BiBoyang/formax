@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatHistory } from '../../../../chat/engine'
 import { buildCompactBoundaryMessage } from '../../../../chat/context/compact'
+import type { SessionMemoryDraft } from '../../../../chat/context/sessionMemory'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { persistRollingSessionMemory } from './sessionRollingMemory'
 
@@ -53,7 +54,7 @@ describe('persistRollingSessionMemory', () => {
       history,
     })
 
-    const restored = await readSessionMemoryFile(sessionFilePath)
+    const restored = (await readSessionMemoryFile(sessionFilePath)) as SessionMemoryDraft | null
     const workspaceRoot = await fs.realpath(dir).catch(() => dir)
     expect(restored).toMatchObject({
       schemaVersion: 1,
@@ -108,7 +109,7 @@ describe('persistRollingSessionMemory', () => {
       }),
     ])
 
-    const restored = await readSessionMemoryFile(sessionFilePath)
+    const restored = (await readSessionMemoryFile(sessionFilePath)) as SessionMemoryDraft | null
     expect(restored?.activeTask.mode).toBe('acceptEdits')
     expect(restored?.activeTask.recentUserPrompts).toEqual(['second prompt'])
   })
