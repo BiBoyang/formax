@@ -35,9 +35,8 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Web reference React client (isolated app): `packages/web-reference-react/*` (see "Web Reference React Client")
 - Session event recovery for stale inputs: `packages/core/src/app-server/store/sessionEventReader.ts`
 - Shared persisted tool-event reconstruction (used by app-server + REPL resume): `packages/core/src/features/repl/sessionSave/persistedToolEvents.ts`
-- Durable context-collapse store replay reader: `packages/core/src/features/repl/sessionSave/contextCollapseStoreEvents.ts`
-- Durable snip snapshot replay reader / event name: `packages/core/src/features/repl/sessionSave/durableSnipStoreEvents.ts`
-- Durable tool-result content replacement replay reader / event name: `packages/core/src/features/repl/sessionSave/durableToolResultContentReplacementEvents.ts`
+- Session persistence DTO/event readers (Repo-owned): `packages/core/src/features/repl/sessionSave/{contextCollapseStoreEvents,durableSnipStoreEvents,durableToolResultContentReplacementEvents,reactiveCompactEvents,sessionMemorySidecar}.ts`
+- Session restore semantic rebuilders (Service-owned): `packages/core/src/features/repl/sessionRestore/{contextCollapseStore,durableSnipStore,durableToolResultContentReplacement,sessionMemory}.ts`
 - Durable compression success-boundary writers:
   - REPL: `packages/core/src/features/repl/controller/session/sessionEvents.ts`, `packages/core/src/features/repl/controller/send/sendMainTurn.ts`
   - App-server: `packages/core/src/app-server/turnRunner.ts`

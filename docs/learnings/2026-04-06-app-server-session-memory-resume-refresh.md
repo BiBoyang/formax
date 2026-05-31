@@ -23,7 +23,7 @@
 当前相关实现：
 
 - `packages/core/src/app-server/threadStore.ts`
-- `packages/core/src/features/repl/sessionSave/sessionMemoryRefresh.ts`
+- `packages/core/src/features/repl/sessionRestore/sessionMemory.ts`
 
 ## 为什么这里不阻塞 resume 返回
 

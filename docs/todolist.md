@@ -13,11 +13,11 @@
 
 ### 0.2 Goals
 - [x] Make `bun run check:layer-contracts` pass without refreshing the baseline or adding broad `allowedImports`.
-- [ ] Keep `sessionSave` as Repo-owned raw JSONL/sidecar IO plus DTO parsing.
+- [x] Keep `sessionSave` as Repo-owned raw JSONL/sidecar IO plus DTO parsing.
 - [x] Move context-collapse, durable-snip, durable tool-result replacement, session-memory refresh, and prompt-block reconstruction semantics to Service-owned modules.
 - [x] Preserve existing REPL, app-server, and SDK behavior while changing import direction.
 - [x] Add focused DTO parser and Service replay tests before/with each behavior-preserving move.
-- [ ] Keep each loop reviewable and committed after passing targeted verification and `codex review`.
+- [x] Keep each loop reviewable and committed after passing targeted verification and `codex review`.
 
 ### 0.3 Non-goals
 - [x] Do not remap all of `sessionSave` to Service just to silence the gate.
@@ -42,17 +42,17 @@
 - [x] Re-read `docs/contracts/layer-contract.md` before moving files.
 - [x] Re-read `docs/contracts/session-persistence-contract.md` before changing JSONL/sidecar DTO parsing.
 - [x] Re-read `docs/contracts/context-strategy-stack-contract.md` before moving compact/durable projection replay semantics.
-- [ ] Re-read `docs/contracts/model-settings-contract.md` only if setup/model files are touched unexpectedly.
-- [ ] Update `docs/contracts/layer-contract.md` if this task introduces a new Service-owned restore path or ownership decision tree.
-- [ ] Update `CODEMAP.md` when final owner paths are created or existing session restore entrypoints move.
-- [ ] Add/update a short learning note under `docs/learnings/` after the boundary lands.
+- [x] Re-read `docs/contracts/model-settings-contract.md` only if setup/model files are touched unexpectedly.
+- [x] Update `docs/contracts/layer-contract.md` if this task introduces a new Service-owned restore path or ownership decision tree.
+- [x] Update `CODEMAP.md` when final owner paths are created or existing session restore entrypoints move.
+- [x] Add/update a short learning note under `docs/learnings/` after the boundary lands.
 
 ### 1.2 Ownership model
 - [x] Define Repo `sessionSave` responsibility as file IO, JSONL scanning, sidecar read/write, tolerant record parsing, and persisted DTO emission.
 - [x] Define Service restore responsibility as compact-boundary interpretation, active generation scoping, durable state reconstruction, session-memory draft creation, and prompt-block reconstruction.
 - [x] Decide exact Service-owned path, recommended `packages/core/src/features/repl/sessionRestore/`.
-- [ ] Decide whether compatibility wrappers remain in old `sessionSave` paths during migration; if kept, they must not keep Repo files importing Service.
-- [ ] Define persisted DTO names separately from domain state names so Repo DTOs do not import Service types.
+- [x] Decide whether compatibility wrappers remain in old `sessionSave` paths during migration; if kept, they must not keep Repo files importing Service.
+- [x] Define persisted DTO names separately from domain state names so Repo DTOs do not import Service types.
 
 ### 1.3 DTO / Interface plan
 - [x] Introduce Repo-local DTOs for context-collapse committed events.
@@ -182,16 +182,16 @@ Review gate for this loop:
 - Blocking: `bun run check:layer-contracts` still fails, stale compatibility wrappers keep reverse imports, docs point to old ownership, or tests rely on obsolete paths.
 - Non-blocking: package ownership migration and full context preparation unification.
 
-- [ ] Remove stale compatibility exports or keep only safe re-export shims that do not violate Repo -> Service direction.
-- [ ] Update `sessionSave/index.ts` exports to expose only Repo-safe DTO/IO APIs.
-- [ ] Update `CODEMAP.md` with Repo DTO and Service restore owners.
-- [ ] Update `docs/contracts/layer-contract.md` if a new Service restore path is added.
-- [ ] Add/update `docs/learnings/` note for the sessionSave boundary cleanup.
-- [ ] Run final targeted sessionSave/service restore/runtime tests.
-- [ ] Run `bun run check:layer-contracts`.
-- [ ] Run `bun run type-check`.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
-- [ ] Commit this loop after review passes.
+- [x] Remove stale compatibility exports or keep only safe re-export shims that do not violate Repo -> Service direction.
+- [x] Update `sessionSave/index.ts` exports to expose only Repo-safe DTO/IO APIs.
+- [x] Update `CODEMAP.md` with Repo DTO and Service restore owners.
+- [x] Update `docs/contracts/layer-contract.md` if a new Service restore path is added.
+- [x] Add/update `docs/learnings/` note for the sessionSave boundary cleanup.
+- [x] Run final targeted sessionSave/service restore/runtime tests.
+- [x] Run `bun run check:layer-contracts`.
+- [x] Run `bun run type-check`.
+- [x] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [x] Commit this loop after review passes.
 
 ## 6. Deferred Follow-Up Candidates
 

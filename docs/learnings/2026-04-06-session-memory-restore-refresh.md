@@ -18,7 +18,7 @@ rolling session memory sidecar 之前只会在 turn completion 后后台刷新�
 
 当前相关实现：
 
-- `packages/core/src/features/repl/sessionSave/sessionMemoryRefresh.ts`
+- `packages/core/src/features/repl/sessionRestore/sessionMemory.ts`
 - `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
 - `packages/core/src/runtime/bootstrap/session.ts`
 - `packages/core/src/sdk/query/resume.ts`

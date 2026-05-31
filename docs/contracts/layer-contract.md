@@ -32,6 +32,12 @@
 - 映射文件：`scripts/layer-contract.config.json`
 - 基线文件：`scripts/baselines/layer-contract-violations.json`
 
+## Session Persistence Ownership
+
+- `packages/core/src/features/repl/sessionSave/**` is Repo-owned. It may read/write JSONL rows and sidecar files, expose persisted event-name constants, and parse persisted DTO records.
+- `packages/core/src/features/repl/sessionRestore/**` is Service-owned. It consumes `sessionSave` DTO/IO APIs and reconstructs semantic restore state such as context-collapse snapshots, durable projection state, and session-memory prompt artifacts.
+- Repo-owned session persistence files must not import chat, prompt, REPL controller, or projection semantics to replay meaning from persisted records.
+
 ## allowedImports（入口白名单）
 
 - `allowedImports` 用于声明“已评审且暂时允许”的单条跨层导入。

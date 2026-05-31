@@ -19,7 +19,7 @@
 
 新增共享 restore-context helper：
 
-- `packages/core/src/features/repl/sessionSave/sessionMemoryRefresh.ts`
+- `packages/core/src/features/repl/sessionRestore/sessionMemory.ts`
 
 恢复路径现在会：
 
