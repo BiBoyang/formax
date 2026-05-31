@@ -323,6 +323,8 @@ async function main() {
     FORMAX_ELECTRON_BRIDGE_PORT: String(bridgePort),
     FORMAX_ELECTRON_MODE: mode,
     FORMAX_ELECTRON_OPEN_DEVTOOLS: mode === 'debug' ? '1' : '0',
+    FORMAX_ELECTRON_SKIP_SETUP_PROBE:
+      process.env.FORMAX_ELECTRON_SKIP_SETUP_PROBE ?? (mode === 'preview' ? '0' : '1'),
   }
 
   const electronScript = mode === 'debug' ? 'electron:start:debug' : 'electron:start'
