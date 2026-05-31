@@ -1,209 +1,201 @@
-# Formax Rot Quick Wins Todo
+# SessionSave Layer Boundary Todo
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] The previous `docs/todolist.md` tracked a completed context-compression parity sequence and is no longer the active working todo.
-- [x] ChatGPT/WebGPT responses are saved under `repomix-output/rsesponse/1.md` through `repomix-output/rsesponse/5.md`.
-- [x] The quick-win/high-risk set is intentionally smaller than the full rot report: fix confirmed bugs and small contract-aligned cleanups first.
-- [x] `repomix-output/rsesponse/1.md` confirms `scripts/repl-semantic-pre-review.mjs` points at a stale streaming test path.
-- [x] `repomix-output/rsesponse/2.md` identifies confirmed Web replay bugs around global live cursor reuse, null active-thread gating, and malformed optional restore fields clearing caches.
-- [x] `repomix-output/rsesponse/3.md` confirms new `tool_reference` writes still reinforce legacy `name`, while reads already prefer canonical `tool_name`.
-- [x] `repomix-output/rsesponse/5.md` recommends model/config/setup ownership as the smallest high-impact layer-boundary cluster before broader `sessionSave` or package migration work.
+- [x] `bun run check:layer-contracts` currently fails on `packages/core/src/features/repl/sessionSave/**` importing Service-layer modules.
+- [x] The failing gate reports `sessionSave` as Repo importing `chat/context`, `prompts`, `features/repl/mode`, and `features/repl/controller/send/reactiveCompact`.
+- [x] WebGPT `repomix-output/rsesponse/4.md` says `sessionSave` is doing semantic replay, not just JSONL persistence.
+- [x] WebGPT `repomix-output/rsesponse/5.md` recommends keeping `sessionSave` Repo-owned while moving semantic reconstruction to Service.
+- [x] The previous quick-win todo is complete and committed; this todo is the next focused layer-boundary task.
+- [x] User requested every loop to include a `commit` checkbox after `codex review`.
+- [x] User requested review to use `gpt-5.4` with medium reasoning.
 
 ### 0.2 Goals
-- [x] Fix the stale REPL semantic pre-review gate path and make the gate fail fast when declared test paths disappear.
-- [x] Fix Web replay high-risk bugs without changing the app-server JSON-RPC protocol.
-- [x] Normalize optional restore/fact presence semantics: omitted means no cache change, explicit `null` means clear, valid object means set.
-- [x] Stop emitting legacy `tool_reference.name` for new tool-reference blocks while preserving legacy read compatibility.
-- [x] Start the layer-boundary cleanup with the model/config/setup pure-helper ownership cluster, not a baseline refresh.
-- [x] Add focused regression tests before each behavior change.
+- [ ] Make `bun run check:layer-contracts` pass without refreshing the baseline or adding broad `allowedImports`.
+- [ ] Keep `sessionSave` as Repo-owned raw JSONL/sidecar IO plus DTO parsing.
+- [ ] Move context-collapse, durable-snip, durable tool-result replacement, session-memory refresh, and prompt-block reconstruction semantics to Service-owned modules.
+- [ ] Preserve existing REPL, app-server, and SDK behavior while changing import direction.
+- [ ] Add focused DTO parser and Service replay tests before/with each behavior-preserving move.
+- [ ] Keep each loop reviewable and committed after passing targeted verification and `codex review`.
 
 ### 0.3 Non-goals
-- [x] Do not refresh layer-contract baselines as the primary fix.
-- [x] Do not add broad `allowedImports` to hide ownership violations.
-- [x] Do not rewrite `AppServer`, `TurnRunner`, `policyPreflight`, or tool rendering in this quick-win todo.
-- [x] Do not implement the full renderer-neutral `ToolViewBlock` migration yet.
-- [x] Do not split all of `sessionSave` yet; this belongs to the next larger layer-boundary phase after quick wins.
-- [x] Do not introduce a new app-server/Web compression or restore UI surface.
-- [x] Do not change user-visible TUI/Web copy, spacing, or interaction behavior unless a targeted bug fix requires it and tests lock the current behavior first.
+- [x] Do not remap all of `sessionSave` to Service just to silence the gate.
+- [x] Do not write a layer-contract baseline as the primary fix.
+- [x] Do not add directory-wide `allowedImports`.
+- [x] Do not rewrite `contextProjection`, `middleLayerStrategyStack`, or `/context` diagnostics in this task.
+- [x] Do not implement the broader `prepareTurnContextRequest` unification in this task.
+- [x] Do not migrate `@formax/semantics` or `@formax/shared` package ownership in this task.
+- [x] Do not change session JSONL event names or persisted file format unless a targeted DTO compatibility test proves the behavior.
 
-### 0.4 Source responses
-- [x] Test gates: `repomix-output/rsesponse/1.md`
-- [x] Web replay: `repomix-output/rsesponse/2.md`
-- [x] Tool runtime UI: `repomix-output/rsesponse/3.md`
-- [x] Context compact: `repomix-output/rsesponse/4.md`
-- [x] Layer boundaries: `repomix-output/rsesponse/5.md`
+### 0.4 Current failing files
+- [x] `sessionSave/contextCollapseStoreEvents.ts` imports compact/context-collapse/prompt semantics.
+- [x] `sessionSave/durableSnipStoreEvents.ts` imports compact/context-projection/prompt semantics.
+- [x] `sessionSave/durableToolResultContentReplacementEvents.ts` imports compact/context-projection/prompt semantics.
+- [x] `sessionSave/reactiveCompactEvents.ts` imports `ReactiveCompactErrorKind` from Service controller code.
+- [x] `sessionSave/sessionMemoryRefresh.ts` imports chat engine, session-memory, prompt, and REPL mode semantics.
+- [x] `sessionSave/sessionMemorySidecar.ts` imports `SessionMemoryDraft` from chat/session-memory semantics.
 
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [x] Re-read `docs/contracts/web-parity-adapter-contract.md` before changing Web replay hydration, active-thread gating, or parser/cache semantics.
-- [x] Re-read `docs/contracts/session-persistence-contract.md` before changing pending restore consumption/cache semantics.
-- [x] Re-read `docs/contracts/tool-runtime-contract.md` before changing `tool_reference` writer/reader behavior.
-- [x] Re-read `docs/contracts/layer-contract.md` before moving model/config/setup ownership.
-- [x] Update the relevant canonical contract first if implementation reveals current behavior and contract wording disagree.
-- [x] Add/update a short learning note under `docs/learnings/` for any shipped behavior-alignment fix.
+- [x] Re-read `docs/contracts/layer-contract.md` before moving files.
+- [x] Re-read `docs/contracts/session-persistence-contract.md` before changing JSONL/sidecar DTO parsing.
+- [x] Re-read `docs/contracts/context-strategy-stack-contract.md` before moving compact/durable projection replay semantics.
+- [ ] Re-read `docs/contracts/model-settings-contract.md` only if setup/model files are touched unexpectedly.
+- [ ] Update `docs/contracts/layer-contract.md` if this task introduces a new Service-owned restore path or ownership decision tree.
+- [ ] Update `CODEMAP.md` when final owner paths are created or existing session restore entrypoints move.
+- [ ] Add/update a short learning note under `docs/learnings/` after the boundary lands.
 
-### 1.2 Data model
-- [x] Define `pendingSessionMemoryRestore` parse presence as a three-state result:
-  - [x] omitted or malformed required fields: field omitted, no cache update;
-  - [x] explicit `null`: authoritative clear;
-  - [x] valid object: set/update cache.
-- [x] Define malformed optional restore subfields as filtered/defaulted, not parent-response fatal.
-- [x] Define replay hydration source separately from live notification source.
-- [x] Define strict visible projection gating: visible transcript/chrome only when a thread surface is visible and notification thread equals active thread.
-- [x] Define new `tool_reference` write shape as canonical `tool_name` only; legacy `name` remains read fallback.
-- [x] Define model/context-window ownership split:
-  - [x] Config owns pure model identity, context-window extraction/inference, runtime profile/fingerprint, and static known metadata.
-  - [x] Repo/adapters own provider fetches, catalog fetching/caching, endpoint probing, and setup file/auth writes.
-  - [x] Service consumes resolved runtime model profiles but does not own provider discovery.
+### 1.2 Ownership model
+- [x] Define Repo `sessionSave` responsibility as file IO, JSONL scanning, sidecar read/write, tolerant record parsing, and persisted DTO emission.
+- [x] Define Service restore responsibility as compact-boundary interpretation, active generation scoping, durable state reconstruction, session-memory draft creation, and prompt-block reconstruction.
+- [x] Decide exact Service-owned path, recommended `packages/core/src/features/repl/sessionRestore/`.
+- [ ] Decide whether compatibility wrappers remain in old `sessionSave` paths during migration; if kept, they must not keep Repo files importing Service.
+- [ ] Define persisted DTO names separately from domain state names so Repo DTOs do not import Service types.
 
-### 1.3 Types / Interfaces
-- [x] Add or reuse a parser helper that can distinguish omitted optional fields from explicit `null`.
-- [x] Add a replay/live notification source option without weakening live de-dupe semantics.
-- [x] Add a strict active-thread projection helper with tests for draft/no-thread surfaces.
-- [x] Keep `tool_reference` readers compatible with legacy `name`, including conflict precedence where `tool_name` wins.
-- [x] Introduce Config-owned model helper paths only after deciding concrete target filenames.
+### 1.3 DTO / Interface plan
+- [ ] Introduce Repo-local DTOs for context-collapse committed events.
+- [ ] Introduce Repo-local DTOs for durable snip committed events.
+- [ ] Introduce Repo-local DTOs for durable tool-result content replacement events.
+- [ ] Introduce Repo-local DTOs for reactive compact events, including a persisted error-kind union that does not import controller code.
+- [ ] Introduce a Repo-local `SessionMemorySidecarDto` or `unknown` boundary for sidecar read/write.
+- [ ] Introduce Service restore APIs that consume DTOs and return existing semantic state shapes.
+- [ ] Keep exported event-name constants stable for existing tests and writers.
 
 ## 2. Runtime / Platform
 
-### 2.1 REPL semantic gate quick fix
-- [x] Fix the stale streaming test path in `scripts/repl-semantic-pre-review.mjs`.
-- [x] Add a manifest or manifest-like path preflight so the gate fails before Vitest when any required test path is missing.
-- [x] Keep `bun run test:repl-semantic-gate` as the public entrypoint.
-- [x] Include current gate checks without changing review policy semantics.
+### 2.1 Repo DTO readers
+- [x] Split `contextCollapseStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
+- [ ] Split `durableSnipStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
+- [ ] Split `durableToolResultContentReplacementEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
+- [ ] Split `reactiveCompactEvents.ts` so Repo parsing does not import REPL controller send code.
+- [ ] Split `sessionMemorySidecar.ts` so sidecar IO does not import `SessionMemoryDraft`.
+- [ ] Keep malformed record tolerance and latest-event selection behavior unchanged.
 
-### 2.2 Web replay high-risk fixes
-- [x] Fix restore parser presence semantics for `thread/resume` and `thread/replay`.
-- [x] Ensure malformed optional restore fields do not reject the parent response and do not become authoritative `null`.
-- [x] Split live notification sequencing from replay hydration acceptance.
-- [x] Ensure replay hydration for thread B is not rejected because thread A previously advanced the live cursor.
-- [x] Add strict visible-surface projection gating for draft/no-thread surfaces.
-- [x] Allow thread-scoped bookkeeping for non-active threads while blocking visible transcript/chrome updates.
-- [x] Add bounded unknown-event fallback only if the existing canonical contract requires visible degradation.
-- [x] Keep app-server replay sequence semantics and JSON-RPC response shapes stable.
+### 2.2 Service restore modules
+- [x] Add Service-owned context-collapse restore that builds `ContextCollapseStoreSnapshot` from Repo DTOs.
+- [ ] Add Service-owned durable-snip restore that builds `DurableSnipState` from Repo DTOs and applies active compact-boundary reset rules.
+- [ ] Add Service-owned durable tool-result replacement restore that builds semantic replacement state and applies source-scope / active-boundary filtering.
+- [ ] Move `sessionMemoryRefresh.ts` semantics to Service-owned restore path, keeping Repo sidecar IO separate.
+- [ ] Ensure Service restore modules import Repo DTO readers, not the reverse.
+- [ ] Preserve existing sync and async restore call variants where current call sites require them.
 
-### 2.3 Tool reference writer cleanup
-- [x] Change new `tool_reference` blocks to emit `tool_name` only.
-- [x] Preserve read fallback for legacy `name`.
-- [x] Prefer `tool_name` when both `tool_name` and `name` are present and conflict.
-- [x] Update ToolSearch/tool-result-content tests that currently expect new writes to include `name`.
+### 2.3 Call sites
+- [ ] Update REPL controller call sites to import Service restore functions when they need semantic state.
+- [ ] Update app-server call sites to import Service restore functions when they need semantic state.
+- [ ] Update SDK query/resume call sites to import Service restore functions when they need semantic state.
+- [ ] Keep writer/test imports for event constants pointed at Repo DTO modules when they only need persisted names.
+- [ ] Avoid changing runtime behavior, prompt history shape, replay facts, or persisted session rows.
 
-### 2.4 Model/config/setup ownership quick cluster
-- [x] Move or split pure context-window extraction/inference helpers into a Config-owned model module.
-- [x] Move or split model identity/profile/fingerprint/persistence-policy helpers into Config-owned model modules.
-- [x] Move provider fetch/catalog behavior into adapter/Repo-owned modules.
-- [x] Update setup adapters to import Config pure helpers and adapter provider fetch/catalog helpers, not Service/core model modules.
-- [x] Update `config/runtimeModelProfile.ts` so it imports only Config-owned model helpers and no chat/context Service module.
-- [x] Update layer-contract mappings only after concrete file moves.
+### 2.4 Boundary gates
+- [ ] Run `bun run check:layer-contracts` after each loop that changes import direction.
+- [ ] Run `bun run check:layer-coverage` if new Service/Repo paths are added.
+- [ ] Run `bun run type-check` before final commit if the loop moves exported types or public imports.
+- [ ] Do not mark the task done until `bun run check:layer-contracts` is green.
 
 ## 3. Frontend Boundary
 
-### 3.1 Web parser/cache/runtime
-- [x] Add parser tests before changing restore semantics.
-- [x] Add cache tests for omitted/null/object restore update behavior.
-- [x] Add replay hydration tests for cross-thread live cursor isolation.
-- [x] Add draft/no-thread tests proving active chrome/projection is not rendered when there is no active thread.
-- [x] Keep visible Web UI behavior unchanged except for preventing incorrect projection/chrome updates.
+### 3.1 User-visible behavior
+- [ ] Preserve Web/app-server replay fact shapes.
+- [ ] Preserve REPL resume, compact, durable snip, and session-memory restore behavior.
+- [ ] Preserve SDK resume/query behavior.
+- [ ] Do not change TUI/Web copy, spacing, or transcript rendering as part of this task.
 
-### 3.2 TUI / tool transcript
-- [x] Confirm `tool_reference` writer cleanup does not change displayed tool output.
-- [x] Do not begin shared renderer-neutral tool block migration in this todo.
-- [x] Do not change Task nested rendering in this todo.
+### 3.2 Persistence surface
+- [ ] Preserve session JSONL event names.
+- [ ] Preserve sidecar file paths and write timing.
+- [ ] Preserve recovery behavior for malformed or partial session files.
+- [ ] Preserve old session compatibility for sessions written before this refactor.
 
 ## 4. Tests
 
-### 4.1 Gate tests
-- [x] Add a test or script-level assertion that every semantic gate path exists.
-- [x] Run `bun run test:repl-semantic-gate`.
+### 4.1 Repo DTO tests
+- [x] Add/update `sessionSave/contextCollapseStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
+- [ ] Add/update `sessionSave/durableSnipStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
+- [ ] Add/update `sessionSave/durableToolResultContentReplacementEvents.test.ts` for DTO parsing and malformed event tolerance.
+- [ ] Add/update `sessionSave/reactiveCompactEvents.test.ts` for persisted DTO parsing without controller imports.
+- [ ] Add/update `sessionSave/sessionMemorySidecar.test.ts` for sidecar DTO/unknown read-write boundaries.
 
-### 4.2 Web replay/parser tests
-- [x] `packages/web-reference-react/src/app/core/rpcParsers.test.ts`: malformed optional restore subfields are omitted/defaulted, not `null`.
-- [x] `packages/web-reference-react/src/app/core/rpcContracts.test.ts`: malformed optional restore does not reject `thread/resume` or `thread/replay`.
-- [x] `packages/web-reference-react/src/app/runtime/threadDataOps.test.ts`: omitted restore does not clear existing cache; explicit `null` clears; valid object sets.
-- [x] `packages/web-reference-react/src/app/runtime/replayThreadEvents.test.ts`: replay hydration bypasses global live cursor and uses per-thread replay cursor.
-- [x] `packages/web-reference-react/src/app/runtime/processNotification.test.ts`: draft/no-thread surfaces update by-thread runtime state only, with no visible active-thread projection/chrome.
-- [x] Add unknown-event fallback tests only if the contract requires that fallback.
+### 4.2 Service restore tests
+- [x] Add Service restore tests for context-collapse active compact-boundary transitions.
+- [ ] Add Service restore tests for durable snip generation scoping and stale-state clearing.
+- [ ] Add Service restore tests for durable tool-result replacement source-scope and compact-boundary filtering.
+- [ ] Add Service restore tests for session-memory refresh / restore block construction.
 
-### 4.3 Tool reference tests
-- [x] Add/update tests asserting new `tool_reference` writes emit `tool_name` and omit `name`.
-- [x] Add/update tests asserting legacy `name`-only blocks still read correctly.
-- [x] Add/update tests asserting `tool_name` wins when both fields conflict.
-
-### 4.4 Layer/config tests
-- [x] Add/update tests for context-window extraction from provider payloads.
-- [x] Add/update tests for fallback context-window inference.
-- [x] Add/update tests for runtime model profile fingerprint stability.
-- [x] Add/update setup tests for context-window source precedence: provider list, provider detail, catalog, heuristic.
-- [x] Add/update setup tests that heuristic context-window tokens are not persisted when policy says they should not be.
-- [x] Run `bun run check:layer-contracts` after each ownership slice.
+### 4.3 Runtime parity tests
+- [x] Run existing `contextCompressionService.test.ts` cases that cover durable snip, durable tool replacement, session memory, and compact generation behavior.
+- [x] Run existing app-server tests that cover durable snip/collapse/tool replacement replay facts.
+- [x] Run existing SDK query/resume tests that cover session restore semantics.
+- [ ] Run targeted REPL controller/session tests for session memory flush/restore paths.
 
 ## 5. Recommended Execution Order
 
-### Loop 1: Semantic gate path and manifest preflight
+### Loop 1: Establish DTO/service boundary for context collapse
 Review gate for this loop:
-- Blocking: required path checks are missing, `bun run test:repl-semantic-gate` still references stale files, or gate entrypoint changes unexpectedly.
-- Non-blocking: adding the full cross-layer fixture matrix.
+- Blocking: Repo still imports `chat/context` or `prompts` for context-collapse reconstruction, malformed-event tolerance changes, or compact-boundary generation semantics drift.
+- Non-blocking: durable snip/tool replacement/session-memory modules still pending.
 
-- [x] Fix the stale streaming test path.
-- [x] Add a minimal manifest/path-existence preflight.
-- [x] Add a regression test or script assertion for missing path failure.
-- [x] Run `bun run test:repl-semantic-gate`.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Re-read relevant canonical docs for context-collapse session replay.
+- [x] Add or strengthen Repo DTO tests for context-collapse event parsing.
+- [x] Add Service restore tests for context-collapse store reconstruction and active compact-boundary transitions.
+- [x] Split context-collapse DTO parsing from semantic store reconstruction.
+- [x] Update REPL/app-server/SDK context-collapse call sites to use Service restore API.
+- [x] Run targeted context-collapse/session restore tests.
+- [x] Run `bun run check:layer-contracts` and confirm the context-collapse violations are gone or strictly reduced.
+- [x] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [x] Commit this loop after review passes.
 
-### Loop 2: Restore parser/cache presence semantics
+### Loop 2: Split durable snip and durable tool-result replacement replay
 Review gate for this loop:
-- Blocking: malformed optional restore clears cache, rejects parent response, or becomes authoritative `null`.
-- Non-blocking: broader projection fact cache refactor.
+- Blocking: Repo still imports `contextProjection`, `compact`, or `prompts` for durable state semantics; stale compact-boundary clearing changes; source-scope filtering changes.
+- Non-blocking: session-memory refresh remains pending.
 
-- [x] Add parser/contract/cache tests for omitted/null/object restore semantics.
-- [x] Patch `rpcParsers` / contract parsing to preserve three-state presence.
-- [x] Patch Web cache update call sites to treat omitted as no-op.
-- [x] Run targeted Web parser/cache tests.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Add or strengthen Repo DTO tests for durable snip and durable tool-result replacement events.
+- [ ] Add Service restore tests for durable snip generation scoping and durable tool replacement filtering.
+- [ ] Split durable snip DTO parsing from semantic state reconstruction.
+- [ ] Split durable tool-result replacement DTO parsing from semantic state reconstruction.
+- [ ] Update REPL/app-server/SDK durable state call sites to use Service restore APIs.
+- [ ] Run targeted durable state tests.
+- [ ] Run `bun run check:layer-contracts` and confirm durable-state violations are gone or strictly reduced.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [ ] Commit this loop after review passes.
 
-### Loop 3: Web replay cursor and visible projection gate
+### Loop 3: Split reactive compact and session memory boundaries
 Review gate for this loop:
-- Blocking: replay hydration consults the global live cursor, draft/no-thread renders active thread projection/chrome, or live notification de-dupe becomes weaker.
-- Non-blocking: `AppServer` helper extraction.
+- Blocking: Repo still imports REPL controller code, chat engine, session-memory semantics, prompts, or REPL mode; session-memory restore prompt blocks drift.
+- Non-blocking: broader prepare-turn-context unification.
 
-- [x] Add cross-thread replay hydration regression test.
-- [x] Split live notification sequencing from replay hydration acceptance.
-- [x] Add strict visible projection gate tests for active, non-active, draft, and no-thread surfaces.
-- [x] Patch Web runtime/projection paths to use the strict gate for visible side effects.
-- [x] Run targeted replay/process-notification tests.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Add or strengthen Repo DTO tests for reactive compact events.
+- [ ] Add or strengthen sidecar DTO/unknown boundary tests.
+- [ ] Move session-memory refresh semantics to Service-owned restore path.
+- [ ] Make `reactiveCompactEvents.ts` use Repo-local persisted DTO types.
+- [ ] Make `sessionMemorySidecar.ts` avoid importing Service semantic types.
+- [ ] Update REPL/app-server/SDK/runtime call sites to use Service restore APIs for session-memory semantics.
+- [ ] Run targeted session-memory/reactive compact tests.
+- [ ] Run `bun run check:layer-contracts` and confirm remaining sessionSave violations are gone or strictly reduced.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [ ] Commit this loop after review passes.
 
-### Loop 4: Tool reference canonical writer cleanup
+### Loop 4: Final boundary convergence and documentation
 Review gate for this loop:
-- Blocking: legacy `name` read compatibility breaks, `tool_name` conflict precedence changes incorrectly, or model-facing tool references lose required fields.
-- Non-blocking: shared renderer-neutral tool view model migration.
+- Blocking: `bun run check:layer-contracts` still fails, stale compatibility wrappers keep reverse imports, docs point to old ownership, or tests rely on obsolete paths.
+- Non-blocking: package ownership migration and full context preparation unification.
 
-- [x] Add/update canonical writer and legacy reader tests.
-- [x] Change `toToolReferenceBlock()` to emit `tool_name` only.
-- [x] Update ToolSearch/tool-result-content tests to stop expecting new `name` writes.
-- [x] Run targeted tool-reference tests.
-- [x] Run `codex review` for this loop after targeted verification passes.
+- [ ] Remove stale compatibility exports or keep only safe re-export shims that do not violate Repo -> Service direction.
+- [ ] Update `sessionSave/index.ts` exports to expose only Repo-safe DTO/IO APIs.
+- [ ] Update `CODEMAP.md` with Repo DTO and Service restore owners.
+- [ ] Update `docs/contracts/layer-contract.md` if a new Service restore path is added.
+- [ ] Add/update `docs/learnings/` note for the sessionSave boundary cleanup.
+- [ ] Run final targeted sessionSave/service restore/runtime tests.
+- [ ] Run `bun run check:layer-contracts`.
+- [ ] Run `bun run type-check`.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [ ] Commit this loop after review passes.
 
-### Loop 5: Model/config/setup ownership quick cluster
-Review gate for this loop:
-- Blocking: Config still imports chat/context Service modules, setup adapters still import Service-owned model helpers, or layer violations are hidden by broad allowlists.
-- Non-blocking: full `sessionSave` split, full `@formax/semantics` / `@formax/shared` migration.
+## 6. Deferred Follow-Up Candidates
 
-- [x] Choose exact target Config/adapter model helper filenames.
-- [x] Move pure model/context-window helpers to Config-owned modules.
-- [x] Move provider fetch/catalog behavior to adapter/Repo-owned modules.
-- [x] Update setup/config imports.
-- [x] Add/update targeted config/setup/model tests.
-- [x] Run `bun run check:layer-contracts`.
-- [x] Run targeted config/setup/model tests.
-- [x] Run `codex review` for this loop after targeted verification passes.
-
-## 6. Deferred Follow-Up Todo Candidates
-
-- Broader layer-boundary work: split `sessionSave` DTO readers from Service restore semantics.
-- Broader context work: introduce `prepareTurnContextRequest` and migrate REPL/app-server/SDK preparation onto it.
-- Broader tool UI work: introduce renderer-neutral `ToolCallViewModel` / `ToolViewBlock` schema and migrate tools incrementally.
-- Broader package work: turn `@formax/semantics` and `@formax/shared` from core re-export bridges into package-owned source.
-- Broader test-gate work: cross-layer context/compact fixture matrix across REPL, app-server, SDK, and Web.
+- Broader `prepareTurnContextRequest` unification across REPL, app-server, and SDK.
+- Cross-layer context/compact golden fixture matrix across REPL, app-server, SDK, diagnostics, and Web.
+- Public package ownership migration for `@formax/semantics` and `@formax/shared`.
+- Renderer-neutral `ToolViewBlock` / `ToolCallViewModel` migration.

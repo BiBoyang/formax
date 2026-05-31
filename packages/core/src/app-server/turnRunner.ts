@@ -35,9 +35,9 @@ import {
   buildSystemPrompt,
   resolveSystemPromptVariant,
 } from '../prompts/index.js'
+import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionRestore/contextCollapseStore.js'
 import {
   findSessionFileBySessionId,
-  readContextCollapseStoreSnapshotFromSession,
   DURABLE_SNIP_COMMITTED_EVENT_NAME,
   readDurableSnipStateFromSession,
   readDurableToolResultContentReplacementStateFromSession,

@@ -14,7 +14,7 @@ import { applyToolFilters, resolveToolFilters } from '../tools/runtime/toolFilte
 import { AppServer } from './server.js'
 import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
 import { readLatestReactiveCompactEventFromSession } from '../features/repl/sessionSave/reactiveCompactEvents.js'
-import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionSave/contextCollapseStoreEvents.js'
+import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionRestore/contextCollapseStore.js'
 import {
   classifyRpcMessage,
   JSON_RPC_ERRORS,

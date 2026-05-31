@@ -21,7 +21,7 @@ import {
   requestHistoryContainsExactMessage,
   type ContextCollapseStoreSnapshot,
 } from '../../chat/context/contextCollapseStore.js'
-import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionSave/contextCollapseStoreEvents.js'
+import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionRestore/contextCollapseStore.js'
 import {
   readDurableSnipStateFromSession,
 } from '../../features/repl/sessionSave/durableSnipStoreEvents.js'

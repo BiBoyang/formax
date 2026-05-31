@@ -47,7 +47,7 @@ import type { ReplMode } from '../../mode'
 import { waitForRollingSessionMemoryFlush } from '../shared/sessionMemoryFlush'
 import { countNonToolUserTurns } from '../shared/utils'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
-import { readContextCollapseStoreSnapshotFromSession } from '../../sessionSave/contextCollapseStoreEvents'
+import { readContextCollapseStoreSnapshotFromSession } from '../../sessionRestore/contextCollapseStore'
 import { readDurableSnipStateFromSession } from '../../sessionSave/durableSnipStoreEvents'
 import {
   readDurableToolResultContentReplacementStateFromSession,

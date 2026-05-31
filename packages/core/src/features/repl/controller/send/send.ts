@@ -32,7 +32,7 @@ import { createContextCompressionService } from './contextCompressionService'
 import { formatErrorSubline } from '../shared/errorSubline'
 import { readLatestRequestCollapseEventFromSessionSync } from '../../sessionSave/requestCollapseEvents'
 import { readLatestReactiveCompactEventFromSessionSync } from '../../sessionSave/reactiveCompactEvents'
-import { readContextCollapseStoreSnapshotFromSessionSync } from '../../sessionSave/contextCollapseStoreEvents'
+import { readContextCollapseStoreSnapshotFromSessionSync } from '../../sessionRestore/contextCollapseStore'
 
 const COMPACT_BANNER_TEXT = 'Conversation compacted · ctrl+o for history'
 const COMPACT_SUBLINE_TEXT = 'Compacted (ctrl+o to see full summary)'

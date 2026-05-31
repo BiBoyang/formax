@@ -61,7 +61,7 @@ import {
 import type { CanonicalEvent } from '../semantics/core'
 import { SessionWriter } from './sessionSave/writer'
 import { readSessionFile } from './sessionSave/reader'
-import { readContextCollapseStoreSnapshotFromSession } from './sessionSave/contextCollapseStoreEvents'
+import { readContextCollapseStoreSnapshotFromSession } from './sessionRestore/contextCollapseStore'
 import { createRuntimeFlags, type RuntimeFlags } from '../../config/runtimeFlags'
 import { getDeferredToolExposureStore } from '../../tools/runtime/deferredToolExposure'
 import type { SubAgentListItem } from '../subagents/types.js'

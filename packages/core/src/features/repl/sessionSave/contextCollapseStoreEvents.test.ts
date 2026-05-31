@@ -4,9 +4,13 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME,
+  readContextCollapseSessionRecordsFromSession,
+  readContextCollapseSessionRecordsFromSessionSync,
+} from './contextCollapseStoreEvents'
+import {
   readContextCollapseStoreSnapshotFromSession,
   readContextCollapseStoreSnapshotFromSessionSync,
-} from './contextCollapseStoreEvents'
+} from '../sessionRestore/contextCollapseStore'
 import {
   buildAutoCompactKeepStrategy,
   buildCompactBoundaryMessage,
@@ -55,6 +59,49 @@ function committedEvent(args: {
 }
 
 describe('contextCollapseStoreEvents', () => {
+  it('parses persisted collapse DTO records without rebuilding semantic state', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-dto-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        '{not-json',
+        JSON.stringify({
+          type: 'history_state',
+          messages: [
+            { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+            { role: 'system', content: [{ type: 'text', text: 'ignored' }] },
+          ],
+        }),
+        JSON.stringify(committedEvent({
+          id: 'collapse-dto',
+          createdAtMs: Date.parse('2026-05-21T00:02:00.000Z'),
+          startIndex: 4,
+          endIndexExclusive: 8,
+          recapFingerprint: 'dto-fingerprint',
+        })),
+        JSON.stringify({ type: 'event', name: CONTEXT_COLLAPSE_COMMITTED_EVENT_NAME, data: { id: '' } }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    const expected = [
+      {
+        type: 'history_state',
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      },
+      expect.objectContaining({
+        type: 'context_collapse_committed',
+        id: 'collapse-dto',
+        createdAtMs: Date.parse('2026-05-21T00:02:00.000Z'),
+        collapsedRange: { kind: 'model_facing_index_range', startIndex: 4, endIndexExclusive: 8 },
+      }),
+    ]
+
+    await expect(readContextCollapseSessionRecordsFromSession({ filePath })).resolves.toEqual(expected)
+    expect(readContextCollapseSessionRecordsFromSessionSync({ filePath })).toEqual(expected)
+  })
+
   it('rebuilds a deterministic durable collapse snapshot from session events', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-context-collapse-store-'))
     const filePath = path.join(dir, 'session.jsonl')
