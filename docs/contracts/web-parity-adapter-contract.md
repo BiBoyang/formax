@@ -200,6 +200,9 @@ These cached facts are display metadata for thread chrome and inspection panes. 
 `WEB-603`
 `durableSnip` is the durable projection-stage fact exposed by app-server. Request projection diagnostics remain under `/context` diagnostics (`nextTurnFixed.snipImpact`, `nextTurnFixed.collapseImpact`, and `strategyControlPlane`). Web MUST NOT interpret `durableSnip` as request-time snip impact or use it to mutate transcript rows.
 
+`WEB-604`
+`latestReactiveCompact` is currently `/context` diagnostics-only / session-event inspection metadata. Web MUST NOT cache it as a thread-level compression projection fact from `thread/messages`, `thread/resume`, `thread/replay`, transcript rows, replay hydration, local runtime cache reconstruction, or compact-looking text. If a future stable surface is approved, it MUST be contract-first and server-owned, with explicit parser/cache semantics before UI rendering.
+
 ## 8. 变更流程
 
 当修改 Web 的 history adapter、projection baseline、notification cursor、active-thread gating 或 replay hydrate 语义时：

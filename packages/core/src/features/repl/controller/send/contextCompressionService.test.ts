@@ -802,6 +802,56 @@ describe('createContextCompressionService', () => {
     })
   })
 
+  it('feeds manual compact from the durable model-facing projection baseline', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-manual-compact-projection-'))
+    const sessionFilePath = path.join(dir, 'session.jsonl')
+    const originalContent = `raw durable candidate ${'x'.repeat(2200)}`
+    await fs.writeFile(
+      sessionFilePath,
+      JSON.stringify({
+        type: 'event',
+        ts: '2026-05-21T00:00:00.000Z',
+        name: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+        data: {
+          schemaVersion: 1,
+          source: 'tool_result_content_replacement',
+          sourceScope: { kind: 'main_thread' },
+          compactBoundaryFingerprint: null,
+          sourceProjectionKind: 'model_facing_baseline',
+          replacements: [
+            {
+              kind: 'tool_result_block',
+              toolUseId: 'tool-1',
+              replacementContent: '[durable replacement for manual compact]',
+              originalContentFingerprint: fingerprintToolResultContent(originalContent),
+            },
+          ],
+        },
+      }),
+      'utf8',
+    )
+
+    const { service } = createService({ getSessionFilePath: () => sessionFilePath })
+    await service.runManualCompact({
+      contextWindowTokens: 100_000,
+      previousHistory: [
+        assistantToolUse('tool-1', 'Read', { file_path: '/repo/a.ts' }),
+        userToolResult('tool-1', originalContent),
+        { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
+      ],
+      keepLastTurns: 0,
+      instructions: 'keep projected facts',
+      system: [{ type: 'text', text: 'sys' }],
+    })
+
+    const compactArgs = vi.mocked(runCompactFlow).mock.calls[0]?.[0] as any
+    expect(JSON.stringify(compactArgs.previousHistory)).not.toContain(originalContent)
+    expect(JSON.stringify(compactArgs.previousHistory)).toContain('[durable replacement for manual compact]')
+    expect(JSON.stringify(compactArgs.persistenceHistory)).toContain(originalContent)
+    expect(JSON.stringify(compactArgs.persistenceHistory)).not.toContain('[durable replacement for manual compact]')
+    expect(compactArgs.excludePersistenceToolUseIds).toEqual(['tool-1'])
+  })
+
   it('propagates empty-summary style manual compact failures', async () => {
     vi.mocked(runCompactFlow).mockRejectedValueOnce(new Error('Compact failed: empty summary'))
 

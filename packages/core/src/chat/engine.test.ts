@@ -12,6 +12,8 @@ import { createToolSearchToolHandler } from '../tools/modules/toolSearch/handler
 import { getDeferredToolExposureStore } from '../tools/runtime/deferredToolExposure'
 import { createToolExecutor } from '../tools/executor'
 import { buildCompactBoundaryMessage } from './context/compact'
+import { TIME_BASED_MC_CLEARED_MESSAGE } from './context/microCompact'
+import { buildCompactRequest } from '../prompts/compact'
 
 describe('ChatEngine', () => {
   it('strips compact boundary messages before sending prompt history to the client', async () => {
@@ -105,6 +107,56 @@ describe('ChatEngine', () => {
     expect((capturedMessages[0]!.content[0] as any).text).toBe('summary-2')
     expect((capturedMessages[1]!.content[0] as any).text).toBe('tail-2')
     expect((capturedMessages[2]!.content[0] as any).text).toBe('continue')
+  })
+
+  it('does not time-based microcompact compact-summary model calls', async () => {
+    let capturedMessages: PromptMessage[] = []
+
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        capturedMessages = args.messages as PromptMessage[]
+        return {
+          assistantBlocks: [{ type: 'text', text: 'compact summary' }],
+          stopReason: 'end_turn',
+          toolResults: [],
+        }
+      },
+    }
+
+    const executor: ToolExecutor = async () => ({ tool_use_id: 'unused', content: 'unused' })
+    const engine = createChatEngine({ client, executor })
+
+    await engine.runTurn({
+      history: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'read-old', name: 'Read', input: { file_path: '/repo/src/old.ts' } }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'read-old', content: 'old result '.repeat(600) }],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'done' }],
+          meta: { timestamp: '2026-05-21T00:00:00.000Z' },
+        },
+      ],
+      user: { role: 'user', content: [{ type: 'text', text: buildCompactRequest('Summarize the session.') }] },
+      system: [],
+      tools: [],
+      onEvent: () => undefined,
+      cwd: '/tmp',
+      promptBudget: {
+        contextWindowTokens: 100_000,
+        effectiveContextWindowPercent: 0.95,
+        autoCompactLimitPercent: 0.9,
+        baselineTokens: 0,
+      },
+    })
+
+    expect(JSON.stringify(capturedMessages)).toContain('old result '.repeat(600))
+    expect(JSON.stringify(capturedMessages)).not.toContain(TIME_BASED_MC_CLEARED_MESSAGE)
   })
 
   it('uses requestHistory and requestUser for the model call while preserving persisted history in the returned loop', async () => {

@@ -31,6 +31,7 @@ import {
   type ContextCollapseStoreSnapshot,
 } from '../../../../chat/context/contextCollapseStore'
 import {
+  buildContextProjection,
   mergeDurableSnipSnapshot,
   rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
@@ -548,12 +549,44 @@ export function createContextCompressionService(deps: {
       compactedHistory: ChatHistory
       context: EstimatedContextState
     }> {
+      const collapseSnapshot = deps.getContextCollapseStoreSnapshot
+        ? await deps.getContextCollapseStoreSnapshot()
+        : await getFallbackContextCollapseStoreSnapshot()
+      const durableSnipState = scopeDurableSnipStateToHistory({
+        state: await getFallbackDurableSnipState(),
+        history: args.previousHistory,
+      })
+      const durableToolResultContentReplacementState = scopeDurableToolResultContentReplacementStateToHistory({
+        state: await getFallbackDurableToolResultContentReplacementState(),
+        history: args.previousHistory,
+      })
+      const projection = buildContextProjection({
+        history: args.previousHistory,
+        durableState: {
+          ...(durableSnipState ? { snip: durableSnipState } : {}),
+          collapse: collapseSnapshot,
+          ...(durableToolResultContentReplacementState
+            ? { toolResultContentReplacement: durableToolResultContentReplacementState }
+            : {}),
+        },
+      })
+      const persistenceProjection = buildContextProjection({
+        history: args.previousHistory,
+        durableState: {
+          ...(durableSnipState ? { snip: durableSnipState } : {}),
+          collapse: collapseSnapshot,
+        },
+      })
       const compactResult = await runCompactFlow({
         source: 'manual',
         triggerReason: { kind: 'manual' },
         instructions: args.instructions,
         engine: deps.engine,
-        previousHistory: args.previousHistory,
+        previousHistory: projection.modelFacingBaseline,
+        persistenceHistory: persistenceProjection.modelFacingBaseline,
+        excludePersistenceToolUseIds: projection.durableState.toolResultContentReplacement.replacements.map(
+          (replacement) => replacement.toolUseId,
+        ),
         keepLastTurns: args.keepLastTurns,
         system: args.system,
         cwd: deps.cwd,

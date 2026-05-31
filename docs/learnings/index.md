@@ -62,6 +62,7 @@
 - `docs/learnings/2026-05-24-context-window-source-binding-runtime-profile.md`
 - `docs/learnings/2026-05-30-preserved-segment-relink-validation-parity.md`
 - `docs/learnings/2026-05-30-structured-restore-continuity-hints.md`
+- `docs/learnings/2026-05-31-manual-compact-projection-boundary.md`
 - `docs/learnings/2026-05-31-reactive-compact-drainage.md`
 - `docs/learnings/2026-05-31-tool-result-replacement-boundary.md`
 - `docs/learnings/2026-04-06-collapse-recap-contributor-kind.md`

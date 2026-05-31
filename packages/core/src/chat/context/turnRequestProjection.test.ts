@@ -267,4 +267,34 @@ describe('prepareTurnRequestProjection', () => {
       fixture.pendingSessionMemoryRestore.todoSummary,
     )
   })
+
+  it('keeps request-only reducer output out of durable projection diagnostics', () => {
+    const history = [textMessage('assistant', 'raw persisted baseline')]
+    const user = textMessage('user', 'next request')
+    const requestOnlyHistory = [textMessage('assistant', 'request-only microcompact output')]
+    vi.mocked(executeMiddleLayerStrategyStack).mockReturnValue({
+      persistedHistoryCandidate: requestOnlyHistory,
+      requestHistory: requestOnlyHistory,
+      preparedTrailingMessage: user,
+      cacheEditPlan: null,
+      facts: {
+        stageOrder: ['microcompact', 'tool_result_budget', 'snip', 'collapse', 'prune'],
+      },
+    } as any)
+
+    const out = prepareTurnRequestProjection({
+      system: [],
+      history,
+      user,
+      budgetConfig: null,
+      enableTimeBasedMicroCompact: true,
+    })
+
+    expect(out.persistedHistory).toBe(history)
+    expect(out.requestHistory).toBe(requestOnlyHistory)
+    expect(out.contextProjection.rawTranscript).toBe(history)
+    expect(out.contextProjection.modelFacingBaseline).toBe(history)
+    expect(out.contextProjection.diagnosticsProjection).toBe(history)
+    expect(JSON.stringify(out.contextProjection)).not.toContain('request-only microcompact output')
+  })
 })

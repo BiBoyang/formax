@@ -66,7 +66,7 @@ describe('rpcParsers', () => {
     expect(Object.prototype.hasOwnProperty.call(parsed, 'latestRequestCollapse')).toBe(false)
   })
 
-  it('does not infer durable replacement facts from uncontracted fields or budget-stub tool rows', () => {
+  it('does not infer uncontracted compression facts from transcript rows or unknown fields', () => {
     const parsed = asThreadMessages({
       data: [
         {
@@ -75,12 +75,16 @@ describe('rpcParsers', () => {
           toolName: 'Read',
           status: 'completed',
           summary: '[Tool result replaced by budget: Read /repo/a.ts]',
-          detailLines: ['durable tool-result replacement marker: tool-1'],
+          detailLines: ['durable tool-result replacement marker: tool-1', 'reactive_compact_applied session event'],
         },
       ],
       durableToolResultContentReplacement: {
         status: 'active',
         replacementContent: '[durable replacement should be ignored]',
+      },
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        strategy: 'model_summary',
       },
     } as any)
 
@@ -89,10 +93,11 @@ describe('rpcParsers', () => {
         kind: 'tool',
         toolName: 'Read',
         summary: '[Tool result replaced by budget: Read /repo/a.ts]',
-        detailLines: ['durable tool-result replacement marker: tool-1'],
+        detailLines: ['durable tool-result replacement marker: tool-1', 'reactive_compact_applied session event'],
       }),
     ])
     expect(Object.prototype.hasOwnProperty.call(parsed, 'durableToolResultContentReplacement')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'latestReactiveCompact')).toBe(false)
   })
 
   it('parses thread message rows and filters invalid entries', () => {

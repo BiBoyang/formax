@@ -993,7 +993,7 @@ describe('contextDiagnostics', () => {
     expect(parsed.notes).toBeInstanceOf(Array)
   })
 
-  it('reports cache editing plan status in JSON and text diagnostics', () => {
+  it('reports cache editing plan status without triggering time-based clearing in diagnostics', () => {
     const args = {
       cwd: '/repo',
       cfg: {
@@ -1053,6 +1053,11 @@ describe('contextDiagnostics', () => {
           content: [{ type: 'tool_use', id: 'read-4', name: 'Read', input: { file_path: '/repo/d.ts' } }] as any,
         },
         { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'read-4', content: 'd'.repeat(4000) }] as any },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'done' }],
+          meta: { timestamp: '2026-05-21T00:00:00.000Z' },
+        },
       ] as PromptMessage[],
     }
 
@@ -1063,6 +1068,8 @@ describe('contextDiagnostics', () => {
       reason: 'planned 3 cache edit delete(s)',
     })
     expect(parsed.nextTurnFixed.microCompactImpact.cacheEditingPlannedBlocks).toBe(3)
+    expect(parsed.nextTurnFixed.microCompactImpact.timeAwareCompactedBlocks).toBe(0)
+    expect(parsed.nextTurnFixed.microCompactImpact.timeAwareToolNames).toEqual([])
 
     const report = buildContextDiagnosticsReport(args)
     expect(report).toContain(
@@ -1806,5 +1813,6 @@ describe('autoCompactSkipReason and pruneSkipReason', () => {
     expect(out).toContain('- Trigger kind: maximum_context_length')
     expect(out).toContain('- Trigger detail: context window exceeded')
     expect(out).toContain('- Fallback strategy: model_summary')
+    expect(out).not.toMatch(/retry (succeeded|completed)|successfully retried/i)
   })
 })

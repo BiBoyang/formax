@@ -76,6 +76,7 @@ export async function maybeHandleCompactCommand(args: {
   getReplMode: () => ReplMode
   setReplMode: (next: ReplMode) => void
   getPlanPath: () => string | null
+  getSessionFilePath?: () => string | null
   historyRef: { current: ChatHistory }
   contextBudgetConfigRef: { current: ContextBudgetConfig | null }
   abortControllerRef: { current: AbortController | null }
@@ -169,6 +170,7 @@ export async function maybeHandleCompactCommand(args: {
       thinkingEnabled: args.cfg.llm.thinkingMode,
       handleEvent: args.handleEvent,
       onCompactLifecycle: args.onCompactLifecycle,
+      getSessionFilePath: args.getSessionFilePath,
     })
     const compactResult = await compression.runManualCompact({
       contextWindowTokens,

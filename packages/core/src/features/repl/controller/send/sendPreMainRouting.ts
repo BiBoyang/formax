@@ -76,6 +76,7 @@ export async function resolvePreMainSendRouting(args: {
       getReplMode: args.getReplMode,
       setReplMode: args.setReplMode,
       getPlanPath: args.getPlanPath,
+      getSessionFilePath: args.getSessionFilePath,
       historyRef: args.historyRef,
       contextBudgetConfigRef: args.contextBudgetConfigRef,
       abortControllerRef: args.abortControllerRef,

@@ -712,4 +712,63 @@ describe('executeMiddleLayerStrategyStack', () => {
     expect(result.requestHistory).toEqual(originalHistory)
     expect(result.facts.microCompact.impact.cacheEditingPlannedBlocks).toBe(1)
   })
+
+  it('forwards time-based microcompact controls as request-time microcompact inputs', () => {
+    vi.mocked(estimatePromptTokens).mockReset()
+    vi.mocked(estimatePromptTokens).mockReturnValue(400)
+    const originalHistory = [{ role: 'assistant', content: [{ type: 'text', text: 'history' }] }] as any
+    vi.mocked(microCompactHistory).mockReturnValue({
+      messages: originalHistory,
+      cacheEditPlan: null,
+      compacted: false,
+      compactedBlocks: 0,
+      compactedToolNames: [],
+      estimatedTokensSaved: 0,
+      keptRecentBlocks: 0,
+      cacheAwareEligibleToolNames: ['Read', 'Grep', 'Glob', 'WebFetch'],
+      cacheAwareMinResultChars: 400,
+      cacheAwareCompactedBlocks: 0,
+      cacheAwareToolNames: [],
+      timeAwareEligibleToolNames: ['Read', 'Grep', 'Glob'],
+      timeAwareMinResultChars: 800,
+      timeAwareMinStaleUserTurns: 3,
+      timeAwareCompactedBlocks: 0,
+      timeAwareToolNames: [],
+      cacheEditingPlannedBlocks: 0,
+    } as any)
+    vi.mocked(applyRequestSnip).mockReturnValue({
+      messages: originalHistory,
+      applied: false,
+      impact: {
+        snippedMessages: 0,
+        snippedBlocks: 0,
+        estimatedTokensSaved: 0,
+        keptRecentMessages: 0,
+        minTextChars: 1400,
+      },
+    } as any)
+
+    executeMiddleLayerStrategyStack({
+      system: [{ type: 'text', text: 'sys' }],
+      history: originalHistory,
+      budgetConfig: null,
+      enableCacheEditing: true,
+      enableTimeBasedMicroCompact: true,
+      timeBasedAssistantGapThresholdMinutes: 90,
+      timeBasedKeepRecentToolResults: 2,
+      nowMs: 1_234_567,
+      enableToolResultBudget: false,
+      enableCollapse: false,
+    })
+
+    expect(microCompactHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableCacheEditing: true,
+        enableTimeBasedMicroCompact: true,
+        timeBasedAssistantGapThresholdMinutes: 90,
+        timeBasedKeepRecentToolResults: 2,
+        nowMs: 1_234_567,
+      }),
+    )
+  })
 })

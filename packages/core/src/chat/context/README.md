@@ -175,7 +175,7 @@ Formax 的“上下文管理”分两条线：
 
 `/compact` 已实现。主要入口：
 - pre-main 路由：`packages/core/src/features/repl/controller/send/sendPreMainRouting.ts`
-- compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；当前 auto compact 与 manual `/compact` 都会走 task-minimal `keep_combo`，且当已有 latest boundary 时，auto compact 会优先对 continuation 作用域做 partial compact）
+- compact flow：`packages/core/src/features/repl/controller/send/compactFlow.ts`（summary 生成 + lifecycle；当前 auto compact 与 manual `/compact` 都会走 task-minimal `keep_combo`；manual `/compact` 的 summary input 也必须从 durable model-facing projection / latest compact-boundary continuation 出发，不能重新总结 raw pre-boundary scrollback；当已有 latest boundary 时，auto compact 会优先对 continuation 作用域做 partial compact）
 - reactive compact：`packages/core/src/features/repl/controller/send/reactiveCompact.ts` + `packages/core/src/features/repl/controller/send/sendMainTurn.ts`（主 turn 首次 provider 调用命中上下文超限类错误时，会做一次受控 compact/retry；当前会先把错误归类成稳定 `triggerKind`，优先 session memory，失败再 fallback model summary，并把成功 fallback 事实记录成 `reactive_compact_applied` session event）
 - history 重建：`packages/core/src/chat/context/compact.ts`（tail 选择、boundary metadata、preserved-segment metadata、rehydration 拼装、continuation view helper；当前 working-set v5 已覆盖最近成功的 filesystem cluster / task-execution cluster anchor，并把 recent files、plan/todo state、mode state 合并进 auto keep strategy）
 

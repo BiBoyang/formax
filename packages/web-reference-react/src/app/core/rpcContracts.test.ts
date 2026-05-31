@@ -1757,6 +1757,10 @@ describe('rpcContracts', () => {
         recapFingerprint: 'fedcba9876543210',
       },
       durableSnip: DURABLE_SNIP,
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        strategy: 'model_summary',
+      },
     })
     expect(messages.data).toHaveLength(1)
     expect(messages.nextCursor).toBe('cursor-1')
@@ -1796,6 +1800,7 @@ describe('rpcContracts', () => {
       recapFingerprint: 'fedcba9876543210',
     })
     expect(messages.durableSnip).toEqual(DURABLE_SNIP)
+    expect(Object.prototype.hasOwnProperty.call(messages, 'latestReactiveCompact')).toBe(false)
   })
 
   it('parses thread/read payload with optional latest request collapse summary', () => {

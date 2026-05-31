@@ -164,6 +164,7 @@ describe('send handlers', () => {
       getReplMode: () => 'normal',
       setReplMode: vi.fn(),
       getPlanPath: () => null,
+      getSessionFilePath: () => '/tmp/formax/session.jsonl',
       historyRef: historyRef as any,
       contextBudgetConfigRef: contextBudgetConfigRef as any,
       abortControllerRef,
@@ -188,6 +189,7 @@ describe('send handlers', () => {
       expect.objectContaining({
         handleEvent,
         promptBudget: null,
+        getSessionFilePath: expect.any(Function),
       }),
     )
     expect(runManualCompact).toHaveBeenCalledWith(

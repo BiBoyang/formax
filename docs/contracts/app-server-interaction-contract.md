@@ -399,6 +399,7 @@
     - `triggerKind`
     - `strategy`
     - `triggerDetail`（可选）
+  - `latestReactiveCompact` 当前仅属于 `/context` local diagnostics / session-event inspection fact；它 MUST NOT 被客户端解释为 `thread/resume`、`thread/read`、`thread/messages` 或 `thread/replay` 的 server-owned compression projection fact，除非先更新 app-server 与 Web contracts 定义新的 stable surface。
   - `microCompactImpact`、`toolResultBudgetImpact`、`snipImpact`、`collapseImpact`、`assembledLedger`、`strategyCoordination`、`strategyControlPlane` 的 middle-layer stage 角色、执行顺序、以及 request-only scope 语义 MUST 以 `docs/contracts/context-strategy-stack-contract.md` 为准；本合同只定义 app-server payload 的稳定消费字段
   - 当前 `summaryKind` MAY 为：
     - `model_summary`

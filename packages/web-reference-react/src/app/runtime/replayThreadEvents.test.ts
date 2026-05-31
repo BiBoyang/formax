@@ -177,8 +177,12 @@ it('caches latest compact and collapse summaries from replay responses', async (
       latestCursor: 10,
       latestCompactBoundary,
       latestRequestCollapse,
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        strategy: 'model_summary',
+      },
       state: createReplayState(),
-    }),
+    } as any),
   )
   const cacheLatestCompactBoundary = vi.fn()
   const cacheDurableSnip = vi.fn()
@@ -191,6 +195,7 @@ it('caches latest compact and collapse summaries from replay responses', async (
   expect(cacheLatestCompactBoundary).toHaveBeenCalledWith(TEST_THREAD_ID, latestCompactBoundary)
   expect(cacheDurableSnip).toHaveBeenCalledWith(TEST_THREAD_ID, undefined)
   expect(cacheLatestRequestCollapse).toHaveBeenCalledWith(TEST_THREAD_ID, latestRequestCollapse)
+  expect(Object.prototype.hasOwnProperty.call(ctx, 'cacheLatestReactiveCompact')).toBe(false)
 })
 
 it('caches replay latest compact boundary while replaying the live compact event', async () => {

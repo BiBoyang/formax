@@ -1,4 +1,5 @@
 import type { ChatEngine, ChatHistory } from '../../../../chat/engine'
+import { dropOrphanToolBlocks } from '../../../../chat/context/toolPairProjection'
 import {
   buildWorkingSetAwareCompactKeepStrategy,
   buildDefaultCompactRehydrationPlan,
@@ -33,6 +34,8 @@ export async function runCompactFlow(args: {
   instructions: string
   engine: ChatEngine
   previousHistory: ChatHistory
+  persistenceHistory?: ChatHistory
+  excludePersistenceToolUseIds?: readonly string[]
   keepLastTurns: number
   system: PromptBlock[]
   cwd: string
@@ -51,9 +54,17 @@ export async function runCompactFlow(args: {
 
   const compactionScope = resolveHistoryForCompaction({
     previousHistory: args.previousHistory,
-    allowPartial: args.source !== 'manual',
+    allowPartial: true,
     preferLatestBoundaryTailSource: args.source === 'manual',
   })
+  const persistenceHistory = args.persistenceHistory ?? args.previousHistory
+  const persistenceScope = args.persistenceHistory || args.excludePersistenceToolUseIds?.length
+    ? resolveHistoryForCompaction({
+        previousHistory: persistenceHistory,
+        allowPartial: true,
+        preferLatestBoundaryTailSource: args.source === 'manual',
+      })
+    : compactionScope
 
   const compactUser: ChatHistory[number] = {
     role: 'user',
@@ -97,13 +108,21 @@ export async function runCompactFlow(args: {
       cwd: args.cwd,
       mode: args.mode,
       planPath: args.getPlanPath(),
-      previousHistory: args.previousHistory,
+      previousHistory: persistenceHistory,
     })
     const keepStrategy = buildWorkingSetAwareCompactKeepStrategy({
       keepLastTurns: args.keepLastTurns,
       mode: args.mode,
-      history: compactionScope.tailSourceHistory,
+      history: persistenceScope.tailSourceHistory,
       rehydration,
+    })
+    const previousHistoryForRebuild = removeToolPairsById({
+      history: persistenceScope.history,
+      toolUseIds: args.excludePersistenceToolUseIds ?? [],
+    })
+    const tailSourceHistoryForRebuild = removeToolPairsById({
+      history: persistenceScope.tailSourceHistory,
+      toolUseIds: args.excludePersistenceToolUseIds ?? [],
     })
     const rehydrationPlan = markCompactRehydrationApplied(
       buildDefaultCompactRehydrationPlan({
@@ -118,8 +137,8 @@ export async function runCompactFlow(args: {
       summary,
       compactedHistory: rebuildHistoryAfterCompaction({
         summary,
-        previousHistory: compactionScope.history,
-        tailSourceHistory: compactionScope.tailSourceHistory,
+        previousHistory: previousHistoryForRebuild,
+        tailSourceHistory: tailSourceHistoryForRebuild,
         keepStrategy,
         rehydration,
         boundaryMeta: {
@@ -141,4 +160,30 @@ export async function runCompactFlow(args: {
     args.onLifecycle?.({ type: 'compact_failed', source: args.source, error: message })
     throw error
   }
+}
+
+function removeToolPairsById(args: {
+  history: ChatHistory
+  toolUseIds: readonly string[]
+}): ChatHistory {
+  if (args.toolUseIds.length === 0) return args.history
+  const ids = new Set(args.toolUseIds.filter((id) => id.trim()))
+  if (ids.size === 0) return args.history
+  const filtered = args.history
+    .map((message) => {
+      if (!Array.isArray(message.content)) return message
+      const nextContent = message.content.filter((block: any) => {
+        if (message.role === 'assistant' && block?.type === 'tool_use') {
+          return !ids.has(String(block.id ?? ''))
+        }
+        if (message.role === 'user' && block?.type === 'tool_result') {
+          return !ids.has(String(block.tool_use_id ?? ''))
+        }
+        return true
+      })
+      if (nextContent.length === 0) return null
+      return nextContent.length === message.content.length ? message : { ...message, content: nextContent as any }
+    })
+    .filter((message): message is ChatHistory[number] => Boolean(message))
+  return dropOrphanToolBlocks(filtered as any).messages as ChatHistory
 }

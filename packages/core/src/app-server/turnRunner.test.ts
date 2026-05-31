@@ -863,6 +863,74 @@ describe('TurnRunner', () => {
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
   })
 
+  it('applies durable projection before app-server manual /compact summarization', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const originalContent = `large durable tool output before compact ${'x'.repeat(1800)}`
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const seedWriter = await SessionWriter.openExisting({ filePath: filePath! })
+    await seedWriter.appendHistorySnapshot([
+      assistantToolUse('tool-compact-1', 'Read', { file_path: '/repo/a.ts' }),
+      userToolResult('tool-compact-1', originalContent),
+      { role: 'assistant', content: [{ type: 'text', text: 'recent assistant state' }] },
+    ] as ChatHistory)
+    await seedWriter.appendEvent(DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME, {
+      schemaVersion: 1,
+      source: 'tool_result_content_replacement',
+      sourceScope: { kind: 'main_thread' },
+      compactBoundaryFingerprint: null,
+      sourceProjectionKind: 'model_facing_baseline',
+      replacements: [
+        {
+          kind: 'tool_result_block',
+          toolUseId: 'tool-compact-1',
+          replacementContent: '[durable replacement before compact]',
+          originalContentFingerprint: fingerprintToolResultContent(originalContent),
+        },
+      ],
+    })
+    await seedWriter.shutdown()
+
+    let compactSummaryHistory: ChatHistory | null = null
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          compactSummaryHistory = args.history
+          return [
+            ...args.history,
+            args.user,
+            { role: 'assistant', content: [{ type: 'text', text: 'manual compact summary' }] },
+          ] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    const compactStarted = await runner.startTurn({ threadId: fixture.threadId, input: { text: '/compact' } })
+    await waitForNotification(
+      notifications,
+      (n) => n.method === 'turn/completed' && n.params?.turn?.id === compactStarted.turn.id,
+    )
+
+    expect(JSON.stringify(compactSummaryHistory)).toContain('[durable replacement before compact]')
+    expect(JSON.stringify(compactSummaryHistory)).not.toContain(originalContent)
+    const replay = await readSessionFile(filePath!)
+    expect(JSON.stringify(replay.history)).not.toContain(originalContent)
+    expect(JSON.stringify(replay.history)).not.toContain('[durable replacement before compact]')
+  })
+
   it('uses compact-boundary continuation for app-server request history while preserving raw replay history', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []
@@ -1360,6 +1428,61 @@ describe('TurnRunner', () => {
     const raw = await fs.readFile(filePath!, 'utf8')
     expect(raw).toContain('reactive_compact_applied')
     expect(raw).toContain('ok after retry')
+  })
+
+  it('does not run a second app-server reactive compact when the reactive retry also overflows', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const seedWriter = await SessionWriter.openExisting({
+      filePath: (await findSessionFileBySessionId({ cwd: fixture.cwd, env: fixture.env, sessionId: fixture.threadId }))!,
+    })
+    await seedWriter.appendHistorySnapshot([
+      { role: 'user', content: [{ type: 'text', text: 'old question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'old answer' }] },
+    ] as ChatHistory)
+    await seedWriter.shutdown()
+
+    const runTurn = vi.fn(async (args: any) => {
+      const call = runTurn.mock.calls.length
+      if (call === 1) {
+        throw new Error('HTTP 413: request too large')
+      }
+      if (call === 2) {
+        return [
+          ...args.history,
+          args.user,
+          { role: 'assistant', content: [{ type: 'text', text: 'reactive summary' }] },
+        ] as ChatHistory
+      }
+      throw new Error('API Error: 400 prompt is too long after reactive compact')
+    })
+    const runner = new TurnRunner({
+      engine: { runTurn },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'continue' } })
+
+    const failed = await waitForNotification(notifications, (n) => n.method === 'turn/failed')
+    expect(runTurn).toHaveBeenCalledTimes(3)
+    expect(String(failed.params?.error || '')).toContain('prompt is too long after reactive compact')
+    expect(notifications.some((n) => n.method === 'turn/completed')).toBe(false)
+
+    const filePath = await findSessionFileBySessionId({
+      cwd: fixture.cwd,
+      env: fixture.env,
+      sessionId: fixture.threadId,
+    })
+    expect(filePath).toBeTruthy()
+    const raw = await fs.readFile(filePath!, 'utf8')
+    expect((raw.match(/reactive_compact_applied/g) ?? []).length).toBe(1)
   })
 
   it('keeps app-server interrupted status before overflow-like error text', async () => {

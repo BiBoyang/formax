@@ -165,8 +165,10 @@ describe('microCompactHistory', () => {
     })
 
     expect(out.cacheEditPlan).toBeNull()
+    expect(out.messages).not.toBe(messages)
     expect((out.messages[1]!.content[0] as any).content).toBe(TIME_BASED_MC_CLEARED_MESSAGE)
     expect((out.messages[3]!.content[0] as any).content).toBe('b'.repeat(4000))
+    expect((messages[1]!.content[0] as any).content).toBe('a'.repeat(4000))
     expect(out.timeAwareCompactedBlocks).toBe(1)
     expect(out.timeAwareToolNames).toEqual(['Read'])
   })

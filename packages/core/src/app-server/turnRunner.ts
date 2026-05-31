@@ -23,6 +23,7 @@ import {
 import { prepareTurnRequestProjection } from '../chat/context/turnRequestProjection.js'
 import { isAnthropicCacheEditingEnabled } from '../chat/context/cacheEditing.js'
 import {
+  buildContextProjection,
   mergeDurableSnipSnapshot,
   rebaseCollapseHeadCountAfterDurableSnip,
   scopeDurableSnipStateToHistory,
@@ -813,11 +814,32 @@ export class TurnRunner {
       if (running.compact.isCommand) {
         await this.consumePendingInjectedBlocksForDispatch(running)
         await writer.appendEvent('compact_started', { source: 'manual' })
+        const manualCompactProjection = buildContextProjection({
+          history,
+          durableState: {
+            ...(initialDurableSnipState ? { snip: initialDurableSnipState } : {}),
+            collapse: initialCollapseStoreSnapshot,
+            ...(initialDurableToolResultContentReplacementState
+              ? { toolResultContentReplacement: initialDurableToolResultContentReplacementState }
+              : {}),
+          },
+        })
+        const manualCompactPersistenceProjection = buildContextProjection({
+          history,
+          durableState: {
+            ...(initialDurableSnipState ? { snip: initialDurableSnipState } : {}),
+            collapse: initialCollapseStoreSnapshot,
+          },
+        })
         const compactResult = await runCompactFlow({
           source: 'manual',
           instructions: running.compact.instructions,
           engine: this.engine as ChatEngine,
-          previousHistory: history,
+          previousHistory: manualCompactProjection.modelFacingBaseline,
+          persistenceHistory: manualCompactPersistenceProjection.modelFacingBaseline,
+          excludePersistenceToolUseIds: manualCompactProjection.durableState.toolResultContentReplacement.replacements.map(
+            (replacement) => replacement.toolUseId,
+          ),
           keepLastTurns: MANUAL_COMPACT_KEEP_LAST_TURNS,
           system,
           cwd: running.cwd,

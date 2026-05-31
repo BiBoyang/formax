@@ -519,13 +519,17 @@ describe('threadDataOps', () => {
           id: 'm1',
           kind: 'message',
           role: 'assistant',
-          text: 'metadata-looking compactBoundary durable_snip_applied request_collapse_applied',
+          text: 'metadata-looking compactBoundary durable_snip_applied request_collapse_applied reactive_compact_applied latestReactiveCompact',
         },
       ],
       nextCursor: null,
       latestCompactBoundary: null,
       durableSnip: null,
       latestRequestCollapse: null,
+      latestReactiveCompact: {
+        triggerKind: 'maximum_context_length',
+        strategy: 'model_summary',
+      },
     })
     const ops = createThreadDataOps(ctx)
 
@@ -535,6 +539,7 @@ describe('threadDataOps', () => {
     expect(ctx.durableSnipByThreadIdRef.current['thread-1']).toBeNull()
     expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1'] ?? null).toBeNull()
     expect(JSON.stringify(ctx.logsByThreadIdRef.current['thread-1'])).not.toContain('latestCompactBoundary')
+    expect(Object.prototype.hasOwnProperty.call(ctx, 'latestReactiveCompactByThreadIdRef')).toBe(false)
   })
 
   it('loads earlier history from refs when transcript source is history', async () => {

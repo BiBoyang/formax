@@ -268,6 +268,7 @@ describe('runCompactFlow', () => {
   })
 
   it('does not reintroduce stale pre-boundary turns when manual compact runs on an already compacted session', async () => {
+    const runTurn = vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'manual summary' }] }] as ChatHistory)
     const existingBoundary = {
       role: 'assistant',
       content: [{ type: 'text', text: '' }],
@@ -290,7 +291,7 @@ describe('runCompactFlow', () => {
     const out = await runCompactFlow(
       baseArgs({
         source: 'manual',
-        keepLastTurns: 0,
+        keepLastTurns: 3,
         previousHistory: [
           { role: 'user', content: [{ type: 'text', text: 'very old turn' }] },
           existingBoundary,
@@ -299,17 +300,60 @@ describe('runCompactFlow', () => {
           { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
           { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
         ] as ChatHistory,
-        engine: {
-          runTurn: vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'manual summary' }] }] as ChatHistory),
-        } as any,
+        engine: { runTurn } as any,
       }),
     )
 
+    expect(runTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        history: [
+          { role: 'user', content: [{ type: 'text', text: 'old compact summary' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'carry working set' }] },
+          { role: 'user', content: [{ type: 'text', text: 'latest user' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'latest assistant' }] },
+        ],
+      }),
+    )
     expect((out.compactedHistory[1] as any)?.content?.[0]?.text).toContain('manual summary')
     expect((out.compactedHistory[2] as any)?.content?.[0]?.text).toBe('latest user')
     expect((out.compactedHistory[3] as any)?.content?.[0]?.text).toBe('latest assistant')
     expect(JSON.stringify(out.compactedHistory)).not.toContain('very old turn')
     expect(JSON.stringify(out.compactedHistory)).not.toContain('old compact summary')
+  })
+
+  it('uses projected history for summary input without persisting projected replacement content', async () => {
+    const runTurn = vi.fn(async () => [{ role: 'assistant', content: [{ type: 'text', text: 'manual summary' }] }] as ChatHistory)
+    const out = await runCompactFlow(
+      baseArgs({
+        source: 'manual',
+        keepLastTurns: 3,
+        previousHistory: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/repo/a.ts' } }] } as any,
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: '[durable replacement]' }] } as any,
+          { role: 'assistant', content: [{ type: 'text', text: 'recent assistant' }] },
+        ] as ChatHistory,
+        persistenceHistory: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/repo/a.ts' } }] } as any,
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'raw tool result' }] } as any,
+          { role: 'assistant', content: [{ type: 'text', text: 'recent assistant' }] },
+        ] as ChatHistory,
+        excludePersistenceToolUseIds: ['tool-1'],
+        engine: { runTurn } as any,
+      }),
+    )
+
+    expect(runTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        history: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: [expect.objectContaining({ type: 'tool_result', content: '[durable replacement]' })],
+          }),
+        ]),
+      }),
+    )
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('raw tool result')
+    expect(JSON.stringify(out.compactedHistory)).not.toContain('[durable replacement]')
   })
 
   it('uses only the latest continuation segment for auto partial compact when a boundary already exists', async () => {
