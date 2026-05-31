@@ -139,6 +139,7 @@
 - [2026-05-21 - Request collapse boundary generation](./2026-05-21-request-collapse-boundary-generation.md)
 - [2026-05-21 - Thread collapse surface parity](./2026-05-21-thread-collapse-surface-parity.md)
 - [2026-05-24 - Context window source / binding / runtime profile](./2026-05-24-context-window-source-binding-runtime-profile.md)
+- [2026-05-31 - Config model helper ownership](./2026-05-31-config-model-helper-ownership.md)
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)
 - [2026-05-31 - App-server reactive compact parity](./2026-05-31-app-server-reactive-compact-parity.md)
 - [2026-05-31 - Web pending restore presence](./2026-05-31-web-pending-restore-presence.md)

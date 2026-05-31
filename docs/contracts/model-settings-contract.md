@@ -26,6 +26,8 @@
 - `packages/core/src/config/modelTier.ts`
 - `packages/core/src/config/config.ts`
 - `packages/core/src/config/runtimeModelProfile.ts`
+- `packages/core/src/config/modelCapability.ts`
+- `packages/core/src/config/modelContextWindow.ts`
 - `packages/core/src/features/commands/replEnvironmentService.ts`
 - `packages/core/src/features/commands/registry.ts`
 - `packages/core/src/core/setup/session.ts`

@@ -3,7 +3,7 @@ import { ErrorCode } from '../../core/errors/codes.js'
 import { testSetupConnection } from './connectionTest.js'
 import { fetchAnthropicModels, fetchCustomModels } from '../../core/models/models.js'
 import { getModelContextWindowsFromCatalog, resolveCatalogProviderKeys } from '../../core/models/modelContextCatalog.js'
-import { createModelContextWindowMetadata } from '../../core/models/modelCapability.js'
+import { createModelContextWindowMetadata } from '../../config/modelCapability.js'
 import type { CapabilityConfidence, CapabilitySource, ProviderId } from '../../config/settings/schema.js'
 
 vi.mock('../../core/models/models.js', () => ({ fetchAnthropicModels: vi.fn(), fetchCustomModels: vi.fn() }))

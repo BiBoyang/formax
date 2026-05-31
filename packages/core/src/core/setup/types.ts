@@ -1,6 +1,6 @@
 import type { CapabilityConfidence, CapabilitySource, ModelIdentity, ModelTier, ProviderId, TierContextWindowMapping } from '../../config/settings/schema.js'
 import type { ErrorCode } from '../errors/codes.js'
-import type { ModelContextWindowMetadata } from '../models/modelCapability.js'
+import type { ModelContextWindowMetadata } from '../../config/modelCapability.js'
 
 export type SetupProviderOption = {
   id: ProviderId

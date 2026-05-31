@@ -5,7 +5,7 @@ import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/settings/schema.js'
-import { shouldPersistContextWindowSource } from '../../core/models/modelCapability.js'
+import { shouldPersistContextWindowSource } from '../../config/modelCapability.js'
 import type {
   CapabilitySource,
   ProviderId,

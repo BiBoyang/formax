@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { extractContextWindowTokens } from './contextWindow.js'
+import { extractContextWindowTokens } from '../../config/modelContextWindow.js'
 
 export type ModelInfo = {
   model: string

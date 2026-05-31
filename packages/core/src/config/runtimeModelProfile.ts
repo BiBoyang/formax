@@ -1,6 +1,6 @@
-import { getKnownContextWindowTokens } from '../chat/context/modelWindow.js'
-import { sameModelIdentity, buildRuntimeModelProfileFingerprint } from '../core/models/modelCapability.js'
-import type { RuntimeModelProfile } from '../core/models/modelCapability.js'
+import { getKnownContextWindowTokens } from './modelContextWindow.js'
+import { sameModelIdentity, buildRuntimeModelProfileFingerprint } from './modelCapability.js'
+import type { RuntimeModelProfile } from './modelCapability.js'
 import type { RuntimeConfig } from './config.js'
 import { normalizeModelTier } from './modelTier.js'
 

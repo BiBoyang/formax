@@ -62,6 +62,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Setup / Dialogs (Overlays)
 - First-run setup wizard (UI): `packages/core/src/tui/SetupWizard.tsx`
 - Setup session + state machine: `packages/core/src/core/setup/session.ts`
+- Setup/model pure helpers (context-window extraction/inference, runtime model profile metadata): `packages/core/src/config/modelContextWindow.ts`, `packages/core/src/config/modelCapability.ts`
 - Web/Electron Setup Wizard contract: `docs/contracts/setup-wizard-contract.md`
 - Web setup bridge service (status/session/action/commit): `packages/core/src/core/setup/bridgeService.ts`
 - Setup persistence + connection checks: `packages/core/src/adapters/setup/writeSetupFiles.ts`, `packages/core/src/adapters/setup/connectionTest.ts`
@@ -104,7 +105,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Independent request-time tool-result budget replacement strategy: `packages/core/src/chat/context/toolResultBudget.ts`
 - Independent request-time snip reducer for older assistant text messages + durable identity/fingerprint removal metadata: `packages/core/src/chat/context/snip.ts`
 - Lightweight old-tool-result compaction (microcompact): `packages/core/src/chat/context/microCompact.ts`
-- Model context window table (current provider-agnostic hints): `packages/core/src/chat/context/modelWindow.ts`
+- Model context window helpers (Config-owned; chat path is a compatibility shim): `packages/core/src/config/modelContextWindow.ts`, `packages/core/src/chat/context/modelWindow.ts`
 - Hard pruning rules (tool pair invariants + truncation): `packages/core/src/chat/context/prune.ts`
 - Tool-use/tool-result orphan-block normalization shared by durable projection and prune: `packages/core/src/chat/context/toolPairProjection.ts`
 - Compaction tail selection (keep last N turns): `packages/core/src/chat/context/compact.ts`
@@ -278,6 +279,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 ## Config / Auth / Paths
 - Runtime config loader: `packages/core/src/config/config.ts`
 - Runtime env flag parser (single entry for `FORMAX_*` runtime toggles): `packages/core/src/config/runtimeFlags.ts`
+- Runtime model profile and model capability helpers: `packages/core/src/config/runtimeModelProfile.ts`, `packages/core/src/config/modelCapability.ts`, `packages/core/src/config/modelContextWindow.ts`
 - Config paths + migration/legacy behavior: `packages/core/src/adapters/fs/configPaths.ts`
 - Reading config files (auth.json, etc): `packages/core/src/adapters/fs/configFiles.ts`
 

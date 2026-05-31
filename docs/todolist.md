@@ -16,8 +16,8 @@
 - [x] Fix Web replay high-risk bugs without changing the app-server JSON-RPC protocol.
 - [x] Normalize optional restore/fact presence semantics: omitted means no cache change, explicit `null` means clear, valid object means set.
 - [x] Stop emitting legacy `tool_reference.name` for new tool-reference blocks while preserving legacy read compatibility.
-- [ ] Start the layer-boundary cleanup with the model/config/setup pure-helper ownership cluster, not a baseline refresh.
-- [ ] Add focused regression tests before each behavior change.
+- [x] Start the layer-boundary cleanup with the model/config/setup pure-helper ownership cluster, not a baseline refresh.
+- [x] Add focused regression tests before each behavior change.
 
 ### 0.3 Non-goals
 - [x] Do not refresh layer-contract baselines as the primary fix.
@@ -41,7 +41,7 @@
 - [x] Re-read `docs/contracts/web-parity-adapter-contract.md` before changing Web replay hydration, active-thread gating, or parser/cache semantics.
 - [x] Re-read `docs/contracts/session-persistence-contract.md` before changing pending restore consumption/cache semantics.
 - [x] Re-read `docs/contracts/tool-runtime-contract.md` before changing `tool_reference` writer/reader behavior.
-- [ ] Re-read `docs/contracts/layer-contract.md` before moving model/config/setup ownership.
+- [x] Re-read `docs/contracts/layer-contract.md` before moving model/config/setup ownership.
 - [x] Update the relevant canonical contract first if implementation reveals current behavior and contract wording disagree.
 - [x] Add/update a short learning note under `docs/learnings/` for any shipped behavior-alignment fix.
 
@@ -54,17 +54,17 @@
 - [x] Define replay hydration source separately from live notification source.
 - [x] Define strict visible projection gating: visible transcript/chrome only when a thread surface is visible and notification thread equals active thread.
 - [x] Define new `tool_reference` write shape as canonical `tool_name` only; legacy `name` remains read fallback.
-- [ ] Define model/context-window ownership split:
-  - [ ] Config owns pure model identity, context-window extraction/inference, runtime profile/fingerprint, and static known metadata.
-  - [ ] Repo/adapters own provider fetches, catalog fetching/caching, endpoint probing, and setup file/auth writes.
-  - [ ] Service consumes resolved runtime model profiles but does not own provider discovery.
+- [x] Define model/context-window ownership split:
+  - [x] Config owns pure model identity, context-window extraction/inference, runtime profile/fingerprint, and static known metadata.
+  - [x] Repo/adapters own provider fetches, catalog fetching/caching, endpoint probing, and setup file/auth writes.
+  - [x] Service consumes resolved runtime model profiles but does not own provider discovery.
 
 ### 1.3 Types / Interfaces
 - [x] Add or reuse a parser helper that can distinguish omitted optional fields from explicit `null`.
 - [x] Add a replay/live notification source option without weakening live de-dupe semantics.
 - [x] Add a strict active-thread projection helper with tests for draft/no-thread surfaces.
 - [x] Keep `tool_reference` readers compatible with legacy `name`, including conflict precedence where `tool_name` wins.
-- [ ] Introduce Config-owned model helper paths only after deciding concrete target filenames.
+- [x] Introduce Config-owned model helper paths only after deciding concrete target filenames.
 
 ## 2. Runtime / Platform
 
@@ -81,8 +81,8 @@
 - [x] Ensure replay hydration for thread B is not rejected because thread A previously advanced the live cursor.
 - [x] Add strict visible-surface projection gating for draft/no-thread surfaces.
 - [x] Allow thread-scoped bookkeeping for non-active threads while blocking visible transcript/chrome updates.
-- [ ] Add bounded unknown-event fallback only if the existing canonical contract requires visible degradation.
-- [ ] Keep app-server replay sequence semantics and JSON-RPC response shapes stable.
+- [x] Add bounded unknown-event fallback only if the existing canonical contract requires visible degradation.
+- [x] Keep app-server replay sequence semantics and JSON-RPC response shapes stable.
 
 ### 2.3 Tool reference writer cleanup
 - [x] Change new `tool_reference` blocks to emit `tool_name` only.
@@ -91,12 +91,12 @@
 - [x] Update ToolSearch/tool-result-content tests that currently expect new writes to include `name`.
 
 ### 2.4 Model/config/setup ownership quick cluster
-- [ ] Move or split pure context-window extraction/inference helpers into a Config-owned model module.
-- [ ] Move or split model identity/profile/fingerprint/persistence-policy helpers into Config-owned model modules.
-- [ ] Move provider fetch/catalog behavior into adapter/Repo-owned modules.
-- [ ] Update setup adapters to import Config pure helpers and adapter provider fetch/catalog helpers, not Service/core model modules.
-- [ ] Update `config/runtimeModelProfile.ts` so it imports only Config-owned model helpers and no chat/context Service module.
-- [ ] Update layer-contract mappings only after concrete file moves.
+- [x] Move or split pure context-window extraction/inference helpers into a Config-owned model module.
+- [x] Move or split model identity/profile/fingerprint/persistence-policy helpers into Config-owned model modules.
+- [x] Move provider fetch/catalog behavior into adapter/Repo-owned modules.
+- [x] Update setup adapters to import Config pure helpers and adapter provider fetch/catalog helpers, not Service/core model modules.
+- [x] Update `config/runtimeModelProfile.ts` so it imports only Config-owned model helpers and no chat/context Service module.
+- [x] Update layer-contract mappings only after concrete file moves.
 
 ## 3. Frontend Boundary
 
@@ -105,7 +105,7 @@
 - [x] Add cache tests for omitted/null/object restore update behavior.
 - [x] Add replay hydration tests for cross-thread live cursor isolation.
 - [x] Add draft/no-thread tests proving active chrome/projection is not rendered when there is no active thread.
-- [ ] Keep visible Web UI behavior unchanged except for preventing incorrect projection/chrome updates.
+- [x] Keep visible Web UI behavior unchanged except for preventing incorrect projection/chrome updates.
 
 ### 3.2 TUI / tool transcript
 - [x] Confirm `tool_reference` writer cleanup does not change displayed tool output.
@@ -132,12 +132,12 @@
 - [x] Add/update tests asserting `tool_name` wins when both fields conflict.
 
 ### 4.4 Layer/config tests
-- [ ] Add/update tests for context-window extraction from provider payloads.
-- [ ] Add/update tests for fallback context-window inference.
-- [ ] Add/update tests for runtime model profile fingerprint stability.
-- [ ] Add/update setup tests for context-window source precedence: provider list, provider detail, catalog, heuristic.
-- [ ] Add/update setup tests that heuristic context-window tokens are not persisted when policy says they should not be.
-- [ ] Run `bun run check:layer-contracts` after each ownership slice.
+- [x] Add/update tests for context-window extraction from provider payloads.
+- [x] Add/update tests for fallback context-window inference.
+- [x] Add/update tests for runtime model profile fingerprint stability.
+- [x] Add/update setup tests for context-window source precedence: provider list, provider detail, catalog, heuristic.
+- [x] Add/update setup tests that heuristic context-window tokens are not persisted when policy says they should not be.
+- [x] Run `bun run check:layer-contracts` after each ownership slice.
 
 ## 5. Recommended Execution Order
 
@@ -191,19 +191,19 @@ Review gate for this loop:
 - Blocking: Config still imports chat/context Service modules, setup adapters still import Service-owned model helpers, or layer violations are hidden by broad allowlists.
 - Non-blocking: full `sessionSave` split, full `@formax/semantics` / `@formax/shared` migration.
 
-- [ ] Choose exact target Config/adapter model helper filenames.
-- [ ] Move pure model/context-window helpers to Config-owned modules.
-- [ ] Move provider fetch/catalog behavior to adapter/Repo-owned modules.
-- [ ] Update setup/config imports.
-- [ ] Add/update targeted config/setup/model tests.
-- [ ] Run `bun run check:layer-contracts`.
-- [ ] Run targeted config/setup/model tests.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Choose exact target Config/adapter model helper filenames.
+- [x] Move pure model/context-window helpers to Config-owned modules.
+- [x] Move provider fetch/catalog behavior to adapter/Repo-owned modules.
+- [x] Update setup/config imports.
+- [x] Add/update targeted config/setup/model tests.
+- [x] Run `bun run check:layer-contracts`.
+- [x] Run targeted config/setup/model tests.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 ## 6. Deferred Follow-Up Todo Candidates
 
-- [ ] Broader layer-boundary work: split `sessionSave` DTO readers from Service restore semantics.
-- [ ] Broader context work: introduce `prepareTurnContextRequest` and migrate REPL/app-server/SDK preparation onto it.
-- [ ] Broader tool UI work: introduce renderer-neutral `ToolCallViewModel` / `ToolViewBlock` schema and migrate tools incrementally.
-- [ ] Broader package work: turn `@formax/semantics` and `@formax/shared` from core re-export bridges into package-owned source.
-- [ ] Broader test-gate work: cross-layer context/compact fixture matrix across REPL, app-server, SDK, and Web.
+- Broader layer-boundary work: split `sessionSave` DTO readers from Service restore semantics.
+- Broader context work: introduce `prepareTurnContextRequest` and migrate REPL/app-server/SDK preparation onto it.
+- Broader tool UI work: introduce renderer-neutral `ToolCallViewModel` / `ToolViewBlock` schema and migrate tools incrementally.
+- Broader package work: turn `@formax/semantics` and `@formax/shared` from core re-export bridges into package-owned source.
+- Broader test-gate work: cross-layer context/compact fixture matrix across REPL, app-server, SDK, and Web.

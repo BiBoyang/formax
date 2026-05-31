@@ -1,6 +1,6 @@
-import type { ModelContextWindowMetadata } from '../models/modelCapability.js'
-import { createModelContextWindowMetadata } from '../models/modelCapability.js'
-import { inferContextWindowTokens } from '../models/inferContextWindowTokens.js'
+import type { ModelContextWindowMetadata } from '../../config/modelCapability.js'
+import { createModelContextWindowMetadata } from '../../config/modelCapability.js'
+import { inferContextWindowTokens } from '../../config/modelContextWindow.js'
 import type { ModelTier, ProviderId } from '../../config/settings/schema.js'
 import type {
   ConnectionTestResult,
