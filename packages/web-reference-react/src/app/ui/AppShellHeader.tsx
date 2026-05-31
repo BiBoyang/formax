@@ -7,10 +7,10 @@ import type { CompactBoundarySummary, ContextMeterView, RequestCollapseSummary }
 import { useI18n } from '../i18n/I18nProvider'
 
 const SHARED_HEADER_BTN_ICON =
-  'h-[26px] w-[26px] px-0 flex items-center justify-center text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground transition-colors rounded-[6px]'
+  'h-[26px] w-[26px] px-0 flex items-center justify-center text-muted-foreground hover:bg-[var(--sidebar-row-hover)] hover:text-foreground transition-colors rounded-[6px]'
 const SHARED_HEADER_BTN_GROUP =
   'h-[26px] flex items-center rounded-[6px] border border-border/60 bg-transparent overflow-hidden text-muted-foreground hover:text-foreground transition-colors'
-const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:bg-[var(--sidebar-list-hover)] transition-colors'
+const SHARED_HEADER_BTN_INNER = 'h-full flex items-center justify-center hover:bg-[var(--sidebar-row-hover)] transition-colors'
 
 // Intentionally disabled in both dev/prod.
 // Re-enable this single switch to restore the "Load all earlier" header entry
@@ -125,7 +125,7 @@ export function AppShellHeader(props: AppShellHeaderProps) {
               data-testid="header-dev-load-all-earlier"
               className={cn(
                 'h-8 px-2 ui-text-meta bg-transparent transition-colors',
-                'text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
+                'text-muted-foreground hover:bg-[var(--sidebar-row-hover)] hover:text-foreground',
                 props.isDesktopClient && 'app-shell-no-drag',
               )}
               onClick={props.onDevLoadAllEarlier}
@@ -216,8 +216,8 @@ export function AppShellHeader(props: AppShellHeaderProps) {
               className={cn(
                 'flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] transition-colors select-none',
                 props.isRightRailOpen
-                  ? 'bg-[var(--sidebar-list-hover)] text-foreground'
-                  : 'bg-transparent text-muted-foreground hover:bg-[var(--sidebar-list-hover)] hover:text-foreground',
+                  ? 'bg-[var(--sidebar-row-hover)] text-foreground'
+                  : 'bg-transparent text-muted-foreground hover:bg-[var(--sidebar-row-hover)] hover:text-foreground',
                 props.isDesktopClient && 'app-shell-no-drag',
               )}
               onClick={props.onToggleRightRail}

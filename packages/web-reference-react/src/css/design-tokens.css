@@ -1,0 +1,220 @@
+:root {
+  /* 全局图标实际尺寸：xs 用于非常小的辅助图标。 */
+  --icon-size-xs: 12px;
+
+  /* 全局图标实际尺寸：sm 用于 sidebar action、紧凑按钮里的图标。 */
+  --icon-size-sm: 14px;
+
+  /* 全局图标实际尺寸：md 是常规导航/菜单图标的默认尺寸。 */
+  --icon-size-md: 16px;
+
+  /* 全局图标实际尺寸：lg 用于更强调的入口或空状态。 */
+  --icon-size-lg: 20px;
+
+  /* 全局图标对齐槽：控制图标占位宽高，不等于图标本身大小。 */
+  --icon-slot-sm: 20px;
+
+  /* 全局图标对齐槽：常规控件里更宽松的图标占位。 */
+  --icon-slot-md: 24px;
+
+  /* 全局动画时长：fast 用于 hover、轻量状态反馈。 */
+  --motion-duration-fast: 120ms;
+
+  /* 全局动画时长：standard 用于展开/收起这类小型布局变化。 */
+  --motion-duration-standard: 180ms;
+
+  /* 全局缓动曲线：标准 UI 状态变化，进入和退出都保持克制。 */
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* sidebar 行高：普通入口、文件夹、线程行共享同一高度，保证扫描节奏稳定。 */
+  --sidebar-row-height: 31px;
+
+  /* sidebar 菜单项行高：用于底部入口菜单和文件夹 action 菜单，比主列表行略紧凑。 */
+  --sidebar-menu-item-height: 29px;
+
+  /* sidebar 行圆角：对应原来的 rounded-md，统一由 token 控制。 */
+  --sidebar-row-radius: 0.375rem;
+
+  /* sidebar 行水平内边距：普通行左右默认留白；图标缩小后同步收紧，避免左侧显得空。 */
+  --sidebar-row-padding-x: 0.375rem;
+
+  /* sidebar 行紧凑右边距：给有右侧时间/action 的行留出更精确的视觉对齐。 */
+  --sidebar-row-padding-x-compact: 0.5rem;
+
+  /* sidebar 普通行图标和文字间距：用于 New thread、底部固定入口等 sidebar 导航项。 */
+  --sidebar-row-gap: 0.375rem;
+
+  /* sidebar 紧凑行图标/文字/action 间距：用于 folder/thread 列表。 */
+  --sidebar-row-gap-compact: 0.25rem;
+
+  /* sidebar 列表左右内边距：控制 folder/thread 列表整体离 rail 边缘的距离。 */
+  --sidebar-list-padding-x: 0.5rem;
+
+  /* sidebar 列表项垂直间距：原来由 space-y-px 表达。 */
+  --sidebar-list-row-gap: 1px;
+
+  /* sidebar thread 左侧缩进：让 thread 作为 folder 的子项形成清楚层级。 */
+  --sidebar-thread-indent: 1.5rem;
+
+  /* sidebar 滚动列表顶部留白：固定 New thread 和 folder 列表之间的呼吸空间。 */
+  --sidebar-scroll-padding-top: 0.5rem;
+
+  /* sidebar 滚动列表底部留白：避免最后一项贴近底部固定入口和 fade mask。 */
+  --sidebar-scroll-padding-bottom: 3rem;
+
+  /* sidebar 固定 action 区左右内边距：用于顶部 New thread 区。 */
+  --sidebar-fixed-action-padding-x: var(--sidebar-list-padding-x);
+
+  /* sidebar 底部固定区左右内边距：用于底部固定入口，和顶部 action 区对齐。 */
+  --sidebar-bottom-padding-x: var(--sidebar-list-padding-x);
+
+  /* sidebar 底部固定区上下内边距：复用桌面 chrome 行居中规则。 */
+  --sidebar-bottom-padding-y: var(--desktop-chrome-row-padding-y);
+
+  /* sidebar 状态文字左右内边距：连接状态等辅助信息和普通行文字对齐。 */
+  --sidebar-status-padding-x: var(--sidebar-row-padding-x);
+
+  /* sidebar 状态文字底部间距：连接状态和第一条 action 之间的间隔。 */
+  --sidebar-status-padding-bottom: 0.5rem;
+
+  /* sidebar 普通行图标实际尺寸：统一到紧凑 action 图标尺寸，让 sidebar 图标整体更轻。 */
+  --sidebar-icon-size: var(--icon-size-xs);
+
+  /* sidebar 普通行图标对齐槽：保证文字起点稳定。 */
+  --sidebar-icon-slot: var(--icon-slot-sm);
+
+  /* sidebar 普通图标线宽：lucide 默认 2px，在紧凑侧边栏里略显粗。 */
+  --sidebar-icon-stroke-width: 1.8;
+
+  /* sidebar 文件夹行图标实际尺寸：和普通导航/menu 图标统一，保证左侧图标节奏一致。 */
+  --sidebar-folder-icon-size: var(--sidebar-icon-size);
+
+  /* sidebar 文件夹行图标对齐槽：和普通 sidebar 图标槽一致，保证文字起点齐。 */
+  --sidebar-folder-icon-slot: var(--sidebar-icon-slot);
+
+  /* sidebar 行内 action 图标实际尺寸：和左侧图标统一，保证 sidebar 内图标尺寸一致。 */
+  --sidebar-action-icon-size: var(--sidebar-icon-size);
+
+  /* sidebar 行内 action 图标颜色：默认跟文件夹文字/线程时间保持同一层级。 */
+  --sidebar-action-icon-color: var(--sidebar-folder-text);
+
+  /* sidebar 行内 action 按钮点击槽：保证可点面积，不等于图标本身大小。 */
+  --sidebar-action-icon-slot: 22px;
+
+  /* sidebar 行内 action 视觉右边距：让图标本身右边缘和线程时间右边缘对齐。 */
+  --sidebar-action-icon-visual-right: 8px;
+
+  /* sidebar 行内 action 槽位右偏移：补偿点击槽比图标更宽造成的视觉空白。 */
+  --sidebar-action-icon-slot-right: calc(
+    var(--sidebar-action-icon-visual-right) - ((var(--sidebar-action-icon-slot) - var(--sidebar-action-icon-size)) / 2)
+  );
+
+  /* sidebar 行内 action 图标线宽：小图标用更细线宽，避免显得糙。 */
+  --sidebar-action-icon-stroke-width: 1.7;
+
+  /* 页面最底层的墙纸色：给 body/app 背后的大背景做语义命名，不表示 sidebar 自己有背景。 */
+  --app-wallpaper-surface: var(--background);
+
+  /* 应用外壳底色：sidebar 区域本身透明时，用户实际看到的是这一层。 */
+  --app-chrome-surface: color-mix(in srgb, var(--app-wallpaper-surface) 96%, black);
+
+  /* sidebar 主文字：用于线程标题、主要菜单项，需要和 app 外壳底色保持清晰对比。 */
+  --sidebar-text-primary: var(--text-primary);
+
+  /* sidebar 次级文字：用于时间、路径、辅助信息，比主文字低一点层级。 */
+  --sidebar-text-secondary: color-mix(in oklch, var(--foreground) 96%, transparent);
+
+  /* sidebar 文件夹文字：文件夹是分组提示，应该比线程标题更轻。 */
+  --sidebar-folder-text: color-mix(in oklch, var(--sidebar-text-primary) 72%, transparent);
+
+  /* sidebar 弱文字：用于分组标题、空状态、连接状态等低强调信息。 */
+  --sidebar-text-muted: color-mix(in oklch, var(--foreground) 72%, transparent);
+
+  /* sidebar 行状态背景：hover 和选中态共用同一层淡色，让侧边栏保持安静。 */
+  --sidebar-row-state: color-mix(in oklch, var(--foreground) 6%, transparent);
+
+  /* sidebar 行 hover 背景：鼠标经过时才出现的轻量反馈，不承担整体背景。 */
+  --sidebar-row-hover: var(--sidebar-row-state);
+
+  /* sidebar 行选中背景：当前线程/当前设置项；本轮刻意和 hover 保持一致。 */
+  --sidebar-row-active: var(--sidebar-row-state);
+
+  /* control 行高：用于 select、input、setup 选项等普通控件；初始和 sidebar 行高保持一致。 */
+  --control-row-height: var(--sidebar-row-height);
+
+  /* control hover 背景：普通控件的鼠标经过状态；初始复用 sidebar 状态色，后续可独立调整。 */
+  --control-surface-hover: var(--sidebar-row-hover);
+
+  /* control active 背景：普通控件的选中/填充底色；初始复用 sidebar 状态色，后续可独立调整。 */
+  --control-surface-active: var(--sidebar-row-active);
+
+  /* menu item hover 背景：下拉菜单项的鼠标经过/键盘高亮状态；初始跟普通控件 hover 保持一致。 */
+  --menu-item-hover: var(--control-surface-hover);
+
+  /* menu item active 背景：下拉菜单项被打开或选中时的状态；初始跟普通控件 active 保持一致。 */
+  --menu-item-active: var(--control-surface-active);
+
+  /* sidebar 文件夹展开/收起动画时长：只控制内容区域，不控制图标旋转。 */
+  --sidebar-folder-toggle-duration: var(--motion-duration-standard);
+
+  /* sidebar 文件夹展开/收起缓动：让列表展开时柔和，但不抢注意力。 */
+  --sidebar-folder-toggle-ease: var(--motion-ease-standard);
+
+  /* 兼容旧变量：现有 layout 仍读取 --app-backdrop-surface。 */
+  --app-backdrop-surface: var(--app-chrome-surface);
+
+  /* 兼容 shadcn/sidebar 变量：让 bg-sidebar 等工具类继续指向 app 外壳底色。 */
+  --sidebar: var(--app-chrome-surface);
+
+}
+
+.dark {
+  /* 暗色墙纸色：不要纯黑，给透明层和右侧 surface 留出层级空间。 */
+  --app-wallpaper-surface: var(--background);
+
+  /* 暗色应用外壳底色：保持接近旧 sidebar 深色，避免第一步改变观感。 */
+  --app-chrome-surface: oklch(0.205 0 0);
+
+  /* 暗色 sidebar 主文字：避免纯白发光感，同时保持可读性。 */
+  --sidebar-text-primary: var(--text-primary);
+
+  /* 暗色 sidebar 次级文字：比亮色稍降，给主文字留出层级。 */
+  --sidebar-text-secondary: color-mix(in oklch, var(--foreground) 92%, transparent);
+
+  /* 暗色 sidebar 文件夹文字：比主文字更轻，但不能淡到和背景糊在一起。 */
+  --sidebar-folder-text: color-mix(in oklch, var(--sidebar-text-primary) 78%, transparent);
+
+  /* 暗色 sidebar 弱文字：用于低强调信息，不要压过线程标题。 */
+  --sidebar-text-muted: color-mix(in oklch, var(--foreground) 72%, transparent);
+
+  /* 暗色行状态背景：暗色透明层需要更高比例，否则 hover/选中态不容易看见。 */
+  --sidebar-row-state: color-mix(in oklch, var(--foreground) 11%, transparent);
+
+  /* 暗色 hover 背景：本轮和选中态保持一致，降低侧边栏视觉噪音。 */
+  --sidebar-row-hover: var(--sidebar-row-state);
+
+  /* 暗色选中背景：本轮和 hover 保持一致，当前位置后续可用文字/标记增强。 */
+  --sidebar-row-active: var(--sidebar-row-state);
+
+  /* 暗色 control 行高：沿用亮色定义，写在这里是为了让暗色 control token 分组完整。 */
+  --control-row-height: var(--sidebar-row-height);
+
+  /* 暗色 control hover 背景：默认跟随暗色 sidebar hover，必要时可单独调浅/调深。 */
+  --control-surface-hover: var(--sidebar-row-hover);
+
+  /* 暗色 control active 背景：默认跟随暗色 sidebar active，必要时可单独区分。 */
+  --control-surface-active: var(--sidebar-row-active);
+
+  /* 暗色 menu item hover 背景：默认跟随暗色普通控件 hover。 */
+  --menu-item-hover: var(--control-surface-hover);
+
+  /* 暗色 menu item active 背景：默认跟随暗色普通控件 active。 */
+  --menu-item-active: var(--control-surface-active);
+
+  /* 兼容旧变量：暗色下同样让 app 外壳底色成为左侧实际可见底色。 */
+  --app-backdrop-surface: var(--app-chrome-surface);
+
+  /* 兼容 shadcn/sidebar 变量。 */
+  --sidebar: var(--app-chrome-surface);
+
+}

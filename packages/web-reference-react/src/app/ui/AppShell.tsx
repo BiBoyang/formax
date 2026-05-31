@@ -208,10 +208,6 @@ export function AppShell(props: AppShellProps) {
     props.setIsSettingsOpen(false)
   }, [props.setIsSettingsOpen])
 
-  const onCreateProject = useCallback(() => {
-    props.onEnterAddProjectDraft()
-  }, [props.onEnterAddProjectDraft])
-
   const onDraftAddProject = useCallback(async () => {
     if (!desktopBridge?.pickProjectFolder) return
     const nextCwd = await desktopBridge.pickProjectFolder()
@@ -249,7 +245,6 @@ export function AppShell(props: AppShellProps) {
       onHideThreadGroup: props.onHideThreadGroup,
       isBusy: props.isThreadActionBusy,
       isDesktopClient,
-      onCreateProject: desktopBridge?.pickProjectFolder ? onCreateProject : undefined,
       isWindowTransparent,
       onToggleWindowTransparency: isDesktopClient ? onToggleWindowTransparency : undefined,
       isSettingsOpen: props.isSettingsOpen,
@@ -279,7 +274,6 @@ export function AppShell(props: AppShellProps) {
       isWindowTransparent,
       desktopBridge,
       leftRailCurrentGroupCwd,
-      onCreateProject,
       onOpenFolderInTarget,
       openFolderActionLabel,
       onOpenSettings,

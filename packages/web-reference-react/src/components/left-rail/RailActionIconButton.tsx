@@ -14,7 +14,7 @@ export function RailActionIconButton(props: RailActionIconButtonProps) {
       size="icon"
       variant="ghost"
       className={cn(
-        'h-7 w-7 rounded-md focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-transparent',
+        'ui-sidebar-action-icon-button focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-transparent',
         className,
       )}
       {...rest}

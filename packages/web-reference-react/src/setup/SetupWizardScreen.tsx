@@ -143,7 +143,7 @@ function SetupRow({
       disabled={disabled}
       className={cn(
         'flex min-h-11 w-full items-center justify-between px-6 py-3 text-left ui-text-base transition-colors',
-        selected ? 'bg-[var(--sidebar-list-active)] text-foreground' : 'bg-card hover:bg-[var(--sidebar-list-hover)]',
+        selected ? 'bg-[var(--control-surface-active)] text-foreground' : 'bg-card hover:bg-[var(--control-surface-hover)]',
         disabled && 'cursor-not-allowed opacity-55',
         className
       )}
@@ -173,7 +173,7 @@ function SetupFieldRow({
 function SetupInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className="h-8 w-full rounded-md border border-transparent bg-[var(--sidebar-list-active)] px-3 py-1 ui-text-base outline-none transition-colors placeholder:text-muted-foreground hover:bg-[var(--sidebar-list-hover)] focus-visible:border-border disabled:cursor-not-allowed disabled:opacity-55"
+      className="h-[var(--control-row-height)] w-full rounded-md border border-transparent bg-[var(--control-surface-active)] px-3 py-1 ui-text-base outline-none transition-colors placeholder:text-muted-foreground hover:bg-[var(--control-surface-hover)] focus-visible:border-border disabled:cursor-not-allowed disabled:opacity-55"
       {...props}
     />
   )
@@ -183,7 +183,7 @@ function SetupSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className="relative w-full">
       <select
-        className="h-8 w-full appearance-none rounded-md border border-transparent bg-[var(--sidebar-list-active)] px-3 py-1 pr-9 ui-text-base outline-none transition-colors hover:bg-[var(--sidebar-list-hover)] focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-55"
+        className="h-[var(--control-row-height)] w-full appearance-none rounded-md border border-transparent bg-[var(--control-surface-active)] px-3 py-1 pr-9 ui-text-base outline-none transition-colors hover:bg-[var(--control-surface-hover)] focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-55"
         {...props}
       />
       <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

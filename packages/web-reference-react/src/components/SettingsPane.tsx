@@ -79,7 +79,7 @@ function BasicSelect({
   return (
     <div className="relative w-[220px]">
       <select
-        className="h-8 w-full appearance-none rounded-md border border-transparent bg-[var(--sidebar-list-active)] px-3 py-1 pr-9 ui-text-base outline-none transition-colors hover:bg-[var(--sidebar-list-hover)] focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0"
+        className="h-[var(--control-row-height)] w-full appearance-none rounded-md border border-transparent bg-[var(--control-surface-active)] px-3 py-1 pr-9 ui-text-base outline-none transition-colors hover:bg-[var(--control-surface-hover)] focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

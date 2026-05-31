@@ -834,6 +834,10 @@ function resolveUrlBasePath(pathname: string): string {
 
 async function shouldOpenSetupWindow(startUrl: string): Promise<boolean> {
   if (!isAllowedLocalUrl(startUrl)) return false
+  // Temporary local-dev escape hatch: remove once the Vite dev entry serves
+  // /__formax/setup/status as JSON or the Electron dev runner probes setup over
+  // the app-server bridge instead of the UI server.
+  if (process.env.FORMAX_ELECTRON_SKIP_SETUP_PROBE === '1') return false
   try {
     const statusUrl = buildSetupStatusUrl(startUrl)
     const response = await fetch(statusUrl, { method: 'GET', cache: 'no-store' })
