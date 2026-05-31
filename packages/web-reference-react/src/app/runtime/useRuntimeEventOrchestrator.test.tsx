@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CompactBoundarySummary } from '../../types'
 import { useRuntimeEventOrchestrator } from './useRuntimeEventOrchestrator'
 import { createReplayTurnEventEnvelope } from './testFixtures/replayFixtures'
+import {
+  createTurnEventCursorState,
+  shouldAcceptSequencedNotification,
+} from '../../turnEventCursor'
+import type { ThreadRuntimeState } from '../../semantics'
 
 function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): CompactBoundarySummary {
   return {
@@ -15,17 +20,32 @@ function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): Compac
 }
 
 describe('useRuntimeEventOrchestrator', () => {
-  it('hydrates replay entries without consulting the live notification sequencer', async () => {
-    const shouldProcessSequencedNotification = vi.fn(() => false)
+  it('hydrates replay entries through the thread replay sequencer instead of the live sequencer', async () => {
+    const eventCursor = createTurnEventCursorState()
+    expect(
+      shouldAcceptSequencedNotification(eventCursor, { replaySeq: 100, eventId: 'live-100' }, { kind: 'live-stream' }),
+    ).toBe(true)
+    const shouldProcessSequencedNotification = vi.fn((params, owner) =>
+      shouldAcceptSequencedNotification(eventCursor, params, owner),
+    )
     const dispatch = vi.fn()
-    const replayCursorByThreadRef = { current: { 'thread-1': 100 } }
+    const replayCursorByThreadRef: { current: Record<string, number> } = { current: {} }
+    const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = { current: {} }
     const replayEntry = createReplayTurnEventEnvelope({
       replaySeq: 5,
       eventId: 'replay-5',
       event: { type: 'assistant_delta', text: 'from replay' },
     })
+    const staleReplayEntry = createReplayTurnEventEnvelope({
+      replaySeq: 4,
+      eventId: 'replay-4',
+      event: { type: 'assistant_delta', text: 'stale replay' },
+    })
     const request = vi.fn(async () => ({
-      data: [{ replaySeq: 5, method: 'turn/event', params: replayEntry }],
+      data: [
+        { replaySeq: 5, method: 'turn/event', params: replayEntry },
+        { replaySeq: 4, method: 'turn/event', params: staleReplayEntry },
+      ],
       nextCursor: 5,
       latestCursor: 5,
       hasGap: false,
@@ -47,7 +67,7 @@ describe('useRuntimeEventOrchestrator', () => {
         setAskDraftByInputId: vi.fn(),
         setSubmitStatusByInputId: vi.fn(),
         shouldProcessSequencedNotification,
-        runtimeStateByThreadRef: { current: {} },
+        runtimeStateByThreadRef,
         replayCursorByThreadRef,
         replayAnomalyCountSeenByThreadRef: { current: {} },
         activeThreadIdRef: { current: 'thread-1' },
@@ -77,10 +97,17 @@ describe('useRuntimeEventOrchestrator', () => {
     )
 
     await act(async () => {
-      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+      await result.current.replayThreadEvents('thread-1')
     })
 
-    expect(shouldProcessSequencedNotification).not.toHaveBeenCalled()
+    expect(shouldProcessSequencedNotification).toHaveBeenCalledWith(replayEntry, {
+      kind: 'thread-replay',
+      threadId: 'thread-1',
+    })
+    expect(shouldProcessSequencedNotification).toHaveBeenCalledWith(staleReplayEntry, {
+      kind: 'thread-replay',
+      threadId: 'thread-1',
+    })
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'apply_canonical_event',
@@ -91,7 +118,12 @@ describe('useRuntimeEventOrchestrator', () => {
         }),
       }),
     )
+    expect(
+      dispatch.mock.calls.filter(([action]) => action?.type === 'apply_canonical_event'),
+    ).toHaveLength(1)
+    expect(runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(5)
     expect(replayCursorByThreadRef.current['thread-1']).toBe(5)
+
   })
 
   it('rolls back pending live compact boundary cache when the same turn fails', () => {

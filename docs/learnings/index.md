@@ -143,6 +143,7 @@
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)
 - [2026-05-31 - App-server reactive compact parity](./2026-05-31-app-server-reactive-compact-parity.md)
 - [2026-05-31 - Web pending restore presence](./2026-05-31-web-pending-restore-presence.md)
+- [2026-05-31 - Web replay cursor owner](./2026-05-31-web-replay-cursor-owner.md)
 - [2026-05-31 - Web replay visible gate](./2026-05-31-web-replay-visible-gate.md)
 
 ## Desktop / Setup

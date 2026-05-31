@@ -57,6 +57,7 @@ export type UseRuntimeEventOrchestratorArgs = {
   setAskDraftByInputId: ProcessNotificationContext['setAskDraftByInputId']
   setSubmitStatusByInputId: ProcessNotificationContext['setSubmitStatusByInputId']
   shouldProcessSequencedNotification: ProcessNotificationContext['shouldProcessSequencedNotification']
+  resetSequencedNotificationOwner?: (owner: Parameters<ProcessNotificationContext['shouldProcessSequencedNotification']>[1]) => void
   runtimeStateByThreadRef: ProcessNotificationContext['runtimeStateByThreadRef']
   replayCursorByThreadRef: ProcessNotificationContext['replayCursorByThreadRef']
   replayAnomalyCountSeenByThreadRef: ReplayThreadEventsContext['replayAnomalyCountSeenByThreadRef']
@@ -113,6 +114,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     setAskDraftByInputId,
     setSubmitStatusByInputId,
     shouldProcessSequencedNotification,
+    resetSequencedNotificationOwner = () => {},
     runtimeStateByThreadRef,
     replayCursorByThreadRef,
     replayAnomalyCountSeenByThreadRef,
@@ -146,6 +148,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
   const liveCompactBoundaryByThreadRef = useRef<
     Record<string, { turnId: string; boundary: CompactBoundarySummary; previousBoundary?: CompactBoundarySummary | null }>
   >({})
+  const liveNotificationSeqRef = useRef(0)
 
   const cacheLatestCompactBoundary = useCallback(
     (
@@ -329,35 +332,57 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
   )
 
   const processRuntimeNotification = useCallback(
-    (notification: RpcNotification, acceptSequencedNotification: ProcessNotificationContext['shouldProcessSequencedNotification']) => {
+    (
+      notification: RpcNotification,
+      acceptSequencedNotification: ProcessNotificationContext['shouldProcessSequencedNotification'],
+      owner: Parameters<ProcessNotificationContext['shouldProcessSequencedNotification']>[1],
+      overrides: Partial<Pick<
+        ProcessNotificationContext,
+        | 'runtimeStateByThreadRef'
+        | 'replayCursorByThreadRef'
+        | 'dispatch'
+        | 'setMode'
+        | 'cacheThreadMode'
+        | 'setAskDockOpenByInputId'
+        | 'setAskPageIndexByInputId'
+        | 'setAskDraftByInputId'
+        | 'setSubmitStatusByInputId'
+        | 'refreshThreads'
+        | 'refreshWorkspaceDiff'
+        | 'cacheLiveCompactBoundary'
+        | 'commitLiveCompactBoundary'
+        | 'clearLiveCompactBoundary'
+        | 'onThreadArchivedNotification'
+      >> = {},
+    ) => {
       withDevPerformanceSync({
         enabled: devPerfEnabled,
         label: `web-ref:notification:${notification.method}`,
         run: () =>
           processNotification(notification, {
-            runtimeStateByThreadRef,
-            replayCursorByThreadRef,
+            runtimeStateByThreadRef: overrides.runtimeStateByThreadRef ?? runtimeStateByThreadRef,
+            replayCursorByThreadRef: overrides.replayCursorByThreadRef ?? replayCursorByThreadRef,
             activeThreadIdRef,
             commandByTurnRef,
             createInitialThreadRuntimeState,
             shouldProcessSequencedNotification: acceptSequencedNotification,
-            dispatch,
-            setMode,
-            cacheThreadMode,
+            dispatch: overrides.dispatch ?? dispatch,
+            setMode: overrides.setMode ?? setMode,
+            cacheThreadMode: overrides.cacheThreadMode ?? cacheThreadMode,
             isReplMode,
-            refreshThreads,
-            refreshWorkspaceDiff,
+            refreshThreads: overrides.refreshThreads ?? refreshThreads,
+            refreshWorkspaceDiff: overrides.refreshWorkspaceDiff ?? refreshWorkspaceDiff,
             log,
-            setAskDockOpenByInputId,
-            setAskPageIndexByInputId,
-            setAskDraftByInputId,
-            setSubmitStatusByInputId,
+            setAskDockOpenByInputId: overrides.setAskDockOpenByInputId ?? setAskDockOpenByInputId,
+            setAskPageIndexByInputId: overrides.setAskPageIndexByInputId ?? setAskPageIndexByInputId,
+            setAskDraftByInputId: overrides.setAskDraftByInputId ?? setAskDraftByInputId,
+            setSubmitStatusByInputId: overrides.setSubmitStatusByInputId ?? setSubmitStatusByInputId,
             reduceThreadRuntimeState,
-            cacheLiveCompactBoundary,
-            commitLiveCompactBoundary,
-            clearLiveCompactBoundary,
-            onThreadArchivedNotification: handleThreadArchivedNotification,
-          }),
+            cacheLiveCompactBoundary: overrides.cacheLiveCompactBoundary ?? cacheLiveCompactBoundary,
+            commitLiveCompactBoundary: overrides.commitLiveCompactBoundary ?? commitLiveCompactBoundary,
+            clearLiveCompactBoundary: overrides.clearLiveCompactBoundary ?? clearLiveCompactBoundary,
+            onThreadArchivedNotification: overrides.onThreadArchivedNotification ?? handleThreadArchivedNotification,
+          }, owner),
       })
     },
     [
@@ -385,44 +410,139 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
-      processRuntimeNotification(notification, shouldProcessSequencedNotification)
+      liveNotificationSeqRef.current += 1
+      processRuntimeNotification(notification, shouldProcessSequencedNotification, { kind: 'live-stream' })
     },
     [processRuntimeNotification, shouldProcessSequencedNotification],
   )
 
   const handleReplayNotification = useCallback(
-    (notification: RpcNotification) => {
-      processRuntimeNotification(notification, () => true)
+    (
+      threadId: string,
+      notification: RpcNotification,
+      acceptSequencedNotification: ProcessNotificationContext['shouldProcessSequencedNotification'],
+      overrides?: Parameters<typeof processRuntimeNotification>[3],
+    ) => {
+      processRuntimeNotification(
+        notification,
+        acceptSequencedNotification,
+        { kind: 'thread-replay', threadId },
+        overrides,
+      )
     },
     [processRuntimeNotification],
   )
 
   const replayThreadEvents = useCallback(
     async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
+      const isFullReplay = options?.fromStart === true
+      const originalLiveNotificationSeq = liveNotificationSeqRef.current
+      const originalActiveThreadId = activeThreadIdRef.current
+      const originalRuntimeState = runtimeStateByThreadRef.current[threadId]
+      const originalReplayCursor = replayCursorByThreadRef.current[threadId]
+      const replayRuntimeStateByThreadRef =
+        isFullReplay ? { current: { ...runtimeStateByThreadRef.current } } : runtimeStateByThreadRef
+      const replayCursorByThreadRefForRun =
+        isFullReplay ? { current: { ...replayCursorByThreadRef.current } } : replayCursorByThreadRef
+      const stagedSideEffects: Array<() => void | Promise<void>> = []
+      const stage = (effect: () => void | Promise<void>): void => {
+        if (isFullReplay) {
+          stagedSideEffects.push(effect)
+        } else {
+          void effect()
+        }
+      }
+      const hasLiveFullReplayStateChanged = (): boolean =>
+        isFullReplay && (
+          activeThreadIdRef.current !== originalActiveThreadId ||
+          liveNotificationSeqRef.current !== originalLiveNotificationSeq ||
+          runtimeStateByThreadRef.current[threadId] !== originalRuntimeState ||
+          replayCursorByThreadRef.current[threadId] !== originalReplayCursor
+        )
+      if (isFullReplay) {
+        resetSequencedNotificationOwner({ kind: 'thread-replay', threadId })
+        delete replayRuntimeStateByThreadRef.current[threadId]
+        delete replayCursorByThreadRefForRun.current[threadId]
+      }
+      const stagedNotificationOverrides: Parameters<typeof processRuntimeNotification>[3] = {
+        runtimeStateByThreadRef: replayRuntimeStateByThreadRef,
+        replayCursorByThreadRef: replayCursorByThreadRefForRun,
+        dispatch: (action) => stage(() => dispatch(action)),
+        setMode: (mode) => stage(() => setMode(mode)),
+        cacheThreadMode: (nextThreadId, mode) => stage(() => cacheThreadMode(nextThreadId, mode)),
+        setAskDockOpenByInputId: (updater) => stage(() => setAskDockOpenByInputId(updater)),
+        setAskPageIndexByInputId: (updater) => stage(() => setAskPageIndexByInputId(updater)),
+        setAskDraftByInputId: (updater) => stage(() => setAskDraftByInputId(updater)),
+        setSubmitStatusByInputId: (updater) => stage(() => setSubmitStatusByInputId(updater)),
+        refreshThreads: async () => {
+          stage(() => refreshThreads().catch(() => undefined))
+        },
+        refreshWorkspaceDiff: async () => {
+          stage(() => refreshWorkspaceDiff().catch(() => undefined))
+        },
+        cacheLiveCompactBoundary: (args) => stage(() => cacheLiveCompactBoundary(args)),
+        commitLiveCompactBoundary: (args) => stage(() => commitLiveCompactBoundary(args)),
+        clearLiveCompactBoundary: (args) => stage(() => clearLiveCompactBoundary(args)),
+        onThreadArchivedNotification: (params) => stage(() => handleThreadArchivedNotification(params)),
+      }
       return runReplayThreadEvents(threadId, options, {
         request,
         parseThreadReplayResponse,
         toRuntimePendingInputsById,
-        replayCursorByThreadRef,
+        replayCursorByThreadRef: replayCursorByThreadRefForRun,
         replayAnomalyCountSeenByThreadRef,
-        runtimeStateByThreadRef,
+        runtimeStateByThreadRef: replayRuntimeStateByThreadRef,
         activeThreadIdRef,
         logsByThreadIdRef,
         stateLogsRef,
         transcriptSourceByThreadRef,
-        cacheLatestCompactBoundary,
-        cacheDurableSnip,
-        cacheLatestRequestCollapse,
-        cachePendingSessionMemoryRestore,
-        dispatch,
-        setMode,
-        cacheThreadMode,
-        setThreadTranscriptSource,
-        clearThreadHistoryCursor,
-        syncPendingInputsFromReplayState,
-        loadThreadHistory,
-        handleNotification: handleReplayNotification,
+        cacheLatestCompactBoundary: (...args) => stage(() => cacheLatestCompactBoundary(...args)),
+        cacheDurableSnip: (...args) => stage(() => cacheDurableSnip(...args)),
+        cacheLatestRequestCollapse: (...args) => stage(() => cacheLatestRequestCollapse(...args)),
+        cachePendingSessionMemoryRestore: (...args) => stage(() => cachePendingSessionMemoryRestore(...args)),
+        dispatch: (action) => stage(() => dispatch(action)),
+        setMode: (mode) => stage(() => setMode(mode)),
+        cacheThreadMode: (nextThreadId, mode) => stage(() => cacheThreadMode(nextThreadId, mode)),
+        setThreadTranscriptSource: (nextThreadId, source) => stage(() => setThreadTranscriptSource(nextThreadId, source)),
+        clearThreadHistoryCursor: (nextThreadId) => stage(() => clearThreadHistoryCursor(nextThreadId)),
+        syncPendingInputsFromReplayState: (nextThreadId, replayState) =>
+          stage(() => syncPendingInputsFromReplayState(nextThreadId, replayState)),
+        loadThreadHistory: async (nextThreadId) => {
+          return loadThreadHistory(nextThreadId)
+        },
+        handleNotification: (notification) =>
+          handleReplayNotification(
+            threadId,
+            notification,
+            shouldProcessSequencedNotification,
+            stagedNotificationOverrides,
+          ),
         log,
+      }).then(async (loaded) => {
+        if (!isFullReplay) return loaded
+        if (!loaded || hasLiveFullReplayStateChanged()) {
+          resetSequencedNotificationOwner({ kind: 'thread-replay', threadId })
+          return loaded
+        }
+        const replayRuntimeState = replayRuntimeStateByThreadRef.current[threadId]
+        if (replayRuntimeState) {
+          runtimeStateByThreadRef.current[threadId] = replayRuntimeState
+        } else {
+          delete runtimeStateByThreadRef.current[threadId]
+        }
+        const replayCursor = replayCursorByThreadRefForRun.current[threadId]
+        if (typeof replayCursor === 'number') {
+          replayCursorByThreadRef.current[threadId] = replayCursor
+        } else {
+          delete replayCursorByThreadRef.current[threadId]
+        }
+        for (const effect of stagedSideEffects) await effect()
+        return loaded
+      }).catch((error) => {
+        if (isFullReplay) {
+          resetSequencedNotificationOwner({ kind: 'thread-replay', threadId })
+        }
+        throw error
       })
     },
     [

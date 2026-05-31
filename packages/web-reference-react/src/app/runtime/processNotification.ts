@@ -7,6 +7,7 @@ import { parseContextMeterBudgetRaw, parseProviderUsageRaw } from '../core/rpcCo
 import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
 import type { ReplMode } from '../../semantics'
 import { mapTurnNotificationToCanonicalEvents } from '../../semantics'
+import type { SequencedNotificationOwner } from '../../turnEventCursor'
 
 export type ProcessNotificationContext = {
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
@@ -14,7 +15,7 @@ export type ProcessNotificationContext = {
   activeThreadIdRef: { current: string | null }
   commandByTurnRef: { current: Map<string, string> }
   createInitialThreadRuntimeState: (args: { threadId: string; replaySeq: number; method: string; ts?: unknown }) => ThreadRuntimeState
-  shouldProcessSequencedNotification: (params: unknown) => boolean
+  shouldProcessSequencedNotification: (params: unknown, owner: SequencedNotificationOwner) => boolean
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string | null | undefined, nextMode: ReplMode) => void
@@ -38,10 +39,17 @@ function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-export function processNotification(notification: RpcNotification, ctx: ProcessNotificationContext): void {
+export function processNotification(
+  notification: RpcNotification,
+  ctx: ProcessNotificationContext,
+  owner: SequencedNotificationOwner = { kind: 'live-stream' },
+): void {
   const params = asObject(notification.params)
   const threadId = extractThreadIdFromNotificationParams(params)
   const replaySeq = typeof params.replaySeq === 'number' && Number.isFinite(params.replaySeq) ? params.replaySeq : null
+
+  if (!ctx.shouldProcessSequencedNotification(params, owner)) return
+
   if (threadId && replaySeq != null) {
     const current = ctx.runtimeStateByThreadRef.current[threadId]
     const baseState =
@@ -63,8 +71,6 @@ export function processNotification(notification: RpcNotification, ctx: ProcessN
     const current = ctx.replayCursorByThreadRef.current[threadId]
     ctx.replayCursorByThreadRef.current[threadId] = typeof current === 'number' ? Math.max(current, replaySeq) : replaySeq
   }
-
-  if (!ctx.shouldProcessSequencedNotification(params)) return
 
   const isActiveThread = () =>
     isNotificationForActiveThread({ params, activeThreadId: ctx.activeThreadIdRef.current })

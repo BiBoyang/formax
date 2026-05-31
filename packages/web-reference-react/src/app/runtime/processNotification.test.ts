@@ -68,11 +68,13 @@ describe('processNotification', () => {
 
     processNotification(notification, ctx)
 
-    expect(shouldProcessSequencedNotification).toHaveBeenCalledWith(notification.params)
+    expect(shouldProcessSequencedNotification).toHaveBeenCalledWith(notification.params, { kind: 'live-stream' })
     expect(ctx.dispatch).not.toHaveBeenCalled()
     expect(ctx.setMode).not.toHaveBeenCalled()
     expect(ctx.refreshThreads).not.toHaveBeenCalled()
     expect(ctx.refreshWorkspaceDiff).not.toHaveBeenCalled()
+    expect(ctx.runtimeStateByThreadRef.current['thread-1']).toBeUndefined()
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBeUndefined()
   })
 
   it('does not advance runtime semantic state when replaySeq is missing', () => {

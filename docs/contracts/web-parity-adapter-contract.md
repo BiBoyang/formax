@@ -140,14 +140,17 @@ Malformed optional v8 restore fields MUST be treated as omitted/unavailable. The
 `turnEventCursor` MUST 只负责 sequenced notification 的去重与接受判定；它 MUST NOT 决定语义状态迁移、thread 选择、或 replay gap 修复策略。
 
 `WEB-402`  
-当通知携带 `replaySeq` 时，Web MUST 以 `replaySeq` 作为 canonical ordering key。  
-若新的 `replaySeq` 不大于已见最大值，通知 MUST 被拒绝进入后续处理。
+当通知携带 `replaySeq` 时，Web MUST 以 explicit notification owner 选择 canonical ordering key 的作用域。Live stream owner MUST keep one global live `replaySeq` cursor. Thread replay owner MUST scope `replaySeq` ordering to the requested `thread/replay` thread id, not to an inferred notification payload field.  
+若新的 `replaySeq` 不大于该 owner 作用域内已见最大值，通知 MUST 被拒绝进入后续处理；不同 thread replay owner 之间 MUST NOT 互相拒绝。
+Full replay hydration from start MAY bypass the replay owner cursor and hydrate in server page order; applying a replay owner cursor to from-start hydration requires staging visible UI state and compression caches as one transaction.
 
 `WEB-403`  
-当缺少 `replaySeq` 时，cursor MAY 回退到以下策略：
+当 live stream owner 缺少 `replaySeq` 时，cursor MAY 回退到以下策略：
 1. 优先按 `eventId` 去重
 2. 若存在 `traceId + seq`，仅在同 trace 内保持单调
 3. 若两者都缺失，则接受通知
+
+Thread replay owner MUST NOT consult the global live `seenEventIds` window; replay hydration ordering is scoped by its replay owner and page order.
 
 `WEB-404`  
 `seenEventIds` 去重窗口 MUST 是有界的；当超过 cap 驱逐旧 id 后，过旧事件 MAY 再次被接受。该行为属于 bounded dedupe tradeoff，不表示语义重复合法化。

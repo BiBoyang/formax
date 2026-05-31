@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { appReducer, initialAppState } from '../store'
 import type { RpcClientQueueMetrics } from '../rpcClient'
-import { shouldAcceptSequencedNotification } from '../turnEventCursor'
+import {
+  resetSequencedNotificationOwner,
+  shouldAcceptSequencedNotification,
+  type SequencedNotificationOwner,
+} from '../turnEventCursor'
 import {
   DEFAULT_BRIDGE_URL,
   SEEN_EVENT_CAP,
@@ -267,8 +271,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const { initializeHandshake } = useInitializeHandshake({ clientRef, onInitializeResult })
 
   const shouldProcessSequencedNotification = useCallback(
-    (params: unknown): boolean => {
-      return shouldAcceptSequencedNotification(eventCursorRef.current, params)
+    (params: unknown, owner: SequencedNotificationOwner): boolean => {
+      return shouldAcceptSequencedNotification(eventCursorRef.current, params, owner)
+    },
+    [],
+  )
+  const resetSequencedNotificationOwnerState = useCallback(
+    (owner: SequencedNotificationOwner): void => {
+      resetSequencedNotificationOwner(eventCursorRef.current, owner)
     },
     [],
   )
@@ -384,6 +394,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setAskDraftByInputId,
     setSubmitStatusByInputId,
     shouldProcessSequencedNotification,
+    resetSequencedNotificationOwner: resetSequencedNotificationOwnerState,
     runtimeStateByThreadRef,
     replayCursorByThreadRef,
     replayAnomalyCountSeenByThreadRef,
