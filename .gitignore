@@ -26,3 +26,4 @@ plans/claude-agent-sdk/*
 .codex/skills/react-best-practices/*
 codex.css
 claude-research-docs/
+.doms

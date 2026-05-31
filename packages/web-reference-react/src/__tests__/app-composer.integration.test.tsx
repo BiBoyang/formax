@@ -483,7 +483,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    await setComposerMode('Plan mode')
+    await setComposerMode('Plan')
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello plan' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -499,7 +499,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    await setComposerMode('Edit automatically')
+    await setComposerMode('Auto')
 
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'hello auto' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -529,7 +529,7 @@ describe('App thread history integration', () => {
       ).toBe(true)
     })
 
-    await setComposerMode('Plan mode')
+    await setComposerMode('Plan')
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), {
       target: { value: '/compact summarize the conversation' },
     })
@@ -602,7 +602,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
 
-    await setComposerMode('Plan mode')
+    await setComposerMode('Plan')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
@@ -629,7 +629,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
 
-    await setComposerMode('Plan mode')
+    await setComposerMode('Plan')
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
@@ -740,7 +740,7 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
 
-    await setComposerMode('Plan mode')
+    await setComposerMode('Plan')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     fireEvent.change(screen.getByPlaceholderText('Ask for follow-up changes'), { target: { value: 'fast switch send' } })

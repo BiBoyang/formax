@@ -154,6 +154,80 @@
   /* menu item active 背景：下拉菜单项被打开或选中时的状态；初始跟普通控件 active 保持一致。 */
   --menu-item-active: var(--control-surface-active);
 
+  /* menu dropdown 底色：对齐参考 DOM 的 token-dropdown-background，本项目先映射到 shadcn popover。 */
+  --menu-dropdown-background: var(--popover);
+
+  /* menu 浮层背景：对齐参考 DOM 的 bg-token-dropdown-background/90，使用 oklab 混合。 */
+  --menu-surface: color-mix(in oklab, var(--menu-dropdown-background) 90%, transparent);
+
+  /* menu 浮层视觉边：不用真实 border，交给 box-shadow 画 0.5px 轻边。 */
+  --menu-ring: color-mix(in oklch, var(--border) 86%, transparent);
+
+  /* menu 浮层投影：第一层是 0.5px 视觉边，第二层是柔和浮层阴影。 */
+  --menu-shadow:
+    0 0 0 0.5px var(--menu-ring),
+    0 8px 16px -4px color-mix(in srgb, black 12%, transparent);
+
+  /* menu 浮层背景模糊：对齐参考 DOM 的 backdrop-blur-sm，computed 为 blur(8px)。 */
+  --menu-backdrop-blur: blur(8px);
+
+  /* menu 浮层圆角：对应参考 DOM 的 rounded-xl，独立于 shadcn 全局 radius。 */
+  --menu-radius: 12px;
+
+  /* menu item 圆角：对应参考 DOM 的 rounded-lg，和外层圆角形成更自然的内外关系。 */
+  --menu-item-radius: 10px;
+
+  /* menu 右侧状态图标尺寸：用于 check、submenu chevron 等尾部提示图标。 */
+  --menu-trailing-icon-size: var(--icon-size-xs);
+
+  /* menu 分组标题字重：对齐参考菜单的 430，不使用 semibold。 */
+  --menu-label-font-weight: 430;
+
+  /* button 键盘焦点环：全局替换 shadcn 默认蓝色 ring，保留可见键盘焦点。 */
+  --button-focus-ring: color-mix(in oklch, var(--foreground) 22%, transparent);
+
+  /* composer 外框最大宽度：对齐目标输入框宽度。 */
+  --composer-dock-max-width: 768px;
+
+  /* composer 默认外框高度：空输入状态下的目标高度。 */
+  --composer-dock-height: 104px;
+
+  /* composer 外框圆角：目标参考的 25px 圆角。 */
+  --composer-dock-radius: 25px;
+
+  /* composer 外框背景：默认使用 card 层，后续可单独调透明度。 */
+  --composer-dock-surface: var(--card);
+
+  /* composer 外框边框：保持轻量，不抢输入内容。 */
+  --composer-dock-border: color-mix(in oklch, var(--border) 86%, transparent);
+
+  /* composer 外框阴影：轻微托起底部输入区域。 */
+  --composer-dock-shadow: 0 14px 34px color-mix(in srgb, black 8%, transparent);
+
+  /* composer 输入区最小高度：和底部工具栏共同组成 104px 默认高度。 */
+  --composer-input-min-height: 54px;
+
+  /* composer 工具栏高度：底部按钮和状态控件所在行。 */
+  --composer-toolbar-height: 38px;
+
+  /* composer 工具栏 pill 高度：对齐参考 DOM 的 h-token-button-composer，即 28px。 */
+  --composer-toolbar-pill-height: 28px;
+
+  /* composer 工具栏 pill 水平内边距：对齐参考 DOM 的 px-2。 */
+  --composer-toolbar-pill-padding-x: 0.5rem;
+
+  /* composer 工具栏 pill 内部图标/文字间距：对齐参考 DOM 的 gap-1。 */
+  --composer-toolbar-pill-gap: 0.25rem;
+
+  /* composer 模型/推理菜单宽度：对应右下角选择器弹出的菜单面板。 */
+  --composer-menu-width: 208px;
+
+  /* composer 模型/推理菜单项高度：复用普通菜单项密度，避免下拉菜单节奏不一致。 */
+  --composer-menu-item-height: var(--sidebar-menu-item-height);
+
+  /* composer 模型/推理菜单项字重：比 regular 略实，但弱于 medium，贴近参考菜单的轻量质感。 */
+  --composer-menu-item-font-weight: 430;
+
   /* sidebar 文件夹展开/收起动画时长：只控制内容区域，不控制图标旋转。 */
   --sidebar-folder-toggle-duration: var(--motion-duration-standard);
 
@@ -210,6 +284,32 @@
 
   /* 暗色 menu item active 背景：默认跟随暗色普通控件 active。 */
   --menu-item-active: var(--control-surface-active);
+
+  /* 暗色 menu dropdown 底色：保持和亮色同一语义入口，后续可独立映射到 control-opaque。 */
+  --menu-dropdown-background: var(--popover);
+
+  /* 暗色 menu 浮层背景：同样对齐参考 DOM 的 /90，不额外提高实度。 */
+  --menu-surface: color-mix(in oklab, var(--menu-dropdown-background) 90%, transparent);
+
+  /* 暗色 menu 浮层视觉边：边界略实，保证浮层从暗背景里分离出来。 */
+  --menu-ring: color-mix(in oklch, var(--border) 92%, transparent);
+
+  /* 暗色 menu 浮层投影：暗色投影加深，但仍保留 0.5px 视觉边。 */
+  --menu-shadow:
+    0 0 0 0.5px var(--menu-ring),
+    0 10px 22px -6px color-mix(in srgb, black 36%, transparent);
+
+  /* 暗色 button 键盘焦点环：比亮色略实，避免在暗背景里丢失。 */
+  --button-focus-ring: color-mix(in oklch, var(--foreground) 32%, transparent);
+
+  /* 暗色 composer 外框背景：沿用 card 层，避免透明背景下和页面糊成一片。 */
+  --composer-dock-surface: var(--card);
+
+  /* 暗色 composer 外框边框：比亮色略实，保证轮廓可见。 */
+  --composer-dock-border: color-mix(in oklch, var(--border) 92%, transparent);
+
+  /* 暗色 composer 外框阴影：降低黑色投影，避免脏边。 */
+  --composer-dock-shadow: 0 14px 34px color-mix(in srgb, black 24%, transparent);
 
   /* 兼容旧变量：暗色下同样让 app 外壳底色成为左侧实际可见底色。 */
   --app-backdrop-surface: var(--app-chrome-surface);

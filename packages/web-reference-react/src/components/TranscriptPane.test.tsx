@@ -229,6 +229,66 @@ describe('TranscriptPane', () => {
     expect(screen.getByTestId('composer-context-meter-ring')).toBeInTheDocument()
   })
 
+  it('renders composer mode as a selectable menu', async () => {
+    const onModeChange = vi.fn()
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          mode: 'normal',
+          onModeChange,
+        })}
+      />,
+    )
+
+    const selector = screen.getByRole('button', { name: 'Execution mode' })
+    expect(selector).toHaveTextContent('Ask before edits')
+
+    fireEvent.keyDown(selector, { key: 'Enter' })
+
+    expect(await screen.findByRole('menuitem', { name: 'Plan' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Auto' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Ask before edits' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Auto' }))
+
+    expect(onModeChange).toHaveBeenCalledWith('acceptEdits')
+  })
+
+  it('renders composer model and reasoning selector', async () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          inputText: 'hello',
+        })}
+      />,
+    )
+
+    const selector = screen.getByRole('button', { name: 'Model and reasoning effort' })
+    expect(selector).toHaveTextContent(/sonnet.*Medium/)
+
+    fireEvent.keyDown(selector, { key: 'Enter' })
+
+    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
+    expect(screen.getByText('Low')).toBeInTheDocument()
+    expect(screen.getAllByText('Medium').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('High')).toBeInTheDocument()
+
+    const modelTrigger = screen.getByRole('menuitem', { name: 'sonnet' })
+    fireEvent.click(modelTrigger)
+    fireEvent.click(await screen.findByText('opus'))
+
+    expect(selector).toHaveTextContent(/opus.*Medium/)
+
+    fireEvent.keyDown(selector, { key: 'Enter' })
+    fireEvent.click(screen.getByText('Max'))
+
+    expect(selector).toHaveTextContent(/opus.*Max/)
+  })
+
   it('enables first send on the draft surface only after a project is selected', () => {
     const onSend = vi.fn((event) => event.preventDefault())
     const { rerender } = renderWithI18n(

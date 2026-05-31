@@ -1,18 +1,33 @@
-import { ArrowDown, ArrowUp, ChevronsRight, Pause, Pencil, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronsRight, Pause, Pencil, Square } from 'lucide-react'
 import { memo, useState, type FormEvent, type ReactNode } from 'react'
 import { shouldTreatAsLongPrompt } from '../../app/core/userSettings'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
 import type { ContextMeterView } from '../../types'
 import { Button } from '../ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu'
 import { Textarea } from '../ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { SlashCommandMenu } from './SlashCommandMenu'
 import { useSlashCommandState } from './useSlashCommandState'
 
 type ComposerMode = 'normal' | 'acceptEdits' | 'plan'
+type ComposerModelTier = 'haiku' | 'sonnet' | 'opus'
+type ComposerReasoningEffort = 'low' | 'medium' | 'high' | 'max'
 
 const MODE_CYCLE: ComposerMode[] = ['normal', 'acceptEdits', 'plan']
+const COMPOSER_MODE_OPTIONS: ComposerMode[] = ['plan', 'acceptEdits', 'normal']
+const COMPOSER_MODEL_TIERS: ComposerModelTier[] = ['haiku', 'sonnet', 'opus']
+const COMPOSER_REASONING_EFFORTS: ComposerReasoningEffort[] = ['low', 'medium', 'high', 'max']
 
 function nextComposerMode(mode: ComposerMode): ComposerMode {
   const idx = MODE_CYCLE.indexOf(mode)
@@ -115,7 +130,11 @@ export type ComposerDockProps = {
 export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
   const { t } = useI18n()
   const [isImeComposing, setIsImeComposing] = useState(false)
+  const [selectedModelTier, setSelectedModelTier] = useState<ComposerModelTier>('sonnet')
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<ComposerReasoningEffort>('medium')
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
   const modeInfo = modeMeta(props.mode, t)
+  const reasoningLabel = t(`transcript.reasoning.${selectedReasoningEffort}`)
 
   const {
     composerRootRef,
@@ -137,7 +156,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
       data-layout-variant={props.layoutVariant ?? 'bottom'}
       className={cn('composer', props.layoutVariant === 'centered' ? 'w-full' : 'px-4 pb-8')}
     >
-      <div ref={composerRootRef} className="max-w-3xl mx-auto relative">
+      <div ref={composerRootRef} className="relative mx-auto max-w-[var(--composer-dock-max-width)]">
         {props.showJumpToBottom ? (
           <div className="pointer-events-none absolute left-1/2 -top-12 z-10 -translate-x-1/2">
             <Button
@@ -162,15 +181,16 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
           />
         ) : null}
         <form
-          className="group relative z-10 flex flex-col overflow-hidden rounded-[24px] border border-border/85 bg-card/95 shadow-sm transition-all duration-200 focus-within:border-ring/30 focus-within:shadow-md"
+          className="ui-composer-surface group relative z-10 flex flex-col overflow-hidden transition-all duration-200"
           onSubmit={props.onSend}
         >
+          <div className="px-2 py-1.5" aria-hidden />
           <Textarea
             value={props.inputText}
             onChange={(event) => props.onInputTextChange(event.target.value)}
             placeholder={props.placeholder ?? t('transcript.followUpPlaceholder')}
             disabled={props.isInputDisabled}
-            className="composer-input min-h-[72px] max-h-[300px] w-full resize-none border-none bg-transparent px-3 pt-3 pb-2 ui-text-base leading-relaxed focus-visible:ring-0 shadow-none"
+            className="composer-input min-h-[var(--composer-input-min-height)] max-h-[300px] w-full resize-none border-none bg-transparent px-3 pb-1 pt-0 ui-text-base leading-relaxed focus-visible:ring-0 shadow-none"
             onCompositionStart={() => setIsImeComposing(true)}
             onCompositionEnd={() => setIsImeComposing(false)}
             onKeyDown={(event) => {
@@ -223,57 +243,162 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
             }}
           />
 
-          <div className="flex items-center justify-between px-3 pb-2 pt-1">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={t('transcript.executionMode')}
-                onClick={() => props.onModeChange(nextComposerMode(props.mode))}
-                className={cn('h-6 gap-1 rounded-md px-1.5 py-0 has-[>svg]:px-1.5 ui-text-meta font-normal transition-colors', modeInfo.toneClass)}
-                title={t('transcript.modeCycleTitle')}
-              >
-                <modeInfo.icon className="size-3 shrink-0" />
-                <span>{modeInfo.label}</span>
-              </Button>
+          <div className="mb-2 grid min-h-[var(--composer-toolbar-height)] grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)] items-center gap-[5px] px-2 pt-1">
+            <div className="flex min-w-0 items-center gap-[5px]">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={t('transcript.executionMode')}
+                    className={cn('ui-composer-toolbar-pill has-[>svg]:px-[var(--composer-toolbar-pill-padding-x)] transition-colors', modeInfo.toneClass)}
+                    title={t('transcript.modeCycleTitle')}
+                  >
+                    <modeInfo.icon className="size-3 shrink-0" />
+                    <span>{modeInfo.label}</span>
+                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  align="start"
+                  sideOffset={8}
+                  className="ui-menu-content w-[var(--composer-menu-width)] p-1"
+                >
+                  {COMPOSER_MODE_OPTIONS.map((mode) => {
+                    const optionInfo = modeMeta(mode, t)
+                    return (
+                      <DropdownMenuItem
+                        key={mode}
+                        className="ui-composer-menu-item ui-text-base"
+                        onSelect={() => props.onModeChange(mode)}
+                      >
+                        <optionInfo.icon className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span>{optionInfo.label}</span>
+                        {props.mode === mode ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <div className="flex items-center gap-1 pr-1 text-muted-foreground">
-              <ComposerContextMeterRing
-                activeContextMeter={props.activeContextMeter}
-                showContextMeter={props.showContextMeter}
-                className="mr-2"
-              />
-              {props.showInterrupt || props.isInterrupting ? (
-                <Button
-                  type="button"
-                  aria-label={t('transcript.interruptTurn')}
-                  size="icon"
-                  disabled={props.isInterrupting}
-                  className="h-7 w-7 rounded-full shrink-0 border-0 bg-black text-white shadow-none hover:bg-black/90"
-                  onClick={props.onInterrupt}
-                >
-                  <Square className="size-3 fill-current" />
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  aria-label={t('transcript.sendMessage')}
-                  disabled={!props.canSubmit}
-                  size="icon"
-                  className={cn(
-                    'h-7 w-7 rounded-full shrink-0 border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
-                    !props.canSubmit ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
-                  )}
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
-              )}
+            <div className="flex items-center" />
+            <div className="flex min-w-0 items-center justify-end gap-2 text-muted-foreground">
+              <div className="flex min-w-0 flex-1 justify-end">
+                <ComposerContextMeterRing
+                  activeContextMeter={props.activeContextMeter}
+                  showContextMeter={props.showContextMeter}
+                />
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <DropdownMenu onOpenChange={(open) => {
+                  if (!open) setIsModelMenuOpen(false)
+                }}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label={t('transcript.modelSelector')}
+                      className="ui-composer-toolbar-pill text-foreground/80 transition-colors"
+                    >
+                      <span>{selectedModelTier}</span>
+                      <span className="text-muted-foreground">{reasoningLabel}</span>
+                      <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="top"
+                    align="end"
+                    sideOffset={8}
+                    className="ui-menu-content w-[var(--composer-menu-width)] p-1"
+                  >
+                    <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-1.5 ui-text-base text-muted-foreground">
+                      {t('transcript.reasoningSection')}
+                    </DropdownMenuLabel>
+                    {COMPOSER_REASONING_EFFORTS.map((effort) => (
+                      <DropdownMenuItem
+                        key={effort}
+                        className="ui-composer-menu-item ui-text-base"
+                        onSelect={() => setSelectedReasoningEffort(effort)}
+                      >
+                        <span>{t(`transcript.reasoning.${effort}`)}</span>
+                        {selectedReasoningEffort === effort ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSub open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
+                      <DropdownMenuSubTrigger
+                        className="ui-composer-menu-item ui-text-base"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setIsModelMenuOpen(true)
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          setIsModelMenuOpen(true)
+                        }}
+                        onSelect={(event) => event.preventDefault()}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          setIsModelMenuOpen(true)
+                        }}
+                      >
+                        <span>{selectedModelTier}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={8}
+                        alignOffset={-4}
+                        className="ui-menu-content w-[var(--composer-menu-width)] p-1"
+                      >
+                        <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-1.5 ui-text-base text-muted-foreground">
+                          {t('transcript.modelSection')}
+                        </DropdownMenuLabel>
+                        {COMPOSER_MODEL_TIERS.map((tier) => (
+                          <DropdownMenuItem
+                            key={tier}
+                            className="ui-composer-menu-item ui-text-base"
+                            onSelect={() => setSelectedModelTier(tier)}
+                          >
+                            <span>{tier}</span>
+                            {selectedModelTier === tier ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {props.showInterrupt || props.isInterrupting ? (
+                  <Button
+                    type="button"
+                    aria-label={t('transcript.interruptTurn')}
+                    size="icon"
+                    disabled={props.isInterrupting}
+                    className="h-7 w-7 shrink-0 rounded-full border-0 bg-black text-white shadow-none hover:bg-black/90"
+                    onClick={props.onInterrupt}
+                  >
+                    <Square className="size-3 fill-current" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    aria-label={t('transcript.sendMessage')}
+                    disabled={!props.canSubmit}
+                    size="icon"
+                    className={cn(
+                      'h-7 w-7 shrink-0 rounded-full border-0 shadow-none transition-colors duration-150 disabled:opacity-100',
+                      !props.canSubmit ? 'ui-button-disabled text-white hover:ui-button-disabled' : 'bg-black text-white hover:bg-black/90',
+                    )}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </form>
         {props.floatingFooterAccessory ? (
           <div className="pointer-events-none absolute inset-x-0 top-full z-0 h-10">
-            <div className="absolute inset-x-0 -top-6 h-16 rounded-b-[24px] bg-muted shadow-[0_2px_8px_rgba(0,0,0,0.05)]" />
+            <div className="absolute inset-x-0 -top-6 h-16 rounded-b-[var(--composer-dock-radius)] bg-muted shadow-[0_2px_8px_rgba(0,0,0,0.05)]" />
             <div className="pointer-events-auto relative flex h-10 items-center px-4">
               {props.floatingFooterAccessory}
             </div>

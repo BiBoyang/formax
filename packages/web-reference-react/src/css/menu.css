@@ -1,0 +1,19 @@
+@layer utilities {
+  .ui-menu-content {
+    border: 0;
+    border-radius: var(--menu-radius);
+    background: var(--menu-surface);
+    box-shadow: var(--menu-shadow);
+    backdrop-filter: var(--menu-backdrop-blur);
+    -webkit-backdrop-filter: var(--menu-backdrop-blur);
+  }
+
+  .ui-menu-trailing-icon {
+    width: var(--menu-trailing-icon-size) !important;
+    height: var(--menu-trailing-icon-size) !important;
+  }
+
+  .ui-menu-label {
+    font-weight: var(--menu-label-font-weight);
+  }
+}

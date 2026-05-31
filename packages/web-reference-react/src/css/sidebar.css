@@ -95,6 +95,7 @@
 
   .ui-sidebar-item-menu {
     height: var(--sidebar-menu-item-height);
+    border-radius: var(--menu-item-radius);
     gap: var(--sidebar-row-gap);
     padding-block: 0;
   }

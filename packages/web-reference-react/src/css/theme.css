@@ -266,6 +266,13 @@ body {
     @apply border-border outline-ring/50;
   }
 
+  [data-slot='button']:focus-visible {
+    border-color: transparent !important;
+    box-shadow: 0 0 0 2px var(--button-focus-ring) !important;
+    outline: none;
+    --tw-ring-shadow: 0 0 #0000 !important;
+  }
+
   body {
     @apply bg-background text-foreground;
   }

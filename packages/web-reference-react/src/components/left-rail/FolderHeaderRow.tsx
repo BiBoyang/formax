@@ -102,7 +102,7 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                   <MoreHorizontal />
                 </RailActionIconButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="max-w-[170px]" side="left" align="start" sideOffset={6}>
+              <DropdownMenuContent className="ui-menu-content max-w-[170px]" side="left" align="start" sideOffset={6}>
                 <DropdownMenuItem
                   className="ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base ui-sidebar-text-secondary"
                   disabled={!onOpenFolderInTarget}

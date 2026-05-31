@@ -380,7 +380,7 @@ export function LeftRail(props: LeftRailProps) {
           <DropdownMenuTrigger asChild>
             <SidebarItem className="app-shell-no-drag" icon={<Settings />} label={t('leftRail.settings')} />
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[280px] app-shell-no-drag" side="top" align="start" sideOffset={8}>
+          <DropdownMenuContent className="ui-menu-content w-[280px] app-shell-no-drag" side="top" align="start" sideOffset={8}>
             {onOpenSettings ? (
               <SidebarItem kind="menu" icon={<Settings />} label={t('leftRail.settings')} onActivate={onOpenSettings} />
             ) : null}

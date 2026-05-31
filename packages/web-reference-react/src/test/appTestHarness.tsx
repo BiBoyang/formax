@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { vi } from 'vitest'
 
-export const APP_TEST_MODE_ORDER = ['Ask before edits', 'Edit automatically', 'Plan mode'] as const
+export const APP_TEST_MODE_OPTIONS = ['Ask before edits', 'Auto', 'Plan'] as const
 
 const SIDEBAR_SETTINGS_LABEL = /Settings|设置/
 
@@ -12,17 +12,14 @@ export function createDesktopWindowAppearanceState(enabled: boolean, revision: n
   }
 }
 
-export async function setComposerMode(target: (typeof APP_TEST_MODE_ORDER)[number]) {
+export async function setComposerMode(target: (typeof APP_TEST_MODE_OPTIONS)[number]) {
   const modeButton = screen.getByLabelText('Execution mode')
-  for (let index = 0; index <= APP_TEST_MODE_ORDER.length; index += 1) {
-    const before = modeButton.textContent ?? ''
-    if (before.includes(target)) return
-    fireEvent.click(modeButton)
-    await waitFor(() => {
-      expect(modeButton.textContent ?? '').not.toBe(before)
-    })
-  }
-  throw new Error(`Unable to set composer mode to ${target}`)
+  if ((modeButton.textContent ?? '').includes(target)) return
+  fireEvent.keyDown(modeButton, { key: 'Enter' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: target }))
+  await waitFor(() => {
+    expect(modeButton.textContent ?? '').toContain(target)
+  })
 }
 
 export async function clickWindowTransparencyMenuItem() {

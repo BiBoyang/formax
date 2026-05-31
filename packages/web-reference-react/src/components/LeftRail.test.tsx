@@ -6,6 +6,30 @@ import { LeftRail } from './LeftRail'
 
 const OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
 
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value)
+    },
+  }
+}
+
 function renderWithI18n(ui: ReactElement) {
   return rtlRender(ui, {
     wrapper: ({ children }: PropsWithChildren) => <I18nProvider language="en-US">{children}</I18nProvider>,
@@ -37,6 +61,12 @@ const threads = [
 
 describe('LeftRail', () => {
   beforeEach(() => {
+    if (!window.localStorage) {
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: createMemoryStorage(),
+      })
+    }
     window.localStorage.clear()
   })
 
