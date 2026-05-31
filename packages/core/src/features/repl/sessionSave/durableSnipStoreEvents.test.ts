@@ -9,9 +9,12 @@ import {
 } from '../../../chat/context/compact'
 import {
   DURABLE_SNIP_COMMITTED_EVENT_NAME,
+  readDurableSnipSessionRecordsFromSession,
+} from './durableSnipStoreEvents'
+import {
   readDurableSnipStateFromSession,
   readDurableSnipStateFromSessionSync,
-} from './durableSnipStoreEvents'
+} from '../sessionRestore/durableSnipStore'
 
 function snipEvent(args: {
   compactBoundaryFingerprint?: string | null
@@ -55,6 +58,51 @@ function snipEvent(args: {
 }
 
 describe('durableSnipStoreEvents', () => {
+  it('parses durable snip DTO records without rebuilding semantic state', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-store-dto-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify({ type: 'history_state', messages: [{ role: 'assistant', content: [] }] }),
+        JSON.stringify(snipEvent({
+          startIndex: 1,
+          endIndexExclusive: 2,
+          removedMessageIds: ['msg-1'],
+          baseProjectionFingerprint: 'baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
+        })),
+        JSON.stringify({
+          type: 'event',
+          name: DURABLE_SNIP_COMMITTED_EVENT_NAME,
+          data: { schemaVersion: 1, source: 'request_snip', removals: [{ startIndex: 1 }] },
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    await expect(readDurableSnipSessionRecordsFromSession({ filePath })).resolves.toEqual([
+      { type: 'history_state', messages: [{ role: 'assistant', content: [] }] },
+      {
+        type: DURABLE_SNIP_COMMITTED_EVENT_NAME,
+        schemaVersion: 1,
+        source: 'request_snip',
+        compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: 'baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
+        removals: [
+          {
+            kind: 'model_facing_index_range',
+            startIndex: 1,
+            endIndexExclusive: 2,
+            reason: 'durable snip test',
+            removedMessageIds: ['msg-1'],
+          },
+        ],
+      },
+    ])
+  })
+
   it('rebuilds durable snip state from session events', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-snip-store-'))
     const filePath = path.join(dir, 'session.jsonl')

@@ -35,7 +35,7 @@ import {
   readLatestRequestCollapseEventFromSession,
   readStaleInputsFromSession,
 } from './store/sessionEventReader.js'
-import { readDurableSnipStateFromSession } from '../features/repl/sessionSave/durableSnipStoreEvents.js'
+import { readDurableSnipStateFromSession } from '../features/repl/sessionRestore/durableSnipStore.js'
 import { FileThreadArchiveStore, type ThreadArchiveStore } from './store/threadArchiveStore.js'
 import {
   FileThreadGroupVisibilityStore,

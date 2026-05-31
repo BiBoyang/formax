@@ -36,11 +36,13 @@ import {
   resolveSystemPromptVariant,
 } from '../prompts/index.js'
 import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionRestore/contextCollapseStore.js'
+import { readDurableSnipStateFromSession } from '../features/repl/sessionRestore/durableSnipStore.js'
+import {
+  readDurableToolResultContentReplacementStateFromSession,
+} from '../features/repl/sessionRestore/durableToolResultContentReplacement.js'
 import {
   findSessionFileBySessionId,
   DURABLE_SNIP_COMMITTED_EVENT_NAME,
-  readDurableSnipStateFromSession,
-  readDurableToolResultContentReplacementStateFromSession,
   readSessionFile,
   SessionWriter,
 } from '../features/repl/sessionSave/index.js'

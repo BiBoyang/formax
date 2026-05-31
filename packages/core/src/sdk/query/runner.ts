@@ -24,10 +24,10 @@ import {
 import { readContextCollapseStoreSnapshotFromSession } from '../../features/repl/sessionRestore/contextCollapseStore.js'
 import {
   readDurableSnipStateFromSession,
-} from '../../features/repl/sessionSave/durableSnipStoreEvents.js'
+} from '../../features/repl/sessionRestore/durableSnipStore.js'
 import {
   readDurableToolResultContentReplacementStateFromSession,
-} from '../../features/repl/sessionSave/durableToolResultContentReplacementEvents.js'
+} from '../../features/repl/sessionRestore/durableToolResultContentReplacement.js'
 import { buildSystemPrompt, resolveSystemPromptVariant } from '../../prompts/system.js'
 import type { PromptBlock, PromptMessage } from '../../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../../streaming/types.js'

@@ -1,25 +1,51 @@
 import fs from 'node:fs'
 import readline from 'node:readline'
-import {
-  findLatestCompactBoundaryIndex,
-  fingerprintCompactBoundaryMessage,
-} from '../../../chat/context/compact'
-import type {
-  DurableToolResultContentReplacement,
-  DurableToolResultContentReplacementSourceScope,
-  DurableToolResultContentReplacementState,
-} from '../../../chat/context/contextProjection'
-import type { PromptMessage } from '../../../prompts'
 import { coerceNonEmptyString, isObject } from './validation'
 
 export const DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME =
   'durable_tool_result_content_replacement_applied'
 
-const MAIN_THREAD_SCOPE: DurableToolResultContentReplacementSourceScope = { kind: 'main_thread' }
+export type DurableToolResultContentReplacementSourceScopeDto =
+  | { kind: 'main_thread' }
+  | { kind: 'sidechain'; id: string }
 
-function parseSourceScope(value: unknown): DurableToolResultContentReplacementSourceScope | null {
+export type DurableToolResultContentReplacementDto = {
+  kind: 'tool_result_block'
+  toolUseId: string
+  replacementContent: string
+  originalContentFingerprint?: string
+  reason?: string
+}
+
+export type DurableToolResultContentReplacementEventDto = {
+  type: 'durable_tool_result_content_replacement_applied'
+  schemaVersion: 1
+  source: 'tool_result_content_replacement'
+  sourceScope?: DurableToolResultContentReplacementSourceScopeDto
+  compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint: string | null
+  sourceProjectionKind?: string
+  replacements: DurableToolResultContentReplacementDto[]
+}
+
+export type DurableToolResultPromptMessageDto = {
+  role: 'user' | 'assistant'
+  content: unknown[]
+  meta?: Record<string, unknown>
+}
+
+export type DurableToolResultHistoryStateDto = {
+  type: 'history_state'
+  messages: DurableToolResultPromptMessageDto[]
+}
+
+export type DurableToolResultContentReplacementSessionRecordDto =
+  | DurableToolResultContentReplacementEventDto
+  | DurableToolResultHistoryStateDto
+
+function parseSourceScope(value: unknown): DurableToolResultContentReplacementSourceScopeDto | null {
   if (!isObject(value)) return null
-  if (value.kind === 'main_thread') return MAIN_THREAD_SCOPE
+  if (value.kind === 'main_thread') return { kind: 'main_thread' }
   if (value.kind === 'sidechain') {
     const id = coerceNonEmptyString(value.id)
     return id ? { kind: 'sidechain', id } : null
@@ -27,16 +53,7 @@ function parseSourceScope(value: unknown): DurableToolResultContentReplacementSo
   return null
 }
 
-function sameSourceScope(
-  left: DurableToolResultContentReplacementSourceScope,
-  right: DurableToolResultContentReplacementSourceScope,
-): boolean {
-  if (left.kind !== right.kind) return false
-  if (left.kind === 'main_thread') return true
-  return left.id === (right as { kind: 'sidechain'; id: string }).id
-}
-
-function parseReplacement(value: unknown): DurableToolResultContentReplacement | null {
+function parseReplacement(value: unknown): DurableToolResultContentReplacementDto | null {
   if (!isObject(value) || value.kind !== 'tool_result_block') return null
   const toolUseId = coerceNonEmptyString(value.toolUseId)
   const replacementContent = coerceNonEmptyString(value.replacementContent)
@@ -52,161 +69,113 @@ function parseReplacement(value: unknown): DurableToolResultContentReplacement |
   }
 }
 
-function parseReplacements(value: unknown): DurableToolResultContentReplacement[] | null {
+function parseReplacements(value: unknown): DurableToolResultContentReplacementDto[] | null {
   if (!Array.isArray(value)) return null
-  const replacements = value.map(parseReplacement).filter((entry): entry is DurableToolResultContentReplacement =>
-    Boolean(entry),
-  )
+  const replacements = value
+    .map(parseReplacement)
+    .filter((entry): entry is DurableToolResultContentReplacementDto => Boolean(entry))
   return replacements.length === value.length ? replacements : null
 }
 
-function readActiveCompactBoundaryFingerprint(record: unknown): string | null | undefined {
-  if (!isObject(record) || record.type !== 'history_state' || !Array.isArray(record.messages)) return undefined
-  const messages = record.messages as PromptMessage[]
-  const boundaryIndex = findLatestCompactBoundaryIndex(messages)
-  if (boundaryIndex < 0) return undefined
-  return fingerprintCompactBoundaryMessage(messages[boundaryIndex]!)
+function parseHistoryPromptMessageDto(value: unknown): DurableToolResultPromptMessageDto | null {
+  if (!isObject(value)) return null
+  if (value.role !== 'user' && value.role !== 'assistant') return null
+  if (!Array.isArray(value.content)) return null
+  return {
+    role: value.role,
+    content: value.content,
+    ...(isObject(value.meta) ? { meta: value.meta as Record<string, unknown> } : {}),
+  }
 }
 
-function emptyState(scope: DurableToolResultContentReplacementSourceScope): DurableToolResultContentReplacementState {
+function parseHistoryStateDto(record: unknown): DurableToolResultHistoryStateDto | null {
+  if (!isObject(record) || record.type !== 'history_state' || !Array.isArray(record.messages)) return null
   return {
+    type: 'history_state',
+    messages: record.messages
+      .map((message) => parseHistoryPromptMessageDto(message))
+      .filter((message): message is DurableToolResultPromptMessageDto => Boolean(message)),
+  }
+}
+
+function parseDurableToolResultReplacementEventDto(
+  data: unknown,
+): DurableToolResultContentReplacementEventDto | null {
+  if (!isObject(data) || data.schemaVersion !== 1) return null
+  if (data.source !== 'tool_result_content_replacement') return null
+  const sourceScope = data.sourceScope === undefined ? undefined : parseSourceScope(data.sourceScope)
+  if (data.sourceScope !== undefined && !sourceScope) return null
+  const replacements = parseReplacements(data.replacements)
+  if (!replacements) return null
+  const sourceProjectionKind = coerceNonEmptyString(data.sourceProjectionKind)
+  return {
+    type: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
     schemaVersion: 1,
-    sourceScope: scope,
-    activeCompactBoundaryFingerprint: null,
-    replacements: [],
-  }
-}
-
-function applyActiveCompactBoundaryFingerprint(args: {
-  state: DurableToolResultContentReplacementState
-  activeCompactBoundaryFingerprint: string | null
-}): DurableToolResultContentReplacementState {
-  if (
-    args.activeCompactBoundaryFingerprint &&
-    args.state.replacements.length > 0 &&
-    args.state.activeCompactBoundaryFingerprint !== args.activeCompactBoundaryFingerprint
-  ) {
-    return {
-      schemaVersion: 1,
-      sourceScope: args.state.sourceScope,
-      activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
-      ...(args.state.baseProjectionFingerprint ? { baseProjectionFingerprint: args.state.baseProjectionFingerprint } : {}),
-      ...(args.state.sourceProjectionKind ? { sourceProjectionKind: args.state.sourceProjectionKind } : {}),
-      replacements: [],
-    }
-  }
-  return {
-    ...args.state,
-    activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
-  }
-}
-
-function applyDurableToolResultReplacementEvent(args: {
-  state: DurableToolResultContentReplacementState
-  data: unknown
-  sourceScope: DurableToolResultContentReplacementSourceScope
-}): DurableToolResultContentReplacementState {
-  if (!isObject(args.data) || args.data.schemaVersion !== 1) return args.state
-  if (args.data.source !== 'tool_result_content_replacement') return args.state
-  const eventSourceScope =
-    args.data.sourceScope === undefined ? MAIN_THREAD_SCOPE : parseSourceScope(args.data.sourceScope)
-  if (!eventSourceScope) return args.state
-  if (!sameSourceScope(eventSourceScope, args.sourceScope)) return args.state
-  const eventCompactBoundaryFingerprint = coerceNonEmptyString(args.data.compactBoundaryFingerprint)
-  if (
-    eventCompactBoundaryFingerprint &&
-    args.state.activeCompactBoundaryFingerprint &&
-    eventCompactBoundaryFingerprint !== args.state.activeCompactBoundaryFingerprint
-  ) {
-    return args.state
-  }
-  if (!eventCompactBoundaryFingerprint && args.state.activeCompactBoundaryFingerprint) return args.state
-  const replacements = parseReplacements(args.data.replacements)
-  if (!replacements) return args.state
-  const baseProjectionFingerprint = coerceNonEmptyString(args.data.baseProjectionFingerprint)
-  if (args.data.sourceProjectionKind !== undefined && args.data.sourceProjectionKind !== 'model_facing_baseline') {
-    return args.state
-  }
-  const sourceProjectionKind =
-    args.data.sourceProjectionKind === 'model_facing_baseline' ? args.data.sourceProjectionKind : null
-  return {
-    schemaVersion: 1,
-    sourceScope: eventSourceScope,
-    activeCompactBoundaryFingerprint: args.state.activeCompactBoundaryFingerprint ?? eventCompactBoundaryFingerprint,
-    baseProjectionFingerprint: baseProjectionFingerprint ?? null,
-    sourceProjectionKind,
+    source: 'tool_result_content_replacement',
+    ...(sourceScope ? { sourceScope } : {}),
+    compactBoundaryFingerprint: coerceNonEmptyString(data.compactBoundaryFingerprint),
+    baseProjectionFingerprint: coerceNonEmptyString(data.baseProjectionFingerprint),
+    ...(sourceProjectionKind ? { sourceProjectionKind } : {}),
     replacements,
   }
 }
 
-function readDurableToolResultReplacementStateFromParsedLine(args: {
-  state: DurableToolResultContentReplacementState
-  parsed: unknown
-  sourceScope: DurableToolResultContentReplacementSourceScope
-}): DurableToolResultContentReplacementState {
-  const nextActiveCompactBoundaryFingerprint = readActiveCompactBoundaryFingerprint(args.parsed)
-  let state = args.state
-  if (nextActiveCompactBoundaryFingerprint !== undefined) {
-    state = applyActiveCompactBoundaryFingerprint({
-      state,
-      activeCompactBoundaryFingerprint: nextActiveCompactBoundaryFingerprint,
-    })
-  }
-  if (!isObject(args.parsed) || args.parsed.type !== 'event') return state
-  if (coerceNonEmptyString(args.parsed.name) !== DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME) return state
-  return applyDurableToolResultReplacementEvent({ state, data: args.parsed.data, sourceScope: args.sourceScope })
+function parseSessionRecord(record: unknown): DurableToolResultContentReplacementSessionRecordDto | null {
+  const historyState = parseHistoryStateDto(record)
+  if (historyState) return historyState
+
+  if (!isObject(record) || record.type !== 'event') return null
+  if (coerceNonEmptyString(record.name) !== DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME) return null
+  return parseDurableToolResultReplacementEventDto(record.data)
 }
 
-export async function readDurableToolResultContentReplacementStateFromSession(args: {
+export async function readDurableToolResultContentReplacementSessionRecordsFromSession(args: {
   filePath: string
-  sourceScope?: DurableToolResultContentReplacementSourceScope
-}): Promise<DurableToolResultContentReplacementState> {
-  const sourceScope = args.sourceScope ?? MAIN_THREAD_SCOPE
-  let state = emptyState(sourceScope)
+}): Promise<DurableToolResultContentReplacementSessionRecordDto[]> {
+  const records: DurableToolResultContentReplacementSessionRecordDto[] = []
   const rl = readline.createInterface({
     input: fs.createReadStream(args.filePath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
   })
+
   for await (const line of rl) {
     const trimmed = String(line).trimEnd()
     if (!trimmed) continue
+    let parsed: unknown
     try {
-      state = readDurableToolResultReplacementStateFromParsedLine({
-        state,
-        parsed: JSON.parse(trimmed),
-        sourceScope,
-      })
+      parsed = JSON.parse(trimmed)
     } catch {
       continue
     }
+    const record = parseSessionRecord(parsed)
+    if (record) records.push(record)
   }
-  return state
+
+  return records
 }
 
-export function readDurableToolResultContentReplacementStateFromSessionSync(args: {
+export function readDurableToolResultContentReplacementSessionRecordsFromSessionSync(args: {
   filePath: string
-  sourceScope?: DurableToolResultContentReplacementSourceScope
-}): DurableToolResultContentReplacementState {
-  const sourceScope = args.sourceScope ?? MAIN_THREAD_SCOPE
-  let state = emptyState(sourceScope)
+}): DurableToolResultContentReplacementSessionRecordDto[] {
   let raw = ''
   try {
     raw = fs.readFileSync(args.filePath, 'utf8')
   } catch {
-    return state
+    return []
   }
+
+  const records: DurableToolResultContentReplacementSessionRecordDto[] = []
   for (const line of raw.split('\n')) {
     const trimmed = String(line).trim()
     if (!trimmed) continue
+    let parsed: unknown
     try {
-      state = readDurableToolResultReplacementStateFromParsedLine({
-        state,
-        parsed: JSON.parse(trimmed),
-        sourceScope,
-      })
+      parsed = JSON.parse(trimmed)
     } catch {
       continue
     }
+    const record = parseSessionRecord(parsed)
+    if (record) records.push(record)
   }
-  return state
+  return records
 }

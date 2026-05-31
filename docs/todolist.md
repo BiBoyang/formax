@@ -55,28 +55,28 @@
 - [ ] Define persisted DTO names separately from domain state names so Repo DTOs do not import Service types.
 
 ### 1.3 DTO / Interface plan
-- [ ] Introduce Repo-local DTOs for context-collapse committed events.
-- [ ] Introduce Repo-local DTOs for durable snip committed events.
-- [ ] Introduce Repo-local DTOs for durable tool-result content replacement events.
+- [x] Introduce Repo-local DTOs for context-collapse committed events.
+- [x] Introduce Repo-local DTOs for durable snip committed events.
+- [x] Introduce Repo-local DTOs for durable tool-result content replacement events.
 - [ ] Introduce Repo-local DTOs for reactive compact events, including a persisted error-kind union that does not import controller code.
 - [ ] Introduce a Repo-local `SessionMemorySidecarDto` or `unknown` boundary for sidecar read/write.
 - [ ] Introduce Service restore APIs that consume DTOs and return existing semantic state shapes.
-- [ ] Keep exported event-name constants stable for existing tests and writers.
+- [x] Keep exported event-name constants stable for existing tests and writers.
 
 ## 2. Runtime / Platform
 
 ### 2.1 Repo DTO readers
 - [x] Split `contextCollapseStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
-- [ ] Split `durableSnipStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
-- [ ] Split `durableToolResultContentReplacementEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
+- [x] Split `durableSnipStoreEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
+- [x] Split `durableToolResultContentReplacementEvents.ts` so Repo parsing does not import `chat/context` or `prompts`.
 - [ ] Split `reactiveCompactEvents.ts` so Repo parsing does not import REPL controller send code.
 - [ ] Split `sessionMemorySidecar.ts` so sidecar IO does not import `SessionMemoryDraft`.
 - [ ] Keep malformed record tolerance and latest-event selection behavior unchanged.
 
 ### 2.2 Service restore modules
 - [x] Add Service-owned context-collapse restore that builds `ContextCollapseStoreSnapshot` from Repo DTOs.
-- [ ] Add Service-owned durable-snip restore that builds `DurableSnipState` from Repo DTOs and applies active compact-boundary reset rules.
-- [ ] Add Service-owned durable tool-result replacement restore that builds semantic replacement state and applies source-scope / active-boundary filtering.
+- [x] Add Service-owned durable-snip restore that builds `DurableSnipState` from Repo DTOs and applies active compact-boundary reset rules.
+- [x] Add Service-owned durable tool-result replacement restore that builds semantic replacement state and applies source-scope / active-boundary filtering.
 - [ ] Move `sessionMemoryRefresh.ts` semantics to Service-owned restore path, keeping Repo sidecar IO separate.
 - [ ] Ensure Service restore modules import Repo DTO readers, not the reverse.
 - [ ] Preserve existing sync and async restore call variants where current call sites require them.
@@ -89,9 +89,9 @@
 - [ ] Avoid changing runtime behavior, prompt history shape, replay facts, or persisted session rows.
 
 ### 2.4 Boundary gates
-- [ ] Run `bun run check:layer-contracts` after each loop that changes import direction.
-- [ ] Run `bun run check:layer-coverage` if new Service/Repo paths are added.
-- [ ] Run `bun run type-check` before final commit if the loop moves exported types or public imports.
+- [x] Run `bun run check:layer-contracts` after each loop that changes import direction.
+- [x] Run `bun run check:layer-coverage` if new Service/Repo paths are added.
+- [x] Run `bun run type-check` before final commit if the loop moves exported types or public imports.
 - [ ] Do not mark the task done until `bun run check:layer-contracts` is green.
 
 ## 3. Frontend Boundary
@@ -112,15 +112,15 @@
 
 ### 4.1 Repo DTO tests
 - [x] Add/update `sessionSave/contextCollapseStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
-- [ ] Add/update `sessionSave/durableSnipStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
-- [ ] Add/update `sessionSave/durableToolResultContentReplacementEvents.test.ts` for DTO parsing and malformed event tolerance.
+- [x] Add/update `sessionSave/durableSnipStoreEvents.test.ts` for DTO parsing and malformed event tolerance.
+- [x] Add/update `sessionSave/durableToolResultContentReplacementEvents.test.ts` for DTO parsing and malformed event tolerance.
 - [ ] Add/update `sessionSave/reactiveCompactEvents.test.ts` for persisted DTO parsing without controller imports.
 - [ ] Add/update `sessionSave/sessionMemorySidecar.test.ts` for sidecar DTO/unknown read-write boundaries.
 
 ### 4.2 Service restore tests
 - [x] Add Service restore tests for context-collapse active compact-boundary transitions.
-- [ ] Add Service restore tests for durable snip generation scoping and stale-state clearing.
-- [ ] Add Service restore tests for durable tool-result replacement source-scope and compact-boundary filtering.
+- [x] Add Service restore tests for durable snip generation scoping and stale-state clearing.
+- [x] Add Service restore tests for durable tool-result replacement source-scope and compact-boundary filtering.
 - [ ] Add Service restore tests for session-memory refresh / restore block construction.
 
 ### 4.3 Runtime parity tests
@@ -151,15 +151,15 @@ Review gate for this loop:
 - Blocking: Repo still imports `contextProjection`, `compact`, or `prompts` for durable state semantics; stale compact-boundary clearing changes; source-scope filtering changes.
 - Non-blocking: session-memory refresh remains pending.
 
-- [ ] Add or strengthen Repo DTO tests for durable snip and durable tool-result replacement events.
-- [ ] Add Service restore tests for durable snip generation scoping and durable tool replacement filtering.
-- [ ] Split durable snip DTO parsing from semantic state reconstruction.
-- [ ] Split durable tool-result replacement DTO parsing from semantic state reconstruction.
-- [ ] Update REPL/app-server/SDK durable state call sites to use Service restore APIs.
-- [ ] Run targeted durable state tests.
-- [ ] Run `bun run check:layer-contracts` and confirm durable-state violations are gone or strictly reduced.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
-- [ ] Commit this loop after review passes.
+- [x] Add or strengthen Repo DTO tests for durable snip and durable tool-result replacement events.
+- [x] Add Service restore tests for durable snip generation scoping and durable tool replacement filtering.
+- [x] Split durable snip DTO parsing from semantic state reconstruction.
+- [x] Split durable tool-result replacement DTO parsing from semantic state reconstruction.
+- [x] Update REPL/app-server/SDK durable state call sites to use Service restore APIs.
+- [x] Run targeted durable state tests.
+- [x] Run `bun run check:layer-contracts` and confirm durable-state violations are gone or strictly reduced.
+- [x] Run `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"` for this loop.
+- [x] Commit this loop after review passes.
 
 ### Loop 3: Split reactive compact and session memory boundaries
 Review gate for this loop:

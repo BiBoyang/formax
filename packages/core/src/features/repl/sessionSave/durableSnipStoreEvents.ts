@@ -1,15 +1,49 @@
 import fs from 'node:fs'
 import readline from 'node:readline'
-import {
-  findLatestCompactBoundaryIndex,
-  fingerprintCompactBoundaryMessage,
-} from '../../../chat/context/compact'
-import type { DurableSnipRemoval, DurableSnipState } from '../../../chat/context/contextProjection'
-import type { PromptMessageIdentity } from '../../../chat/context/compact'
-import type { PromptMessage } from '../../../prompts'
 import { coerceNonEmptyString, isObject } from './validation'
 
 export const DURABLE_SNIP_COMMITTED_EVENT_NAME = 'durable_snip_applied'
+
+export type DurableSnipPromptMessageIdentityDto = {
+  schemaVersion: 1
+  id: string
+  parentId: string | null
+  fingerprint: string
+  source: 'explicit' | 'legacy_fallback'
+}
+
+export type DurableSnipRemovalDto = {
+  kind: 'model_facing_index_range'
+  startIndex: number
+  endIndexExclusive: number
+  reason?: string
+  removedMessageIds?: string[]
+  removedMessageFingerprints?: string[]
+  removedMessageIdentities?: DurableSnipPromptMessageIdentityDto[]
+}
+
+export type DurableSnipCommittedEventDto = {
+  type: 'durable_snip_applied'
+  schemaVersion: 1
+  source: 'request_snip'
+  compactBoundaryFingerprint: string | null
+  baseProjectionFingerprint: string | null
+  sourceProjectionKind?: string
+  removals: DurableSnipRemovalDto[]
+}
+
+export type DurableSnipPromptMessageDto = {
+  role: 'user' | 'assistant'
+  content: unknown[]
+  meta?: Record<string, unknown>
+}
+
+export type DurableSnipHistoryStateDto = {
+  type: 'history_state'
+  messages: DurableSnipPromptMessageDto[]
+}
+
+export type DurableSnipSessionRecordDto = DurableSnipCommittedEventDto | DurableSnipHistoryStateDto
 
 function parseStringList(value: unknown): string[] | undefined {
   if (value === undefined) return undefined
@@ -23,7 +57,7 @@ function parseStringList(value: unknown): string[] | undefined {
   return out
 }
 
-function parsePromptMessageIdentity(value: unknown): PromptMessageIdentity | null {
+function parsePromptMessageIdentity(value: unknown): DurableSnipPromptMessageIdentityDto | null {
   if (!isObject(value) || value.schemaVersion !== 1) return null
   const id = coerceNonEmptyString(value.id)
   const fingerprint = coerceNonEmptyString(value.fingerprint)
@@ -40,10 +74,10 @@ function parsePromptMessageIdentity(value: unknown): PromptMessageIdentity | nul
   }
 }
 
-function parsePromptMessageIdentities(value: unknown): PromptMessageIdentity[] | undefined {
+function parsePromptMessageIdentities(value: unknown): DurableSnipPromptMessageIdentityDto[] | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value)) return undefined
-  const out: PromptMessageIdentity[] = []
+  const out: DurableSnipPromptMessageIdentityDto[] = []
   for (const item of value) {
     const identity = parsePromptMessageIdentity(item)
     if (!identity) return undefined
@@ -52,7 +86,7 @@ function parsePromptMessageIdentities(value: unknown): PromptMessageIdentity[] |
   return out
 }
 
-function parseRemoval(value: unknown): DurableSnipRemoval | null {
+function parseRemoval(value: unknown): DurableSnipRemovalDto | null {
   if (!isObject(value) || value.kind !== 'model_facing_index_range') return null
   if (typeof value.startIndex !== 'number' || typeof value.endIndexExclusive !== 'number') return null
   const startIndex = Math.floor(value.startIndex)
@@ -73,9 +107,9 @@ function parseRemoval(value: unknown): DurableSnipRemoval | null {
   }
 }
 
-function parseRemovals(value: unknown): DurableSnipRemoval[] | undefined {
+function parseRemovals(value: unknown): DurableSnipRemovalDto[] | undefined {
   if (!Array.isArray(value)) return undefined
-  const removals: DurableSnipRemoval[] = []
+  const removals: DurableSnipRemovalDto[] = []
   for (const item of value) {
     const removal = parseRemoval(item)
     if (!removal) return undefined
@@ -84,117 +118,100 @@ function parseRemovals(value: unknown): DurableSnipRemoval[] | undefined {
   return removals
 }
 
-function readActiveCompactBoundaryFingerprint(record: unknown): string | null | undefined {
-  if (!isObject(record) || record.type !== 'history_state' || !Array.isArray(record.messages)) return undefined
-  const messages = record.messages as PromptMessage[]
-  const boundaryIndex = findLatestCompactBoundaryIndex(messages)
-  if (boundaryIndex < 0) return undefined
-  return fingerprintCompactBoundaryMessage(messages[boundaryIndex]!)
-}
-
-function applyActiveCompactBoundaryFingerprint(args: {
-  state: DurableSnipState
-  activeCompactBoundaryFingerprint: string | null
-}): DurableSnipState {
-  if (
-    args.activeCompactBoundaryFingerprint &&
-    args.state.removals.length > 0 &&
-    args.state.activeCompactBoundaryFingerprint !== args.activeCompactBoundaryFingerprint
-  ) {
-    return {
-      schemaVersion: 1,
-      activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
-      baseProjectionFingerprint: args.state.baseProjectionFingerprint ?? null,
-      sourceProjectionKind: args.state.sourceProjectionKind ?? null,
-      removals: [],
-    }
-  }
+function parseHistoryPromptMessageDto(value: unknown): DurableSnipPromptMessageDto | null {
+  if (!isObject(value)) return null
+  if (value.role !== 'user' && value.role !== 'assistant') return null
+  if (!Array.isArray(value.content)) return null
   return {
-    ...args.state,
-    activeCompactBoundaryFingerprint: args.activeCompactBoundaryFingerprint,
+    role: value.role,
+    content: value.content,
+    ...(isObject(value.meta) ? { meta: value.meta as Record<string, unknown> } : {}),
   }
 }
 
-function applyDurableSnipEvent(args: {
-  state: DurableSnipState
-  data: unknown
-}): DurableSnipState {
-  if (!isObject(args.data) || args.data.schemaVersion !== 1) return args.state
-  if (args.data.source !== 'request_snip') return args.state
-  const eventCompactBoundaryFingerprint = coerceNonEmptyString(args.data.compactBoundaryFingerprint)
-  if (
-    eventCompactBoundaryFingerprint &&
-    args.state.activeCompactBoundaryFingerprint &&
-    eventCompactBoundaryFingerprint !== args.state.activeCompactBoundaryFingerprint
-  ) {
-    return args.state
-  }
-  if (!eventCompactBoundaryFingerprint && args.state.activeCompactBoundaryFingerprint) return args.state
-  const removals = parseRemovals(args.data.removals)
-  if (!removals) return args.state
-  const baseProjectionFingerprint = coerceNonEmptyString(args.data.baseProjectionFingerprint)
-  const sourceProjectionKind =
-    args.data.sourceProjectionKind === 'model_facing_baseline' ? args.data.sourceProjectionKind : null
+function parseHistoryStateDto(record: unknown): DurableSnipHistoryStateDto | null {
+  if (!isObject(record) || record.type !== 'history_state' || !Array.isArray(record.messages)) return null
   return {
+    type: 'history_state',
+    messages: record.messages
+      .map((message) => parseHistoryPromptMessageDto(message))
+      .filter((message): message is DurableSnipPromptMessageDto => Boolean(message)),
+  }
+}
+
+function parseDurableSnipCommittedEventDto(data: unknown): DurableSnipCommittedEventDto | null {
+  if (!isObject(data) || data.schemaVersion !== 1) return null
+  if (data.source !== 'request_snip') return null
+  const removals = parseRemovals(data.removals)
+  if (!removals) return null
+  const sourceProjectionKind = coerceNonEmptyString(data.sourceProjectionKind)
+  return {
+    type: DURABLE_SNIP_COMMITTED_EVENT_NAME,
     schemaVersion: 1,
-    activeCompactBoundaryFingerprint: args.state.activeCompactBoundaryFingerprint ?? eventCompactBoundaryFingerprint,
-    baseProjectionFingerprint: baseProjectionFingerprint ?? null,
-    sourceProjectionKind,
+    source: 'request_snip',
+    compactBoundaryFingerprint: coerceNonEmptyString(data.compactBoundaryFingerprint),
+    baseProjectionFingerprint: coerceNonEmptyString(data.baseProjectionFingerprint),
+    ...(sourceProjectionKind ? { sourceProjectionKind } : {}),
     removals,
   }
 }
 
-function readDurableSnipStateFromParsedLine(args: {
-  state: DurableSnipState
-  parsed: unknown
-}): DurableSnipState {
-  const nextActiveCompactBoundaryFingerprint = readActiveCompactBoundaryFingerprint(args.parsed)
-  let state = args.state
-  if (nextActiveCompactBoundaryFingerprint !== undefined) {
-    state = applyActiveCompactBoundaryFingerprint({
-      state,
-      activeCompactBoundaryFingerprint: nextActiveCompactBoundaryFingerprint,
-    })
-  }
-  if (!isObject(args.parsed) || args.parsed.type !== 'event') return state
-  if (coerceNonEmptyString(args.parsed.name) !== DURABLE_SNIP_COMMITTED_EVENT_NAME) return state
-  return applyDurableSnipEvent({ state, data: args.parsed.data })
+function parseSessionRecord(record: unknown): DurableSnipSessionRecordDto | null {
+  const historyState = parseHistoryStateDto(record)
+  if (historyState) return historyState
+
+  if (!isObject(record) || record.type !== 'event') return null
+  if (coerceNonEmptyString(record.name) !== DURABLE_SNIP_COMMITTED_EVENT_NAME) return null
+  return parseDurableSnipCommittedEventDto(record.data)
 }
 
-export async function readDurableSnipStateFromSession(args: { filePath: string }): Promise<DurableSnipState> {
-  let state: DurableSnipState = { schemaVersion: 1, activeCompactBoundaryFingerprint: null, removals: [] }
+export async function readDurableSnipSessionRecordsFromSession(args: {
+  filePath: string
+}): Promise<DurableSnipSessionRecordDto[]> {
+  const records: DurableSnipSessionRecordDto[] = []
   const rl = readline.createInterface({
     input: fs.createReadStream(args.filePath, { encoding: 'utf8' }),
     crlfDelay: Infinity,
   })
+
   for await (const line of rl) {
     const trimmed = String(line).trimEnd()
     if (!trimmed) continue
+    let parsed: unknown
     try {
-      state = readDurableSnipStateFromParsedLine({ state, parsed: JSON.parse(trimmed) })
+      parsed = JSON.parse(trimmed)
     } catch {
       continue
     }
+    const record = parseSessionRecord(parsed)
+    if (record) records.push(record)
   }
-  return state
+
+  return records
 }
 
-export function readDurableSnipStateFromSessionSync(args: { filePath: string }): DurableSnipState {
-  let state: DurableSnipState = { schemaVersion: 1, activeCompactBoundaryFingerprint: null, removals: [] }
+export function readDurableSnipSessionRecordsFromSessionSync(args: {
+  filePath: string
+}): DurableSnipSessionRecordDto[] {
   let raw = ''
   try {
     raw = fs.readFileSync(args.filePath, 'utf8')
   } catch {
-    return state
+    return []
   }
+
+  const records: DurableSnipSessionRecordDto[] = []
   for (const line of raw.split('\n')) {
     const trimmed = String(line).trim()
     if (!trimmed) continue
+    let parsed: unknown
     try {
-      state = readDurableSnipStateFromParsedLine({ state, parsed: JSON.parse(trimmed) })
+      parsed = JSON.parse(trimmed)
     } catch {
       continue
     }
+    const record = parseSessionRecord(parsed)
+    if (record) records.push(record)
   }
-  return state
+  return records
 }

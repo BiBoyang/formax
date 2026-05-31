@@ -48,10 +48,10 @@ import { waitForRollingSessionMemoryFlush } from '../shared/sessionMemoryFlush'
 import { countNonToolUserTurns } from '../shared/utils'
 import { readSessionMemoryFile } from '../../sessionSave/sessionMemorySidecar'
 import { readContextCollapseStoreSnapshotFromSession } from '../../sessionRestore/contextCollapseStore'
-import { readDurableSnipStateFromSession } from '../../sessionSave/durableSnipStoreEvents'
+import { readDurableSnipStateFromSession } from '../../sessionRestore/durableSnipStore'
 import {
   readDurableToolResultContentReplacementStateFromSession,
-} from '../../sessionSave/durableToolResultContentReplacementEvents'
+} from '../../sessionRestore/durableToolResultContentReplacement'
 import { runCompactFlow, type CompactLifecycleEvent } from './compactFlow'
 
 export type EstimatedContextState = {

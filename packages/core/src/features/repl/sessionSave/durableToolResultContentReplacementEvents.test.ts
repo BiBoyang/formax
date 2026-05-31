@@ -9,9 +9,12 @@ import {
 } from '../../../chat/context/compact'
 import {
   DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+  readDurableToolResultContentReplacementSessionRecordsFromSession,
+} from './durableToolResultContentReplacementEvents'
+import {
   readDurableToolResultContentReplacementStateFromSession,
   readDurableToolResultContentReplacementStateFromSessionSync,
-} from './durableToolResultContentReplacementEvents'
+} from '../sessionRestore/durableToolResultContentReplacement'
 
 function replacementEvent(args: {
   sourceScope?: { kind: 'main_thread' } | { kind: 'sidechain'; id: string }
@@ -47,6 +50,56 @@ function replacementEvent(args: {
 }
 
 describe('durableToolResultContentReplacementEvents', () => {
+  it('parses durable replacement DTO records without rebuilding semantic state', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-dto-'))
+    const filePath = path.join(dir, 'session.jsonl')
+    await fs.writeFile(
+      filePath,
+      [
+        JSON.stringify({ type: 'history_state', messages: [{ role: 'assistant', content: [] }] }),
+        JSON.stringify(replacementEvent({
+          sourceScope: { kind: 'sidechain', id: 'agent-1' },
+          toolUseId: 'tool-1',
+          replacementContent: '[replacement]',
+          baseProjectionFingerprint: 'baseline-fp',
+          sourceProjectionKind: 'model_facing_baseline',
+        })),
+        JSON.stringify({
+          type: 'event',
+          name: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+          data: {
+            schemaVersion: 1,
+            source: 'tool_result_content_replacement',
+            sourceScope: { kind: 'sidechain', id: '' },
+            replacements: [],
+          },
+        }),
+      ].join('\n'),
+      'utf8',
+    )
+
+    await expect(readDurableToolResultContentReplacementSessionRecordsFromSession({ filePath })).resolves.toEqual([
+      { type: 'history_state', messages: [{ role: 'assistant', content: [] }] },
+      {
+        type: DURABLE_TOOL_RESULT_CONTENT_REPLACEMENT_EVENT_NAME,
+        schemaVersion: 1,
+        source: 'tool_result_content_replacement',
+        sourceScope: { kind: 'sidechain', id: 'agent-1' },
+        compactBoundaryFingerprint: null,
+        baseProjectionFingerprint: 'baseline-fp',
+        sourceProjectionKind: 'model_facing_baseline',
+        replacements: [
+          {
+            kind: 'tool_result_block',
+            toolUseId: 'tool-1',
+            replacementContent: '[replacement]',
+            reason: 'durable tool result replacement test',
+          },
+        ],
+      },
+    ])
+  })
+
   it('rebuilds main-thread durable replacement state from session events', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-durable-tool-result-replacement-'))
     const filePath = path.join(dir, 'session.jsonl')
