@@ -58,14 +58,14 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
     ...rest
   } = props
 
-  const selectedSurfaceClass = selected && selectable ? 'bg-[var(--sidebar-list-active)]' : null
+  const selectedSurfaceClass = selected && selectable ? 'bg-[var(--sidebar-row-active)]' : null
   const hoverSurfaceClass =
-    hoverable ? 'hover:bg-[var(--sidebar-list-hover)] focus-within:bg-[var(--sidebar-list-hover)]' : null
+    hoverable ? 'hover:bg-[var(--sidebar-row-hover)] focus-within:bg-[var(--sidebar-row-hover)]' : null
 
   const content = (
     <>
       {leading ?? (icon ? (
-        <span className={cn('inline-flex h-4 w-4 shrink-0 items-center justify-center opacity-70', iconClassName)} aria-hidden>
+        <span className={cn('ui-sidebar-icon-slot', iconClassName)} aria-hidden>
           {icon}
         </span>
       ) : null)}
@@ -79,7 +79,7 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
   if (kind === 'menu') {
     return (
       <DropdownMenuItem
-        className={cn('h-8 gap-3 px-3 py-0 ui-text-base', sidebarItemToneClass[tone], className)}
+        className={cn('ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base', sidebarItemToneClass[tone], className)}
         disabled={disabled}
         onSelect={() => onActivate?.()}
       >
@@ -89,10 +89,10 @@ export const SidebarItem = forwardRef<HTMLButtonElement, SidebarItemProps>(funct
   }
 
   const rowClassName = cn(
-    'h-8 min-w-0 w-full rounded-md px-3 ui-text-base font-normal ui-sidebar-item',
+    'ui-sidebar-item ui-text-base font-normal',
     'focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent focus-visible:outline-none focus-visible:shadow-none',
-    'focus-visible:bg-[var(--sidebar-list-hover)]',
-    kind === 'button' ? 'justify-start gap-3' : 'flex items-center gap-3',
+    'focus-visible:bg-[var(--sidebar-row-hover)]',
+    kind === 'button' ? 'ui-sidebar-item-button' : 'ui-sidebar-item-row',
     kind === 'row' && 'cursor-pointer',
     disabled && kind === 'row' && 'cursor-not-allowed',
     sidebarItemToneClass[tone],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
-import { FolderPlus, Globe, Settings, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
+import { Globe, Settings, SquarePen, ArrowLeft, Monitor, Settings2, Palette, Server, GitBranch, TerminalSquare, FolderTree, ArchiveRestore } from 'lucide-react'
 import { cn } from '../lib/utils'
 import type { ThreadViewModel } from '../app/core/threadViewModel'
 import { useI18n } from '../app/i18n/I18nProvider'
@@ -15,13 +15,11 @@ import {
 } from './ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { Input } from './ui/input'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import {
   copyToClipboard,
   groupThreadsByCwd,
   MemoFolderHeaderRow,
   MemoThreadRow,
-  RailActionIconButton,
   readOpenByCwdFromStorage,
   SidebarItem,
   type SuppressInteractionEvent,
@@ -52,7 +50,6 @@ export type LeftRailProps = {
   onHideThreadGroup: (cwd: string) => void
   isBusy?: boolean
   isDesktopClient?: boolean
-  onCreateProject?: () => Promise<void> | void
   isWindowTransparent?: boolean
   onToggleWindowTransparency?: () => void
   isSettingsOpen?: boolean
@@ -79,7 +76,6 @@ export function LeftRail(props: LeftRailProps) {
     onHideThreadGroup,
     isBusy = false,
     isDesktopClient = false,
-    onCreateProject,
     isWindowTransparent = false,
     onToggleWindowTransparency,
     isSettingsOpen = false,
@@ -109,7 +105,6 @@ export function LeftRail(props: LeftRailProps) {
   const nowMsSnapshot = useMemo(() => Date.now(), [nowMinuteBucket])
   const canRenameThread = Boolean(onRenameThread)
   const canArchiveThread = Boolean(onArchiveThread)
-  const canCreateProject = Boolean(onCreateProject)
   const visibleGroupedThreads = useMemo(
     () => groupedThreads.filter((group) => !hiddenGroupCwdSet.has(group.cwd)),
     [groupedThreads, hiddenGroupCwdSet],
@@ -178,11 +173,6 @@ export function LeftRail(props: LeftRailProps) {
     onEnterNewThreadDraftInCwd(cwd)
   }, [onEnterNewThreadDraftInCwd])
 
-  const handleCreateProject = useCallback(() => {
-    if (!onCreateProject) return
-    void onCreateProject()
-  }, [onCreateProject])
-
   const markFolderRemoved = useCallback((cwd: string) => {
     if (hiddenGroupCwdSet.has(cwd)) return
     const isManagedCurrentGroup = managedCurrentGroupCwd === cwd
@@ -224,18 +214,6 @@ export function LeftRail(props: LeftRailProps) {
     }
   }, [onRenameThread, renameThreadTarget, renameValue])
 
-  const createProjectButton = (
-    <RailActionIconButton
-      aria-label={t('leftRail.addProject')}
-      title={canCreateProject ? t('leftRail.addProject') : t('leftRail.desktopOnlyTooltip')}
-      disabled={isBusy}
-      className="text-muted-foreground hover:text-foreground hover:bg-muted/40"
-      onClick={handleCreateProject}
-    >
-      <FolderPlus className="h-3.5 w-3.5" />
-    </RailActionIconButton>
-  )
-
   if (isSettingsOpen && onCloseSettings) {
     return (
       <aside className="app-sidebar-rail flex flex-col h-full flex-none w-full overflow-hidden">
@@ -260,11 +238,11 @@ export function LeftRail(props: LeftRailProps) {
           onScroll={handleRailScroll}
         >
           <div className="flex flex-col min-h-full">
-            <div className="px-2 space-y-px flex-none">
+            <div className="ui-sidebar-list-stack ui-sidebar-list-inset flex-none">
               <SidebarItem
                 tone="muted"
                 className="mb-4"
-                icon={<ArrowLeft className="h-4 w-4" />}
+                icon={<ArrowLeft />}
                 label={t('leftRail.returnToApp')}
                 onActivate={onCloseSettings}
               />
@@ -274,17 +252,17 @@ export function LeftRail(props: LeftRailProps) {
                 selected
                 selectable
                 className="font-medium"
-                icon={<Settings className="h-4 w-4" />}
+                icon={<Settings />}
                 label={t('leftRail.general')}
               />
-              <SidebarItem icon={<Monitor className="h-4 w-4" />} label={t('leftRail.appearance')} />
-              <SidebarItem icon={<Settings2 className="h-4 w-4" />} label={t('leftRail.config')} />
-              <SidebarItem icon={<Palette className="h-4 w-4" />} label={t('leftRail.personalization')} />
-              <SidebarItem icon={<Server className="h-4 w-4" />} label={t('leftRail.mcpServers')} />
-              <SidebarItem icon={<GitBranch className="h-4 w-4" />} label={t('leftRail.git')} />
-              <SidebarItem icon={<TerminalSquare className="h-4 w-4" />} label={t('leftRail.environment')} />
-              <SidebarItem icon={<FolderTree className="h-4 w-4" />} label={t('leftRail.worktrees')} />
-              <SidebarItem icon={<ArchiveRestore className="h-4 w-4" />} label={t('leftRail.archivedThreads')} />
+              <SidebarItem icon={<Monitor />} label={t('leftRail.appearance')} />
+              <SidebarItem icon={<Settings2 />} label={t('leftRail.config')} />
+              <SidebarItem icon={<Palette />} label={t('leftRail.personalization')} />
+              <SidebarItem icon={<Server />} label={t('leftRail.mcpServers')} />
+              <SidebarItem icon={<GitBranch />} label={t('leftRail.git')} />
+              <SidebarItem icon={<TerminalSquare />} label={t('leftRail.environment')} />
+              <SidebarItem icon={<FolderTree />} label={t('leftRail.worktrees')} />
+              <SidebarItem icon={<ArchiveRestore />} label={t('leftRail.archivedThreads')} />
             </div>
           </div>
         </div>
@@ -308,75 +286,63 @@ export function LeftRail(props: LeftRailProps) {
         ) : null}
       </div>
 
+      <div className="ui-sidebar-fixed-actionbar ui-sidebar-list-stack flex-none">
+        {connectionStatus ? <div className="ui-sidebar-status-text ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
+        <SidebarItem
+          icon={<SquarePen />}
+          label={t('leftRail.newThread')}
+          onActivate={onEnterNewThreadDraft}
+          disabled={isBusy}
+        />
+        <div className="ui-sidebar-list-stack">
+          {/* <SidebarItem kind="static" icon={<Clock3 />} label="Automation" /> */}
+          {/* <SidebarItem kind="static" icon={<Sparkles />} label="Skills" /> */}
+        </div>
+      </div>
+
       <div
         className={cn(
-          'flex-1 overflow-y-auto overflow-x-hidden left-rail-scroll-body',
-          showRailTopFade ? 'app-scroll-fade-mask-y' : 'app-scroll-fade-mask-bottom',
+          'flex-1 min-h-0 overflow-y-auto overflow-x-hidden left-rail-scroll-body',
+          'app-scroll-fade-mask-y',
         )}
         onScroll={handleRailScroll}
       >
-        <div className="flex flex-col min-h-full">
-          <div className="px-2 space-y-px flex-none">
-            {connectionStatus ? <div className="px-3 pb-2 ui-text-meta ui-sidebar-text-muted">{connectionStatus}</div> : null}
-            <SidebarItem
-              icon={<SquarePen className="h-4 w-4" />}
-              label={t('leftRail.newThread')}
-              onActivate={onEnterNewThreadDraft}
-              disabled={isBusy}
-            />
-            <div className="space-y-px">
-              {/* <SidebarItem kind="static" icon={<Clock3 className="h-4 w-4" />} label="Automation" /> */}
-              {/* <SidebarItem kind="static" icon={<Sparkles className="h-4 w-4" />} label="Skills" /> */}
-            </div>
-          </div>
+        <div className="ui-sidebar-scroll-content flex flex-col min-h-full">
+          <div className="ui-sidebar-list-stack ui-sidebar-list-inset">
+            {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">{t('leftRail.noRecentThreads')}</div> : null}
+            {visibleGroupedThreads.map((group) => {
+              const isExpanded = openByCwd[group.cwd] ?? true
+              const isProtectedCurrentGroup = protectedCurrentGroupCwd === group.cwd
+              const canRemoveGroup = !isProtectedCurrentGroup || visibleGroupedThreads.length > 1
+              return (
+                <Collapsible
+                  key={group.cwd}
+                  open={isExpanded}
+                  onOpenChange={(open) => handleFolderOpenChange(group.cwd, open)}
+                  className="ui-sidebar-list-stack"
+                >
+                  <CollapsibleTrigger asChild>
+                    <MemoFolderHeaderRow
+                      cwd={group.cwd}
+                      folderName={group.folderName}
+                      isExpanded={isExpanded}
+                      canRemoveGroup={canRemoveGroup}
+                      isBusy={isBusy}
+                      onSelectCwd={onSelectCwd}
+                      onMarkFolderRemoved={markFolderRemoved}
+                      onStartThreadInFolder={handleStartThreadInFolder}
+                      onOpenFolderInTarget={onOpenFolderInTarget}
+                      openFolderActionLabel={resolvedOpenFolderActionLabel}
+                      suppressFolderAction={suppressFolderAction}
+                    />
+                  </CollapsibleTrigger>
 
-          <div className="flex-1 flex flex-col mt-2 pb-12">
-            <div className="px-5 ui-text-base font-medium ui-sidebar-text-muted tracking-wide flex items-center justify-between gap-2 flex-none">
-              <span>{t('leftRail.threads')}</span>
-              {canCreateProject ? (
-                createProjectButton
-              ) : (
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>{createProjectButton}</TooltipTrigger>
-                    <TooltipContent side="bottom" align="end">
-                      {t('leftRail.desktopOnlyTooltip')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-
-            <div className="space-y-px px-2">
-              {visibleGroupedThreads.length === 0 ? <div className="px-4 py-4 ui-text-meta ui-sidebar-text-muted italic">{t('leftRail.noRecentThreads')}</div> : null}
-              {visibleGroupedThreads.map((group) => {
-                const isExpanded = openByCwd[group.cwd] ?? true
-                const isProtectedCurrentGroup = protectedCurrentGroupCwd === group.cwd
-                const canRemoveGroup = !isProtectedCurrentGroup || visibleGroupedThreads.length > 1
-                return (
-                  <Collapsible
-                    key={group.cwd}
-                    open={isExpanded}
-                    onOpenChange={(open) => handleFolderOpenChange(group.cwd, open)}
-                    className="space-y-px"
+                  <CollapsibleContent
+                    forceMount
+                    aria-hidden={isExpanded ? undefined : true}
+                    className="ui-sidebar-folder-content"
                   >
-                    <CollapsibleTrigger asChild>
-                      <MemoFolderHeaderRow
-                        cwd={group.cwd}
-                        folderName={group.folderName}
-                        isExpanded={isExpanded}
-                        canRemoveGroup={canRemoveGroup}
-                        isBusy={isBusy}
-                        onSelectCwd={onSelectCwd}
-                        onMarkFolderRemoved={markFolderRemoved}
-                        onStartThreadInFolder={handleStartThreadInFolder}
-                        onOpenFolderInTarget={onOpenFolderInTarget}
-                        openFolderActionLabel={resolvedOpenFolderActionLabel}
-                        suppressFolderAction={suppressFolderAction}
-                      />
-                    </CollapsibleTrigger>
-
-                    <CollapsibleContent className="space-y-px">
+                    <div className="ui-sidebar-folder-content-inner ui-sidebar-list-stack">
                       {group.threads.map((thread) => {
                         return (
                           <MemoThreadRow
@@ -395,30 +361,30 @@ export function LeftRail(props: LeftRailProps) {
                           />
                         )
                       })}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )
-              })}
-            </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            })}
           </div>
         </div>
       </div>
 
       <div
         className={cn(
-          'app-sidebar-bottombar h-[var(--desktop-chrome-height)] flex-none px-2 py-[var(--desktop-chrome-row-padding-y)]',
+          'app-sidebar-bottombar ui-sidebar-bottombar h-[var(--desktop-chrome-height)] flex-none',
           isDesktopClient && 'app-shell-drag-region',
         )}
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarItem className="app-shell-no-drag" icon={<Settings className="h-4 w-4" />} label={t('leftRail.settings')} />
+            <SidebarItem className="app-shell-no-drag" icon={<Settings />} label={t('leftRail.settings')} />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[280px] app-shell-no-drag" side="top" align="start" sideOffset={8}>
             {onOpenSettings ? (
-              <SidebarItem kind="menu" icon={<Settings className="h-4 w-4" />} label={t('leftRail.settings')} onActivate={onOpenSettings} />
+              <SidebarItem kind="menu" icon={<Settings />} label={t('leftRail.settings')} onActivate={onOpenSettings} />
             ) : null}
-            <SidebarItem kind="menu" icon={<Globe className="h-4 w-4" />} label={t('leftRail.language')} />
+            <SidebarItem kind="menu" icon={<Globe />} label={t('leftRail.language')} />
             {isDesktopClient && onToggleWindowTransparency ? (
               <SidebarItem
                 kind="menu"

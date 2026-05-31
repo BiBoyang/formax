@@ -108,4 +108,4 @@ This file is the "where to change what" index for `packages/web-reference-react`
 
 - Preserve semantics contract behavior when changing runtime event ordering.
 - For UI refactors, keep key interactions and copy stable unless explicitly requested.
-- For style changes, use existing translucent tokens (`--sidebar-list-hover`, etc.) for list/header interactions.
+- For style changes, use existing translucent tokens (`--sidebar-row-hover`, `--sidebar-row-active`, etc.) for list/header interactions.

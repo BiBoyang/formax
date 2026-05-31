@@ -254,12 +254,14 @@ vi.mock('../rpcClient', () => {
 describe('App thread history integration', () => {
   const SIDEBAR_WIDTH_STORAGE_KEY = 'formax:web:sidebar-width'
   const RIGHT_RAIL_WIDTH_STORAGE_KEY = 'formax:web:right-rail-width'
+  const LEFT_RAIL_OPEN_BY_CWD_STORAGE_KEY = 'formax.web.leftRail.openByCwd.v1'
 
   beforeEach(() => {
     rpcMock.reset()
     window.history.replaceState(null, '', '/')
     window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
+    window.localStorage.removeItem(LEFT_RAIL_OPEN_BY_CWD_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
       if (method === 'bridge/readDiff') {
@@ -1301,80 +1303,6 @@ describe('App thread history integration', () => {
     await screen.findByText('beta reply')
     expect(screen.queryByTestId('new-thread-draft-surface')).not.toBeInTheDocument()
     expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
-  })
-
-  it('routes left-rail add project into draft without opening the picker immediately', async () => {
-    const originalDesktopBridge = window.formaxDesktop
-    const pickProjectFolder = vi.fn(async () => '/repo-picked')
-    window.formaxDesktop = {
-      mode: 'dev',
-      startUrl: 'http://127.0.0.1:3781',
-      windowControls: {},
-      pickProjectFolder,
-    } as typeof window.formaxDesktop
-
-    try {
-      render(<App />)
-      await screen.findByRole('button', { name: /Alpha Session/i })
-
-      fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
-      expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
-      expect(pickProjectFolder).not.toHaveBeenCalled()
-      expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
-      expect(screen.getByRole('button', { name: /Choose project/i })).toBeInTheDocument()
-    } finally {
-      if (originalDesktopBridge) {
-        window.formaxDesktop = originalDesktopBridge
-      } else {
-        delete window.formaxDesktop
-      }
-    }
-  })
-
-  it('keeps add-project draft unselected until the picker returns a path', async () => {
-    const originalDesktopBridge = window.formaxDesktop
-    const pickProjectFolder = vi.fn(async () => '/repo-picked')
-    window.formaxDesktop = {
-      mode: 'dev',
-      startUrl: 'http://127.0.0.1:3781',
-      windowControls: {},
-      pickProjectFolder,
-    } as typeof window.formaxDesktop
-
-    rpcMock.setRequestImpl((method) => {
-      if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
-        return {
-          cwd: '/workspace-empty',
-          generatedAt: '2026-02-10T00:00:00.000Z',
-          hasChanges: false,
-          truncated: false,
-          files: [],
-        }
-      }
-      if (method === 'thread/list') {
-        return { data: [] }
-      }
-      return {}
-    })
-
-    try {
-      render(<App />)
-      fireEvent.click(await screen.findByRole('button', { name: 'Add project' }))
-
-      expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
-      expect(screen.queryByText('/workspace-empty')).not.toBeInTheDocument()
-      expect(pickProjectFolder).not.toHaveBeenCalled()
-      expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
-    } finally {
-      if (originalDesktopBridge) {
-        window.formaxDesktop = originalDesktopBridge
-      } else {
-        delete window.formaxDesktop
-      }
-    }
   })
 
   it('hides folders provided by thread/list hiddenGroupCwds', async () => {

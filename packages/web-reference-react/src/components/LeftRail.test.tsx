@@ -73,7 +73,7 @@ describe('LeftRail', () => {
     expect(onSelectCwd).toHaveBeenCalledWith('/repo-b')
   })
 
-  it('shows top fade only after passing the scroll threshold', () => {
+  it('uses matching top and bottom fade masks around the fixed new thread action', () => {
     const { container } = renderWithI18n(
       <LeftRail
         threads={threads}
@@ -90,19 +90,61 @@ describe('LeftRail', () => {
 
     const scrollBody = container.querySelector('.left-rail-scroll-body')
     expect(scrollBody).not.toBeNull()
-    expect(scrollBody).toHaveClass('app-scroll-fade-mask-bottom')
-    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-y')
+    expect(scrollBody).toHaveClass('app-scroll-fade-mask-y')
+    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-bottom')
 
     if (!scrollBody) return
     scrollBody.scrollTop = 90
     fireEvent.scroll(scrollBody)
     expect(scrollBody).toHaveClass('app-scroll-fade-mask-y')
     expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-bottom')
+  })
 
-    scrollBody.scrollTop = 40
-    fireEvent.scroll(scrollBody)
-    expect(scrollBody).toHaveClass('app-scroll-fade-mask-bottom')
-    expect(scrollBody).not.toHaveClass('app-scroll-fade-mask-y')
+  it('keeps the new thread action outside the scrollable thread list', () => {
+    const { container } = renderWithI18n(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const scrollBody = container.querySelector('.left-rail-scroll-body')
+    const newThreadButton = screen.getByRole('button', { name: 'New thread' })
+    const repoFolder = screen.getByTitle('/repo')
+
+    expect(scrollBody).not.toBeNull()
+    expect(newThreadButton.closest('.left-rail-scroll-body')).toBeNull()
+    expect(repoFolder.closest('.left-rail-scroll-body')).toBe(scrollBody)
+    expect(screen.queryByText('Threads')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add project' })).not.toBeInTheDocument()
+  })
+
+  it('marks folder contents with the sidebar collapse animation class', () => {
+    const { container } = renderWithI18n(
+      <LeftRail
+        threads={threads}
+        selectedCwd="/repo"
+        onSelectCwd={() => undefined}
+        activeThreadId={threads[0].id}
+        onSelectThread={() => undefined}
+        onEnterNewThreadDraft={() => undefined}
+        onEnterNewThreadDraftInCwd={() => undefined}
+        hiddenGroupCwds={[]}
+        onHideThreadGroup={() => undefined}
+      />,
+    )
+
+    const folderContent = container.querySelector('[data-slot="collapsible-content"]')
+    expect(folderContent).not.toBeNull()
+    expect(folderContent).toHaveClass('ui-sidebar-folder-content')
+    expect(folderContent?.querySelector('.ui-sidebar-folder-content-inner')).not.toBeNull()
   })
 
   it('supports thread action menu for rename/copy', async () => {
@@ -220,55 +262,6 @@ describe('LeftRail', () => {
     expect(quickActionButton).toBeDisabled()
     fireEvent.click(quickActionButton)
     expect(onEnterNewThreadDraftInCwd).not.toHaveBeenCalled()
-  })
-
-  it('shows desktop-only tooltip for add project action when folder picker is unavailable', async () => {
-    renderWithI18n(
-      <LeftRail
-        threads={threads}
-        selectedCwd="/repo"
-        onSelectCwd={() => undefined}
-        activeThreadId={threads[0].id}
-        onSelectThread={() => undefined}
-        onEnterNewThreadDraft={() => undefined}
-        onEnterNewThreadDraftInCwd={() => undefined}
-        hiddenGroupCwds={[]}
-        onHideThreadGroup={() => undefined}
-      />,
-    )
-
-    const addProjectButton = screen.getByRole('button', { name: 'Add project' })
-    expect(addProjectButton).toBeInTheDocument()
-
-    fireEvent.pointerMove(addProjectButton)
-    fireEvent.mouseEnter(addProjectButton)
-    const tooltip = await screen.findByRole('tooltip')
-    expect(tooltip).toHaveTextContent('Desktop client only')
-  })
-
-  it('runs add project action when folder picker is available', async () => {
-    const onCreateProject = vi.fn(async () => undefined)
-
-    renderWithI18n(
-      <LeftRail
-        threads={threads}
-        selectedCwd="/repo"
-        onSelectCwd={() => undefined}
-        activeThreadId={threads[0].id}
-        onSelectThread={() => undefined}
-        onEnterNewThreadDraft={() => undefined}
-        onEnterNewThreadDraftInCwd={() => undefined}
-        hiddenGroupCwds={[]}
-        onHideThreadGroup={() => undefined}
-        onCreateProject={onCreateProject}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
-    await waitFor(() => {
-      expect(onCreateProject).toHaveBeenCalledTimes(1)
-    })
-    expect(screen.queryByText('仅桌面客户端可用')).not.toBeInTheDocument()
   })
 
   it('marks a folder as removed from folder actions menu', async () => {

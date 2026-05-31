@@ -1,5 +1,5 @@
 import { forwardRef, memo, useState, type ComponentPropsWithoutRef } from 'react'
-import { ChevronDown, Folder, FolderOpen, MoreHorizontal, SquarePen } from 'lucide-react'
+import { Folder, FolderOpen, MoreHorizontal, SquarePen } from 'lucide-react'
 
 import { useI18n } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { RailActionIconButton } from './RailActionIconButton'
@@ -62,28 +61,30 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
         kind="row"
         tone="inherit"
         hoverable={false}
-        className="group/folder ui-sidebar-folder-row h-8 min-w-0 px-3 gap-2 transition-colors"
+        className="group/folder ui-sidebar-folder-row transition-colors"
         leading={(
-          <span className="relative h-3.5 w-3.5 shrink-0">
-            <ChevronDown className="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover/folder:opacity-70" />
+          <span className="ui-sidebar-folder-icon-slot">
             {isExpanded ? (
-              <FolderOpen className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
+              <FolderOpen className="transition-opacity" />
             ) : (
-              <Folder className="absolute inset-0 h-3.5 w-3.5 opacity-60 transition-opacity group-hover/folder:opacity-0" />
+              <Folder className="transition-opacity group-hover/folder:opacity-0" />
             )}
+            {!isExpanded ? (
+              <FolderOpen className="opacity-0 transition-opacity group-hover/folder:opacity-100" />
+            ) : null}
           </span>
         )}
         label={folderName}
         title={cwd}
         onActivate={() => onSelectCwd(cwd)}
         trailing={(
-          <div className="pointer-events-none mr-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/folder:opacity-100 group-focus-within/folder:opacity-100">
+          <div className="pointer-events-none absolute right-[var(--sidebar-action-icon-slot-right)] top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/folder:opacity-100 group-focus-within/folder:opacity-100">
             <DropdownMenu open={isActionsMenuOpen} onOpenChange={setIsActionsMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <RailActionIconButton
                   type="button"
                   aria-label={t('leftRail.folderActions', { folder: folderName })}
-                  className="pointer-events-auto text-muted-foreground/90 hover:bg-transparent hover:text-muted-foreground/90 dark:hover:bg-transparent"
+                  className="pointer-events-auto hover:bg-transparent dark:hover:bg-transparent"
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
@@ -98,11 +99,12 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                     event.stopPropagation()
                   }}
                 >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  <MoreHorizontal />
                 </RailActionIconButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" side="right" align="start" sideOffset={6}>
+              <DropdownMenuContent className="max-w-[170px]" side="left" align="start" sideOffset={6}>
                 <DropdownMenuItem
+                  className="ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base ui-sidebar-text-secondary"
                   disabled={!onOpenFolderInTarget}
                   onSelect={(event) => {
                     event.preventDefault()
@@ -112,11 +114,14 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
                 >
                   {resolvedOpenFolderActionLabel}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>{t('leftRail.createPermanentWorktree')}</DropdownMenuItem>
-                <DropdownMenuItem disabled>{t('leftRail.editName')}</DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <DropdownMenuItem className="ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base ui-sidebar-text-secondary" disabled>
+                  {t('leftRail.createPermanentWorktree')}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base ui-sidebar-text-secondary" disabled>
+                  {t('leftRail.editName')}
+                </DropdownMenuItem>
                 <DropdownMenuItem
+                  className="ui-sidebar-item ui-sidebar-item-menu ui-sidebar-menu-item ui-text-base ui-sidebar-text-secondary"
                   disabled={!canRemoveGroup}
                   onSelect={(event) => {
                     event.preventDefault()
@@ -133,13 +138,13 @@ const FolderHeaderRow = forwardRef<HTMLDivElement, FolderHeaderRowProps>(functio
               aria-label={t('leftRail.startNewThreadInFolder', { folder: folderName })}
               title={t('leftRail.startNewThreadInFolder', { folder: folderName })}
               disabled={isBusy}
-              className="pointer-events-auto text-muted-foreground/90 hover:bg-transparent hover:text-muted-foreground/90 dark:hover:bg-transparent"
+              className="pointer-events-auto hover:bg-transparent dark:hover:bg-transparent"
               onClick={(event) => {
                 suppressFolderAction(event)
                 onStartThreadInFolder(cwd)
               }}
             >
-              <SquarePen className="h-3.5 w-3.5" />
+              <SquarePen />
             </RailActionIconButton>
           </div>
         )}
