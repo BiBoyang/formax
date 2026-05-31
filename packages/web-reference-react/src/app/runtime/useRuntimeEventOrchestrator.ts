@@ -1,5 +1,11 @@
 import { useCallback, useMemo, useRef } from 'react'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, RpcNotification } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  RpcNotification,
+  SessionMemoryRestoreSummary,
+} from '../../types'
 import {
   createInitialThreadRuntimeState,
   isReplMode,
@@ -62,6 +68,7 @@ export type UseRuntimeEventOrchestratorArgs = {
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
   durableSnipByThreadIdRef: { current: Record<string, DurableSnipSummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
+  pendingSessionMemoryRestoreByThreadIdRef?: { current: Record<string, SessionMemoryRestoreSummary | null> }
   setLatestCompactBoundaryByThreadId: (
     updater: (prev: Record<string, CompactBoundarySummary | null>) => Record<string, CompactBoundarySummary | null>,
   ) => void
@@ -70,6 +77,11 @@ export type UseRuntimeEventOrchestratorArgs = {
   ) => void
   setDurableSnipByThreadId: (
     updater: (prev: Record<string, DurableSnipSummary | null>) => Record<string, DurableSnipSummary | null>,
+  ) => void
+  setPendingSessionMemoryRestoreByThreadId?: (
+    updater: (
+      prev: Record<string, SessionMemoryRestoreSummary | null>,
+    ) => Record<string, SessionMemoryRestoreSummary | null>,
   ) => void
   setThreadTranscriptSource: ReplayThreadEventsContext['setThreadTranscriptSource']
   clearThreadHistoryCursor: ReplayThreadEventsContext['clearThreadHistoryCursor']
@@ -112,9 +124,11 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     latestCompactBoundaryByThreadIdRef,
     durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
+    pendingSessionMemoryRestoreByThreadIdRef = { current: {} },
     setLatestCompactBoundaryByThreadId,
     setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
+    setPendingSessionMemoryRestoreByThreadId = () => {},
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,
@@ -219,6 +233,20 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     [durableSnipByThreadIdRef, setDurableSnipByThreadId],
   )
 
+  const cachePendingSessionMemoryRestore = useCallback(
+    (threadId: string, restore: SessionMemoryRestoreSummary | null | undefined): void => {
+      if (restore === undefined) return
+      if (pendingSessionMemoryRestoreByThreadIdRef.current[threadId] === restore) return
+      pendingSessionMemoryRestoreByThreadIdRef.current = withRecordValue(
+        pendingSessionMemoryRestoreByThreadIdRef.current,
+        threadId,
+        restore,
+      )
+      setPendingSessionMemoryRestoreByThreadId((prev) => withRecordValue(prev, threadId, restore))
+    },
+    [pendingSessionMemoryRestoreByThreadIdRef, setPendingSessionMemoryRestoreByThreadId],
+  )
+
   const cacheLiveCompactBoundary = useCallback(
     (input: { threadId: string; turnId: string; boundary: CompactBoundarySummary }): void => {
       const existing = liveCompactBoundaryByThreadRef.current[input.threadId]
@@ -300,8 +328,8 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     ],
   )
 
-  const handleNotification = useCallback(
-    (notification: RpcNotification) => {
+  const processRuntimeNotification = useCallback(
+    (notification: RpcNotification, acceptSequencedNotification: ProcessNotificationContext['shouldProcessSequencedNotification']) => {
       withDevPerformanceSync({
         enabled: devPerfEnabled,
         label: `web-ref:notification:${notification.method}`,
@@ -312,7 +340,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
             activeThreadIdRef,
             commandByTurnRef,
             createInitialThreadRuntimeState,
-            shouldProcessSequencedNotification,
+            shouldProcessSequencedNotification: acceptSequencedNotification,
             dispatch,
             setMode,
             cacheThreadMode,
@@ -352,8 +380,21 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       setAskPageIndexByInputId,
       setMode,
       setSubmitStatusByInputId,
-      shouldProcessSequencedNotification,
     ],
+  )
+
+  const handleNotification = useCallback(
+    (notification: RpcNotification) => {
+      processRuntimeNotification(notification, shouldProcessSequencedNotification)
+    },
+    [processRuntimeNotification, shouldProcessSequencedNotification],
+  )
+
+  const handleReplayNotification = useCallback(
+    (notification: RpcNotification) => {
+      processRuntimeNotification(notification, () => true)
+    },
+    [processRuntimeNotification],
   )
 
   const replayThreadEvents = useCallback(
@@ -372,6 +413,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         cacheLatestCompactBoundary,
         cacheDurableSnip,
         cacheLatestRequestCollapse,
+        cachePendingSessionMemoryRestore,
         dispatch,
         setMode,
         cacheThreadMode,
@@ -379,7 +421,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         clearThreadHistoryCursor,
         syncPendingInputsFromReplayState,
         loadThreadHistory,
-        handleNotification,
+        handleNotification: handleReplayNotification,
         log,
       })
     },
@@ -390,17 +432,21 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       cacheLatestCompactBoundary,
       cacheDurableSnip,
       cacheLatestRequestCollapse,
+      cachePendingSessionMemoryRestore,
       dispatch,
+      handleReplayNotification,
       handleNotification,
       loadThreadHistory,
       latestCompactBoundaryByThreadIdRef,
       log,
       logsByThreadIdRef,
+      pendingSessionMemoryRestoreByThreadIdRef,
       replayAnomalyCountSeenByThreadRef,
       replayCursorByThreadRef,
       request,
       runtimeStateByThreadRef,
       setLatestCompactBoundaryByThreadId,
+      setPendingSessionMemoryRestoreByThreadId,
       setMode,
       setThreadTranscriptSource,
       stateLogsRef,

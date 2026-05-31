@@ -441,6 +441,17 @@ function parseSessionMemoryRestoreSummary(value: unknown): SessionMemoryRestoreS
   }
 }
 
+function parseOptionalNullableSessionMemoryRestoreSummary(
+  record: Record<string, unknown>,
+  key: string,
+): { present: boolean; value: SessionMemoryRestoreSummary | null } {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) return { present: false, value: null }
+  const value = record[key]
+  if (value === null) return { present: true, value: null }
+  const parsed = parseSessionMemoryRestoreSummary(value)
+  return parsed ? { present: true, value: parsed } : { present: false, value: null }
+}
+
 export function asThreadReplay(value: unknown): {
   data: ReplayNotification[]
   nextCursor: number
@@ -471,12 +482,10 @@ export function asThreadReplay(value: unknown): {
   const latestCursor =
     typeof record.latestCursor === 'number' && Number.isFinite(record.latestCursor) ? record.latestCursor : nextCursor
   const hasGap = Boolean(record.hasGap)
-  const pendingSessionMemoryRestore =
-    record.pendingSessionMemoryRestore === undefined
-      ? undefined
-      : record.pendingSessionMemoryRestore === null
-        ? null
-        : parseSessionMemoryRestoreSummary(record.pendingSessionMemoryRestore)
+  const pendingSessionMemoryRestore = parseOptionalNullableSessionMemoryRestoreSummary(
+    record,
+    'pendingSessionMemoryRestore',
+  )
   const rawState = record.state
   let state: ReplayStateSnapshot | null = null
   if (rawState && typeof rawState === 'object') {
@@ -572,8 +581,8 @@ export function asThreadReplay(value: unknown): {
     latestCursor,
     hasGap,
     state,
-    ...(record.pendingSessionMemoryRestore !== undefined
-      ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore ?? null }
+    ...(pendingSessionMemoryRestore.present
+      ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore.value }
       : {}),
   }
 }

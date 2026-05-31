@@ -10,7 +10,13 @@ import { areCompactBoundarySummariesEqual, mergeCompactBoundarySummaryForCache }
 import { areRequestCollapseSummariesEqual } from '../core/requestCollapseSummary'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import { withRecordValue, withoutRecordKey, type ThreadCompressionProjectionFacts } from '../core/threadCache'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, TranscriptItem } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+  TranscriptItem,
+} from '../../types'
 import type { AppAction } from '../../store'
 
 export type ThreadDataOpsContext = {
@@ -26,6 +32,7 @@ export type ThreadDataOpsContext = {
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
   durableSnipByThreadIdRef: { current: Record<string, DurableSnipSummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
+  pendingSessionMemoryRestoreByThreadIdRef: { current: Record<string, SessionMemoryRestoreSummary | null> }
   logsByThreadIdRef: { current: Record<string, TranscriptItem[]> }
   stateLogsRef: { current: TranscriptItem[] }
   seenStaleInputIdRef: { current: Set<string> }
@@ -58,6 +65,11 @@ export type ThreadDataOpsContext = {
     updater: (
       prev: Record<string, DurableSnipSummary | null>,
     ) => Record<string, DurableSnipSummary | null>,
+  ) => void
+  setPendingSessionMemoryRestoreByThreadId: (
+    updater: (
+      prev: Record<string, SessionMemoryRestoreSummary | null>,
+    ) => Record<string, SessionMemoryRestoreSummary | null>,
   ) => void
   setLogsByThreadId: (
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
@@ -163,6 +175,27 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
     setThreadLatestCompactBoundary(threadId, facts.latestCompactBoundary)
     setThreadDurableSnip(threadId, facts.durableSnip)
     setThreadLatestRequestCollapse(threadId, facts.latestRequestCollapse)
+    setThreadPendingSessionMemoryRestore(threadId, facts.pendingSessionMemoryRestore)
+  }
+
+  const setThreadPendingSessionMemoryRestore = (
+    threadId: string,
+    pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null | undefined,
+  ) => {
+    if (pendingSessionMemoryRestore === undefined) {
+      return
+    }
+    if (
+      ctx.pendingSessionMemoryRestoreByThreadIdRef.current[threadId] === pendingSessionMemoryRestore
+    ) {
+      return
+    }
+    ctx.pendingSessionMemoryRestoreByThreadIdRef.current = withRecordValue(
+      ctx.pendingSessionMemoryRestoreByThreadIdRef.current,
+      threadId,
+      pendingSessionMemoryRestore,
+    )
+    ctx.setPendingSessionMemoryRestoreByThreadId((prev) => withRecordValue(prev, threadId, pendingSessionMemoryRestore))
   }
 
   const refreshContextMeterSnapshot = async (threadId: string) => {

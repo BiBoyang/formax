@@ -125,6 +125,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     cacheLatestCompactBoundary: vi.fn(),
     cacheDurableSnip: vi.fn(),
     cacheLatestRequestCollapse: vi.fn(),
+    cachePendingSessionMemoryRestore: vi.fn(),
     dispatch: vi.fn(),
     setMode: vi.fn(),
     cacheThreadMode: vi.fn(),
@@ -460,6 +461,27 @@ describe('resolveReplayCursorProgress', () => {
 })
 
 describe('replayThreadEvents', () => {
+  it('uses the target thread replay cursor instead of another thread live cursor', async () => {
+    const request = createReplayPagesRequest(
+      createReplayPage({
+        data: [createReplayTurnEvent(5)],
+        nextCursor: 5,
+        latestCursor: 5,
+      }),
+    )
+    const ctx = createReplayContext({
+      request,
+      replayCursorByThreadRef: { current: { 'thread-other': 100, [TEST_THREAD_ID]: 0 } },
+    })
+
+    const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+    expect(ok).toBe(true)
+    expectReplayPageRequestArgs({ request, nth: 1, afterCursor: 0 })
+    expectReplayCursor(ctx, 5)
+    expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+  })
+
   it('[rebuild] uses replay-first rebuild on hasGap and clears cached logs', async () => {
     const gapState = createReplayState()
     const request = createReplayPagesRequest(

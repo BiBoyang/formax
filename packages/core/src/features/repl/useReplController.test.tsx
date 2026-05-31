@@ -110,9 +110,10 @@ describe('useReplController targeted branch coverage', () => {
       }),
     } as any
     let controller!: ReturnType<typeof useReplController>
+    let rendered: ReturnType<typeof render> | null = null
 
     try {
-      renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
+      rendered = renderTracked(<Harness engine={engine} onController={(c) => (controller = c)} />)
       await waitFor(() => Boolean(controller))
       await controller.actions.send('hello')
       await waitFor(() => controller.state.isLoading === false)
@@ -124,6 +125,10 @@ describe('useReplController targeted branch coverage', () => {
     } finally {
       markSpy.mockRestore()
       persistSpy.mockRestore()
+      if (rendered) {
+        unmountTracked(rendered)
+        await tick(20)
+      }
       await fsp.rm(tempConfigDir, { recursive: true, force: true })
     }
   })
@@ -193,7 +198,7 @@ describe('useReplController targeted branch coverage', () => {
 
     await controller.actions.renameSession('/tmp/s.jsonl', 'renamed')
     expect(writerOpenSpy).toHaveBeenCalledWith({ filePath: '/tmp/s.jsonl' })
-    expect(appendEvent).toHaveBeenCalledWith('session_rename', { label: 'renamed' })
+    expect(appendEvent).toHaveBeenCalledWith('session_rename', { label: 'renamed', source: 'manual' })
     expect(shutdown).toHaveBeenCalled()
   })
 
@@ -247,6 +252,12 @@ function renderTracked(node: React.ReactElement): ReturnType<typeof render> {
   const rendered = render(node)
   unmountFns.push(rendered.unmount)
   return rendered
+}
+
+function unmountTracked(rendered: ReturnType<typeof render>): void {
+  const index = unmountFns.indexOf(rendered.unmount)
+  if (index >= 0) unmountFns.splice(index, 1)
+  rendered.unmount()
 }
 
 function tick(ms = 0): Promise<void> {

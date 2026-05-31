@@ -104,6 +104,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     latestCompactBoundaryByThreadId,
     durableSnipByThreadId,
     latestRequestCollapseByThreadId,
+    pendingSessionMemoryRestoreByThreadId,
     historyCursorByThreadId,
     historyLoadingByThreadId,
     transcriptSourceByThreadId,
@@ -128,6 +129,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setLatestCompactBoundaryByThreadId,
     setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
+    setPendingSessionMemoryRestoreByThreadId,
   } = useRuntimeViewState()
 
   // Refs 分组（130+ 行 → 6 行）
@@ -146,6 +148,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     latestCompactBoundaryByThreadId,
     durableSnipByThreadId,
     latestRequestCollapseByThreadId,
+    pendingSessionMemoryRestoreByThreadId,
   )
   const threadRuntimeRefs = useThreadRuntimeRefs()
 
@@ -153,7 +156,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const { clientRef, eventCursorRef, commandByTurnRef } = rpcRefs
   const { activeThreadIdRef, threadsRef, selectedCwdRef, selectedInputIdRef, stateLogsRef } = threadSnapshotRefs
   const { historyLoadTokenRef, historyLoadSeqByThreadRef, historyLoadingRef, historyCursorByThreadIdRef } = historyRefs
-  const { logsByThreadIdRef, transcriptSourceByThreadRef, latestCompactBoundaryByThreadIdRef, durableSnipByThreadIdRef, latestRequestCollapseByThreadIdRef } = threadCacheRefs
+  const {
+    logsByThreadIdRef,
+    transcriptSourceByThreadRef,
+    latestCompactBoundaryByThreadIdRef,
+    durableSnipByThreadIdRef,
+    latestRequestCollapseByThreadIdRef,
+    pendingSessionMemoryRestoreByThreadIdRef,
+  } = threadCacheRefs
   const { replayCursorByThreadRef, replayAnomalyCountSeenByThreadRef, runtimeStateByThreadRef } = threadRuntimeRefs
 
   // 其他 Refs（不在分组中）
@@ -309,6 +319,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         latestCompactBoundaryByThreadIdRef,
         durableSnipByThreadIdRef,
         latestRequestCollapseByThreadIdRef,
+        pendingSessionMemoryRestoreByThreadIdRef,
         logsByThreadIdRef,
         stateLogsRef,
         seenStaleInputIdRef,
@@ -318,6 +329,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setLatestCompactBoundaryByThreadId,
         setDurableSnipByThreadId,
         setLatestRequestCollapseByThreadId,
+        setPendingSessionMemoryRestoreByThreadId,
         setLogsByThreadId,
         setHiddenGroupCwds: setHiddenGroupCwdsStable,
       }),
@@ -383,9 +395,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     latestCompactBoundaryByThreadIdRef,
     durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
+    pendingSessionMemoryRestoreByThreadIdRef,
     setLatestCompactBoundaryByThreadId,
     setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
+    setPendingSessionMemoryRestoreByThreadId,
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,

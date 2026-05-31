@@ -8,7 +8,12 @@ import {
   withoutRecordKey,
 } from './threadCache'
 import { mergeCompactBoundarySummaryForCache } from './compactBoundarySummary'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+} from '../../types'
 
 const latestCompactBoundary: CompactBoundarySummary = {
   schemaVersion: 1,
@@ -33,6 +38,21 @@ const latestRequestCollapse: RequestCollapseSummary = {
   collapsedHeadMessageCount: 4,
   estimatedTokensSaved: 128,
   recapFingerprint: 'collapse-fp',
+}
+
+const pendingSessionMemoryRestore: SessionMemoryRestoreSummary = {
+  schemaVersion: 1,
+  mode: 'plan',
+  recentFiles: ['/repo/src/session.ts'],
+  recentUserPrompts: ['Recover plan context'],
+  recentSkills: [],
+  recentSubagentTypes: [],
+  recentDeferredToolNames: [],
+  recentTaskHints: [],
+  recentTaskContinuityHints: [],
+  planPath: null,
+  planExcerpt: null,
+  todoSummary: null,
 }
 
 function applyFactsForTest(
@@ -62,6 +82,13 @@ function applyFactsForTest(
       next,
       'latestRequestCollapseByThreadId',
       withRecordValue(next.latestRequestCollapseByThreadId, threadId, facts.latestRequestCollapse),
+    )
+  }
+  if (facts.pendingSessionMemoryRestore !== undefined) {
+    next = withThreadCacheSlice(
+      next,
+      'pendingSessionMemoryRestoreByThreadId',
+      withRecordValue(next.pendingSessionMemoryRestoreByThreadId, threadId, facts.pendingSessionMemoryRestore),
     )
   }
   return next
@@ -114,6 +141,7 @@ describe('threadCache helpers', () => {
       latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
       durableSnipByThreadId: { 'thread-1': durableSnip },
       latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      pendingSessionMemoryRestoreByThreadId: { 'thread-1': pendingSessionMemoryRestore },
     }
 
     const next = applyFactsForTest(cache, 'thread-1', {})
@@ -122,6 +150,7 @@ describe('threadCache helpers', () => {
     expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(latestCompactBoundary)
     expect(next.durableSnipByThreadId['thread-1']).toEqual(durableSnip)
     expect(next.latestRequestCollapseByThreadId['thread-1']).toEqual(latestRequestCollapse)
+    expect(next.pendingSessionMemoryRestoreByThreadId['thread-1']).toEqual(pendingSessionMemoryRestore)
   })
 
   it('ignores uncontracted compression facts when applying compression cache facts', () => {
@@ -130,6 +159,7 @@ describe('threadCache helpers', () => {
       latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
       durableSnipByThreadId: { 'thread-1': durableSnip },
       latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      pendingSessionMemoryRestoreByThreadId: { 'thread-1': pendingSessionMemoryRestore },
     }
 
     const next = applyFactsForTest(cache, 'thread-1', {
@@ -147,6 +177,7 @@ describe('threadCache helpers', () => {
     expect(next.latestCompactBoundaryByThreadId['thread-1']).toEqual(latestCompactBoundary)
     expect(next.durableSnipByThreadId['thread-1']).toEqual(durableSnip)
     expect(next.latestRequestCollapseByThreadId['thread-1']).toEqual(latestRequestCollapse)
+    expect(next.pendingSessionMemoryRestoreByThreadId['thread-1']).toEqual(pendingSessionMemoryRestore)
     expect(Object.prototype.hasOwnProperty.call(next, 'durableToolResultContentReplacementByThreadId')).toBe(false)
     expect(Object.prototype.hasOwnProperty.call(next, 'latestReactiveCompactByThreadId')).toBe(false)
   })
@@ -157,17 +188,28 @@ describe('threadCache helpers', () => {
       latestCompactBoundaryByThreadId: { 'thread-1': latestCompactBoundary },
       durableSnipByThreadId: { 'thread-1': durableSnip },
       latestRequestCollapseByThreadId: { 'thread-1': latestRequestCollapse },
+      pendingSessionMemoryRestoreByThreadId: { 'thread-1': pendingSessionMemoryRestore },
     }
 
     const next = applyFactsForTest(cache, 'thread-1', {
       latestCompactBoundary: null,
       durableSnip: null,
       latestRequestCollapse: null,
+      pendingSessionMemoryRestore: null,
     })
 
     expect(next.latestCompactBoundaryByThreadId['thread-1']).toBeNull()
     expect(next.durableSnipByThreadId['thread-1']).toBeNull()
     expect(next.latestRequestCollapseByThreadId['thread-1']).toBeNull()
+    expect(next.pendingSessionMemoryRestoreByThreadId['thread-1']).toBeNull()
+  })
+
+  it('sets cached pending restore facts from valid object payloads', () => {
+    const next = applyFactsForTest(INITIAL_THREAD_CACHE_STATE, 'thread-1', {
+      pendingSessionMemoryRestore,
+    })
+
+    expect(next.pendingSessionMemoryRestoreByThreadId['thread-1']).toEqual(pendingSessionMemoryRestore)
   })
 
   it('keeps nested preservedSegment facts when a later same-boundary payload omits optional details', () => {

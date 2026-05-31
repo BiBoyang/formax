@@ -953,7 +953,7 @@ function parseOptionalNullableSessionMemoryRestoreField(
   const value = record[key]
   if (value === null) return { present: true, value: null }
   const parsed = parseSessionMemoryRestoreSummary(value)
-  return parsed ? { present: true, value: parsed } : null
+  return parsed ? { present: true, value: parsed } : { present: false, value: null }
 }
 
 function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {

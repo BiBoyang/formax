@@ -29,6 +29,31 @@ describe('toolResultContentToText', () => {
     expect(text).toContain('Bash: Execute shell command')
     expect(text).toContain('"foo":"bar"')
   })
+
+  it('reads legacy name-only tool_reference blocks', () => {
+    expect(
+      toolResultContentToText([
+        {
+          type: 'tool_reference',
+          name: 'Read',
+          description: 'Read files',
+        },
+      ] as any),
+    ).toBe('Read: Read files')
+  })
+
+  it('prefers tool_name when tool_reference fields conflict', () => {
+    expect(
+      toolResultContentToText([
+        {
+          type: 'tool_reference',
+          tool_name: 'Write',
+          name: 'Read',
+          description: 'Write files',
+        },
+      ] as any),
+    ).toBe('Write: Write files')
+  })
 })
 
 describe('toToolReferenceBlock', () => {
@@ -43,7 +68,6 @@ describe('toToolReferenceBlock', () => {
     ).toEqual({
       type: 'tool_reference',
       tool_name: 'Read',
-      name: 'Read',
       description: 'Read file',
       input_schema: { type: 'object' },
       defer_loading: true,

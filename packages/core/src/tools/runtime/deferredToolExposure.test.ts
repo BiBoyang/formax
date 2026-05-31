@@ -45,7 +45,8 @@ describe('DeferredToolExposureStore', () => {
     expect(Array.isArray(result.content)).toBe(true)
     if (Array.isArray(result.content)) {
       const refs = result.content.filter((block: any) => block?.type === 'tool_reference')
-      expect(refs.map((block: any) => block.tool_name || block.name)).toEqual(['Read', 'Bash'])
+      expect(refs.map((block: any) => block.tool_name)).toEqual(['Read', 'Bash'])
+      expect(refs.every((block: any) => !('name' in block))).toBe(true)
       expect(refs.every((block: any) => block.defer_loading === true)).toBe(true)
     }
     expect(store.resolveToolsForModel(sessionKey).map((tool) => tool.name)).toEqual([

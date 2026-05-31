@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompactBoundarySummary } from '../../types'
 import { useRuntimeEventOrchestrator } from './useRuntimeEventOrchestrator'
+import { createReplayTurnEventEnvelope } from './testFixtures/replayFixtures'
 
 function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): CompactBoundarySummary {
   return {
@@ -14,6 +15,85 @@ function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): Compac
 }
 
 describe('useRuntimeEventOrchestrator', () => {
+  it('hydrates replay entries without consulting the live notification sequencer', async () => {
+    const shouldProcessSequencedNotification = vi.fn(() => false)
+    const dispatch = vi.fn()
+    const replayCursorByThreadRef = { current: { 'thread-1': 100 } }
+    const replayEntry = createReplayTurnEventEnvelope({
+      replaySeq: 5,
+      eventId: 'replay-5',
+      event: { type: 'assistant_delta', text: 'from replay' },
+    })
+    const request = vi.fn(async () => ({
+      data: [{ replaySeq: 5, method: 'turn/event', params: replayEntry }],
+      nextCursor: 5,
+      latestCursor: 5,
+      hasGap: false,
+      state: null,
+    }))
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request,
+        dispatch,
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification,
+        runtimeStateByThreadRef: { current: {} },
+        replayCursorByThreadRef,
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef: { current: {} },
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId: vi.fn(),
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+
+    expect(shouldProcessSequencedNotification).not.toHaveBeenCalled()
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'apply_canonical_event',
+        event: expect.objectContaining({
+          kind: 'assistant_delta',
+          replaySeq: 5,
+          textDelta: 'from replay',
+        }),
+      }),
+    )
+    expect(replayCursorByThreadRef.current['thread-1']).toBe(5)
+  })
+
   it('rolls back pending live compact boundary cache when the same turn fails', () => {
     const previousBoundary = createBoundary({ trigger: 'manual', preTokens: 1024, summaryKind: 'model_summary' })
     const liveBoundary = createBoundary({

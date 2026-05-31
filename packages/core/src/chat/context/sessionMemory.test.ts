@@ -235,13 +235,11 @@ describe('buildSessionMemoryDraft', () => {
           {
             type: 'tool_reference',
             tool_name: 'Bash',
-            name: 'Bash',
             description: 'Run shell commands',
           },
           {
             type: 'tool_reference',
             tool_name: 'Read',
-            name: 'Read',
             description: 'Read files',
           },
         ] as any),
@@ -306,6 +304,7 @@ describe('buildSessionMemoryDraft', () => {
         toolResult('search-structured', [
           { type: 'tool_reference', tool_name: 'Bash', description: 'Run commands' },
           { type: 'tool_reference', name: 'Read', description: 'Read files via legacy name alias' },
+          { type: 'tool_reference', tool_name: 'Write', name: 'Edit', description: 'Prefer canonical name' },
           { type: 'tool_reference', tool_name: '   ', name: '   ' },
           {
             type: 'text',
@@ -328,7 +327,7 @@ describe('buildSessionMemoryDraft', () => {
       resolveRealPath: (value) => value,
     })
 
-    expect(out.activeTask.recentDeferredToolNames).toEqual(['Bash', 'Read'])
+    expect(out.activeTask.recentDeferredToolNames).toEqual(['Bash', 'Read', 'Write'])
     expect(out.activeTask.recentTaskHints).toEqual(['Code: resume parser (resume task-123)'])
     expect(out.activeTask.recentTaskContinuityHints).toEqual([
       {

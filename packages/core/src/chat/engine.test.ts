@@ -581,11 +581,9 @@ describe('ChatEngine', () => {
       (block: any) => block?.type === 'tool_result' && block?.tool_use_id === 'tool-search-1',
     ) as any
     expect(Array.isArray(toolResultBlock?.content)).toBe(true)
-    expect(
-      (toolResultBlock?.content as any[]).some(
-        (block) => block?.type === 'tool_reference' && (block?.tool_name === 'Bash' || block?.name === 'Bash'),
-      ),
-    ).toBe(true)
+    const refs = (toolResultBlock?.content as any[]).filter((block) => block?.type === 'tool_reference')
+    expect(refs.some((block) => block?.tool_name === 'Bash')).toBe(true)
+    expect(refs.every((block) => !('name' in block))).toBe(true)
   })
 
   it('soft-fallback executes direct deferred tool call without explicit ToolSearch call', async () => {

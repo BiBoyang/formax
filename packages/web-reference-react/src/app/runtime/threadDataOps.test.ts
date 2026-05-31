@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createThreadDataOps, type ThreadDataOpsContext } from './threadDataOps'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+} from '../../types'
 
 vi.mock('../../eventAdapters', () => ({
   mapThreadHistoryToCanonicalLogs: vi.fn(() => [{ id: 'mapped-log', kind: 'message', role: 'assistant', text: 'ok' }]),
@@ -27,6 +32,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
   let latestCompactBoundaryByThread: Record<string, CompactBoundarySummary | null> = {}
   let durableSnipByThread: Record<string, DurableSnipSummary | null> = {}
   let latestRequestCollapseByThread: Record<string, RequestCollapseSummary | null> = {}
+  let pendingSessionMemoryRestoreByThread: Record<string, SessionMemoryRestoreSummary | null> = {}
   let logsByThread: Record<string, any[]> = {}
   const historyCursorByThreadIdRef = { current: {} as Record<string, string | null> }
   const logsByThreadIdRef = { current: {} as Record<string, any[]> }
@@ -38,6 +44,9 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
   }
   const latestRequestCollapseByThreadIdRef = {
     current: {} as Record<string, RequestCollapseSummary | null>,
+  }
+  const pendingSessionMemoryRestoreByThreadIdRef = {
+    current: {} as Record<string, SessionMemoryRestoreSummary | null>,
   }
 
   return {
@@ -53,6 +62,7 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
     latestCompactBoundaryByThreadIdRef,
     durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
+    pendingSessionMemoryRestoreByThreadIdRef,
     logsByThreadIdRef,
     stateLogsRef: { current: [] },
     seenStaleInputIdRef: { current: new Set<string>() },
@@ -83,6 +93,11 @@ function createBaseContext(overrides: Partial<ThreadDataOpsContext> = {}): Threa
       latestRequestCollapseByThread = updater(latestRequestCollapseByThread)
       latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThread
       return latestRequestCollapseByThread
+    }),
+    setPendingSessionMemoryRestoreByThreadId: vi.fn((updater) => {
+      pendingSessionMemoryRestoreByThread = updater(pendingSessionMemoryRestoreByThread)
+      pendingSessionMemoryRestoreByThreadIdRef.current = pendingSessionMemoryRestoreByThread
+      return pendingSessionMemoryRestoreByThread
     }),
     setLogsByThreadId: vi.fn((updater) => {
       logsByThread = updater(logsByThread)
@@ -530,7 +545,7 @@ describe('threadDataOps', () => {
         triggerKind: 'maximum_context_length',
         strategy: 'model_summary',
       },
-    })
+    } as any)
     const ops = createThreadDataOps(ctx)
 
     await expect(ops.loadThreadHistory('thread-1')).resolves.toBe(true)
@@ -638,6 +653,72 @@ describe('threadDataOps', () => {
     expect(ctx.latestCompactBoundaryByThreadIdRef.current['thread-1']).toEqual(latestCompactBoundary)
     expect(ctx.setLatestRequestCollapseByThreadId).toHaveBeenCalled()
     expect(ctx.latestRequestCollapseByThreadIdRef.current['thread-1']).toEqual(latestRequestCollapse)
+  })
+
+  it('applies pending restore cache only for explicit null or valid object', async () => {
+    const pendingRestore: SessionMemoryRestoreSummary = {
+      schemaVersion: 1,
+      mode: 'plan',
+      recentFiles: ['/repo/src/session.ts'],
+      recentUserPrompts: ['Recover plan context'],
+      recentSkills: [],
+      recentSubagentTypes: [],
+      recentDeferredToolNames: [],
+      recentTaskHints: [],
+      recentTaskContinuityHints: [],
+      planPath: null,
+      planExcerpt: null,
+      todoSummary: null,
+    }
+    const existingRestore: SessionMemoryRestoreSummary = {
+      ...pendingRestore,
+      recentUserPrompts: ['Existing cached restore'],
+    }
+    const ctx = createBaseContext({
+      request: vi.fn().mockResolvedValue({}),
+    })
+    ctx.pendingSessionMemoryRestoreByThreadIdRef.current = { 'thread-1': existingRestore }
+    const { parseThreadResumeResponse } = await import('../core/rpcContracts')
+    const ops = createThreadDataOps(ctx)
+
+    vi.mocked(parseThreadResumeResponse).mockReturnValueOnce({
+      thread: {
+        id: 'thread-1',
+        cwd: '/tmp',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      staleInputs: [],
+    })
+    await ops.resumeThreadInputs('thread-1')
+    expect(ctx.pendingSessionMemoryRestoreByThreadIdRef.current['thread-1']).toEqual(existingRestore)
+    expect(ctx.setPendingSessionMemoryRestoreByThreadId).not.toHaveBeenCalled()
+
+    vi.mocked(parseThreadResumeResponse).mockReturnValueOnce({
+      thread: {
+        id: 'thread-1',
+        cwd: '/tmp',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      staleInputs: [],
+      pendingSessionMemoryRestore: null,
+    })
+    await ops.resumeThreadInputs('thread-1')
+    expect(ctx.pendingSessionMemoryRestoreByThreadIdRef.current['thread-1']).toBeNull()
+
+    vi.mocked(parseThreadResumeResponse).mockReturnValueOnce({
+      thread: {
+        id: 'thread-1',
+        cwd: '/tmp',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      staleInputs: [],
+      pendingSessionMemoryRestore: pendingRestore,
+    })
+    await ops.resumeThreadInputs('thread-1')
+    expect(ctx.pendingSessionMemoryRestoreByThreadIdRef.current['thread-1']).toEqual(pendingRestore)
   })
 
   it('refreshes context meter snapshot after thread resume when diagnostics raw data is available', async () => {

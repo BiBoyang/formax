@@ -1,6 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { CompactBoundarySummary, DurableSnipSummary, ThreadSummary, TranscriptItem } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  SessionMemoryRestoreSummary,
+  ThreadSummary,
+  TranscriptItem,
+} from '../../types'
 import { useThreadCacheRefs, useThreadSnapshotRefs } from './useRuntimeRefs'
 
 function createThread(id: string, cwd: string): ThreadSummary {
@@ -82,6 +88,7 @@ describe('useRuntimeRefs', () => {
       latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
       durableSnipByThreadId: Record<string, DurableSnipSummary | null>
       latestRequestCollapseByThreadId: Record<string, { phase: 'initial' | 'reactive_retry'; collapsedHeadMessageCount: number; estimatedTokensSaved: number } | null>
+      pendingSessionMemoryRestoreByThreadId: Record<string, SessionMemoryRestoreSummary | null>
     }
     const initialLogsByThread = {
       'thread-1': [createLog('log-1', 'first')],
@@ -95,6 +102,7 @@ describe('useRuntimeRefs', () => {
       latestCompactBoundaryByThreadId: { 'thread-1': null },
       durableSnipByThreadId: { 'thread-1': null },
       latestRequestCollapseByThreadId: { 'thread-1': null },
+      pendingSessionMemoryRestoreByThreadId: { 'thread-1': null },
     }
 
     const { result, rerender } = renderHook(
@@ -105,6 +113,7 @@ describe('useRuntimeRefs', () => {
           props.latestCompactBoundaryByThreadId,
           props.durableSnipByThreadId,
           props.latestRequestCollapseByThreadId,
+          props.pendingSessionMemoryRestoreByThreadId,
         ),
       {
         initialProps,
@@ -146,6 +155,22 @@ describe('useRuntimeRefs', () => {
           estimatedTokensSaved: 18,
         },
       },
+      pendingSessionMemoryRestoreByThreadId: {
+        'thread-2': {
+          schemaVersion: 1,
+          mode: 'plan',
+          recentFiles: ['/repo/src/session.ts'],
+          recentUserPrompts: ['Recover plan context'],
+          recentSkills: [],
+          recentSubagentTypes: [],
+          recentDeferredToolNames: [],
+          recentTaskHints: [],
+          recentTaskContinuityHints: [],
+          planPath: null,
+          planExcerpt: null,
+          todoSummary: null,
+        },
+      },
     }
 
     rerender(nextProps)
@@ -156,6 +181,7 @@ describe('useRuntimeRefs', () => {
       expect(result.current.latestCompactBoundaryByThreadIdRef.current).toBe(nextProps.latestCompactBoundaryByThreadId)
       expect(result.current.durableSnipByThreadIdRef.current).toBe(nextProps.durableSnipByThreadId)
       expect(result.current.latestRequestCollapseByThreadIdRef.current).toBe(nextProps.latestRequestCollapseByThreadId)
+      expect(result.current.pendingSessionMemoryRestoreByThreadIdRef.current).toBe(nextProps.pendingSessionMemoryRestoreByThreadId)
     })
   })
 })

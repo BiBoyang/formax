@@ -64,6 +64,7 @@
 - `docs/learnings/2026-05-30-structured-restore-continuity-hints.md`
 - `docs/learnings/2026-05-31-manual-compact-projection-boundary.md`
 - `docs/learnings/2026-05-31-reactive-compact-drainage.md`
+- `docs/learnings/2026-05-31-tool-reference-canonical-writer.md`
 - `docs/learnings/2026-05-31-tool-result-replacement-boundary.md`
 - `docs/learnings/2026-04-06-collapse-recap-contributor-kind.md`
 - `docs/learnings/2026-04-06-collapse-recap-metadata.md`
@@ -140,6 +141,8 @@
 - [2026-05-24 - Context window source / binding / runtime profile](./2026-05-24-context-window-source-binding-runtime-profile.md)
 - [2026-05-24 - Thread title lifecycle](./2026-05-24-thread-title-lifecycle.md)
 - [2026-05-31 - App-server reactive compact parity](./2026-05-31-app-server-reactive-compact-parity.md)
+- [2026-05-31 - Web pending restore presence](./2026-05-31-web-pending-restore-presence.md)
+- [2026-05-31 - Web replay visible gate](./2026-05-31-web-replay-visible-gate.md)
 
 ## Desktop / Setup
 

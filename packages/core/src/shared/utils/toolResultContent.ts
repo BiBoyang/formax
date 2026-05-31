@@ -58,7 +58,6 @@ export function toToolReferenceBlock(tool: ToolDefinition): ToolReferenceBlock {
   return {
     type: 'tool_reference',
     tool_name: tool.name,
-    name: tool.name,
     description: tool.description,
     input_schema: tool.input_schema,
     ...(tool.defer_loading === true ? { defer_loading: true } : {}),

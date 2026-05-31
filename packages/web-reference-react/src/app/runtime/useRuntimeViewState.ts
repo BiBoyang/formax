@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
 import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import type { ReplMode } from '../../semantics'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, TranscriptItem } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+  TranscriptItem,
+} from '../../types'
 import {
   INITIAL_THREAD_CACHE_STATE,
   withThreadCacheSlice,
@@ -43,6 +49,7 @@ export type RuntimeViewState = {
   latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>
   durableSnipByThreadId: Record<string, DurableSnipSummary | null>
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>
+  pendingSessionMemoryRestoreByThreadId: Record<string, SessionMemoryRestoreSummary | null>
   setDiffSnapshot: (value: DiffSnapshot | null) => void
   setHistoryLoadingByThreadId: (
     updater: (
@@ -91,6 +98,11 @@ export type RuntimeViewState = {
     updater: (
       prev: Record<string, DurableSnipSummary | null>,
     ) => Record<string, DurableSnipSummary | null>,
+  ) => void
+  setPendingSessionMemoryRestoreByThreadId: (
+    updater: (
+      prev: Record<string, SessionMemoryRestoreSummary | null>,
+    ) => Record<string, SessionMemoryRestoreSummary | null>,
   ) => void
 }
 
@@ -264,6 +276,23 @@ export function useRuntimeViewState(): RuntimeViewState {
     [],
   )
 
+  const setPendingSessionMemoryRestoreByThreadId = useCallback(
+    (
+      updater: (
+        prev: Record<string, SessionMemoryRestoreSummary | null>,
+      ) => Record<string, SessionMemoryRestoreSummary | null>,
+    ) => {
+      setThreadCache((prev) =>
+        withThreadCacheSlice(
+          prev,
+          'pendingSessionMemoryRestoreByThreadId',
+          updater(prev.pendingSessionMemoryRestoreByThreadId),
+        ),
+      )
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!noticeMessage) return
     const timer = window.setTimeout(() => {
@@ -293,6 +322,7 @@ export function useRuntimeViewState(): RuntimeViewState {
     latestCompactBoundaryByThreadId: threadCache.latestCompactBoundaryByThreadId,
     durableSnipByThreadId: threadCache.durableSnipByThreadId,
     latestRequestCollapseByThreadId: threadCache.latestRequestCollapseByThreadId,
+    pendingSessionMemoryRestoreByThreadId: threadCache.pendingSessionMemoryRestoreByThreadId,
     setDiffSnapshot,
     setHistoryLoadingByThreadId,
     setInputTextStable,
@@ -314,5 +344,6 @@ export function useRuntimeViewState(): RuntimeViewState {
     setLatestCompactBoundaryByThreadId,
     setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
+    setPendingSessionMemoryRestoreByThreadId,
   }
 }

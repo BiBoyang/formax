@@ -353,6 +353,38 @@ describe('rpcParsers', () => {
     })
   })
 
+  it('omits malformed pending restore summaries instead of converting them to explicit null', () => {
+    const parsed = asThreadReplay({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: 'not-an-array',
+        recentUserPrompts: ['Recover plan context'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+    })
+
+    expect(Object.prototype.hasOwnProperty.call(parsed, 'pendingSessionMemoryRestore')).toBe(false)
+  })
+
+  it('preserves explicit null pending restore summaries as authoritative clears', () => {
+    const parsed = asThreadReplay({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: null,
+    })
+
+    expect(parsed.pendingSessionMemoryRestore).toBeNull()
+  })
+
   it('parses additive v8 restore hints and drops malformed optional hint rows', () => {
     const parsed = asThreadReplay({
       data: [],

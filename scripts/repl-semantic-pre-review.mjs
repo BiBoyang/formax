@@ -1,4 +1,13 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+
+const targetedReplSemanticTests = [
+  'packages/core/src/features/repl/controller/canonical/canonicalTurnMessages.test.ts',
+  'packages/core/src/features/repl/controller/streaming/streaming.test.tsx',
+  'packages/core/src/features/repl/useReplController.test.tsx',
+]
+
+const canonicalAdapterContractTests = ['packages/core/src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts']
 
 const steps = [
   {
@@ -11,19 +20,13 @@ const steps = [
   },
   {
     label: 'targeted REPL semantic tests',
-    cmd: [
-      'bun',
-      'run',
-      'test',
-      '--',
-      'packages/core/src/features/repl/controller/canonicalTurnMessages.test.ts',
-      'packages/core/src/features/repl/controller/streaming.test.tsx',
-      'packages/core/src/features/repl/useReplController.test.tsx',
-    ],
+    requiredPaths: targetedReplSemanticTests,
+    cmd: ['bun', 'run', 'test', '--', ...targetedReplSemanticTests],
   },
   {
     label: 'canonical adapter contract fixture',
-    cmd: ['bun', 'run', 'test', '--', 'packages/core/src/features/semantics/adapters/canonicalEventAdapter.contract.test.ts'],
+    requiredPaths: canonicalAdapterContractTests,
+    cmd: ['bun', 'run', 'test', '--', ...canonicalAdapterContractTests],
   },
   {
     label: 'surface deterministic smoke',
@@ -34,6 +37,17 @@ const steps = [
     cmd: ['bun', 'run', 'type-check'],
   },
 ]
+
+const requiredPaths = [...new Set(steps.flatMap((step) => step.requiredPaths ?? []))]
+const missingPaths = requiredPaths.filter((path) => !existsSync(path))
+
+if (missingPaths.length > 0) {
+  process.stderr.write('\n[repl-semantic-gate] missing required path(s):\n')
+  for (const path of missingPaths) {
+    process.stderr.write(`- ${path}\n`)
+  }
+  process.exit(1)
+}
 
 for (const step of steps) {
   process.stdout.write(`\n[repl-semantic-gate] ${step.label}\n`)

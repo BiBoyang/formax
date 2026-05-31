@@ -8,7 +8,13 @@ import { useRef, useEffect } from 'react'
 import { createTurnEventCursorState } from '../../turnEventCursor'
 import type { RpcClient } from '../../rpcClient'
 import { SEEN_EVENT_CAP } from '../core/constants'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary, ThreadSummary } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+  ThreadSummary,
+} from '../../types'
 import type { TranscriptItem } from '../../types'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
 import type { ThreadRuntimeState } from '../../semantics'
@@ -126,6 +132,7 @@ export interface ThreadCacheRefs {
   latestCompactBoundaryByThreadIdRef: React.RefObject<Record<string, CompactBoundarySummary | null>>
   durableSnipByThreadIdRef: React.RefObject<Record<string, DurableSnipSummary | null>>
   latestRequestCollapseByThreadIdRef: React.RefObject<Record<string, RequestCollapseSummary | null>>
+  pendingSessionMemoryRestoreByThreadIdRef: React.RefObject<Record<string, SessionMemoryRestoreSummary | null>>
 }
 
 /**
@@ -139,12 +146,14 @@ export function useThreadCacheRefs(
   latestCompactBoundaryByThreadId: Record<string, CompactBoundarySummary | null>,
   durableSnipByThreadId: Record<string, DurableSnipSummary | null>,
   latestRequestCollapseByThreadId: Record<string, RequestCollapseSummary | null>,
+  pendingSessionMemoryRestoreByThreadId: Record<string, SessionMemoryRestoreSummary | null>,
 ): ThreadCacheRefs {
   const logsByThreadIdRef = useRef(logsByThreadId)
   const transcriptSourceByThreadRef = useRef(transcriptSourceByThreadId)
   const latestCompactBoundaryByThreadIdRef = useRef(latestCompactBoundaryByThreadId)
   const durableSnipByThreadIdRef = useRef(durableSnipByThreadId)
   const latestRequestCollapseByThreadIdRef = useRef(latestRequestCollapseByThreadId)
+  const pendingSessionMemoryRestoreByThreadIdRef = useRef(pendingSessionMemoryRestoreByThreadId)
 
   // Keep cache refs synchronized together to avoid redundant effect scheduling.
   useEffect(() => {
@@ -153,12 +162,14 @@ export function useThreadCacheRefs(
     latestCompactBoundaryByThreadIdRef.current = latestCompactBoundaryByThreadId
     durableSnipByThreadIdRef.current = durableSnipByThreadId
     latestRequestCollapseByThreadIdRef.current = latestRequestCollapseByThreadId
+    pendingSessionMemoryRestoreByThreadIdRef.current = pendingSessionMemoryRestoreByThreadId
   }, [
     logsByThreadId,
     transcriptSourceByThreadId,
     latestCompactBoundaryByThreadId,
     durableSnipByThreadId,
     latestRequestCollapseByThreadId,
+    pendingSessionMemoryRestoreByThreadId,
   ])
 
   return {
@@ -167,6 +178,7 @@ export function useThreadCacheRefs(
     latestCompactBoundaryByThreadIdRef,
     durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
+    pendingSessionMemoryRestoreByThreadIdRef,
   }
 }
 

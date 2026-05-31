@@ -3,7 +3,12 @@ import type { AppAction } from '../../store'
 import type { RpcThreadReplayResult } from '../core/rpcContracts'
 import type { ReplayStateSnapshot } from '../core/rpcParsers'
 import type { ThreadTranscriptSource } from '../core/replayMachine'
-import type { CompactBoundarySummary, DurableSnipSummary, RequestCollapseSummary } from '../../types'
+import type {
+  CompactBoundarySummary,
+  DurableSnipSummary,
+  RequestCollapseSummary,
+  SessionMemoryRestoreSummary,
+} from '../../types'
 import type { ThreadCompressionProjectionFacts } from '../core/threadCache'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
@@ -75,6 +80,10 @@ export type ReplayThreadEventsContext = {
   ) => void
   cacheDurableSnip: (threadId: string, durableSnip: DurableSnipSummary | null | undefined) => void
   cacheLatestRequestCollapse: (threadId: string, collapse: RequestCollapseSummary | null | undefined) => void
+  cachePendingSessionMemoryRestore: (
+    threadId: string,
+    pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null | undefined,
+  ) => void
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string, mode: ReplMode) => void
@@ -227,6 +236,7 @@ export async function replayThreadEvents(
     }
     ctx.cacheDurableSnip(threadId, facts.durableSnip)
     ctx.cacheLatestRequestCollapse(threadId, facts.latestRequestCollapse)
+    ctx.cachePendingSessionMemoryRestore(threadId, facts.pendingSessionMemoryRestore)
   }
 
   const handleHasGapReplay = async (replay: ReplayResult): Promise<void> => {

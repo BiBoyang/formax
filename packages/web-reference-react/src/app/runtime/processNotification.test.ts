@@ -190,6 +190,35 @@ describe('processNotification', () => {
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
   })
 
+  it('keeps draft/no-thread surfaces from receiving visible active-thread turn side effects', () => {
+    const ctx = createContext({ activeThreadIdRef: { current: null } })
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/started',
+      params: {
+        replaySeq: 9,
+        eventId: 'evt-9',
+        ts: '2026-05-23T00:00:02.000Z',
+        source: 'engine',
+        threadId: 'thread-bg',
+        turn: { id: 'turn-bg', threadId: 'thread-bg', mode: 'plan', status: 'running' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(ctx.runtimeStateByThreadRef.current['thread-bg']).toMatchObject({
+      threadId: 'thread-bg',
+      activeTurnId: 'turn-bg',
+      mode: 'plan',
+      lastReplaySeq: 9,
+    })
+    expect(ctx.replayCursorByThreadRef.current['thread-bg']).toBe(9)
+    expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-bg' })
+    expect(ctx.setMode).not.toHaveBeenCalled()
+  })
+
   it('skips canonical projection for turn notifications with missing envelope fields', () => {
     const ctx = createContext()
     const baseEnvelope = createReplayTurnEventEnvelope({

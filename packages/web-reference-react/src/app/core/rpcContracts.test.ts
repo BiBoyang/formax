@@ -1711,6 +1711,79 @@ describe('rpcContracts', () => {
     })
   })
 
+  it('omits malformed pending restore on thread/replay instead of converting it to null', () => {
+    const replay = parseThreadReplayResponse({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: 'bad',
+        recentUserPrompts: ['Recover plan context'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+    })
+
+    expect(Object.prototype.hasOwnProperty.call(replay, 'pendingSessionMemoryRestore')).toBe(false)
+  })
+
+  it('does not reject thread/resume when optional pending restore is malformed', () => {
+    const resume = parseThreadResumeResponse({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-05-12T00:00:00.000Z',
+        updatedAt: '2026-05-12T00:01:00.000Z',
+      },
+      staleInputs: [],
+      pendingSessionMemoryRestore: {
+        schemaVersion: 1,
+        mode: 'plan',
+        recentFiles: 'bad',
+        recentUserPrompts: ['Recover plan context'],
+        planPath: null,
+        planExcerpt: null,
+        todoSummary: null,
+      },
+    })
+
+    expect(resume).toEqual({
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        createdAt: '2026-05-12T00:00:00.000Z',
+        updatedAt: '2026-05-12T00:01:00.000Z',
+      },
+      staleInputs: [],
+    })
+  })
+
+  it('preserves explicit null pending restore on thread/resume and thread/replay', () => {
+    const thread = {
+      id: 'thread-1',
+      cwd: '/repo',
+      createdAt: '2026-05-12T00:00:00.000Z',
+      updatedAt: '2026-05-12T00:01:00.000Z',
+    }
+
+    expect(parseThreadReplayResponse({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      pendingSessionMemoryRestore: null,
+    }).pendingSessionMemoryRestore).toBeNull()
+    expect(parseThreadResumeResponse({
+      thread,
+      staleInputs: [],
+      pendingSessionMemoryRestore: null,
+    })?.pendingSessionMemoryRestore).toBeNull()
+  })
+
   it('parses thread/list and thread/messages payloads via shared parser contracts', () => {
     const threads = parseThreadListResponse({
       data: [{ id: 'thread-1', cwd: '/repo', createdAt: 'a', updatedAt: 'b', messageCount: 1, lastUserPrompt: null, label: null }],
