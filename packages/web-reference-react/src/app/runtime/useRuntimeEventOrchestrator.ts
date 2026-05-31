@@ -5,13 +5,16 @@ import type {
   RequestCollapseSummary,
   RpcNotification,
   SessionMemoryRestoreSummary,
+  TranscriptItem,
 } from '../../types'
 import {
   createInitialThreadRuntimeState,
+  extractThreadIdFromNotificationParams,
   isReplMode,
   reduceThreadRuntimeState,
 } from '../../semantics'
-import { parseThreadReplayResponse } from '../core/rpcContracts'
+import { mapThreadHistoryToCanonicalLogs } from '../../eventAdapters'
+import { parseThreadMessagesResponse, parseThreadReplayResponse } from '../core/rpcContracts'
 import { toRuntimePendingInputsById } from '../core/threadTransforms'
 import {
   processNotification,
@@ -66,6 +69,7 @@ export type UseRuntimeEventOrchestratorArgs = {
   logsByThreadIdRef: ReplayThreadEventsContext['logsByThreadIdRef']
   stateLogsRef: ReplayThreadEventsContext['stateLogsRef']
   transcriptSourceByThreadRef: ReplayThreadEventsContext['transcriptSourceByThreadRef']
+  historyCursorByThreadIdRef?: { current: Record<string, string | null> }
   latestCompactBoundaryByThreadIdRef: { current: Record<string, CompactBoundarySummary | null> }
   durableSnipByThreadIdRef: { current: Record<string, DurableSnipSummary | null> }
   latestRequestCollapseByThreadIdRef: { current: Record<string, RequestCollapseSummary | null> }
@@ -83,6 +87,12 @@ export type UseRuntimeEventOrchestratorArgs = {
     updater: (
       prev: Record<string, SessionMemoryRestoreSummary | null>,
     ) => Record<string, SessionMemoryRestoreSummary | null>,
+  ) => void
+  setLogsByThreadId?: (
+    updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
+  ) => void
+  setHistoryCursorByThreadId?: (
+    updater: (prev: Record<string, string | null>) => Record<string, string | null>,
   ) => void
   setThreadTranscriptSource: ReplayThreadEventsContext['setThreadTranscriptSource']
   clearThreadHistoryCursor: ReplayThreadEventsContext['clearThreadHistoryCursor']
@@ -123,6 +133,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     logsByThreadIdRef,
     stateLogsRef,
     transcriptSourceByThreadRef,
+    historyCursorByThreadIdRef = { current: {} },
     latestCompactBoundaryByThreadIdRef,
     durableSnipByThreadIdRef,
     latestRequestCollapseByThreadIdRef,
@@ -131,6 +142,8 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     setDurableSnipByThreadId,
     setLatestRequestCollapseByThreadId,
     setPendingSessionMemoryRestoreByThreadId = () => {},
+    setLogsByThreadId = () => {},
+    setHistoryCursorByThreadId = () => {},
     setThreadTranscriptSource,
     clearThreadHistoryCursor,
     syncPendingInputsFromReplayState,
@@ -148,7 +161,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
   const liveCompactBoundaryByThreadRef = useRef<
     Record<string, { turnId: string; boundary: CompactBoundarySummary; previousBoundary?: CompactBoundarySummary | null }>
   >({})
-  const liveNotificationSeqRef = useRef(0)
+  const liveNotificationSeqByThreadRef = useRef<Record<string, number>>({})
 
   const cacheLatestCompactBoundary = useCallback(
     (
@@ -410,7 +423,11 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
 
   const handleNotification = useCallback(
     (notification: RpcNotification) => {
-      liveNotificationSeqRef.current += 1
+      const threadId = extractThreadIdFromNotificationParams(notification.params)
+      if (threadId) {
+        liveNotificationSeqByThreadRef.current[threadId] =
+          (liveNotificationSeqByThreadRef.current[threadId] ?? 0) + 1
+      }
       processRuntimeNotification(notification, shouldProcessSequencedNotification, { kind: 'live-stream' })
     },
     [processRuntimeNotification, shouldProcessSequencedNotification],
@@ -436,7 +453,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
   const replayThreadEvents = useCallback(
     async (threadId: string, options?: { fromStart?: boolean }): Promise<boolean> => {
       const isFullReplay = options?.fromStart === true
-      const originalLiveNotificationSeq = liveNotificationSeqRef.current
+      const originalThreadLiveNotificationSeq = liveNotificationSeqByThreadRef.current[threadId] ?? 0
       const originalActiveThreadId = activeThreadIdRef.current
       const originalRuntimeState = runtimeStateByThreadRef.current[threadId]
       const originalReplayCursor = replayCursorByThreadRef.current[threadId]
@@ -455,7 +472,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       const hasLiveFullReplayStateChanged = (): boolean =>
         isFullReplay && (
           activeThreadIdRef.current !== originalActiveThreadId ||
-          liveNotificationSeqRef.current !== originalLiveNotificationSeq ||
+          (liveNotificationSeqByThreadRef.current[threadId] ?? 0) !== originalThreadLiveNotificationSeq ||
           runtimeStateByThreadRef.current[threadId] !== originalRuntimeState ||
           replayCursorByThreadRef.current[threadId] !== originalReplayCursor
         )
@@ -508,7 +525,35 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         syncPendingInputsFromReplayState: (nextThreadId, replayState) =>
           stage(() => syncPendingInputsFromReplayState(nextThreadId, replayState)),
         loadThreadHistory: async (nextThreadId) => {
-          return loadThreadHistory(nextThreadId)
+          if (!isFullReplay) return loadThreadHistory(nextThreadId)
+          try {
+            const historyResult = await request('thread/messages', { threadId: nextThreadId, limit: 50 })
+            if (activeThreadIdRef.current !== nextThreadId) return false
+            const parsed = parseThreadMessagesResponse(historyResult)
+            const logs = mapThreadHistoryToCanonicalLogs({ threadId: nextThreadId, messages: parsed.data })
+            stage(() => dispatch({ type: 'set_active_turn', turnId: null }))
+            stage(() => dispatch({ type: 'clear_pending_inputs' }))
+            stage(() => dispatch({ type: 'replace_logs', logs }))
+            stage(() => setLogsByThreadId((prev) => withRecordValue(prev, nextThreadId, logs)))
+            stage(() => cacheLatestCompactBoundary(nextThreadId, parsed.latestCompactBoundary))
+            stage(() => cacheDurableSnip(nextThreadId, parsed.durableSnip))
+            stage(() => cacheLatestRequestCollapse(nextThreadId, parsed.latestRequestCollapse))
+            stage(() => {
+              const nextCursor = parsed.nextCursor
+              if ((historyCursorByThreadIdRef.current[nextThreadId] ?? null) === nextCursor) return
+              historyCursorByThreadIdRef.current = withRecordValue(
+                historyCursorByThreadIdRef.current,
+                nextThreadId,
+                nextCursor,
+              )
+              setHistoryCursorByThreadId((prev) => withRecordValue(prev, nextThreadId, nextCursor))
+            })
+            stage(() => setThreadTranscriptSource(nextThreadId, 'history'))
+            return true
+          } catch {
+            if (activeThreadIdRef.current !== nextThreadId) return false
+            return false
+          }
         },
         handleNotification: (notification) =>
           handleReplayNotification(
@@ -556,6 +601,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       dispatch,
       handleReplayNotification,
       handleNotification,
+      historyCursorByThreadIdRef,
       loadThreadHistory,
       latestCompactBoundaryByThreadIdRef,
       log,
@@ -566,6 +612,8 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
       request,
       runtimeStateByThreadRef,
       setLatestCompactBoundaryByThreadId,
+      setHistoryCursorByThreadId,
+      setLogsByThreadId,
       setPendingSessionMemoryRestoreByThreadId,
       setMode,
       setThreadTranscriptSource,

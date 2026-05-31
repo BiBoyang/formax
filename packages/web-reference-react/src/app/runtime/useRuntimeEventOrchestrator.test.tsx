@@ -126,6 +126,192 @@ describe('useRuntimeEventOrchestrator', () => {
 
   })
 
+  it('commits full replay when unrelated live traffic arrives during the replay request', async () => {
+    const eventCursor = createTurnEventCursorState()
+    const shouldProcessSequencedNotification = vi.fn((params, owner) =>
+      shouldAcceptSequencedNotification(eventCursor, params, owner),
+    )
+    const dispatch = vi.fn()
+    const replayCursorByThreadRef: { current: Record<string, number> } = { current: {} }
+    const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = { current: {} }
+    const replayEntry = createReplayTurnEventEnvelope({
+      replaySeq: 1,
+      eventId: 'replay-thread-1',
+      event: { type: 'assistant_delta', text: 'thread one replay' },
+    })
+    let handleLiveNotification: ((notification: Parameters<ReturnType<typeof useRuntimeEventOrchestrator>['handleNotification']>[0]) => void) | null = null
+    const request = vi.fn(async () => {
+      handleLiveNotification?.({
+        jsonrpc: '2.0',
+        method: 'turn/event',
+        params: {
+          replaySeq: 100,
+          eventId: 'live-thread-2',
+          ts: '2026-02-18T00:00:00.000Z',
+          source: 'engine',
+          threadId: 'thread-2',
+          turnId: 'turn-thread-2',
+          event: { type: 'assistant_delta', text: 'background event' },
+        },
+      })
+      return {
+        data: [{ replaySeq: 1, method: 'turn/event', params: replayEntry }],
+        nextCursor: 1,
+        latestCursor: 1,
+        hasGap: false,
+        state: null,
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request,
+        dispatch,
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification,
+        runtimeStateByThreadRef,
+        replayCursorByThreadRef,
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef: { current: {} },
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId: vi.fn(),
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+    handleLiveNotification = result.current.handleNotification
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'apply_canonical_event',
+        event: expect.objectContaining({
+          kind: 'assistant_delta',
+          replaySeq: 1,
+          textDelta: 'thread one replay',
+        }),
+      }),
+    )
+    expect(replayCursorByThreadRef.current['thread-1']).toBe(1)
+  })
+
+  it('does not commit full-replay history fallback when same-thread live traffic conflicts', async () => {
+    const dispatch = vi.fn()
+    const eventCursor = createTurnEventCursorState()
+    const shouldProcessSequencedNotification = vi.fn((params, owner) =>
+      shouldAcceptSequencedNotification(eventCursor, params, owner),
+    )
+    let handleLiveNotification: ((notification: Parameters<ReturnType<typeof useRuntimeEventOrchestrator>['handleNotification']>[0]) => void) | null = null
+    const request = vi.fn(async (method: string) => {
+      if (method === 'thread/messages') {
+        handleLiveNotification?.({
+          jsonrpc: '2.0',
+          method: 'turn/event',
+          params: {
+            replaySeq: 10,
+            eventId: 'live-thread-1',
+            ts: '2026-02-18T00:00:01.000Z',
+            source: 'engine',
+            threadId: 'thread-1',
+            turnId: 'turn-thread-1-live',
+            event: { type: 'assistant_delta', text: 'live conflict' },
+          },
+        })
+        return { data: [], nextCursor: 'cursor-next' }
+      }
+      return {
+        data: [],
+        nextCursor: 0,
+        latestCursor: 0,
+        hasGap: false,
+        state: null,
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request,
+        dispatch,
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification,
+        runtimeStateByThreadRef: { current: {} },
+        replayCursorByThreadRef: { current: {} },
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef: { current: {} },
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId: vi.fn(),
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => {
+          throw new Error('full replay should use the staged history fallback')
+        }),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+    handleLiveNotification = result.current.handleNotification
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+
+    expect(dispatch.mock.calls.some(([action]) => action?.type === 'replace_logs')).toBe(false)
+  })
+
   it('rolls back pending live compact boundary cache when the same turn fails', () => {
     const previousBoundary = createBoundary({ trigger: 'manual', preTokens: 1024, summaryKind: 'model_summary' })
     const liveBoundary = createBoundary({
