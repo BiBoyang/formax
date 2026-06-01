@@ -102,6 +102,7 @@ function createReplayState(overrides: Partial<ReplayStateSnapshot> = {}): Replay
     pendingInputCount: 0,
     canonicalProtocolAnomalyCount: 0,
     pendingInputs: [],
+    preferences: {},
     invariantIssues: [],
     projection: null,
     toolNameByUseId: {},
@@ -149,6 +150,43 @@ function createReplayPage(overrides: Partial<ReplayPage> = {}): ReplayPage {
     ...overrides,
   } as ReplayPage
 }
+
+it('does not overwrite newer live preferences with stale replay state', async () => {
+  const liveState = createInitialThreadRuntimeState({
+    threadId: TEST_THREAD_ID,
+    replaySeq: 11,
+    method: 'thread/runtimeStateChanged',
+    ts: '2026-02-17T00:00:01.000Z',
+  })
+  liveState.preferences = { modelTier: 'opus', thinkingMode: true }
+  liveState.lastReplaySeq = 10
+
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      nextCursor: 5,
+      latestCursor: 5,
+      state: createReplayState({
+        preferences: { modelTier: 'haiku', thinkingMode: false },
+      }),
+    }),
+  )
+  const ctx = createReplayContext({
+    request,
+    runtimeStateByThreadRef: { current: { [TEST_THREAD_ID]: liveState } },
+  })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+  expect(ok).toBe(true)
+  expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.preferences).toEqual({
+    modelTier: 'opus',
+    thinkingMode: true,
+  })
+  expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(10)
+  expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()
+  expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+  expect(ctx.setMode).not.toHaveBeenCalled()
+})
 
 it('caches latest compact and collapse summaries from replay responses', async () => {
   const latestCompactBoundary = {

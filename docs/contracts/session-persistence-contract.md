@@ -1,6 +1,6 @@
 # Session Persistence Contract（唯一事实源）
 
-最后更新：2026-05-24
+最后更新：2026-06-01
 状态：规范性（Normative）
 
 本文档定义 Formax 本地 session 文件、resume 语义、以及 app-server 恢复 stale input 的共享合同。
@@ -10,6 +10,7 @@
 - REPL / SDK query 的 file-backed persistence 与 resume 语义
 - SDK `unstable_v2_resumeSession` 的 in-process resume 语义
 - app-server `thread/start` / `thread/resume` 的 provisional thread 与 stale input 恢复边界
+- thread-bound runtime preference events and replay reduction
 - `listSessions` / `getSessionMessages` 的目录作用域
 
 不在范围内：
@@ -127,6 +128,25 @@ Context-compression message identity metadata MAY be carried under `PromptMessag
 5. `source` (`explicit` or `legacy_fallback`)
 
 Explicit identities SHOULD come from persisted message metadata when available. Legacy fallback identities MAY be derived from projection-local order plus message fingerprint; they are deterministic for the same replay/projection but MUST NOT be treated as strong cross-session identity and MUST NOT drive destructive replay by themselves. Duplicate identities, missing parent ids, and old compact boundaries without identity fields MUST remain non-destructive: raw transcript, UI scrollback, and model-facing baseline membership MUST continue to fall back to fingerprint/count guards until an explicit relink contract upgrades the behavior.
+
+`SES-108`
+Thread runtime preferences are durable thread-bound runtime state. Cross-process recovery MUST use session JSONL events, not Web local state, sidecar memory, or process-only maps.
+
+Implementation status: this is the accepted target contract for the thread runtime preferences feature. Until the Loop 2 JSONL writer/reader lands, clients MUST treat durable thread preference recovery as unavailable and MUST NOT assume existing builds persist these events.
+
+The durable v1 event name is `thread_runtime_state_patch` with `schemaVersion: 1`. Its stable payload MUST include:
+1. `threadId`
+2. `patch.preferences.modelTier?: "haiku" | "sonnet" | "opus" | null`
+3. `patch.preferences.thinkingMode?: boolean | null`
+4. optional `opId`
+5. optional `source`
+6. timestamp/revision metadata as defined by the writer
+
+`SES-109`
+Preference replay MUST be latest-valid-wins by JSONL order. `null` in a valid patch clears only that thread override. Reduced replay state MUST omit cleared fields rather than retaining `null`.
+
+`SES-110`
+Preference replay MUST be tolerant. Unknown `schemaVersion`, missing/invalid `threadId`, threadId mismatch, absent/non-object patch, invalid tier, non-boolean thinking value, or unknown future facets MUST be ignored without clearing prior valid preference state. Old sessions with no preference events MUST reduce to no thread overrides and inherit the current effective config.
 
 ## 3. SDK Resume 语义
 
@@ -307,7 +327,7 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 
 ## 6. 变更流程
 
-当修改 session 文件根目录、resume 选择逻辑、provisional thread 物化、stale input 恢复或 SDK session discovery 行为时：
+当修改 session 文件根目录、resume 选择逻辑、provisional thread 物化、stale input 恢复、thread runtime preference persistence 或 SDK session discovery 行为时：
 1. 先更新本文件。
 2. 再更新 `docs/contracts/app-server-interaction-contract.md` 与 `docs/references/app-server-api-reference.md` 中受影响的摘要。
 3. 再更新 `packages/core/src/sdk/README.md` 等 code-local deep dive。

@@ -16,8 +16,11 @@ export {
   reduceThreadRuntimeState,
 } from '../../core/src/features/semantics/runtime/threadRuntimeState'
 export type {
+  ThreadRuntimeModelTier,
   ThreadRuntimePendingInput,
   ThreadRuntimePendingInputKind,
+  ThreadRuntimePreferences,
+  ThreadRuntimePreferencesPatch,
   ThreadRuntimeState,
 } from '../../core/src/features/semantics/runtime/threadRuntimeState'
 

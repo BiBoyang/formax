@@ -1,6 +1,6 @@
 # Formax App Server Interaction Contract（v0.2 基线）
 
-更新时间：2026-05-24
+更新时间：2026-06-01
 
 本文件定义 GUI 与 app-server 之间的“行为合同”。  
 任何实现或重构都必须满足本文件，不允许只满足“某个客户端刚好可用”。
@@ -161,6 +161,9 @@
 
 - 入参：`{ threadId: string, after?: number, limit?: number }`
 - 返回：`{ data, nextCursor, latestCursor, hasGap, state, latestCompactBoundary?, durableSnip?, latestRequestCollapse?, pendingSessionMemoryRestore? }`
+  - `state.preferences` 当前为 thread runtime preferences 的 reduced state；字段为 sparse overrides，缺省表示继承 effective global/project/env config。
+  - `state.preferences` MUST NOT contain `null`; clear patches reduce to omitted fields.
+  - When replay can only build a projection fallback and runtime preferences are unknown, `state.preferences` MUST be omitted rather than reported as `{}`. Clients MUST treat omitted preferences as unavailable, not as an authoritative clear.
   - `latestCompactBoundary` 当前为可选 compact protocol 摘要。
   - 若存在，它 MUST 与同一 thread 的 canonical replay-backed compact boundary 对齐，并与 `thread/read` / `thread/messages` / `thread/resume` 共用同一 compact protocol 来源。
   - 该字段 SHOULD 继续沿用已有 `keepStrategy`、`rehydrationPlan`、`rehydrationCost`、`preservedSegment` 字段；客户端不得为 replay / inspection surface 重新组装第二套 compact summary。
@@ -189,6 +192,54 @@
 - 并发约束：
   - 同一 `threadId` 同时最多 1 个 in-flight turn
   - 冲突时返回 `INVALID_PARAMS`（`Turn already running...`）
+
+## 2.5.A thread/runtimeState/read
+
+Implementation status: target surface for the thread runtime preferences feature. Until the Loop 2 app-server handlers land, clients MUST feature-detect support and MUST NOT call this method against current implementations.
+
+- 入参：`{ threadId: string }`
+- 返回：`{ threadId, state }`
+- v1 用途：thin helper-backed runtime-state rehydrate surface。常规 hydrate SHOULD continue to use `thread/read`, `thread/resume`, and `thread/replay`; clients MUST NOT derive runtime preferences from transcript rows.
+
+## 2.5.B thread/runtimeState/patch
+
+Implementation status: target surface for the thread runtime preferences feature. Until the Loop 2 app-server handlers and JSONL persistence land, clients MUST feature-detect support and MUST NOT call this method against current implementations.
+
+- 入参：`{ threadId: string, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null } }, opId?: string }`
+- 返回：`{ threadId, state, opId? }`
+- v1 closed-facet rule:
+  - Only `preferences` is accepted.
+  - `mode`, active turn state, pending inputs, sticky tool names, replay cursor state, transcript projection, and unknown future facets MUST be rejected live.
+  - Unknown preference keys, invalid model tiers, non-boolean `thinkingMode`, and effort strings such as `low | medium | high | max` MUST be rejected live.
+  - Empty valid patches MAY return the current state as an idempotent no-op.
+- Durability:
+  - Successful thread patches MUST append a `thread_runtime_state_patch` JSONL event before reporting success.
+  - Provisional threads MUST be materialized through the session-file path before success.
+  - Thread patches MUST NOT mutate global config.
+- Visibility:
+  - Successful thread patches emit a sequenced `thread/runtimeStateChanged` notification.
+  - Preference changes MUST NOT enter transcript projection.
+  - Preference changes during an active turn affect future turns only.
+
+## 2.5.C config/runtimeDefaults/read
+
+Implementation status: target surface for no-active-thread/new-thread-draft preference controls. Until the Loop 2 app-server handler lands, clients MUST feature-detect support and MUST NOT call this method against current implementations.
+
+- 入参：`{}`
+- 返回：`{ saved, effective, capabilities? }`
+- `saved` describes global persisted defaults when available.
+- `effective` describes current effective defaults after config precedence; project/env/flag overrides MAY make it differ from `saved`.
+- Web no-active-thread and new-thread-draft controls MUST use this or an equivalent initialize/bootstrap surface rather than hardcoded defaults.
+
+## 2.5.D config/runtimeDefaults/patch
+
+Implementation status: target surface for no-active-thread/new-thread-draft preference controls. Until the Loop 2 app-server handler lands, clients MUST feature-detect support and MUST NOT call this method against current implementations.
+
+- 入参：`{ modelTier?: "haiku" | "sonnet" | "opus", thinkingMode?: boolean }`
+- 返回：`{ saved, effective, capabilities? }`
+- No `null` clears are accepted for global defaults.
+- This surface MUST reuse the same global persistence semantics as TUI `/model` and `/config thinkingMode`.
+- Global defaults patches MUST NOT write thread JSONL events.
 
 ## 2.5.0 Title Update Notifications
 
@@ -538,6 +589,15 @@ turn 通知到 canonical 的最小映射保证：
 
 - 载荷：`{ threadId, turnId, previousMode, mode }`
 - `previousMode` / `mode` 仅允许：`normal | acceptEdits | plan`
+
+## 3.4 thread/runtimeStateChanged
+
+Implementation status: target notification for successful `thread/runtimeState/patch`. Until the Loop 2 emitter lands, clients MUST NOT expect this notification from current implementations.
+
+- 载荷：`{ threadId, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null } }, state?: { preferences: object }, opId? }`
+- The notification MUST carry the standard sequencing envelope.
+- Clients MUST reduce it through shared `ThreadRuntimeState` runtime side state.
+- Clients MUST NOT map it into canonical transcript projection.
 
 ## 3.4 turn/inputRequested
 

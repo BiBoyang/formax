@@ -4,6 +4,18 @@ import { isInputKind, type InputKind } from '@formax/shared/inputContracts'
 export type ThreadRuntimePendingInputKind = InputKind
 const MAX_STICKY_TOOL_NAMES = 512
 
+export type ThreadRuntimeModelTier = 'haiku' | 'sonnet' | 'opus'
+
+export type ThreadRuntimePreferences = {
+  modelTier?: ThreadRuntimeModelTier
+  thinkingMode?: boolean
+}
+
+export type ThreadRuntimePreferencesPatch = {
+  modelTier?: ThreadRuntimeModelTier | null
+  thinkingMode?: boolean | null
+}
+
 export type ThreadRuntimePendingInput = {
   inputId: string
   threadId: string
@@ -24,6 +36,7 @@ export type ThreadRuntimeState = {
   lastTurnStatus: 'running' | 'completed' | 'failed' | 'interrupted' | null
   pendingInputs: Record<string, ThreadRuntimePendingInput>
   toolNameByUseId: Record<string, string>
+  preferences: ThreadRuntimePreferences
   updatedAt: string
   lastNotificationMethod: string | null
   lastReplaySeq: number
@@ -43,6 +56,62 @@ function toNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function isThreadRuntimeModelTier(value: unknown): value is ThreadRuntimeModelTier {
+  return value === 'haiku' || value === 'sonnet' || value === 'opus'
+}
+
+function applyThreadRuntimePreferencesPatch(
+  current: ThreadRuntimePreferences,
+  patch: unknown,
+): ThreadRuntimePreferences {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return current
+  const record = patch as Record<string, unknown>
+  const next: ThreadRuntimePreferences = { ...current }
+  let changed = false
+
+  if (Object.prototype.hasOwnProperty.call(record, 'modelTier')) {
+    const modelTier = record.modelTier
+    if (modelTier === null) {
+      delete next.modelTier
+      changed = true
+    } else if (isThreadRuntimeModelTier(modelTier)) {
+      next.modelTier = modelTier
+      changed = true
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(record, 'thinkingMode')) {
+    const thinkingMode = record.thinkingMode
+    if (thinkingMode === null) {
+      delete next.thinkingMode
+      changed = true
+    } else if (typeof thinkingMode === 'boolean') {
+      next.thinkingMode = thinkingMode
+      changed = true
+    }
+  }
+
+  return changed ? next : current
+}
+
+function parseThreadRuntimePreferencesSnapshot(value: unknown): ThreadRuntimePreferences | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+  const preferences: ThreadRuntimePreferences = {}
+  let validFieldCount = 0
+  if (isThreadRuntimeModelTier(record.modelTier)) {
+    preferences.modelTier = record.modelTier
+    validFieldCount += 1
+  }
+  if (typeof record.thinkingMode === 'boolean') {
+    preferences.thinkingMode = record.thinkingMode
+    validFieldCount += 1
+  }
+  if (keys.length > 0 && validFieldCount === 0) return null
+  return preferences
 }
 
 function withStickyToolNameBounded(args: {
@@ -94,6 +163,7 @@ export function createInitialThreadRuntimeState(args: {
     lastTurnStatus: null,
     pendingInputs: {},
     toolNameByUseId: {},
+    preferences: {},
     updatedAt: toIsoOrNow(args.ts),
     lastNotificationMethod: args.method,
     lastReplaySeq: seededReplaySeq,
@@ -244,6 +314,22 @@ export function reduceThreadRuntimeState(
     if (isReplMode(params.mode)) {
       next.mode = params.mode
     }
+    return next
+  }
+
+  if (args.method === 'thread/runtimeStateChanged') {
+    const statePayload = params.state && typeof params.state === 'object'
+      ? (params.state as Record<string, unknown>)
+      : null
+    const authoritativePreferences = parseThreadRuntimePreferencesSnapshot(statePayload?.preferences)
+    if (authoritativePreferences) {
+      next.preferences = authoritativePreferences
+      return next
+    }
+    const patch = params.patch && typeof params.patch === 'object'
+      ? (params.patch as Record<string, unknown>)
+      : null
+    next.preferences = applyThreadRuntimePreferencesPatch(next.preferences, patch?.preferences)
     return next
   }
 

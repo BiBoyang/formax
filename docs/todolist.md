@@ -37,7 +37,7 @@
 - [x] `packages/core/src/app-server/server.ts` / `packages/core/src/app-server/index.ts` own app-server handlers, runner resolution, and notification wiring.
 - [x] `packages/core/src/config/modelTier.ts` and runtime model profile helpers own model-tier resolution.
 - [x] `packages/core/src/app-server/turnRunner.ts` owns frozen per-turn runtime execution.
-- [x] `packages/web-reference-react/src/components/ComposerDock.tsx` owns current Web composer controls.
+- [x] `packages/web-reference-react/src/components/composer/ComposerDock.tsx` owns current Web composer controls.
 - [x] `packages/web-reference-react/src/app/runtime/replayThreadEvents.ts` and runtime cache code own Web replay hydration.
 
 ### 0.5 Spec lock and review-churn prevention
@@ -54,64 +54,64 @@
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [ ] Update `docs/contracts/semantics-contract.md` to define thread runtime preferences as shared runtime side state.
-- [ ] Update `docs/contracts/session-persistence-contract.md` to define the JSONL event schema, latest-valid-wins replay, malformed-event handling, and old-session fallback.
-- [ ] Update `docs/contracts/app-server-interaction-contract.md` to define preference patch/read APIs, notification shape, replay/read/resume fields, and the non-transcript rule.
-- [ ] Update `docs/contracts/model-settings-contract.md` to define thread override precedence before global `llm.defaultTier` / `llm.thinkingMode` for thread-bound execution.
-- [ ] Update `docs/contracts/config-settings-contract.md` to clarify that TUI `/model` and `/config thinkingMode` remain global defaults.
-- [ ] Update `docs/contracts/web-parity-adapter-contract.md` to state Web preference state is a server/replay mirror, not canonical Web state.
-- [ ] Update `docs/references/app-server-api-reference.md` with the new RPC methods, notifications, response fields, and runtime-defaults read surface.
-- [ ] Update `docs/frontend/app-server-ui-spec.md` if Web visible-surface preference routing or composer control behavior needs UI-spec coverage; otherwise explicitly record why Web parity contract is sufficient.
-- [ ] Add a short learning note under `docs/learnings/` describing the reusable thread runtime-state facet pattern.
-- [ ] Update `CODEMAP.md` only if new cross-cutting helpers or ownership entrypoints are added.
+- [x] Update `docs/contracts/semantics-contract.md` to define thread runtime preferences as shared runtime side state.
+- [x] Update `docs/contracts/session-persistence-contract.md` to define the JSONL event schema, latest-valid-wins replay, malformed-event handling, and old-session fallback.
+- [x] Update `docs/contracts/app-server-interaction-contract.md` to define preference patch/read APIs, notification shape, replay/read/resume fields, and the non-transcript rule.
+- [x] Update `docs/contracts/model-settings-contract.md` to define thread override precedence before global `llm.defaultTier` / `llm.thinkingMode` for thread-bound execution.
+- [x] Update `docs/contracts/config-settings-contract.md` to clarify that TUI `/model` and `/config thinkingMode` remain global defaults.
+- [x] Update `docs/contracts/web-parity-adapter-contract.md` to state Web preference state is a server/replay mirror, not canonical Web state.
+- [x] Update `docs/references/app-server-api-reference.md` with the new RPC methods, notifications, response fields, and runtime-defaults read surface.
+- [x] Update `docs/frontend/app-server-ui-spec.md` if Web visible-surface preference routing or composer control behavior needs UI-spec coverage; otherwise explicitly record why Web parity contract is sufficient.
+- [x] Add a short learning note under `docs/learnings/` describing the reusable thread runtime-state facet pattern.
+- [x] Update `CODEMAP.md` only if new cross-cutting helpers or ownership entrypoints are added.
 
 ### 1.2 Semantic model
-- [ ] Add `ThreadRuntimePreferences` as a facet of `ThreadRuntimeState`.
-- [ ] Decide and freeze the reduced-state representation: prefer absent fields / `{}` as “inherit global”; use `null` only in patch APIs to clear an override.
-- [ ] Ensure reduced `state.preferences` omits cleared fields; `null` must appear only in patch/event raw input, not in read/resume/replay reduced state.
-- [ ] Define effective model tier as `thread.preferences.modelTier ?? runtimeConfig.llm.defaultTier ?? 'sonnet'`.
-- [ ] Define effective thinking mode as `thread.preferences.thinkingMode ?? runtimeConfig.llm.thinkingMode`.
-- [ ] Define preference changes as runtime side state, not transcript projection and not canonical message events.
-- [ ] Define that preference changes during an active turn affect future turns only.
-- [ ] Define old sessions with no preference events as no override, inheriting current effective global/project/env config.
+- [x] Add `ThreadRuntimePreferences` as a facet of `ThreadRuntimeState`.
+- [x] Decide and freeze the reduced-state representation: prefer absent fields / `{}` as “inherit global”; use `null` only in patch APIs to clear an override.
+- [x] Ensure reduced `state.preferences` omits cleared fields; `null` must appear only in patch/event raw input, not in read/resume/replay reduced state.
+- [x] Define effective model tier as `thread.preferences.modelTier ?? runtimeConfig.llm.defaultTier ?? 'sonnet'`.
+- [x] Define effective thinking mode as `thread.preferences.thinkingMode ?? runtimeConfig.llm.thinkingMode`.
+- [x] Define preference changes as runtime side state, not transcript projection and not canonical message events.
+- [x] Define that preference changes during an active turn affect future turns only.
+- [x] Define old sessions with no preference events as no override, inheriting current effective global/project/env config.
 
 ### 1.3 Protocol names and shapes
-- [ ] Freeze thread update method name; recommended: `thread/runtimeState/patch`.
-- [ ] Define `thread/runtimeState/patch` as generic by method name only; v1 accepts only the `preferences` facet.
-- [ ] Reject unknown runtime-state facets in live protocol parsers until each facet has a contract, reducer, JSONL schema, replay/read/resume surface, and tests.
-- [ ] Explicitly state that `mode`, active turn state, pending inputs, sticky tool names, replay cursor state, and transcript projection are not patchable through `thread/runtimeState/patch` in v1.
-- [ ] Freeze global runtime defaults method names; recommended: `config/runtimeDefaults/read` and `config/runtimeDefaults/patch`.
-- [ ] Add `thread/runtimeState/read` as a thin helper-backed read surface only if Web or recovery paths need a direct runtime-state rehydrate; active threads should still hydrate from `thread/read`, `thread/resume`, and `thread/replay`.
-- [ ] `config/runtimeDefaults/read` or an equivalent initialize/bootstrap surface is required for no-active-thread/new-thread-draft controls; Web must not hardcode global model/thinking defaults after initialization.
-- [ ] Define `ThreadRuntimeStatePatch` with `preferences.modelTier?: ModelTier | null` and `preferences.thinkingMode?: boolean | null`.
-- [ ] Define global runtime defaults patch with concrete `modelTier?: ModelTier` and `thinkingMode?: boolean`; no `null` clears for global defaults.
-- [ ] Define global runtime defaults read/patch response with saved defaults, effective values/profile summary, and capability metadata; saved global values may differ from effective values because of project/env/flag precedence.
-- [ ] Define thread patch response state summary in Loop 2; include effective profile summary only after the shared effective-profile resolver exists.
-- [ ] Define strict parser behavior: reject invalid tiers, non-boolean thinking values, unknown preference keys, and misleading effort strings.
-- [ ] Define empty patch behavior; prefer no-op return for idempotency if it does not complicate parser semantics.
-- [ ] Keep `opId` optional in v1; echo it when present, allow best-effort duplicate diagnostics/dedupe, but do not rely on `opId` for correctness.
+- [x] Freeze thread update method name; recommended: `thread/runtimeState/patch`.
+- [x] Define `thread/runtimeState/patch` as generic by method name only; v1 accepts only the `preferences` facet.
+- [x] Reject unknown runtime-state facets in live protocol parsers until each facet has a contract, reducer, JSONL schema, replay/read/resume surface, and tests.
+- [x] Explicitly state that `mode`, active turn state, pending inputs, sticky tool names, replay cursor state, and transcript projection are not patchable through `thread/runtimeState/patch` in v1.
+- [x] Freeze global runtime defaults method names; recommended: `config/runtimeDefaults/read` and `config/runtimeDefaults/patch`.
+- [x] Add `thread/runtimeState/read` as a thin helper-backed read surface only if Web or recovery paths need a direct runtime-state rehydrate; active threads should still hydrate from `thread/read`, `thread/resume`, and `thread/replay`.
+- [x] `config/runtimeDefaults/read` or an equivalent initialize/bootstrap surface is required for no-active-thread/new-thread-draft controls; Web must not hardcode global model/thinking defaults after initialization.
+- [x] Define `ThreadRuntimeStatePatch` with `preferences.modelTier?: ModelTier | null` and `preferences.thinkingMode?: boolean | null`.
+- [x] Define global runtime defaults patch with concrete `modelTier?: ModelTier` and `thinkingMode?: boolean`; no `null` clears for global defaults.
+- [x] Define global runtime defaults read/patch response with saved defaults, effective values/profile summary, and capability metadata; saved global values may differ from effective values because of project/env/flag precedence.
+- [x] Define thread patch response state summary in Loop 2; include effective profile summary only after the shared effective-profile resolver exists.
+- [x] Define strict parser behavior: reject invalid tiers, non-boolean thinking values, unknown preference keys, and misleading effort strings.
+- [x] Define empty patch behavior; prefer no-op return for idempotency if it does not complicate parser semantics.
+- [x] Keep `opId` optional in v1; echo it when present, allow best-effort duplicate diagnostics/dedupe, but do not rely on `opId` for correctness.
 
 ### 1.4 JSONL event model
-- [ ] Freeze durable event name; recommended: `thread_runtime_state_patch`.
-- [ ] Define event schema version `1`.
-- [ ] Include `threadId`, optional `opId`, source, patch, timestamp/revision metadata as needed.
-- [ ] Define latest valid event wins by JSONL order.
-- [ ] Define malformed events as ignored without clearing prior valid state.
-- [ ] Define `null` inside a patch as clearing only that thread override.
-- [ ] Ensure preference event replay feeds `ThreadRuntimeState`, not transcript projection.
-- [ ] Define live protocol parsing as strict and JSONL replay parsing as tolerant: live requests reject invalid/unknown fields, while replay ignores malformed records or fields without clearing prior valid state.
-- [ ] Unknown `schemaVersion`, missing/invalid `threadId`, absent/non-object patch, or threadId mismatch must not corrupt existing reduced state.
-- [ ] Unknown future facets are rejected live in v1 and ignored during replay unless/until their schema is registered.
+- [x] Freeze durable event name; recommended: `thread_runtime_state_patch`.
+- [x] Define event schema version `1`.
+- [x] Include `threadId`, optional `opId`, source, patch, timestamp/revision metadata as needed.
+- [x] Define latest valid event wins by JSONL order.
+- [x] Define malformed events as ignored without clearing prior valid state.
+- [x] Define `null` inside a patch as clearing only that thread override.
+- [x] Ensure preference event replay feeds `ThreadRuntimeState`, not transcript projection.
+- [x] Define live protocol parsing as strict and JSONL replay parsing as tolerant: live requests reject invalid/unknown fields, while replay ignores malformed records or fields without clearing prior valid state.
+- [x] Unknown `schemaVersion`, missing/invalid `threadId`, absent/non-object patch, or threadId mismatch must not corrupt existing reduced state.
+- [x] Unknown future facets are rejected live in v1 and ignored during replay unless/until their schema is registered.
 
 ### 1.5 Effective runtime profile
-- [ ] Define a shared helper for resolving an effective `RuntimeModelProfile` from base runtime config plus thread preferences.
-- [ ] Ensure model tier override recomputes concrete model using existing tier resolution priority.
-- [ ] Ensure context-window source/binding are recomputed against the effective tier and concrete model.
-- [ ] Ensure thinking override participates in the runtime profile fingerprint.
-- [ ] Ensure runner cache keys use the effective profile fingerprint, not the global config profile.
-- [ ] Ensure `/context` diagnostics report the same effective profile that the next thread turn would use.
-- [ ] Ensure the same frozen effective profile snapshot feeds runner cache keying, `TurnRunner` construction/start, `RunningTurn.runtimeProfile`, prompt budget, context meter budget, cache-editing provider decisions, and diagnostics.
-- [ ] Ensure every thread-bound provider-request materialization path uses the shared effective profile helper, not only `turn/start`.
+- [x] Define a shared helper for resolving an effective `RuntimeModelProfile` from base runtime config plus thread preferences.
+- [x] Ensure model tier override recomputes concrete model using existing tier resolution priority.
+- [x] Ensure context-window source/binding are recomputed against the effective tier and concrete model.
+- [x] Ensure thinking override participates in the runtime profile fingerprint.
+- [x] Ensure runner cache keys use the effective profile fingerprint, not the global config profile.
+- [x] Ensure `/context` diagnostics report the same effective profile that the next thread turn would use.
+- [x] Ensure the same frozen effective profile snapshot feeds runner cache keying, `TurnRunner` construction/start, `RunningTurn.runtimeProfile`, prompt budget, context meter budget, cache-editing provider decisions, and diagnostics.
+- [x] Ensure every thread-bound provider-request materialization path uses the shared effective profile helper, not only `turn/start`.
 
 ### 1.6 Semantic decision table
 | Decision | Accepted rule | Alternatives rejected / deferred | Contract target | Test implication |
@@ -127,29 +127,29 @@
 | Send sequencing | Web awaits confirmed preference persistence before starting a turn/dispatch with the displayed profile. | Sending while controls show uncommitted optimistic state. | Web parity, app-server interaction | Pending update barrier tests and failure rehydrate/blocking tests. |
 
 ### 1.7 Review finding triage policy
-- [ ] Classify every review finding as `true blocker`, `valid but later-loop`, `spec ambiguity`, `reviewer preference`, or `conflicts with accepted contract`.
-- [ ] Fix code only for true blockers inside the current loop contract, accepted contract violations, or localized low-risk implementation bugs.
-- [ ] For later-loop findings, update `docs/thread-runtime-preferences-review-findings-log.md` and ensure the future loop has an acceptance item.
-- [ ] For spec ambiguity, stop implementation and update contracts/todo or ask the user before editing code.
-- [ ] For reviewer preference, do not adopt unless it is low-risk, local to the current loop, and does not change behavior or scope.
-- [ ] For contract conflicts, do not implement the finding; cite the accepted contract and add a focused regression test if needed.
-- [ ] Re-run review only after triage is documented and targeted tests pass.
-- [ ] Every finding must include loop mapping, contract mapping, touched invariant, classification, action, and test/deferred-loop mapping before implementation.
-- [ ] If a finding proposes changing method names, payload authority, JSONL schema, runtime-profile fingerprint inputs, durable authority, or transcript-vs-runtime-state ownership after Loop 1 lock, stop implementation and run a convergence pass.
+- [x] Classify every review finding as `true blocker`, `valid but later-loop`, `spec ambiguity`, `reviewer preference`, or `conflicts with accepted contract`.
+- [x] Fix code only for true blockers inside the current loop contract, accepted contract violations, or localized low-risk implementation bugs.
+- [x] For later-loop findings, update `docs/thread-runtime-preferences-review-findings-log.md` and ensure the future loop has an acceptance item.
+- [x] For spec ambiguity, stop implementation and update contracts/todo or ask the user before editing code.
+- [x] For reviewer preference, do not adopt unless it is low-risk, local to the current loop, and does not change behavior or scope.
+- [x] For contract conflicts, do not implement the finding; cite the accepted contract and add a focused regression test if needed.
+- [x] Re-run review only after triage is documented and targeted tests pass.
+- [x] Every finding must include loop mapping, contract mapping, touched invariant, classification, action, and test/deferred-loop mapping before implementation.
+- [x] If a finding proposes changing method names, payload authority, JSONL schema, runtime-profile fingerprint inputs, durable authority, or transcript-vs-runtime-state ownership after Loop 1 lock, stop implementation and run a convergence pass.
 
 ## 2. Runtime / Platform
 
 ### 2.1 Shared semantics state
-- [ ] Extend `ThreadRuntimeState` with `preferences`.
-- [ ] Seed initial thread runtime state with no preferences.
-- [ ] Add reducer support for the selected live notification, such as `thread/runtimeStateChanged`.
-- [ ] Preserve existing `mode`, active turn, pending input, sticky tool-name, and replay sequencing behavior.
-- [ ] Add stale/replay-order tests so older runtime-state notifications cannot overwrite newer preference state.
-- [ ] Ensure preference notifications do not enter canonical transcript projection.
+- [x] Extend `ThreadRuntimeState` with `preferences`.
+- [x] Seed initial thread runtime state with no preferences.
+- [x] Add reducer support for the selected live notification, such as `thread/runtimeStateChanged`.
+- [x] Preserve existing `mode`, active turn, pending input, sticky tool-name, and replay sequencing behavior.
+- [x] Add stale/replay-order tests so older runtime-state notifications cannot overwrite newer preference state.
+- [x] Ensure preference notifications do not enter canonical transcript projection.
 
 ### 2.2 Replay snapshots and read/resume surfaces
-- [ ] Add `preferences` to `ReplayStateSnapshot`.
-- [ ] Update `buildReplayStateSnapshot` to copy preferences from runtime state.
+- [x] Add `preferences` to `ReplayStateSnapshot`.
+- [x] Update `buildReplayStateSnapshot` to copy preferences from runtime state.
 - [ ] Expose the same preference state on `thread/read` and `thread/resume` as additive optional fields.
 - [ ] Use one app-server helper to compute preference state for replay/read/resume instead of scanning JSONL in multiple places.
 - [ ] Ensure replay hydration and live notifications reduce to equivalent Web runtime state.
@@ -232,13 +232,13 @@
 ## 4. Tests
 
 ### 4.1 Core semantics tests
-- [ ] Initial `ThreadRuntimeState` has no preferences.
-- [ ] Preference update sets model tier.
-- [ ] Preference update sets thinking mode.
-- [ ] `null` patch clears each override independently.
-- [ ] Stale replay/runtime notifications do not overwrite newer preference state.
-- [ ] Existing mode/input/tool-name reducer behavior remains unchanged.
-- [ ] Preference events do not create transcript rows.
+- [x] Initial `ThreadRuntimeState` has no preferences.
+- [x] Preference update sets model tier.
+- [x] Preference update sets thinking mode.
+- [x] `null` patch clears each override independently.
+- [x] Stale replay/runtime notifications do not overwrite newer preference state.
+- [x] Existing mode/input/tool-name reducer behavior remains unchanged.
+- [x] Preference events do not create transcript rows.
 
 ### 4.2 Session tests
 - [ ] JSONL replay reconstructs latest preferences.
@@ -315,15 +315,15 @@ Review gate for this loop:
 - Blocking: thread preferences are not defined as shared runtime side state, thinking semantics remain four-level, or docs imply TUI global behavior changes.
 - Non-blocking: Web UI still cosmetic until later loops.
 
-- [ ] Update canonical docs for semantics, session persistence, app-server interaction, model settings, config settings, and Web parity.
-- [ ] Update app-server API reference and frontend UI spec if the new method/visible-surface semantics require them.
-- [ ] Add `ThreadRuntimePreferences` and reducer support in shared semantics.
-- [ ] Add core reducer tests for set/clear/stale/no-transcript behavior.
-- [ ] Add replay snapshot type changes if needed for compile-time alignment.
-- [ ] Run targeted semantics/replay snapshot tests.
-- [ ] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit this loop after review passes.
+- [x] Update canonical docs for semantics, session persistence, app-server interaction, model settings, config settings, and Web parity.
+- [x] Update app-server API reference and frontend UI spec if the new method/visible-surface semantics require them.
+- [x] Add `ThreadRuntimePreferences` and reducer support in shared semantics.
+- [x] Add core reducer tests for set/clear/stale/no-transcript behavior.
+- [x] Add replay snapshot type changes if needed for compile-time alignment.
+- [x] Run targeted semantics/replay snapshot tests.
+- [x] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
+- [x] Run `codex review` for this loop after targeted verification passes; stopped further Loop 1 reruns by the churn trigger after seven classified rounds.
+- [x] Commit this loop after review passes.
 
 ### Loop 2: JSONL durability and app-server patch APIs
 #### Loop Contract

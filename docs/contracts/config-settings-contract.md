@@ -1,6 +1,6 @@
 # Config Settings 合同（唯一事实源）
 
-最后更新：2026-03-14  
+最后更新：2026-06-01  
 状态：规范性（Normative）
 
 本文档定义 Formax runtime config 合并、`/config` 持久化与当前 settings 分类的唯一事实来源。
@@ -9,6 +9,7 @@
 - `FormaxConfigV1` / patch 的合法字段与默认值
 - runtime config 的来源优先级与 `sources` 归属
 - `/config` 当前支持的 setting 子集与持久化目标
+- runtime defaults vs thread-bound overrides
 - sparse writes、默认值剥离、即时生效边界
 - output-style / thinking-mode / verbose-output 的分类与 side effects
 
@@ -116,6 +117,9 @@ env override 只对 `resolve.ts` 显式解析的变量生效。未解析或历�
 2. `thinkingMode` -> global config
 3. `verboseOutput` -> global config
 
+`CFG-303A`
+TUI `/model <tier>` and `/config thinkingMode` remain global-default writes. They MUST NOT silently become thread-scoped writes. Thread-scoped model/thinking overrides are represented by thread runtime preferences and are written through the app-server runtime-state preference surface, not through existing TUI global commands.
+
 `CFG-304`  
 `outputStyle` 的值 MUST 经过 `OutputStyleSchema` 校验；无效值 MUST 回退为 `default` 后写入 patch 逻辑。
 
@@ -146,6 +150,9 @@ config patch 写盘 MUST 采用 merge-on-read，再执行默认值剥离；与�
 `CFG-502`  
 `thinkingMode` MUST 视为 request-parameter setting。  
 它影响发送层的 `thinkingEnabled` / thinking request 行为，但 MUST NOT 触发本地 command injection。
+
+`CFG-502A`
+`thinkingMode` remains boolean in v1. UI labels such as `low | medium | high | max` are not valid config or thread-preference values unless a future provider/request contract explicitly adds effort-level semantics.
 
 `CFG-503`  
 `verboseOutput` MUST 视为 UI-only setting。  

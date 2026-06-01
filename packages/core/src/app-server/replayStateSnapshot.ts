@@ -26,6 +26,7 @@ export type ReplayStateSnapshot = {
     expiresAt: string
     payload: unknown
   }>
+  preferences?: ThreadRuntimeState['preferences']
   invariantIssues: SemanticsInvariantIssue[]
   projection: ProjectionSnapshot | null
   toolNameByUseId: Record<string, string>
@@ -37,6 +38,7 @@ export function buildReplayStateSnapshot(args: {
   projection: TranscriptProjectionState | null
   includeProjectionSnapshot: boolean
   canonicalProtocolAnomalyCount: number
+  includePreferences?: boolean
 }): ReplayStateSnapshot | null {
   if (!args.stateForSnapshot) return null
 
@@ -66,6 +68,7 @@ export function buildReplayStateSnapshot(args: {
       expiresAt: input.expiresAt,
       payload: input.payload,
     })),
+    ...(args.includePreferences === false ? {} : { preferences: { ...args.stateForSnapshot.preferences } }),
     invariantIssues,
     projection: projectionSnapshot,
     toolNameByUseId: { ...args.stateForSnapshot.toolNameByUseId },

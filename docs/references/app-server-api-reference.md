@@ -563,6 +563,10 @@ AskUserQuestion payload：
       expiresAt: string
       payload: unknown
     }>
+    preferences?: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus'
+      thinkingMode?: boolean
+    }
     invariantIssues: Array<
       | {
           kind: 'running_tool_after_terminal_turn'
@@ -603,7 +607,131 @@ AskUserQuestion payload：
 - `state.projection` 仅在“首帧同步（`after` 缺省）”或“`hasGap=true`”时可能返回快照；普通增量拉取下通常为 `null`。
 - `state.invariantIssues` 仅在存在 projection 时可检测；当 projection 缺失时固定为空数组 `[]`。
 - `state.canonicalProtocolAnomalyCount` 为当前线程 strict-envelope 协议异常累计计数（缺失按 `0` 处理）。
+- `state.preferences` 是 thread runtime preference overrides；字段缺省表示继承 effective global/project/env config，清除后的字段不会以 `null` 形式返回。
+- `state.preferences` 可能在 projection-only fallback 或旧实现响应中省略；客户端应把省略视为 unavailable，而不是 `{}` clear。
 - `state = null` 条件：服务端当前无该线程 runtime state，且未命中 fallback 条件（`hasGap=true` 且存在 projection）。`state != null` 时上述字段全部可用。
+
+## 5.4.3 `thread/runtimeState/read`
+
+Status: planned target surface for the thread runtime preferences feature. It is not available until the Loop 2 app-server handler lands; clients must feature-detect before calling it.
+
+### Params
+
+```ts
+{
+  threadId: string
+}
+```
+
+### Result
+
+```ts
+{
+  threadId: string
+  state: {
+    preferences: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus'
+      thinkingMode?: boolean
+    }
+  }
+}
+```
+
+说明：
+
+- 这是 thin rehydrate helper；常规 thread hydrate 优先使用 `thread/read`、`thread/resume`、`thread/replay`。
+- runtime state 不属于 transcript，客户端不能从 transcript rows 推导 preferences。
+
+## 5.4.4 `thread/runtimeState/patch`
+
+Status: planned target surface for the thread runtime preferences feature. It is not available until the Loop 2 app-server handler and JSONL persistence land; clients must feature-detect before calling it.
+
+### Params
+
+```ts
+{
+  threadId: string
+  opId?: string
+  patch: {
+    preferences?: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus' | null
+      thinkingMode?: boolean | null
+    }
+  }
+}
+```
+
+### Result
+
+```ts
+{
+  threadId: string
+  opId?: string
+  state: {
+    preferences: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus'
+      thinkingMode?: boolean
+    }
+  }
+}
+```
+
+说明：
+
+- v1 只接受 `preferences` facet；未知 facets 和 protected runtime fields 会被拒绝。
+- `modelTier: null` / `thinkingMode: null` 清除对应 thread override。
+- `low | medium | high | max` 不是 v1 backend thinking semantics，会被拒绝。
+- 成功 patch 必须先写入 `thread_runtime_state_patch` JSONL event，再返回成功并发送 `thread/runtimeStateChanged`。
+
+## 5.4.5 `config/runtimeDefaults/read`
+
+Status: planned target surface for draft/no-thread preference controls. It is not available until the Loop 2 app-server handler lands; clients must feature-detect before calling it.
+
+### Params
+
+```ts
+{}
+```
+
+### Result
+
+```ts
+{
+  saved: {
+    modelTier?: 'haiku' | 'sonnet' | 'opus'
+    thinkingMode?: boolean
+  }
+  effective: {
+    modelTier: 'haiku' | 'sonnet' | 'opus'
+    thinkingMode: boolean
+  }
+  capabilities?: Record<string, unknown>
+}
+```
+
+说明：`saved` 是 global persisted defaults，`effective` 是 config precedence 后的当前默认值，两者可能因 project/env/flags 不同而不同。
+
+## 5.4.6 `config/runtimeDefaults/patch`
+
+Status: planned target surface for draft/no-thread preference controls. It is not available until the Loop 2 app-server handler lands; clients must feature-detect before calling it.
+
+### Params
+
+```ts
+{
+  modelTier?: 'haiku' | 'sonnet' | 'opus'
+  thinkingMode?: boolean
+}
+```
+
+### Result
+
+同 `config/runtimeDefaults/read`。
+
+说明：
+
+- global defaults patch 不接受 `null` clears。
+- 该方法复用 TUI `/model` 和 `/config thinkingMode` 的 global persistence semantics，不写 thread JSONL。
 
 ## 5.5 `turn/start`
 
@@ -828,6 +956,35 @@ AskUserQuestion payload：
 - `compact_boundary`
 - `thinking_delta` / `thinking_stop`
 - `tool_start` / `tool_input` / `tool_update` / `tool_end`
+
+## 6.2.A `thread/runtimeStateChanged`
+
+Status: planned target notification for successful `thread/runtimeState/patch`. It is not emitted until the Loop 2 app-server emitter lands.
+
+```ts
+{
+  ...envelopeMeta,
+  threadId: string
+  opId?: string
+  patch: {
+    preferences?: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus' | null
+      thinkingMode?: boolean | null
+    }
+  }
+  state?: {
+    preferences: {
+      modelTier?: 'haiku' | 'sonnet' | 'opus'
+      thinkingMode?: boolean
+    }
+  }
+}
+```
+
+说明：
+
+- 这是 runtime side-state notification，不进入 canonical transcript projection。
+- 客户端应按 `replaySeq` 单调门禁 reduce 到 thread runtime-state cache；旧通知不能覆盖新 preferences。
 - `usage`
 - `approval_request`
 - `ask_user_question`

@@ -509,6 +509,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         replayCursorByThreadRef: replayCursorByThreadRefForRun,
         replayAnomalyCountSeenByThreadRef,
         runtimeStateByThreadRef: replayRuntimeStateByThreadRef,
+        runtimeStateBaselineByThreadRef: isFullReplay ? runtimeStateByThreadRef : undefined,
         activeThreadIdRef,
         logsByThreadIdRef,
         stateLogsRef,

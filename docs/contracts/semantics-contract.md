@@ -1,6 +1,6 @@
 # 项目语义合同（唯一事实源）
 
-最后更新：2026-02-27  
+最后更新：2026-06-01  
 状态：规范性（Normative）
 
 本文档定义 Formax 项目级语义化（semantics）的唯一事实来源与跨端约束。
@@ -8,6 +8,7 @@
 范围：
 - canonical event envelope 与事件语义
 - projection（语义状态）与 renderer（展示）分层边界
+- thread runtime side state（mode、pending input、sticky tool names、runtime preferences）
 - TUI / app-server / Web 的跨端一致性约束
 - realtime 与 replay 一致性约束
 
@@ -51,6 +52,22 @@ Selector MAY 产出端内 view model，但 MUST NOT 回写或修改 projection s
 `SEM-104` Renderer Layer  
 Renderer MUST 只负责展示，不承担语义纠偏与状态修复职责。
 
+`SEM-105` Runtime Side State  
+`ThreadRuntimeState` MUST own per-thread runtime side state that is semantically shared across app-server and Web but is not transcript content. Current facets include mode, active/last turn status, pending inputs, sticky tool names, and `preferences`.
+
+`SEM-106` Thread Runtime Preferences  
+Thread runtime preferences MUST be represented as the `preferences` facet of `ThreadRuntimeState`. The v1 reduced shape is sparse:
+1. `modelTier?: "haiku" | "sonnet" | "opus"`
+2. `thinkingMode?: boolean`
+
+Omitted fields mean “inherit effective global/project/env config”. Reduced state MUST NOT store `null`; `null` is reserved for raw patch input to clear an override.
+
+`SEM-107` Runtime Preferences Are Not Projection  
+Preference changes MUST NOT create canonical transcript events, projection segments, history rows, or renderer log rows. They MAY update runtime-state caches and diagnostics only.
+
+`SEM-108` Closed v1 Runtime-State Patch Facet  
+The generic runtime-state patch lane is closed in v1: only the `preferences` facet is patchable. Mode, active turn state, pending inputs, sticky tool names, replay cursor state, transcript projection, and future facets MUST NOT become patchable until each has its own contract, reducer, persistence schema, replay/read/resume surface, and tests.
+
 ## 3. 一致性与不变量
 
 `SEM-201`  
@@ -64,6 +81,9 @@ Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection
 
 `SEM-204`  
 语义终态（如 turn/tool 终态）MUST NOT 被后续非权威事件降级覆盖。
+
+`SEM-205`  
+Runtime side-state notifications MUST honor `replaySeq` monotonicity. Older or duplicate runtime-state notifications MUST NOT overwrite newer per-thread preferences.
 
 ## 4. 变更流程（强约束）
 

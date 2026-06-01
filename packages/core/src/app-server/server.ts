@@ -861,6 +861,7 @@ export class AppServer {
             lastTurnStatus: null,
             pendingInputs: {},
             toolNameByUseId: { ...projection.toolNameByUseId },
+            preferences: {},
             updatedAt: new Date(0).toISOString(),
             lastNotificationMethod: null,
             lastReplaySeq: latestCursor,
@@ -873,6 +874,7 @@ export class AppServer {
       projection,
       includeProjectionSnapshot: shouldIncludeProjectionSnapshot,
       canonicalProtocolAnomalyCount,
+      includePreferences: Boolean(state),
     })
     const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
     const latestProjectionFacts = await this.resolveLatestProjectionFactsForReplay(args.threadId)

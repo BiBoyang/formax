@@ -3373,6 +3373,7 @@ describe('AppServer', () => {
         }),
       }),
     )
+    expect(result.state).not.toHaveProperty('preferences')
   })
 
   it('validates turn/start mode params', async () => {

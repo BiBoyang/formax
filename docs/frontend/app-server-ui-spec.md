@@ -1,6 +1,6 @@
 # Formax App Server UI Spec（功能型规范）
 
-更新时间：2026-03-07
+更新时间：2026-06-01
 
 本文件规定 reference client 的功能行为规范，不定义品牌视觉。  
 目标是：任何实现者都能做出“行为一致”的调试 UI。
@@ -63,6 +63,9 @@
 8. `turn/completed` 与 `turn/failed` 必须写入可见日志。
 9. `Interrupt` 仅在 active turn 存在时可用。
 10. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
+11. Composer model/thinking controls MUST be controlled by runtime state. In a real thread surface, display values derive from `thread.preferences[field] ?? globalRuntimeDefaults[field]`. In `newThreadDraft` / no-thread surfaces, display values derive from global runtime defaults.
+12. Composer thinking control is boolean in v1. Four-level reasoning effort labels (`low | medium | high | max`) MUST NOT be sent to app-server as backend preference semantics.
+13. Preference changes are runtime side state; they MUST NOT create transcript rows.
 
 Transcript 类型要求（必须可区分）：
 
@@ -132,6 +135,7 @@ Transcript 类型要求（必须可区分）：
 6. 一旦 `thread/start` 成功，draft 即结束并进入真实 thread surface；若随后的首发失败，允许留下真实空 thread。
 7. 用户离开未发送的 draft时，不得额外创建空 thread，也不得污染左侧 thread 列表。
 8. `draftCwd` 是 draft-owned cwd；`selectedCwd` 与 `diffSnapshot.cwd` 都不得再冒充 `draftCwd`。
+9. Draft model/thinking changes update global runtime defaults and MUST NOT create thread runtime state before first send creates a real thread.
 
 ## 3.3 Turn 工作流
 
@@ -234,6 +238,8 @@ Transcript 类型要求（必须可区分）：
    - `draft-owned`
    - `workspace selection only`
    的派生与路由都应在 page shell / runtime 层收口，而不是散落在叶子组件自行推断。
+7. Preference write routing MUST use explicit visible-surface ownership, not raw `!activeThreadId`: real thread surfaces patch `thread/runtimeState/patch`; draft/no-thread surfaces patch `config/runtimeDefaults/patch`.
+8. Send/start/dispatch MUST wait for any pending preference mutation that affects the visible target, or rehydrate/revert after failure before sending.
 
 ## 9. 验收清单（UI）
 

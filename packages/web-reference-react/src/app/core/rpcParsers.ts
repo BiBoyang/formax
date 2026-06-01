@@ -10,7 +10,7 @@ import type {
 } from '../../types'
 import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
-import type { ThreadRuntimeState } from '../../semantics'
+import type { ThreadRuntimePreferences, ThreadRuntimeState } from '../../semantics'
 import type { SemanticsInvariantIssue } from '../../semantics'
 import {
   parseDurableSnipSummary,
@@ -33,6 +33,7 @@ export type ReplayStateSnapshot = {
   pendingInputCount: number
   canonicalProtocolAnomalyCount: number
   pendingInputs: PendingInput[]
+  preferences?: ThreadRuntimePreferences
   invariantIssues: SemanticsInvariantIssue[]
   projection: {
     segments: TranscriptSegment[]
@@ -48,6 +49,19 @@ export type ReplayStateSnapshot = {
 function parseRecordValue(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
+}
+
+function parseThreadRuntimePreferences(value: unknown): ThreadRuntimePreferences {
+  const record = parseRecordValue(value)
+  if (!record) return {}
+  const preferences: ThreadRuntimePreferences = {}
+  if (record.modelTier === 'haiku' || record.modelTier === 'sonnet' || record.modelTier === 'opus') {
+    preferences.modelTier = record.modelTier
+  }
+  if (typeof record.thinkingMode === 'boolean') {
+    preferences.thinkingMode = record.thinkingMode
+  }
+  return preferences
 }
 
 function parseInvariantIssues(value: unknown): SemanticsInvariantIssue[] {
@@ -559,6 +573,9 @@ export function asThreadReplay(value: unknown): {
           })()
         : null
     const toolNameByUseId = parseStringRecord(stateRecord.toolNameByUseId)
+    const preferences = Object.prototype.hasOwnProperty.call(stateRecord, 'preferences')
+      ? parseThreadRuntimePreferences(stateRecord.preferences)
+      : undefined
     const invariantIssues = parseInvariantIssues(stateRecord.invariantIssues)
     const updatedAt = typeof stateRecord.updatedAt === 'string' ? stateRecord.updatedAt : new Date(0).toISOString()
     state = {
@@ -569,6 +586,7 @@ export function asThreadReplay(value: unknown): {
       pendingInputCount,
       canonicalProtocolAnomalyCount,
       pendingInputs,
+      ...(preferences === undefined ? {} : { preferences }),
       invariantIssues,
       projection,
       toolNameByUseId,

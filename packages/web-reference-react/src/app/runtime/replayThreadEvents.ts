@@ -69,6 +69,7 @@ export type ReplayThreadEventsContext = {
   replayCursorByThreadRef: { current: Record<string, number> }
   replayAnomalyCountSeenByThreadRef: { current: Record<string, number> }
   runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> }
+  runtimeStateBaselineByThreadRef?: { current: Record<string, ThreadRuntimeState> }
   activeThreadIdRef: { current: string | null }
   logsByThreadIdRef: { current: Record<string, unknown[]> }
   stateLogsRef: { current: unknown[] }
@@ -110,7 +111,21 @@ export async function replayThreadEvents(
   let hasLoggedInvariantIssues = false
   let maxCanonicalProtocolAnomalyCountObserved = 0
 
+  const getNewerRuntimeState = (latestReplayCursor: number): ThreadRuntimeState | null => {
+    const existing = ctx.runtimeStateByThreadRef.current[threadId]
+    if (existing && existing.lastReplaySeq > latestReplayCursor) return existing
+    const baseline = ctx.runtimeStateBaselineByThreadRef?.current[threadId]
+    if (baseline && baseline.lastReplaySeq > latestReplayCursor) return baseline
+    return null
+  }
+
   const hydrateRuntimeState = (state: ReplayStateSnapshot, latestReplayCursor: number): void => {
+    const newerRuntimeState = getNewerRuntimeState(latestReplayCursor)
+    if (newerRuntimeState) {
+      ctx.runtimeStateByThreadRef.current[threadId] = newerRuntimeState
+      return
+    }
+    const existing = ctx.runtimeStateByThreadRef.current[threadId]
     ctx.runtimeStateByThreadRef.current[threadId] = {
       threadId,
       mode: state.mode,
@@ -119,6 +134,7 @@ export async function replayThreadEvents(
       lastTurnStatus: state.lastTurnStatus,
       pendingInputs: ctx.toRuntimePendingInputsById(state.pendingInputs),
       toolNameByUseId: state.toolNameByUseId,
+      preferences: state.preferences ?? existing?.preferences ?? {},
       updatedAt: state.updatedAt,
       lastNotificationMethod: null,
       lastReplaySeq: latestReplayCursor,
@@ -132,8 +148,9 @@ export async function replayThreadEvents(
     }
   }
 
-  const syncActiveThreadRuntimeState = (state: ReplayStateSnapshot | null): void => {
+  const syncActiveThreadRuntimeState = (state: ReplayStateSnapshot | null, latestReplayCursor: number): void => {
     if (ctx.activeThreadIdRef.current !== threadId) return
+    if (getNewerRuntimeState(latestReplayCursor)) return
     ctx.syncPendingInputsFromReplayState(threadId, state)
     ctx.dispatch({ type: 'set_active_turn', turnId: ctx.runtimeStateByThreadRef.current[threadId]?.activeTurnId ?? null })
     const nextMode = state?.mode ?? ctx.runtimeStateByThreadRef.current[threadId]?.mode ?? 'normal'
@@ -151,6 +168,7 @@ export async function replayThreadEvents(
 
   const commitReplayTail = (args: {
     replayCursor: number
+    stateReplayCursor: number
     promoteReplayAsSource: boolean
     state: ReplayStateSnapshot | null
   }): void => {
@@ -159,7 +177,7 @@ export async function replayThreadEvents(
       ctx.clearThreadHistoryCursor(threadId)
     }
     ctx.replayCursorByThreadRef.current[threadId] = args.replayCursor
-    syncActiveThreadRuntimeState(args.state)
+    syncActiveThreadRuntimeState(args.state, args.stateReplayCursor)
   }
 
   const shouldDeferProjectionHydration = (projectionSnapshot: ReplayStateSnapshot['projection']): boolean => {
@@ -169,6 +187,7 @@ export async function replayThreadEvents(
   const commitGapRebuild = (args: {
     state: ReplayStateSnapshot | null
     replayCursor: number
+    stateReplayCursor: number
     projectionSnapshot: ReplayStateSnapshot['projection']
     clearActiveLogs: boolean
   }): 'applied' | 'deferred' => {
@@ -187,7 +206,7 @@ export async function replayThreadEvents(
     }
 
     applyReplayCursorAndSource(args.replayCursor)
-    syncActiveThreadRuntimeState(args.state)
+    syncActiveThreadRuntimeState(args.state, args.stateReplayCursor)
     return 'applied'
   }
 
@@ -246,6 +265,7 @@ export async function replayThreadEvents(
       commitGapRebuild({
         state: replay.state,
         replayCursor: withGapCursorFloor(replay.latestCursor),
+        stateReplayCursor: replay.latestCursor,
         projectionSnapshot: replay.state.projection,
         clearActiveLogs: false,
       })
@@ -264,6 +284,7 @@ export async function replayThreadEvents(
       commitGapRebuild({
         state: baselineReplay.state,
         replayCursor: withGapCursorFloor(baselineReplay.latestCursor),
+        stateReplayCursor: baselineReplay.latestCursor,
         projectionSnapshot: baselineReplay.state.projection,
         clearActiveLogs: false,
       })
@@ -275,6 +296,7 @@ export async function replayThreadEvents(
       replayCursor: withGapCursorFloor(
         baselineReplay.nextCursor > 0 ? baselineReplay.nextCursor : baselineReplay.latestCursor,
       ),
+      stateReplayCursor: baselineReplay.latestCursor,
       projectionSnapshot: baselineReplay.state?.projection ?? null,
       clearActiveLogs: true,
     })
@@ -307,6 +329,7 @@ export async function replayThreadEvents(
       }
       commitReplayTail({
         replayCursor: 0,
+        stateReplayCursor: replay.latestCursor,
         promoteReplayAsSource: false,
         state: replay.state ?? null,
       })
@@ -363,6 +386,7 @@ export async function replayThreadEvents(
   })
   commitReplayTail({
     replayCursor: after > 0 ? after : latestCursor,
+    stateReplayCursor: latestCursor,
     promoteReplayAsSource: shouldPromoteReplaySource,
     state: replayState,
   })

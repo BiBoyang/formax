@@ -1,6 +1,6 @@
 # Web Parity Adapter Contract（唯一事实源）
 
-最后更新：2026-05-21
+最后更新：2026-06-01
 状态：规范性（Normative）
 
 本文档定义 web reference client 在 adapter / reducer / cursor 层的共享边界，确保 Web 只消费 canonical semantics，而不再发明第二套语义状态机。
@@ -11,6 +11,7 @@
 - `projectionEngine.ts` 的 projection-to-log 合并边界
 - `turnEventCursor.ts` 的排序 / 去重职责
 - 通知进入 Web 后何时允许进入 canonical projection
+- Web mirroring of server-owned thread runtime preferences
 
 不在范围内：
 - 页面布局、三区域 UI 文案与组件视觉
@@ -52,6 +53,9 @@ Web MAY 持有 renderer-local transient surface state（例如 `newThreadDraft`�
 `newThreadDraft` 之类的 transient surface MUST NOT 继续通过 `!activeThreadId` 隐式推断。Web 必须用显式 draft state 派生 `visibleSurface`，避免把 welcome、draft、real thread 混为同一 gate。
 
 `WEB-006`
+Thread runtime preferences are server-owned runtime side state. Web MAY mirror `ThreadRuntimeState.preferences` for rendering and optimistic reconciliation, but MUST NOT treat component-local state, local storage, transcript rows, or draft-local hidden state as durable preference authority.
+
+`WEB-007`
 Web page shell MUST 保持 `thread-owned`、`draft-owned` 与 `workspace selection only` 三类 owner boundary 清晰分离：
 1. `thread-owned` chrome / diagnostics（例如 right rail diff、request collapse、compact boundary、context meter、active-turn chrome）只允许在真实 `thread` surface 下显示；
 2. `draft-owned` chrome 只允许读取显式 draft state（例如 `draftCwd`），不得回退到旧的 `selectedCwd` 或 `diffSnapshot.cwd`；
@@ -191,6 +195,15 @@ Web MUST consume app-server title semantics directly. `ThreadSummary.label` is t
 
 `WEB-508`
 `thread/updated` is a metadata refresh notification. After sequenced-notification gating, Web MAY refresh thread list state, but MUST NOT insert `thread/updated` into canonical transcript projection, history hydrate rows, or visible transcript logs.
+
+`WEB-509`
+`thread/runtimeStateChanged` is a runtime side-state notification. After sequenced-notification gating, Web MUST reduce it into the relevant thread runtime-state cache and MUST NOT insert it into canonical transcript projection, history hydrate rows, or visible transcript logs.
+
+`WEB-510`
+Preference writes MUST use an explicit visible-surface target helper, e.g. `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)`. Active real-thread surfaces patch thread runtime preferences. Draft/no-thread surfaces patch global runtime defaults. Web MUST NOT route writes solely by raw `!activeThreadId`.
+
+`WEB-511`
+Web displayed model/thinking values MUST be derived from `thread.preferences[field] ?? globalRuntimeDefaults[field]`. Web MUST NOT copy global defaults into thread preferences merely to render inherited values. Pending preference writes MUST be confirmed or reconciled before send/start/dispatch uses the displayed profile.
 
 ## 7. Compression Projection Facts
 

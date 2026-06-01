@@ -59,6 +59,7 @@ describe('buildReplayStateSnapshot', () => {
     state.lastTurnId = 'turn-1'
     state.lastTurnStatus = 'completed'
     state.activeTurnId = null
+    state.preferences = { modelTier: 'opus', thinkingMode: false }
 
     const withProjection = buildReplayStateSnapshot({
       stateForSnapshot: state,
@@ -69,6 +70,7 @@ describe('buildReplayStateSnapshot', () => {
     expect(withProjection).toEqual(
       expect.objectContaining({
         pendingInputCount: 1,
+        preferences: { modelTier: 'opus', thinkingMode: false },
         canonicalProtocolAnomalyCount: 2,
         projection: expect.objectContaining({
           segments: expect.any(Array),

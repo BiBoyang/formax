@@ -4,6 +4,7 @@ import {
   extractThreadIdFromNotificationParams,
   reduceThreadRuntimeState,
 } from './threadRuntimeState.js'
+import { mapTurnNotificationToCanonicalEvents } from '../adapters/canonicalEventAdapter.js'
 
 describe('threadRuntimeState (shared)', () => {
   it('extracts threadId from params.threadId or params.turn.threadId', () => {
@@ -248,6 +249,237 @@ describe('threadRuntimeState (shared)', () => {
     })
     expect(stale).toBe(state)
     expect(stale.toolNameByUseId).toEqual({ 'tool-1': 'Bash' })
+  })
+
+  it('starts with empty preferences and applies model/thinking runtime-state patches', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    expect(state.preferences).toEqual({})
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: 'opus',
+            thinkingMode: false,
+          },
+        },
+      },
+    })
+    expect(state.preferences).toEqual({
+      modelTier: 'opus',
+      thinkingMode: false,
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: 'haiku',
+          },
+        },
+      },
+    })
+    expect(state.preferences).toEqual({
+      modelTier: 'haiku',
+      thinkingMode: false,
+    })
+  })
+
+  it('clears preference overrides with null without storing nulls', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: 'sonnet',
+            thinkingMode: true,
+          },
+        },
+      },
+    })
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: null,
+          },
+        },
+      },
+    })
+    expect(state.preferences).toEqual({ thinkingMode: true })
+    expect('modelTier' in state.preferences).toBe(false)
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 4,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            thinkingMode: null,
+          },
+        },
+      },
+    })
+    expect(state.preferences).toEqual({})
+    expect('thinkingMode' in state.preferences).toBe(false)
+  })
+
+  it('uses authoritative reduced state preferences when runtime-state notification includes them', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    state.preferences = { thinkingMode: true }
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            thinkingMode: false,
+          },
+        },
+        state: {
+          preferences: {
+            modelTier: 'opus',
+            thinkingMode: false,
+          },
+        },
+      },
+    })
+
+    expect(state.preferences).toEqual({
+      modelTier: 'opus',
+      thinkingMode: false,
+    })
+  })
+
+  it('ignores malformed authoritative state preferences and falls back to patch reduction', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+    state.preferences = { modelTier: 'sonnet', thinkingMode: true }
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            thinkingMode: false,
+          },
+        },
+        state: {
+          preferences: {
+            modelTier: 'not-a-tier',
+          },
+        },
+      },
+    })
+
+    expect(state.preferences).toEqual({
+      modelTier: 'sonnet',
+      thinkingMode: false,
+    })
+  })
+
+  it('ignores stale runtime-state preference patches', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 5,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: 'opus',
+            thinkingMode: true,
+          },
+        },
+      },
+    })
+
+    const stale = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 4,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            modelTier: 'haiku',
+            thinkingMode: false,
+          },
+        },
+      },
+    })
+    expect(stale).toBe(state)
+    expect(stale.preferences).toEqual({
+      modelTier: 'opus',
+      thinkingMode: true,
+    })
+  })
+
+  it('keeps runtime-state preference notifications out of transcript projection', () => {
+    const events = mapTurnNotificationToCanonicalEvents(
+      {
+        method: 'thread/runtimeStateChanged',
+        params: {
+          threadId: 'thread-1',
+          replaySeq: 2,
+          eventId: 'pref-1',
+          ts: '2026-02-10T00:00:01.000Z',
+          source: 'ui',
+          patch: {
+            preferences: {
+              modelTier: 'opus',
+            },
+          },
+        },
+      },
+      {
+        fallbackThreadId: 'thread-1',
+        requireEnvelope: true,
+      },
+    )
+    expect(events).toEqual([])
   })
 
   it('clears unresolved pending inputs for a turn when that turn reaches terminal state', () => {

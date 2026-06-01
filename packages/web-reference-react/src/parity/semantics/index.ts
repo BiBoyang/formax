@@ -6,7 +6,7 @@ export {
   extractThreadIdFromNotificationParams,
   reduceThreadRuntimeState,
 } from '@formax/semantics'
-export type { ThreadRuntimeState } from '@formax/semantics'
+export type { ThreadRuntimePreferences, ThreadRuntimeState } from '@formax/semantics'
 
 export {
   formatArchiveNotice,

@@ -8,6 +8,7 @@ import {
   shouldAcceptSequencedNotification,
 } from '../../turnEventCursor'
 import type { ThreadRuntimeState } from '../../semantics'
+import { createInitialThreadRuntimeState } from '../../semantics'
 
 function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): CompactBoundarySummary {
   return {
@@ -20,6 +21,175 @@ function createBoundary(overrides: Partial<CompactBoundarySummary> = {}): Compac
 }
 
 describe('useRuntimeEventOrchestrator', () => {
+  it('preserves newer runtime preferences during full replay rebuilds', async () => {
+    const liveState = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 11,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-17T00:00:01.000Z',
+    })
+    liveState.preferences = { modelTier: 'opus', thinkingMode: true }
+    liveState.lastReplaySeq = 10
+    const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = {
+      current: { 'thread-1': liveState },
+    }
+    const replayCursorByThreadRef: { current: Record<string, number> } = { current: {} }
+    const request = vi.fn(async () => ({
+      data: [],
+      nextCursor: 5,
+      latestCursor: 5,
+      hasGap: false,
+      state: {
+        mode: 'normal',
+        activeTurnId: null,
+        lastTurnId: null,
+        lastTurnStatus: null,
+        pendingInputCount: 0,
+        canonicalProtocolAnomalyCount: 0,
+        pendingInputs: [],
+        preferences: { modelTier: 'haiku', thinkingMode: false },
+        invariantIssues: [],
+        projection: null,
+        toolNameByUseId: {},
+        updatedAt: '2026-02-17T00:00:00.000Z',
+      },
+    }))
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request,
+        dispatch: vi.fn(),
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification: vi.fn((params, owner) =>
+          shouldAcceptSequencedNotification(createTurnEventCursorState(), params, owner),
+        ),
+        runtimeStateByThreadRef,
+        replayCursorByThreadRef,
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef: { current: {} },
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId: vi.fn(),
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+
+    expect(runtimeStateByThreadRef.current['thread-1']?.preferences).toEqual({
+      modelTier: 'opus',
+      thinkingMode: true,
+    })
+    expect(runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(10)
+  })
+
+  it('clears stale runtime state when full replay returns no runtime state', async () => {
+    const staleState = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 11,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-17T00:00:01.000Z',
+    })
+    staleState.preferences = { modelTier: 'opus', thinkingMode: true }
+    staleState.lastReplaySeq = 10
+    const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = {
+      current: { 'thread-1': staleState },
+    }
+    const request = vi.fn(async (method: string) => {
+      if (method === 'thread/messages') {
+        return { data: [], nextCursor: null }
+      }
+      return {
+        data: [],
+        nextCursor: 0,
+        latestCursor: 0,
+        hasGap: false,
+        state: null,
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useRuntimeEventOrchestrator({
+        devPerfEnabled: false,
+        request,
+        dispatch: vi.fn(),
+        log: vi.fn(),
+        cacheThreadMode: vi.fn(),
+        refreshThreads: vi.fn(async () => {}),
+        refreshWorkspaceDiff: vi.fn(async () => {}),
+        setMode: vi.fn(),
+        setAskDockOpenByInputId: vi.fn(),
+        setAskPageIndexByInputId: vi.fn(),
+        setAskDraftByInputId: vi.fn(),
+        setSubmitStatusByInputId: vi.fn(),
+        shouldProcessSequencedNotification: vi.fn((params, owner) =>
+          shouldAcceptSequencedNotification(createTurnEventCursorState(), params, owner),
+        ),
+        runtimeStateByThreadRef,
+        replayCursorByThreadRef: { current: {} },
+        replayAnomalyCountSeenByThreadRef: { current: {} },
+        activeThreadIdRef: { current: 'thread-1' },
+        commandByTurnRef: { current: new Map() },
+        logsByThreadIdRef: { current: {} },
+        stateLogsRef: { current: [] },
+        transcriptSourceByThreadRef: { current: {} },
+        latestCompactBoundaryByThreadIdRef: { current: {} },
+        durableSnipByThreadIdRef: { current: {} },
+        latestRequestCollapseByThreadIdRef: { current: {} },
+        setLatestCompactBoundaryByThreadId: vi.fn(),
+        setDurableSnipByThreadId: vi.fn(),
+        setLatestRequestCollapseByThreadId: vi.fn(),
+        setThreadTranscriptSource: vi.fn(),
+        clearThreadHistoryCursor: vi.fn(),
+        syncPendingInputsFromReplayState: vi.fn(),
+        loadThreadHistory: vi.fn(async () => true),
+        archivedHandlerDeps: {
+          pruneThreadScopedRuntimeRefs: vi.fn(),
+          setNoticeMessage: vi.fn(),
+          setSelectedCwd: vi.fn(),
+          selectThreadRef: { current: vi.fn() },
+          threadsRef: { current: [] },
+          pendingArchiveOpsRef: { current: new Map() },
+        },
+      }),
+    )
+
+    await act(async () => {
+      await result.current.replayThreadEvents('thread-1', { fromStart: true })
+    })
+
+    expect(runtimeStateByThreadRef.current['thread-1']).toBeUndefined()
+  })
+
   it('hydrates replay entries through the thread replay sequencer instead of the live sequencer', async () => {
     const eventCursor = createTurnEventCursorState()
     expect(

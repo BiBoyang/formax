@@ -1,6 +1,6 @@
 # Model Settings 合同（唯一事实源）
 
-最后更新：2026-05-24  
+最后更新：2026-06-01  
 状态：规范性（Normative）
 
 本文档定义 Formax 的模型设置行为（tier 选择、active model 解析、context window provenance、runtime profile、`/model` 持久化）的唯一事实来源。
@@ -11,6 +11,7 @@
 - `contextWindowTokens` 的运行时优先级（env / tier snapshot / legacy / local known-model fallback）
 - context window `source` / `binding` / `runtime profile` 的语义
 - `/model` 写盘与上下文窗口同步的行为边界
+- thread runtime preference overrides for app-server execution
 - app-server / Web turn 期间的 runtime ownership 一致性
 
 不在范围内：
@@ -45,6 +46,14 @@
 
 `MODEL-002`  
 active tier 解析 MUST 由 `defaultTier`（含 env/config 合并后的结果）决定，且默认值 MUST 为 `sonnet`。
+
+`MODEL-002A`
+For thread-bound app-server execution, an explicit thread runtime preference `modelTier` MUST override global/project default-tier selection for that thread only. Effective tier resolution is:
+1. valid `thread.preferences.modelTier`
+2. effective runtime config `llm.defaultTier`
+3. `sonnet`
+
+The override selects the tier; concrete model resolution still follows `MODEL-003`, including tier env variables, legacy sonnet override, configured tier models, and built-in defaults.
 
 `MODEL-003`  
 `resolveModelForTier` 的优先级 MUST 为：
@@ -145,6 +154,13 @@ heuristic fallback MUST NOT 默认持久化为 authoritative snapshot。catalog 
 
 `MODEL-401`  
 runtime MUST 通过 shared `RuntimeModelProfile` 解析 active model、model source、effective context window、context window source / binding，以及 budget 参数。
+
+`MODEL-401A`
+Thread-bound execution MUST resolve `RuntimeModelProfile` from base runtime config plus sparse thread runtime preferences. `thinkingMode` effective resolution is:
+1. `thread.preferences.thinkingMode` when present
+2. effective runtime config `llm.thinkingMode`
+
+`low | medium | high | max` reasoning effort labels are not backend runtime semantics in v1 and MUST NOT be accepted as thread thinking preferences.
 
 `MODEL-402`  
 同一个 turn 内，model identity、prompt budget、context meter budget、cache-editing provider 判定 MUST 来自同一份 frozen runtime profile snapshot。
