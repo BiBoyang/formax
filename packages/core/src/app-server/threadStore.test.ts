@@ -354,6 +354,7 @@ describe('ThreadStore', () => {
     const resumedBeforePersist = await store.resumeThread(thread.id)
     expect(resumedBeforePersist.thread.id).toBe(thread.id)
     expect(resumedBeforePersist.staleInputs).toEqual([])
+    expect(resumedBeforePersist.preferences).toEqual({})
     expect(resumedBeforePersist.latestCompactBoundary).toBeNull()
     expect(resumedBeforePersist.pendingSessionMemoryRestore).toBeNull()
     expect(resumedBeforePersist.nextTurnInjectedBlocks).toBeUndefined()
@@ -361,6 +362,7 @@ describe('ThreadStore', () => {
     const readBeforePersist = await store.readThread(thread.id)
     expect(readBeforePersist.thread.id).toBe(thread.id)
     expect(readBeforePersist.transcriptPreview).toEqual([])
+    expect(readBeforePersist.preferences).toEqual({})
     expect(readBeforePersist.latestRequestCollapse).toBeNull()
 
     const messagesBeforePersist = await store.listThreadMessages({ threadId: thread.id, limit: 50 })
@@ -380,6 +382,7 @@ describe('ThreadStore', () => {
     const resumed = await store.resumeThread(thread.id)
     expect(resumed.thread.id).toBe(thread.id)
     expect(resumed.staleInputs).toEqual([])
+    expect(resumed.preferences).toEqual({})
     expect(resumed.latestCompactBoundary).toBeNull()
     expect(resumed.pendingSessionMemoryRestore).toEqual(
       expect.objectContaining({
@@ -391,6 +394,7 @@ describe('ThreadStore', () => {
 
     const readOut = await store.readThread(thread.id)
     expect(readOut.thread.id).toBe(thread.id)
+    expect(readOut.preferences).toEqual({})
     expect(readOut.transcriptPreview).toEqual(
       expect.arrayContaining([{ role: 'user', text: 'hello thread' }]),
     )
@@ -404,6 +408,41 @@ describe('ThreadStore', () => {
     expect(messagesOut.nextCursor).toBeNull()
     expect(messagesOut.latestCompactBoundary).toBeNull()
     expect(messagesOut.latestRequestCollapse).toBeNull()
+  })
+
+  it('patches thread runtime preferences durably and materializes provisional threads', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    await expect(findSessionFileBySessionId({ cwd, env, sessionId: thread.id })).resolves.toBeNull()
+
+    const patched = await store.patchThreadRuntimeState({
+      threadId: thread.id,
+      source: 'web',
+      opId: 'op-1',
+      patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+    })
+
+    expect(patched.threadId).toBe(thread.id)
+    expect(patched.preferences).toEqual({ modelTier: 'opus', thinkingMode: false })
+    await expect(findSessionFileBySessionId({ cwd, env, sessionId: thread.id })).resolves.toBe(patched.filePath)
+
+    await expect(store.readThread(thread.id)).resolves.toEqual(
+      expect.objectContaining({
+        preferences: { modelTier: 'opus', thinkingMode: false },
+      }),
+    )
+
+    await store.patchThreadRuntimeState({
+      threadId: thread.id,
+      source: 'web',
+      patch: { preferences: { modelTier: null } },
+    })
+
+    await expect(store.resumeThread(thread.id)).resolves.toEqual(
+      expect.objectContaining({
+        preferences: { thinkingMode: false },
+      }),
+    )
   })
 
   it('exposes latest compact boundary summary in thread/read and thread/messages', async () => {

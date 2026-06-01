@@ -1,11 +1,15 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
+  buildThreadRuntimeStatePatchEventData,
   readSessionFile,
   readSessionPreview,
   readSessionSummary,
+  readThreadRuntimePreferencesFromSession,
   SessionWriter,
   type SessionSummary,
+  THREAD_RUNTIME_STATE_PATCH_EVENT_NAME,
+  type ThreadRuntimeStatePatchEventSource,
 } from '../features/repl/sessionSave/index.js'
 import {
   persistSessionMemoryFromHistory,
@@ -41,6 +45,10 @@ import {
   FileThreadGroupVisibilityStore,
   type ThreadGroupVisibilityStore,
 } from './store/threadGroupVisibilityStore.js'
+import type {
+  ThreadRuntimePreferences,
+  ThreadRuntimePreferencesPatch,
+} from '../features/semantics/runtime/threadRuntimeState.js'
 
 export type ThreadStoreOptions = {
   cwd?: string
@@ -61,6 +69,7 @@ export type ThreadListResult = {
 export type ThreadReadResult = {
   thread: Thread
   transcriptPreview: Array<{ role: 'user' | 'assistant'; text: string }>
+  preferences?: ThreadRuntimePreferences
   latestCompactBoundary?: CompactBoundaryMeta | null
   durableSnip?: ThreadDurableSnipSummary | null
   latestRequestCollapse?: {
@@ -134,6 +143,7 @@ type ThreadTimelineEntry = {
 export type ThreadResumeResult = {
   thread: Thread
   staleInputs: InputResolvedPayload[]
+  preferences?: ThreadRuntimePreferences
   latestCompactBoundary?: CompactBoundaryMeta | null
   durableSnip?: ThreadDurableSnipSummary | null
   latestRequestCollapse?: LatestRequestCollapseSummary | null
@@ -151,6 +161,12 @@ export type ThreadArchiveResult = {
 
 export type ThreadGroupHideResult = {
   hiddenGroupCwds: string[]
+}
+
+export type ThreadRuntimeStatePatchResult = {
+  threadId: string
+  preferences: ThreadRuntimePreferences
+  filePath: string
 }
 
 type ProvisionalThread = {
@@ -621,6 +637,7 @@ export class ThreadStore {
       return {
         thread: toThreadFromProvisional(provisional),
         staleInputs: [],
+        preferences: {},
         latestCompactBoundary: null,
         durableSnip: null,
         latestRequestCollapse: null,
@@ -629,12 +646,13 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, staleInputs, replay, latestRequestCollapse, durableSnipState] = await Promise.all([
+    const [summary, staleInputs, replay, latestRequestCollapse, durableSnipState, runtimePreferences] = await Promise.all([
       readSessionSummary(filePath),
       readStaleInputsFromSession({ filePath }),
       readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
       readDurableSnipStateFromSession({ filePath }),
+      readThreadRuntimePreferencesFromSession({ filePath, threadId }),
     ])
     const activeHistory = buildActiveHistoryFromSessionReplay(replay.history)
     const initialRestoreArtifacts = await resolveSessionMemoryRestoreArtifacts({
@@ -670,6 +688,7 @@ export class ThreadStore {
     return {
       thread: toThread(summary),
       staleInputs,
+      preferences: runtimePreferences.preferences,
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
       durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
@@ -753,6 +772,7 @@ export class ThreadStore {
       return {
         thread: toThreadFromProvisional(provisional),
         transcriptPreview: [],
+        preferences: {},
         latestCompactBoundary: null,
         durableSnip: null,
         latestRequestCollapse: null,
@@ -760,12 +780,13 @@ export class ThreadStore {
     }
     this.provisionalThreads.delete(threadId)
 
-    const [summary, transcriptPreview, replay, latestRequestCollapse, durableSnipState] = await Promise.all([
+    const [summary, transcriptPreview, replay, latestRequestCollapse, durableSnipState, runtimePreferences] = await Promise.all([
       readSessionSummary(filePath),
       readSessionPreview(filePath),
       readSessionFile(filePath),
       readLatestRequestCollapseEventFromSession({ filePath }),
       readDurableSnipStateFromSession({ filePath }),
+      readThreadRuntimePreferencesFromSession({ filePath, threadId }),
     ])
 
     const projectionFacts = buildThreadProjectionFacts({
@@ -777,6 +798,7 @@ export class ThreadStore {
     return {
       thread: toThread(summary),
       transcriptPreview,
+      preferences: runtimePreferences.preferences,
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
       durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
@@ -928,6 +950,34 @@ export class ThreadStore {
       latestCompactBoundary: projectionFacts.latestCompactBoundary,
       durableSnip: projectionFacts.durableSnip,
       latestRequestCollapse: projectionFacts.latestRequestCollapse,
+    }
+  }
+
+  async patchThreadRuntimeState(args: {
+    threadId: string
+    patch: { preferences: ThreadRuntimePreferencesPatch }
+    source: ThreadRuntimeStatePatchEventSource
+    opId?: string
+    cwd?: string
+  }): Promise<ThreadRuntimeStatePatchResult> {
+    const filePath = await this.ensureThreadFile({ threadId: args.threadId, cwd: args.cwd })
+    const eventData = buildThreadRuntimeStatePatchEventData({
+      threadId: args.threadId,
+      patch: args.patch,
+      source: args.source,
+      ...(args.opId ? { opId: args.opId } : {}),
+    })
+    const writer = await SessionWriter.openExisting({ filePath })
+    try {
+      await writer.appendEvent(THREAD_RUNTIME_STATE_PATCH_EVENT_NAME, eventData)
+    } finally {
+      await writer.shutdown()
+    }
+    const reduced = await readThreadRuntimePreferencesFromSession({ filePath, threadId: args.threadId })
+    return {
+      threadId: args.threadId,
+      preferences: reduced.preferences,
+      filePath,
     }
   }
 

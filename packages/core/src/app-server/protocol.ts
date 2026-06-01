@@ -1,4 +1,8 @@
 import { isReplMode, type ReplMode } from '@formax/semantics'
+import type {
+  ThreadRuntimePreferencesPatch,
+  ThreadRuntimeModelTier,
+} from '../features/semantics/runtime/threadRuntimeState.js'
 export const APP_SERVER_PROTOCOL_VERSION = '0.2'
 
 export type ClientInfo = {
@@ -55,6 +59,18 @@ export type ThreadStartParams = {
 
 export type ThreadByIdParams = {
   threadId: string
+}
+
+export type ThreadRuntimeStatePatchParams = ThreadByIdParams & {
+  patch: {
+    preferences: ThreadRuntimePreferencesPatch
+  }
+  opId?: string
+}
+
+export type RuntimeDefaultsPatchParams = {
+  modelTier?: ThreadRuntimeModelTier
+  thinkingMode?: boolean
 }
 
 export type ThreadArchiveParams = ThreadByIdParams & {
@@ -161,6 +177,17 @@ function parsePositiveInt(value: unknown, fieldName: string): number {
   return value
 }
 
+function parseModelTierValue(value: unknown, fieldName: string): ThreadRuntimeModelTier {
+  if (value === 'haiku' || value === 'sonnet' || value === 'opus') return value
+  throw new Error(`Invalid ${fieldName}: expected haiku|sonnet|opus`)
+}
+
+function rejectUnknownKeys(value: Record<string, unknown>, allowed: Set<string>, fieldName: string): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) throw new Error(`Invalid ${fieldName}.${key}: unknown field`)
+  }
+}
+
 export function parseThreadStartParams(params: unknown): ThreadStartParams {
   if (params == null) return {}
   if (!isObject(params)) throw new Error('Invalid params: expected object')
@@ -173,6 +200,61 @@ export function parseThreadByIdParams(params: unknown): ThreadByIdParams {
   if (!isObject(params)) throw new Error('Invalid params: expected object')
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   return { threadId }
+}
+
+export function parseThreadRuntimeStatePatchParams(params: unknown): ThreadRuntimeStatePatchParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  rejectUnknownKeys(params, new Set(['threadId', 'patch', 'opId']), 'params')
+  const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
+  const opId = parseOptionalNonEmptyString(params.opId, 'params.opId')
+  if (!isObject(params.patch)) throw new Error('Invalid params.patch: expected object')
+  rejectUnknownKeys(params.patch, new Set(['preferences']), 'params.patch')
+
+  const preferences: ThreadRuntimePreferencesPatch = {}
+  if (Object.prototype.hasOwnProperty.call(params.patch, 'preferences')) {
+    if (!isObject(params.patch.preferences)) throw new Error('Invalid params.patch.preferences: expected object')
+    rejectUnknownKeys(
+      params.patch.preferences,
+      new Set(['modelTier', 'thinkingMode']),
+      'params.patch.preferences',
+    )
+    if (Object.prototype.hasOwnProperty.call(params.patch.preferences, 'modelTier')) {
+      const raw = params.patch.preferences.modelTier
+      preferences.modelTier = raw === null ? null : parseModelTierValue(raw, 'params.patch.preferences.modelTier')
+    }
+    if (Object.prototype.hasOwnProperty.call(params.patch.preferences, 'thinkingMode')) {
+      const raw = params.patch.preferences.thinkingMode
+      if (raw === null) {
+        preferences.thinkingMode = null
+      } else if (typeof raw === 'boolean') {
+        preferences.thinkingMode = raw
+      } else {
+        throw new Error('Invalid params.patch.preferences.thinkingMode: expected boolean|null')
+      }
+    }
+  }
+
+  return {
+    threadId,
+    patch: { preferences },
+    ...(opId ? { opId } : {}),
+  }
+}
+
+export function parseRuntimeDefaultsPatchParams(params: unknown): RuntimeDefaultsPatchParams {
+  if (!isObject(params)) throw new Error('Invalid params: expected object')
+  rejectUnknownKeys(params, new Set(['modelTier', 'thinkingMode']), 'params')
+  const out: RuntimeDefaultsPatchParams = {}
+  if (Object.prototype.hasOwnProperty.call(params, 'modelTier')) {
+    out.modelTier = parseModelTierValue(params.modelTier, 'params.modelTier')
+  }
+  if (Object.prototype.hasOwnProperty.call(params, 'thinkingMode')) {
+    if (typeof params.thinkingMode !== 'boolean') {
+      throw new Error('Invalid params.thinkingMode: expected boolean')
+    }
+    out.thinkingMode = params.thinkingMode
+  }
+  return out
 }
 
 export function parseThreadArchiveParams(params: unknown): ThreadArchiveParams {

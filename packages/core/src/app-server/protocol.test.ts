@@ -3,6 +3,7 @@ import {
   APP_SERVER_PROTOCOL_VERSION,
   parseCommandDispatchParams,
   parseInitializeParams,
+  parseRuntimeDefaultsPatchParams,
   parseThreadArchiveParams,
   parseThreadByIdParams,
   parseThreadGroupHideParams,
@@ -10,6 +11,7 @@ import {
   parseThreadMessagesParams,
   parseThreadRenameParams,
   parseThreadReplayParams,
+  parseThreadRuntimeStatePatchParams,
   parseThreadStartParams,
   parseTurnInputSubmitParams,
   parseTurnInterruptParams,
@@ -19,6 +21,62 @@ import {
 describe('protocol parsers', () => {
   it('exports protocol version', () => {
     expect(APP_SERVER_PROTOCOL_VERSION).toBe('0.2')
+  })
+
+  it('parses thread runtime-state preference patches strictly', () => {
+    expect(
+      parseThreadRuntimeStatePatchParams({
+        threadId: ' t1 ',
+        opId: ' op-1 ',
+        patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+      }),
+    ).toEqual({
+      threadId: 't1',
+      opId: 'op-1',
+      patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+    })
+    expect(
+      parseThreadRuntimeStatePatchParams({
+        threadId: 't1',
+        patch: { preferences: { modelTier: null, thinkingMode: null } },
+      }),
+    ).toEqual({
+      threadId: 't1',
+      patch: { preferences: { modelTier: null, thinkingMode: null } },
+    })
+    expect(parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: {} })).toEqual({
+      threadId: 't1',
+      patch: { preferences: {} },
+    })
+    expect(() =>
+      parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { mode: 'plan' } }),
+    ).toThrow('Invalid params.patch.mode: unknown field')
+    expect(() =>
+      parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { modelTier: 'medium' } } }),
+    ).toThrow('Invalid params.patch.preferences.modelTier: expected haiku|sonnet|opus')
+    expect(() =>
+      parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { thinkingMode: 'high' } } }),
+    ).toThrow('Invalid params.patch.preferences.thinkingMode: expected boolean|null')
+    expect(() =>
+      parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { mode: 'plan' } } }),
+    ).toThrow('Invalid params.patch.preferences.mode: unknown field')
+  })
+
+  it('parses global runtime defaults patches without null clears', () => {
+    expect(parseRuntimeDefaultsPatchParams({ modelTier: 'haiku', thinkingMode: true })).toEqual({
+      modelTier: 'haiku',
+      thinkingMode: true,
+    })
+    expect(parseRuntimeDefaultsPatchParams({})).toEqual({})
+    expect(() => parseRuntimeDefaultsPatchParams({ modelTier: null })).toThrow(
+      'Invalid params.modelTier: expected haiku|sonnet|opus',
+    )
+    expect(() => parseRuntimeDefaultsPatchParams({ thinkingMode: null })).toThrow(
+      'Invalid params.thinkingMode: expected boolean',
+    )
+    expect(() => parseRuntimeDefaultsPatchParams({ effort: 'medium' })).toThrow(
+      'Invalid params.effort: unknown field',
+    )
   })
 
   it('parses initialize params and validates clientInfo', () => {

@@ -6,8 +6,15 @@ import { resolveSessionMemoryRestoreContext } from '../features/repl/sessionRest
 import { buildTurnInput } from '../features/semantics/adapters/turnInputBuilder.js'
 import { createRuntime } from '../runtime/createRuntime.js'
 import { loadRuntimeConfig } from '../config/config.js'
+import { createNodeFileStore } from '../config/nodeFileStore.js'
+import { getConfigPaths } from '../config/configPaths.js'
+import { readConfigPatch, updateConfigPatchFile } from '../config/settings/persist.js'
 import { createRuntimeFlags } from '../config/runtimeFlags.js'
-import { resolveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
+import {
+  resolveEffectiveRuntimeModelProfile,
+  resolveRuntimeModelProfile,
+  summarizeRuntimeModelProfile,
+} from '../config/runtimeModelProfile.js'
 import { buildOpaqueFingerprint } from '../core/models/modelCapability.js'
 import { resolveDeferredToolExposureForTurn } from '../tools/runtime/deferredToolExposureResolver.js'
 import { applyToolFilters, resolveToolFilters } from '../tools/runtime/toolFilter.js'
@@ -15,6 +22,7 @@ import { AppServer } from './server.js'
 import { readLatestRequestCollapseEventFromSession } from '../features/repl/sessionSave/requestCollapseEvents.js'
 import { readLatestReactiveCompactEventFromSession } from '../features/repl/sessionSave/reactiveCompactEvents.js'
 import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionRestore/contextCollapseStore.js'
+import { persistDefaultModelTier } from '../features/commands/replEnvironmentService.js'
 import {
   classifyRpcMessage,
   JSON_RPC_ERRORS,
@@ -31,6 +39,7 @@ export const DEFAULT_MAX_REQUEST_BYTES = 1024 * 1024
 export const DEFAULT_MAX_EVENT_BYTES = 1024 * 1024
 export const DEFAULT_APP_SERVER_QUEUE_CAPACITY = 128
 const OVERLOADED_ERROR_MESSAGE = 'Server overloaded; retry later.'
+const RUNTIME_MODEL_TIERS = ['haiku', 'sonnet', 'opus'] as const
 type OutboundQueueItem = {
   payload: unknown
   swallowSendErrors: boolean
@@ -225,6 +234,40 @@ export async function runAppServer(args?: {
     platform: args?.platform,
     homedir: args?.homedir,
   }).catch(() => null)
+  const runtimeFlagFingerprintForDefaults = () => JSON.stringify(createRuntimeFlags(env))
+  const readRuntimeDefaults = async () => {
+    const configPaths = getConfigPaths({ cwd, env, platform: args?.platform, homedir: args?.homedir })
+    const fileStore = createNodeFileStore()
+    const [runtimeConfig, savedPatch] = await Promise.all([
+      loadRuntimeConfig(env, cwd, { platform: args?.platform, homedir: args?.homedir }),
+      readConfigPatch({
+        fileStore,
+        filePath: configPaths.globalConfigPath,
+        label: 'global config',
+      }),
+    ])
+    const profile = resolveRuntimeModelProfile({
+      cfg: runtimeConfig,
+      runtimeFlagFingerprint: runtimeFlagFingerprintForDefaults(),
+    })
+    return {
+      saved: {
+        ...(savedPatch.patch.llm?.defaultTier ? { modelTier: savedPatch.patch.llm.defaultTier } : {}),
+        ...(typeof savedPatch.patch.llm?.thinkingMode === 'boolean'
+          ? { thinkingMode: savedPatch.patch.llm.thinkingMode }
+          : {}),
+      },
+      effective: {
+        modelTier: runtimeConfig.llm.defaultTier ?? 'sonnet',
+        thinkingMode: runtimeConfig.llm.thinkingMode,
+      },
+      profile: summarizeRuntimeModelProfile(profile),
+      capabilities: {
+        modelTiers: [...RUNTIME_MODEL_TIERS],
+        thinkingMode: 'boolean' as const,
+      },
+    }
+  }
   const server = new AppServer({
     info: {
       name: 'formax',
@@ -235,6 +278,47 @@ export async function runAppServer(args?: {
       showContextMeter: initializeConfig?.ui.showContextMeter ?? true,
     },
     turnRunner: lazyTurnRunner ?? undefined,
+    runtimeDefaults: {
+      read: readRuntimeDefaults,
+      patch: async (params) => {
+        const configPaths = getConfigPaths({ cwd, env, platform: args?.platform, homedir: args?.homedir })
+        if (params.modelTier) {
+          await persistDefaultModelTier({
+            nextTier: params.modelTier,
+            cwd,
+            env,
+          })
+        }
+        if (typeof params.thinkingMode === 'boolean') {
+          await updateConfigPatchFile({
+            fileStore: createNodeFileStore(),
+            filePath: configPaths.globalConfigPath,
+            label: 'global config',
+            nextPatch: {
+              version: 1,
+              llm: {
+                thinkingMode: params.thinkingMode,
+              },
+            },
+          })
+        }
+        return readRuntimeDefaults()
+      },
+    },
+    resolveEffectiveRuntimeProfileSummary: async ({ preferences }) => {
+      const runtimeConfig = await loadRuntimeConfig(env, cwd, {
+        platform: args?.platform,
+        homedir: args?.homedir,
+      })
+      return summarizeRuntimeModelProfile(
+        resolveEffectiveRuntimeModelProfile({
+          cfg: runtimeConfig,
+          preferences,
+          env,
+          runtimeFlagFingerprint: runtimeFlagFingerprintForDefaults(),
+        }),
+      )
+    },
     resolveTurnRunner: async (resolverArgs) => {
       if (lazyTurnRunner) return lazyTurnRunner
       const runtimeCwd = resolverArgs?.cwd ?? cwd

@@ -3,8 +3,8 @@
 ## Current Scope
 
 - Task todo: `docs/todolist.md`
-- Accepted contracts: Loop 1 thread runtime preferences contracts in `docs/todolist.md`
-- Current loop: Loop 1 - Contracts and semantic state
+- Accepted contracts: Loop 2 JSONL durability and app-server patch APIs in `docs/todolist.md`
+- Current loop: Loop 2 - JSONL durability and app-server patch APIs
 - Review command/profile: `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`
 - Review scope rule: review findings must be classified before code changes.
 
@@ -22,6 +22,9 @@
 | TRP-L1-R6-001 | 6 | P2 | hasGap fallback snapshot publishes `preferences: {}` when runtime cache is missing, falsely clearing unknown thread preferences. | `packages/core/src/app-server/server.ts` | Unknown-vs-empty runtime preference authority | `SEM-106`, Web omitted-field cache semantics | Loop 1 | true blocker | Make replay snapshot preferences optional and omit them for projection-only fallback snapshots. | Added app-server fallback snapshot regression assertion. | resolved |
 | TRP-L1-R7-001 | 7 | P1 | Full replay with `state: null` can preserve stale staged runtime state instead of clearing it. | `packages/web-reference-react/src/app/runtime/useRuntimeEventOrchestrator.ts` | Full replay authoritative empty state | Web replay hydrate semantics | Loop 1 | true blocker | Pass live baseline separately so staged runtime state can start empty while stale replay snapshots can still compare against newer live state. | Added full replay empty-state regression test. | resolved |
 | TRP-L1-R7-002 | 7 | P2 | Malformed authoritative `state.preferences` parses to `{}` and clears valid cached overrides. | `packages/core/src/features/semantics/runtime/threadRuntimeState.ts` | Runtime-state notification recovery / malformed tolerance | `SEM-106`, `SES-110` tolerance model | Loop 1 | true blocker | Treat non-empty snapshots with no valid preference fields as malformed and fall back to patch reduction. | Added malformed authoritative snapshot reducer test. | resolved |
+| TRP-L2-R1-001 | 1 | P1 | Replay synthesized a full default runtime state from persisted preferences alone after cache miss/restart. | `packages/core/src/app-server/server.ts` | Replay state authority / recoverable-vs-ephemeral runtime fields | `SEM-106`, Loop 2 replay preferences exposure | Loop 2 | true blocker | Expose durable preferences as top-level replay data when no runtime state exists; do not fabricate `mode`, turn status, pending inputs, or tool-name state. | Added app-server replay regression test proving `state` remains `null` while `preferences` is returned. | resolved |
+| TRP-L2-R2-001 | 2 | P1 | `config/runtimeDefaults/patch` wrote `llm.defaultTier` directly instead of reusing `/model` persistence semantics. | `packages/core/src/app-server/index.ts` | Global default tier persistence / context-window metadata sync | Loop 2 global runtime defaults; config settings contract | Loop 2 | true blocker | Route model-tier global default updates through `persistDefaultModelTier` so context-window metadata stays aligned. | Re-ran app-server protocol/server targeted tests and type-check. Existing `persistDefaultModelTier` tests cover the persistence helper; they are currently not part of this loop gate because of pre-existing mock-path drift. | resolved |
+| TRP-L2-R2-002 | 2 | P2 | `thread/runtimeState/patch` rejected documented empty patch no-op requests. | `packages/core/src/app-server/protocol.ts` | Generic patch API idempotency / feature probing | Loop 2 strict parser behavior; empty patch no-op decision | Loop 2 | true blocker | Allow `{ patch: {} }` and normalize it to an empty preferences patch. | Added protocol parser regression test for empty patch normalization. | resolved |
 
 ## Classification Rules
 
@@ -52,13 +55,13 @@
 
 ## Stop / Escalation State
 
-- Review rounds in current loop: 7
+- Review rounds in current loop: 2
 - Contradictory findings detected: no
 - Spec convergence required: yes
 - User question required: no
-- Churn trigger status: triggered after repeated Loop 1 replay/runtime-state P1/P2 findings in the same semantic cluster.
-- Convergence decision: do not run additional Loop 1 review rounds before commit unless a new targeted test or type-check failure exposes a concrete blocker.
-- Current resolution: all classified Loop 1 review findings have a recorded decision, action, and regression test or future-loop mapping.
+- Churn trigger status: triggered after two Loop 2 review rounds produced new P1/P2 findings.
+- Convergence decision: do not run additional Loop 2 review rounds before commit unless targeted tests or type-check fail.
+- Current resolution: all classified Loop 2 review findings have a recorded decision, action, and regression test or future-loop mapping.
 
 ## Churn Trigger
 

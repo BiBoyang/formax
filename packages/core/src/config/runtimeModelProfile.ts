@@ -2,7 +2,98 @@ import { getKnownContextWindowTokens } from './modelContextWindow.js'
 import { sameModelIdentity, buildRuntimeModelProfileFingerprint } from './modelCapability.js'
 import type { RuntimeModelProfile } from './modelCapability.js'
 import type { RuntimeConfig } from './config.js'
-import { normalizeModelTier } from './modelTier.js'
+import { normalizeModelTier, resolveModelSelectionForTier } from './modelTier.js'
+import type { ThreadRuntimePreferences } from '../features/semantics/runtime/threadRuntimeState.js'
+
+type EffectiveRuntimeModelProfileSummary = Pick<
+  RuntimeModelProfile,
+  | 'fingerprint'
+  | 'provider'
+  | 'baseUrl'
+  | 'authRef'
+  | 'activeTier'
+  | 'model'
+  | 'modelSource'
+  | 'contextWindowTokens'
+  | 'contextWindowTokensSource'
+  | 'contextWindowTokensBoundModel'
+  | 'effectiveContextWindowPercent'
+  | 'autoCompactTokenLimitPercent'
+  | 'baselineTokens'
+  | 'thinkingMode'
+>
+
+export type { EffectiveRuntimeModelProfileSummary }
+
+function withRuntimePreferences(args: {
+  cfg: RuntimeConfig
+  preferences?: ThreadRuntimePreferences
+  env?: Record<string, string | undefined>
+}): RuntimeConfig {
+  const preferredTier = args.preferences?.modelTier ?? args.cfg.llm.defaultTier
+  const activeTier = normalizeModelTier(preferredTier, 'sonnet')
+  const modelSelection = resolveModelSelectionForTier({
+    tier: activeTier,
+    configuredModel: args.cfg.llm.configuredModel,
+    configuredTierModels: args.cfg.llm.tierModels,
+    env: args.env,
+  })
+  const binding = args.cfg.llm.tierContextWindowBindings?.[activeTier]
+  const bindingMatches = binding
+    ? sameModelIdentity(binding, {
+        provider: args.cfg.llm.provider,
+        baseUrl: args.cfg.llm.baseUrl,
+        model: modelSelection.model,
+      })
+    : false
+  const tierContextWindow = args.cfg.llm.tierContextWindowTokens?.[activeTier]
+  const contextWindowTokensSource =
+    args.cfg.llm.contextWindowTokensSource === 'env_override'
+      ? 'env_override'
+      : tierContextWindow != null
+        ? binding
+          ? (bindingMatches ? args.cfg.llm.tierContextWindowSources?.[activeTier] ?? 'tier_config' : 'binding_mismatch')
+          : 'migrated_legacy'
+        : args.cfg.llm.contextWindowTokensSource === 'legacy_config'
+          ? 'legacy_config'
+          : 'none'
+  const contextWindowTokens =
+    args.cfg.llm.contextWindowTokensSource === 'env_override'
+      ? args.cfg.llm.contextWindowTokens
+      : contextWindowTokensSource === 'binding_mismatch'
+        ? undefined
+        : tierContextWindow ?? (contextWindowTokensSource === 'legacy_config' ? args.cfg.llm.contextWindowTokens : undefined)
+  const {
+    contextWindowTokens: _contextWindowTokens,
+    contextWindowTokensBinding: _contextWindowTokensBinding,
+    contextWindowTokensBoundModel: _contextWindowTokensBoundModel,
+    ...llmBase
+  } = args.cfg.llm
+
+  return {
+    ...args.cfg,
+    llm: {
+      ...llmBase,
+      defaultTier: activeTier,
+      model: modelSelection.model,
+      modelSource: modelSelection.source,
+      ...(contextWindowTokens != null ? { contextWindowTokens } : {}),
+      contextWindowTokensSource,
+      ...(bindingMatches &&
+      binding &&
+      contextWindowTokensSource !== 'env_override' &&
+      contextWindowTokensSource !== 'legacy_config'
+        ? {
+            contextWindowTokensBinding: binding,
+            contextWindowTokensBoundModel: binding.model,
+          }
+        : {}),
+      thinkingMode: args.preferences && Object.prototype.hasOwnProperty.call(args.preferences, 'thinkingMode')
+        ? Boolean(args.preferences.thinkingMode)
+        : args.cfg.llm.thinkingMode,
+    },
+  }
+}
 
 export function resolveRuntimeModelProfile(args: {
   cfg: RuntimeConfig
@@ -106,5 +197,40 @@ export function resolveRuntimeModelProfile(args: {
     autoCompactTokenLimitPercent: contextCfg.autoCompactTokenLimitPercent,
     baselineTokens: contextCfg.baselineTokens,
     thinkingMode: args.cfg.llm.thinkingMode ?? true,
+  }
+}
+
+export function resolveEffectiveRuntimeModelProfile(args: {
+  cfg: RuntimeConfig
+  preferences?: ThreadRuntimePreferences
+  env?: Record<string, string | undefined>
+  runtimeFlagFingerprint?: string
+}): RuntimeModelProfile {
+  return resolveRuntimeModelProfile({
+    cfg: withRuntimePreferences({
+      cfg: args.cfg,
+      preferences: args.preferences,
+      env: args.env,
+    }),
+    runtimeFlagFingerprint: args.runtimeFlagFingerprint,
+  })
+}
+
+export function summarizeRuntimeModelProfile(profile: RuntimeModelProfile): EffectiveRuntimeModelProfileSummary {
+  return {
+    fingerprint: profile.fingerprint,
+    provider: profile.provider,
+    baseUrl: profile.baseUrl,
+    authRef: profile.authRef,
+    activeTier: profile.activeTier,
+    model: profile.model,
+    modelSource: profile.modelSource,
+    ...(profile.contextWindowTokens != null ? { contextWindowTokens: profile.contextWindowTokens } : {}),
+    contextWindowTokensSource: profile.contextWindowTokensSource,
+    ...(profile.contextWindowTokensBoundModel ? { contextWindowTokensBoundModel: profile.contextWindowTokensBoundModel } : {}),
+    effectiveContextWindowPercent: profile.effectiveContextWindowPercent,
+    autoCompactTokenLimitPercent: profile.autoCompactTokenLimitPercent,
+    baselineTokens: profile.baselineTokens,
+    thinkingMode: profile.thinkingMode,
   }
 }

@@ -338,17 +338,17 @@ Review gate for this loop:
 - Blocking: durable authority is not JSONL, malformed events can clear valid state, provisional threads can acknowledge non-durable preferences, or global patch writes thread state.
 - Non-blocking: turn execution may still use global profile until Loop 3.
 
-- [ ] Implement JSONL event parser/reducer for thread runtime preference patches.
-- [ ] Implement thread runtime-state patch protocol parser and handler.
-- [ ] Implement global runtime defaults read/patch protocol parsers and handlers.
-- [ ] Implement pure preference-aware effective runtime profile resolver for API summaries, without wiring turn execution yet.
-- [ ] Expose preferences through replay/read/resume from one server helper.
-- [ ] Emit sequenced non-transcript runtime-state notification after successful thread patch.
-- [ ] Add protocol, session, and app-server handler tests.
-- [ ] Run targeted protocol/session/app-server tests.
-- [ ] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit this loop after review passes.
+- [x] Implement JSONL event parser/reducer for thread runtime preference patches.
+- [x] Implement thread runtime-state patch protocol parser and handler.
+- [x] Implement global runtime defaults read/patch protocol parsers and handlers.
+- [x] Implement pure preference-aware effective runtime profile resolver for API summaries, without wiring turn execution yet.
+- [x] Expose preferences through replay/read/resume from one server helper.
+- [x] Emit sequenced non-transcript runtime-state notification after successful thread patch.
+- [x] Add protocol, session, and app-server handler tests.
+- [x] Run targeted protocol/session/app-server tests.
+- [x] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
+- [x] Run `codex review` for this loop after targeted verification passes; stopped further Loop 2 reruns by the churn trigger after two classified rounds.
+- [x] Commit this loop after review passes.
 
 ### Loop 3: Effective runtime profile and execution wiring
 #### Loop Contract

@@ -14,6 +14,7 @@ import {
   APP_SERVER_PROTOCOL_VERSION,
   parseCommandDispatchParams,
   parseInitializeParams,
+  parseRuntimeDefaultsPatchParams,
   parseThreadArchiveParams,
   parseThreadByIdParams,
   parseThreadGroupHideParams,
@@ -21,6 +22,7 @@ import {
   parseThreadMessagesParams,
   parseThreadRenameParams,
   parseThreadReplayParams,
+  parseThreadRuntimeStatePatchParams,
   parseThreadStartParams,
   parseTurnInputSubmitParams,
   parseTurnInterruptParams,
@@ -34,6 +36,7 @@ import {
   type ThreadMessagesResult,
   type ThreadReadResult,
   type ThreadResumeResult,
+  type ThreadRuntimeStatePatchResult,
 } from './threadStore.js'
 import { DEFAULT_INPUT_TTL_MS, DEFAULT_MAX_PENDING_INPUTS_PER_THREAD, TurnRunner } from './turnRunner.js'
 import {
@@ -56,6 +59,10 @@ import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStat
 import type { PromptBlock } from '../prompts/index.js'
 import type { SessionMemoryRestoreSummary } from '../chat/context/sessionMemory.js'
 import type { CompactBoundaryMeta } from '../chat/context/compact.js'
+import type { EffectiveRuntimeModelProfileSummary } from '../config/runtimeModelProfile.js'
+import type {
+  ThreadRuntimePreferences,
+} from '../features/semantics/runtime/threadRuntimeState.js'
 
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
@@ -85,7 +92,7 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: (args?: { cwd?: string; threadId?: string }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   resolveContextDiagnostics?: (args: {
@@ -97,6 +104,14 @@ export type AppServerOptions = {
     nextTurnInjectedBlocks?: PromptBlock[]
     format: 'text' | 'json'
   }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
+  runtimeDefaults?: {
+    read: () => Promise<RuntimeDefaultsResult>
+    patch: (params: { modelTier?: ThreadRuntimePreferences['modelTier']; thinkingMode?: boolean }) => Promise<RuntimeDefaultsResult>
+  }
+  resolveEffectiveRuntimeProfileSummary?: (args: {
+    threadId?: string
+    preferences?: ThreadRuntimePreferences
+  }) => Promise<EffectiveRuntimeModelProfileSummary>
   emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   serverInstanceId?: string
   initializeUi?: {
@@ -111,19 +126,37 @@ export type AppServerOptions = {
   }
 }
 
+export type RuntimeDefaultsResult = {
+  saved: {
+    modelTier?: ThreadRuntimePreferences['modelTier']
+    thinkingMode?: boolean
+  }
+  effective: {
+    modelTier: ThreadRuntimePreferences['modelTier']
+    thinkingMode: boolean
+  }
+  profile?: EffectiveRuntimeModelProfileSummary
+  capabilities?: {
+    modelTiers: Array<NonNullable<ThreadRuntimePreferences['modelTier']>>
+    thinkingMode: 'boolean'
+  }
+}
+
 export class AppServer {
   private readonly info: AppServerInfo
   private readonly threadStore: Pick<
     ThreadStore,
     'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
   > &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: (args?: {
     cwd?: string
     threadId?: string
   }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly resolveContextDiagnostics?: AppServerOptions['resolveContextDiagnostics']
+  private readonly runtimeDefaults?: AppServerOptions['runtimeDefaults']
+  private readonly resolveEffectiveRuntimeProfileSummary?: AppServerOptions['resolveEffectiveRuntimeProfileSummary']
   private readonly emitNotification?: (message: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   private readonly serverInstanceId: string
   private readonly initializeUi: { showContextMeter: boolean }
@@ -144,6 +177,7 @@ export class AppServer {
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
   private readonly durableSnipByThreadId = new Map<string, ThreadDurableSnipSummary | null>()
   private readonly latestRequestCollapseByThreadId = new Map<string, LatestRequestCollapseSummary | null>()
+  private readonly runtimePreferencesByThreadId = new Map<string, ThreadRuntimePreferences>()
   private readonly activeTurnRunnerByThreadId = new Map<string, Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>()
   private readonly liveCompactBoundaryByThreadId = new Map<
     string,
@@ -166,6 +200,8 @@ export class AppServer {
     this.turnRunner = args.turnRunner ?? null
     this.resolveTurnRunner = args.resolveTurnRunner
     this.resolveContextDiagnostics = args.resolveContextDiagnostics
+    this.runtimeDefaults = args.runtimeDefaults
+    this.resolveEffectiveRuntimeProfileSummary = args.resolveEffectiveRuntimeProfileSummary
     this.emitNotification = args.emitNotification
     this.serverInstanceId = args.serverInstanceId ?? randomUUID()
     this.initializeUi = args.initializeUi ?? { showContextMeter: true }
@@ -261,6 +297,7 @@ export class AppServer {
           makeSuccessResponse(req.id, {
             thread: result.thread,
             staleInputs: result.staleInputs,
+            preferences: result.preferences ?? {},
             latestCompactBoundary: result.latestCompactBoundary ?? null,
             durableSnip: result.durableSnip ?? null,
             latestRequestCollapse: result.latestRequestCollapse ?? null,
@@ -286,8 +323,110 @@ export class AppServer {
       try {
         const params = parseThreadByIdParams(req.params)
         const result: ThreadReadResult = await this.threadStore.readThread(params.threadId)
-        this.rememberLatestProjectionFacts(params.threadId, result)
-        return [makeSuccessResponse(req.id, result)]
+        const normalized = { ...result, preferences: result.preferences ?? {} }
+        this.rememberLatestProjectionFacts(params.threadId, normalized)
+        return [makeSuccessResponse(req.id, normalized)]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/runtimeState/read') {
+      try {
+        const params = parseThreadByIdParams(req.params)
+        const result: ThreadReadResult = await this.threadStore.readThread(params.threadId)
+        const preferences = result.preferences ?? {}
+        return [
+          makeSuccessResponse(req.id, {
+            threadId: params.threadId,
+            state: {
+              preferences,
+            },
+            ...(this.resolveEffectiveRuntimeProfileSummary
+              ? { effectiveProfile: await this.resolveEffectiveRuntimeProfileSummary({ threadId: params.threadId, preferences }) }
+              : {}),
+          }),
+        ]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'thread/runtimeState/patch') {
+      if (!this.threadStore.patchThreadRuntimeState) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseThreadRuntimeStatePatchParams(req.params)
+        const result: ThreadRuntimeStatePatchResult = await this.threadStore.patchThreadRuntimeState({
+          threadId: params.threadId,
+          patch: params.patch,
+          source: 'web',
+          ...(params.opId ? { opId: params.opId } : {}),
+        })
+        this.emitServerNotification('thread/runtimeStateChanged', {
+          threadId: params.threadId,
+          patch: params.patch,
+          state: {
+            preferences: result.preferences,
+          },
+          ...(params.opId ? { opId: params.opId } : {}),
+        })
+        const state = this.runtimeStateByThreadId.get(params.threadId)
+        return [
+          makeSuccessResponse(req.id, {
+            threadId: params.threadId,
+            state: {
+              preferences: state?.preferences ?? result.preferences,
+            },
+            ...(this.resolveEffectiveRuntimeProfileSummary
+              ? {
+                  effectiveProfile: await this.resolveEffectiveRuntimeProfileSummary({
+                    threadId: params.threadId,
+                    preferences: state?.preferences ?? result.preferences,
+                  }),
+                }
+              : {}),
+          }),
+        ]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'config/runtimeDefaults/read') {
+      if (!this.runtimeDefaults) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        return [makeSuccessResponse(req.id, await this.runtimeDefaults.read())]
+      } catch (err) {
+        return [makeErrorResponse(req.id, this.toRpcError(err))]
+      }
+    }
+
+    if (req.method === 'config/runtimeDefaults/patch') {
+      if (!this.runtimeDefaults) {
+        return [
+          makeErrorResponse(req.id, {
+            code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+            message: `Method not found: ${req.method}`,
+          }),
+        ]
+      }
+      try {
+        const params = parseRuntimeDefaultsPatchParams(req.params)
+        return [makeSuccessResponse(req.id, await this.runtimeDefaults.patch(params))]
       } catch (err) {
         return [makeErrorResponse(req.id, this.toRpcError(err))]
       }
@@ -692,11 +831,13 @@ export class AppServer {
   private rememberLatestProjectionFacts(
     threadId: string,
     facts: {
+      preferences?: ThreadRuntimePreferences
       latestCompactBoundary?: CompactBoundaryMeta | null
       durableSnip?: ThreadDurableSnipSummary | null
       latestRequestCollapse?: LatestRequestCollapseSummary | null
     },
   ): void {
+    if (facts.preferences !== undefined) this.runtimePreferencesByThreadId.set(threadId, facts.preferences)
     this.rememberLatestCompactBoundary(threadId, facts.latestCompactBoundary)
     this.rememberDurableSnip(threadId, facts.durableSnip)
     this.rememberLatestRequestCollapse(threadId, facts.latestRequestCollapse)
@@ -839,6 +980,7 @@ export class AppServer {
     latestCursor: number
     hasGap: boolean
     state: ReplayStateSnapshot | null
+      preferences?: ThreadRuntimePreferences
       latestCompactBoundary: CompactBoundaryMeta | null
       durableSnip: ThreadDurableSnipSummary | null
       latestRequestCollapse: LatestRequestCollapseSummary | null
@@ -851,6 +993,9 @@ export class AppServer {
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
     const projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
     const canonicalProtocolAnomalyCount = this.canonicalProtocolAnomalyCountByThreadId.get(args.threadId) ?? 0
+    const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
+    const latestProjectionFacts = await this.resolveLatestProjectionFactsForReplay(args.threadId)
+    const persistedPreferences = state ? null : await this.resolveRuntimePreferencesForReplay(args.threadId)
     const fallbackSnapshotState: ThreadRuntimeState | null =
       !state && hasGap && projection
         ? {
@@ -876,8 +1021,7 @@ export class AppServer {
       canonicalProtocolAnomalyCount,
       includePreferences: Boolean(state),
     })
-    const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
-    const latestProjectionFacts = await this.resolveLatestProjectionFactsForReplay(args.threadId)
+    const preferences = state?.preferences ?? persistedPreferences ?? undefined
     const latestCompactBoundary = latestProjectionFacts.latestCompactBoundary
     const latestRequestCollapse = latestProjectionFacts.latestRequestCollapse
     const stableLatestCompactBoundary = pendingLiveCompactBoundary
@@ -891,6 +1035,7 @@ export class AppServer {
         latestCursor: 0,
         hasGap,
         state: stateSnapshot,
+        ...(preferences ? { preferences } : {}),
         latestCompactBoundary: stableLatestCompactBoundary,
         durableSnip: latestProjectionFacts.durableSnip,
         latestRequestCollapse,
@@ -905,6 +1050,7 @@ export class AppServer {
         latestCursor,
         hasGap: false,
         state: stateSnapshot,
+        ...(preferences ? { preferences } : {}),
         latestCompactBoundary: stableLatestCompactBoundary,
         durableSnip: latestProjectionFacts.durableSnip,
         latestRequestCollapse,
@@ -932,6 +1078,7 @@ export class AppServer {
       latestCursor,
       hasGap,
       state: stateSnapshot,
+      ...(preferences ? { preferences } : {}),
       latestCompactBoundary: replayCoversTail
         ? (liveCompactBoundaryFromPage ?? pendingLiveCompactBoundaryFromTail ?? latestCompactBoundary)
         : hasGap
@@ -967,6 +1114,7 @@ export class AppServer {
 
     try {
       const thread = await this.threadStore.readThread(threadId)
+      this.runtimePreferencesByThreadId.set(threadId, thread.preferences ?? {})
       if (!hasCachedCompactBoundary) this.rememberLatestCompactBoundary(threadId, thread.latestCompactBoundary)
       if (!hasCachedDurableSnip) this.rememberDurableSnip(threadId, thread.durableSnip)
       if (!hasCachedRequestCollapse) this.rememberLatestRequestCollapse(threadId, thread.latestRequestCollapse)
@@ -990,6 +1138,19 @@ export class AppServer {
         durableSnip: this.durableSnipByThreadId.get(threadId) ?? null,
         latestRequestCollapse: this.latestRequestCollapseByThreadId.get(threadId) ?? null,
       }
+    }
+  }
+
+  private async resolveRuntimePreferencesForReplay(threadId: string): Promise<ThreadRuntimePreferences | null> {
+    if (this.runtimePreferencesByThreadId.has(threadId)) {
+      return this.runtimePreferencesByThreadId.get(threadId) ?? {}
+    }
+    try {
+      const thread = await this.threadStore.readThread(threadId)
+      this.runtimePreferencesByThreadId.set(threadId, thread.preferences ?? {})
+      return thread.preferences ?? {}
+    } catch {
+      return null
     }
   }
 }
