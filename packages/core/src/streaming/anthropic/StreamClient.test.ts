@@ -106,11 +106,56 @@ describe('AnthropicStreamClient.streamOnce', () => {
 
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(body.thinking).toEqual({ type: 'adaptive' })
+    expect(body.output_config).toEqual({ effort: 'medium' })
     expect(init.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
   })
+
+  it.each(['low', 'medium', 'high', 'xhigh', 'max'] as const)(
+    'sends Anthropic output_config.effort=%s when thinking is enabled',
+    async (thinkingEffort) => {
+      const { AnthropicStreamClient } = await import('./StreamClient')
+
+      ;(globalThis.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        body: {} as any,
+      })
+
+      parseAnthropicSSEStreamMock.mockImplementationOnce(async () => {
+        return {
+          contentBlocks: [{ type: 'text', text: 'ok' }],
+          stopReason: 'end_turn',
+          usage: undefined,
+        }
+      })
+
+      const client = new AnthropicStreamClient({
+        apiKey: 'k',
+        baseUrl: 'http://example',
+        model: 'm',
+        timeoutMs: 1000,
+      })
+
+      await client.streamOnce({
+        messages: [],
+        system: [],
+        tools: [],
+        onEvent: () => {},
+        executeTool: async () => ({ tool_use_id: 'x', content: 'ok' } as ToolResult),
+        thinkingEnabled: true,
+        thinkingEffort,
+      })
+
+      const [, init] = (globalThis.fetch as any).mock.calls[0]
+      const body = JSON.parse(init.body)
+      expect(body.thinking).toEqual({ type: 'adaptive' })
+      expect(body.output_config).toEqual({ effort: thinkingEffort })
+    },
+  )
 
   it('normalizes cache_control placement to cc-style before request', async () => {
     const { AnthropicStreamClient } = await import('./StreamClient')
@@ -721,8 +766,9 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
     expect(body.thinking).toBeUndefined()
+    expect(body.output_config).toBeUndefined()
     expect(init.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
   })
 
@@ -828,9 +874,10 @@ describe('AnthropicStreamClient.streamOnce', () => {
 
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(body.thinking).toEqual({ type: 'adaptive' })
+    expect(body.output_config).toEqual({ effort: 'medium' })
     expect(init.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
   })
 
@@ -882,7 +929,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
 
     const [, init] = (globalThis.fetch as any).mock.calls[0]
     const body = JSON.parse(init.body)
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(body.thinking).toEqual({ type: 'adaptive' })
     expect(body.messages[0].content[0]).toEqual({
       type: 'redacted_thinking',
       data: 'encrypted-redacted-thinking',
@@ -934,15 +981,17 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
     const firstBody = JSON.parse(firstInit.body)
     expect(firstBody.thinking).toBeDefined()
+    expect(firstBody.output_config).toEqual({ effort: 'medium' })
     expect(firstInit.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
 
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     const secondBody = JSON.parse(secondInit.body)
     expect(secondBody.thinking).toBeUndefined()
+    expect(secondBody.output_config).toBeUndefined()
     expect(secondInit.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
   })
 
@@ -1060,7 +1109,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     expect(firstInit.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
   })
@@ -1110,8 +1159,10 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     const firstBody = JSON.parse(firstInit.body)
     const secondBody = JSON.parse(secondInit.body)
-    expect(firstBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
-    expect(secondBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(firstBody.thinking).toEqual({ type: 'adaptive' })
+    expect(firstBody.output_config).toEqual({ effort: 'medium' })
+    expect(secondBody.thinking).toEqual({ type: 'adaptive' })
+    expect(secondBody.output_config).toEqual({ effort: 'medium' })
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
   })
 
@@ -1172,14 +1223,17 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const thirdBody = JSON.parse(thirdInit.body)
 
     expect(firstInit.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,adaptive-thinking-2026-01-28,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
     expect(thirdInit.headers['anthropic-beta']).toBeUndefined()
 
-    expect(firstBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
-    expect(secondBody.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(firstBody.thinking).toEqual({ type: 'adaptive' })
+    expect(firstBody.output_config).toEqual({ effort: 'medium' })
+    expect(secondBody.thinking).toEqual({ type: 'adaptive' })
+    expect(secondBody.output_config).toEqual({ effort: 'medium' })
     expect(thirdBody.thinking).toBeUndefined()
+    expect(thirdBody.output_config).toBeUndefined()
   })
 
   it('throws retry HTTP error when fallback request also fails', async () => {
@@ -1292,7 +1346,7 @@ describe('AnthropicStreamClient.streamOnce', () => {
     const [, firstInit] = (globalThis.fetch as any).mock.calls[0]
     const [, secondInit] = (globalThis.fetch as any).mock.calls[1]
     expect(firstInit.headers['anthropic-beta']).toBe(
-      'claude-code-20250219,prompt-caching-scope-2026-01-05,effort-2025-11-24',
+      'claude-code-20250219,prompt-caching-scope-2026-01-05',
     )
     expect(secondInit.headers['anthropic-beta']).toBeUndefined()
   })

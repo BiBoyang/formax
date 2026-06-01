@@ -13,6 +13,7 @@ import type {
   ModelSource,
   ModelTier,
   ProviderId,
+  ThinkingEffort,
 } from '../config/settings/schema.js'
 
 export type RuntimeConfig = {
@@ -36,6 +37,7 @@ export type RuntimeConfig = {
     contextWindowTokensBoundModel?: string
     contextWindowTokensBinding?: ModelIdentity
     thinkingMode: boolean
+    thinkingEffort: ThinkingEffort
   }
   paths: {
     logsDir: string
@@ -177,6 +179,7 @@ export async function loadRuntimeConfig(
     (contextWindowTokensSource === 'binding_mismatch' ? undefined : tierContextWindow) ??
     resolved.config.llm.contextWindowTokens
   const thinkingMode = resolved.config.llm.thinkingMode
+  const thinkingEffort = resolved.config.llm.thinkingEffort
   const assistantTextMode = resolved.config.ui.assistantTextMode
   const showContextMeter = resolved.config.ui.showContextMeter
   const showAutoCompactNotice = resolved.config.ui.showAutoCompactNotice
@@ -215,6 +218,7 @@ export async function loadRuntimeConfig(
           }
         : {}),
       thinkingMode,
+      thinkingEffort,
     },
     paths: {
       logsDir,

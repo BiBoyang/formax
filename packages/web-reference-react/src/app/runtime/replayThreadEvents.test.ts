@@ -158,7 +158,7 @@ it('does not overwrite newer live preferences with stale replay state', async ()
     method: 'thread/runtimeStateChanged',
     ts: '2026-02-17T00:00:01.000Z',
   })
-  liveState.preferences = { modelTier: 'opus', thinkingMode: true }
+  liveState.preferences = { modelTier: 'opus', thinkingMode: true, thinkingEffort: 'max' }
   liveState.lastReplaySeq = 10
 
   const request = createReplayPagesRequest(
@@ -166,7 +166,7 @@ it('does not overwrite newer live preferences with stale replay state', async ()
       nextCursor: 5,
       latestCursor: 5,
       state: createReplayState({
-        preferences: { modelTier: 'haiku', thinkingMode: false },
+        preferences: { modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'low' },
       }),
     }),
   )
@@ -181,6 +181,7 @@ it('does not overwrite newer live preferences with stale replay state', async ()
   expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.preferences).toEqual({
     modelTier: 'opus',
     thinkingMode: true,
+    thinkingEffort: 'max',
   })
   expect(ctx.runtimeStateByThreadRef.current[TEST_THREAD_ID]?.lastReplaySeq).toBe(10)
   expect(ctx.syncPendingInputsFromReplayState).not.toHaveBeenCalled()

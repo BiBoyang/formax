@@ -1,5 +1,6 @@
 import { isReplMode, type ReplMode } from '../core/replModeTransition'
 import { isInputKind, type InputKind } from '@formax/shared/inputContracts'
+import { isThinkingEffort, type ThinkingEffort } from '../../../shared/runtimePreferences.js'
 
 export type ThreadRuntimePendingInputKind = InputKind
 const MAX_STICKY_TOOL_NAMES = 512
@@ -9,11 +10,13 @@ export type ThreadRuntimeModelTier = 'haiku' | 'sonnet' | 'opus'
 export type ThreadRuntimePreferences = {
   modelTier?: ThreadRuntimeModelTier
   thinkingMode?: boolean
+  thinkingEffort?: ThinkingEffort
 }
 
 export type ThreadRuntimePreferencesPatch = {
   modelTier?: ThreadRuntimeModelTier | null
   thinkingMode?: boolean | null
+  thinkingEffort?: ThinkingEffort | null
 }
 
 export type ThreadRuntimePendingInput = {
@@ -93,6 +96,17 @@ function applyThreadRuntimePreferencesPatch(
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(record, 'thinkingEffort')) {
+    const thinkingEffort = record.thinkingEffort
+    if (thinkingEffort === null) {
+      delete next.thinkingEffort
+      changed = true
+    } else if (isThinkingEffort(thinkingEffort)) {
+      next.thinkingEffort = thinkingEffort
+      changed = true
+    }
+  }
+
   return changed ? next : current
 }
 
@@ -108,6 +122,10 @@ function parseThreadRuntimePreferencesSnapshot(value: unknown): ThreadRuntimePre
   }
   if (typeof record.thinkingMode === 'boolean') {
     preferences.thinkingMode = record.thinkingMode
+    validFieldCount += 1
+  }
+  if (isThinkingEffort(record.thinkingEffort)) {
+    preferences.thinkingEffort = record.thinkingEffort
     validFieldCount += 1
   }
   if (keys.length > 0 && validFieldCount === 0) return null

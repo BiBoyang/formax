@@ -36,6 +36,7 @@ function createCfg(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
       model: 'claude-sonnet-4-5-20250929',
       timeoutMs: 30000,
       thinkingMode: true,
+      thinkingEffort: 'medium',
     },
     context: {
       effectiveContextWindowPercent: 100,

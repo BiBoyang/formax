@@ -129,7 +129,7 @@ describe('processNotification', () => {
       method: 'thread/runtimeStateChanged',
       params: {
         threadId: 'thread-1',
-        state: { preferences: { modelTier: 'opus', thinkingMode: false } },
+        state: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'max' } },
       },
     }
 
@@ -138,10 +138,12 @@ describe('processNotification', () => {
     expect(onThreadRuntimePreferencesChanged).toHaveBeenCalledWith('thread-1', {
       modelTier: 'opus',
       thinkingMode: false,
+      thinkingEffort: 'max',
     })
     expect(ctx.runtimeStateByThreadRef.current['thread-1']?.preferences).toEqual({
       modelTier: 'opus',
       thinkingMode: false,
+      thinkingEffort: 'max',
     })
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBeUndefined()
   })

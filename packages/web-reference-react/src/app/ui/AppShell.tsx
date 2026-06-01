@@ -17,7 +17,7 @@ import type { ThreadViewModel } from '../core/threadViewModel'
 import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
-import type { RuntimeModelTier } from '../runtime/runtimePreferences'
+import type { RuntimeModelTier, RuntimeThinkingEffort } from '../runtime/runtimePreferences'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { selectThreadTitle } from '../core/threadViewModel'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
@@ -75,9 +75,12 @@ export type AppShellProps = {
   mode: ReplMode
   modelTier: RuntimeModelTier
   thinkingMode: boolean
+  thinkingEffort: RuntimeThinkingEffort
+  thinkingEffortSupported: boolean
   onModeChange: (nextMode: ReplMode) => void
   onModelTierChange: (modelTier: RuntimeModelTier) => void
   onThinkingModeChange: (thinkingMode: boolean) => void
+  onThinkingEffortChange: (thinkingEffort: RuntimeThinkingEffort) => void
   onInputTextChange: (value: string) => void
   onSend: (event: FormEvent) => void
   onInterrupt: () => void
@@ -304,9 +307,12 @@ export function AppShell(props: AppShellProps) {
       mode: props.mode,
       modelTier: props.modelTier,
       thinkingMode: props.thinkingMode,
+      thinkingEffort: props.thinkingEffort,
+      thinkingEffortSupported: props.thinkingEffortSupported,
       onModeChange: props.onModeChange,
       onModelTierChange: props.onModelTierChange,
       onThinkingModeChange: props.onThinkingModeChange,
+      onThinkingEffortChange: props.onThinkingEffortChange,
       connectionStatus: props.connectionStatus,
       onInputTextChange: props.onInputTextChange,
       onSend: props.onSend,
@@ -343,12 +349,15 @@ export function AppShell(props: AppShellProps) {
       props.mode,
       props.modelTier,
       props.thinkingMode,
+      props.thinkingEffort,
+      props.thinkingEffortSupported,
       props.onInputTextChange,
       props.onInterrupt,
       props.onLoadEarlier,
       props.onModeChange,
       props.onModelTierChange,
       props.onThinkingModeChange,
+      props.onThinkingEffortChange,
       props.onSend,
       props.visibleSurface,
       props.userSettings.longTextRequireCmdEnter,

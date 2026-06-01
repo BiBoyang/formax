@@ -43,6 +43,7 @@ import {
 import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../../../prompts'
 import type { StreamEvent } from '../../../../streaming/types'
 import type { RuntimeConfig } from '../../../../config/config'
+import type { ThinkingEffort } from '../../../../shared/runtimePreferences'
 import type { ReplMode } from '../../mode'
 import { waitForRollingSessionMemoryFlush } from '../shared/sessionMemoryFlush'
 import { countNonToolUserTurns } from '../shared/utils'
@@ -97,6 +98,7 @@ export function createContextCompressionService(deps: {
   promptBudget: ContextBudgetConfig | null
   model?: string
   thinkingEnabled: boolean
+  thinkingEffort?: ThinkingEffort
   handleEvent?: (ev: StreamEvent) => void
   onCompactLifecycle?: (ev: CompactLifecycleEvent) => void
   getSessionFilePath?: () => string | null
@@ -467,6 +469,7 @@ export function createContextCompressionService(deps: {
                   promptBudget: deps.promptBudget,
                   model: deps.model,
                   thinkingEnabled: deps.thinkingEnabled,
+                  thinkingEffort: deps.thinkingEffort,
                   mode: deps.mode,
                   getReplMode: deps.getReplMode,
                   setReplMode: deps.setReplMode,
@@ -595,6 +598,7 @@ export function createContextCompressionService(deps: {
         promptBudget: deps.promptBudget,
         model: deps.model,
         thinkingEnabled: deps.thinkingEnabled,
+        thinkingEffort: deps.thinkingEffort,
         mode: deps.mode,
         getReplMode: deps.getReplMode,
         setReplMode: deps.setReplMode,
@@ -662,6 +666,7 @@ export function createContextCompressionService(deps: {
             promptBudget: deps.promptBudget,
             model: deps.model,
             thinkingEnabled: deps.thinkingEnabled,
+            thinkingEffort: deps.thinkingEffort,
             mode: deps.mode,
             getReplMode: deps.getReplMode,
             setReplMode: deps.setReplMode,

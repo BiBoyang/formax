@@ -44,6 +44,7 @@ describe('Expanded Transcript (ctrl+o)', () => {
       model: '',
       timeoutMs: 600000,
       thinkingMode: true,
+      thinkingEffort: 'medium',
     },
     paths: {
       logsDir: '',

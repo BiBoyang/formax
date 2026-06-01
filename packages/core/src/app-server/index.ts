@@ -23,6 +23,7 @@ import { readLatestRequestCollapseEventFromSession } from '../features/repl/sess
 import { readLatestReactiveCompactEventFromSession } from '../features/repl/sessionSave/reactiveCompactEvents.js'
 import { readContextCollapseStoreSnapshotFromSession } from '../features/repl/sessionRestore/contextCollapseStore.js'
 import { persistDefaultModelTier } from '../features/commands/replEnvironmentService.js'
+import { DEFAULT_THINKING_EFFORT, THINKING_EFFORT_VALUES } from '../shared/runtimePreferences.js'
 import {
   classifyRpcMessage,
   JSON_RPC_ERRORS,
@@ -256,15 +257,22 @@ export async function runAppServer(args?: {
         ...(typeof savedPatch.patch.llm?.thinkingMode === 'boolean'
           ? { thinkingMode: savedPatch.patch.llm.thinkingMode }
           : {}),
+        ...(savedPatch.patch.llm?.thinkingEffort ? { thinkingEffort: savedPatch.patch.llm.thinkingEffort } : {}),
       },
       effective: {
         modelTier: runtimeConfig.llm.defaultTier ?? 'sonnet',
         thinkingMode: runtimeConfig.llm.thinkingMode,
+        thinkingEffort: runtimeConfig.llm.thinkingEffort ?? DEFAULT_THINKING_EFFORT,
       },
       profile: summarizeRuntimeModelProfile(profile),
       capabilities: {
         modelTiers: [...RUNTIME_MODEL_TIERS],
         thinkingMode: 'boolean' as const,
+        thinkingEffort: {
+          provider: 'anthropic' as const,
+          values: [...THINKING_EFFORT_VALUES],
+          default: DEFAULT_THINKING_EFFORT,
+        },
       },
     }
   }
@@ -298,6 +306,19 @@ export async function runAppServer(args?: {
               version: 1,
               llm: {
                 thinkingMode: params.thinkingMode,
+              },
+            },
+          })
+        }
+        if (params.thinkingEffort) {
+          await updateConfigPatchFile({
+            fileStore: createNodeFileStore(),
+            filePath: configPaths.globalConfigPath,
+            label: 'global config',
+            nextPatch: {
+              version: 1,
+              llm: {
+                thinkingEffort: params.thinkingEffort,
               },
             },
           })

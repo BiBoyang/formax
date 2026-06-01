@@ -102,6 +102,7 @@ type TurnStartRuntimeParams = TurnStartParams & {
   runtimePreferences?: {
     modelTier?: 'haiku' | 'sonnet' | 'opus'
     thinkingMode?: boolean
+    thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   }
 }
 
@@ -855,6 +856,7 @@ export class TurnRunner {
           promptBudget: this.resolvePromptBudgetConfig(running.runtimeProfile),
           model: running.runtimeProfile.model,
           thinkingEnabled: running.runtimeProfile.thinkingMode,
+          thinkingEffort: running.runtimeProfile.thinkingEffort,
           mode: running.replMode,
           getReplMode,
           setReplMode,
@@ -990,6 +992,7 @@ export class TurnRunner {
             promptBudget,
             model: running.runtimeProfile.model,
             thinkingEnabled: running.runtimeProfile.thinkingMode,
+            thinkingEffort: running.runtimeProfile.thinkingEffort,
             exec: {
               interactive: true,
               replMode: running.replMode,
@@ -1041,6 +1044,7 @@ export class TurnRunner {
               promptBudget,
               model: running.runtimeProfile.model,
               thinkingEnabled: running.runtimeProfile.thinkingMode,
+              thinkingEffort: running.runtimeProfile.thinkingEffort,
               onCompactLifecycle: (event) => {
                 if (event.type === 'compact_started') {
                   this.appendAppEvent(running, 'compact_started', { source: event.source })

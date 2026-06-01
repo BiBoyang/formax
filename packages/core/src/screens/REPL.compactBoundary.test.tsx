@@ -22,6 +22,7 @@ const cfg: RuntimeConfig = {
     model: '',
     timeoutMs: 600000,
     thinkingMode: true,
+    thinkingEffort: 'medium',
   },
   paths: {
     logsDir: '',

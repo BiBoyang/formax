@@ -1,4 +1,5 @@
 import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage, PromptMessageMeta } from '../prompts/types'
+import type { ThinkingEffort } from '../shared/runtimePreferences'
 import type { ToolCall, ToolDefinition, ToolResult } from '../shared/toolContracts'
 
 export type TokenUsage = Partial<{
@@ -83,6 +84,8 @@ export type LlmStreamOnceArgs = {
   model?: string
   /** When false, omit thinking fields/headers (no thinking_delta expected). */
   thinkingEnabled?: boolean
+  /** Anthropic output effort to send when thinking is enabled. */
+  thinkingEffort?: ThinkingEffort
   /** Anthropic-only request-time cache editing plan. Non-Anthropic clients ignore it. */
   cacheEditPlan?: AnthropicCacheEditPlan | null
 }

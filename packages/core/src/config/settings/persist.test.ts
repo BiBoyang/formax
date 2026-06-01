@@ -40,6 +40,13 @@ describe('stripDefaultsFromPatch', () => {
     expect(out.llm?.defaultTier).toBe('opus')
   })
 
+  it('strips default thinking effort but keeps non-default effort', () => {
+    expect(stripDefaultsFromPatch({ version: 1, llm: { thinkingEffort: 'medium' } }).llm).toBeUndefined()
+
+    const out = stripDefaultsFromPatch({ version: 1, llm: { thinkingEffort: 'max' } })
+    expect(out.llm?.thinkingEffort).toBe('max')
+  })
+
   it('strips all default sections and keeps non-default values', () => {
     const defaults = FormaxConfigV1Schema.parse({})
     const strippedDefaults = stripDefaultsFromPatch({

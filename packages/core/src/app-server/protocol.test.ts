@@ -28,21 +28,21 @@ describe('protocol parsers', () => {
       parseThreadRuntimeStatePatchParams({
         threadId: ' t1 ',
         opId: ' op-1 ',
-        patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+        patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
       }),
     ).toEqual({
       threadId: 't1',
       opId: 'op-1',
-      patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+      patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
     })
     expect(
       parseThreadRuntimeStatePatchParams({
         threadId: 't1',
-        patch: { preferences: { modelTier: null, thinkingMode: null } },
+        patch: { preferences: { modelTier: null, thinkingMode: null, thinkingEffort: null } },
       }),
     ).toEqual({
       threadId: 't1',
-      patch: { preferences: { modelTier: null, thinkingMode: null } },
+      patch: { preferences: { modelTier: null, thinkingMode: null, thinkingEffort: null } },
     })
     expect(parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: {} })).toEqual({
       threadId: 't1',
@@ -58,14 +58,18 @@ describe('protocol parsers', () => {
       parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { thinkingMode: 'high' } } }),
     ).toThrow('Invalid params.patch.preferences.thinkingMode: expected boolean|null')
     expect(() =>
+      parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { thinkingEffort: 'minimal' } } }),
+    ).toThrow('Invalid params.patch.preferences.thinkingEffort: expected low|medium|high|xhigh|max')
+    expect(() =>
       parseThreadRuntimeStatePatchParams({ threadId: 't1', patch: { preferences: { mode: 'plan' } } }),
     ).toThrow('Invalid params.patch.preferences.mode: unknown field')
   })
 
   it('parses global runtime defaults patches without null clears', () => {
-    expect(parseRuntimeDefaultsPatchParams({ modelTier: 'haiku', thinkingMode: true })).toEqual({
+    expect(parseRuntimeDefaultsPatchParams({ modelTier: 'haiku', thinkingMode: true, thinkingEffort: 'max' })).toEqual({
       modelTier: 'haiku',
       thinkingMode: true,
+      thinkingEffort: 'max',
     })
     expect(parseRuntimeDefaultsPatchParams({})).toEqual({})
     expect(() => parseRuntimeDefaultsPatchParams({ modelTier: null })).toThrow(
@@ -73,6 +77,12 @@ describe('protocol parsers', () => {
     )
     expect(() => parseRuntimeDefaultsPatchParams({ thinkingMode: null })).toThrow(
       'Invalid params.thinkingMode: expected boolean',
+    )
+    expect(() => parseRuntimeDefaultsPatchParams({ thinkingEffort: null })).toThrow(
+      'Invalid params.thinkingEffort: expected low|medium|high|xhigh|max',
+    )
+    expect(() => parseRuntimeDefaultsPatchParams({ thinkingEffort: 'none' })).toThrow(
+      'Invalid params.thinkingEffort: expected low|medium|high|xhigh|max',
     )
     expect(() => parseRuntimeDefaultsPatchParams({ effort: 'medium' })).toThrow(
       'Invalid params.effort: unknown field',

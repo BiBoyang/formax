@@ -49,6 +49,7 @@ const KNOWN_SOURCE_KEYS = [
   'llm.authRef',
   'llm.contextWindowTokens',
   'llm.thinkingMode',
+  'llm.thinkingEffort',
   'paths.logsDir',
   'paths.subagentsDir',
   'paths.planDir',

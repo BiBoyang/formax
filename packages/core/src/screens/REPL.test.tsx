@@ -116,6 +116,7 @@ describe('REPL', () => {
       model: '',
       timeoutMs: 600000,
       thinkingMode: true,
+      thinkingEffort: 'medium',
     },
     paths: {
       logsDir: '',

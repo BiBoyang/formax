@@ -59,8 +59,9 @@ Renderer MUST 只负责展示，不承担语义纠偏与状态修复职责。
 Thread runtime preferences MUST be represented as the `preferences` facet of `ThreadRuntimeState`. The v1 reduced shape is sparse:
 1. `modelTier?: "haiku" | "sonnet" | "opus"`
 2. `thinkingMode?: boolean`
+3. `thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max"`
 
-Omitted fields mean “inherit effective global/project/env config”. Reduced state MUST NOT store `null`; `null` is reserved for raw patch input to clear an override.
+Omitted fields mean “inherit effective global/project/env config”. Reduced state MUST NOT store `null`; `null` is reserved for raw patch input to clear an override. `thinkingMode` controls whether thinking is enabled; `thinkingEffort` is a durable latent preference and MUST NOT be cleared when `thinkingMode` is set to `false`.
 
 `SEM-107` Runtime Preferences Are Not Projection  
 Preference changes MUST NOT create canonical transcript events, projection segments, history rows, or renderer log rows. They MAY update runtime-state caches and diagnostics only.

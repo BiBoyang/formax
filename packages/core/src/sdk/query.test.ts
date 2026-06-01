@@ -1508,6 +1508,32 @@ describe('sdk query()', () => {
     }
   })
 
+  it('maps effort option to execution thinking effort', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.thinkingEnabled).toBe(true)
+      expect(turnArgs.thinkingEffort).toBe('xhigh')
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    runtime.cfg.llm.thinkingMode = true
+    runtime.cfg.llm.thinkingEffort = 'medium'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const messages = await collectMessages({
+      prompt: 'thinking effort',
+      options: {
+        effort: 'xhigh',
+      },
+    })
+
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const result = messages[messages.length - 1]
+    expect(result?.type).toBe('result')
+    if (result?.type === 'result') {
+      expect(result.subtype).toBe('success')
+    }
+  })
+
   it('lets thinking=adaptive take precedence over maxThinkingTokens', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
       expect(turnArgs.thinkingEnabled).toBe(true)

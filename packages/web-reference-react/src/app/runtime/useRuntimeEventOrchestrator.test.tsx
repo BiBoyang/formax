@@ -28,7 +28,7 @@ describe('useRuntimeEventOrchestrator', () => {
       method: 'thread/runtimeStateChanged',
       ts: '2026-02-17T00:00:01.000Z',
     })
-    liveState.preferences = { modelTier: 'opus', thinkingMode: true }
+    liveState.preferences = { modelTier: 'opus', thinkingMode: true, thinkingEffort: 'max' }
     liveState.lastReplaySeq = 10
     const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = {
       current: { 'thread-1': liveState },
@@ -47,7 +47,7 @@ describe('useRuntimeEventOrchestrator', () => {
         pendingInputCount: 0,
         canonicalProtocolAnomalyCount: 0,
         pendingInputs: [],
-        preferences: { modelTier: 'haiku', thinkingMode: false },
+        preferences: { modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'low' },
         invariantIssues: [],
         projection: null,
         toolNameByUseId: {},
@@ -108,6 +108,7 @@ describe('useRuntimeEventOrchestrator', () => {
     expect(runtimeStateByThreadRef.current['thread-1']?.preferences).toEqual({
       modelTier: 'opus',
       thinkingMode: true,
+      thinkingEffort: 'max',
     })
     expect(runtimeStateByThreadRef.current['thread-1']?.lastReplaySeq).toBe(10)
   })
@@ -119,7 +120,7 @@ describe('useRuntimeEventOrchestrator', () => {
       method: 'thread/runtimeStateChanged',
       ts: '2026-02-17T00:00:01.000Z',
     })
-    staleState.preferences = { modelTier: 'opus', thinkingMode: true }
+    staleState.preferences = { modelTier: 'opus', thinkingMode: true, thinkingEffort: 'max' }
     staleState.lastReplaySeq = 10
     const runtimeStateByThreadRef: { current: Record<string, ThreadRuntimeState> } = {
       current: { 'thread-1': staleState },

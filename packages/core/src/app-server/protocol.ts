@@ -3,6 +3,7 @@ import type {
   ThreadRuntimePreferencesPatch,
   ThreadRuntimeModelTier,
 } from '../features/semantics/runtime/threadRuntimeState.js'
+import { isThinkingEffort, type ThinkingEffort } from '../shared/runtimePreferences.js'
 export const APP_SERVER_PROTOCOL_VERSION = '0.2'
 
 export type ClientInfo = {
@@ -71,6 +72,7 @@ export type ThreadRuntimeStatePatchParams = ThreadByIdParams & {
 export type RuntimeDefaultsPatchParams = {
   modelTier?: ThreadRuntimeModelTier
   thinkingMode?: boolean
+  thinkingEffort?: ThinkingEffort
 }
 
 export type ThreadArchiveParams = ThreadByIdParams & {
@@ -182,6 +184,11 @@ function parseModelTierValue(value: unknown, fieldName: string): ThreadRuntimeMo
   throw new Error(`Invalid ${fieldName}: expected haiku|sonnet|opus`)
 }
 
+function parseThinkingEffortValue(value: unknown, fieldName: string): ThinkingEffort {
+  if (isThinkingEffort(value)) return value
+  throw new Error(`Invalid ${fieldName}: expected low|medium|high|xhigh|max`)
+}
+
 function rejectUnknownKeys(value: Record<string, unknown>, allowed: Set<string>, fieldName: string): void {
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) throw new Error(`Invalid ${fieldName}.${key}: unknown field`)
@@ -215,7 +222,7 @@ export function parseThreadRuntimeStatePatchParams(params: unknown): ThreadRunti
     if (!isObject(params.patch.preferences)) throw new Error('Invalid params.patch.preferences: expected object')
     rejectUnknownKeys(
       params.patch.preferences,
-      new Set(['modelTier', 'thinkingMode']),
+      new Set(['modelTier', 'thinkingMode', 'thinkingEffort']),
       'params.patch.preferences',
     )
     if (Object.prototype.hasOwnProperty.call(params.patch.preferences, 'modelTier')) {
@@ -232,6 +239,11 @@ export function parseThreadRuntimeStatePatchParams(params: unknown): ThreadRunti
         throw new Error('Invalid params.patch.preferences.thinkingMode: expected boolean|null')
       }
     }
+    if (Object.prototype.hasOwnProperty.call(params.patch.preferences, 'thinkingEffort')) {
+      const raw = params.patch.preferences.thinkingEffort
+      preferences.thinkingEffort =
+        raw === null ? null : parseThinkingEffortValue(raw, 'params.patch.preferences.thinkingEffort')
+    }
   }
 
   return {
@@ -243,7 +255,7 @@ export function parseThreadRuntimeStatePatchParams(params: unknown): ThreadRunti
 
 export function parseRuntimeDefaultsPatchParams(params: unknown): RuntimeDefaultsPatchParams {
   if (!isObject(params)) throw new Error('Invalid params: expected object')
-  rejectUnknownKeys(params, new Set(['modelTier', 'thinkingMode']), 'params')
+  rejectUnknownKeys(params, new Set(['modelTier', 'thinkingMode', 'thinkingEffort']), 'params')
   const out: RuntimeDefaultsPatchParams = {}
   if (Object.prototype.hasOwnProperty.call(params, 'modelTier')) {
     out.modelTier = parseModelTierValue(params.modelTier, 'params.modelTier')
@@ -253,6 +265,9 @@ export function parseRuntimeDefaultsPatchParams(params: unknown): RuntimeDefault
       throw new Error('Invalid params.thinkingMode: expected boolean')
     }
     out.thinkingMode = params.thinkingMode
+  }
+  if (Object.prototype.hasOwnProperty.call(params, 'thinkingEffort')) {
+    out.thinkingEffort = parseThinkingEffortValue(params.thinkingEffort, 'params.thinkingEffort')
   }
   return out
 }

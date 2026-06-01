@@ -566,6 +566,7 @@ AskUserQuestion payload：
     preferences?: {
       modelTier?: 'haiku' | 'sonnet' | 'opus'
       thinkingMode?: boolean
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     }
     invariantIssues: Array<
       | {
@@ -632,6 +633,7 @@ Status: planned target surface for the thread runtime preferences feature. It is
     preferences: {
       modelTier?: 'haiku' | 'sonnet' | 'opus'
       thinkingMode?: boolean
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     }
   }
 }
@@ -656,6 +658,7 @@ Status: planned target surface for the thread runtime preferences feature. It is
     preferences?: {
       modelTier?: 'haiku' | 'sonnet' | 'opus' | null
       thinkingMode?: boolean | null
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
     }
   }
 }
@@ -671,6 +674,7 @@ Status: planned target surface for the thread runtime preferences feature. It is
     preferences: {
       modelTier?: 'haiku' | 'sonnet' | 'opus'
       thinkingMode?: boolean
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     }
   }
 }
@@ -679,8 +683,8 @@ Status: planned target surface for the thread runtime preferences feature. It is
 说明：
 
 - v1 只接受 `preferences` facet；未知 facets 和 protected runtime fields 会被拒绝。
-- `modelTier: null` / `thinkingMode: null` 清除对应 thread override。
-- `low | medium | high | max` 不是 v1 backend thinking semantics，会被拒绝。
+- `modelTier: null` / `thinkingMode: null` / `thinkingEffort: null` 清除对应 thread override。
+- `thinkingEffort` 接受 Anthropic v1 values `low | medium | high | xhigh | max`；其它 effort 字符串会被拒绝。
 - 成功 patch 必须先写入 `thread_runtime_state_patch` JSONL event，再返回成功并发送 `thread/runtimeStateChanged`。
 
 ## 5.4.5 `config/runtimeDefaults/read`
@@ -700,12 +704,21 @@ Status: planned target surface for draft/no-thread preference controls. It is no
   saved: {
     modelTier?: 'haiku' | 'sonnet' | 'opus'
     thinkingMode?: boolean
+    thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   }
   effective: {
     modelTier: 'haiku' | 'sonnet' | 'opus'
     thinkingMode: boolean
+    thinkingEffort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   }
-  capabilities?: Record<string, unknown>
+  capabilities?: {
+    thinkingEffort?: {
+      provider: 'anthropic'
+      values: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+      default: 'medium'
+    }
+    [key: string]: unknown
+  }
 }
 ```
 
@@ -721,6 +734,7 @@ Status: planned target surface for draft/no-thread preference controls. It is no
 {
   modelTier?: 'haiku' | 'sonnet' | 'opus'
   thinkingMode?: boolean
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 }
 ```
 
@@ -970,12 +984,14 @@ Status: planned target notification for successful `thread/runtimeState/patch`. 
     preferences?: {
       modelTier?: 'haiku' | 'sonnet' | 'opus' | null
       thinkingMode?: boolean | null
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
     }
   }
   state?: {
     preferences: {
       modelTier?: 'haiku' | 'sonnet' | 'opus'
       thinkingMode?: boolean
+      thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     }
   }
 }

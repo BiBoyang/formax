@@ -43,11 +43,14 @@ function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPane
     mode: 'normal',
     modelTier: 'sonnet',
     thinkingMode: true,
+    thinkingEffort: 'medium',
+    thinkingEffortSupported: true,
     connectionStatus: 'connected',
     onInputTextChange: vi.fn(),
     onModeChange: vi.fn(),
     onModelTierChange: vi.fn(),
     onThinkingModeChange: vi.fn(),
+    onThinkingEffortChange: vi.fn(),
     onSend: vi.fn((event) => event.preventDefault()),
     onInterrupt: vi.fn(),
     ...overrides,
@@ -262,6 +265,7 @@ describe('TranscriptPane', () => {
 
   it('renders controlled composer model and thinking selector', async () => {
     const onThinkingModeChange = vi.fn()
+    const onThinkingEffortChange = vi.fn()
     renderWithI18n(
       <TranscriptPane
         {...baseProps({
@@ -270,7 +274,9 @@ describe('TranscriptPane', () => {
           inputText: 'hello',
           modelTier: 'opus',
           thinkingMode: false,
+          thinkingEffort: 'max',
           onThinkingModeChange,
+          onThinkingEffortChange,
         })}
       />,
     )
@@ -284,7 +290,38 @@ describe('TranscriptPane', () => {
     fireEvent.click(screen.getByText('Thinking on'))
     expect(onThinkingModeChange).toHaveBeenCalledWith(true)
 
-    expect(screen.queryByText('Max')).not.toBeInTheDocument()
+    fireEvent.keyDown(selector, { key: 'Enter' })
+    fireEvent.click(await screen.findByText('High'))
+    expect(onThinkingEffortChange).toHaveBeenCalledWith('high')
+  })
+
+  it('hides effort choices when runtime provider does not support Anthropic effort', async () => {
+    const onThinkingEffortChange = vi.fn()
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: 'thread-1',
+          connectionStatus: 'connected',
+          inputText: 'hello',
+          modelTier: 'opus',
+          thinkingMode: true,
+          thinkingEffort: 'max',
+          thinkingEffortSupported: false,
+          onThinkingEffortChange,
+        })}
+      />,
+    )
+
+    const selector = screen.getByRole('button', { name: 'Model and thinking mode' })
+    expect(selector).toHaveTextContent(/opus.*Thinking on/)
+    expect(selector).not.toHaveTextContent('Max')
+
+    fireEvent.keyDown(selector, { key: 'Enter' })
+
+    expect(await screen.findByText('Thinking mode')).toBeInTheDocument()
+    expect(screen.queryByText('Thinking effort')).toBeNull()
+    expect(screen.queryByText('Max')).toBeNull()
+    expect(onThinkingEffortChange).not.toHaveBeenCalled()
   })
 
   it('enables first send on the draft surface only after a project is selected', () => {

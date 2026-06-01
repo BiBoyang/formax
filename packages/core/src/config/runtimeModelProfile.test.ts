@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveRuntimeModelProfile } from './runtimeModelProfile.js'
+import { resolveEffectiveRuntimeModelProfile, resolveRuntimeModelProfile } from './runtimeModelProfile.js'
 import type { RuntimeConfig } from './config.js'
 
 type RuntimeConfigOverrides = {
@@ -20,6 +20,7 @@ function createRuntimeConfig(overrides?: RuntimeConfigOverrides): RuntimeConfig 
       defaultTier: 'sonnet',
       timeoutMs: 600000,
       thinkingMode: true,
+      thinkingEffort: 'medium',
       ...overrides?.llm,
     },
     paths: {
@@ -191,5 +192,35 @@ describe('resolveRuntimeModelProfile', () => {
     expect(rotatedKeyProfile.fingerprint).not.toBe(baseProfile.fingerprint)
     expect(timeoutProfile.fingerprint).not.toBe(baseProfile.fingerprint)
     expect(rotatedKeyProfile.fingerprint).not.toContain('sk-rotated')
+  })
+
+  it('resolves thinking effort from thread override, global config, then medium fallback', () => {
+    const globalProfile = resolveEffectiveRuntimeModelProfile({
+      cfg: createRuntimeConfig({ llm: { thinkingEffort: 'high' } }),
+    })
+    const overrideProfile = resolveEffectiveRuntimeModelProfile({
+      cfg: createRuntimeConfig({ llm: { thinkingEffort: 'high' } }),
+      preferences: { thinkingEffort: 'max' },
+    })
+    const fallbackProfile = resolveRuntimeModelProfile({
+      cfg: createRuntimeConfig({ llm: { thinkingEffort: undefined as never } }),
+    })
+
+    expect(globalProfile.thinkingEffort).toBe('high')
+    expect(overrideProfile.thinkingEffort).toBe('max')
+    expect(fallbackProfile.thinkingEffort).toBe('medium')
+  })
+
+  it('changes the runtime fingerprint when effective thinking effort changes', () => {
+    const mediumProfile = resolveEffectiveRuntimeModelProfile({
+      cfg: createRuntimeConfig(),
+      preferences: { thinkingEffort: 'medium' },
+    })
+    const maxProfile = resolveEffectiveRuntimeModelProfile({
+      cfg: createRuntimeConfig(),
+      preferences: { thinkingEffort: 'max' },
+    })
+
+    expect(maxProfile.fingerprint).not.toBe(mediumProfile.fingerprint)
   })
 })

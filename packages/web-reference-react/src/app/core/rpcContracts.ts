@@ -2,6 +2,7 @@ import type { DurableSnipSummary, ResolvedInput, ThreadMessage, ThreadSummary } 
 import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
 import type { TokenUsage } from '@formax/shared/streaming'
 import type { ThreadRuntimePreferences } from '../../semantics'
+import { isRuntimeThinkingEffort } from '../runtime/runtimePreferences'
 import {
   asResolvedInputs,
   asThreadMessages,
@@ -431,6 +432,14 @@ export type RpcThreadResumeResult = {
 
 export type RpcRuntimeDefaultsResult = {
   effective: ThreadRuntimePreferences
+  profile?: {
+    provider?: string
+  }
+  capabilities?: {
+    thinkingEffort?: {
+      provider?: string
+    }
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -446,6 +455,9 @@ export function parseThreadRuntimePreferences(value: unknown): ThreadRuntimePref
   }
   if (typeof record.thinkingMode === 'boolean') {
     preferences.thinkingMode = record.thinkingMode
+  }
+  if (isRuntimeThinkingEffort(record.thinkingEffort)) {
+    preferences.thinkingEffort = record.thinkingEffort
   }
   return preferences
 }
@@ -618,7 +630,16 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
 
 export function parseRuntimeDefaultsResponse(value: unknown): RpcRuntimeDefaultsResult {
   const root = asRecord(value)
-  return { effective: parseThreadRuntimePreferences(root.effective) }
+  const profile = asRecord(root.profile)
+  const capabilities = asRecord(root.capabilities)
+  const thinkingEffort = asRecord(capabilities.thinkingEffort)
+  return {
+    effective: parseThreadRuntimePreferences(root.effective),
+    ...(typeof profile.provider === 'string' ? { profile: { provider: profile.provider } } : {}),
+    ...(typeof thinkingEffort.provider === 'string'
+      ? { capabilities: { thinkingEffort: { provider: thinkingEffort.provider } } }
+      : {}),
+  }
 }
 
 export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {

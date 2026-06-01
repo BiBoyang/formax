@@ -160,7 +160,12 @@ Thread-bound execution MUST resolve `RuntimeModelProfile` from base runtime conf
 1. `thread.preferences.thinkingMode` when present
 2. effective runtime config `llm.thinkingMode`
 
-`low | medium | high | max` reasoning effort labels are not backend runtime semantics in v1 and MUST NOT be accepted as thread thinking preferences.
+`thinkingEffort` effective resolution is:
+1. `thread.preferences.thinkingEffort` when present
+2. effective runtime config `llm.thinkingEffort`
+3. Formax default `medium`
+
+Valid Anthropic thinking effort values are `low | medium | high | xhigh | max`. `thinkingMode=false` MUST suppress request-time thinking/effort fields without clearing the durable `thinkingEffort` preference. `medium` is the Formax default, not a claim about the provider's implicit default.
 
 `MODEL-402`  
 同一个 turn 内，model identity、prompt budget、context meter budget、cache-editing provider 判定 MUST 来自同一份 frozen runtime profile snapshot。

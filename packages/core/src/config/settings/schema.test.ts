@@ -14,6 +14,7 @@ describe('FormaxConfigV1Schema', () => {
         timeoutMs: 600000,
         authRef: 'default',
         thinkingMode: true,
+        thinkingEffort: 'medium',
       },
       paths: {},
       ui: {
@@ -36,6 +37,14 @@ describe('FormaxConfigV1Schema', () => {
 
   it('rejects unknown fields', () => {
     expect(() => FormaxConfigV1Schema.parse({ version: 1, extra: true })).toThrow()
+  })
+
+  it('accepts all Anthropic thinking effort levels and rejects invalid values', () => {
+    for (const thinkingEffort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      expect(FormaxConfigV1Schema.parse({ llm: { thinkingEffort } }).llm.thinkingEffort).toBe(thinkingEffort)
+    }
+
+    expect(() => FormaxConfigV1Schema.parse({ llm: { thinkingEffort: 'minimal' } })).toThrow()
   })
 })
 

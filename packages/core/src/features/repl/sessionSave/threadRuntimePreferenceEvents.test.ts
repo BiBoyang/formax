@@ -24,7 +24,7 @@ describe('thread runtime preference session events', () => {
       buildThreadRuntimeStatePatchEventData({
         threadId: 'thread-1',
         source: 'web',
-        patch: { preferences: { modelTier: 'haiku', thinkingMode: true } },
+        patch: { preferences: { modelTier: 'haiku', thinkingMode: true, thinkingEffort: 'high' } },
       }),
     )
     await writer.appendEvent(
@@ -32,7 +32,7 @@ describe('thread runtime preference session events', () => {
       buildThreadRuntimeStatePatchEventData({
         threadId: 'thread-1',
         source: 'web',
-        patch: { preferences: { modelTier: 'opus', thinkingMode: null } },
+        patch: { preferences: { modelTier: 'opus', thinkingMode: null, thinkingEffort: null } },
         opId: 'op-2',
       }),
     )
@@ -45,6 +45,27 @@ describe('thread runtime preference session events', () => {
     })
   })
 
+  it('persists all five valid thinking effort levels with latest valid value winning', async () => {
+    const { writer, filePath } = await createSession()
+    for (const thinkingEffort of ['low', 'medium', 'high', 'xhigh', 'max'] as const) {
+      await writer.appendEvent(
+        THREAD_RUNTIME_STATE_PATCH_EVENT_NAME,
+        buildThreadRuntimeStatePatchEventData({
+          threadId: 'thread-1',
+          source: 'web',
+          patch: { preferences: { thinkingEffort } },
+        }),
+      )
+    }
+    await writer.shutdown()
+
+    await expect(readThreadRuntimePreferencesFromSession({ filePath, threadId: 'thread-1' })).resolves.toEqual({
+      preferences: { thinkingEffort: 'max' },
+      validEventCount: 5,
+      ignoredEventCount: 0,
+    })
+  })
+
   it('ignores malformed events without clearing prior valid preferences', async () => {
     const { writer, filePath } = await createSession()
     await writer.appendEvent(
@@ -52,7 +73,7 @@ describe('thread runtime preference session events', () => {
       buildThreadRuntimeStatePatchEventData({
         threadId: 'thread-1',
         source: 'web',
-        patch: { preferences: { modelTier: 'sonnet', thinkingMode: false } },
+        patch: { preferences: { modelTier: 'sonnet', thinkingMode: false, thinkingEffort: 'xhigh' } },
       }),
     )
     await writer.appendEvent(THREAD_RUNTIME_STATE_PATCH_EVENT_NAME, {
@@ -79,12 +100,24 @@ describe('thread runtime preference session events', () => {
       source: 'web',
       patch: { preferences: { modelTier: 'medium' } },
     })
+    await writer.appendEvent(THREAD_RUNTIME_STATE_PATCH_EVENT_NAME, {
+      schemaVersion: 1,
+      threadId: 'thread-1',
+      source: 'web',
+      patch: { preferences: { thinkingEffort: 'minimal' } },
+    })
+    await writer.appendEvent(THREAD_RUNTIME_STATE_PATCH_EVENT_NAME, {
+      schemaVersion: 1,
+      threadId: 'thread-1',
+      source: 'web',
+      patch: { preferences: { thinkingEffort: 1 } },
+    })
     await writer.shutdown()
 
     await expect(readThreadRuntimePreferencesFromSession({ filePath, threadId: 'thread-1' })).resolves.toEqual({
-      preferences: { modelTier: 'sonnet', thinkingMode: false },
+      preferences: { modelTier: 'sonnet', thinkingMode: false, thinkingEffort: 'xhigh' },
       validEventCount: 1,
-      ignoredEventCount: 4,
+      ignoredEventCount: 6,
     })
   })
 

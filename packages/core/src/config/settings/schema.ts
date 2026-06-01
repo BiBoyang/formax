@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { THINKING_EFFORT_VALUES } from '../../shared/runtimePreferences.js'
 
 export const ProviderIdSchema = z.enum(['anthropic', 'openai', 'gemini'])
 export type ProviderId = z.infer<typeof ProviderIdSchema>
@@ -11,6 +12,9 @@ export type OutputStyle = z.infer<typeof OutputStyleSchema>
 
 export const ModelTierSchema = z.enum(['haiku', 'sonnet', 'opus'])
 export type ModelTier = z.infer<typeof ModelTierSchema>
+
+export const ThinkingEffortSchema = z.enum(THINKING_EFFORT_VALUES)
+export type ThinkingEffort = z.infer<typeof ThinkingEffortSchema>
 
 export const CapabilitySourceSchema = z.enum([
   'provider_list',
@@ -111,6 +115,7 @@ export const LlmConfigSchema = z
     authRef: z.string().default('default'),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
     thinkingMode: z.boolean().default(true),
+    thinkingEffort: ThinkingEffortSchema.default('medium'),
   })
   .strict()
   .default({})
@@ -132,6 +137,7 @@ export const LlmConfigPatchSchema = z
     authRef: z.string().optional(),
     contextWindowTokens: ContextWindowTokensSchema.optional(),
     thinkingMode: z.boolean().optional(),
+    thinkingEffort: ThinkingEffortSchema.optional(),
   })
   .strict()
 

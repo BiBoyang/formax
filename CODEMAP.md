@@ -110,6 +110,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Compaction tail selection (keep last N turns): `packages/core/src/chat/context/compact.ts`
 - Tool-loop pruning (pre-`streamOnce`): `packages/core/src/chat/engine.ts` (`promptBudget`)
 - Config knobs (defaults + env): `packages/core/src/config/settings/schema.ts`, `packages/core/src/config/settings/resolve.ts`, `packages/core/src/config/config.ts`
+- Shared runtime preference literals used across config, semantics, persistence, app-server, and Web-facing adapters: `packages/core/src/shared/runtimePreferences.ts`
 
 ## Semantics Parity (TUI + App-Server + Web)
 - Semantics governance contract (SoT): `docs/contracts/semantics-contract.md`

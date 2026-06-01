@@ -399,7 +399,7 @@ describe('AppServer', () => {
               updatedAt: '2026-02-08T00:00:00.000Z',
             },
             transcriptPreview: [],
-            preferences: { modelTier: 'opus', thinkingMode: false },
+            preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' },
           }
         },
         async listThreadMessages() {
@@ -410,11 +410,11 @@ describe('AppServer', () => {
             threadId: 'thread-1',
             source: 'web',
             opId: 'op-1',
-            patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+            patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
           })
           return {
             threadId: params.threadId,
-            preferences: { modelTier: 'opus', thinkingMode: false },
+            preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' },
             filePath: '/tmp/session.jsonl',
           }
         },
@@ -432,6 +432,7 @@ describe('AppServer', () => {
         autoCompactTokenLimitPercent: 0.9,
         baselineTokens: 12000,
         thinkingMode: preferences?.thinkingMode ?? true,
+        thinkingEffort: preferences?.thinkingEffort ?? 'medium',
       }),
     })
     await server.handleMessage(request(1, 'initialize'))
@@ -440,17 +441,18 @@ describe('AppServer', () => {
       request(2, 'thread/runtimeState/patch', {
         threadId: 'thread-1',
         opId: 'op-1',
-        patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+        patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
       }),
     )
 
     expect((out[0] as any).result).toEqual({
       threadId: 'thread-1',
-      state: { preferences: { modelTier: 'opus', thinkingMode: false } },
+      state: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
       effectiveProfile: expect.objectContaining({
         fingerprint: 'profile-1',
         activeTier: 'opus',
         thinkingMode: false,
+        thinkingEffort: 'xhigh',
       }),
     })
     const notification = notifications.find((entry) => entry.method === 'thread/runtimeStateChanged')
@@ -459,8 +461,8 @@ describe('AppServer', () => {
         replaySeq: expect.any(Number),
         threadId: 'thread-1',
         opId: 'op-1',
-        patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
-        state: { preferences: { modelTier: 'opus', thinkingMode: false } },
+        patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
+        state: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
       }),
     )
     expect((notification?.params as any).event).toBeUndefined()
@@ -468,14 +470,22 @@ describe('AppServer', () => {
 
   it('reads and patches global runtime defaults without thread state', async () => {
     const read = vi.fn(async () => ({
-      saved: { modelTier: 'sonnet' as const, thinkingMode: true },
-      effective: { modelTier: 'sonnet' as const, thinkingMode: true },
-      capabilities: { modelTiers: ['haiku' as const, 'sonnet' as const, 'opus' as const], thinkingMode: 'boolean' as const },
+      saved: { modelTier: 'sonnet' as const, thinkingMode: true, thinkingEffort: 'high' as const },
+      effective: { modelTier: 'sonnet' as const, thinkingMode: true, thinkingEffort: 'high' as const },
+      capabilities: {
+        modelTiers: ['haiku' as const, 'sonnet' as const, 'opus' as const],
+        thinkingMode: 'boolean' as const,
+        thinkingEffort: { provider: 'anthropic' as const, values: ['low' as const, 'medium' as const, 'high' as const, 'xhigh' as const, 'max' as const], default: 'medium' as const },
+      },
     }))
-    const patch = vi.fn(async (params: { modelTier?: 'haiku' | 'sonnet' | 'opus'; thinkingMode?: boolean }) => ({
+    const patch = vi.fn(async (params: { modelTier?: 'haiku' | 'sonnet' | 'opus'; thinkingMode?: boolean; thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }) => ({
       saved: params,
-      effective: { modelTier: params.modelTier ?? 'sonnet', thinkingMode: params.thinkingMode ?? true },
-      capabilities: { modelTiers: ['haiku' as const, 'sonnet' as const, 'opus' as const], thinkingMode: 'boolean' as const },
+      effective: { modelTier: params.modelTier ?? 'sonnet', thinkingMode: params.thinkingMode ?? true, thinkingEffort: params.thinkingEffort ?? 'medium' },
+      capabilities: {
+        modelTiers: ['haiku' as const, 'sonnet' as const, 'opus' as const],
+        thinkingMode: 'boolean' as const,
+        thinkingEffort: { provider: 'anthropic' as const, values: ['low' as const, 'medium' as const, 'high' as const, 'xhigh' as const, 'max' as const], default: 'medium' as const },
+      },
     }))
     const server = new AppServer({
       info: { name: 'formax', version: 'test' },
@@ -484,13 +494,13 @@ describe('AppServer', () => {
     await server.handleMessage(request(1, 'initialize'))
 
     const readOut = await server.handleMessage(request(2, 'config/runtimeDefaults/read'))
-    expect((readOut[0] as any).result.effective).toEqual({ modelTier: 'sonnet', thinkingMode: true })
+    expect((readOut[0] as any).result.effective).toEqual({ modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'high' })
 
     const patchOut = await server.handleMessage(
-      request(3, 'config/runtimeDefaults/patch', { modelTier: 'haiku', thinkingMode: false }),
+      request(3, 'config/runtimeDefaults/patch', { modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'max' }),
     )
-    expect(patch).toHaveBeenCalledWith({ modelTier: 'haiku', thinkingMode: false })
-    expect((patchOut[0] as any).result.effective).toEqual({ modelTier: 'haiku', thinkingMode: false })
+    expect(patch).toHaveBeenCalledWith({ modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'max' })
+    expect((patchOut[0] as any).result.effective).toEqual({ modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'max' })
   })
 
   it('returns replay preferences without synthesizing default runtime state', async () => {

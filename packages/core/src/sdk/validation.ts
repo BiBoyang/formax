@@ -1,6 +1,7 @@
 import { ZodError, z } from 'zod'
 import type { PromptMessage } from '../prompts/index.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
+import { THINKING_EFFORT_VALUES } from '../shared/runtimePreferences.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type {
   AccountInfo,
@@ -217,7 +218,7 @@ const queryOptionsSchema = z
     permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'dontAsk', 'bypassPermissions']).optional(),
     interactive: z.boolean().optional(),
     thinking: thinkingConfigSchema.optional(),
-    effort: z.enum(['low', 'medium', 'high', 'max']).optional(),
+    effort: z.enum(THINKING_EFFORT_VALUES).optional(),
     maxThinkingTokens: z.number().int().nonnegative().optional(),
     maxTurns: z.number().int().positive().optional(),
     maxBudgetUsd: z.number().nonnegative().optional(),
@@ -386,7 +387,7 @@ const modelInfoSchema = z
     displayName: z.string().optional(),
     description: z.string().optional(),
     supportsEffort: z.boolean().optional(),
-    supportedEffortLevels: z.array(z.enum(['low', 'medium', 'high', 'max'])).optional(),
+    supportedEffortLevels: z.array(z.enum(THINKING_EFFORT_VALUES)).optional(),
     supportsAdaptiveThinking: z.boolean().optional(),
     max_tokens: z.number().int().positive().optional(),
     contextWindowTokens: z.number().int().positive().optional(),

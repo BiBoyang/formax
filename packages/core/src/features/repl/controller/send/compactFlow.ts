@@ -15,6 +15,7 @@ import { buildPostCompactRehydration } from '../../../../chat/context/postCompac
 import type { PromptBlock } from '../../../../prompts'
 import { buildCompactRequest } from '../../../../prompts/compact'
 import type { StreamEvent } from '../../../../streaming/types'
+import type { ThinkingEffort } from '../../../../shared/runtimePreferences'
 import type { ReplMode } from '../../mode'
 import { extractAssistantText } from '../shared/utils'
 
@@ -43,6 +44,7 @@ export async function runCompactFlow(args: {
   promptBudget: ContextBudgetConfig | null
   model?: string
   thinkingEnabled: boolean
+  thinkingEffort?: ThinkingEffort
   mode: ReplMode
   getReplMode: () => ReplMode
   setReplMode: (next: ReplMode) => void
@@ -90,6 +92,7 @@ export async function runCompactFlow(args: {
       promptBudget: args.promptBudget,
       model: args.model,
       thinkingEnabled: args.thinkingEnabled,
+      thinkingEffort: args.thinkingEffort,
       exec: {
         replMode: args.mode,
         getReplMode: args.getReplMode,

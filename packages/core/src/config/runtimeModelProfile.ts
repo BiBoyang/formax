@@ -4,6 +4,7 @@ import type { RuntimeModelProfile } from './modelCapability.js'
 import type { RuntimeConfig } from './config.js'
 import { normalizeModelTier, resolveModelSelectionForTier } from './modelTier.js'
 import type { ThreadRuntimePreferences } from '../features/semantics/runtime/threadRuntimeState.js'
+import { DEFAULT_THINKING_EFFORT } from '../shared/runtimePreferences.js'
 
 type EffectiveRuntimeModelProfileSummary = Pick<
   RuntimeModelProfile,
@@ -21,6 +22,7 @@ type EffectiveRuntimeModelProfileSummary = Pick<
   | 'autoCompactTokenLimitPercent'
   | 'baselineTokens'
   | 'thinkingMode'
+  | 'thinkingEffort'
 >
 
 export type { EffectiveRuntimeModelProfileSummary }
@@ -91,6 +93,7 @@ function withRuntimePreferences(args: {
       thinkingMode: args.preferences && Object.prototype.hasOwnProperty.call(args.preferences, 'thinkingMode')
         ? Boolean(args.preferences.thinkingMode)
         : args.cfg.llm.thinkingMode,
+      thinkingEffort: args.preferences?.thinkingEffort ?? args.cfg.llm.thinkingEffort ?? DEFAULT_THINKING_EFFORT,
     },
   }
 }
@@ -174,6 +177,7 @@ export function resolveRuntimeModelProfile(args: {
     autoCompactTokenLimitPercent: contextCfg.autoCompactTokenLimitPercent,
     baselineTokens: contextCfg.baselineTokens,
     thinkingMode: args.cfg.llm.thinkingMode ?? true,
+    thinkingEffort: args.cfg.llm.thinkingEffort ?? DEFAULT_THINKING_EFFORT,
     runtimeFlagFingerprint: args.runtimeFlagFingerprint,
   })
 
@@ -197,6 +201,7 @@ export function resolveRuntimeModelProfile(args: {
     autoCompactTokenLimitPercent: contextCfg.autoCompactTokenLimitPercent,
     baselineTokens: contextCfg.baselineTokens,
     thinkingMode: args.cfg.llm.thinkingMode ?? true,
+    thinkingEffort: args.cfg.llm.thinkingEffort ?? DEFAULT_THINKING_EFFORT,
   }
 }
 
@@ -232,5 +237,6 @@ export function summarizeRuntimeModelProfile(profile: RuntimeModelProfile): Effe
     autoCompactTokenLimitPercent: profile.autoCompactTokenLimitPercent,
     baselineTokens: profile.baselineTokens,
     thinkingMode: profile.thinkingMode,
+    thinkingEffort: profile.thinkingEffort,
   }
 }

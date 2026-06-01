@@ -67,6 +67,7 @@ import {
   resolveThreadPreferencePatchForDefaults,
   type RuntimeModelTier,
   type RuntimePreferenceView,
+  type RuntimeThinkingEffort,
   type RuntimePreferenceWriteTarget,
 } from './runtime/runtimePreferences'
 import type { ThreadRuntimePreferences } from '../semantics'
@@ -92,6 +93,15 @@ function isDevRuntime(): boolean {
   return import.meta.env.DEV
 }
 
+function parseEffectiveProfileProvider(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const root = value as { effectiveProfile?: unknown }
+  const profile = root.effectiveProfile
+  if (!profile || typeof profile !== 'object') return null
+  const provider = (profile as { provider?: unknown }).provider
+  return typeof provider === 'string' ? provider : null
+}
+
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const devRuntime = useMemo(() => isDevRuntime(), [])
@@ -99,6 +109,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
   const [runtimeUi, setRuntimeUi] = useState({ showContextMeter: true })
   const [runtimeDefaults, setRuntimeDefaults] = useState<RuntimePreferenceView>(DEFAULT_RUNTIME_PREFERENCES)
+  const [runtimeDefaultProvider, setRuntimeDefaultProvider] = useState<string | null>(null)
+  const [thinkingEffortCapabilityProvider, setThinkingEffortCapabilityProvider] = useState<string | null>(null)
+  const [threadRuntimeProviderByThreadId, setThreadRuntimeProviderByThreadId] = useState<Record<string, string>>({})
   const [runtimePreferenceRevision, setRuntimePreferenceRevision] = useState(0)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, isRightRailOpen, setIsRightRailOpen, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
@@ -188,6 +201,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const createdThreadCwdByIdRef = useRef<Record<string, string | null>>({})
   const rpcQueueMetricsRef = useRef<RpcClientQueueMetrics | null>(null)
   const pendingPreferenceUpdateByTargetRef = useRef<Map<string, Promise<void>>>(new Map())
+  const threadRuntimeHydrationEpochByThreadRef = useRef<Record<string, number>>({})
   const threadRuntimePreferencesRef = useRef<Record<string, ThreadRuntimePreferences>>({})
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
@@ -316,10 +330,53 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
         threadPreferences: parsed.effective,
       }))
+      setRuntimeDefaultProvider(parsed.profile?.provider ?? null)
+      setThinkingEffortCapabilityProvider(parsed.capabilities?.thinkingEffort?.provider ?? null)
     } catch {
       // Keep local startup defaults when the server does not expose runtime defaults.
     }
   }, [request])
+
+  const rememberThreadRuntimeProvider = useCallback((threadId: string, provider: string | null) => {
+    if (!provider) return
+    setThreadRuntimeProviderByThreadId((previous) =>
+      previous[threadId] === provider
+        ? previous
+        : { ...previous, [threadId]: provider },
+    )
+  }, [])
+
+  const bumpThreadRuntimeHydrationEpoch = useCallback((threadId: string): number => {
+    const next = (threadRuntimeHydrationEpochByThreadRef.current[threadId] ?? 0) + 1
+    threadRuntimeHydrationEpochByThreadRef.current[threadId] = next
+    return next
+  }, [])
+
+  useEffect(() => {
+    const threadId = state.activeThreadId
+    if (!threadId) return
+    const hydrationEpoch = bumpThreadRuntimeHydrationEpoch(threadId)
+    let cancelled = false
+    void (async () => {
+      try {
+        const result = await request('thread/runtimeState/read', { threadId })
+        if (
+          cancelled ||
+          threadRuntimeHydrationEpochByThreadRef.current[threadId] !== hydrationEpoch
+        ) return
+        const preferences = (result && typeof result === 'object' && 'state' in result)
+          ? (result as { state?: { preferences?: ThreadRuntimePreferences } }).state?.preferences
+          : undefined
+        setThreadRuntimePreferences(threadId, preferences)
+        rememberThreadRuntimeProvider(threadId, parseEffectiveProfileProvider(result))
+      } catch {
+        // Best-effort runtime profile hydration; existing preferences remain usable.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [bumpThreadRuntimeHydrationEpoch, rememberThreadRuntimeProvider, request, setThreadRuntimePreferences, state.activeThreadId])
 
   const shouldProcessSequencedNotification = useCallback(
     (params: unknown, owner: SequencedNotificationOwner): boolean => {
@@ -516,6 +573,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     })
   }, [runtimeDefaults, runtimePreferenceRevision, runtimeStateByThreadRef, state.activeThreadId, visibleSurface])
 
+  const activeRuntimeProvider =
+    visibleSurface === 'thread' && state.activeThreadId
+      ? threadRuntimeProviderByThreadId[state.activeThreadId] ?? null
+      : runtimeDefaultProvider
+  const thinkingEffortSupported =
+    thinkingEffortCapabilityProvider !== null &&
+    activeRuntimeProvider === thinkingEffortCapabilityProvider
+
   const rememberPendingPreferenceUpdate = useCallback((target: RuntimePreferenceWriteTarget, promise: Promise<void>) => {
     const key = preferenceTargetKey(target)
     pendingPreferenceUpdateByTargetRef.current.set(key, promise)
@@ -531,6 +596,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       const target = resolvePreferenceWriteTarget({ visibleSurface, activeThreadId: state.activeThreadId })
       const promise = (async () => {
         if (target.kind === 'thread') {
+          bumpThreadRuntimeHydrationEpoch(target.threadId)
           const threadPatch = resolveThreadPreferencePatchForDefaults(patch, runtimeDefaults)
           const result = await request('thread/runtimeState/patch', {
             threadId: target.threadId,
@@ -554,7 +620,15 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
               fallbackPreferences.thinkingMode = threadPatch.thinkingMode
             }
           }
+          if (Object.prototype.hasOwnProperty.call(threadPatch, 'thinkingEffort')) {
+            if (threadPatch.thinkingEffort === null) {
+              delete fallbackPreferences.thinkingEffort
+            } else if (threadPatch.thinkingEffort !== undefined) {
+              fallbackPreferences.thinkingEffort = threadPatch.thinkingEffort
+            }
+          }
           setThreadRuntimePreferences(target.threadId, preferences ?? fallbackPreferences)
+          rememberThreadRuntimeProvider(target.threadId, parseEffectiveProfileProvider(result))
           return
         }
         const result = await request('config/runtimeDefaults/patch', patch)
@@ -563,6 +637,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
           globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
           threadPreferences: parsed.effective,
         }))
+        setRuntimeDefaultProvider(parsed.profile?.provider ?? null)
+        setThinkingEffortCapabilityProvider(parsed.capabilities?.thinkingEffort?.provider ?? null)
       })().catch(async (error) => {
         const details = toRpcError(target.kind === 'thread' ? 'thread/runtimeState/patch' : 'config/runtimeDefaults/patch', error)
         log(`Runtime preference update failed: ${details.message}`, 'error')
@@ -573,6 +649,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
               ? (result as { state?: { preferences?: ThreadRuntimePreferences } }).state?.preferences
               : undefined
             setThreadRuntimePreferences(target.threadId, preferences)
+            rememberThreadRuntimeProvider(target.threadId, parseEffectiveProfileProvider(result))
           } catch {
             // best-effort rehydrate after failed preference patch
           }
@@ -588,6 +665,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [
       loadRuntimeDefaults,
       log,
+      bumpThreadRuntimeHydrationEpoch,
+      rememberThreadRuntimeProvider,
       rememberPendingPreferenceUpdate,
       request,
       runtimeDefaults,
@@ -610,6 +689,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
 
   const onThinkingModeChange = useCallback((thinkingMode: boolean) => {
     void patchRuntimePreferences({ thinkingMode })
+  }, [patchRuntimePreferences])
+
+  const onThinkingEffortChange = useCallback((thinkingEffort: RuntimeThinkingEffort) => {
+    void patchRuntimePreferences({ thinkingEffort })
   }, [patchRuntimePreferences])
 
   const {
@@ -867,9 +950,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       mode,
       modelTier: activeRuntimePreferences.modelTier,
       thinkingMode: activeRuntimePreferences.thinkingMode,
+      thinkingEffort: activeRuntimePreferences.thinkingEffort,
+      thinkingEffortSupported,
       onModeChange: composerUiHandlers.onModeChange,
       onModelTierChange,
       onThinkingModeChange,
+      onThinkingEffortChange,
       onInputTextChange: setInputTextStable,
       onSend: composerUiHandlers.onSend,
       onInterrupt: composerUiHandlers.onInterrupt,
@@ -906,6 +992,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       newThreadDraft,
       onModelTierChange,
       onThinkingModeChange,
+      onThinkingEffortChange,
       runtimeUi.showContextMeter,
       setInputTextStable,
       setNewThreadDraftCwdStable,

@@ -64,7 +64,7 @@
 9. `Interrupt` 仅在 active turn 存在时可用。
 10. 有活动审批面板时隐藏普通 composer，审批 resolved 后恢复 composer。
 11. Composer model/thinking controls MUST be controlled by runtime state. In a real thread surface, display values derive from `thread.preferences[field] ?? globalRuntimeDefaults[field]`. In `newThreadDraft` / no-thread surfaces, display values derive from global runtime defaults.
-12. Composer thinking control is boolean in v1. Four-level reasoning effort labels (`low | medium | high | max`) MUST NOT be sent to app-server as backend preference semantics.
+12. Composer thinking controls MUST preserve boolean `thinkingMode` while allowing Anthropic `thinkingEffort` values `low | medium | high | xhigh | max`. Turning thinking off MUST NOT clear the selected effort; it only suppresses request-time effort payloads.
 13. Preference changes are runtime side state; they MUST NOT create transcript rows.
 
 Transcript 类型要求（必须可区分）：

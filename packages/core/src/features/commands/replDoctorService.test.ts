@@ -52,6 +52,7 @@ function makeRuntimeConfig(): RuntimeConfig {
       model: 'gpt-4o-mini',
       timeoutMs: 30_000,
       thinkingMode: false,
+      thinkingEffort: 'medium',
       contextWindowTokens: 200_000,
     },
     paths: {

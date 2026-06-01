@@ -203,7 +203,7 @@ Web MUST consume app-server title semantics directly. `ThreadSummary.label` is t
 Preference writes MUST use an explicit visible-surface target helper, e.g. `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)`. Active real-thread surfaces patch thread runtime preferences. Draft/no-thread surfaces patch global runtime defaults. Web MUST NOT route writes solely by raw `!activeThreadId`.
 
 `WEB-511`
-Web displayed model/thinking values MUST be derived from `thread.preferences[field] ?? globalRuntimeDefaults[field]`. Web MUST NOT copy global defaults into thread preferences merely to render inherited values. Pending preference writes MUST be confirmed or reconciled before send/start/dispatch uses the displayed profile.
+Web displayed model/thinking values MUST be derived from `thread.preferences[field] ?? globalRuntimeDefaults[field]`, including `thinkingEffort` as a durable latent preference independent of the boolean `thinkingMode`. Web MUST NOT copy global defaults into thread preferences merely to render inherited values. Pending preference writes MUST be confirmed or reconciled before send/start/dispatch uses the displayed profile.
 
 ## 7. Compression Projection Facts
 

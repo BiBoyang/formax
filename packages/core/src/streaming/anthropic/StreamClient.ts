@@ -7,6 +7,7 @@ import type { AnthropicCacheEditPlan, PromptBlock, PromptMessage } from '../../p
 import type { ToolCall, ToolDefinition, ToolResult } from '../../tools/types'
 import type { LlmStreamClient, LlmStreamOnceArgs, StreamTurnResult } from '../types'
 import { normalizeAnthropicPromptCachingLayout } from './promptCachingLayout'
+import { DEFAULT_THINKING_EFFORT } from '../../shared/runtimePreferences'
 
 export function sortToolResultsByCallOrder(
   toolCallOrder: string[],
@@ -109,20 +110,13 @@ function shouldRetryWithoutBetaFallback(args: {
 const BASE_BETA_FEATURES = [
   'claude-code-20250219',
   'prompt-caching-scope-2026-01-05',
-  'effort-2025-11-24',
-] as const
-
-const THINKING_BETA_FEATURES = [
-  'adaptive-thinking-2026-01-28',
 ] as const
 
 function addAnthropicBetaHeaders(
   headers: Record<string, string>,
-  args: { thinkingEnabled: boolean; extraFeatures?: string[] },
+  args: { extraFeatures?: string[] },
 ): Record<string, string> {
-  const features = args.thinkingEnabled
-    ? [BASE_BETA_FEATURES[0], THINKING_BETA_FEATURES[0], BASE_BETA_FEATURES[1], BASE_BETA_FEATURES[2]]
-    : [...BASE_BETA_FEATURES]
+  const features = [...BASE_BETA_FEATURES]
   for (const feature of args.extraFeatures ?? []) {
     const trimmed = String(feature || '').trim()
     if (trimmed && !features.includes(trimmed as any)) features.push(trimmed as any)
@@ -341,6 +335,7 @@ export class AnthropicStreamClient implements LlmStreamClient {
           })
         : normalizedPrompt
     const thinkingEnabled = requestedThinkingEnabled
+    const thinkingEffort = args.thinkingEffort ?? DEFAULT_THINKING_EFFORT
     const buildBasePayload = (
       prompt: { system: PromptBlock[]; messages: PromptMessage[] },
       opts?: { omitThinking?: boolean },
@@ -361,8 +356,10 @@ export class AnthropicStreamClient implements LlmStreamClient {
       ? {
           ...basePayload,
           thinking: {
-            type: 'enabled',
-            budget_tokens: Math.min(4096, basePayload.max_tokens),
+            type: 'adaptive',
+          },
+          output_config: {
+            effort: thinkingEffort,
           },
         }
       : noThinkingBasePayload
@@ -370,8 +367,10 @@ export class AnthropicStreamClient implements LlmStreamClient {
       ? {
           ...fallbackBasePayload,
           thinking: {
-            type: 'enabled',
-            budget_tokens: Math.min(4096, fallbackBasePayload.max_tokens),
+            type: 'adaptive',
+          },
+          output_config: {
+            effort: thinkingEffort,
           },
         }
       : noThinkingFallbackBasePayload
@@ -392,11 +391,9 @@ export class AnthropicStreamClient implements LlmStreamClient {
 
     try {
       const requestHeaders = addAnthropicBetaHeaders(this.headers, {
-        thinkingEnabled,
         extraFeatures: cacheEditingEnabled ? [cacheEditingBetaHeader] : [],
       })
       const noThinkingHeaders = addAnthropicBetaHeaders(this.headers, {
-        thinkingEnabled: false,
         extraFeatures: cacheEditingEnabled ? [cacheEditingBetaHeader] : [],
       })
 

@@ -11,6 +11,7 @@ import type {
 import type { TranscriptSegment } from '../../semantics'
 import { isReplMode, type ReplMode } from '../../semantics'
 import type { ThreadRuntimePreferences, ThreadRuntimeState } from '../../semantics'
+import { isRuntimeThinkingEffort } from '../runtime/runtimePreferences'
 import type { SemanticsInvariantIssue } from '../../semantics'
 import {
   parseDurableSnipSummary,
@@ -60,6 +61,9 @@ function parseThreadRuntimePreferences(value: unknown): ThreadRuntimePreferences
   }
   if (typeof record.thinkingMode === 'boolean') {
     preferences.thinkingMode = record.thinkingMode
+  }
+  if (isRuntimeThinkingEffort(record.thinkingEffort)) {
+    preferences.thinkingEffort = record.thinkingEffort
   }
   return preferences
 }

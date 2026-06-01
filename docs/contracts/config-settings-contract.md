@@ -152,7 +152,7 @@ config patch 写盘 MUST 采用 merge-on-read，再执行默认值剥离；与�
 它影响发送层的 `thinkingEnabled` / thinking request 行为，但 MUST NOT 触发本地 command injection。
 
 `CFG-502A`
-`thinkingMode` remains boolean in v1. UI labels such as `low | medium | high | max` are not valid config or thread-preference values unless a future provider/request contract explicitly adds effort-level semantics.
+`thinkingMode` remains boolean in v1. `llm.thinkingEffort` is a separate request-parameter setting with valid Anthropic values `low | medium | high | xhigh | max`. Global `thinkingEffort` defaults MAY be persisted through runtime-defaults config writes; `/config thinkingMode` MUST NOT silently become an effort selector.
 
 `CFG-503`  
 `verboseOutput` MUST 视为 UI-only setting。  

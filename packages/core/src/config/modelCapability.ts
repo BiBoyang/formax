@@ -2,6 +2,7 @@ import type {
   CapabilityConfidence,
   CapabilitySource,
   ConfigBudgetSource,
+  ThinkingEffort,
   ModelIdentity,
   ModelSource,
   ProviderId,
@@ -30,6 +31,7 @@ export type RuntimeModelProfile = {
   autoCompactTokenLimitPercent: number
   baselineTokens: number
   thinkingMode: boolean
+  thinkingEffort: ThinkingEffort
 }
 
 export function normalizeIdentityBaseUrl(baseUrl: string): string {
@@ -106,6 +108,7 @@ export function buildRuntimeModelProfileFingerprint(args: {
   autoCompactTokenLimitPercent: number
   baselineTokens: number
   thinkingMode: boolean
+  thinkingEffort: ThinkingEffort
   runtimeFlagFingerprint?: string
 }): string {
   return JSON.stringify({
@@ -130,6 +133,7 @@ export function buildRuntimeModelProfileFingerprint(args: {
     autoCompactTokenLimitPercent: args.autoCompactTokenLimitPercent,
     baselineTokens: args.baselineTokens,
     thinkingMode: args.thinkingMode,
+    thinkingEffort: args.thinkingEffort,
     runtimeFlagFingerprint: args.runtimeFlagFingerprint ?? '',
   })
 }

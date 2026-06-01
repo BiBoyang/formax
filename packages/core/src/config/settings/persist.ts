@@ -102,6 +102,7 @@ export function stripDefaultsFromPatch(patch: FormaxConfigV1Patch): FormaxConfig
     if (llm.authRef === DEFAULT_CONFIG.llm.authRef) delete llm.authRef
     if (llm.contextWindowTokens === DEFAULT_CONFIG.llm.contextWindowTokens) delete llm.contextWindowTokens
     if (llm.thinkingMode === DEFAULT_CONFIG.llm.thinkingMode) delete llm.thinkingMode
+    if (llm.thinkingEffort === DEFAULT_CONFIG.llm.thinkingEffort) delete llm.thinkingEffort
     out.llm = stripEmptyObject(llm)
   }
 

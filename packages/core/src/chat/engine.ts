@@ -12,6 +12,7 @@ import type { AuditLog } from '../adapters/audit/auditLog.js'
 import { appendHookRunAuditEvents } from '../hooks/audit.js'
 import { randomUUID } from 'node:crypto'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
+import type { ThinkingEffort } from '../shared/runtimePreferences'
 
 export type ChatHistory = PromptMessage[]
 
@@ -32,6 +33,7 @@ export interface ChatEngine {
     promptBudget?: ContextBudgetConfig | null
     model?: string
     thinkingEnabled?: boolean
+    thinkingEffort?: ThinkingEffort
     exec?: Partial<
       Pick<
         ExecutionContext,
@@ -97,6 +99,7 @@ export function createChatEngine(deps: {
       promptBudget,
       model,
       thinkingEnabled,
+      thinkingEffort,
       exec,
     }): Promise<ChatHistory> {
       const loopMessages: ChatHistory = [...history, user]
@@ -322,6 +325,7 @@ export function createChatEngine(deps: {
               outputDir: runtimeFlags.requestDryRunOutputDir,
               model,
               thinkingEnabled,
+              thinkingEffort,
               system: systemForThisCall,
               messages: dryRunMessages,
               tools: toolsForCall,
@@ -362,6 +366,7 @@ export function createChatEngine(deps: {
               signal,
               model,
               thinkingEnabled,
+              thinkingEffort,
               cacheEditPlan: cacheEditPlanForCall,
             })
 
@@ -526,6 +531,7 @@ async function writeRequestDryRunSnapshot(args: {
   outputDir: string | null
   model: string | undefined
   thinkingEnabled: boolean | undefined
+  thinkingEffort: ThinkingEffort | undefined
   system: PromptBlock[]
   messages: PromptMessage[]
   tools: ToolDefinition[]
@@ -544,6 +550,7 @@ async function writeRequestDryRunSnapshot(args: {
     cwd: args.cwd,
     model: args.model ?? null,
     thinkingEnabled: args.thinkingEnabled ?? null,
+    thinkingEffort: args.thinkingEffort ?? null,
     system: args.system,
     messages: args.messages,
     tools: args.tools,

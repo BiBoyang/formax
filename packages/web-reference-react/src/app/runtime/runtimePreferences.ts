@@ -2,15 +2,24 @@ import type { ThreadRuntimePreferences } from '../../semantics'
 import type { VisibleSurface } from './newThreadDraft'
 
 export type RuntimeModelTier = 'haiku' | 'sonnet' | 'opus'
+export type RuntimeThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export const RUNTIME_THINKING_EFFORTS: RuntimeThinkingEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+
+export function isRuntimeThinkingEffort(value: unknown): value is RuntimeThinkingEffort {
+  return typeof value === 'string' && RUNTIME_THINKING_EFFORTS.includes(value as RuntimeThinkingEffort)
+}
 
 export type RuntimePreferenceView = {
   modelTier: RuntimeModelTier
   thinkingMode: boolean
+  thinkingEffort: RuntimeThinkingEffort
 }
 
 export type RuntimePreferencePatch = {
   modelTier?: RuntimeModelTier | null
   thinkingMode?: boolean | null
+  thinkingEffort?: RuntimeThinkingEffort | null
 }
 
 export type RuntimePreferenceWriteTarget =
@@ -20,12 +29,14 @@ export type RuntimePreferenceWriteTarget =
 export const DEFAULT_RUNTIME_PREFERENCES: RuntimePreferenceView = {
   modelTier: 'sonnet',
   thinkingMode: true,
+  thinkingEffort: 'medium',
 }
 
 export function normalizeRuntimePreferences(preferences: ThreadRuntimePreferences | null | undefined): Partial<RuntimePreferenceView> {
   return {
     ...(preferences?.modelTier ? { modelTier: preferences.modelTier } : {}),
     ...(typeof preferences?.thinkingMode === 'boolean' ? { thinkingMode: preferences.thinkingMode } : {}),
+    ...(isRuntimeThinkingEffort(preferences?.thinkingEffort) ? { thinkingEffort: preferences.thinkingEffort } : {}),
   }
 }
 
@@ -49,6 +60,9 @@ export function resolveThreadPreferencePatchForDefaults(
       : {}),
     ...(patch.thinkingMode !== undefined
       ? { thinkingMode: patch.thinkingMode === globalDefaults.thinkingMode ? null : patch.thinkingMode }
+      : {}),
+    ...(patch.thinkingEffort !== undefined
+      ? { thinkingEffort: patch.thinkingEffort === globalDefaults.thinkingEffort ? null : patch.thinkingEffort }
       : {}),
   }
 }

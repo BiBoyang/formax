@@ -1937,18 +1937,24 @@ describe('rpcContracts', () => {
     expect(parseThreadResumeResponse({
       thread,
       staleInputs: [],
-      preferences: { modelTier: 'haiku', thinkingMode: false },
-    })?.preferences).toEqual({ modelTier: 'haiku', thinkingMode: false })
+      preferences: { modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'xhigh' },
+    })?.preferences).toEqual({ modelTier: 'haiku', thinkingMode: false, thinkingEffort: 'xhigh' })
     expect(parseThreadReplayResponse({
       data: [],
       nextCursor: 0,
       latestCursor: 0,
       hasGap: false,
-      preferences: { modelTier: 'sonnet', thinkingMode: true },
-    }).preferences).toEqual({ modelTier: 'sonnet', thinkingMode: true })
+      preferences: { modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'max' },
+    }).preferences).toEqual({ modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'max' })
     expect(parseRuntimeDefaultsResponse({
-      effective: { modelTier: 'opus', thinkingMode: false },
-    })).toEqual({ effective: { modelTier: 'opus', thinkingMode: false } })
+      effective: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'high' },
+      profile: { provider: 'openai' },
+      capabilities: { thinkingEffort: { provider: 'anthropic' } },
+    })).toEqual({
+      effective: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'high' },
+      profile: { provider: 'openai' },
+      capabilities: { thinkingEffort: { provider: 'anthropic' } },
+    })
   })
 
   it('parses compression golden projection facts across thread surfaces', () => {

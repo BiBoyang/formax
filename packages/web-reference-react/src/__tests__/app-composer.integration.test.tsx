@@ -170,13 +170,25 @@ const rpcMock = vi.hoisted(() => {
     callRequest(method: string, params: unknown) {
       requests.push({ method, params })
       if (method === 'config/runtimeDefaults/read') {
-        return { effective: { modelTier: 'sonnet', thinkingMode: true } }
+        return {
+          effective: { modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'medium' },
+          profile: { provider: 'anthropic' },
+          capabilities: { thinkingEffort: { provider: 'anthropic' } },
+        }
       }
       if (method === 'config/runtimeDefaults/patch') {
-        return { effective: { modelTier: 'sonnet', thinkingMode: true, ...(params as Record<string, unknown>) } }
+        return {
+          effective: { modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'medium', ...(params as Record<string, unknown>) },
+          profile: { provider: 'anthropic' },
+          capabilities: { thinkingEffort: { provider: 'anthropic' } },
+        }
       }
       if (method === 'thread/runtimeState/read') {
-        return { threadId: inferThreadId((params as Record<string, unknown> | null) ?? {}) ?? 'thread-alpha', state: null }
+        return {
+          threadId: inferThreadId((params as Record<string, unknown> | null) ?? {}) ?? 'thread-alpha',
+          state: null,
+          effectiveProfile: { provider: 'anthropic' },
+        }
       }
       if (method === 'thread/runtimeState/patch') {
         const patch = params && typeof params === 'object' ? (params as Record<string, unknown>).patch : null
@@ -186,6 +198,7 @@ const rpcMock = vi.hoisted(() => {
         return {
           threadId: inferThreadId((params as Record<string, unknown> | null) ?? {}) ?? 'thread-alpha',
           state: { preferences },
+          effectiveProfile: { provider: 'anthropic' },
         }
       }
       const raw = requestImpl(method, params)
@@ -1016,6 +1029,45 @@ describe('App thread history integration', () => {
             (entry.params as any)?.threadId === 'thread-beta' &&
             (entry.params as any)?.cwd === '/repo-beta ' &&
             (entry.params as any)?.command === '/init',
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('routes active-thread thinking effort changes to thread runtime state', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Model and thinking mode' }), { key: 'Enter' })
+    fireEvent.click(await screen.findByText('High'))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some((entry) =>
+          entry.method === 'thread/runtimeState/patch' &&
+          (entry.params as any)?.threadId === 'thread-alpha' &&
+          (entry.params as any)?.patch?.preferences?.thinkingEffort === 'high'
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('routes draft thinking effort changes to global runtime defaults', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New thread' }))
+    await screen.findByTestId('new-thread-draft-surface')
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Model and thinking mode' }), { key: 'Enter' })
+    fireEvent.click(await screen.findByText('Max'))
+
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some((entry) =>
+          entry.method === 'config/runtimeDefaults/patch' &&
+          (entry.params as any)?.thinkingEffort === 'max'
         ),
       ).toBe(true)
     })

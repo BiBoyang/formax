@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import { createSlashCommandRegistry } from '../../features/commands/registry.js'
 import { getDefaultModels, inferModelMetadata } from '../../core/models/models.js'
+import { THINKING_EFFORT_VALUES, type ThinkingEffort } from '../../shared/runtimePreferences.js'
 import type { RuntimeBundle } from '../../runtime/createRuntime.js'
 import { createRuntime } from '../../runtime/createRuntime.js'
 import type { ContextBudgetConfig } from '../../chat/context/budget.js'
@@ -111,6 +112,11 @@ const VALID_PERMISSION_MODES = new Set<PermissionMode>([
   'dontAsk',
   'bypassPermissions',
 ])
+const SDK_NON_ANTHROPIC_REASONING_EFFORT_VALUES = ['low', 'medium', 'high', 'max'] as const
+
+function supportedEffortLevelsForProvider(provider: string): readonly ThinkingEffort[] {
+  return provider === 'anthropic' ? THINKING_EFFORT_VALUES : SDK_NON_ANTHROPIC_REASONING_EFFORT_VALUES
+}
 
 function buildStructuredOutputToolDefinition(schema: Record<string, unknown>): ToolDefinition {
   // Match official SDK behavior: StructuredOutput.input_schema is derived directly
@@ -263,7 +269,7 @@ function assertMaxBudgetUsdSupported(maxBudgetUsd?: number): void {
   void maxBudgetUsd
 }
 
-function assertEffortOptionSupported(effort?: 'low' | 'medium' | 'high' | 'max'): void {
+function assertEffortOptionSupported(effort?: ThinkingEffort): void {
   void effort
 }
 
@@ -863,7 +869,7 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
             supportsEffort: model.supports_reasoning_effort,
             supportsAdaptiveThinking: model.supports_reasoning_effort,
             ...(model.supports_reasoning_effort
-              ? { supportedEffortLevels: ['low', 'medium', 'high', 'max'] as const }
+              ? { supportedEffortLevels: supportedEffortLevelsForProvider(model.provider) }
               : {}),
           }),
       ...(model.max_tokens === undefined ? {} : { max_tokens: model.max_tokens }),
@@ -908,7 +914,7 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
               supportsEffort: inferredSupportsReasoningEffort,
               supportsAdaptiveThinking: inferredSupportsReasoningEffort,
               ...(inferredSupportsReasoningEffort
-                ? { supportedEffortLevels: ['low', 'medium', 'high', 'max'] as const }
+                ? { supportedEffortLevels: supportedEffortLevelsForProvider(provider) }
                 : {}),
               supports_reasoning_effort: inferredSupportsReasoningEffort,
             }),
@@ -1475,6 +1481,7 @@ async function* runQuery(
           promptBudget,
           model,
           thinkingEnabled: thinkingEnabled ?? runtime.cfg.llm.thinkingMode,
+          thinkingEffort: options.effort ?? runtime.cfg.llm.thinkingEffort,
           exec: {
             interactive,
             replMode,

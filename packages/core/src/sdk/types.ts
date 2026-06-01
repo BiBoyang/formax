@@ -1,4 +1,5 @@
 import type { PromptBlock, PromptMessage } from '../prompts/index.js'
+import type { ThinkingEffort } from '../shared/runtimePreferences.js'
 import type { StopReason, StreamEvent, TokenUsage } from '../streaming/types.js'
 import type { ReplMode } from '../tools/executor/index.js'
 import type { ToolDefinition } from '../tools/types.js'
@@ -50,7 +51,7 @@ export type ThinkingDisabled = {
 
 export type ThinkingConfig = ThinkingAdaptive | ThinkingEnabled | ThinkingDisabled
 
-export type EffortLevel = 'low' | 'medium' | 'high' | 'max'
+export type EffortLevel = ThinkingEffort
 
 export type ElicitationRequest = {
   serverName: string
@@ -366,7 +367,7 @@ export type ModelInfo = {
   displayName?: string
   description?: string
   supportsEffort?: boolean
-  supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'max'>
+  supportedEffortLevels?: EffortLevel[]
   supportsAdaptiveThinking?: boolean
   max_tokens?: number
   contextWindowTokens?: number

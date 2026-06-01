@@ -419,16 +419,16 @@ describe('ThreadStore', () => {
       threadId: thread.id,
       source: 'web',
       opId: 'op-1',
-      patch: { preferences: { modelTier: 'opus', thinkingMode: false } },
+      patch: { preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' } },
     })
 
     expect(patched.threadId).toBe(thread.id)
-    expect(patched.preferences).toEqual({ modelTier: 'opus', thinkingMode: false })
+    expect(patched.preferences).toEqual({ modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' })
     await expect(findSessionFileBySessionId({ cwd, env, sessionId: thread.id })).resolves.toBe(patched.filePath)
 
     await expect(store.readThread(thread.id)).resolves.toEqual(
       expect.objectContaining({
-        preferences: { modelTier: 'opus', thinkingMode: false },
+        preferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'xhigh' },
       }),
     )
 
@@ -440,7 +440,7 @@ describe('ThreadStore', () => {
 
     await expect(store.resumeThread(thread.id)).resolves.toEqual(
       expect.objectContaining({
-        preferences: { thinkingMode: false },
+        preferences: { thinkingMode: false, thinkingEffort: 'xhigh' },
       }),
     )
   })

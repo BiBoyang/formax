@@ -200,6 +200,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
       promptBudget: args.contextBudgetConfigRef.current,
       model: args.cfg.llm.model,
       thinkingEnabled: args.cfg.llm.thinkingMode,
+      thinkingEffort: args.cfg.llm.thinkingEffort,
       handleEvent: args.handleEvent,
       onCompactLifecycle: args.onCompactLifecycle,
       getSessionFilePath: args.getSessionFilePath,
@@ -258,6 +259,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         promptBudget: args.contextBudgetConfigRef.current,
         model: args.cfg.llm.model,
         thinkingEnabled: args.cfg.llm.thinkingMode,
+        thinkingEffort: args.cfg.llm.thinkingEffort,
         exec,
       })
 

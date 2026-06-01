@@ -385,6 +385,7 @@ describe('TurnRunner', () => {
         llm: {
           defaultTier: 'sonnet',
           thinkingMode: true,
+          thinkingEffort: 'high',
           tierModels: {
             haiku: 'haiku-model',
             sonnet: 'sonnet-model',
@@ -394,12 +395,12 @@ describe('TurnRunner', () => {
       }),
       'utf8',
     )
-    const seen: Array<{ model: string; thinkingEnabled: boolean | undefined }> = []
+    const seen: Array<{ model: string; thinkingEnabled: boolean | undefined; thinkingEffort: string | undefined }> = []
     const notifications: Notification[] = []
     const runner = new TurnRunner({
       engine: {
         async runTurn(args) {
-          seen.push({ model: args.model, thinkingEnabled: args.thinkingEnabled })
+          seen.push({ model: args.model, thinkingEnabled: args.thinkingEnabled, thinkingEffort: args.thinkingEffort })
           return [...args.history, args.user] as ChatHistory
         },
       },
@@ -416,11 +417,11 @@ describe('TurnRunner', () => {
     await runner.startTurn({
       threadId: fixture.threadId,
       input: { text: 'hello' },
-      runtimePreferences: { modelTier: 'opus', thinkingMode: false },
+      runtimePreferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'max' },
     })
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
 
-    expect(seen[0]).toEqual({ model: 'opus-model', thinkingEnabled: false })
+    expect(seen[0]).toEqual({ model: 'opus-model', thinkingEnabled: false, thinkingEffort: 'max' })
   })
 
   it('applies deferred tool exposure semantics when runtime flag is enabled', async () => {

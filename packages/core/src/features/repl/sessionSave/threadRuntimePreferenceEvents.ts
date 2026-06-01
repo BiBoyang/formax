@@ -4,6 +4,7 @@ import type {
   ThreadRuntimePreferences,
   ThreadRuntimePreferencesPatch,
 } from '../../semantics/runtime/threadRuntimeState.js'
+import { isThinkingEffort } from '../../../shared/runtimePreferences.js'
 import { parseJsonLine, parseSessionEventRecord } from './recordParsing.js'
 
 export const THREAD_RUNTIME_STATE_PATCH_EVENT_NAME = 'thread_runtime_state_patch'
@@ -68,6 +69,19 @@ function parsePreferencePatch(value: unknown): ThreadRuntimePreferencesPatch | n
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(value, 'thinkingEffort')) {
+    const thinkingEffort = value.thinkingEffort
+    if (thinkingEffort === null) {
+      out.thinkingEffort = null
+      hasField = true
+    } else if (isThinkingEffort(thinkingEffort)) {
+      out.thinkingEffort = thinkingEffort
+      hasField = true
+    } else {
+      return null
+    }
+  }
+
   return hasField ? out : {}
 }
 
@@ -83,6 +97,10 @@ function applyPreferencePatch(
   if (Object.prototype.hasOwnProperty.call(patch, 'thinkingMode')) {
     if (patch.thinkingMode === null) delete next.thinkingMode
     else if (typeof patch.thinkingMode === 'boolean') next.thinkingMode = patch.thinkingMode
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'thinkingEffort')) {
+    if (patch.thinkingEffort === null) delete next.thinkingEffort
+    else if (patch.thinkingEffort) next.thinkingEffort = patch.thinkingEffort
   }
   return next
 }

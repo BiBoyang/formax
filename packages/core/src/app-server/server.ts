@@ -115,7 +115,11 @@ export type AppServerOptions = {
   }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
   runtimeDefaults?: {
     read: () => Promise<RuntimeDefaultsResult>
-    patch: (params: { modelTier?: ThreadRuntimePreferences['modelTier']; thinkingMode?: boolean }) => Promise<RuntimeDefaultsResult>
+    patch: (params: {
+      modelTier?: ThreadRuntimePreferences['modelTier']
+      thinkingMode?: boolean
+      thinkingEffort?: ThreadRuntimePreferences['thinkingEffort']
+    }) => Promise<RuntimeDefaultsResult>
   }
   resolveEffectiveRuntimeProfileSummary?: (args: {
     threadId?: string
@@ -139,15 +143,22 @@ export type RuntimeDefaultsResult = {
   saved: {
     modelTier?: ThreadRuntimePreferences['modelTier']
     thinkingMode?: boolean
+    thinkingEffort?: ThreadRuntimePreferences['thinkingEffort']
   }
   effective: {
     modelTier: ThreadRuntimePreferences['modelTier']
     thinkingMode: boolean
+    thinkingEffort: NonNullable<ThreadRuntimePreferences['thinkingEffort']>
   }
   profile?: EffectiveRuntimeModelProfileSummary
   capabilities?: {
     modelTiers: Array<NonNullable<ThreadRuntimePreferences['modelTier']>>
     thinkingMode: 'boolean'
+    thinkingEffort: {
+      provider: 'anthropic'
+      values: Array<NonNullable<ThreadRuntimePreferences['thinkingEffort']>>
+      default: NonNullable<ThreadRuntimePreferences['thinkingEffort']>
+    }
   }
 }
 

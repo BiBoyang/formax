@@ -138,15 +138,16 @@ The durable v1 event name is `thread_runtime_state_patch` with `schemaVersion: 1
 1. `threadId`
 2. `patch.preferences.modelTier?: "haiku" | "sonnet" | "opus" | null`
 3. `patch.preferences.thinkingMode?: boolean | null`
-4. optional `opId`
-5. optional `source`
-6. timestamp/revision metadata as defined by the writer
+4. `patch.preferences.thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | null`
+5. optional `opId`
+6. optional `source`
+7. timestamp/revision metadata as defined by the writer
 
 `SES-109`
 Preference replay MUST be latest-valid-wins by JSONL order. `null` in a valid patch clears only that thread override. Reduced replay state MUST omit cleared fields rather than retaining `null`.
 
 `SES-110`
-Preference replay MUST be tolerant. Unknown `schemaVersion`, missing/invalid `threadId`, threadId mismatch, absent/non-object patch, invalid tier, non-boolean thinking value, or unknown future facets MUST be ignored without clearing prior valid preference state. Old sessions with no preference events MUST reduce to no thread overrides and inherit the current effective config.
+Preference replay MUST be tolerant. Unknown `schemaVersion`, missing/invalid `threadId`, threadId mismatch, absent/non-object patch, invalid tier, non-boolean thinking value, invalid/malformed `thinkingEffort`, or unknown future facets MUST be ignored without clearing prior valid preference state. Old sessions with no preference events MUST reduce to no thread overrides and inherit the current effective config.
 
 ## 3. SDK Resume 语义
 

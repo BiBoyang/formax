@@ -309,6 +309,7 @@ function createCfg(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
       // Keep deterministic; avoids depending on model defaults.
       contextWindowTokens: 10000,
       thinkingMode: true,
+      thinkingEffort: 'medium',
     },
     paths: { logsDir: '', subagentsDir: '', planDir: '' },
     context: {

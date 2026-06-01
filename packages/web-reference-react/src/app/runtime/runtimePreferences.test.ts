@@ -26,19 +26,26 @@ describe('runtimePreferences', () => {
   it('overlays thread preferences on global defaults', () => {
     expect(resolveRuntimePreferenceView({
       globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
-      threadPreferences: { modelTier: 'opus', thinkingMode: false },
-    })).toEqual({ modelTier: 'opus', thinkingMode: false })
+      threadPreferences: { modelTier: 'opus', thinkingMode: false, thinkingEffort: 'max' },
+    })).toEqual({ modelTier: 'opus', thinkingMode: false, thinkingEffort: 'max' })
   })
 
   it('clears thread overrides when a selected value matches global defaults', () => {
     expect(resolveThreadPreferencePatchForDefaults(
-      { modelTier: 'sonnet', thinkingMode: false },
-      { modelTier: 'sonnet', thinkingMode: true },
-    )).toEqual({ modelTier: null, thinkingMode: false })
+      { modelTier: 'sonnet', thinkingMode: false, thinkingEffort: 'medium' },
+      { modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'medium' },
+    )).toEqual({ modelTier: null, thinkingMode: false, thinkingEffort: null })
 
     expect(resolveThreadPreferencePatchForDefaults(
-      { modelTier: 'opus', thinkingMode: true },
-      { modelTier: 'sonnet', thinkingMode: true },
-    )).toEqual({ modelTier: 'opus', thinkingMode: null })
+      { modelTier: 'opus', thinkingMode: true, thinkingEffort: 'xhigh' },
+      { modelTier: 'sonnet', thinkingMode: true, thinkingEffort: 'medium' },
+    )).toEqual({ modelTier: 'opus', thinkingMode: null, thinkingEffort: 'xhigh' })
+  })
+
+  it('keeps thinking effort as a durable latent preference when thinking is disabled', () => {
+    expect(resolveRuntimePreferenceView({
+      globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
+      threadPreferences: { thinkingMode: false, thinkingEffort: 'high' },
+    })).toEqual({ modelTier: 'sonnet', thinkingMode: false, thinkingEffort: 'high' })
   })
 })

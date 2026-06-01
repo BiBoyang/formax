@@ -205,12 +205,12 @@ Implementation status: target surface for the thread runtime preferences feature
 
 Implementation status: target surface for the thread runtime preferences feature. Until the Loop 2 app-server handlers and JSONL persistence land, clients MUST feature-detect support and MUST NOT call this method against current implementations.
 
-- 入参：`{ threadId: string, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null } }, opId?: string }`
+- 入参：`{ threadId: string, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null, thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | null } }, opId?: string }`
 - 返回：`{ threadId, state, opId? }`
 - v1 closed-facet rule:
   - Only `preferences` is accepted.
   - `mode`, active turn state, pending inputs, sticky tool names, replay cursor state, transcript projection, and unknown future facets MUST be rejected live.
-  - Unknown preference keys, invalid model tiers, non-boolean `thinkingMode`, and effort strings such as `low | medium | high | max` MUST be rejected live.
+  - Unknown preference keys, invalid model tiers, non-boolean `thinkingMode`, and invalid effort strings such as `none | minimal` MUST be rejected live.
   - Empty valid patches MAY return the current state as an idempotent no-op.
 - Durability:
   - Successful thread patches MUST append a `thread_runtime_state_patch` JSONL event before reporting success.
@@ -235,7 +235,7 @@ Implementation status: target surface for no-active-thread/new-thread-draft pref
 
 Implementation status: target surface for no-active-thread/new-thread-draft preference controls. Until the Loop 2 app-server handler lands, clients MUST feature-detect support and MUST NOT call this method against current implementations.
 
-- 入参：`{ modelTier?: "haiku" | "sonnet" | "opus", thinkingMode?: boolean }`
+- 入参：`{ modelTier?: "haiku" | "sonnet" | "opus", thinkingMode?: boolean, thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" }`
 - 返回：`{ saved, effective, capabilities? }`
 - No `null` clears are accepted for global defaults.
 - This surface MUST reuse the same global persistence semantics as TUI `/model` and `/config thinkingMode`.
@@ -594,7 +594,7 @@ turn 通知到 canonical 的最小映射保证：
 
 Implementation status: target notification for successful `thread/runtimeState/patch`. Until the Loop 2 emitter lands, clients MUST NOT expect this notification from current implementations.
 
-- 载荷：`{ threadId, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null } }, state?: { preferences: object }, opId? }`
+- 载荷：`{ threadId, patch: { preferences?: { modelTier?: "haiku" | "sonnet" | "opus" | null, thinkingMode?: boolean | null, thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max" | null } }, state?: { preferences: object }, opId? }`
 - The notification MUST carry the standard sequencing envelope.
 - Clients MUST reduce it through shared `ThreadRuntimeState` runtime side state.
 - Clients MUST NOT map it into canonical transcript projection.

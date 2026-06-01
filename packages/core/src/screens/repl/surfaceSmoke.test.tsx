@@ -71,6 +71,7 @@ const cfg: RuntimeConfig = {
     model: 'surface-smoke-stub',
     timeoutMs: 600000,
     thinkingMode: true,
+    thinkingEffort: 'medium',
   },
   paths: {
     logsDir: '',

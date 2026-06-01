@@ -269,6 +269,7 @@ describe('threadRuntimeState (shared)', () => {
           preferences: {
             modelTier: 'opus',
             thinkingMode: false,
+            thinkingEffort: 'xhigh',
           },
         },
       },
@@ -276,6 +277,7 @@ describe('threadRuntimeState (shared)', () => {
     expect(state.preferences).toEqual({
       modelTier: 'opus',
       thinkingMode: false,
+      thinkingEffort: 'xhigh',
     })
 
     state = reduceThreadRuntimeState(state, {
@@ -293,6 +295,7 @@ describe('threadRuntimeState (shared)', () => {
     expect(state.preferences).toEqual({
       modelTier: 'haiku',
       thinkingMode: false,
+      thinkingEffort: 'xhigh',
     })
   })
 
@@ -313,6 +316,7 @@ describe('threadRuntimeState (shared)', () => {
           preferences: {
             modelTier: 'sonnet',
             thinkingMode: true,
+            thinkingEffort: 'max',
           },
         },
       },
@@ -329,7 +333,7 @@ describe('threadRuntimeState (shared)', () => {
         },
       },
     })
-    expect(state.preferences).toEqual({ thinkingMode: true })
+    expect(state.preferences).toEqual({ thinkingMode: true, thinkingEffort: 'max' })
     expect('modelTier' in state.preferences).toBe(false)
 
     state = reduceThreadRuntimeState(state, {
@@ -340,6 +344,7 @@ describe('threadRuntimeState (shared)', () => {
         patch: {
           preferences: {
             thinkingMode: null,
+            thinkingEffort: null,
           },
         },
       },
@@ -371,6 +376,7 @@ describe('threadRuntimeState (shared)', () => {
           preferences: {
             modelTier: 'opus',
             thinkingMode: false,
+            thinkingEffort: 'low',
           },
         },
       },
@@ -379,6 +385,7 @@ describe('threadRuntimeState (shared)', () => {
     expect(state.preferences).toEqual({
       modelTier: 'opus',
       thinkingMode: false,
+      thinkingEffort: 'low',
     })
   })
 
@@ -415,6 +422,47 @@ describe('threadRuntimeState (shared)', () => {
     })
   })
 
+  it('ignores invalid thinking effort values without clearing prior valid preference state', () => {
+    let state = createInitialThreadRuntimeState({
+      threadId: 'thread-1',
+      replaySeq: 1,
+      method: 'thread/runtimeStateChanged',
+      ts: '2026-02-10T00:00:00.000Z',
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 2,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            thinkingEffort: 'high',
+          },
+        },
+      },
+    })
+
+    state = reduceThreadRuntimeState(state, {
+      method: 'thread/runtimeStateChanged',
+      replaySeq: 3,
+      params: {
+        threadId: 'thread-1',
+        patch: {
+          preferences: {
+            thinkingEffort: 'minimal',
+            thinkingMode: false,
+          },
+        },
+      },
+    })
+
+    expect(state.preferences).toEqual({
+      thinkingMode: false,
+      thinkingEffort: 'high',
+    })
+  })
+
   it('ignores stale runtime-state preference patches', () => {
     let state = createInitialThreadRuntimeState({
       threadId: 'thread-1',
@@ -432,6 +480,7 @@ describe('threadRuntimeState (shared)', () => {
           preferences: {
             modelTier: 'opus',
             thinkingMode: true,
+            thinkingEffort: 'medium',
           },
         },
       },
@@ -446,6 +495,7 @@ describe('threadRuntimeState (shared)', () => {
           preferences: {
             modelTier: 'haiku',
             thinkingMode: false,
+            thinkingEffort: 'max',
           },
         },
       },
@@ -454,6 +504,7 @@ describe('threadRuntimeState (shared)', () => {
     expect(stale.preferences).toEqual({
       modelTier: 'opus',
       thinkingMode: true,
+      thinkingEffort: 'medium',
     })
   })
 

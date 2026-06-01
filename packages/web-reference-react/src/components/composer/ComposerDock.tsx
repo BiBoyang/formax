@@ -4,7 +4,7 @@ import { shouldTreatAsLongPrompt } from '../../app/core/userSettings'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
 import type { ContextMeterView } from '../../types'
-import type { RuntimeModelTier } from '../../app/runtime/runtimePreferences'
+import { RUNTIME_THINKING_EFFORTS, type RuntimeModelTier, type RuntimeThinkingEffort } from '../../app/runtime/runtimePreferences'
 import { Button } from '../ui/button'
 import {
   DropdownMenu,
@@ -23,10 +23,12 @@ import { useSlashCommandState } from './useSlashCommandState'
 
 type ComposerMode = 'normal' | 'acceptEdits' | 'plan'
 type ComposerModelTier = RuntimeModelTier
+type ComposerThinkingEffort = RuntimeThinkingEffort
 
 const MODE_CYCLE: ComposerMode[] = ['normal', 'acceptEdits', 'plan']
 const COMPOSER_MODE_OPTIONS: ComposerMode[] = ['plan', 'acceptEdits', 'normal']
 const COMPOSER_MODEL_TIERS: ComposerModelTier[] = ['haiku', 'sonnet', 'opus']
+const COMPOSER_THINKING_EFFORTS: ComposerThinkingEffort[] = RUNTIME_THINKING_EFFORTS
 
 function nextComposerMode(mode: ComposerMode): ComposerMode {
   const idx = MODE_CYCLE.indexOf(mode)
@@ -62,6 +64,10 @@ function formatTokensK(value: number | null | undefined): string {
   const inK = value / 1000
   const oneDecimal = Math.round(inK * 10) / 10
   return Number.isInteger(oneDecimal) ? `${oneDecimal}k` : `${oneDecimal.toFixed(1)}k`
+}
+
+function thinkingEffortLabel(effort: ComposerThinkingEffort, t: I18nTranslator): string {
+  return t(`transcript.thinkingEffort.${effort}` as const)
 }
 
 export function ComposerContextMeterRing(props: {
@@ -110,9 +116,12 @@ export type ComposerDockProps = {
   mode: ComposerMode
   modelTier: ComposerModelTier
   thinkingMode: boolean
+  thinkingEffort: ComposerThinkingEffort
+  thinkingEffortSupported: boolean
   onModeChange: (value: ComposerMode) => void
   onModelTierChange: (value: ComposerModelTier) => void
   onThinkingModeChange: (value: boolean) => void
+  onThinkingEffortChange: (value: ComposerThinkingEffort) => void
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   canSubmit: boolean
   isInputDisabled?: boolean
@@ -135,7 +144,12 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
   const [isImeComposing, setIsImeComposing] = useState(false)
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
   const modeInfo = modeMeta(props.mode, t)
-  const thinkingLabel = props.thinkingMode ? t('transcript.thinkingMode.on') : t('transcript.thinkingMode.off')
+  const thinkingLabel =
+    props.thinkingEffortSupported && props.thinkingMode
+      ? thinkingEffortLabel(props.thinkingEffort, t)
+      : props.thinkingMode
+        ? t('transcript.thinkingMode.on')
+        : t('transcript.thinkingMode.off')
 
   const {
     composerRootRef,
@@ -327,6 +341,24 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                         {props.thinkingMode === thinkingMode ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
                       </DropdownMenuItem>
                     ))}
+                    {props.thinkingEffortSupported ? (
+                      <>
+                        <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-2 ui-text-base text-muted-foreground">
+                          {t('transcript.thinkingEffort.section')}
+                        </DropdownMenuLabel>
+                        {COMPOSER_THINKING_EFFORTS.map((thinkingEffort) => (
+                          <DropdownMenuItem
+                            key={thinkingEffort}
+                            className="ui-composer-menu-item ui-text-base"
+                            onSelect={() => props.onThinkingEffortChange(thinkingEffort)}
+                          >
+                            <Brain className="size-3.5 shrink-0 text-muted-foreground" />
+                            <span>{thinkingEffortLabel(thinkingEffort, t)}</span>
+                            {props.thinkingEffort === thinkingEffort ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    ) : null}
                     <DropdownMenuSub open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
                       <DropdownMenuSubTrigger
                         className="ui-composer-menu-item ui-text-base"
