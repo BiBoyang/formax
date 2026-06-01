@@ -375,6 +375,54 @@ describe('TurnRunner', () => {
     })
   })
 
+  it('freezes effective runtime preferences for a turn', async () => {
+    const fixture = await createThreadFixture()
+    const configPath = path.join(fixture.env.FORMAX_CONFIG_DIR!, 'config.json')
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        version: 1,
+        llm: {
+          defaultTier: 'sonnet',
+          thinkingMode: true,
+          tierModels: {
+            haiku: 'haiku-model',
+            sonnet: 'sonnet-model',
+            opus: 'opus-model',
+          },
+        },
+      }),
+      'utf8',
+    )
+    const seen: Array<{ model: string; thinkingEnabled: boolean | undefined }> = []
+    const notifications: Notification[] = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          seen.push({ model: args.model, thinkingEnabled: args.thinkingEnabled })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+    })
+
+    await runner.startTurn({
+      threadId: fixture.threadId,
+      input: { text: 'hello' },
+      runtimePreferences: { modelTier: 'opus', thinkingMode: false },
+    })
+    await waitForNotification(notifications, (n) => n.method === 'turn/completed')
+
+    expect(seen[0]).toEqual({ model: 'opus-model', thinkingEnabled: false })
+  })
+
   it('applies deferred tool exposure semantics when runtime flag is enabled', async () => {
     const fixture = await createThreadFixture()
     const notifications: Notification[] = []

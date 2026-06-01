@@ -67,6 +67,10 @@ import type {
 const DEFAULT_MAX_REPLAY_EVENTS_PER_THREAD = 2000
 const ANSI_SGR_RE = /\u001b\[[0-9;]*m/g
 
+function hasRuntimePreferenceOverrides(preferences: ThreadRuntimePreferences): boolean {
+  return Object.keys(preferences).length > 0
+}
+
 type ReplayEntry = {
   replaySeq: number
   method: string
@@ -94,7 +98,11 @@ export type AppServerOptions = {
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
     Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
-  resolveTurnRunner?: (args?: { cwd?: string; threadId?: string }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
+  resolveTurnRunner?: (args?: {
+    cwd?: string
+    threadId?: string
+    preferences?: ThreadRuntimePreferences
+  }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   resolveContextDiagnostics?: (args: {
     threadId: string
     cwd: string
@@ -102,6 +110,7 @@ export type AppServerOptions = {
     modeExplicit: boolean
     includeExitPlanReminder: boolean
     nextTurnInjectedBlocks?: PromptBlock[]
+    preferences?: ThreadRuntimePreferences
     format: 'text' | 'json'
   }) => Promise<{ stdout: string; diagnostics: ContextDiagnosticsPayload }>
   runtimeDefaults?: {
@@ -153,6 +162,7 @@ export class AppServer {
   private readonly resolveTurnRunner?: (args?: {
     cwd?: string
     threadId?: string
+    preferences?: ThreadRuntimePreferences
   }) => Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>>
   private readonly resolveContextDiagnostics?: AppServerOptions['resolveContextDiagnostics']
   private readonly runtimeDefaults?: AppServerOptions['runtimeDefaults']
@@ -534,7 +544,12 @@ export class AppServer {
     if (req.method === 'turn/start') {
       try {
         const params = parseTurnStartParams(req.params)
-        const runner = await this.getTurnRunner({ cwd: params.cwd, threadId: params.threadId })
+        const preferences = await this.resolveThreadRuntimePreferences(params.threadId)
+        const runner = await this.getTurnRunner({
+          cwd: params.cwd,
+          threadId: params.threadId,
+          ...(hasRuntimePreferenceOverrides(preferences) ? { preferences } : {}),
+        })
         this.activeTurnRunnerByThreadId.set(params.threadId, runner)
         const exitPlanReminder = this.resolveExitPlanReminder({
           threadId: params.threadId,
@@ -543,6 +558,7 @@ export class AppServer {
         const nextTurnInjectedBlocks = this.getPendingInjectedBlocks(params.threadId)
         const result = await runner.startTurn({
           ...params,
+          ...(hasRuntimePreferenceOverrides(preferences) ? { runtimePreferences: preferences } : {}),
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
           ...(nextTurnInjectedBlocks.length > 0 ? { pendingInjectedBlocks: nextTurnInjectedBlocks } : {}),
           ...(nextTurnInjectedBlocks.length > 0
@@ -596,6 +612,7 @@ export class AppServer {
           )
 
           if (commandRouting.commandName === '/context') {
+            const preferences = await this.resolveThreadRuntimePreferences(params.threadId)
             const outputFormat = resolveContextDiagnosticsOutputFormat(commandRouting.commandArgs ?? '')
             if (!outputFormat) {
               return [
@@ -621,6 +638,7 @@ export class AppServer {
                 requestedMode: params.mode,
               }).include,
               nextTurnInjectedBlocks: this.getPendingInjectedBlocks(params.threadId),
+              ...(hasRuntimePreferenceOverrides(preferences) ? { preferences } : {}),
               format: outputFormat,
             })
             return [
@@ -652,11 +670,17 @@ export class AppServer {
           ]
         }
 
+        const preferences = await this.resolveThreadRuntimePreferences(params.threadId)
         const runner = params.cwd
-          ? await this.getTurnRunner({ cwd: path.resolve(params.cwd), threadId: params.threadId })
+          ? await this.getTurnRunner({
+              cwd: path.resolve(params.cwd),
+              threadId: params.threadId,
+              ...(hasRuntimePreferenceOverrides(preferences) ? { preferences } : {}),
+            })
           : await this.getTurnRunner({
               cwd: this.turnRunner ? undefined : await resolveDispatchCwd(),
               threadId: params.threadId,
+              ...(hasRuntimePreferenceOverrides(preferences) ? { preferences } : {}),
             })
         this.activeTurnRunnerByThreadId.set(params.threadId, runner)
         const exitPlanReminder = this.resolveExitPlanReminder({
@@ -667,6 +691,7 @@ export class AppServer {
         const result = await runner.startTurn({
           threadId: params.threadId,
           input: { text: params.command },
+          ...(hasRuntimePreferenceOverrides(preferences) ? { runtimePreferences: preferences } : {}),
           ...(params.mode ? { mode: params.mode } : {}),
           ...(params.cwd ? { cwd: params.cwd } : {}),
           ...(exitPlanReminder.include ? { includeExitPlanReminder: true } : {}),
@@ -758,6 +783,7 @@ export class AppServer {
   private async getTurnRunner(args?: {
     cwd?: string
     threadId?: string
+    preferences?: ThreadRuntimePreferences
   }): Promise<Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>> {
     if (this.turnRunner) return this.turnRunner
     if (args?.threadId) {
@@ -768,6 +794,22 @@ export class AppServer {
       throw new Error('Turn runner is not configured')
     }
     return this.resolveTurnRunner(args)
+  }
+
+  private async resolveThreadRuntimePreferences(threadId: string): Promise<ThreadRuntimePreferences> {
+    try {
+      const thread = await this.threadStore.readThread(threadId)
+      const preferences = thread.preferences ?? {}
+      this.runtimePreferencesByThreadId.set(threadId, preferences)
+      return preferences
+    } catch {
+      const runtimeState = this.runtimeStateByThreadId.get(threadId)
+      if (runtimeState) return runtimeState.preferences
+      if (this.runtimePreferencesByThreadId.has(threadId)) {
+        return this.runtimePreferencesByThreadId.get(threadId) ?? {}
+      }
+      return {}
+    }
   }
 
   private resolveExitPlanReminder(args: {

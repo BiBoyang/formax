@@ -3,8 +3,8 @@
 ## Current Scope
 
 - Task todo: `docs/todolist.md`
-- Accepted contracts: Loop 2 JSONL durability and app-server patch APIs in `docs/todolist.md`
-- Current loop: Loop 2 - JSONL durability and app-server patch APIs
+- Accepted contracts: Loop 3 effective runtime profile and execution wiring in `docs/todolist.md`
+- Current loop: Loop 3 - Effective runtime profile and execution wiring
 - Review command/profile: `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`
 - Review scope rule: review findings must be classified before code changes.
 
@@ -25,6 +25,8 @@
 | TRP-L2-R1-001 | 1 | P1 | Replay synthesized a full default runtime state from persisted preferences alone after cache miss/restart. | `packages/core/src/app-server/server.ts` | Replay state authority / recoverable-vs-ephemeral runtime fields | `SEM-106`, Loop 2 replay preferences exposure | Loop 2 | true blocker | Expose durable preferences as top-level replay data when no runtime state exists; do not fabricate `mode`, turn status, pending inputs, or tool-name state. | Added app-server replay regression test proving `state` remains `null` while `preferences` is returned. | resolved |
 | TRP-L2-R2-001 | 2 | P1 | `config/runtimeDefaults/patch` wrote `llm.defaultTier` directly instead of reusing `/model` persistence semantics. | `packages/core/src/app-server/index.ts` | Global default tier persistence / context-window metadata sync | Loop 2 global runtime defaults; config settings contract | Loop 2 | true blocker | Route model-tier global default updates through `persistDefaultModelTier` so context-window metadata stays aligned. | Re-ran app-server protocol/server targeted tests and type-check. Existing `persistDefaultModelTier` tests cover the persistence helper; they are currently not part of this loop gate because of pre-existing mock-path drift. | resolved |
 | TRP-L2-R2-002 | 2 | P2 | `thread/runtimeState/patch` rejected documented empty patch no-op requests. | `packages/core/src/app-server/protocol.ts` | Generic patch API idempotency / feature probing | Loop 2 strict parser behavior; empty patch no-op decision | Loop 2 | true blocker | Allow `{ patch: {} }` and normalize it to an empty preferences patch. | Added protocol parser regression test for empty patch normalization. | resolved |
+| TRP-L3-R1-001 | 1 | P2 | Execution preference resolver could keep returning stale in-memory preferences after the durable thread record changed outside the current server instance. | `packages/core/src/app-server/server.ts` | Execution profile freshness / durable thread preference authority | Loop 3 effective profile execution wiring | Loop 3 | true blocker | Refresh from `ThreadStore.readThread` before turn execution and `/context`; only fall back to cached in-memory preferences if durable read fails. | Added app-server regression test proving a second turn uses updated durable preferences after the first turn completed. | resolved |
+| TRP-L3-R2-001 | 2 | P1 | The durable preference refresh also overwrote live runtime state while a turn could still be in flight. | `packages/core/src/app-server/server.ts` | Frozen active-turn runtime state / replay truthfulness | Loop 3 mid-turn preference freeze | Loop 3 | true blocker | Durable refresh may update the preference cache used for future materialization, but must not mutate `runtimeStateByThreadId`. | Removed the live runtime-state overwrite and added diagnostics/replay regression coverage. | resolved |
 
 ## Classification Rules
 
@@ -59,9 +61,9 @@
 - Contradictory findings detected: no
 - Spec convergence required: yes
 - User question required: no
-- Churn trigger status: triggered after two Loop 2 review rounds produced new P1/P2 findings.
-- Convergence decision: do not run additional Loop 2 review rounds before commit unless targeted tests or type-check fail.
-- Current resolution: all classified Loop 2 review findings have a recorded decision, action, and regression test or future-loop mapping.
+- Churn trigger status: triggered after two Loop 3 review rounds produced same-cluster P1/P2 findings.
+- Convergence decision: stop broad review-driven edits; apply only the minimal invariant fix for `TRP-L3-R2-001`, then rely on targeted tests/type-check for this loop unless a concrete unclassified blocker remains.
+- Current resolution: all classified Loop 3 review findings have a recorded decision, action, and regression test.
 
 ## Churn Trigger
 

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatHistory } from '../chat/engine.js'
 import { buildCompressionProjectionGoldenFixture } from '../chat/context/compressionProjectionFixture.js'
+import type { ContextDiagnosticsPayload } from '../chat/context/contextDiagnostics.js'
 import { buildContextProjection } from '../chat/context/contextProjection.js'
 import * as commandRegistryModule from '../features/commands/registry.js'
 import { SessionWriter } from '../features/repl/sessionSave/index.js'
@@ -21,6 +22,22 @@ function request(id: string | number | null, method: string, params?: unknown) {
     method,
     ...(params === undefined ? {} : { params }),
   })
+}
+
+function contextDiagnosticsFixture(overrides: Partial<ContextDiagnosticsPayload> = {}): ContextDiagnosticsPayload {
+  return {
+    kind: 'formax.context_diagnostics',
+    schemaVersion: 1,
+    mode: 'normal',
+    model: 'claude-3-5-sonnet-latest',
+    latestCompactBoundary: null,
+    projectionLayers: {} as any,
+    contextMeterRaw: {} as any,
+    snapshot: {} as any,
+    nextTurnFixed: {} as any,
+    notes: [],
+    ...overrides,
+  }
 }
 
 function durableSnipSummaryFromGoldenFixture(): ThreadDurableSnipSummary {
@@ -515,6 +532,199 @@ describe('AppServer', () => {
 
     expect((out[0] as any).result.state).toBeNull()
     expect((out[0] as any).result.preferences).toEqual({ modelTier: 'haiku' })
+  })
+
+  it('routes thread runtime preferences into turn execution and context diagnostics', async () => {
+    const startCalls: unknown[] = []
+    const resolverCalls: unknown[] = []
+    const resolveContextDiagnostics = vi.fn(async () => ({
+      stdout: 'Context diagnostics',
+      diagnostics: contextDiagnosticsFixture(),
+    }))
+    const turnRunner = {
+      async startTurn(params: unknown) {
+        startCalls.push(params)
+        return { turn: { id: `turn-${startCalls.length}`, threadId: 'thread-1', status: 'running' as const } }
+      },
+      async interruptTurn() {
+        return {}
+      },
+      async submitInput() {
+        return { accepted: true, status: 'accepted' as const }
+      },
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          throw new Error('not used')
+        },
+        async resumeThread() {
+          throw new Error('not used')
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+            preferences: { modelTier: 'opus' as const, thinkingMode: false },
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null }
+        },
+      },
+      resolveTurnRunner: async (args) => {
+        resolverCalls.push(args)
+        return turnRunner
+      },
+      resolveContextDiagnostics,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    await server.handleMessage(request(2, 'turn/start', { threadId: 'thread-1', input: { text: 'hi' }, cwd: '/repo' }))
+    await server.handleMessage(request(3, 'command/dispatch', { threadId: 'thread-1', command: '/init', mode: 'plan', cwd: '/repo' }))
+    await server.handleMessage(request(4, 'command/dispatch', { threadId: 'thread-1', command: '/context', mode: 'plan', cwd: '/repo' }))
+
+    expect(resolverCalls).toEqual([
+      { cwd: '/repo', threadId: 'thread-1', preferences: { modelTier: 'opus', thinkingMode: false } },
+    ])
+    expect(startCalls).toEqual([
+      expect.objectContaining({ runtimePreferences: { modelTier: 'opus', thinkingMode: false } }),
+      expect.objectContaining({ runtimePreferences: { modelTier: 'opus', thinkingMode: false } }),
+    ])
+    expect(resolveContextDiagnostics).toHaveBeenCalledWith(
+      expect.objectContaining({ preferences: { modelTier: 'opus', thinkingMode: false } }),
+    )
+  })
+
+  it('refreshes durable thread runtime preferences before each new turn', async () => {
+    const startCalls: unknown[] = []
+    const resolverCalls: unknown[] = []
+    let preferences: { modelTier?: 'haiku' | 'sonnet' | 'opus'; thinkingMode?: boolean } = { modelTier: 'haiku' }
+    const turnRunner = {
+      async startTurn(params: unknown) {
+        startCalls.push(params)
+        return { turn: { id: `turn-${startCalls.length}`, threadId: 'thread-1', status: 'running' as const } }
+      },
+      async interruptTurn() {
+        return {}
+      },
+      async submitInput() {
+        return { accepted: true, status: 'accepted' as const }
+      },
+    }
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          throw new Error('not used')
+        },
+        async resumeThread() {
+          throw new Error('not used')
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+            preferences,
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null }
+        },
+      },
+      resolveTurnRunner: async (args) => {
+        resolverCalls.push(args)
+        return turnRunner
+      },
+    })
+    await server.handleMessage(request(1, 'initialize'))
+
+    await server.handleMessage(request(2, 'turn/start', { threadId: 'thread-1', input: { text: 'hi' }, cwd: '/repo' }))
+    server.createTurnNotificationEmitter()('turn/completed', {
+      threadId: 'thread-1',
+      turn: { id: 'turn-1', threadId: 'thread-1', status: 'completed' },
+    })
+    preferences = { modelTier: 'opus', thinkingMode: false }
+    await server.handleMessage(request(3, 'turn/start', { threadId: 'thread-1', input: { text: 'again' }, cwd: '/repo' }))
+
+    expect(resolverCalls).toEqual([
+      { cwd: '/repo', threadId: 'thread-1', preferences: { modelTier: 'haiku' } },
+      { cwd: '/repo', threadId: 'thread-1', preferences: { modelTier: 'opus', thinkingMode: false } },
+    ])
+    expect(startCalls).toEqual([
+      expect.objectContaining({ runtimePreferences: { modelTier: 'haiku' } }),
+      expect.objectContaining({ runtimePreferences: { modelTier: 'opus', thinkingMode: false } }),
+    ])
+  })
+
+  it('does not mutate live runtime state when refreshing preferences for diagnostics', async () => {
+    const resolveContextDiagnostics = vi.fn(async () => ({
+      stdout: 'Context diagnostics',
+      diagnostics: contextDiagnosticsFixture(),
+    }))
+    const server = new AppServer({
+      info: { name: 'formax', version: 'test' },
+      threadStore: {
+        async startThread() {
+          throw new Error('not used')
+        },
+        async resumeThread() {
+          throw new Error('not used')
+        },
+        async listThreads() {
+          return { data: [], nextCursor: null }
+        },
+        async readThread(threadId) {
+          return {
+            thread: {
+              id: threadId,
+              cwd: '/repo',
+              createdAt: '2026-02-08T00:00:00.000Z',
+              updatedAt: '2026-02-08T00:00:00.000Z',
+            },
+            transcriptPreview: [],
+            preferences: { modelTier: 'opus' as const, thinkingMode: false },
+          }
+        },
+        async listThreadMessages() {
+          return { data: [], nextCursor: null }
+        },
+      },
+      resolveContextDiagnostics,
+    })
+    await server.handleMessage(request(1, 'initialize'))
+    server.createTurnNotificationEmitter()('thread/runtimeStateChanged', {
+      threadId: 'thread-1',
+      patch: { preferences: { modelTier: 'haiku' } },
+      state: { preferences: { modelTier: 'haiku' } },
+    })
+
+    await server.handleMessage(
+      request(2, 'command/dispatch', { threadId: 'thread-1', command: '/context', cwd: '/repo' }),
+    )
+    const replayOut = await server.handleMessage(request(3, 'thread/replay', { threadId: 'thread-1' }))
+
+    expect(resolveContextDiagnostics).toHaveBeenCalledWith(
+      expect.objectContaining({ preferences: { modelTier: 'opus', thinkingMode: false } }),
+    )
+    expect((replayOut[0] as any).result.state.preferences).toEqual({ modelTier: 'haiku' })
   })
 
   it('reuses cached latest compact boundary across replay page requests', async () => {

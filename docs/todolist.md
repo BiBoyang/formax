@@ -363,16 +363,16 @@ Review gate for this loop:
 - Blocking: concrete model is not recomputed from effective tier, runner cache can cross model/thinking profiles, `/context` disagrees with next turn, or active turns mutate after preference changes.
 - Non-blocking: Web controls may still need final controlled-state polish.
 
-- [ ] Route `turn/start` through the Loop 2 effective profile resolver.
-- [ ] Route `/init`, `/compact`, and `/context` through the same effective profile resolver.
-- [ ] Scan command-dispatch routing for any other current model-facing provider request path and wire or explicitly defer it.
-- [ ] Ensure `TurnRunner` uses the frozen effective profile used for cache keying.
-- [ ] Preserve existing runner plan-path adoption behavior.
-- [ ] Add runtime profile, command dispatch, diagnostics, cache, and mid-turn preference tests.
-- [ ] Run targeted runtime/app-server execution tests.
-- [ ] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit this loop after review passes.
+- [x] Route `turn/start` through the Loop 2 effective profile resolver.
+- [x] Route `/init`, `/compact`, and `/context` through the same effective profile resolver.
+- [x] Scan command-dispatch routing for any other current model-facing provider request path and wire or explicitly defer it.
+- [x] Ensure `TurnRunner` uses the frozen effective profile used for cache keying.
+- [x] Preserve existing runner plan-path adoption behavior.
+- [x] Add runtime profile, command dispatch, diagnostics, cache, and mid-turn preference tests.
+- [x] Run targeted runtime/app-server execution tests.
+- [x] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
+- [x] Run `codex review` for this loop after targeted verification passes; stopped further Loop 3 reruns by the churn trigger after two classified rounds.
+- [x] Commit this loop after review passes.
 
 ### Loop 4: Web controlled composer and hydration
 #### Loop Contract

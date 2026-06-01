@@ -85,7 +85,7 @@ import { computeEditPatchStartLineNumber } from '../features/repl/controller/str
 import { toolResultContentToText } from '../shared/utils/toolResultContent.js'
 import { createRuntimeFlags, type RuntimeFlags } from '../config/runtimeFlags.js'
 import { loadRuntimeConfig, type RuntimeConfig } from '../config/config.js'
-import { resolveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
+import { resolveEffectiveRuntimeModelProfile } from '../config/runtimeModelProfile.js'
 import { createPlanSessionManager, type PlanSessionManager } from '../features/repl/planSession.js'
 import {
   normalizeContextMeterBudgetRaw,
@@ -99,6 +99,10 @@ type TurnStartRuntimeParams = TurnStartParams & {
   includeExitPlanReminder?: boolean
   pendingInjectedBlocks?: PromptBlock[]
   onPendingInjectedBlocksConsumed?: (args: { threadId: string; turnId: string }) => void | Promise<void>
+  runtimePreferences?: {
+    modelTier?: 'haiku' | 'sonnet' | 'opus'
+    thinkingMode?: boolean
+  }
 }
 
 type ReactiveCompactPreparation = Awaited<
@@ -431,8 +435,10 @@ export class TurnRunner {
       platform: this.platform,
       homedir: this.homedir,
     })
-    const runtimeProfile = resolveRuntimeModelProfile({
+    const runtimeProfile = resolveEffectiveRuntimeModelProfile({
       cfg: runtimeConfig,
+      preferences: params.runtimePreferences,
+      env: this.env ?? process.env,
       runtimeFlagFingerprint: this.runtimeFlagFingerprint,
     })
     const filePath = await this.resolveOrCreateThreadFilePath({

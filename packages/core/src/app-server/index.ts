@@ -328,14 +328,17 @@ export async function runAppServer(args?: {
         homedir: args?.homedir,
       })
       const runtimeFlagFingerprint = JSON.stringify(runtimeFlags)
-      const runtimeProfile = resolveRuntimeModelProfile({
+      const runtimeProfile = resolveEffectiveRuntimeModelProfile({
         cfg: runtimeConfig,
+        preferences: resolverArgs?.preferences,
+        env,
         runtimeFlagFingerprint,
       })
       const runtimeConfigFingerprint = buildOpaqueFingerprint(
         JSON.stringify({
           runtimeFlags,
           runtimeConfig,
+          preferences: resolverArgs?.preferences ?? {},
         }),
       )
       const runnerCacheKey = `${path.resolve(runtimeCwd)}::${runtimeProfile.fingerprint}::${runtimeConfigFingerprint}`
@@ -391,12 +394,15 @@ export async function runAppServer(args?: {
       modeExplicit,
       includeExitPlanReminder,
       nextTurnInjectedBlocks = [],
+      preferences,
       format,
     }) => {
       const runtime = await createRuntime({ cwd: dispatchCwd, env })
       const runtimeFlagFingerprint = JSON.stringify(runtime.runtimeFlags ?? {})
-      const runtimeProfile = resolveRuntimeModelProfile({
+      const runtimeProfile = resolveEffectiveRuntimeModelProfile({
         cfg: runtime.cfg,
+        preferences,
+        env,
         runtimeFlagFingerprint,
       })
       const sessionFilePath = await findSessionFileBySessionId({
