@@ -188,6 +188,45 @@ it('does not overwrite newer live preferences with stale replay state', async ()
   expect(ctx.setMode).not.toHaveBeenCalled()
 })
 
+it('does not clear cached preferences when replay omits the additive field', async () => {
+  const cacheThreadRuntimePreferences = vi.fn()
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      nextCursor: 10,
+      latestCursor: 10,
+    }),
+  )
+  const ctx = createReplayContext({
+    request,
+    cacheThreadRuntimePreferences,
+  })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheThreadRuntimePreferences).not.toHaveBeenCalled()
+})
+
+it('caches explicit empty replay preferences as a supported no-override state', async () => {
+  const cacheThreadRuntimePreferences = vi.fn()
+  const request = createReplayPagesRequest(
+    createReplayPage({
+      nextCursor: 10,
+      latestCursor: 10,
+      preferences: {},
+    }),
+  )
+  const ctx = createReplayContext({
+    request,
+    cacheThreadRuntimePreferences,
+  })
+
+  const ok = await replayThreadEvents(TEST_THREAD_ID, undefined, ctx)
+
+  expect(ok).toBe(true)
+  expect(cacheThreadRuntimePreferences).toHaveBeenCalledWith(TEST_THREAD_ID, {})
+})
+
 it('caches latest compact and collapse summaries from replay responses', async () => {
   const latestCompactBoundary = {
     schemaVersion: 1 as const,

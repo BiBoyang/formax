@@ -41,9 +41,13 @@ function baseProps(overrides: Partial<TranscriptPaneProps> = {}): TranscriptPane
     logs: [],
     inputText: '',
     mode: 'normal',
+    modelTier: 'sonnet',
+    thinkingMode: true,
     connectionStatus: 'connected',
     onInputTextChange: vi.fn(),
     onModeChange: vi.fn(),
+    onModelTierChange: vi.fn(),
+    onThinkingModeChange: vi.fn(),
     onSend: vi.fn((event) => event.preventDefault()),
     onInterrupt: vi.fn(),
     ...overrides,
@@ -256,37 +260,31 @@ describe('TranscriptPane', () => {
     expect(onModeChange).toHaveBeenCalledWith('acceptEdits')
   })
 
-  it('renders composer model and reasoning selector', async () => {
+  it('renders controlled composer model and thinking selector', async () => {
+    const onThinkingModeChange = vi.fn()
     renderWithI18n(
       <TranscriptPane
         {...baseProps({
           activeThreadId: 'thread-1',
           connectionStatus: 'connected',
           inputText: 'hello',
+          modelTier: 'opus',
+          thinkingMode: false,
+          onThinkingModeChange,
         })}
       />,
     )
 
-    const selector = screen.getByRole('button', { name: 'Model and reasoning effort' })
-    expect(selector).toHaveTextContent(/sonnet.*Medium/)
+    const selector = screen.getByRole('button', { name: 'Model and thinking mode' })
+    expect(selector).toHaveTextContent(/opus.*Thinking off/)
 
     fireEvent.keyDown(selector, { key: 'Enter' })
 
-    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
-    expect(screen.getByText('Low')).toBeInTheDocument()
-    expect(screen.getAllByText('Medium').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('High')).toBeInTheDocument()
+    expect(await screen.findByText('Thinking mode')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Thinking on'))
+    expect(onThinkingModeChange).toHaveBeenCalledWith(true)
 
-    const modelTrigger = screen.getByRole('menuitem', { name: 'sonnet' })
-    fireEvent.click(modelTrigger)
-    fireEvent.click(await screen.findByText('opus'))
-
-    expect(selector).toHaveTextContent(/opus.*Medium/)
-
-    fireEvent.keyDown(selector, { key: 'Enter' })
-    fireEvent.click(screen.getByText('Max'))
-
-    expect(selector).toHaveTextContent(/opus.*Max/)
+    expect(screen.queryByText('Max')).not.toBeInTheDocument()
   })
 
   it('enables first send on the draft surface only after a project is selected', () => {

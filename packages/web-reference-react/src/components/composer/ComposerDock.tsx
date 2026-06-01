@@ -1,9 +1,10 @@
-import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronsRight, Pause, Pencil, Square } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Check, ChevronDown, ChevronsRight, Pause, Pencil, Square } from 'lucide-react'
 import { memo, useState, type FormEvent, type ReactNode } from 'react'
 import { shouldTreatAsLongPrompt } from '../../app/core/userSettings'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { cn } from '../../lib/utils'
 import type { ContextMeterView } from '../../types'
+import type { RuntimeModelTier } from '../../app/runtime/runtimePreferences'
 import { Button } from '../ui/button'
 import {
   DropdownMenu,
@@ -21,13 +22,11 @@ import { SlashCommandMenu } from './SlashCommandMenu'
 import { useSlashCommandState } from './useSlashCommandState'
 
 type ComposerMode = 'normal' | 'acceptEdits' | 'plan'
-type ComposerModelTier = 'haiku' | 'sonnet' | 'opus'
-type ComposerReasoningEffort = 'low' | 'medium' | 'high' | 'max'
+type ComposerModelTier = RuntimeModelTier
 
 const MODE_CYCLE: ComposerMode[] = ['normal', 'acceptEdits', 'plan']
 const COMPOSER_MODE_OPTIONS: ComposerMode[] = ['plan', 'acceptEdits', 'normal']
 const COMPOSER_MODEL_TIERS: ComposerModelTier[] = ['haiku', 'sonnet', 'opus']
-const COMPOSER_REASONING_EFFORTS: ComposerReasoningEffort[] = ['low', 'medium', 'high', 'max']
 
 function nextComposerMode(mode: ComposerMode): ComposerMode {
   const idx = MODE_CYCLE.indexOf(mode)
@@ -109,7 +108,11 @@ export type ComposerDockProps = {
   inputText: string
   onInputTextChange: (value: string) => void
   mode: ComposerMode
+  modelTier: ComposerModelTier
+  thinkingMode: boolean
   onModeChange: (value: ComposerMode) => void
+  onModelTierChange: (value: ComposerModelTier) => void
+  onThinkingModeChange: (value: boolean) => void
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   canSubmit: boolean
   isInputDisabled?: boolean
@@ -130,11 +133,9 @@ export type ComposerDockProps = {
 export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps) {
   const { t } = useI18n()
   const [isImeComposing, setIsImeComposing] = useState(false)
-  const [selectedModelTier, setSelectedModelTier] = useState<ComposerModelTier>('sonnet')
-  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<ComposerReasoningEffort>('medium')
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
   const modeInfo = modeMeta(props.mode, t)
-  const reasoningLabel = t(`transcript.reasoning.${selectedReasoningEffort}`)
+  const thinkingLabel = props.thinkingMode ? t('transcript.thinkingMode.on') : t('transcript.thinkingMode.off')
 
   const {
     composerRootRef,
@@ -301,8 +302,8 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                       aria-label={t('transcript.modelSelector')}
                       className="ui-composer-toolbar-pill text-foreground/80 transition-colors"
                     >
-                      <span>{selectedModelTier}</span>
-                      <span className="text-muted-foreground">{reasoningLabel}</span>
+                      <span>{props.modelTier}</span>
+                      <span className="text-muted-foreground">{thinkingLabel}</span>
                       <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -313,16 +314,17 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                     className="ui-menu-content w-[var(--composer-menu-width)] p-1"
                   >
                     <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-1.5 ui-text-base text-muted-foreground">
-                      {t('transcript.reasoningSection')}
+                      {t('transcript.thinkingMode.section')}
                     </DropdownMenuLabel>
-                    {COMPOSER_REASONING_EFFORTS.map((effort) => (
+                    {[true, false].map((thinkingMode) => (
                       <DropdownMenuItem
-                        key={effort}
+                        key={String(thinkingMode)}
                         className="ui-composer-menu-item ui-text-base"
-                        onSelect={() => setSelectedReasoningEffort(effort)}
+                        onSelect={() => props.onThinkingModeChange(thinkingMode)}
                       >
-                        <span>{t(`transcript.reasoning.${effort}`)}</span>
-                        {selectedReasoningEffort === effort ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                        <Brain className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span>{thinkingMode ? t('transcript.thinkingMode.on') : t('transcript.thinkingMode.off')}</span>
+                        {props.thinkingMode === thinkingMode ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
                       </DropdownMenuItem>
                     ))}
                     <DropdownMenuSub open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
@@ -343,7 +345,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                           setIsModelMenuOpen(true)
                         }}
                       >
-                        <span>{selectedModelTier}</span>
+                        <span>{props.modelTier}</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={8}
@@ -357,10 +359,10 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                           <DropdownMenuItem
                             key={tier}
                             className="ui-composer-menu-item ui-text-base"
-                            onSelect={() => setSelectedModelTier(tier)}
+                            onSelect={() => props.onModelTierChange(tier)}
                           >
                             <span>{tier}</span>
-                            {selectedModelTier === tier ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                            {props.modelTier === tier ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>

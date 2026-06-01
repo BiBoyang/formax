@@ -52,6 +52,7 @@ export type UseRuntimeEventOrchestratorArgs = {
   dispatch: ProcessNotificationContext['dispatch']
   log: ProcessNotificationContext['log']
   cacheThreadMode: ProcessNotificationContext['cacheThreadMode']
+  onThreadRuntimePreferencesChanged?: ProcessNotificationContext['onThreadRuntimePreferencesChanged']
   refreshThreads: ProcessNotificationContext['refreshThreads']
   refreshWorkspaceDiff: ProcessNotificationContext['refreshWorkspaceDiff']
   setMode: ProcessNotificationContext['setMode']
@@ -116,6 +117,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     dispatch,
     log,
     cacheThreadMode,
+    onThreadRuntimePreferencesChanged,
     refreshThreads,
     refreshWorkspaceDiff,
     setMode,
@@ -391,6 +393,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
             setAskDraftByInputId: overrides.setAskDraftByInputId ?? setAskDraftByInputId,
             setSubmitStatusByInputId: overrides.setSubmitStatusByInputId ?? setSubmitStatusByInputId,
             reduceThreadRuntimeState,
+            onThreadRuntimePreferencesChanged,
             cacheLiveCompactBoundary: overrides.cacheLiveCompactBoundary ?? cacheLiveCompactBoundary,
             commitLiveCompactBoundary: overrides.commitLiveCompactBoundary ?? commitLiveCompactBoundary,
             clearLiveCompactBoundary: overrides.clearLiveCompactBoundary ?? clearLiveCompactBoundary,
@@ -401,6 +404,7 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
     [
       activeThreadIdRef,
       cacheThreadMode,
+      onThreadRuntimePreferencesChanged,
       cacheLiveCompactBoundary,
       clearLiveCompactBoundary,
       commitLiveCompactBoundary,
@@ -518,6 +522,12 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         cacheDurableSnip: (...args) => stage(() => cacheDurableSnip(...args)),
         cacheLatestRequestCollapse: (...args) => stage(() => cacheLatestRequestCollapse(...args)),
         cachePendingSessionMemoryRestore: (...args) => stage(() => cachePendingSessionMemoryRestore(...args)),
+        cacheThreadRuntimePreferences: (nextThreadId, preferences) =>
+          stage(() => {
+            if (preferences !== undefined) {
+              onThreadRuntimePreferencesChanged?.(nextThreadId, preferences)
+            }
+          }),
         dispatch: (action) => stage(() => dispatch(action)),
         setMode: (mode) => stage(() => setMode(mode)),
         cacheThreadMode: (nextThreadId, mode) => stage(() => cacheThreadMode(nextThreadId, mode)),

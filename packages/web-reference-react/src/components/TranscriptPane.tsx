@@ -10,6 +10,7 @@ import { TranscriptFeed } from './transcript/TranscriptFeed'
 import { DraftProjectSelector, NewThreadDraftSurface } from './transcript/NewThreadDraftSurface'
 import { useRenderWindow, type TranscriptRow } from './transcript/useRenderWindow'
 import type { VisibleSurface } from '../app/runtime/newThreadDraft'
+import type { RuntimeModelTier } from '../app/runtime/runtimePreferences'
 
 type OpenIdsAction =
   | { type: 'toggle'; id: string }
@@ -99,7 +100,11 @@ export type TranscriptPaneProps = {
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   onInputTextChange: (value: string) => void
   mode: 'normal' | 'acceptEdits' | 'plan'
+  modelTier: RuntimeModelTier
+  thinkingMode: boolean
   onModeChange: (value: 'normal' | 'acceptEdits' | 'plan') => void
+  onModelTierChange: (modelTier: RuntimeModelTier) => void
+  onThinkingModeChange: (thinkingMode: boolean) => void
   onSend: (event: FormEvent) => void
   onInterrupt: () => void
   historyMore?: boolean
@@ -275,7 +280,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     composerLocked = false,
     inputText,
     mode,
+    modelTier,
+    thinkingMode,
     onModeChange,
+    onModelTierChange,
+    onThinkingModeChange,
     connectionStatus,
     onInputTextChange,
     onSend,
@@ -379,7 +388,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
                 inputText={inputText}
                 onInputTextChange={onInputTextChange}
                 mode={mode}
+                modelTier={modelTier}
+                thinkingMode={thinkingMode}
                 onModeChange={onModeChange}
+                onModelTierChange={onModelTierChange}
+                onThinkingModeChange={onThinkingModeChange}
                 connectionStatus={connectionStatus}
                 canSubmit={canSubmitInDraft}
                 isInputDisabled={!draftCwd}
@@ -448,7 +461,11 @@ export function TranscriptPane(props: TranscriptPaneProps) {
               inputText={inputText}
               onInputTextChange={onInputTextChange}
               mode={mode}
+              modelTier={modelTier}
+              thinkingMode={thinkingMode}
               onModeChange={onModeChange}
+              onModelTierChange={onModelTierChange}
+              onThinkingModeChange={onThinkingModeChange}
               connectionStatus={connectionStatus}
               canSubmit={canSubmitInThread}
               showInterrupt={hasActiveTurn || isInterrupting}

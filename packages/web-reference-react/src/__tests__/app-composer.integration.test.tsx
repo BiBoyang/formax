@@ -169,7 +169,47 @@ const rpcMock = vi.hoisted(() => {
     },
     callRequest(method: string, params: unknown) {
       requests.push({ method, params })
+      if (method === 'config/runtimeDefaults/read') {
+        return { effective: { modelTier: 'sonnet', thinkingMode: true } }
+      }
+      if (method === 'config/runtimeDefaults/patch') {
+        return { effective: { modelTier: 'sonnet', thinkingMode: true, ...(params as Record<string, unknown>) } }
+      }
+      if (method === 'thread/runtimeState/read') {
+        return { threadId: inferThreadId((params as Record<string, unknown> | null) ?? {}) ?? 'thread-alpha', state: null }
+      }
+      if (method === 'thread/runtimeState/patch') {
+        const patch = params && typeof params === 'object' ? (params as Record<string, unknown>).patch : null
+        const preferences = patch && typeof patch === 'object'
+          ? (patch as { preferences?: unknown }).preferences
+          : undefined
+        return {
+          threadId: inferThreadId((params as Record<string, unknown> | null) ?? {}) ?? 'thread-alpha',
+          state: { preferences },
+        }
+      }
       const raw = requestImpl(method, params)
+      if ((method === 'turn/start' || method === 'command/dispatch') && raw && typeof raw === 'object') {
+        const turn = (raw as { turn?: unknown }).turn
+        if (turn && typeof turn === 'object') {
+          const turnRecord = turn as Record<string, unknown>
+          const turnId = typeof turnRecord.id === 'string' && turnRecord.id.trim() ? turnRecord.id : ''
+          const threadId = typeof turnRecord.threadId === 'string' && turnRecord.threadId.trim()
+            ? turnRecord.threadId
+            : inferThreadId((params as Record<string, unknown> | null) ?? {})
+          if (turnId && threadId && turnRecord.status === 'running') {
+            setTimeout(() => {
+              onNotification?.(enrichNotification({
+                method: 'turn/completed',
+                params: {
+                  threadId,
+                  turn: { id: turnId, threadId, status: 'completed' },
+                },
+              }))
+            }, 0)
+          }
+        }
+      }
       if (method !== 'thread/replay' || !raw || typeof raw !== 'object') return raw
       const record = raw as Record<string, unknown>
       const data = Array.isArray(record.data) ? record.data : null
@@ -1064,12 +1104,12 @@ describe('App thread history integration', () => {
     })
 
     expect(screen.getByTestId('new-thread-draft-surface')).toBeInTheDocument()
-    expect(screen.getByText('Choose a project before sending the first message.')).toBeInTheDocument()
+    expect(screen.queryByText('Choose a project before sending the first message.')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('Choose a project first')).toBeDisabled()
     expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
   })
 
-  it('seeds draft cwd from the current workspace when no existing projects are available', async () => {
+  it('keeps draft input disabled until a project is selected when no recent projects are available', async () => {
     let resolveDiff: ((value: {
       cwd: string
       generatedAt: string
@@ -1122,10 +1162,6 @@ describe('App thread history integration', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'New thread' }))
-
-    const disabledInput = await screen.findByPlaceholderText('Choose a project first')
-    expect(disabledInput).toBeDisabled()
 
     await act(async () => {
       resolveDiff?.({
@@ -1138,20 +1174,11 @@ describe('App thread history integration', () => {
       await Promise.resolve()
     })
 
-    const input = await screen.findByPlaceholderText('Ask for follow-up changes')
-    await waitFor(() => {
-      expect(input).toBeEnabled()
-    })
-    fireEvent.change(input, { target: { value: 'seeded first message' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'New thread' }))
 
-    await waitFor(() => {
-      expect(
-        rpcMock.requests.some(
-          (entry) => entry.method === 'thread/start' && (entry.params as { cwd?: string } | undefined)?.cwd === '/workspace-empty',
-        ),
-      ).toBe(true)
-    })
+    const disabledInput = await screen.findByPlaceholderText('Choose a project first')
+    expect(disabledInput).toBeDisabled()
+    expect(rpcMock.requests.some((entry) => entry.method === 'thread/start')).toBe(false)
   })
 
   it('prefills cwd from folder quick action and creates the thread on first send', async () => {

@@ -3,8 +3,8 @@
 ## Current Scope
 
 - Task todo: `docs/todolist.md`
-- Accepted contracts: Loop 3 effective runtime profile and execution wiring in `docs/todolist.md`
-- Current loop: Loop 3 - Effective runtime profile and execution wiring
+- Accepted contracts: Loop 4 Web controlled composer and hydration in `docs/todolist.md`
+- Current loop: Loop 4 - Web controlled composer and hydration
 - Review command/profile: `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`
 - Review scope rule: review findings must be classified before code changes.
 
@@ -27,6 +27,10 @@
 | TRP-L2-R2-002 | 2 | P2 | `thread/runtimeState/patch` rejected documented empty patch no-op requests. | `packages/core/src/app-server/protocol.ts` | Generic patch API idempotency / feature probing | Loop 2 strict parser behavior; empty patch no-op decision | Loop 2 | true blocker | Allow `{ patch: {} }` and normalize it to an empty preferences patch. | Added protocol parser regression test for empty patch normalization. | resolved |
 | TRP-L3-R1-001 | 1 | P2 | Execution preference resolver could keep returning stale in-memory preferences after the durable thread record changed outside the current server instance. | `packages/core/src/app-server/server.ts` | Execution profile freshness / durable thread preference authority | Loop 3 effective profile execution wiring | Loop 3 | true blocker | Refresh from `ThreadStore.readThread` before turn execution and `/context`; only fall back to cached in-memory preferences if durable read fails. | Added app-server regression test proving a second turn uses updated durable preferences after the first turn completed. | resolved |
 | TRP-L3-R2-001 | 2 | P1 | The durable preference refresh also overwrote live runtime state while a turn could still be in flight. | `packages/core/src/app-server/server.ts` | Frozen active-turn runtime state / replay truthfulness | Loop 3 mid-turn preference freeze | Loop 3 | true blocker | Durable refresh may update the preference cache used for future materialization, but must not mutate `runtimeStateByThreadId`. | Removed the live runtime-state overwrite and added diagnostics/replay regression coverage. | resolved |
+| TRP-L4-R1-001 | 1 | P1 | Replayed thread preferences can be hidden after the first ordinary live event because active Web rendering preferred `runtimeState.preferences` from the live reducer over the replay/read preference cache. | `packages/web-reference-react/src/app/useAppRuntime.ts` | Web mirror cache / thread preference render authority | Loop 4 controlled Web composer and hydration | Loop 4 | true blocker | Treat the explicit Web preference cache as the render authority; live non-preference runtime events must not erase replayed preferences. | Active preference rendering now reads from the explicit preference cache; fallback patch merges also use that cache. Targeted Web runtime tests rerun. | resolved |
+| TRP-L4-R1-002 | 1 | P2 | Omitted additive `preferences` fields from old/unsupported replay/resume responses cleared cached thread preferences. | `packages/web-reference-react/src/app/useAppRuntime.ts`, `packages/web-reference-react/src/app/runtime/replayThreadEvents.ts`, `packages/web-reference-react/src/app/runtime/threadDataOps.ts`, `packages/web-reference-react/src/app/runtime/useRuntimeEventOrchestrator.ts` | Old-client additive-field compatibility / explicit-empty vs omitted semantics | Loop 4 omitted fields must not clear cache; explicit `{}` means no override | Loop 4 | true blocker | Only update the preference cache when a response explicitly contains the additive `preferences` field; keep explicit `{}` as a supported no-override state. | Added replay regression tests for omitted-vs-explicit preferences and reran Web runtime tests. | resolved |
+| TRP-L4-R2-001 | 2 | P2 | Cross-client `thread/runtimeStateChanged` notifications without `replaySeq` did not update Web preference cache. | `packages/web-reference-react/src/app/runtime/processNotification.ts` | Live preference notification parity / cross-client Web state | Loop 4 live notification hydration | Loop 4 | true blocker | Apply runtime-state preference notifications even when no replay sequence is present, without advancing the replay cursor. | Added process-notification regression test for no-`replaySeq` runtime preference updates. | resolved |
+| TRP-L4-R2-002 | 2 | P2 | Thread overrides could not be cleared back to inherited global defaults from the Web selector. | `packages/web-reference-react/src/app/useAppRuntime.ts`, `packages/web-reference-react/src/app/runtime/runtimePreferences.ts` | Thread override clear semantics / global fallback | Loop 4 active-thread patch routing; `null` clears override contract | Loop 4 | true blocker | When a thread selection equals the current global default, send `null` for that field so the server clears the thread override. | Added runtime-preference helper test for default-matching clear patches and reran Web runtime/integration tests. | resolved |
 
 ## Classification Rules
 
@@ -61,9 +65,9 @@
 - Contradictory findings detected: no
 - Spec convergence required: yes
 - User question required: no
-- Churn trigger status: triggered after two Loop 3 review rounds produced same-cluster P1/P2 findings.
-- Convergence decision: stop broad review-driven edits; apply only the minimal invariant fix for `TRP-L3-R2-001`, then rely on targeted tests/type-check for this loop unless a concrete unclassified blocker remains.
-- Current resolution: all classified Loop 3 review findings have a recorded decision, action, and regression test.
+- Churn trigger status: triggered after two Loop 4 review rounds produced same-feature P1/P2 findings.
+- Convergence decision: apply the four classified Web preference true blockers, then stop broad review reruns for Loop 4 and rely on targeted tests/type-check unless a concrete unclassified blocker remains.
+- Current resolution: all classified Loop 4 review findings have a recorded decision, action, and regression test.
 
 ## Churn Trigger
 

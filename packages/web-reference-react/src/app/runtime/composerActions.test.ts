@@ -112,6 +112,41 @@ describe('composerActions', () => {
     expect(ctx.setIsSendingTurn).toHaveBeenLastCalledWith(false)
   })
 
+  it('waits for pending preference persistence before starting a turn', async () => {
+    const calls: string[] = []
+    const ctx = createBaseContext({
+      awaitPreferencePersistence: vi.fn(async () => {
+        calls.push('preferences')
+      }),
+      request: vi.fn(async () => {
+        calls.push('turn')
+        return { turn: { id: 'turn-2' } }
+      }),
+    })
+
+    const actions = createComposerActions(ctx)
+    await actions.startTurn()
+
+    expect(calls).toEqual(['preferences', 'turn'])
+    expect(ctx.setInputText).toHaveBeenCalledWith('')
+  })
+
+  it('does not clear input or send when pending preference persistence fails', async () => {
+    const ctx = createBaseContext({
+      awaitPreferencePersistence: vi.fn(async () => {
+        throw new Error('preference failed')
+      }),
+      request: vi.fn(async () => ({ turn: { id: 'turn-2' } })),
+    })
+
+    const actions = createComposerActions(ctx)
+    await expect(actions.startTurn()).rejects.toThrow('preference failed')
+
+    expect(ctx.request).not.toHaveBeenCalled()
+    expect(ctx.setInputText).not.toHaveBeenCalledWith('')
+    expect(ctx.setInputText).toHaveBeenCalledWith(expect.any(Function))
+  })
+
   it('creates and activates a draft thread before first turn start', async () => {
     const request = vi.fn(async () => ({ turn: { id: 'turn-draft-1' } }))
     const ctx = createBaseContext({

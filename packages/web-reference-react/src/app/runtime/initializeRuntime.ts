@@ -1,5 +1,6 @@
 export type InitializeRuntimeArgs = {
   initializeHandshake: () => Promise<void>
+  loadRuntimeDefaults?: () => Promise<void>
   refreshThreads: () => Promise<void>
   refreshWorkspaceDiff: () => Promise<void>
   activeThreadIdRef: { current: string | null }
@@ -11,6 +12,8 @@ export type InitializeRuntimeArgs = {
 export async function initializeRuntime(args: InitializeRuntimeArgs): Promise<void> {
   if (args.shouldContinue && !args.shouldContinue()) return
   await args.initializeHandshake()
+  if (args.shouldContinue && !args.shouldContinue()) return
+  await args.loadRuntimeDefaults?.()
   if (args.shouldContinue && !args.shouldContinue()) return
   await Promise.all([args.refreshThreads(), args.refreshWorkspaceDiff()])
   if (args.shouldContinue && !args.shouldContinue()) return

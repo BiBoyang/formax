@@ -199,35 +199,35 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Web runtime state
-- [ ] Extend Web RPC contracts/parsers for preference fields in replay/read/resume responses.
-- [ ] Extend `replayThreadEvents` hydration so `runtimeStateByThreadRef.current[threadId].preferences` mirrors server state.
-- [ ] Add or generalize a cache hook from `useThreadModeCache` to handle full thread runtime state preferences.
-- [ ] Ensure thread switching renders controls from the selected thread's preferences plus global fallback, not from the previous thread's local UI state.
-- [ ] Ensure replay/read/resume hydration updates composer controls.
-- [ ] Ensure Web optimistic updates, if any, are reconciled from server notification/response.
-- [ ] Omitted `preferences` from old/unsupported responses must not clear existing cache; explicit supported `{}` means no thread overrides.
-- [ ] Reduced Web runtime state must not store `null` preference fields.
-- [ ] Display values should be derived from `threadOverride ?? globalRuntimeDefaults`; do not copy global defaults into thread preferences just to render inherited values.
+- [x] Extend Web RPC contracts/parsers for preference fields in replay/read/resume responses.
+- [x] Extend `replayThreadEvents` hydration so `runtimeStateByThreadRef.current[threadId].preferences` mirrors server state.
+- [x] Add or generalize a cache hook from `useThreadModeCache` to handle full thread runtime state preferences.
+- [x] Ensure thread switching renders controls from the selected thread's preferences plus global fallback, not from the previous thread's local UI state.
+- [x] Ensure replay/read/resume hydration updates composer controls.
+- [x] Ensure Web optimistic updates, if any, are reconciled from server notification/response.
+- [x] Omitted `preferences` from old/unsupported responses must not clear existing cache; explicit supported `{}` means no thread overrides.
+- [x] Reduced Web runtime state must not store `null` preference fields.
+- [x] Display values should be derived from `threadOverride ?? globalRuntimeDefaults`; do not copy global defaults into thread preferences just to render inherited values.
 
 ### 3.2 ComposerDock controls
-- [ ] Make `ComposerDock` controlled for model tier and thinking mode.
-- [ ] Remove `selectedModelTier` component-local durable state.
-- [ ] Remove `selectedReasoningEffort` component-local durable state.
-- [ ] Replace four reasoning effort options with a boolean thinking control.
-- [ ] Keep existing token-design menu styling and focus behavior from the previous compose-dock work.
+- [x] Make `ComposerDock` controlled for model tier and thinking mode.
+- [x] Remove `selectedModelTier` component-local durable state.
+- [x] Remove `selectedReasoningEffort` component-local durable state.
+- [x] Replace four reasoning effort options with a boolean thinking control.
+- [x] Keep existing token-design menu styling and focus behavior from the previous compose-dock work.
 - [ ] Surface thread/global source only if there is an agreed product need; do not add explanatory UI text by default.
 
 ### 3.3 Web update behavior
-- [ ] Add a single `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)` helper that returns explicit targets such as `thread`, `draft`, `noThread`, or unsupported/locked.
-- [ ] Do not route preference writes by raw `!activeThreadId` alone.
-- [ ] Active-thread model tier changes call the thread runtime-state patch API.
-- [ ] Active-thread thinking changes call the thread runtime-state patch API.
-- [ ] New-thread draft / no-active-thread model tier changes call the global defaults patch API.
-- [ ] New-thread draft / no-active-thread thinking changes call the global defaults patch API.
-- [ ] Maintain a per-target pending preference mutation barrier; send/start/dispatch must await the patch response, not only optimistic local state or notification.
-- [ ] If a preference patch fails, send must be blocked or must rehydrate/revert to the previously confirmed server profile before sending.
-- [ ] Ensure no ad hoc `modelTier` or `thinkingMode` fields are sent in `turn/start` / `command/dispatch` as authority.
-- [ ] Handle update failures by reverting or rehydrating from server state without leaving controls lying about the active profile.
+- [x] Add a single `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)` helper that returns explicit targets such as `thread`, `draft`, `noThread`, or unsupported/locked.
+- [x] Do not route preference writes by raw `!activeThreadId` alone.
+- [x] Active-thread model tier changes call the thread runtime-state patch API.
+- [x] Active-thread thinking changes call the thread runtime-state patch API.
+- [x] New-thread draft / no-active-thread model tier changes call the global defaults patch API.
+- [x] New-thread draft / no-active-thread thinking changes call the global defaults patch API.
+- [x] Maintain a per-target pending preference mutation barrier; send/start/dispatch must await the patch response, not only optimistic local state or notification.
+- [x] If a preference patch fails, send must be blocked or must rehydrate/revert to the previously confirmed server profile before sending.
+- [x] Ensure no ad hoc `modelTier` or `thinkingMode` fields are sent in `turn/start` / `command/dispatch` as authority.
+- [x] Handle update failures by reverting or rehydrating from server state without leaving controls lying about the active profile.
 
 ## 4. Tests
 
@@ -278,27 +278,27 @@
 - [ ] Updating preferences mid-turn affects only subsequent turns.
 
 ### 4.5 Web tests
-- [ ] `ComposerDock` receives model tier and thinking mode through props.
-- [ ] Active-thread selector changes call the thread runtime-state patch API.
-- [ ] Draft/no-thread selector changes call the global defaults patch API.
-- [ ] Preference write target is derived from explicit visible surface / target helper, not only from falsy `activeThreadId`.
-- [ ] No-thread/draft initialization reads global runtime defaults or uses an equivalent bootstrap surface before rendering committed control values.
-- [ ] Failed defaults/preference read does not fall back to durable Web local state.
-- [ ] Draft global patch does not create or mutate `runtimeStateByThreadRef`.
-- [ ] Thread switching restores each thread's preferences.
-- [ ] Replay hydration restores composer model/thinking controls.
-- [ ] Send waits for pending preference update or otherwise cannot race ahead of the durable update.
-- [ ] Failed pending preference update blocks send or rehydrates/reverts before send.
-- [ ] `turn/start` and `command/dispatch` Web payloads do not carry model/thinking as request-local authority.
-- [ ] Four-level reasoning effort labels are removed or disabled behind a real capability contract.
+- [x] `ComposerDock` receives model tier and thinking mode through props.
+- [x] Active-thread selector changes call the thread runtime-state patch API.
+- [x] Draft/no-thread selector changes call the global defaults patch API.
+- [x] Preference write target is derived from explicit visible surface / target helper, not only from falsy `activeThreadId`.
+- [x] No-thread/draft initialization reads global runtime defaults or uses an equivalent bootstrap surface before rendering committed control values.
+- [x] Failed defaults/preference read does not fall back to durable Web local state.
+- [x] Draft global patch does not create or mutate `runtimeStateByThreadRef`.
+- [x] Thread switching restores each thread's preferences.
+- [x] Replay hydration restores composer model/thinking controls.
+- [x] Send waits for pending preference update or otherwise cannot race ahead of the durable update.
+- [x] Failed pending preference update blocks send or rehydrates/reverts before send.
+- [x] `turn/start` and `command/dispatch` Web payloads do not carry model/thinking as request-local authority.
+- [x] Four-level reasoning effort labels are removed or disabled behind a real capability contract.
 
 ### 4.6 Contract and parity tests
-- [ ] JSONL preference event -> app-server replay state -> Web parser -> Web runtime cache parity test.
-- [ ] Live preference notification -> Web runtime cache parity test.
-- [ ] Stale preference notification is ignored.
-- [ ] Preference notifications do not touch transcript projection.
-- [ ] Old clients can ignore additive fields without breaking app-server execution semantics.
-- [ ] Omitted old-client preference fields do not clear existing Web cache; explicit `{}` from a supporting server means no overrides.
+- [x] JSONL preference event -> app-server replay state -> Web parser -> Web runtime cache parity test.
+- [x] Live preference notification -> Web runtime cache parity test.
+- [x] Stale preference notification is ignored.
+- [x] Preference notifications do not touch transcript projection.
+- [x] Old clients can ignore additive fields without breaking app-server execution semantics.
+- [x] Omitted old-client preference fields do not clear existing Web cache; explicit `{}` from a supporting server means no overrides.
 
 ## 5. Recommended Execution Order
 
@@ -387,19 +387,19 @@ Review gate for this loop:
 - Blocking: Web still owns durable model/thinking in component local state, active-thread updates call global defaults, draft updates create thread state, or sends can race before preference persistence.
 - Non-blocking: optional source badges/copy are deferred unless product asks for them.
 
-- [ ] Extend Web RPC contracts/parsers for preference fields and patch APIs.
-- [ ] Hydrate preferences from replay/read/resume into Web runtime state cache and hydrate global runtime defaults for draft/no-thread controls.
-- [ ] Make `ComposerDock` controlled for model tier and boolean thinking mode.
-- [ ] Replace four reasoning effort options with boolean thinking UI.
-- [ ] Add explicit `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)` routing helper.
-- [ ] Wire active-thread changes to thread patch API.
-- [ ] Wire draft/no-thread changes to global runtime defaults patch API.
-- [ ] Sequence sends behind pending preference updates with a per-target promise barrier and failure rehydrate/blocking path.
-- [ ] Add Web component/runtime/integration tests.
-- [ ] Run targeted Web tests.
-- [ ] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit this loop after review passes.
+- [x] Extend Web RPC contracts/parsers for preference fields and patch APIs.
+- [x] Hydrate preferences from replay/read/resume into Web runtime state cache and hydrate global runtime defaults for draft/no-thread controls.
+- [x] Make `ComposerDock` controlled for model tier and boolean thinking mode.
+- [x] Replace four reasoning effort options with boolean thinking UI.
+- [x] Add explicit `resolvePreferenceWriteTarget(visibleSurface, activeThreadId)` routing helper.
+- [x] Wire active-thread changes to thread patch API.
+- [x] Wire draft/no-thread changes to global runtime defaults patch API.
+- [x] Sequence sends behind pending preference updates with a per-target promise barrier and failure rehydrate/blocking path.
+- [x] Add Web component/runtime/integration tests.
+- [x] Run targeted Web tests.
+- [x] Triage review findings into `docs/thread-runtime-preferences-review-findings-log.md`.
+- [x] Run `codex review` for this loop after targeted verification passes; stopped further Loop 4 reruns by the churn trigger after two classified rounds.
+- [x] Commit this loop after review passes.
 
 ### Loop 5: Final convergence and regression sweep
 #### Loop Contract

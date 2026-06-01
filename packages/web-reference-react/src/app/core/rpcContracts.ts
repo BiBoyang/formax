@@ -1,6 +1,7 @@
 import type { DurableSnipSummary, ResolvedInput, ThreadMessage, ThreadSummary } from '../../types'
 import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
 import type { TokenUsage } from '@formax/shared/streaming'
+import type { ThreadRuntimePreferences } from '../../semantics'
 import {
   asResolvedInputs,
   asThreadMessages,
@@ -388,6 +389,7 @@ export type RpcThreadReplayResult = {
   durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
+  preferences?: ThreadRuntimePreferences
 }
 
 export type RpcThreadMessagesResult = {
@@ -409,6 +411,7 @@ export type RpcThreadReadResult = {
   latestCompactBoundary?: RpcLatestCompactBoundary | null
   durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
+  preferences?: ThreadRuntimePreferences
 }
 
 export type RpcThreadResumeResult = {
@@ -423,11 +426,28 @@ export type RpcThreadResumeResult = {
   durableSnip?: DurableSnipSummary | null
   latestRequestCollapse?: RpcLatestRequestCollapse | null
   pendingSessionMemoryRestore?: RpcSessionMemoryRestoreSummary | null
+  preferences?: ThreadRuntimePreferences
+}
+
+export type RpcRuntimeDefaultsResult = {
+  effective: ThreadRuntimePreferences
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object') return {}
   return value as Record<string, unknown>
+}
+
+export function parseThreadRuntimePreferences(value: unknown): ThreadRuntimePreferences {
+  const record = asRecord(value)
+  const preferences: ThreadRuntimePreferences = {}
+  if (record.modelTier === 'haiku' || record.modelTier === 'sonnet' || record.modelTier === 'opus') {
+    preferences.modelTier = record.modelTier
+  }
+  if (typeof record.thinkingMode === 'boolean') {
+    preferences.thinkingMode = record.thinkingMode
+  }
+  return preferences
 }
 
 function parseStringList(value: unknown): string[] {
@@ -486,9 +506,15 @@ export function parseThreadReplayResponse(value: unknown): RpcThreadReplayResult
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
   const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
-  if (!latestCompactBoundary || !durableSnip || !latestRequestCollapse) return replay
-  return {
+  const replayWithPreferences = {
     ...replay,
+    ...(Object.prototype.hasOwnProperty.call(root, 'preferences')
+      ? { preferences: parseThreadRuntimePreferences(root.preferences) }
+      : {}),
+  }
+  if (!latestCompactBoundary || !durableSnip || !latestRequestCollapse) return replayWithPreferences
+  return {
+    ...replayWithPreferences,
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
     ...(durableSnip.present ? { durableSnip: durableSnip.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
@@ -536,6 +562,9 @@ export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | n
   const latestCompactBoundary = parseOptionalNullableLatestCompactBoundaryField(root, 'latestCompactBoundary')
   const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
+  const preferences = Object.prototype.hasOwnProperty.call(root, 'preferences')
+    ? parseThreadRuntimePreferences(root.preferences)
+    : undefined
   if (!latestCompactBoundary || !durableSnip || !latestRequestCollapse) return null
   return {
     thread: { id, cwd, createdAt, updatedAt },
@@ -543,6 +572,7 @@ export function parseThreadReadResponse(value: unknown): RpcThreadReadResult | n
     ...(latestCompactBoundary.present ? { latestCompactBoundary: latestCompactBoundary.value } : {}),
     ...(durableSnip.present ? { durableSnip: durableSnip.value } : {}),
     ...(latestRequestCollapse.present ? { latestRequestCollapse: latestRequestCollapse.value } : {}),
+    ...(preferences === undefined ? {} : { preferences }),
   }
 }
 
@@ -558,6 +588,9 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
   const durableSnip = parseOptionalNullableDurableSnipField(root, 'durableSnip')
   const latestRequestCollapse = parseOptionalNullableLatestRequestCollapseField(root, 'latestRequestCollapse')
   const pendingSessionMemoryRestore = parseOptionalNullableSessionMemoryRestoreField(root, 'pendingSessionMemoryRestore')
+  const preferences = Object.prototype.hasOwnProperty.call(root, 'preferences')
+    ? parseThreadRuntimePreferences(root.preferences)
+    : undefined
   if (
     !id ||
     !cwd ||
@@ -579,7 +612,13 @@ export function parseThreadResumeResponse(value: unknown): RpcThreadResumeResult
     ...(pendingSessionMemoryRestore.present
       ? { pendingSessionMemoryRestore: pendingSessionMemoryRestore.value }
       : {}),
+    ...(preferences === undefined ? {} : { preferences }),
   }
+}
+
+export function parseRuntimeDefaultsResponse(value: unknown): RpcRuntimeDefaultsResult {
+  const root = asRecord(value)
+  return { effective: parseThreadRuntimePreferences(root.effective) }
 }
 
 export function parseResolvedInputsResponse(value: unknown): ResolvedInput[] {

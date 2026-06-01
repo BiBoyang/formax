@@ -13,6 +13,7 @@ export type ConnectRpcClientArgs = {
   clientRef: { current: RpcClient | null }
   eventCursorRef: { current: ReturnType<typeof createTurnEventCursorState> }
   initializeHandshake: () => Promise<void>
+  loadRuntimeDefaults?: () => Promise<void>
   refreshThreads: () => Promise<void>
   refreshWorkspaceDiff: () => Promise<void>
   resumeThreadInputs: (threadId: string) => Promise<void>
@@ -33,6 +34,7 @@ export function connectRpcClient(args: ConnectRpcClientArgs): () => void {
     runInitialize: ({ shouldContinue }) =>
       initializeRuntime({
         initializeHandshake: args.initializeHandshake,
+        loadRuntimeDefaults: args.loadRuntimeDefaults,
         refreshThreads: args.refreshThreads,
         refreshWorkspaceDiff: args.refreshWorkspaceDiff,
         activeThreadIdRef: args.activeThreadIdRef,

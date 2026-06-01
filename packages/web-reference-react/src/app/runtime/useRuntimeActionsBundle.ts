@@ -64,6 +64,7 @@ type ComposerDeps = {
   nowMs: ComposerActionsContext['nowMs']
   leaveNewThreadDraft: ComposerActionsContext['leaveNewThreadDraft']
   newThreadDraftRef: { current: NewThreadDraftState }
+  awaitPreferencePersistence?: ComposerActionsContext['awaitPreferencePersistence']
 }
 
 type UseRuntimeActionsBundleArgs = {
@@ -387,6 +388,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       composer.toRpcError,
       composer.leaveNewThreadDraft,
       composer.newThreadDraftRef,
+      composer.awaitPreferencePersistence,
       createThreadOnServerInCwd,
       startThread,
       thread.activeThreadIdRef,

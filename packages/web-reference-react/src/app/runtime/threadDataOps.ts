@@ -18,6 +18,7 @@ import type {
   TranscriptItem,
 } from '../../types'
 import type { AppAction } from '../../store'
+import type { ThreadRuntimePreferences } from '../../semantics'
 
 export type ThreadDataOpsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>
@@ -75,6 +76,7 @@ export type ThreadDataOpsContext = {
     updater: (prev: Record<string, TranscriptItem[]>) => Record<string, TranscriptItem[]>,
   ) => void
   setHiddenGroupCwds?: (next: string[]) => void
+  cacheThreadRuntimePreferences?: (threadId: string, preferences: ThreadRuntimePreferences | undefined) => void
 }
 
 export function createThreadDataOps(ctx: ThreadDataOpsContext) {
@@ -329,6 +331,9 @@ export function createThreadDataOps(ctx: ThreadDataOpsContext) {
       const parsed = parseThreadResumeResponse(resumeResult)
       const staleInputs = parsed?.staleInputs ?? []
       setThreadCompressionProjectionFacts(threadId, parsed ?? {})
+      if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'preferences')) {
+        ctx.cacheThreadRuntimePreferences?.(threadId, parsed.preferences)
+      }
       for (const input of staleInputs) {
         if (ctx.seenStaleInputIdRef.current.has(input.inputId)) continue
         ctx.seenStaleInputIdRef.current.add(input.inputId)

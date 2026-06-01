@@ -19,6 +19,7 @@ export interface RpcConnectionEffectDeps {
   seenEventCap: number
   dispatch: ConnectRpcClientArgs['dispatch']
   initializeHandshake: ConnectRpcClientArgs['initializeHandshake']
+  loadRuntimeDefaults?: ConnectRpcClientArgs['loadRuntimeDefaults']
   refreshThreads: ConnectRpcClientArgs['refreshThreads']
   refreshWorkspaceDiff: ConnectRpcClientArgs['refreshWorkspaceDiff']
   resumeThreadInputs: ConnectRpcClientArgs['resumeThreadInputs']
@@ -41,6 +42,7 @@ export function useRpcConnectionEffect(deps: RpcConnectionEffectDeps) {
       clientRef: deps.clientRef,
       eventCursorRef: deps.eventCursorRef,
       initializeHandshake: deps.initializeHandshake,
+      loadRuntimeDefaults: deps.loadRuntimeDefaults,
       refreshThreads: deps.refreshThreads,
       refreshWorkspaceDiff: deps.refreshWorkspaceDiff,
       resumeThreadInputs: deps.resumeThreadInputs,
@@ -56,6 +58,7 @@ export function useRpcConnectionEffect(deps: RpcConnectionEffectDeps) {
     deps.captureError,
     deps.handleNotification,
     deps.initializeHandshake,
+    deps.loadRuntimeDefaults,
     deps.onQueueMetrics,
     deps.rpcQueueConfig,
     deps.refreshThreads,

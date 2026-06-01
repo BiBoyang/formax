@@ -12,6 +12,7 @@ import type {
 import type { ThreadCompressionProjectionFacts } from '../core/threadCache'
 import { shouldPromoteReplayAsCanonical } from '../core/replayMachine'
 import type { ReplMode, ThreadRuntimeState } from '../../semantics'
+import type { ThreadRuntimePreferences } from '../../semantics'
 import { summarizeInvariantIssues } from '../../semantics'
 
 type ReplayResult = RpcThreadReplayResult
@@ -85,6 +86,7 @@ export type ReplayThreadEventsContext = {
     threadId: string,
     pendingSessionMemoryRestore: SessionMemoryRestoreSummary | null | undefined,
   ) => void
+  cacheThreadRuntimePreferences?: (threadId: string, preferences: ThreadRuntimePreferences | undefined) => void
   dispatch: Dispatch<AppAction>
   setMode: Dispatch<SetStateAction<ReplMode>>
   cacheThreadMode: (threadId: string, mode: ReplMode) => void
@@ -273,6 +275,9 @@ export async function replayThreadEvents(
     }
 
     const baselineReplay = await fetchReplayBaseline()
+    if (Object.prototype.hasOwnProperty.call(baselineReplay, 'preferences')) {
+      ctx.cacheThreadRuntimePreferences?.(threadId, baselineReplay.preferences)
+    }
     cacheThreadCompressionProjectionFacts(baselineReplay)
     if (baselineReplay.state) {
       maybeLogInvariantIssues(baselineReplay.state)
@@ -305,6 +310,9 @@ export async function replayThreadEvents(
   while (pageCount < 100) {
     pageCount += 1
     const replay = await fetchReplayPage(after)
+    if (Object.prototype.hasOwnProperty.call(replay, 'preferences')) {
+      ctx.cacheThreadRuntimePreferences?.(threadId, replay.preferences)
+    }
     latestCursor = replay.latestCursor
     if (replay.state) {
       replayState = replay.state

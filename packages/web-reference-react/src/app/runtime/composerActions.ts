@@ -40,6 +40,7 @@ export type ComposerActionsContext = {
   leaveNewThreadDraft: () => void
   refreshThreads: () => Promise<void>
   refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
+  awaitPreferencePersistence?: () => Promise<void>
   getCurrentActiveThreadId: () => string | null
   getCurrentNewThreadDraft: () => NewThreadDraftState
   retirePendingInputLocally: (args: {
@@ -119,11 +120,6 @@ export function createComposerActions(ctx: ComposerActionsContext) {
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     let requestThreadId = ctx.activeThreadId
     let requestCwd = requestThreadId ? ctx.resolveRequestCwd(requestThreadId) : draftCwd
-    ctx.setInputText('')
-    if (shouldDispatchCommand) {
-      ctx.log(`Command queued: ${text}`, 'info')
-    }
-
     ctx.setIsSendingTurn(true)
     let draftCreatedThread: CreatedThreadResult | null = null
     const refreshDraftCreatedThread = () => {
@@ -132,6 +128,12 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
     }
     try {
+      await ctx.awaitPreferencePersistence?.()
+      ctx.setInputText('')
+      if (shouldDispatchCommand) {
+        ctx.log(`Command queued: ${text}`, 'info')
+      }
+
       if (!requestThreadId && draftCwd) {
         const created = await ctx.createThreadOnServerInCwd(draftCwd)
         if (!created) {

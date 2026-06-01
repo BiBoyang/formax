@@ -12,6 +12,7 @@ import {
   parseInitializeResponse,
   parseContextMeterRaw,
   parseProviderUsageRaw,
+  parseRuntimeDefaultsResponse,
 } from './rpcContracts'
 
 const SYSTEM_CONTRIBUTOR = {
@@ -1920,6 +1921,34 @@ describe('rpcContracts', () => {
         recapFingerprint: 'abcdef0123456789',
       },
     })
+  })
+
+  it('parses runtime preferences from thread and defaults payloads', () => {
+    const thread = {
+      id: 'thread-1',
+      cwd: '/repo',
+      createdAt: '2026-04-07T00:00:00.000Z',
+      updatedAt: '2026-04-07T00:01:00.000Z',
+    }
+
+    expect(parseThreadReadResponse({ thread, transcriptPreview: [], preferences: { modelTier: 'opus' } })?.preferences).toEqual({
+      modelTier: 'opus',
+    })
+    expect(parseThreadResumeResponse({
+      thread,
+      staleInputs: [],
+      preferences: { modelTier: 'haiku', thinkingMode: false },
+    })?.preferences).toEqual({ modelTier: 'haiku', thinkingMode: false })
+    expect(parseThreadReplayResponse({
+      data: [],
+      nextCursor: 0,
+      latestCursor: 0,
+      hasGap: false,
+      preferences: { modelTier: 'sonnet', thinkingMode: true },
+    }).preferences).toEqual({ modelTier: 'sonnet', thinkingMode: true })
+    expect(parseRuntimeDefaultsResponse({
+      effective: { modelTier: 'opus', thinkingMode: false },
+    })).toEqual({ effective: { modelTier: 'opus', thinkingMode: false } })
   })
 
   it('parses compression golden projection facts across thread surfaces', () => {

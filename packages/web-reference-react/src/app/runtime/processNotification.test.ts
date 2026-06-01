@@ -121,6 +121,31 @@ describe('processNotification', () => {
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(7)
   })
 
+  it('applies runtime preference notifications even when replaySeq is omitted', () => {
+    const onThreadRuntimePreferencesChanged = vi.fn()
+    const ctx = createContext({ onThreadRuntimePreferencesChanged })
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'thread/runtimeStateChanged',
+      params: {
+        threadId: 'thread-1',
+        state: { preferences: { modelTier: 'opus', thinkingMode: false } },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    expect(onThreadRuntimePreferencesChanged).toHaveBeenCalledWith('thread-1', {
+      modelTier: 'opus',
+      thinkingMode: false,
+    })
+    expect(ctx.runtimeStateByThreadRef.current['thread-1']?.preferences).toEqual({
+      modelTier: 'opus',
+      thinkingMode: false,
+    })
+    expect(ctx.replayCursorByThreadRef.current['thread-1']).toBeUndefined()
+  })
+
   it('caches context meter budget from turn started without adding transcript rows', () => {
     const ctx = createContext()
     const notification: RpcNotification = {

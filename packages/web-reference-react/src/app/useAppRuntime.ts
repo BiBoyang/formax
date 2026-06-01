@@ -11,7 +11,7 @@ import {
   SEEN_EVENT_CAP,
 } from './core/constants'
 import { resolveRpcQueueRuntimeConfig } from './core/rpcQueueConfig'
-import { parseThreadGroupHideResponse } from './core/rpcContracts'
+import { parseRuntimeDefaultsResponse, parseThreadGroupHideResponse } from './core/rpcContracts'
 import {
   toRpcError,
 } from './core/threadTransforms'
@@ -59,6 +59,17 @@ import {
   isDevPerformanceEnabled,
 } from './core/devPerformance'
 import { deriveVisibleSurface } from './runtime/newThreadDraft'
+import {
+  DEFAULT_RUNTIME_PREFERENCES,
+  preferenceTargetKey,
+  resolvePreferenceWriteTarget,
+  resolveRuntimePreferenceView,
+  resolveThreadPreferencePatchForDefaults,
+  type RuntimeModelTier,
+  type RuntimePreferenceView,
+  type RuntimePreferenceWriteTarget,
+} from './runtime/runtimePreferences'
+import type { ThreadRuntimePreferences } from '../semantics'
 
 function resolveBridgeUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BRIDGE_URL
@@ -87,6 +98,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [bridgeUrl] = useState(resolveBridgeUrl)
   const [rpcQueueConfig] = useState(resolveRpcQueueRuntimeConfig)
   const [runtimeUi, setRuntimeUi] = useState({ showContextMeter: true })
+  const [runtimeDefaults, setRuntimeDefaults] = useState<RuntimePreferenceView>(DEFAULT_RUNTIME_PREFERENCES)
+  const [runtimePreferenceRevision, setRuntimePreferenceRevision] = useState(0)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, isRightRailOpen, setIsRightRailOpen, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
     usePaneLayout()
@@ -174,6 +187,8 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const pendingArchiveOpsRef = useRef<Map<string, { threadId: string; thread: ArchiveThreadLike | null }>>(new Map())
   const createdThreadCwdByIdRef = useRef<Record<string, string | null>>({})
   const rpcQueueMetricsRef = useRef<RpcClientQueueMetrics | null>(null)
+  const pendingPreferenceUpdateByTargetRef = useRef<Map<string, Promise<void>>>(new Map())
+  const threadRuntimePreferencesRef = useRef<Record<string, ThreadRuntimePreferences>>({})
   const selectThreadRef = useRef<(threadId: string, options?: SelectThreadOptions) => void>(() => undefined)
   const seenStaleInputIdRef = useRef<Set<string>>(new Set())
   const activeTurnIdRef = useRef<string | null>(state.activeTurnId)
@@ -238,6 +253,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         replayAnomalyCountSeenByThreadRef,
         runtimeStateByThreadRef,
       })
+      const validThreadIds = new Set(threads.map((thread) => thread.id))
+      for (const threadId of preservedThreadIds) {
+        validThreadIds.add(threadId)
+      }
+      threadRuntimePreferencesRef.current = Object.fromEntries(
+        Object.entries(threadRuntimePreferencesRef.current).filter(([threadId]) => validThreadIds.has(threadId)),
+      )
     },
     [],
   )
@@ -269,6 +291,35 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     )
   }, [])
   const { initializeHandshake } = useInitializeHandshake({ clientRef, onInitializeResult })
+
+  const setThreadRuntimePreferences = useCallback(
+    (threadId: string, preferences: ThreadRuntimePreferences | undefined) => {
+      if (preferences === undefined) return
+      const existing = runtimeStateByThreadRef.current[threadId]
+      threadRuntimePreferencesRef.current[threadId] = preferences
+      if (existing) {
+        runtimeStateByThreadRef.current[threadId] = {
+          ...existing,
+          preferences,
+        }
+      }
+      setRuntimePreferenceRevision((revision) => revision + 1)
+    },
+    [runtimeStateByThreadRef],
+  )
+
+  const loadRuntimeDefaults = useCallback(async () => {
+    try {
+      const result = await request('config/runtimeDefaults/read')
+      const parsed = parseRuntimeDefaultsResponse(result)
+      setRuntimeDefaults(resolveRuntimePreferenceView({
+        globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
+        threadPreferences: parsed.effective,
+      }))
+    } catch {
+      // Keep local startup defaults when the server does not expose runtime defaults.
+    }
+  }, [request])
 
   const shouldProcessSequencedNotification = useCallback(
     (params: unknown, owner: SequencedNotificationOwner): boolean => {
@@ -333,6 +384,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         logsByThreadIdRef,
         stateLogsRef,
         seenStaleInputIdRef,
+        cacheThreadRuntimePreferences: setThreadRuntimePreferences,
         setHistoryLoadingByThreadId,
         setHistoryCursorByThreadId,
         setTranscriptSourceByThreadId,
@@ -386,6 +438,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     dispatch,
     log,
     cacheThreadMode,
+    onThreadRuntimePreferencesChanged: setThreadRuntimePreferences,
     refreshThreads,
     refreshWorkspaceDiff,
     setMode: setModeStable,
@@ -452,6 +505,113 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     setLogsByThreadId,
   })
 
+  const activeRuntimePreferences = useMemo(() => {
+    const threadPreferences =
+      visibleSurface === 'thread' && state.activeThreadId
+        ? threadRuntimePreferencesRef.current[state.activeThreadId]
+        : null
+    return resolveRuntimePreferenceView({
+      globalDefaults: runtimeDefaults,
+      threadPreferences,
+    })
+  }, [runtimeDefaults, runtimePreferenceRevision, runtimeStateByThreadRef, state.activeThreadId, visibleSurface])
+
+  const rememberPendingPreferenceUpdate = useCallback((target: RuntimePreferenceWriteTarget, promise: Promise<void>) => {
+    const key = preferenceTargetKey(target)
+    pendingPreferenceUpdateByTargetRef.current.set(key, promise)
+    promise.finally(() => {
+      if (pendingPreferenceUpdateByTargetRef.current.get(key) === promise) {
+        pendingPreferenceUpdateByTargetRef.current.delete(key)
+      }
+    })
+  }, [])
+
+  const patchRuntimePreferences = useCallback(
+    (patch: Partial<RuntimePreferenceView>) => {
+      const target = resolvePreferenceWriteTarget({ visibleSurface, activeThreadId: state.activeThreadId })
+      const promise = (async () => {
+        if (target.kind === 'thread') {
+          const threadPatch = resolveThreadPreferencePatchForDefaults(patch, runtimeDefaults)
+          const result = await request('thread/runtimeState/patch', {
+            threadId: target.threadId,
+            patch: { preferences: threadPatch },
+          })
+          const preferences = (result && typeof result === 'object' && 'state' in result)
+            ? (result as { state?: { preferences?: ThreadRuntimePreferences } }).state?.preferences
+            : undefined
+          const fallbackPreferences = { ...threadRuntimePreferencesRef.current[target.threadId] }
+          if (Object.prototype.hasOwnProperty.call(threadPatch, 'modelTier')) {
+            if (threadPatch.modelTier === null) {
+              delete fallbackPreferences.modelTier
+            } else if (threadPatch.modelTier !== undefined) {
+              fallbackPreferences.modelTier = threadPatch.modelTier
+            }
+          }
+          if (Object.prototype.hasOwnProperty.call(threadPatch, 'thinkingMode')) {
+            if (threadPatch.thinkingMode === null) {
+              delete fallbackPreferences.thinkingMode
+            } else if (threadPatch.thinkingMode !== undefined) {
+              fallbackPreferences.thinkingMode = threadPatch.thinkingMode
+            }
+          }
+          setThreadRuntimePreferences(target.threadId, preferences ?? fallbackPreferences)
+          return
+        }
+        const result = await request('config/runtimeDefaults/patch', patch)
+        const parsed = parseRuntimeDefaultsResponse(result)
+        setRuntimeDefaults(resolveRuntimePreferenceView({
+          globalDefaults: DEFAULT_RUNTIME_PREFERENCES,
+          threadPreferences: parsed.effective,
+        }))
+      })().catch(async (error) => {
+        const details = toRpcError(target.kind === 'thread' ? 'thread/runtimeState/patch' : 'config/runtimeDefaults/patch', error)
+        log(`Runtime preference update failed: ${details.message}`, 'error')
+        if (target.kind === 'thread') {
+          try {
+            const result = await request('thread/runtimeState/read', { threadId: target.threadId })
+            const preferences = (result && typeof result === 'object' && 'state' in result)
+              ? (result as { state?: { preferences?: ThreadRuntimePreferences } }).state?.preferences
+              : undefined
+            setThreadRuntimePreferences(target.threadId, preferences)
+          } catch {
+            // best-effort rehydrate after failed preference patch
+          }
+        } else {
+          await loadRuntimeDefaults()
+        }
+        throw error
+      })
+      rememberPendingPreferenceUpdate(target, promise)
+      void promise.catch(() => undefined)
+      return promise
+    },
+    [
+      loadRuntimeDefaults,
+      log,
+      rememberPendingPreferenceUpdate,
+      request,
+      runtimeDefaults,
+      setThreadRuntimePreferences,
+      state.activeThreadId,
+      threadRuntimePreferencesRef,
+      visibleSurface,
+    ],
+  )
+
+  const awaitPreferencePersistence = useCallback(async () => {
+    const target = resolvePreferenceWriteTarget({ visibleSurface, activeThreadId: activeThreadIdRef.current })
+    const pending = pendingPreferenceUpdateByTargetRef.current.get(preferenceTargetKey(target))
+    if (pending) await pending
+  }, [activeThreadIdRef, visibleSurface])
+
+  const onModelTierChange = useCallback((modelTier: RuntimeModelTier) => {
+    void patchRuntimePreferences({ modelTier })
+  }, [patchRuntimePreferences])
+
+  const onThinkingModeChange = useCallback((thinkingMode: boolean) => {
+    void patchRuntimePreferences({ thinkingMode })
+  }, [patchRuntimePreferences])
+
   const {
     selectThread,
     selectCwd,
@@ -513,6 +673,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       nowMs: runtimePorts.nowMs,
       leaveNewThreadDraft,
       newThreadDraftRef,
+      awaitPreferencePersistence,
     },
   })
 
@@ -580,6 +741,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     seenEventCap: SEEN_EVENT_CAP,
     dispatch,
     initializeHandshake,
+    loadRuntimeDefaults,
     refreshThreads,
     refreshWorkspaceDiff,
     resumeThreadInputs,
@@ -703,7 +865,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       logs: activeLogs,
       inputText,
       mode,
+      modelTier: activeRuntimePreferences.modelTier,
+      thinkingMode: activeRuntimePreferences.thinkingMode,
       onModeChange: composerUiHandlers.onModeChange,
+      onModelTierChange,
+      onThinkingModeChange,
       onInputTextChange: setInputTextStable,
       onSend: composerUiHandlers.onSend,
       onInterrupt: composerUiHandlers.onInterrupt,
@@ -736,7 +902,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       isSendingTurn,
       lastRpcError,
       mode,
+      activeRuntimePreferences,
       newThreadDraft,
+      onModelTierChange,
+      onThinkingModeChange,
       runtimeUi.showContextMeter,
       setInputTextStable,
       setNewThreadDraftCwdStable,

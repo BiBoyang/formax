@@ -4,7 +4,7 @@ import type { CompactBoundarySummary, PendingInput, ResolvedInput, RpcNotificati
 import { isNotificationForActiveThread } from '../core/appEventMachine'
 import { parseCompactBoundarySummary } from '../core/compactBoundarySummary'
 import { parseContextMeterBudgetRaw, parseProviderUsageRaw } from '../core/rpcContracts'
-import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimeState } from '../../semantics'
+import { extractThreadIdFromNotificationParams, reduceThreadRuntimeState, type ThreadRuntimePreferences, type ThreadRuntimeState } from '../../semantics'
 import type { ReplMode } from '../../semantics'
 import { mapTurnNotificationToCanonicalEvents } from '../../semantics'
 import type { SequencedNotificationOwner } from '../../turnEventCursor'
@@ -28,6 +28,7 @@ export type ProcessNotificationContext = {
   setAskDraftByInputId: Dispatch<SetStateAction<Record<string, Record<string, string>>>>
   setSubmitStatusByInputId: Dispatch<SetStateAction<Record<string, { status: string; kind: 'success' | 'error'; message?: string }>>>
   reduceThreadRuntimeState: typeof reduceThreadRuntimeState
+  onThreadRuntimePreferencesChanged?: (threadId: string, preferences: ThreadRuntimePreferences) => void
   cacheLiveCompactBoundary?: (args: { threadId: string; turnId: string; boundary: CompactBoundarySummary }) => void
   commitLiveCompactBoundary?: (args: { threadId: string; turnId: string }) => void
   clearLiveCompactBoundary?: (args: { threadId: string; turnId: string }) => void
@@ -60,11 +61,32 @@ export function processNotification(
         method: notification.method,
         ts: params.ts,
       })
-    ctx.runtimeStateByThreadRef.current[threadId] = ctx.reduceThreadRuntimeState(baseState, {
+    const nextState = ctx.reduceThreadRuntimeState(baseState, {
       method: notification.method,
       params,
       replaySeq,
     })
+    ctx.runtimeStateByThreadRef.current[threadId] = nextState
+    if (notification.method === 'thread/runtimeStateChanged') {
+      ctx.onThreadRuntimePreferencesChanged?.(threadId, nextState.preferences)
+    }
+  } else if (threadId && notification.method === 'thread/runtimeStateChanged') {
+    const current = ctx.runtimeStateByThreadRef.current[threadId]
+    const baseState =
+      current ??
+      ctx.createInitialThreadRuntimeState({
+        threadId,
+        replaySeq: 0,
+        method: notification.method,
+        ts: params.ts,
+      })
+    const nextState = ctx.reduceThreadRuntimeState(baseState, {
+      method: notification.method,
+      params,
+      replaySeq: baseState.lastReplaySeq + 1,
+    })
+    ctx.runtimeStateByThreadRef.current[threadId] = nextState
+    ctx.onThreadRuntimePreferencesChanged?.(threadId, nextState.preferences)
   }
 
   if (threadId && replaySeq != null) {

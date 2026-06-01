@@ -17,6 +17,7 @@ import type { ThreadViewModel } from '../core/threadViewModel'
 import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ReplMode } from '../../semantics'
+import type { RuntimeModelTier } from '../runtime/runtimePreferences'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { selectThreadTitle } from '../core/threadViewModel'
 import { folderNameFromCwd } from '../../components/left-rail/utils'
@@ -72,7 +73,11 @@ export type AppShellProps = {
   logs: TranscriptItem[]
   inputText: string
   mode: ReplMode
+  modelTier: RuntimeModelTier
+  thinkingMode: boolean
   onModeChange: (nextMode: ReplMode) => void
+  onModelTierChange: (modelTier: RuntimeModelTier) => void
+  onThinkingModeChange: (thinkingMode: boolean) => void
   onInputTextChange: (value: string) => void
   onSend: (event: FormEvent) => void
   onInterrupt: () => void
@@ -297,7 +302,11 @@ export function AppShell(props: AppShellProps) {
       logs: props.logs,
       inputText: props.inputText,
       mode: props.mode,
+      modelTier: props.modelTier,
+      thinkingMode: props.thinkingMode,
       onModeChange: props.onModeChange,
+      onModelTierChange: props.onModelTierChange,
+      onThinkingModeChange: props.onThinkingModeChange,
       connectionStatus: props.connectionStatus,
       onInputTextChange: props.onInputTextChange,
       onSend: props.onSend,
@@ -332,10 +341,14 @@ export function AppShell(props: AppShellProps) {
       props.lastRpcError,
       props.logs,
       props.mode,
+      props.modelTier,
+      props.thinkingMode,
       props.onInputTextChange,
       props.onInterrupt,
       props.onLoadEarlier,
       props.onModeChange,
+      props.onModelTierChange,
+      props.onThinkingModeChange,
       props.onSend,
       props.visibleSurface,
       props.userSettings.longTextRequireCmdEnter,
