@@ -2,10 +2,10 @@
 
 ## Current Scope
 
-- Task todo: `docs/todolist.md`
-- Accepted contracts: Loop 4 Web controlled composer and hydration in `docs/todolist.md`
-- Current loop: Loop 4 - Web controlled composer and hydration
-- Review command/profile: `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`
+- Task todo: completed and removed after stable facts were promoted into canonical contracts, learning notes, and this review log.
+- Accepted contracts: `docs/contracts/semantics-contract.md`, `docs/contracts/session-persistence-contract.md`, `docs/contracts/app-server-interaction-contract.md`, `docs/contracts/model-settings-contract.md`, `docs/contracts/config-settings-contract.md`, and `docs/contracts/web-parity-adapter-contract.md`.
+- Current loop: Loop 5 - final convergence and regression sweep.
+- Review command/profile: repository default is `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`; this feature's Loop 5 review used the user-requested override `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`.
 - Review scope rule: review findings must be classified before code changes.
 
 ## Finding Summary
@@ -31,6 +31,12 @@
 | TRP-L4-R1-002 | 1 | P2 | Omitted additive `preferences` fields from old/unsupported replay/resume responses cleared cached thread preferences. | `packages/web-reference-react/src/app/useAppRuntime.ts`, `packages/web-reference-react/src/app/runtime/replayThreadEvents.ts`, `packages/web-reference-react/src/app/runtime/threadDataOps.ts`, `packages/web-reference-react/src/app/runtime/useRuntimeEventOrchestrator.ts` | Old-client additive-field compatibility / explicit-empty vs omitted semantics | Loop 4 omitted fields must not clear cache; explicit `{}` means no override | Loop 4 | true blocker | Only update the preference cache when a response explicitly contains the additive `preferences` field; keep explicit `{}` as a supported no-override state. | Added replay regression tests for omitted-vs-explicit preferences and reran Web runtime tests. | resolved |
 | TRP-L4-R2-001 | 2 | P2 | Cross-client `thread/runtimeStateChanged` notifications without `replaySeq` did not update Web preference cache. | `packages/web-reference-react/src/app/runtime/processNotification.ts` | Live preference notification parity / cross-client Web state | Loop 4 live notification hydration | Loop 4 | true blocker | Apply runtime-state preference notifications even when no replay sequence is present, without advancing the replay cursor. | Added process-notification regression test for no-`replaySeq` runtime preference updates. | resolved |
 | TRP-L4-R2-002 | 2 | P2 | Thread overrides could not be cleared back to inherited global defaults from the Web selector. | `packages/web-reference-react/src/app/useAppRuntime.ts`, `packages/web-reference-react/src/app/runtime/runtimePreferences.ts` | Thread override clear semantics / global fallback | Loop 4 active-thread patch routing; `null` clears override contract | Loop 4 | true blocker | When a thread selection equals the current global default, send `null` for that field so the server clears the thread override. | Added runtime-preference helper test for default-matching clear patches and reran Web runtime/integration tests. | resolved |
+
+## Loop 5 Final Review
+
+- Review command: user-requested override `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium"`; repository default remains `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`.
+- Result: no actionable correctness issues in the Loop 5 documentation/status diff.
+- Scope note: Loop 5 contained no executable feature-code changes; integrated behavior was covered by the prior loop reviews plus the final targeted test and type-check sweep.
 
 ## Classification Rules
 
