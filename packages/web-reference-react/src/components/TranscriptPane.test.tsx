@@ -291,6 +291,8 @@ describe('TranscriptPane', () => {
     expect(onThinkingModeChange).toHaveBeenCalledWith(true)
 
     fireEvent.keyDown(selector, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Max' }))
+    expect(await screen.findByText('Thinking effort')).toBeInTheDocument()
     fireEvent.click(await screen.findByText('High'))
     expect(onThinkingEffortChange).toHaveBeenCalledWith('high')
   })

@@ -23,3 +23,46 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => undefined
 }
+
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value)
+    },
+  }
+}
+
+function ensureWindowStorage(name: 'localStorage' | 'sessionStorage') {
+  let currentStorage: Storage | undefined
+  try {
+    currentStorage = window[name]
+  } catch {
+    currentStorage = undefined
+  }
+
+  if (!currentStorage) {
+    Object.defineProperty(window, name, {
+      configurable: true,
+      value: createMemoryStorage(),
+    })
+  }
+}
+
+ensureWindowStorage('localStorage')
+ensureWindowStorage('sessionStorage')

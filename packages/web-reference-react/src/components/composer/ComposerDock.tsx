@@ -143,6 +143,7 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
   const { t } = useI18n()
   const [isImeComposing, setIsImeComposing] = useState(false)
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false)
+  const [isThinkingEffortMenuOpen, setIsThinkingEffortMenuOpen] = useState(false)
   const modeInfo = modeMeta(props.mode, t)
   const thinkingLabel =
     props.thinkingEffortSupported && props.thinkingMode
@@ -150,6 +151,22 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
       : props.thinkingMode
         ? t('transcript.thinkingMode.on')
         : t('transcript.thinkingMode.off')
+  const openThinkingEffortMenu = () => {
+    setIsModelMenuOpen(false)
+    setIsThinkingEffortMenuOpen(true)
+  }
+  const openModelMenu = () => {
+    setIsThinkingEffortMenuOpen(false)
+    setIsModelMenuOpen(true)
+  }
+  const handleThinkingEffortMenuOpenChange = (open: boolean) => {
+    setIsThinkingEffortMenuOpen(open)
+    if (open) setIsModelMenuOpen(false)
+  }
+  const handleModelMenuOpenChange = (open: boolean) => {
+    setIsModelMenuOpen(open)
+    if (open) setIsThinkingEffortMenuOpen(false)
+  }
 
   const {
     composerRootRef,
@@ -307,7 +324,10 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <DropdownMenu onOpenChange={(open) => {
-                  if (!open) setIsModelMenuOpen(false)
+                  if (!open) {
+                    setIsModelMenuOpen(false)
+                    setIsThinkingEffortMenuOpen(false)
+                  }
                 }}>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -342,39 +362,64 @@ export const ComposerDock = memo(function ComposerDock(props: ComposerDockProps)
                       </DropdownMenuItem>
                     ))}
                     {props.thinkingEffortSupported ? (
-                      <>
-                        <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-2 ui-text-base text-muted-foreground">
-                          {t('transcript.thinkingEffort.section')}
-                        </DropdownMenuLabel>
-                        {COMPOSER_THINKING_EFFORTS.map((thinkingEffort) => (
-                          <DropdownMenuItem
-                            key={thinkingEffort}
-                            className="ui-composer-menu-item ui-text-base"
-                            onSelect={() => props.onThinkingEffortChange(thinkingEffort)}
-                          >
-                            <Brain className="size-3.5 shrink-0 text-muted-foreground" />
-                            <span>{thinkingEffortLabel(thinkingEffort, t)}</span>
-                            {props.thinkingEffort === thinkingEffort ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
-                          </DropdownMenuItem>
-                        ))}
-                      </>
+                      <DropdownMenuSub open={isThinkingEffortMenuOpen} onOpenChange={handleThinkingEffortMenuOpenChange}>
+                        <DropdownMenuSubTrigger
+                          className="ui-composer-menu-item ui-text-base"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            openThinkingEffortMenu()
+                          }}
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            openThinkingEffortMenu()
+                          }}
+                          onSelect={(event) => event.preventDefault()}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return
+                            event.preventDefault()
+                            openThinkingEffortMenu()
+                          }}
+                        >
+                          <span>{thinkingEffortLabel(props.thinkingEffort, t)}</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent
+                          sideOffset={8}
+                          alignOffset={-4}
+                          className="ui-menu-content w-[var(--composer-menu-width)] p-1"
+                        >
+                          <DropdownMenuLabel className="ui-menu-label px-2 pb-1 pt-1.5 ui-text-base text-muted-foreground">
+                            {t('transcript.thinkingEffort.section')}
+                          </DropdownMenuLabel>
+                          {COMPOSER_THINKING_EFFORTS.map((thinkingEffort) => (
+                            <DropdownMenuItem
+                              key={thinkingEffort}
+                              className="ui-composer-menu-item ui-text-base"
+                              onSelect={() => props.onThinkingEffortChange(thinkingEffort)}
+                            >
+                              <Brain className="size-3.5 shrink-0 text-muted-foreground" />
+                              <span>{thinkingEffortLabel(thinkingEffort, t)}</span>
+                              {props.thinkingEffort === thinkingEffort ? <Check className="ui-menu-trailing-icon ml-auto text-foreground/70" /> : null}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                     ) : null}
-                    <DropdownMenuSub open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
+                    <DropdownMenuSub open={isModelMenuOpen} onOpenChange={handleModelMenuOpenChange}>
                       <DropdownMenuSubTrigger
                         className="ui-composer-menu-item ui-text-base"
                         onClick={(event) => {
                           event.preventDefault()
-                          setIsModelMenuOpen(true)
+                          openModelMenu()
                         }}
                         onPointerDown={(event) => {
                           event.preventDefault()
-                          setIsModelMenuOpen(true)
+                          openModelMenu()
                         }}
                         onSelect={(event) => event.preventDefault()}
                         onKeyDown={(event) => {
                           if (event.key !== 'Enter' && event.key !== ' ') return
                           event.preventDefault()
-                          setIsModelMenuOpen(true)
+                          openModelMenu()
                         }}
                       >
                         <span>{props.modelTier}</span>

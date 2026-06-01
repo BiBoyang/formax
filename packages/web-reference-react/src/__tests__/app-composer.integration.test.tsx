@@ -1041,6 +1041,7 @@ describe('App thread history integration', () => {
     await screen.findByText('alpha reply')
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Model and thinking mode' }), { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Medium' }))
     fireEvent.click(await screen.findByText('High'))
 
     await waitFor(() => {
@@ -1061,6 +1062,7 @@ describe('App thread history integration', () => {
     await screen.findByTestId('new-thread-draft-surface')
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Model and thinking mode' }), { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Medium' }))
     fireEvent.click(await screen.findByText('Max'))
 
     await waitFor(() => {
