@@ -312,7 +312,13 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                         </button>
                         {open ? (
                           patch ? (
-                            <DiffPatchView patch={patch} />
+                            <DiffPatchView
+                              path={file.path}
+                              patch={patch}
+                              additions={displayAdditions}
+                              deletions={displayDeletions}
+                              truncated={loadedPatch?.truncated}
+                            />
                           ) : patchLoading || (onRequestPatch && !patchError && !file.patch) ? (
                             <div className="rounded-b-[10px] border-x border-b border-border/70 px-4 py-3 ui-text-meta ui-text-secondary bg-white">
                               {t('worktreeDiff.loadingPatch')}

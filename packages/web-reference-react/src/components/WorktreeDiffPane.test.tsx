@@ -1,11 +1,27 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider, type I18nProviderProps } from '../app/i18n/I18nProvider'
 import { WorktreeDiffPane } from './WorktreeDiffPane'
 
+const TEST_TIMEOUT_MS = 20_000
+
 function renderPane(node: ReactElement, language: I18nProviderProps['language'] = 'en-US') {
   return render(<I18nProvider language={language}>{node}</I18nProvider>)
+}
+
+async function expectDiffShadowText(text: string) {
+  await act(async () => {
+    await vi.dynamicImportSettled()
+  })
+  await waitFor(() => {
+    expect(document.querySelector('[data-testid="diff-preview-loading"]')).toBeNull()
+    expect(document.querySelector('diffs-container')?.shadowRoot?.textContent ?? '').toContain(text)
+  }, { timeout: 10_000 })
+}
+
+function expectNoDiffShadowText(text: string) {
+  expect(document.querySelector('diffs-container')?.shadowRoot?.textContent ?? '').not.toContain(text)
 }
 
 describe('WorktreeDiffPane', () => {
@@ -35,9 +51,9 @@ describe('WorktreeDiffPane', () => {
       'Saved 320 tok · 5 older msgs · retry',
     )
     expect(screen.getByText('recap-abcdef')).toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
-  it('renders diff files and expands patch content', () => {
+  it('renders diff files and expands patch content', async () => {
     renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
@@ -66,8 +82,8 @@ describe('WorktreeDiffPane', () => {
     expect(fileRow.className).not.toContain('sticky')
     expect(fileRow.className).not.toContain('top-0')
     fireEvent.click(fileRow)
-    expect(screen.getByText('new')).toBeInTheDocument()
-  })
+    await expectDiffShadowText('new')
+  }, TEST_TIMEOUT_MS)
 
   it('loads file patch on demand when summary row has no patch body', async () => {
     const onRequestPatch = vi.fn(async () => ({
@@ -98,9 +114,37 @@ describe('WorktreeDiffPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /src\/lazy\.ts/i }))
-    expect(await screen.findByText('new')).toBeInTheDocument()
+    await expectDiffShadowText('new')
     expect(onRequestPatch).toHaveBeenCalledWith('src/lazy.ts')
-  })
+  }, TEST_TIMEOUT_MS)
+
+  it('keeps expanded row visible when the renderer marks a patch unavailable', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            {
+              path: 'src/invalid.ts',
+              additions: 1,
+              deletions: 1,
+              patch: 'not a git patch',
+            },
+          ],
+        }}
+      />,
+    )
+
+    const fileRow = screen.getByTestId('diff-file-row-src/invalid.ts')
+    fireEvent.click(fileRow)
+    expect(await screen.findByTestId('diff-preview-unavailable')).toHaveAttribute('data-reason', 'invalid_patch')
+    expect(screen.getByText('Diff preview unavailable')).toBeInTheDocument()
+    expect(fileRow).toHaveTextContent('+1')
+    expect(fileRow).toHaveTextContent('-1')
+  }, TEST_TIMEOUT_MS)
 
   it('updates +/- badges from loaded patch payload after lazy fetch', async () => {
     const onRequestPatch = vi.fn(async () => ({
@@ -130,13 +174,13 @@ describe('WorktreeDiffPane', () => {
     expect(within(row).getByText('-0')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /src\/counts\.ts/i }))
-    expect(await screen.findByText('three')).toBeInTheDocument()
+    await expectDiffShadowText('three')
 
     await waitFor(() => {
       expect(within(row).getByText('+3')).toBeInTheDocument()
       expect(within(row).getByText('-1')).toBeInTheDocument()
     })
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('re-requests patch for expanded rows after snapshot refresh', async () => {
     const onRequestPatch = vi
@@ -178,7 +222,7 @@ describe('WorktreeDiffPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /src\/reload\.ts/i }))
-    expect(await screen.findByText('new-v1')).toBeInTheDocument()
+    await expectDiffShadowText('new-v1')
 
     rerender(
       <I18nProvider language="en-US">
@@ -204,9 +248,9 @@ describe('WorktreeDiffPane', () => {
     await waitFor(() => {
       expect(onRequestPatch).toHaveBeenCalledTimes(2)
     })
-    expect(await screen.findByText('new-v2')).toBeInTheDocument()
+    await expectDiffShadowText('new-v2')
     expect(screen.queryByText('Patch unavailable for this file')).not.toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('does not auto-retry patch requests after an unavailable result until user retries', async () => {
     const onRequestPatch = vi.fn(async () => null)
@@ -234,7 +278,7 @@ describe('WorktreeDiffPane', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 80))
     expect(onRequestPatch).toHaveBeenCalledTimes(1)
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('re-translates persisted patch errors when the UI language changes', async () => {
     const onRequestPatch = vi.fn(async () => null)
@@ -270,7 +314,7 @@ describe('WorktreeDiffPane', () => {
     expect(await screen.findByText('当前文件无法提供补丁')).toBeInTheDocument()
     expect(screen.queryByText('Patch unavailable for this file')).not.toBeInTheDocument()
     expect(onRequestPatch).toHaveBeenCalledTimes(1)
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('ignores stale patch response after snapshot refresh and keeps latest patch', async () => {
     let resolveFirst: (value: any) => void = () => undefined
@@ -331,7 +375,7 @@ describe('WorktreeDiffPane', () => {
       deletions: 1,
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(screen.queryByText('stale')).not.toBeInTheDocument()
+    expectNoDiffShadowText('stale')
 
     resolveSecond({
       path: 'src/race.ts',
@@ -341,9 +385,9 @@ describe('WorktreeDiffPane', () => {
       additions: 2,
       deletions: 1,
     })
-    expect(await screen.findByText('fresh')).toBeInTheDocument()
-    expect(screen.queryByText('stale')).not.toBeInTheDocument()
-  })
+    await expectDiffShadowText('fresh')
+    expectNoDiffShadowText('stale')
+  }, TEST_TIMEOUT_MS)
 
   it('refreshes diff from header control', () => {
     const onRefreshDiff = vi.fn()
@@ -364,7 +408,7 @@ describe('WorktreeDiffPane', () => {
     expect(onRefreshDiff).toHaveBeenCalledTimes(1)
     expect(screen.getByText('No unstaged changes')).toBeInTheDocument()
     expect(screen.getByText('Code changes will appear here')).toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('left-truncates long file path but keeps full path as title', () => {
     const longPath = 'packages/web-reference-react/src/some/really/deeply/nested/folder/with/a/very/long/file/path/example.ts'
@@ -385,13 +429,13 @@ describe('WorktreeDiffPane', () => {
     expect(pathLabel).not.toBeNull()
     expect(pathLabel?.title).toBe(longPath)
     expect(pathLabel?.textContent?.startsWith('…')).toBe(true)
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('does not show clean-state message before diff snapshot is loaded', () => {
     renderPane(<WorktreeDiffPane diffSnapshot={null} />)
     expect(screen.queryByText('No unstaged changes')).not.toBeInTheDocument()
     expect(screen.queryByText('Code changes will appear here')).not.toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('shows budget message when snapshot is truncated and no files are available', () => {
     renderPane(
@@ -407,7 +451,7 @@ describe('WorktreeDiffPane', () => {
     )
     expect(screen.getByText('Large diff detected')).toBeInTheDocument()
     expect(screen.getByText('Preview unavailable for current diff budget')).toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('shows large-change-set message when file count exceeds render limit', () => {
     renderPane(
@@ -428,7 +472,7 @@ describe('WorktreeDiffPane', () => {
     )
     expect(screen.getByText('Change set too large to preview')).toBeInTheDocument()
     expect(screen.queryByTestId('diff-file-row-src/file-0.ts')).not.toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('shows partial preview banner and keeps renderable files when diff is truncated', () => {
     renderPane(
@@ -453,7 +497,7 @@ describe('WorktreeDiffPane', () => {
     expect(screen.getByText('Large diff detected - showing partial preview.')).toBeInTheDocument()
     expect(screen.getByTestId('diff-file-row-src/partial.ts')).toBeInTheDocument()
     expect(screen.queryByText('Change set too large to preview')).not.toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('renders zh-CN diff status copy through i18n messages', () => {
     renderPane(
@@ -472,5 +516,5 @@ describe('WorktreeDiffPane', () => {
     expect(screen.getByText('未提交的工作树变更')).toBeInTheDocument()
     expect(screen.getByText('变更数：0')).toBeInTheDocument()
     expect(screen.getByText('没有未暂存的变更')).toBeInTheDocument()
-  })
+  }, TEST_TIMEOUT_MS)
 })

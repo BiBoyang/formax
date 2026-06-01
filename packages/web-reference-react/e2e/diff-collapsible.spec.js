@@ -30,21 +30,38 @@ test.describe('diff collapsible', () => {
             path: 'src/features/diff/view.tsx',
             additions: 1,
             deletions: 1,
-            patch: '@@ -1,1 +1,1 @@\n-old line\n+new line',
+            patch: [
+              'diff --git a/src/features/diff/view.tsx b/src/features/diff/view.tsx',
+              '--- a/src/features/diff/view.tsx',
+              '+++ b/src/features/diff/view.tsx',
+              '@@ -1,1 +1,1 @@',
+              '-old line',
+              '+new line',
+            ].join('\n'),
           },
         ],
       },
     })
 
     await page.goto('/')
+    await page.getByText('Thread Diff').click()
     await expect(page.getByText('src/features/diff/view.tsx')).toBeVisible()
-    await expect(page.getByText('new line')).toHaveCount(0)
+    await expect(page.locator('diffs-container')).toHaveCount(0)
 
-    await page.getByRole('button', { name: /src\/features\/diff\/view\.tsx/ }).click()
-    await expect(page.getByText('new line')).toBeVisible()
-    await expect(page.getByText('old line')).toBeVisible()
+    await page.getByTestId('diff-file-row-src/features/diff/view.tsx').click()
+    await expect(page.locator('diffs-container')).toHaveCount(1)
+    await expect
+      .poll(async () => {
+        return page.locator('diffs-container').evaluate((node) => node.shadowRoot?.textContent || '')
+      })
+      .toContain('new line')
+    await expect
+      .poll(async () => {
+        return page.locator('diffs-container').evaluate((node) => node.shadowRoot?.textContent || '')
+      })
+      .toContain('old line')
 
-    await page.getByRole('button', { name: /src\/features\/diff\/view\.tsx/ }).click()
-    await expect(page.getByText('new line')).toHaveCount(0)
+    await page.getByTestId('diff-file-row-src/features/diff/view.tsx').click()
+    await expect(page.locator('diffs-container')).toHaveCount(0)
   })
 })

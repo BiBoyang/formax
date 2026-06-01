@@ -24,6 +24,33 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => undefined
 }
 
+if (typeof ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    constructor(_callback?: ResizeObserverCallback) {}
+
+    observe() {
+      return undefined
+    }
+
+    unobserve() {
+      return undefined
+    }
+
+    disconnect() {
+      return undefined
+    }
+  }
+}
+
+if (
+  typeof CSSStyleSheet !== 'undefined' &&
+  !CSSStyleSheet.prototype.replaceSync
+) {
+  CSSStyleSheet.prototype.replaceSync = function replaceSync() {
+    return undefined
+  }
+}
+
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>()
   return {
