@@ -117,4 +117,5 @@ export type McpBlobWriteResult = {
 
 export type McpBlobWriter = {
   writeBlob(request: McpBlobWriteRequest): Promise<McpBlobWriteResult>
+  cleanup?(): Promise<void>
 }

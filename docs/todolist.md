@@ -91,7 +91,7 @@
 - [ ] Document that `type: "http"` means MCP Streamable HTTP, not arbitrary HTTP fetch.
 - [ ] Define persisted config shape under `mcp.servers` in `config.json` using the same normalized server config model. Do not persist source/fingerprint metadata in user config in Phase 1A; any source/fingerprint metadata used by implementation is internal derived state only.
 - [ ] Reject HTTP session policy, reconnect policy, OAuth/browser auth, and legacy SSE fields from the Phase 1A schema instead of preserving them.
-- [ ] Define internal MCP server runtime snapshots as read-only derived manager state for tests/diagnostics; reading snapshots must not start, reconnect, initialize, list tools, or call tools.
+- [x] Define internal MCP server runtime snapshots as read-only derived manager state for tests/diagnostics; reading snapshots must not start, reconnect, initialize, list tools, or call tools.
 - [ ] Define `McpToolBinding`: model-facing name to server id, original tool name, schema fingerprint, and generation.
 - [ ] Define MCP permission keys: fully-qualified tool `mcp__<server>__<tool>` as default remember key; server-level `mcp__<server>` and wildcard `mcp__<server>__*` are hand-authored rule forms only. Conflicts use the existing matcher order: any matching deny beats ask/allow, any matching ask beats allow, and allow only wins if no deny/ask rule matches.
 - [ ] Define MCP call arguments as prompt/audit payload only; arguments must not be serialized into permission allow/ask/deny keys.
@@ -99,7 +99,7 @@
 - [x] Define simple collision behavior: after existing config precedence produces the effective `mcp.servers` map, builtin/static tools reserve names first; MCP bindings are then considered in stable order by normalized server id and normalized tool name. If two MCP bindings produce the same `mcp__<server>__<tool>` name, keep the first binding and suppress later duplicates. Suppressed duplicates are reported only in internal runtime snapshots/debug logs; they are not exposed to the model, not written to user config, and not repaired with hash suffixes or aliases in Phase 1A. Claude Code tool names use normalized `mcp__<server>__<tool>` names and retain original `mcpInfo`; separate connector/server-name collision handling may add human-readable numeric suffixes, but Formax Phase 1A does not need hash aliases.
 - [x] Define Claude Code-style MCP result mapping into existing `ToolResult`: text as text, `structuredContent` as JSON text, images/audio/non-image blobs as file-backed path text, resource links as placeholder text without body injection, and all large/binary output bounded.
 - [ ] Define Phase 1A result bounds: text and JSON-stringified `structuredContent` use a Claude Code-aligned MCP output budget: default `MAX_MCP_OUTPUT_TOKENS = 25_000`, with the first implementation allowed to derive a character budget as `maxTokens * 4` until Formax has a token estimator in this mapper. Truncated output appends an explicit marker that names the token limit. Binary/blob payloads are never emitted inline/base64 to the model; Formax Phase 1A local safety limits allow blobs up to `10 MiB` to be written under a manager-owned `mcp-output/<session-id>/` directory rooted in `cfg.paths.logsDir` when available, otherwise an OS temp directory. Larger blobs return an error text result with size metadata and no file write.
-- [ ] Define image handling: Phase 1A generic `ToolResult` mapping does not emit provider image blocks or raw image base64; images use the same file-backed path flow as other blobs, and provider-native image blocks are deferred until an adapter-specific non-text payload path exists.
+- [x] Define image handling: Phase 1A generic `ToolResult` mapping does not emit provider image blocks or raw image base64; images use the same file-backed path flow as other blobs, and provider-native image blocks are deferred until an adapter-specific non-text payload path exists.
 - [ ] Define file-backed output cleanup: MCP output files are owned by the MCP manager/query/session scope and are best-effort removed on manager disposal/query close; cleanup failures are diagnostics only and must not write to user config or block shutdown.
 - [ ] Define fake client interfaces before adding SDK-backed real transports.
 - [ ] Define a thin SDK transport adapter boundary: config parsing produces normalized transport configs; manager activation creates only `StdioClientTransport` or `StreamableHTTPClientTransport` in Phase 1A.
@@ -153,9 +153,9 @@
 - [x] Add `packages/core/src/mcp/config.ts`.
 - [x] Add `packages/core/src/mcp/resultMapper.ts`.
 - [ ] Add the MCP client internal interface module.
-- [ ] Add the deterministic fake MCP client module for manager tests.
-- [ ] Add the MCP server manager module.
-- [ ] Add the MCP tool binding module.
+- [x] Add the deterministic fake MCP client module for manager tests.
+- [x] Add the MCP server manager module.
+- [x] Add the MCP tool binding module.
 - [x] Add `packages/core/src/mcp/toolCatalog.ts`.
 - [ ] Add the MCP SDK transport adapter module as a thin adapter over `@modelcontextprotocol/sdk` transports after fake-client semantics are locked.
 - [ ] Add `packages/core/src/tools/modules/mcp/{index,handler,presenter}.tsx` with one Claude Code-style generic MCP presenter for all `mcp__*` tools in REPL/TUI.
@@ -181,8 +181,8 @@
 - [x] Add `packages/core/src/mcp/config.test.ts`: accepts SDK/session and persisted `config.json` shapes for `stdio` and `http`, rejects legacy/unsupported transports and unsupported auth modes, ensures parsing alone never instantiates clients or starts/connects/list tools, and distinguishes REPL disk-backed activation from SDK overlay-only behavior.
 - [x] Add `packages/core/src/mcp/resultMapper.test.ts`: maps text/errors, JSON-stringifies `structuredContent`, caps text/JSON by MCP output budget defaulting to 25,000 tokens with `tokens * 4` char approximation and truncation marker, saves images/audio/non-image blobs <=10 MiB to files with path text, rejects larger blobs with stable error text, maps resource links to placeholder text without body injection, and never emits raw base64/blob injection.
 - [ ] Add manager/query disposal tests that clean file-backed MCP output.
-- [ ] Add MCP server manager tests.
-- [ ] Add MCP tool binding tests: stable binding, simple normalization, builtin-name reservation, duplicate suppression by normalized server/tool order, internal diagnostics for suppressed duplicates, retained original `mcpInfo`, and no hash suffixes or alias registry in Phase 1A.
+- [x] Add MCP server manager tests.
+- [x] Add MCP tool binding tests: stable binding, simple normalization, builtin-name reservation, duplicate suppression by normalized server/tool order, internal diagnostics for suppressed duplicates, retained original `mcpInfo`, and no hash suffixes or alias registry in Phase 1A.
 - [x] Add `packages/core/src/mcp/toolCatalog.test.ts`: consumes already-discovered metadata only and never connects or starts servers.
 - [ ] Add MCP exposure tests: direct exposure mode can include `mcp__*` in provider tools; global deferred mode can expose/load `mcp__*` through existing deferred machinery.
 - [ ] Add MCP cases to `packages/core/src/adapters/permissions/matcher.test.ts`: `mcp__server__tool` matches the exact MCP tool, `mcp__server` / `mcp__server__*` match server-level MCP tools, arguments are never part of the permission key, and conflicts follow existing `deny > ask > allow` order rather than specificity.
@@ -268,18 +268,18 @@
 - Review prompt scope: verify manager scope and lifecycle are reusable by REPL/app-server/SDK.
 - Exit criteria: fake manager can list and call MCP tools without process I/O.
 
-- [ ] Add internal MCP client interface.
-- [ ] Add fake client implementation for tests.
-- [ ] Add scoped server manager.
-- [ ] Add binding map and stable catalog generation.
-- [ ] Add manager runtime snapshot and cleanup behavior.
-- [ ] Add fake-backed call dispatch returning `ToolResult`.
-- [ ] Assert manager owns lifecycle outside SDK runner: SDK is allowed to create/close a manager scope, but shared MCP modules own naming, binding, catalog, dispatch, and result mapping.
-- [ ] Assert manager runtime snapshots read existing state only and do not start, reconnect, initialize, list tools, or call tools.
-- [ ] Assert unknown/stale bindings return stable `ToolResult` errors and do not call the fake client.
-- [ ] Run targeted MCP manager/binding tests.
-- [ ] Triage review findings before continuing.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Add internal MCP client interface.
+- [x] Add fake client implementation for tests.
+- [x] Add scoped server manager.
+- [x] Add binding map and stable catalog generation.
+- [x] Add manager runtime snapshot and cleanup behavior.
+- [x] Add fake-backed call dispatch returning `ToolResult`.
+- [x] Assert manager owns lifecycle outside SDK runner: SDK is allowed to create/close a manager scope, but shared MCP modules own naming, binding, catalog, dispatch, and result mapping.
+- [x] Assert manager runtime snapshots read existing state only and do not start, reconnect, initialize, list tools, or call tools.
+- [x] Assert unknown/stale bindings return stable `ToolResult` errors and do not call the fake client.
+- [x] Run targeted MCP manager/binding tests.
+- [x] Triage review findings before continuing.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 ### Loop 4 — Catalog, Executor, and Policy Wiring
 

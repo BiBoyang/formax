@@ -91,7 +91,7 @@
 - [ ] 文档明确 `type: "http"` 表示 MCP Streamable HTTP，不是任意 HTTP fetch。
 - [ ] 在 `config.json` 的 `mcp.servers` 下定义 persisted config shape，复用同一个 normalized server config model。Phase 1A 不把 source/fingerprint metadata 持久化到 user config；实现里使用的 source/fingerprint metadata 只能是 internal derived state。
 - [ ] Phase 1A schema 拒绝 HTTP session policy、reconnect policy、OAuth/browser auth、legacy SSE fields；parser 必须拒绝这些 unknown fields，而不是保留。
-- [ ] 定义 internal MCP server runtime snapshots：这是 manager 的 read-only derived state，只用于 tests/diagnostics；读取 snapshots 不得 start、reconnect、initialize、list tools 或 call tools。
+- [x] 定义 internal MCP server runtime snapshots：这是 manager 的 read-only derived state，只用于 tests/diagnostics；读取 snapshots 不得 start、reconnect、initialize、list tools 或 call tools。
 - [ ] 定义 `McpToolBinding`：model-facing name 到 server id、original tool name、schema fingerprint、generation。
 - [ ] 定义 MCP permission keys：默认 remember key 是 fully-qualified tool `mcp__<server>__<tool>`；server-level `mcp__<server>` 和 wildcard `mcp__<server>__*` 只作为 hand-authored rule forms。冲突时沿用现有 matcher 顺序：任一 matching deny 胜过 ask/allow，任一 matching ask 胜过 allow，allow 只在没有 deny/ask match 时生效。
 - [ ] 定义 MCP call arguments 只作为 prompt/audit payload；arguments 不得序列化进 permission allow/ask/deny keys。
@@ -99,7 +99,7 @@
 - [x] 定义简单 collision 行为：现有 config precedence 先产出 effective `mcp.servers` map；builtin/static tools 先占用 names；随后 MCP bindings 按 normalized server id 和 normalized tool name 的稳定顺序处理。两个 MCP bindings 生成同一个 `mcp__<server>__<tool>` name 时，保留第一个 binding，suppress 后续 duplicates。Suppressed duplicates 只进入 internal runtime snapshots/debug logs；不暴露给模型、不写入 user config、Phase 1A 不用 hash suffix 或 alias 自动修复。Claude Code tool names 使用 normalized `mcp__<server>__<tool>` 并保留原始 `mcpInfo`；connector/server-name 层可能有 human-readable numeric suffix，但 Formax Phase 1A 不需要 hash aliases。
 - [x] 定义 Claude Code-style MCP result mapping 到现有 `ToolResult`：text 保持 text，`structuredContent` 变 JSON text，images/audio/non-image blobs 保存为文件并返回 path text，resource links 只返回 placeholder text 且不注入 body，所有大输出/二进制输出都必须 bounded。
 - [ ] 定义 Phase 1A result bounds：text 和 JSON-stringified `structuredContent` 使用 Claude Code 对齐的 MCP output budget：默认 `MAX_MCP_OUTPUT_TOKENS = 25_000`，第一版允许在 mapper 里先用 `maxTokens * 4` 作为字符预算，直到 Formax 有 token estimator。截断输出必须追加明确 marker，并写明 token limit。Binary/blob payloads 永远不 inline/base64 发给模型；Formax Phase 1A 本地安全边界允许 `10 MiB` 以内的 blobs 写入 manager-owned `mcp-output/<session-id>/` 目录，优先放在 `cfg.paths.logsDir` 下，否则使用 OS temp directory。更大的 blobs 返回带 size metadata 的 error text result，不写文件。
-- [ ] 定义 image handling：Phase 1A generic `ToolResult` mapping 不发 provider image blocks，也不发 raw image base64；images 走和其他 blobs 相同的 file-backed path flow；provider-native image blocks 延后到 adapter-specific non-text payload path 存在后再做。
+- [x] 定义 image handling：Phase 1A generic `ToolResult` mapping 不发 provider image blocks，也不发 raw image base64；images 走和其他 blobs 相同的 file-backed path flow；provider-native image blocks 延后到 adapter-specific non-text payload path 存在后再做。
 - [ ] 定义 file-backed output cleanup：MCP output files 归 MCP manager/query/session scope 所有，在 manager disposal/query close 时 best-effort 删除；cleanup failures 只进入 diagnostics，不写 user config，也不阻塞 shutdown。
 - [ ] 添加 SDK-backed real transports 前，先定义 fake client interfaces。
 - [ ] 定义薄 SDK transport adapter 边界：config parsing 产出 normalized transport configs；Phase 1A manager activation 只创建 `StdioClientTransport` 或 `StreamableHTTPClientTransport`。
@@ -152,10 +152,10 @@
 - [x] 新增 `packages/core/src/mcp/names.ts`。
 - [x] 新增 `packages/core/src/mcp/config.ts`。
 - [x] 新增 `packages/core/src/mcp/resultMapper.ts`。
-- [ ] 新增 MCP client internal interface 模块。
-- [ ] 新增 deterministic fake MCP client 模块，用于 manager tests。
-- [ ] 新增 MCP server manager 模块。
-- [ ] 新增 MCP tool binding 模块。
+- [x] 新增 MCP client internal interface 模块。
+- [x] 新增 deterministic fake MCP client 模块，用于 manager tests。
+- [x] 新增 MCP server manager 模块。
+- [x] 新增 MCP tool binding 模块。
 - [x] 新增 `packages/core/src/mcp/toolCatalog.ts`。
 - [ ] 新增 MCP SDK transport adapter 模块，在 fake-client semantics 锁定后作为 `@modelcontextprotocol/sdk` transports 的薄 adapter。
 - [ ] 新增 `packages/core/src/tools/modules/mcp/{index,handler,presenter}.tsx`，在 REPL/TUI 中为所有 `mcp__*` tools 提供一个 Claude Code-style generic MCP presenter。
@@ -181,8 +181,8 @@
 - [x] 新增 `packages/core/src/mcp/config.test.ts`：接受 SDK/session 和 persisted `config.json` 的 `stdio`/`http` shapes；拒绝 legacy/unsupported transports 和 unsupported auth modes；确保 parsing alone 不 instantiate clients、不 starts/connects/list tools；区分 REPL disk-backed activation 和 SDK overlay-only 行为。
 - [x] 新增 `packages/core/src/mcp/resultMapper.test.ts`：映射 text/errors；JSON-stringify `structuredContent`；text/JSON 按 MCP output budget 截断，默认 25,000 tokens，用 `tokens * 4` 近似字符预算并加 marker；images/audio/non-image blobs <=10 MiB 保存文件并返回 path text；larger blobs 返回 stable error text；resource links 映射为不含 body 的 placeholder text；永不 raw base64/blob injection。
 - [ ] 增加 manager/query disposal tests，清理 file-backed MCP output。
-- [ ] 新增 MCP server manager tests。
-- [ ] 新增 MCP tool binding tests：stable binding、simple normalization、builtin-name reservation、按 normalized server/tool 顺序 suppress duplicates、suppressed duplicates 的 internal diagnostics、保留原始 `mcpInfo`，Phase 1A 不出现 hash suffixes 或 alias registry。
+- [x] 新增 MCP server manager tests。
+- [x] 新增 MCP tool binding tests：stable binding、simple normalization、builtin-name reservation、按 normalized server/tool 顺序 suppress duplicates、suppressed duplicates 的 internal diagnostics、保留原始 `mcpInfo`，Phase 1A 不出现 hash suffixes 或 alias registry。
 - [x] 新增 `packages/core/src/mcp/toolCatalog.test.ts`：只消费 already-discovered metadata，永不 connect/start servers。
 - [ ] 增加 MCP exposure tests：direct exposure mode 可以把 `mcp__*` 放进 provider tools；global deferred mode 可以通过现有 deferred 机制暴露/加载 `mcp__*`。
 - [ ] 在 `packages/core/src/adapters/permissions/matcher.test.ts` 增加 MCP cases：`mcp__server__tool` exact match；`mcp__server` / `mcp__server__*` match server-level MCP tools；arguments 永远不进入 permission key；冲突沿用现有 `deny > ask > allow` 顺序，而不是 specificity。
@@ -268,18 +268,18 @@
 - Review prompt scope：确认 manager scope 和 lifecycle 可被 REPL/app-server/SDK 复用。
 - Exit criteria：fake manager 可在无 process I/O 下 list/call MCP tools。
 
-- [ ] 增加 internal MCP client interface。
-- [ ] 增加 fake client implementation for tests。
-- [ ] 增加 scoped server manager。
-- [ ] 增加 binding map 和 stable catalog generation。
-- [ ] 增加 manager runtime snapshot 和 cleanup behavior。
-- [ ] 增加 fake-backed call dispatch，返回 `ToolResult`。
-- [ ] 断言 manager 在 SDK runner 外拥有 lifecycle：SDK 允许创建/关闭 manager scope，但 shared MCP modules 拥有 naming、binding、catalog、dispatch、result mapping。
-- [ ] 断言 manager runtime snapshots 只读 existing state，不 start、reconnect、initialize、list tools 或 call tools。
-- [ ] 断言 unknown/stale bindings 返回 stable `ToolResult` errors，且不 call fake client。
-- [ ] 运行 targeted MCP manager/binding tests。
-- [ ] 继续前 triage review findings。
-- [ ] targeted verification 通过后运行 `codex review`。
+- [x] 增加 internal MCP client interface。
+- [x] 增加 fake client implementation for tests。
+- [x] 增加 scoped server manager。
+- [x] 增加 binding map 和 stable catalog generation。
+- [x] 增加 manager runtime snapshot 和 cleanup behavior。
+- [x] 增加 fake-backed call dispatch，返回 `ToolResult`。
+- [x] 断言 manager 在 SDK runner 外拥有 lifecycle：SDK 允许创建/关闭 manager scope，但 shared MCP modules 拥有 naming、binding、catalog、dispatch、result mapping。
+- [x] 断言 manager runtime snapshots 只读 existing state，不 start、reconnect、initialize、list tools 或 call tools。
+- [x] 断言 unknown/stale bindings 返回 stable `ToolResult` errors，且不 call fake client。
+- [x] 运行 targeted MCP manager/binding tests。
+- [x] 继续前 triage review findings。
+- [x] targeted verification 通过后运行 `codex review`。
 
 ### Loop 4 — Catalog, Executor, and Policy Wiring
 
