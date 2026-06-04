@@ -1,114 +1,202 @@
-# Pierre Diffs 渲染器迁移 Todo
+# Codex-Style Worktree Diff Cards Todo
 
-## 0. 背景和边界
+## 0. Context and Boundary
 
-### 0.1 已确认事实
-- [x] `.doms/diff.txt` 的参考 DOM 与 `@pierre/diffs` 结构匹配，包含 `diffs-container`、Shadow DOM、`data-line-type`、`--diffs-*` CSS 变量和 token span。
-- [x] WebGPT 建议保留现有 diff 获取架构，优先替换渲染器。
-- [x] 当前 Web diff 仍然保持“先取文件摘要，再按文件懒加载 patch”的流程。
-- [x] 当前 renderer owner 仍是 `packages/web-reference-react/src/components/diff/DiffPatchView.tsx`，pane owner 仍是 `packages/web-reference-react/src/components/WorktreeDiffPane.tsx`。
-- [x] Runtime 获取和 UI handler 继续分别落在 `packages/web-reference-react/src/app/runtime/diffDataOps.ts` 与 `packages/web-reference-react/src/app/runtime/diffUiHandlers.ts`。
-- [x] app-server diff 数据来源仍是 `packages/core/src/app-server/devBridge.ts`。
+### 0.1 Confirmed facts
+- [x] `.doms/diff2.txt` shows the collapsed Codex review list: many file cards, each with its own header/toggle/stats, and no internal `<diffs-container>` for collapsed files.
+- [x] `.doms/diff3.txt` shows an expanded Codex file card: the card/header/toggle remain outside, and exactly one internal `<diffs-container>` renders that file's diff.
+- [x] `.doms/diff4.txt` shows a mixed Codex state: 24 file cards, 24 toggles/sticky headers, 2 expanded files, and 2 internal `<diffs-container>` nodes.
+- [x] Codex's observed structure does not look like one multi-file `CodeView` owning the whole list.
+- [x] The target structure is: outer React-owned file cards/toggles/sticky headers, inner single-file `@pierre/diffs` renderer only when a file is expanded.
+- [x] Current Formax Web diff data contract is patch-first: `path`, `additions`, `deletions`, `patch`, `truncated`, and `untracked`.
+- [x] This task is frontend structure work; it does not require changing app-server Git diff semantics.
 
-### 0.2 本轮目标
-- [x] 验证 `@pierre/diffs` 可以直接消费当前 bridge 返回的 unified patch 字符串，不改变现有获取契约。
-- [x] 在 Web 侧用一个很薄的本地 adapter 封装 `@pierre/diffs`，不把库细节泄漏到 `WorktreeDiffPane`。
-- [x] 保留现有懒加载、stale、loading、error 行为。
-- [x] 用 `@pierre/diffs` 完整替换旧手写 `DiffPatchView`，不保留长期兼容路径。
-- [x] 为新 renderer 行为和 pane 集成补齐聚焦测试。
-- [x] 保持 renderer-only 范围，不改 bridge RPC 名称，也不改 Git 命令语义。
+### 0.2 Goals
+- [x] Rebuild `WorktreeDiffPane` to match the Codex-style structure: one file card per file, React-owned toggle state, React-owned sticky file header, and single-file renderer per expanded file.
+- [x] Remove `CodeView` as the primary worktree diff rendering path.
+- [x] Keep the existing patch-fetching contract and lazy per-file patch request flow.
+- [x] Preserve the already-tuned diff code visual style: font family, font size, line height, letter spacing, colors, gutters, and horizontal scrolling behavior.
+- [x] Support unified and split view by passing `diffStyle` into each single-file renderer without remounting or rebuilding the whole file list unnecessarily.
+- [x] Default to Codex-style collapsed files unless a test or existing UX contract proves a different default must be retained.
 
-### 0.3 非目标
-- [x] 本轮没有重写 diff 获取层。
-- [x] 本轮没有替换 Git CLI 方案。
-- [x] 本轮没有重命名或删除现有 app-server/Web diff RPC 契约。
-- [x] 本轮没有实现 hunk streaming、服务端渐进式 fetch、split view、行评论、accept/reject hunk 或行内编辑。
-- [x] 本轮没有扩展 bridge metadata 解析。
+### 0.3 Non-goals
+- [x] Do not introduce before/after full-file fetching in this task.
+- [x] Do not implement opencode-style review annotations, line selection, comments, or accept/reject hunk actions.
+- [x] Do not add custom virtual scrolling for this task.
+- [x] Do not patch or monkey-patch `@pierre/diffs` internals.
+- [x] Do not keep `DiffCodeView` as a parallel long-term implementation path.
+- [x] Do not change app-server RPC names or Git command behavior.
 
-## 1. 先定义，再实现
+### 0.4 Spec lock and review-scope
+- [x] Spec lock required: the task changes Web UI state ownership and renderer boundaries.
+- [x] Review is intentionally deferred until implementation, targeted tests, build, e2e smoke, screenshots, and manual screenshot inspection are all complete.
+- [x] Do not run `codex review` after individual loops.
+- [x] Do not treat review as useful before the feature has been verified in the running UI.
+- [x] Final review command uses `gpt-5.3-codex` with medium reasoning; if `gpt-5.3-codex` fails to run, fall back to `gpt-5.4` with medium reasoning.
+- [x] Create or update a review findings log if final review reports findings or if more than one final review run is needed.
+- [x] Classify final review findings before code changes.
+- [x] Final review is scoped by the completed todo and the accepted Codex-style structure.
+- [x] Spec ambiguity stops implementation until `docs/todolist.md` or user alignment is updated.
+
+### 0.5 Completion acceptance
+- [x] This todo is complete only when the Codex-style diff card feature is implemented in the running Web UI, not merely planned or partially scaffolded.
+- [x] All worktree diff files render as React-owned file cards with React-owned toggles and sticky headers.
+- [x] Collapsed files do not mount a single-file diff renderer and do not create `<diffs-container>`.
+- [x] Expanded files mount exactly one single-file diff renderer each.
+- [x] Toggling a file open/closed does not remove, reorder, or visually drift other file cards.
+- [x] Unified/split switching works and preserves expanded file state.
+- [x] The worktree diff path no longer uses `CodeView` or `DiffCodeView`.
+- [x] Targeted component tests, Web type-check, Web build, and targeted e2e smoke are complete.
+- [x] Capture and inspect UI screenshots for collapsed list, expanded file, and unified/split states before marking the task complete.
+- [x] Only after the implementation works and verification passes may all non-review todo items be marked `[x]`.
+- [x] Only after all non-review todo items are `[x]` may final `codex review` be run.
+- [x] Do not commit code unless final review has been run and all true blockers are fixed, or unless the user explicitly accepts unreviewed code and also accepts that it remains uncommitted.
+
+## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [x] 确认为 renderer-only 迁移，不需要更新 canonical contract。
-- [x] 评估后确认 `CODEMAP.md` 现有 “Patch rendering primitives: src/components/diff/*” 所有权描述仍然准确，因此无需额外改动。
-- [x] app-server/Web diff contract 文档维持不变，后续仅在 bridge metadata 真正变化时再更新。
+- [x] Confirm no existing canonical contract needs changing because this keeps the bridge/app-server diff contract stable.
+- [x] Check whether `packages/web-reference-react/CODEMAP.md` or root `CODEMAP.md` needs an ownership update after removing `DiffCodeView`.
+- [x] If the final renderer boundary becomes long-lived, add a short learning note under `docs/learnings/` after implementation.
 
-### 1.2 数据模型
-- [x] 第一轮继续以按文件返回的 `patch: string` 作为主要渲染器输入。
-- [x] 保留文件摘要 metadata 形状，包括 `path`、`additions`、`deletions`、load/error state。
-- [x] adapter 边界已收敛为“输入 unified patch，输出已渲染 diff 元素或稳定 unavailable state”。
-- [x] 结论是 raw patch API 可用：`PatchDiff` 直接吃 unified patch，`parsePatchFiles` 仅用于预校验。
-- [x] 未引入自写 hunk parser，也未新增 before/after contents fetching。
-- [x] 已定义大 patch 与异常 patch 策略，且策略不会回退到旧 renderer。
+### 1.2 Data model
+- [x] Keep `DiffFileViewModel` patch-first with `path`, `additions`, `deletions`, optional `patch`, and optional `untracked`.
+- [x] Keep `DiffFilePatchPayload` patch-first with `found`, `truncated`, `patch`, `additions`, `deletions`, and optional `untracked`.
+- [x] Define file expansion state as React-owned `Set<string>` keyed by file path.
+- [x] Define default expansion semantics: collapsed by default, expanded state persists across unified/split toggles for the same snapshot.
+- [x] Define snapshot refresh semantics: expansion state may reset only when the snapshot identity changes, unless tests establish existing behavior that must be preserved.
 
 ### 1.3 Types / Interfaces
-- [x] 本地 renderer props interface 已覆盖 `path`、`patch`、`truncated?`、`additions?`、`deletions?`。
-- [x] 库类型、动态 import、custom element 初始化和 unsafe CSS 细节都限制在 `DiffPatchView.tsx` 内部。
-- [x] `WorktreeDiffPane.tsx` 没有直接感知 `@pierre/diffs` 的 custom-element 细节。
-- [x] adapter failure reasons 已收敛为 `invalid_patch`、`unsupported_patch`、`large_patch`、`truncated_patch`、`renderer_error`、`empty_patch`、`binary_patch`。
-- [x] failure UI 稳定显示 unavailable state，不 crash、不回退旧 renderer，并保留 path 与 +/- metadata。
+- [x] Introduce a local file-card boundary with props for `file`, `expanded`, `loading`, `error`, `onToggle`, and `children`.
+- [x] Keep single-file renderer props limited to patch rendering concerns: `path`, `patch`, `additions`, `deletions`, `truncated`, and `diffStyle`.
+- [x] Keep `@pierre/diffs` imports and unsafe CSS details inside the single-file adapter boundary.
+- [x] Remove `DiffCodeViewFile`, `CodeViewItem`, `CodeView` imports, and CodeView item assembly from worktree diff code.
 
-### 1.4 语义决策
-- [x] 获取架构保持 summary-first / per-file lazy patch fetch。
-- [x] 默认展示继续使用 unified diff。
-- [x] 失败态明确显示 unavailable，而不是静默失败或空白。
-- [x] Git `-z` metadata 加固被明确留到后续 backlog，不混入本轮 renderer-only 交付。
-- [x] 库所有权继续通过本地 `DiffPatchView` boundary 封装。
+### 1.4 Semantic decision table
+| Decision | Accepted rule | Alternatives rejected / deferred | Contract target | Test implication |
+|---|---|---|---|---|
+| Multi-file ownership | React/WorktreeDiffPane owns file card list, toggle state, and sticky header | `CodeView` owns all files/items | Web UI structure | tests assert one card/toggle per file |
+| Diff renderer ownership | `@pierre/diffs` renders only expanded single-file content | Library owns outer list layout | Diff adapter | collapsed files have no `<diffs-container>` |
+| Data contract | Keep patch-first bridge payloads | before/after full content fetching | Web/runtime bridge boundary | runtime tests keep current payload shape |
+| Default visibility | Codex-style collapsed by default | all files expanded by default | Worktree diff UX | tests assert collapsed initial state |
+| View mode | Unified/split is a renderer option, not a list remount model | separate list implementations per mode | Worktree diff UI state | expanded state survives view-mode toggle |
+| Sticky header | CSS sticky belongs to each file card header | sticky handled by CodeView internals | File card layout | manual/e2e checks sticky per card |
+
+### 1.5 Final review finding triage policy
+- [x] Classify every final review finding as `true blocker`, `valid but later-loop`, `spec ambiguity`, `reviewer preference`, or `conflicts with accepted contract`.
+- [x] Fix code only for true blockers inside the final gate contract, accepted contract violations, or localized low-risk implementation bugs.
+- [x] For later-loop findings, update the review findings log and bind the follow-up to a later todo item.
+- [x] For spec ambiguity, stop implementation and update this todo or ask the user before editing code.
+- [x] For reviewer preference, do not adopt unless it is low-risk, local to the current loop, and does not change behavior or scope.
+- [x] For contract conflicts, do not implement the finding; cite the accepted rule and add a focused regression test if needed.
+- [x] Re-run final review only after triage is documented and targeted tests, build, e2e smoke, and screenshots remain passing.
 
 ## 2. Runtime / Platform
-- [x] 渲染器迁移期间没有改动 `packages/core/src/app-server/devBridge.ts` 行为。
-- [x] 本轮没有引入新的 Git dependency。
-- [x] 本轮没有为了渲染器迁移新增 bridge helper 或改动 runtime state handler。
+- [x] Leave `packages/core/src/app-server/devBridge.ts` behavior unchanged.
+- [x] Leave Web runtime diff RPC names unchanged: `bridge/readDiffSummary`, `bridge/readDiffFilePatch`, and existing fallback read path.
+- [x] Preserve `diffDataOps.ts` and `diffUiHandlers.ts` behavior unless a targeted test proves UI structure needs a small adapter-only adjustment.
+- [x] Do not add new runtime state or bridge metadata for this task.
 
-## 3. Frontend 边界
-- [x] `DiffPatchView.tsx` 已成为唯一的 `@pierre/diffs` adapter 落点。
-- [x] `WorktreeDiffPane.tsx` 继续只负责 pane 编排、refresh、selection、expanded file、loading、stale 与 error。
-- [x] `diffDataOps.ts` 和 `diffUiHandlers.ts` 保持不变。
-- [x] CSS/theming 只在 renderer 内通过 `unsafeCSS` 和现有变量对齐，没有引入无关全局样式。
-- [x] 当前 Web build 环境已验证可正常使用 custom elements 与 Shadow DOM。
-- [x] 不存在 old renderer runtime branch，也不存在回退到旧 renderer 的逻辑。
+## 3. Frontend Boundary
+- [x] Replace `DiffCodeView` usage in `WorktreeDiffPane.tsx` with Codex-style per-file card rendering.
+- [x] Implement or extract a `DiffFileCard` component that owns header layout, toggle button, stats, sticky behavior, and collapsed body behavior.
+- [x] Render `DiffPatchView` only inside expanded file cards.
+- [x] Ensure collapsed file cards do not mount `DiffPatchView` and therefore do not create `<diffs-container>`.
+- [x] Ensure expanded added-only/deleted-only/modified patches render through the same single-file renderer boundary.
+- [x] Preserve loading/error/unavailable/truncated states inside the card body without changing the file count or card order.
+- [x] Preserve horizontal scroll inside the single-file diff body while keeping line numbers/gutter behavior aligned with the tuned renderer CSS.
+- [x] Remove the `DiffCodeView.tsx` file if no remaining caller needs it.
+- [x] Remove stale tests/e2e expectations that assert `pierre-code-view` or CodeView-specific virtual layout.
 
-## 4. 测试与验证
-- [x] `packages/web-reference-react/src/components/diff/DiffPatchView.test.tsx` 已改写为新 renderer contract。
-- [x] `packages/web-reference-react/src/components/WorktreeDiffPane.test.tsx` 已覆盖 pane 集成、新 renderer 失败展示、lazy fetch、stale response 和 refresh 行为。
-- [x] Adapter tests 已覆盖 modified file、added file、deleted file、rename without hunks、binary patch、empty patch、invalid patch、truncated patch、large patch 和 prop update。
-- [x] Pane tests 已覆盖 lazy fetch、loading state、patch unavailable 不自动无限 retry、snapshot refresh 后 expanded row 重新请求 patch、stale response 不覆盖新 snapshot、121+ files/truncated snapshot 行为。
-- [x] 为适配 `@pierre/diffs` 的动态 import，在测试中补充了 `vi.dynamicImportSettled()` + `act()` 同步策略，并将 pane 文件级超时抬到合理窗口，避免 JSDOM/动态 import 时序噪音。
-- [x] `packages/web-reference-react/src/test/setup.ts` 已补齐 `CSSStyleSheet.replaceSync` 与 storage polyfill，保证测试环境稳定。
-- [x] `packages/web-reference-react/src/app/i18n/messages.ts` 已补齐 unavailable / loading / partial preview 文案的中英文消息。
+## 4. Tests
+- [x] Update `WorktreeDiffPane.test.tsx` to assert one file card/toggle per diff file.
+- [x] Add tests that initial Codex-style state is collapsed by default.
+- [x] Add tests that expanding one file mounts exactly one single-file renderer for that file.
+- [x] Add tests that collapsing the file unmounts the single-file renderer and keeps the card visible.
+- [x] Add tests that toggling a file does not remove or reorder other file cards.
+- [x] Add tests that unified/split mode changes preserve expanded file state.
+- [x] Add tests that patch loading/error/unavailable states appear inside the correct file card.
+- [x] Update `DiffPatchView.test.tsx` only if the single-file adapter props or rendering contract need adjustment.
+- [x] Update e2e smoke to assert Codex-style DOM: N cards/toggles, expanded count equals `<diffs-container>` count, and no CodeView virtual placeholder structure.
+- [x] Run targeted Web component tests.
+- [x] Run Web type-check.
+- [x] Run Web build.
+- [x] Run targeted e2e smoke on an isolated port if component tests and build pass.
+- [x] Capture screenshots for collapsed list, one expanded file, multiple expanded files, and unified/split view after implementation.
+- [x] Inspect screenshots for obvious spacing, sticky-header, toggle, horizontal-scroll, and renderer-mount regressions.
 
-### 4.1 已执行命令
-- [x] `bun run --cwd packages/web-reference-react test src/components/diff/DiffPatchView.test.tsx`
-- [x] `bun run --cwd packages/web-reference-react test src/components/WorktreeDiffPane.test.tsx`
-- [x] `bun run --cwd packages/web-reference-react type-check`
-- [x] `bun run --cwd packages/web-reference-react build`
-- [x] `PLAYWRIGHT_SKIP_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 bun run --cwd packages/web-reference-react test:e2e -- e2e/diff-collapsible.spec.js`
+## 5. Recommended Execution Order
 
-### 4.2 Smoke notes
-- [x] 已避开本机 `3781` 复用问题，改用独立端口 `http://127.0.0.1:4173` 运行本地 dev server。
-- [x] isolated-port Playwright smoke 已验证线程进入、diff 行展开、Shadow DOM 内 old/new 行可见，以及收起后 renderer 节点消失。
-- [x] build 仍有 Vite/Radix/`@pierre/diffs` 的 `"use client"` 与 chunk-size warnings，但命令成功，不构成当前交付阻断。
+### Loop 1: Lock Structure With Tests
+#### Loop Contract
+- Purpose: lock the Codex-style file-card structure before replacing implementation.
+- In scope: component tests and e2e expectation updates for card/toggle/single-renderer semantics.
+- Out of scope: implementation rewrite beyond minimal test scaffolding.
+- Blocking findings: tests that encode a structure contradicting `.doms/diff2.txt`, `.doms/diff3.txt`, or `.doms/diff4.txt`; tests that require backend contract changes.
+- Non-blocking / later-loop findings: visual polish not affecting ownership boundaries.
+- Known unresolved semantics: whether snapshot refresh preserves expansion state if existing tests prove current behavior differs.
+- Required targeted tests: `WorktreeDiffPane.test.tsx` plus any necessary e2e expectation updates.
+- Exit criteria: failing tests clearly describe the target structure.
 
-## 5. Review
+- [x] update `WorktreeDiffPane.test.tsx` for Codex-style card/toggle/expanded renderer behavior.
+- [x] update e2e assertions away from CodeView-specific selectors.
+- [x] run targeted tests and confirm failures are expected before implementation.
 
-### 5.1 Triage
-- [x] 所有 review finding 都先按 `true blocker` / `later-loop` / `spec ambiguity` / `reviewer preference` / `conflicts with accepted contract` 分类。
-- [x] 本轮唯一有效 finding 被归类为 `true blocker`：动态 import 失败后 promise reject 被永久缓存，会让 renderer 在整页刷新前都无法重试。
-- [x] 已在 `DiffPatchView.tsx` 中修复该 blocker：动态 import 失败时清空模块 promise 缓存，允许后续重试。
-- [x] 后续无新的 actionable findings。
+### Loop 2: Replace CodeView With Codex-Style Cards
+#### Loop Contract
+- Purpose: remove the multi-file CodeView path and implement React-owned file cards with single-file diff bodies.
+- In scope: `WorktreeDiffPane.tsx`, card extraction if useful, `DiffCodeView` removal, and direct `DiffPatchView` composition.
+- Out of scope: before/after fetching, annotation review UI, custom virtualization, backend changes.
+- Blocking findings: CodeView still owns the file list; collapsed files still mount diff renderers; file count/order changes on toggle; expanded state resets on view-mode change.
+- Non-blocking / later-loop findings: minor spacing differences that do not affect structure or performance.
+- Known unresolved semantics: none after Loop 1 unless tests expose a conflicting current contract.
+- Required targeted tests: updated `WorktreeDiffPane.test.tsx`, relevant `DiffPatchView.test.tsx`, Web type-check.
+- Exit criteria: component tests pass and CodeView is gone from the worktree diff path.
 
-### 5.2 Review runs
-- [x] 已创建 `docs/pierre-diffs-renderer-review-findings-log.md`，因为本任务执行了多次 `codex review`。
-- [x] 首轮 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` 给出 1 条 P2 finding，并已修复。
-- [x] 修复后再次以同样参数运行 `codex review`，结果为 “I did not identify any actionable regressions.”
+- [x] implement Codex-style file cards in `WorktreeDiffPane.tsx`.
+- [x] render `DiffPatchView` only for expanded files.
+- [x] remove `DiffCodeView` imports and CodeView item construction.
+- [x] delete `DiffCodeView.tsx` if unused.
+- [x] run targeted Web component tests.
+- [x] run Web type-check.
 
-## 6. 收尾
-- [x] 已确认不存在 smoke-only kill switch，也不存在回退旧 renderer 的隐藏分支。
-- [x] 已确认 `ToolUiBlocks` 等其他调用方继续通过 `DiffPatchView` 这一所有权边界使用新 renderer。
-- [x] 本轮 renderer 迁移的实现、测试、build、isolated-port smoke 和 review 都已闭环。
+### Loop 3: Visual/Interaction Polish and Smoke
+#### Loop Contract
+- Purpose: align the implemented structure with Codex-like interaction and the previously tuned renderer visuals.
+- In scope: sticky header behavior, row height/header spacing, horizontal scroll, collapsed spacing, unified/split persistence, and e2e smoke.
+- Out of scope: new product features, backend changes, line-level review actions.
+- Blocking findings: sticky header fails within file card; horizontal scroll is broken; toggle causes cards to disappear/reorder; collapsed and expanded DOM counts mismatch the accepted structure.
+- Non-blocking / later-loop findings: exact icon shape, optional open-in action, or future review annotation affordances.
+- Known unresolved semantics: none.
+- Required targeted tests: Web build, targeted e2e smoke, manual DOM count check if needed.
+- Exit criteria: tests/build/smoke/screenshots pass and all non-review todo items are `[x]`.
 
-## 7. 已记录的后续项
-- [x] 已把 `git diff --name-status -z` / `git diff --numstat -z` 风格解析加固记录为后续 backlog。
-- [x] 已把 bridge-level metadata shape 变化是否需要 contract doc 记录为后续 backlog 决策点。
-- [x] 已把 hunk-level expansion / progressive patch fetching 记录为独立后续项。
-- [x] 已把 split view 和 line-level actions 记录为独立 UX 任务。
-- [x] 已把“若未来发现 `@pierre/diffs` 覆盖不了使用范围，再评估极小 renderer 替代方案”记录为保底 follow-up。
+- [x] verify sticky header behavior in the Codex-style card layout.
+- [x] verify horizontal scrolling and fixed gutter/line-number behavior in expanded diff bodies.
+- [x] verify unified/split switching with expanded files.
+- [x] run Web build.
+- [x] run targeted e2e smoke on an isolated port.
+- [x] capture UI screenshots for collapsed list, expanded file, multiple expanded files, unified mode, and split mode.
+- [x] inspect screenshots and record whether spacing, sticky headers, toggle state, and diff body alignment match the accepted Codex-style structure.
+- [x] add/update a short learning note if the renderer boundary is now stable.
+- [x] mark all non-review todo items `[x]` after implementation, tests, smoke, screenshot capture, and screenshot inspection close.
+
+### Final Review and Commit Gate
+#### Gate Contract
+- Purpose: run review only after the feature is actually implemented and verified.
+- In scope: final regression review of the completed Codex-style diff card implementation.
+- Out of scope: using review to compensate for missing smoke, missing screenshots, or incomplete implementation.
+- Blocking findings: any true blocker that breaks accepted structure, tests, smoke, screenshot evidence, or the patch-first data contract.
+- Non-blocking / later-loop findings: optional polish or future features outside this todo's accepted scope.
+- Required preconditions: every non-review todo item is `[x]`, targeted tests pass, type-check passes, build passes, targeted e2e smoke passes, screenshots are captured, and screenshots have been inspected.
+- Exit criteria: final review is clean or all true blockers are fixed and re-verified.
+
+- [x] confirm every non-review todo item is `[x]` before running final review.
+- [x] run final `codex review` with `gpt-5.3-codex` and medium reasoning only after all implementation and verification items are `[x]`.
+- [x] if `gpt-5.3-codex` review fails to run, retry final review with `gpt-5.4` and medium reasoning.
+- [x] triage final review findings into the review findings log if any findings are reported.
+- [x] fix true blockers from final review and re-run targeted tests/build/smoke/screenshots as needed.
+- [x] re-run final `codex review` only after true blockers are fixed and verification remains passing.
+- [x] if final review is skipped, do not commit code.
+- [x] commit only after final review is clean or accepted true blockers are fixed and re-reviewed.
+- [x] mark final review and commit-gate items `[x]` only after the gate is actually satisfied.

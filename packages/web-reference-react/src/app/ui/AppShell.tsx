@@ -401,6 +401,7 @@ export function AppShell(props: AppShellProps) {
 
   const worktreeDiffPaneProps = useMemo(
     () => ({
+      activeThreadId: isThreadSurface ? props.activeThreadId : null,
       diffSnapshot: isThreadSurface ? props.diffSnapshot : null,
       latestRequestCollapse: isThreadSurface ? props.activeThreadLatestRequestCollapse : null,
       onRefreshDiff: props.onRefreshDiff,
@@ -409,6 +410,7 @@ export function AppShell(props: AppShellProps) {
       showHeader: true as const,
     }),
     [
+      props.activeThreadId,
       isThreadSurface,
       props.activeThreadLatestRequestCollapse,
       props.diffSnapshot,

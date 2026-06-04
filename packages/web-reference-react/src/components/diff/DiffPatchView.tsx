@@ -17,6 +17,8 @@ export type DiffPreviewUnavailableReason =
   | 'empty_patch'
   | 'binary_patch'
 
+export type DiffRenderStyle = 'unified' | 'split'
+
 export type DiffPatchViewProps = {
   path?: string
   patch: string
@@ -24,6 +26,8 @@ export type DiffPatchViewProps = {
   additions?: number
   deletions?: number
   maxHeightClassName?: string
+  diffStyle?: DiffRenderStyle
+  showFileHeader?: boolean
 }
 
 type ValidationResult =
@@ -47,6 +51,8 @@ type DiffPatchViewErrorBoundaryState = {
 const TRUNCATED_PATCH_MARKER = '... [file patch truncated]'
 const BINARY_PATCH_PATTERN = /(^|\n)(Binary files .+ differ|GIT binary patch)(\n|$)/
 const SHOULD_INJECT_UNSAFE_CSS = import.meta.env.MODE !== 'test'
+const DIFF_RENDER_LINE_HEIGHT_PX = 23
+const DIFF_RENDER_HEADER_HEIGHT_PX = 36
 let pierreDiffsModulePromise: Promise<PierreDiffsModules> | null = null
 
 const PREVIEW_UNAVAILABLE_MESSAGE_KEYS: Record<DiffPreviewUnavailableReason, GuiMessageKey> = {
@@ -61,13 +67,58 @@ const PREVIEW_UNAVAILABLE_MESSAGE_KEYS: Record<DiffPreviewUnavailableReason, Gui
 
 const DIFFS_UNSAFE_CSS = `
 :host {
-  --diffs-font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  --diffs-font-family: var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  --diffs-font-size: 13px;
+  --diffs-line-height: ${DIFF_RENDER_LINE_HEIGHT_PX}px;
+  --diffs-gap-block: 0px;
+  --diffs-fg: var(--foreground, #111111);
+  --diffs-light: var(--foreground, #111111);
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+  letter-spacing: normal;
+  text-rendering: geometricPrecision;
 }
 
 [data-diff] {
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--diffs-font-size, 13px);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: normal;
   background: transparent;
+  text-rendering: geometricPrecision;
+}
+
+[data-diffs-header="default"] {
+  min-height: ${DIFF_RENDER_HEADER_HEIGHT_PX}px;
+}
+
+[data-line] {
+  color: var(--foreground, #111111);
+  font-synthesis: none;
+}
+
+[data-line] span[style*="#525252"] {
+  color: var(--foreground, #111111) !important;
+}
+
+[data-code] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: clip;
+  overscroll-behavior-x: contain;
+}
+
+[data-overflow="scroll"][data-diff-type="single"] [data-gutter] {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+[data-overflow="scroll"][data-diff-type="split"] [data-gutter] {
+  position: static;
+  left: auto;
+  z-index: auto;
 }
 
 [data-gutter] {
@@ -131,17 +182,17 @@ function getPatchLineCount(patch: string): number {
   return patch.split('\n').length
 }
 
-function getEstimatedRenderHeight(patch: string): number {
-  return Math.min(1_200, Math.max(64, getPatchLineCount(patch) * 20 + 24))
+function getPatchRenderKey(path: string | undefined, patch: string): string {
+  return `${path ?? 'diff'}:${patch.length}:${getPatchHash(patch)}`
 }
 
-function getPatchRenderKey(path: string | undefined, patch: string): string {
+function getPatchHash(patch: string): number {
   let hash = 0
   for (let index = 0; index < patch.length; index += 1) {
     hash = Math.imul(31, hash) + patch.charCodeAt(index)
     hash |= 0
   }
-  return `${path ?? 'diff'}:${patch.length}:${hash}`
+  return hash
 }
 
 function getPreflightUnavailableReason(props: DiffPatchViewProps): DiffPreviewUnavailableReason | null {
@@ -184,7 +235,7 @@ function DiffPreviewLoading(props: { maxHeightClassName?: string }) {
     <div className="rounded-b-[10px] border-x border-b border-border/70 bg-muted/25">
       <div
         data-testid="diff-preview-loading"
-        className={cn('min-w-0 overflow-y-auto px-4 py-3 ui-text-meta ui-text-secondary', props.maxHeightClassName ?? 'max-h-[1200px]')}
+        className={cn('min-w-0 px-4 py-3 ui-text-meta ui-text-secondary', props.maxHeightClassName)}
       >
         {t('worktreeDiff.loadingPatch')}
       </div>
@@ -206,8 +257,8 @@ function DiffPreviewUnavailable(props: {
         data-testid="diff-preview-unavailable"
         data-reason={props.reason}
         className={cn(
-          'min-w-0 overflow-y-auto px-4 py-3',
-          props.maxHeightClassName ?? 'max-h-[1200px]',
+          'min-w-0 px-4 py-3',
+          props.maxHeightClassName,
         )}
       >
         <div className="flex min-w-0 items-start justify-between gap-3">
@@ -315,40 +366,36 @@ export function DiffPatchView(props: DiffPatchViewProps) {
   }
 
   const LoadedPatchDiff = modules.PatchDiff
-  const estimatedRenderHeight = getEstimatedRenderHeight(props.patch)
+  const diffStyle = props.diffStyle ?? 'unified'
+  const showFileHeader = props.showFileHeader ?? true
 
   return (
     <div className="bg-muted/35 rounded-b-[10px] overflow-hidden">
       <div
         data-testid="pierre-diff-view"
         className={cn(
-          'min-w-0 overflow-x-hidden overflow-y-auto font-mono text-[12px] leading-relaxed',
-          props.maxHeightClassName ?? 'max-h-[1200px]',
+          'min-w-0 overflow-x-hidden overflow-y-auto font-mono text-[13px]',
+          props.maxHeightClassName,
         )}
       >
         <DiffPatchViewErrorBoundary key={validation.renderKey} fallback={unavailableFallback}>
           <LoadedPatchDiff
             key={validation.renderKey}
             patch={props.patch}
-            disableWorkerPool
             metrics={{
               hunkLineCount: 50,
-              lineHeight: 20,
-              diffHeaderHeight: 0,
+              lineHeight: DIFF_RENDER_LINE_HEIGHT_PX,
+              diffHeaderHeight: DIFF_RENDER_HEADER_HEIGHT_PX,
               spacing: 8,
               paddingTop: 8,
               paddingBottom: 8,
             }}
-            style={{
-              display: 'block',
-              minHeight: `${estimatedRenderHeight}px`,
-            }}
             options={{
-              diffStyle: 'unified',
-              disableFileHeader: false,
+              diffStyle,
+              disableFileHeader: !showFileHeader,
               hunkSeparators: 'line-info-basic',
               lineDiffType: 'word',
-              overflow: 'wrap',
+              overflow: 'scroll',
               theme: 'pierre-light-soft',
               themeType: 'light',
               tokenizeMaxLength: 40_000,

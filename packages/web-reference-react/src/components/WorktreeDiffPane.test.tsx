@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider, type I18nProviderProps } from '../app/i18n/I18nProvider'
@@ -17,6 +17,35 @@ async function expectDiffShadowText(text: string) {
   await waitFor(() => {
     expect(document.querySelector('[data-testid="diff-preview-loading"]')).toBeNull()
     expect(document.querySelector('diffs-container')?.shadowRoot?.textContent ?? '').toContain(text)
+  }, { timeout: 10_000 })
+}
+
+async function findDiffShadowRoot() {
+  await act(async () => {
+    await vi.dynamicImportSettled()
+  })
+  await waitFor(() => {
+    expect(document.querySelector('[data-testid="diff-preview-loading"]')).toBeNull()
+    expect(document.querySelector('diffs-container')?.shadowRoot?.querySelector('[data-diff]')).not.toBeNull()
+  }, { timeout: 10_000 })
+  const shadowRoot = document.querySelector('diffs-container')?.shadowRoot
+  expect(shadowRoot).not.toBeNull()
+  return shadowRoot
+}
+
+async function clickFileToggle(index = 0) {
+  const toggle = screen.getAllByTestId('worktree-diff-file-toggle')[index]
+  expect(toggle).not.toBeNull()
+  await act(async () => {
+    ;(toggle as HTMLElement).click()
+  })
+}
+
+async function expectDiffRenderStyle(style: 'unified' | 'split') {
+  const shadowRoot = await findDiffShadowRoot()
+  const expectedDiffType = style === 'split' ? 'split' : 'single'
+  await waitFor(() => {
+    expect(shadowRoot?.querySelector(`[data-diff-type="${expectedDiffType}"]`)).not.toBeNull()
   }, { timeout: 10_000 })
 }
 
@@ -78,14 +107,55 @@ describe('WorktreeDiffPane', () => {
 
     expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
     expect(screen.getByText('Changes: 1')).toBeInTheDocument()
-    const fileRow = screen.getByTestId('diff-file-row-packages/web-reference-react/src/App.tsx')
-    expect(fileRow.className).not.toContain('sticky')
-    expect(fileRow.className).not.toContain('top-0')
-    fireEvent.click(fileRow)
+    expect(screen.getAllByTestId('worktree-diff-file-card')).toHaveLength(1)
+    expect(screen.getByText('packages/web-reference-react/src/App.tsx')).toBeInTheDocument()
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
     await expectDiffShadowText('new')
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(1)
   }, TEST_TIMEOUT_MS)
 
-  it('loads file patch on demand when summary row has no patch body', async () => {
+  it('switches between unified and split diff rendering', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            {
+              path: 'src/view-mode.ts',
+              additions: 1,
+              deletions: 1,
+              patch: `diff --git a/src/view-mode.ts b/src/view-mode.ts\n@@ -1 +1 @@\n-old\n+new`,
+            },
+          ],
+        }}
+      />,
+    )
+
+    const unifiedButton = screen.getByRole('button', { name: 'Unified' })
+    const splitButton = screen.getByRole('button', { name: 'Split' })
+    expect(unifiedButton).toHaveAttribute('aria-pressed', 'true')
+    expect(splitButton).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
+    await expectDiffRenderStyle('unified')
+
+    fireEvent.click(splitButton)
+    expect(unifiedButton).toHaveAttribute('aria-pressed', 'false')
+    expect(splitButton).toHaveAttribute('aria-pressed', 'true')
+    await expectDiffRenderStyle('split')
+
+    fireEvent.click(unifiedButton)
+    expect(unifiedButton).toHaveAttribute('aria-pressed', 'true')
+    expect(splitButton).toHaveAttribute('aria-pressed', 'false')
+    await expectDiffRenderStyle('unified')
+    expect(screen.getByTestId('worktree-diff-file-body')).toBeInTheDocument()
+  }, TEST_TIMEOUT_MS)
+
+  it('loads file patch when an unpatched summary row is expanded', async () => {
     const onRequestPatch = vi.fn(async () => ({
       path: 'src/lazy.ts',
       found: true,
@@ -113,9 +183,14 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /src\/lazy\.ts/i }))
+    expect(screen.getAllByTestId('worktree-diff-file-card')).toHaveLength(1)
+    expect(onRequestPatch).not.toHaveBeenCalled()
+    await clickFileToggle()
+    await waitFor(() => {
+      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy.ts')
+    })
     await expectDiffShadowText('new')
-    expect(onRequestPatch).toHaveBeenCalledWith('src/lazy.ts')
+    expect(onRequestPatch).toHaveBeenCalledTimes(1)
   }, TEST_TIMEOUT_MS)
 
   it('keeps expanded row visible when the renderer marks a patch unavailable', async () => {
@@ -138,12 +213,375 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    const fileRow = screen.getByTestId('diff-file-row-src/invalid.ts')
-    fireEvent.click(fileRow)
+    expect(screen.getByText('src/invalid.ts')).toBeInTheDocument()
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
     expect(await screen.findByTestId('diff-preview-unavailable')).toHaveAttribute('data-reason', 'invalid_patch')
     expect(screen.getByText('Diff preview unavailable')).toBeInTheDocument()
-    expect(fileRow).toHaveTextContent('+1')
-    expect(fileRow).toHaveTextContent('-1')
+    const card = screen.getByTestId('worktree-diff-file-card')
+    expect(card).toHaveTextContent('src/invalid.ts')
+    expect(card).toHaveTextContent('+1')
+    expect(card).toHaveTextContent('-1')
+  }, TEST_TIMEOUT_MS)
+
+  it('allows retrying a lazy patch after an unavailable response', async () => {
+    const onRequestPatch = vi
+      .fn<() => Promise<{ path: string; found: boolean; truncated: boolean; patch: string; additions: number; deletions: number } | null>>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        path: 'src/retry.ts',
+        found: true,
+        truncated: false,
+        patch: `diff --git a/src/retry.ts b/src/retry.ts\n@@ -1 +1 @@\n-old\n+retried`,
+        additions: 1,
+        deletions: 1,
+      })
+
+    renderPane(
+      <WorktreeDiffPane
+        onRequestPatch={onRequestPatch}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'src/retry.ts', additions: 0, deletions: 0 }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    expect(await screen.findByText('Patch unavailable for this file')).toBeInTheDocument()
+    expect(onRequestPatch).toHaveBeenCalledTimes(1)
+
+    await clickFileToggle()
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
+    await waitFor(() => {
+      expect(onRequestPatch).toHaveBeenCalledTimes(2)
+    })
+    await expectDiffShadowText('retried')
+  }, TEST_TIMEOUT_MS)
+
+  it('does not double-toggle when the chevron button receives keyboard activation', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            {
+              path: 'src/keyboard.ts',
+              additions: 1,
+              deletions: 1,
+              patch: `diff --git a/src/keyboard.ts b/src/keyboard.ts\n@@ -1 +1 @@\n-old\n+new`,
+            },
+          ],
+        }}
+      />,
+    )
+
+    const toggle = screen.getByTestId('worktree-diff-file-toggle')
+    fireEvent.keyDown(toggle, { key: ' ', code: 'Space' })
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    fireEvent.click(toggle)
+    await expectDiffShadowText('new')
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(1)
+  }, TEST_TIMEOUT_MS)
+
+  it('keeps the pending first-toggle when the same file is clicked again', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+
+    try {
+      renderPane(
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:00.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [
+              {
+                path: 'src/pending.ts',
+                additions: 1,
+                deletions: 1,
+                patch: `diff --git a/src/pending.ts b/src/pending.ts\n@@ -1 +1 @@\n-old\n+new`,
+              },
+            ],
+          }}
+        />,
+      )
+
+      const toggle = screen.getByTestId('worktree-diff-file-toggle')
+      fireEvent.click(toggle)
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+      fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('replaces pending first-toggle work when another file is clicked during worker warmup', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+
+    try {
+      renderPane(
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:00.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [
+              {
+                path: 'src/pending-a.ts',
+                additions: 1,
+                deletions: 1,
+                patch: `diff --git a/src/pending-a.ts b/src/pending-a.ts\n@@ -1 +1 @@\n-old\n+new-a`,
+              },
+              {
+                path: 'src/pending-b.ts',
+                additions: 1,
+                deletions: 1,
+                patch: `diff --git a/src/pending-b.ts b/src/pending-b.ts\n@@ -1 +1 @@\n-old\n+new-b`,
+              },
+            ],
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getAllByTestId('worktree-diff-file-toggle')[0])
+      fireEvent.click(screen.getAllByTestId('worktree-diff-file-toggle')[1])
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      await waitFor(() => {
+        expect(document.querySelector('[data-review-path="src/pending-a.ts"]')).toHaveAttribute('data-expanded', 'false')
+        expect(document.querySelector('[data-review-path="src/pending-b.ts"]')).toHaveAttribute('data-expanded', 'true')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('starts lazy patch loading immediately during first worker warmup', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+    const onRequestPatch = vi.fn(async () => ({
+      path: 'src/lazy-warmup.ts',
+      found: true,
+      truncated: false,
+      patch: `diff --git a/src/lazy-warmup.ts b/src/lazy-warmup.ts\n@@ -1 +1 @@\n-old\n+new`,
+      additions: 1,
+      deletions: 1,
+    }))
+
+    try {
+      renderPane(
+        <WorktreeDiffPane
+          onRequestPatch={onRequestPatch}
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:00.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [{ path: 'src/lazy-warmup.ts', additions: 1, deletions: 1 }],
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
+      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy-warmup.ts')
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('opens the pending file without a worker provider when worker bootstrap fails', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+    vi.doMock('@pierre/diffs/react', () => {
+      throw new Error('worker bootstrap failed')
+    })
+
+    try {
+      renderPane(
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:00.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [
+              {
+                path: 'src/bootstrap-fallback.ts',
+                additions: 1,
+                deletions: 1,
+                patch: `diff --git a/src/bootstrap-fallback.ts b/src/bootstrap-fallback.ts\n@@ -1 +1 @@\n-old\n+new`,
+              },
+            ],
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
+      })
+    } finally {
+      vi.doUnmock('@pierre/diffs/react')
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('does not request a lazy patch twice when the first warmup request is unavailable', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+    const onRequestPatch = vi.fn(async () => null)
+
+    try {
+      renderPane(
+        <WorktreeDiffPane
+          onRequestPatch={onRequestPatch}
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:00.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [{ path: 'src/lazy-unavailable.ts', additions: 1, deletions: 1 }],
+          }}
+        />,
+      )
+
+      fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(onRequestPatch).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
+        expect(screen.getByText('Patch unavailable for this file')).toBeInTheDocument()
+      })
+      expect(onRequestPatch).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('cancels pending first-toggle work when a new snapshot arrives', async () => {
+    class FakeWorker {
+      addEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', FakeWorker)
+
+    const snapshot = (generatedAt: string) => ({
+      cwd: '/repo',
+      generatedAt,
+      hasChanges: true,
+      truncated: false,
+      files: [
+        {
+          path: 'src/pending-refresh.ts',
+          additions: 1,
+          deletions: 1,
+          patch: `diff --git a/src/pending-refresh.ts b/src/pending-refresh.ts\n@@ -1 +1 @@\n-old\n+new`,
+        },
+      ],
+    })
+
+    try {
+      const { rerender } = renderPane(
+        <WorktreeDiffPane diffSnapshot={snapshot('2026-02-09T00:00:00.000Z')} />,
+      )
+
+      fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+
+      rerender(
+        <I18nProvider language="en-US">
+          <WorktreeDiffPane diffSnapshot={snapshot('2026-02-09T00:00:01.000Z')} />
+        </I18nProvider>,
+      )
+
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }, TEST_TIMEOUT_MS)
+
+  it('only shows the untracked indicator for untracked files', () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            { path: 'src/tracked.ts', additions: 1, deletions: 0, patch: '' },
+            { path: 'src/untracked.ts', additions: 1, deletions: 0, patch: '', untracked: true },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.getAllByTestId('worktree-diff-file-card')).toHaveLength(2)
+    expect(screen.getAllByTestId('worktree-diff-untracked-indicator')).toHaveLength(1)
   }, TEST_TIMEOUT_MS)
 
   it('updates +/- badges from loaded patch payload after lazy fetch', async () => {
@@ -169,20 +607,21 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    const row = screen.getByTestId('diff-file-row-src/counts.ts')
-    expect(within(row).getByText('+0')).toBeInTheDocument()
-    expect(within(row).getByText('-0')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /src\/counts\.ts/i }))
+    expect(onRequestPatch).not.toHaveBeenCalled()
+    await clickFileToggle()
+    await waitFor(() => {
+      expect(onRequestPatch).toHaveBeenCalledWith('src/counts.ts')
+    })
     await expectDiffShadowText('three')
 
     await waitFor(() => {
-      expect(within(row).getByText('+3')).toBeInTheDocument()
-      expect(within(row).getByText('-1')).toBeInTheDocument()
+      const cardText = screen.getByTestId('worktree-diff-file-card').textContent ?? ''
+      expect(cardText).toContain('+3')
+      expect(cardText).toContain('-1')
     })
   }, TEST_TIMEOUT_MS)
 
-  it('re-requests patch for expanded rows after snapshot refresh', async () => {
+  it('preserves expansion after same-file snapshot refresh and requests the latest patch', async () => {
     const onRequestPatch = vi
       .fn<() => Promise<{ path: string; found: boolean; truncated: boolean; patch: string; additions: number; deletions: number }>>()
       .mockResolvedValueOnce({
@@ -221,7 +660,11 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /src\/reload\.ts/i }))
+    expect(onRequestPatch).not.toHaveBeenCalled()
+    await clickFileToggle()
+    await waitFor(() => {
+      expect(onRequestPatch).toHaveBeenCalledTimes(1)
+    })
     await expectDiffShadowText('new-v1')
 
     rerender(
@@ -245,6 +688,7 @@ describe('WorktreeDiffPane', () => {
       </I18nProvider>,
     )
 
+    expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
     await waitFor(() => {
       expect(onRequestPatch).toHaveBeenCalledTimes(2)
     })
@@ -252,7 +696,104 @@ describe('WorktreeDiffPane', () => {
     expect(screen.queryByText('Patch unavailable for this file')).not.toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 
-  it('does not auto-retry patch requests after an unavailable result until user retries', async () => {
+  it('resets expanded files when the active thread changes in the same workspace', async () => {
+    const snapshot = {
+      cwd: '/repo',
+      generatedAt: '2026-02-09T00:00:00.000Z',
+      hasChanges: true,
+      truncated: false,
+      files: [
+        {
+          path: 'src/thread-scoped.ts',
+          additions: 1,
+          deletions: 1,
+          patch: `diff --git a/src/thread-scoped.ts b/src/thread-scoped.ts\n@@ -1 +1 @@\n-old\n+new`,
+        },
+      ],
+    }
+
+    const { rerender } = renderPane(
+      <WorktreeDiffPane activeThreadId="thread-a" diffSnapshot={snapshot} />,
+    )
+
+    await clickFileToggle()
+    await expectDiffShadowText('new')
+    expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
+
+    rerender(
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane activeThreadId="thread-b" diffSnapshot={snapshot} />
+      </I18nProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
+    })
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+  }, TEST_TIMEOUT_MS)
+
+  it('preserves expanded files that still exist when unrelated files enter or leave', async () => {
+    const { rerender } = renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            {
+              path: 'src/kept.ts',
+              additions: 1,
+              deletions: 1,
+              patch: `diff --git a/src/kept.ts b/src/kept.ts\n@@ -1 +1 @@\n-old\n+kept-v1`,
+            },
+            {
+              path: 'src/leaving.ts',
+              additions: 1,
+              deletions: 0,
+              patch: `diff --git a/src/leaving.ts b/src/leaving.ts\n@@ -0,0 +1 @@\n+leaving`,
+            },
+          ],
+        }}
+      />,
+    )
+
+    await clickFileToggle(0)
+    await expectDiffShadowText('kept-v1')
+
+    rerender(
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo',
+            generatedAt: '2026-02-09T00:00:01.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [
+              {
+                path: 'src/entering.ts',
+                additions: 1,
+                deletions: 0,
+                patch: `diff --git a/src/entering.ts b/src/entering.ts\n@@ -0,0 +1 @@\n+entering`,
+              },
+              {
+                path: 'src/kept.ts',
+                additions: 1,
+                deletions: 1,
+                patch: `diff --git a/src/kept.ts b/src/kept.ts\n@@ -1 +1 @@\n-old\n+kept-v2`,
+              },
+            ],
+          }}
+        />
+      </I18nProvider>,
+    )
+
+    expect(document.querySelector('[data-review-path="src/kept.ts"]')).toHaveAttribute('data-expanded', 'true')
+    await expectDiffShadowText('kept-v2')
+    expect(screen.queryByText('src/leaving.ts')).not.toBeInTheDocument()
+  }, TEST_TIMEOUT_MS)
+
+  it('does not auto-retry patch requests after an unavailable result', async () => {
     const onRequestPatch = vi.fn(async () => null)
     renderPane(
       <WorktreeDiffPane
@@ -273,7 +814,7 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /src\/unavailable\.ts/i }))
+    await clickFileToggle()
     expect(await screen.findByText('Patch unavailable for this file')).toBeInTheDocument()
 
     await new Promise((resolve) => setTimeout(resolve, 80))
@@ -301,7 +842,7 @@ describe('WorktreeDiffPane', () => {
       'en-US',
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /src\/unavailable\.ts/i }))
+    await clickFileToggle()
     expect(await screen.findByText('Patch unavailable for this file')).toBeInTheDocument()
     expect(onRequestPatch).toHaveBeenCalledTimes(1)
 
@@ -342,7 +883,7 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /src\/race\.ts/i }))
+    await clickFileToggle()
     await waitFor(() => {
       expect(onRequestPatch).toHaveBeenCalledTimes(1)
     })
@@ -362,28 +903,34 @@ describe('WorktreeDiffPane', () => {
       </I18nProvider>,
     )
 
+    expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'true')
     await waitFor(() => {
       expect(onRequestPatch).toHaveBeenCalledTimes(2)
     })
 
-    resolveFirst({
-      path: 'src/race.ts',
-      found: true,
-      truncated: false,
-      patch: `diff --git a/src/race.ts b/src/race.ts\n@@ -1 +1 @@\n-old\n+stale`,
-      additions: 1,
-      deletions: 1,
+    await act(async () => {
+      resolveFirst({
+        path: 'src/race.ts',
+        found: true,
+        truncated: false,
+        patch: `diff --git a/src/race.ts b/src/race.ts\n@@ -1 +1 @@\n-old\n+stale`,
+        additions: 1,
+        deletions: 1,
+      })
+      await vi.dynamicImportSettled()
     })
-    await new Promise((resolve) => setTimeout(resolve, 0))
     expectNoDiffShadowText('stale')
 
-    resolveSecond({
-      path: 'src/race.ts',
-      found: true,
-      truncated: false,
-      patch: `diff --git a/src/race.ts b/src/race.ts\n@@ -1 +1 @@\n-old\n+fresh`,
-      additions: 2,
-      deletions: 1,
+    await act(async () => {
+      resolveSecond({
+        path: 'src/race.ts',
+        found: true,
+        truncated: false,
+        patch: `diff --git a/src/race.ts b/src/race.ts\n@@ -1 +1 @@\n-old\n+fresh`,
+        additions: 2,
+        deletions: 1,
+      })
+      await vi.dynamicImportSettled()
     })
     await expectDiffShadowText('fresh')
     expectNoDiffShadowText('stale')
@@ -410,7 +957,7 @@ describe('WorktreeDiffPane', () => {
     expect(screen.getByText('Code changes will appear here')).toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 
-  it('left-truncates long file path but keeps full path as title', () => {
+  it('renders long file paths through the outer file card header', async () => {
     const longPath = 'packages/web-reference-react/src/some/really/deeply/nested/folder/with/a/very/long/file/path/example.ts'
     renderPane(
       <WorktreeDiffPane
@@ -419,16 +966,20 @@ describe('WorktreeDiffPane', () => {
           generatedAt: '2026-02-09T00:00:00.000Z',
           hasChanges: true,
           truncated: false,
-          files: [{ path: longPath, additions: 1, deletions: 0, patch: '' }],
+          files: [{
+            path: longPath,
+            additions: 1,
+            deletions: 0,
+            patch: `diff --git a/${longPath} b/${longPath}\n@@ -0,0 +1 @@\n+new`,
+          }],
         }}
       />,
     )
 
-    const row = screen.getByTestId(`diff-file-row-${longPath}`)
-    const pathLabel = row.querySelector('span[title]') as HTMLSpanElement | null
-    expect(pathLabel).not.toBeNull()
-    expect(pathLabel?.title).toBe(longPath)
-    expect(pathLabel?.textContent?.startsWith('…')).toBe(true)
+    expect(screen.getByText(longPath)).toBeInTheDocument()
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
+    await expectDiffShadowText('new')
   }, TEST_TIMEOUT_MS)
 
   it('does not show clean-state message before diff snapshot is loaded', () => {
@@ -471,10 +1022,10 @@ describe('WorktreeDiffPane', () => {
       />,
     )
     expect(screen.getByText('Change set too large to preview')).toBeInTheDocument()
-    expect(screen.queryByTestId('diff-file-row-src/file-0.ts')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('worktree-diff-file-card')).not.toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 
-  it('shows partial preview banner and keeps renderable files when diff is truncated', () => {
+  it('shows partial preview banner and keeps renderable files when diff is truncated', async () => {
     renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
@@ -495,7 +1046,10 @@ describe('WorktreeDiffPane', () => {
     )
 
     expect(screen.getByText('Large diff detected - showing partial preview.')).toBeInTheDocument()
-    expect(screen.getByTestId('diff-file-row-src/partial.ts')).toBeInTheDocument()
+    expect(screen.getByText('src/partial.ts')).toBeInTheDocument()
+    expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
+    await clickFileToggle()
+    await expectDiffShadowText('new')
     expect(screen.queryByText('Change set too large to preview')).not.toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 
@@ -515,6 +1069,8 @@ describe('WorktreeDiffPane', () => {
 
     expect(screen.getByText('未提交的工作树变更')).toBeInTheDocument()
     expect(screen.getByText('变更数：0')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '统一' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '分栏' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('没有未暂存的变更')).toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 })

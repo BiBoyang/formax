@@ -52,8 +52,9 @@ This file is the "where to change what" index for `packages/web-reference-react`
 
 ### Diff
 
-- Pane shell + refresh + file selection: `src/components/WorktreeDiffPane.tsx`
-- Patch rendering primitives: `src/components/diff/*`
+- Pane shell + refresh + React-owned file cards/toggles/sticky headers: `src/components/WorktreeDiffPane.tsx`
+- Single-file `@pierre/diffs` PatchDiff adapter and renderer CSS: `src/components/diff/DiffPatchView.tsx`
+- Shared diff view-model helpers/types: `src/components/diff/*`
 - Runtime fetch handlers: `src/app/runtime/diffDataOps.ts`, `src/app/runtime/diffUiHandlers.ts`
 - Thread-only right-rail gating: `src/app/ui/AppShell.tsx`
 

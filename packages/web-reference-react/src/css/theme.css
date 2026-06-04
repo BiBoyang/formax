@@ -39,7 +39,7 @@
   --sidebar-ring: oklch(0.6028 0.2177 257.4239);
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 4px;
@@ -135,7 +135,7 @@
   --sidebar-ring: oklch(0.6243 0.2056 255.4861);
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 8px;
