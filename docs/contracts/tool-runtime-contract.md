@@ -1,6 +1,6 @@
 # Tool Runtime Contract（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-06-04  
 状态：规范性（Normative）
 
 本文档定义 Formax tools 子系统的执行合同、deferred `ToolSearch` runtime 合同，以及 `ToolResult` 与 `CommandResult` 的边界。
@@ -11,6 +11,7 @@
 - deferred `ToolSearch` 的 session-scoped runtime 行为
 - `ToolResult` 内容块与 slash-command `CommandResult` 的职责分层
 - 工具执行与工具呈现的 ownership 边界
+- MCP dynamic tools 的 runtime 边界摘要
 
 不在范围内：
 - prompt 侧“哪些工具先暴露给模型”的策略
@@ -21,6 +22,7 @@
 - `docs/contracts/prompt-tool-exposure-contract.md`
 - `docs/contracts/interactive-input-contract.md`
 - `docs/contracts/slash-command-contract.md`
+- `docs/contracts/mcp-client-contract.md`
 - `docs/contracts/semantics-contract.md`
 
 相关实现（规范锚点）：
@@ -125,6 +127,20 @@ tool presenter / presentation selector 只负责把 tool segment 转成可见摘
 
 `TOOL-207`
 当工具执行已经拥有 `ExecutionContext.cwd` 时，nested runtime（包括 `Task` sub-agent）MUST 继续使用该 `cwd` 作为 workspace authority；内部 runner MUST NOT 在该路径上重新退回 `process.cwd()`。`SubAgentRunner.run(...)` 的 per-run `cwd` 是必填上下文，因为 app-server runtime MAY 同时服务多个 thread / cwd。
+
+## 3A. MCP Dynamic Tools 边界
+
+`TOOL-250`  
+MCP `tools/list` entries MUST be represented as dynamic `ToolDefinition`s at the same catalog level as existing tools. They MUST execute through one generic MCP handler, not one static tool module per MCP server tool.
+
+`TOOL-251`  
+MCP model-facing names MUST use `mcp__<server>__<tool>`. Runtime execution MUST retain original server/tool identity in internal MCP binding metadata and MUST NOT rely on string splitting as the only execution truth.
+
+`TOOL-252`  
+MCP tools MUST pass through the existing executor gates in `TOOL-201`: abort, subagent deny, allow/deny list, handler resolution, hooks, policy preflight, and handler execution. MCP MUST NOT bypass hooks, policy, approval, or audit paths.
+
+`TOOL-253`  
+MCP result mapping MUST return normal `ToolResult`s. Raw binary/blob payloads MUST NOT be emitted inline/base64 to the model. Full result mapping and byte/token limits are defined by `docs/contracts/mcp-client-contract.md`.
 
 ## 4. Deferred ToolSearch Runtime
 

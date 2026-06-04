@@ -32,6 +32,7 @@
 - Prompt / tool exposure 唯一事实源（deferred tools / skills reminder / request preview）：`docs/contracts/prompt-tool-exposure-contract.md`
 - Context strategy stack 唯一事实源（query-time middle-layer stages / order / scope）：`docs/contracts/context-strategy-stack-contract.md`
 - Tool runtime / ToolSearch / ToolResult 边界唯一事实源：`docs/contracts/tool-runtime-contract.md`
+- MCP client / host 唯一事实源：`docs/contracts/mcp-client-contract.md`
 - Hooks 唯一事实源（events / matcher / additionalContext）：`docs/contracts/hooks-contract.md`
 - Session persistence / resume / stale-input 唯一事实源：`docs/contracts/session-persistence-contract.md`
 - Web parity adapter / reducer / cursor 唯一事实源：`docs/contracts/web-parity-adapter-contract.md`

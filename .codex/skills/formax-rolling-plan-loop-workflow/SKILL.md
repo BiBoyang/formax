@@ -35,7 +35,7 @@ description: "Use when the user wants a reusable rolling execution pattern (READ
 
 1. 实现（最小改动）
 2. 定向测试
-3. `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
+3. `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium" -c service_tier="fast"`
 4. 提交（Conventional Commit）
 
 ## Required guardrails

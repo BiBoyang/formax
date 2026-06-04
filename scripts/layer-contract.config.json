@@ -176,6 +176,7 @@
       "packages/core/src/streaming",
       "packages/core/src/services",
       "packages/core/src/tools",
+      "packages/core/src/mcp",
       "packages/core/src/hooks",
       "packages/core/src/features/subagents",
       "packages/core/src/features/repl",

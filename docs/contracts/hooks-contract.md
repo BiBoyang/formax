@@ -1,6 +1,6 @@
 # Hooks 合同（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-06-04  
 状态：规范性（Normative）
 
 本文档定义 Formax hooks 子系统的事件语义、matcher 规则、blocking 语义与 `additionalContext` 注入边界。
@@ -11,6 +11,7 @@
 - blocking 与 non-blocking 事件的 exit code 语义
 - `additionalContext` 的提取与注入时机
 - ChatEngine / tool executor 中的 hooks 注入边界
+- MCP tool names 在 tool hook events 中的摘要边界
 
 不在范围内：
 - hooks UI 对话框的具体布局和交互细节
@@ -21,6 +22,7 @@
 - `docs/references/hooks-payload-reference.md`
 - `docs/environment-variables.md`
 - `packages/core/src/hooks/README.md`
+- `docs/contracts/mcp-client-contract.md`
 
 规范关键字约定：
 - `MUST`、`SHOULD`、`MAY` 采用 RFC 2119 语义。
@@ -76,6 +78,12 @@ tool-matcher 语义 MUST 保持：
 2. 纯字符串 -> exact tool name match
 3. 含 regex 元字符的 matcher -> regex 匹配
 4. 非法 regex -> conservative non-match
+
+`HOOK-105`  
+MCP tool calls MUST use their full model-facing tool name, such as `mcp__<server>__<tool>`, for `PreToolUse`, `PermissionRequest`, and `PostToolUse` matcher evaluation. Hooks MUST NOT receive a shortened server/tool alias as the canonical matcher name.
+
+`HOOK-106`  
+MCP hook payloads MUST carry the full qualified MCP tool name. Original server/tool identity MAY be included as additional MCP metadata, but the canonical hook matcher field remains the model-facing tool name.
 
 ## 3. 配置加载与合并合同
 

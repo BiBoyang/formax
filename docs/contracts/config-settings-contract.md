@@ -1,6 +1,6 @@
 # Config Settings 合同（唯一事实源）
 
-最后更新：2026-06-01  
+最后更新：2026-06-04  
 状态：规范性（Normative）
 
 本文档定义 Formax runtime config 合并、`/config` 持久化与当前 settings 分类的唯一事实来源。
@@ -12,6 +12,7 @@
 - runtime defaults vs thread-bound overrides
 - sparse writes、默认值剥离、即时生效边界
 - output-style / thinking-mode / verbose-output 的分类与 side effects
+- MCP server config storage envelope 摘要边界
 
 不在范围内：
 - 环境变量完整枚举与用户分类说明
@@ -23,6 +24,7 @@
 - `docs/contracts/model-settings-contract.md`
 - `docs/contracts/prompt-tool-exposure-contract.md`
 - `docs/contracts/semantics-contract.md`
+- `docs/contracts/mcp-client-contract.md`
 
 相关实现（规范锚点）：
 - `packages/core/src/config/settings/schema.ts`
@@ -83,6 +85,23 @@ legacy config 路径 MAY 继续存在于 path 计算中，但当前 runtime conf
 
 `CFG-105`  
 env override 只对 `resolve.ts` 显式解析的变量生效。未解析或历史遗留 env key MUST NOT 隐式改变 runtime config。
+
+## 2A. MCP Config Storage 摘要
+
+`CFG-150`  
+Persisted MCP server config MUST live under existing `config.json` storage as `mcp.servers`. Formax MUST NOT add a separate `.mcp.json` or MCP-specific persisted config file in Phase 1A.
+
+`CFG-151`  
+REPL Phase 1A MUST feed effective `mcp.servers` from existing user/project `config.json` precedence into the MCP manager activation path.
+
+`CFG-152`  
+SDK Phase 1A MUST NOT read local user/project config files for MCP. SDK MCP servers MUST come only from explicit `options.mcpServers` / session overlay.
+
+`CFG-153`  
+app-server/Web/Electron Phase 1A MUST NOT read local MCP config or activate MCP servers. app-server uses explicit empty MCP overlay only.
+
+`CFG-154`  
+`mcp.servers` parsing MUST be strict. Unknown transport fields, OAuth/browser auth fields, HTTP session policy fields, reconnect policy fields, and legacy SSE runtime fields MUST be rejected for Phase 1A.
 
 ## 3. Auth 与运行时派生
 

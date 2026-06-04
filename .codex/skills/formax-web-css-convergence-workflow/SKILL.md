@@ -76,7 +76,7 @@ Use this skill when the task involves:
 - Required only for transparency scenario:
   - `bun run test:e2e -- e2e/window-transparency.evidence.spec.js --project=chromium` (in `packages/web-reference-react`)
 - Required before commit in this repo:
-  - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
+  - `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium" -c service_tier="fast"`
 
 ## Guardrails
 - Do not change unrelated UI behavior while “just tuning CSS”.

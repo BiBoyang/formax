@@ -205,6 +205,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool definitions (ToolDefinition): `packages/core/src/tools/types.ts`
 - Tool module registry: `packages/core/src/tools/registry.ts`
 - Built-in tool modules registration: `packages/core/src/tools/modules/index.ts`
+- MCP tool-name/config/catalog/result pure helpers: `packages/core/src/mcp/*`
 
 ### Tool execution pipeline
 - Executor entry (enforces allow/deny lists, routes to handlers): `packages/core/src/tools/executor/index.ts`

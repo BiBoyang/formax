@@ -1,6 +1,6 @@
 # Prompt 与 Tool Exposure 合同（唯一事实源）
 
-最后更新：2026-03-07  
+最后更新：2026-06-04  
 状态：规范性（Normative）
 
 本文档定义 Formax 在请求构造阶段的 prompt variant、deferred tool exposure、skills reminder、request dry-run preview 的唯一事实来源。
@@ -12,6 +12,7 @@
 - request-scoped helper blocks 的注入与持久化边界
 - request dry-run preview 的对齐约束
 - REPL / app-server / SDK 三条主路径的共享语义
+- MCP dynamic tools 在 direct/deferred exposure 中的摘要边界
 
 不在范围内：
 - 单个 tool 的业务合同与输入输出细节
@@ -20,6 +21,7 @@
 
 相关文档（信息性镜像）：
 - `docs/contracts/tool-runtime-contract.md`
+- `docs/contracts/mcp-client-contract.md`
 - `docs/environment-variables.md`
 - `docs/contracts/skills-contract.md`
 - `docs/learnings/2026-03-06-deferred-tool-exposure-shared-resolver.md`
@@ -87,6 +89,23 @@ deferred exposure 的 catalog/session 状态 MUST 由 shared resolver/store 管�
 
 `PTE-208`
 session-memory restore MAY expose `recentDeferredToolNames` as a bounded next-turn hint derived from prior successful `ToolSearch` calls. Extraction SHOULD prefer structured `tool_reference` blocks and MAY fall back to legacy text sections for older sessions. This hint MUST NOT rehydrate `DeferredToolExposureStore.loadedNames`, MUST NOT make those tools visible without the normal `ToolSearch`-first resolver path, and MUST remain best-effort restore context only.
+
+## 3A. MCP Tool Exposure 摘要
+
+`PTE-250`  
+MCP tools MUST be treated as dynamic catalog tools at the same exposure level as existing tools. MCP MUST NOT introduce MCP-specific broker/search tools or MCP-specific exposure modes.
+
+`PTE-251`  
+In legacy/direct exposure mode, discovered MCP dynamic tools are eligible to enter initial provider tools like other available tools after the normal resolver/filtering steps.
+
+`PTE-252`  
+In global deferred mode, MCP dynamic tools MUST participate in the existing deferred exposure runtime like other catalog tools. Deferred discovery controls only affect global deferred mode and MUST NOT make MCP specially unavailable in direct exposure mode.
+
+`PTE-253`  
+MCP resources and prompts MUST NOT be automatically injected into prompt context or tool exposure in Phase 1A. Phase 1A converts only MCP `tools/list` entries into tools.
+
+`PTE-254`  
+Request dry-run preview MUST remain side-effect-free for MCP: it MUST NOT spawn, connect, initialize, list tools, call tools, or mutate MCP manager state.
 
 ## 4. Skills 呈现合同
 

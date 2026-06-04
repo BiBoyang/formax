@@ -1,6 +1,6 @@
 # Permissions 与 Policy 合同（唯一事实源）
 
-最后更新：2026-03-12  
+最后更新：2026-06-04  
 状态：规范性（Normative）
 
 本文档定义 Formax 中 permissions / policy preflight / approval remember side effects 的唯一事实来源。
@@ -11,6 +11,7 @@
 - permissions settings 与 policy rules 的叠加方式
 - workspace 边界与 session workspace allow 语义
 - `approve_remember` 的持久化与 session side effects
+- MCP tool-name permissions 摘要边界
 
 不在范围内：
 - approval / ask_user_question 的 payload 形状与生命周期
@@ -69,6 +70,8 @@ permissions settings 的 overlay 词汇 MUST 使用：
 5. `net.search`
 6. `tool.install`
 
+MCP Phase 1A MUST NOT add a new `mcp.call` `PolicyAction`. MCP tool calls extend the existing tool permission / approval flow by tool name, as defined in `PERM-250` through `PERM-256`.
+
 `PERM-102`  
 当前 canonical tool-to-action 映射 MUST 保持：
 1. `Read` / `Glob` / `Grep` -> `fs.read`
@@ -89,6 +92,29 @@ permissions settings 的 overlay 词汇 MUST 使用：
 | `net.fetch` | `deny` |
 | `net.search` | `deny` |
 | `tool.install` | `allow` |
+
+## 2A. MCP Tool Permission 摘要
+
+`PERM-250`  
+MCP tool calls MUST be permissioned by their model-facing fully-qualified tool name `mcp__<server>__<tool>`, not by a new policy action kind and not by call arguments.
+
+`PERM-251`  
+Interactive main path MCP tool calls MUST default to prompt when no matching allow exists. Non-interactive and sub-agent MCP tool calls MUST fail closed when approval would be required.
+
+`PERM-252`  
+`approve_remember` for an MCP tool MUST remember the exact fully-qualified tool name by default. It MUST NOT include arguments in the remember key.
+
+`PERM-253`  
+Hand-authored permissions MAY use exact `mcp__<server>__<tool>`, server-level `mcp__<server>`, or wildcard `mcp__<server>__*` forms. Runtime MUST NOT auto-generate server-level or wildcard MCP rules in Phase 1A.
+
+`PERM-254`  
+MCP permissions MUST reuse existing permissions overlay precedence: `deny` > `ask` > `allow`; list precedence wins before match specificity. MCP MUST NOT add MCP-specific specificity ordering.
+
+`PERM-255`  
+There is no `mcp.server.start` approval action in Phase 1A. MCP server startup is host/runtime config activation and MUST NOT be authorized by model tool-call approval.
+
+`PERM-256`  
+MCP arguments belong in prompt/audit payload only. They MUST NOT be serialized into permission allow/ask/deny keys.
 
 ## 3. Policy Rules 合同
 

@@ -59,12 +59,12 @@
 
 ### Review Profile (Single Source of Truth)
 
-- Review command: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high"`
+- Review command: `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium" -c service_tier="fast"`
 - Tool-call timeout for review: `timeout_ms >= 1200000`
 - Review output artifact path (preferred): `.tmp/codex-review-result/`
 - Preferred local wrapper when running review manually or from agents:
   - `mkdir -p .tmp/codex-review-result`
-  - `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="high" > .tmp/codex-review-result/review-latest.txt 2>&1`
+  - `codex review --uncommitted -c model="gpt-5.4" -c model_reasoning_effort="medium" -c service_tier="fast" > .tmp/codex-review-result/review-latest.txt 2>&1`
   - Then inspect the saved output with a full-file finding/no-finding search instead of relying on the last lines:
     - `rg -n "Review comment:|Finding|findings|P0|P1|P2|P3|actionable|bug|regression|issue|I did not find|I did not identify" .tmp/codex-review-result/review-latest.txt`
   - If extra surrounding context is needed after the `rg` scan, use a local `sed`/`tail` view around the relevant line numbers; do not treat a fixed tail length as sufficient.

@@ -1,6 +1,6 @@
 # Query Contract Alignment Matrix
 
-更新时间：2026-03-04  
+更新时间：2026-06-04  
 需求来源：`plans/claude-agent-sdk/claude-agent-sdk-exports-reference.md`（`query` 与 `Options` 章节）
 
 ## 目标与边界
@@ -50,7 +50,7 @@
 | `maxThinkingTokens` | `options.maxThinkingTokens` | Partial | 输入契约已支持（含 `0`）；`thinking`/`thinkingEnabled` 优先，不做预算控制。 |
 | `hooks` | `options.hooks` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
 | `canUseTool` | `options.canUseTool` | Partial | 已支持：作为统一权限/用户输入回调处理 `approval_request` 与 `ask_user_question`；`approval_request` 下支持通过 `updatedInput` 回写工具入参（受控 JSON 通道映射 + 执行侧 deny 重校验），并对 `updatedPermissions` 做 destination-aware `approve_remember` 映射（当前仅覆盖可表达子集，超出子集回退为一次性 `approve`）。 |
-| `mcpServers` | `options.mcpServers` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `mcpServers` | `options.mcpServers` | Partial | Phase 1A 解锁严格 transport-aware 子集：仅支持 explicit SDK/session overlay，不读取 local config files；支持 `stdio` 与 Streamable HTTP `type: "http"`；拒绝 OAuth/session/reconnect/legacy SSE fields。 |
 | `plugins` | `options.plugins` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `settingSources` | `options.settingSources` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `resume`/`sessionId`/`resumeSessionAt` | `options.resume` / `options.sessionId` / `options.resumeSessionAt` | Partial | `resume/sessionId` 已支持（基于本地持久化会话恢复历史）；`continue+sessionId` 在匹配最新会话或 `forkSession=true` 时支持；`resumeSessionAt` 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
@@ -65,7 +65,7 @@
 | `permissionPromptToolName` | `options.permissionPromptToolName` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
 | `allowDangerouslySkipPermissions` | `options.allowDangerouslySkipPermissions` | Partial | 部分支持：`false` 作为兼容 no-op；`true` 仍显式报“暂不支持”（不降权限安全语义）。 |
 | `promptSuggestions` | `options.promptSuggestions` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
-| `strictMcpConfig` | `options.strictMcpConfig` | Partial | 输入契约已支持；当前统一显式报“暂不支持”。 |
+| `strictMcpConfig` | `options.strictMcpConfig` | Partial | Phase 1A 保持显式 unsupported；不做 live MCP config strict-mode controls。 |
 | `debug`/`debugFile` | `options.debug` / `options.debugFile` | Partial | 已支持：`debug=true` 通过环境变量开启 hook debug 路径；`debugFile` 作为调试日志文件输出路径。 |
 | `stderr` | `options.stderr` | Partial | 已支持：作为 SDK 错误输出回调（在 query 错误路径写入）。 |
 | `pathToClaudeCodeExecutable`/`spawnClaudeCodeProcess` | `options.pathToClaudeCodeExecutable` / `options.spawnClaudeCodeProcess` | Partial | 已支持：在 in-process SDK 模式下作为兼容 no-op 参数接受。 |
