@@ -22,6 +22,29 @@ Create a todo that is:
 
 This skill is **not** for coding and **not** for long-form design writing.
 
+## Preflight gate for large cross-layer tasks
+
+Before writing `docs/todolist.md`, use a short **Decision Draft** when the task crosses any of these Formax boundaries:
+
+- permissions / policy / approval / hooks
+- runtime config / persistent settings / credentials / secrets
+- tool runtime / prompt exposure / deferred exposure / ToolSearch
+- SDK / REPL / app-server / Web / Electron entrypoints
+- protocol boundaries, child processes, startup timing, session lifecycle, result mapping, files, binary payloads, or cleanup
+
+Do not write the final todo until the Decision Draft is aligned. The draft should be short and must answer:
+
+- Storage and config source: where data lives, who reads it, and who must not read it.
+- Schema and strictness: accepted fields, rejected fields, default values, and unknown-field behavior.
+- Startup / activation timing: which entrypoint may create side effects and which phases are pure.
+- Permission model: whether existing Formax permission / approval / hook flow can express the behavior before adding new actions.
+- Capability level: whether the feature is a tool, slash command, SDK control, hook, transcript renderer, config setting, or prompt exposure behavior.
+- Entrypoints: REPL, SDK, app-server, Web, and Electron behavior.
+- Result / IO boundaries: output caps, file locations, binary/media handling, cleanup, secrets, and timeout behavior.
+- Non-goals: what is explicitly out of Phase 1 and what user-visible behavior that implies.
+
+For small single-layer fixes, skip the Decision Draft and keep the todo lightweight.
+
 ## Core rules
 
 1. Use a single working todo file
@@ -65,6 +88,45 @@ This skill is **not** for coding and **not** for long-form design writing.
    - create a dedicated review findings log when the task is large enough to expect multiple `codex review` runs
    - do not let the todo imply that review findings are direct edit commands; findings must be classified before code changes
 
+9. Add an **EntryPoint Matrix** for cross-entrypoint features
+   - required when behavior may differ across REPL, SDK, app-server, Web, or Electron
+   - each relevant entrypoint must say whether it reads config, starts/activates runtime, exposes the capability, renders UI/transcript state, and has tests
+   - if an entrypoint is explicitly out of scope, say what it does instead, such as empty overlay, unsupported error, no-op with diagnostic, or no surface
+
+10. Attribute critical semantic decisions
+    - mark each non-obvious rule as one of:
+      - `Reference-derived` with the concrete reference, such as Claude Code, OpenAI SDK, MCP SDK/spec, or another repo source
+      - `Formax-existing` for behavior inherited from current contracts/code
+      - `Formax-Phase-1 safety choice` for thresholds, fail-closed defaults, local caps, cleanup, or bounded behavior we choose ourselves
+      - `User-aligned` for decisions explicitly settled with the user
+    - do not label a rule as parity/reference behavior unless the source was actually checked
+
+11. Prefer existing Formax models before inventing new concepts
+    - for permissions, first test whether existing permission / policy / approval / hook flow can express the behavior
+    - for tools, first decide the product level: normal tool, dynamic tool, ToolSearch/deferred catalog behavior, slash command, SDK control, or renderer
+    - add new policy actions, protocol fields, brokers, registries, or config files only after documenting why existing Formax contracts cannot express the need
+
+12. Make non-goals actionable
+    - for large protocol/runtime/config tasks, a non-goal should say:
+      - whether the upstream/reference system has the capability
+      - whether Formax Phase 1 implements it
+      - what behavior the user sees in Phase 1
+    - avoid vague non-goals such as "defer X" without the resulting behavior
+
+13. Run a vague-language scan before finalizing the todo
+    - search for terms like `where needed`, `if needed`, `if practical`, `either`, `or explicitly`, `fallback`, `unless scoped`, `later`, `may`, `might`, `optional`, `as needed`, `TBD`, `unresolved`
+    - every hit must become one of:
+      - a Phase 1 accepted rule
+      - an explicit non-goal
+      - a Phase 2 backlog item
+      - a stop condition
+      - a question for the user
+    - do not leave implementation-time choices hidden in prose
+
+14. Source thresholds and IO bounds
+    - any output cap, timeout, byte limit, file-backed path, cleanup policy, binary/media behavior, or secret redaction rule must cite its source
+    - if the value is a Formax local safety choice, say that explicitly and add tests that pin the behavior
+
 ## Required structure
 
 Use this shape unless a task has a strong reason to be simpler:
@@ -91,6 +153,15 @@ Use this shape unless a task has a strong reason to be simpler:
 - [x/ ] Later-loop findings are logged, not chased in the current loop
 - [x/ ] Spec ambiguity stops implementation until contracts/todo/user alignment are updated
 
+### 0.5 Decision Draft Summary
+- [ ] Storage/config source:
+- [ ] Schema/defaults/rejected fields:
+- [ ] Startup/activation timing:
+- [ ] Permission model:
+- [ ] Capability level:
+- [ ] Result/IO/cleanup bounds:
+- [ ] Explicit non-goals:
+
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
@@ -104,11 +175,20 @@ Use this shape unless a task has a strong reason to be simpler:
 - [ ] ...
 
 ### 1.4 Semantic decision table
-| Decision | Accepted rule | Alternatives rejected / deferred | Contract target | Test implication |
-|---|---|---|---|---|
-| ... | ... | ... | ... | ... |
+| Decision | Accepted rule | Source | Alternatives rejected / deferred | Contract target | Test implication |
+|---|---|---|---|---|---|
+| ... | ... | `Reference-derived` / `Formax-existing` / `Formax-Phase-1 safety choice` / `User-aligned` | ... | ... | ... |
 
-### 1.5 Review finding triage policy
+### 1.5 EntryPoint Matrix
+| EntryPoint | Reads config? | Activates runtime? | Exposes capability? | UI/transcript behavior | Tests |
+|---|---|---|---|---|---|
+| REPL | ... | ... | ... | ... | ... |
+| SDK | ... | ... | ... | ... | ... |
+| app-server | ... | ... | ... | ... | ... |
+| Web | ... | ... | ... | ... | ... |
+| Electron | ... | ... | ... | ... | ... |
+
+### 1.6 Review finding triage policy
 - [ ] Classify every review finding as `true blocker`, `valid but later-loop`, `spec ambiguity`, `reviewer preference`, or `conflicts with accepted contract`
 - [ ] Fix code only for true blockers inside the current loop contract, accepted contract violations, or localized low-risk implementation bugs
 - [ ] For later-loop findings, update the review findings log and make sure a future loop owns the acceptance item
@@ -188,6 +268,8 @@ A good todo should:
 - prevent UI-first drift
 - make it easy to know when the todo is done
 - reflect aligned decisions rather than unresolved debate
+- make entrypoint differences visible instead of implicit
+- distinguish reference parity from Formax safety choices
 
 ## Review rule
 
@@ -219,6 +301,16 @@ For large multi-loop tasks, include a stop/escalation rule in the todo or review
 - more than three findings in one review are not obvious code bugs
 - a credential, secret, startup gate, fail-open/fail-closed, durable-state, runtime-profile, or protocol-boundary finding is not already covered by contract/todo
 - the agent is about to make a third code change in the same semantic area only to satisfy review
+
+## Vague-language final check
+
+Before handing the todo back to the user, run a text search over the todo for ambiguous planning language:
+
+```sh
+rg -n "where needed|if needed|if practical|either|or explicitly|fallback|unless scoped|later|may|might|optional|as needed|TBD|unresolved" docs/todolist.md
+```
+
+Classify every match. It is acceptable for a match to remain only when it is clearly inside a Phase 2 backlog item, a stop condition, or a review triage rule. It is not acceptable for a Phase 1 implementation item to leave the decision open.
 
 ## Completion rule
 
