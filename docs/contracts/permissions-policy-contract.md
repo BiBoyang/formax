@@ -116,6 +116,9 @@ There is no `mcp.server.start` approval action in Phase 1A. MCP server startup i
 `PERM-256`  
 MCP arguments belong in prompt/audit payload only. They MUST NOT be serialized into permission allow/ask/deny keys.
 
+`PERM-257`  
+Plan mode MUST fail closed for MCP tool calls in Phase 1A. Because Phase 1A does not classify MCP tools by filesystem effect or target path, MCP tools MUST NOT bypass the existing plan-mode rule that only the active plan file may be edited.
+
 ## 3. Policy Rules 合同
 
 `PERM-201`  

@@ -8,19 +8,19 @@
 - [x] Tool 执行必须继续经过现有 executor gates：abort、subagent deny、allow/deny list、handler resolution、hooks、policy preflight、handler execution。
 - [x] 现有 deferred exposure runtime 已经为 global deferred mode 提供 session-scoped catalog、loaded tool state、search/select 行为。
 - [x] REPL、app-server、SDK 已经共享 prompt/tool exposure 语义，不能长出单独 MCP 路径。
-- [x] SDK types 已经暴露 `options.mcpServers` 和 MCP control methods，但当前实现仍返回 unsupported。
+- [x] SDK types 暴露 `options.mcpServers` 和 MCP control methods；Phase 1A 已支持 explicit `options.mcpServers` overlay 子集，live MCP control methods 仍保持 unsupported。
 - [x] WebGPT review 回复收敛到 hybrid 架构：dynamic MCP tool catalog + 一个 MCP dispatch handler，并兼容现有 direct/deferred tool exposure modes。
 - [x] Claude Code 参考行为把 MCP server config trust/activation 和 MCP tool-call permissions 分开；MCP tool remember 默认记 fully-qualified tool name，不记 arguments。
 - [x] Claude Code 对动态 MCP tools 使用一个 generic `MCPTool` / MCP UI renderer，不是每个 server tool 一个 UI presenter。
 
 ### 0.2 目标
-- [ ] Phase 1 增加 MCP client 支持，使用 `@modelcontextprotocol/sdk` client transports：stdio 和 Streamable HTTP。
-- [ ] MCP tools 以 `mcp__<server>__<tool>` 形状暴露给模型。
-- [ ] MCP tools 作为动态 `ToolDefinition` 注册在和现有 tools 同一个 runtime 层级；具体暴露方式跟随当前 Formax tool exposure mode。
-- [ ] MCP tool calls 通过现有 executor、hooks、policy、approval、audit 路径执行。
-- [ ] runtime 语义经过测试后，解锁安全子集的 SDK `options.mcpServers`。
-- [ ] REPL、app-server、SDK 都通过 shared MCP runtime/catalog helpers 接线。
-- [ ] Phase 1A 中 REPL MCP server config 使用现有 `config.json` 存储；SDK 只使用 explicit overlay，不能读取本地 config files。
+- [x] Phase 1 增加 MCP client 支持，使用 `@modelcontextprotocol/sdk` client transports：stdio 和 Streamable HTTP。
+- [x] MCP tools 以 `mcp__<server>__<tool>` 形状暴露给模型。
+- [x] MCP tools 作为动态 `ToolDefinition` 注册在和现有 tools 同一个 runtime 层级；具体暴露方式跟随当前 Formax tool exposure mode。
+- [x] MCP tool calls 通过现有 executor、hooks、policy、approval、audit 路径执行。
+- [x] runtime 语义经过测试后，解锁安全子集的 SDK `options.mcpServers`。
+- [x] REPL、app-server、SDK 都通过 shared MCP runtime/catalog helpers 接线。
+- [x] Phase 1A 中 REPL MCP server config 使用现有 `config.json` 存储；SDK 只使用 explicit overlay，不能读取本地 config files。
 
 ### 0.3 非目标
 - [x] Phase 1 不实现 Formax MCP server。
@@ -50,12 +50,12 @@
 - [x] 如果一个 loop 中 targeted tests 已通过，但两轮 review 仍产生新的 P1/P2 semantic findings，则停止实现 edits 并做 convergence pass。
 
 ### 0.5 决策草案摘要
-- [x] Storage/config source：持久化 MCP config 存在现有 Formax `config.json` 的 `mcp.servers` 下；REPL 读取 effective runtime config；SDK 只使用 explicit `options.mcpServers` / session overlay；Phase 1A 中 app-server/Web/Electron 不读取本地 MCP config。
+- [x] Storage/config source：持久化 MCP config 存在现有 Formax `config.json` 的 `mcp.servers` 下；REPL Phase 1A 只读取 user/global runtime config，repo-local project MCP config 先忽略，直到有 project MCP trust/approval gate；SDK 只使用 explicit `options.mcpServers` / session overlay；Phase 1A 中 app-server/Web/Electron 不读取本地 MCP config。
 - [x] Schema/defaults/rejected fields：Phase 1A 支持 strict `stdio` 和 Streamable HTTP `type: "http"` config；`enabled?: boolean` 默认 `true`；未知 transport fields 拒绝；OAuth/session/reconnect fields 拒绝；reserved `type: "sse"` 拒绝。
-- [x] Startup/activation timing：config parsing、catalog construction、status reads、deferred exposure resolution、dry-run 都是纯只读；REPL 在 runtime/session setup 后后台启动 manager activation；SDK/one-shot non-interactive 在第一次 model request 前 await manager activation；Phase 1A 中 app-server/Web/Electron 不激活 MCP。
+- [x] Startup/activation timing：config parsing、catalog construction、status reads、deferred exposure resolution、dry-run 都是纯只读；REPL 在 runtime/session setup 后后台启动 manager activation；SDK/one-shot non-interactive 对 explicit overlay path 在第一次 model request 前 await manager activation；Phase 1A 中 app-server/Web/Electron 不激活 MCP。
 - [x] Permission model：MCP tool calls 复用现有 Formax tool permission / approval / hook flow，key 为 fully-qualified tool name；不新增 `mcp.call` `PolicyAction`，也不新增 `mcp.server.start` approval action。
 - [x] Capability level：MCP `tools/list` 结果变成和现有 tools 同层级的 dynamic `ToolDefinition`；使用一个 generic MCP dispatch handler 执行；不做 MCP broker/search tool，也不定义 MCP-specific ToolSearch 语义。
-- [x] Result/IO/cleanup bounds：text/JSON output 使用 Claude Code-derived `MAX_MCP_OUTPUT_TOKENS = 25_000` 和 `tokens * 4` 字符近似；image/blob byte caps 是 Formax Phase 1A safety choices；binary payloads 走 file-backed，并随 manager/query scope cleanup。
+- [x] Result/IO/persistence bounds：text/JSON output 使用 Claude Code-derived `MAX_MCP_OUTPUT_TOKENS = 25_000` 和 `tokens * 4` 字符近似；image/blob byte caps 是 Formax Phase 1A safety choices；binary payloads 写到 logsDir 下的 file-backed artifacts，并在 manager/query close 后保留，因为 transcript 里会引用这些 path。
 - [x] Explicit non-goals：Phase 1A 不做 Formax MCP server、OAuth、legacy SSE runtime、resources/prompts exposure、multi-root negotiation、elicitation、sampling、app-server/Web/Electron management UI、`/mcp`、live SDK controls、SDK local config reads。
 
 ## 1. 先定义
@@ -63,9 +63,9 @@
 ### 1.1 Canonical docs
 - [x] 新增 `docs/contracts/mcp-client-contract.md`，作为 MCP client 唯一事实源。
 - [x] 更新 `docs/contracts/tool-runtime-contract.md`，加入 MCP dynamic tool handler 和 result mapping 规则。
-- [x] 在 `docs/contracts/mcp-client-contract.md` 中定义 Phase 1A active server sources：REPL 使用 effective runtime config `mcp.servers`；SDK 只使用 explicit `options.mcpServers` / session overlay。
+- [x] 在 `docs/contracts/mcp-client-contract.md` 中定义 Phase 1A active server sources：REPL 使用 user/global runtime config `mcp.servers`，repo-local project MCP config 先忽略直到有 trust gate；SDK 只使用 explicit `options.mcpServers` / session overlay。
 - [x] 在 `docs/contracts/mcp-client-contract.md` 中定义 config parsing、name normalization、pure catalog mapping、status reads、dry-run preview 都是 side-effect-free：不能 spawn、connect、initialize、list tools。
-- [x] 在 `docs/contracts/mcp-client-contract.md` 中定义对齐 Claude Code 的 activation timing：config reads 纯只读；interactive REPL 在 runtime/session setup 后后台启动 enabled MCP servers 的 connect/listTools，不阻塞首屏，也不保证首轮一定已有 MCP tools；one-shot SDK/non-interactive runs 在第一次 model request 前 await manager activation，让 MCP tools 能进入请求。
+- [x] 在 `docs/contracts/mcp-client-contract.md` 中定义对齐 Claude Code 的 activation timing：config reads 纯只读；interactive REPL 在 runtime/session setup 后后台启动 enabled MCP servers 的 connect/listTools，不阻塞首屏，也不保证首轮一定已有 MCP tools；one-shot SDK/non-interactive runs 对 explicit overlay path 在第一次 model request 前 await manager activation。
 - [x] 在 `docs/contracts/mcp-client-contract.md` 中定义 MCP tool-call approval 只授权模型请求的 tool invocation；server startup 是 host/runtime config activation，不是 model tool-call permission。
 - [x] 更新 `docs/contracts/prompt-tool-exposure-contract.md`：MCP 是 dynamic tool catalog input，不自动注入 resources/prompts。
 - [x] 在 `docs/contracts/prompt-tool-exposure-contract.md` 中定义 MCP tools 跟随同一套 active exposure mode：legacy/direct mode 下可 direct exposure；global deferred mode 下通过现有 deferred 机制 search/load。
@@ -76,64 +76,64 @@
 - [x] 在 `docs/contracts/permissions-policy-contract.md` 中定义 Phase 1A MCP `approve_remember` 是现有 permission/approval remember behavior 针对 fully-qualified MCP tool name；arguments 只进入 prompt/audit。
 - [x] 更新 `docs/contracts/hooks-contract.md`：MCP tool names 和 MCP policy payload fields 使用现有 hook events。
 - [x] 更新 `docs/contracts/config-settings-contract.md`：在现有 `config.json` 下预留 persisted MCP config，长期 envelope 为 `mcp.servers`。
-- [x] 在 `docs/contracts/config-settings-contract.md` 中定义 REPL Phase 1A 按现有 user/project `config.json` precedence 读取 effective `mcp.servers`；SDK Phase 1A 不能读取 local config files。
+- [x] 在 `docs/contracts/config-settings-contract.md` 中定义 REPL Phase 1A 只从 user/global `config.json` 读取 `mcp.servers`，repo-local project MCP config 先忽略直到有 trust gate；SDK Phase 1A 不能读取 local config files。
 - [x] 更新 `plans/sdk-contract-alignment-loop/query-alignment-matrix.md`，加入 Phase 1 SDK 子集。
-- [ ] 只有新增 MCP runtime entrypoints 或 ownership modules 时才更新 `CODEMAP.md`。
+- [x] 只有新增 MCP runtime entrypoints 或 ownership modules 时才更新 `CODEMAP.md`。
 
 ### 1.2 数据模型
-- [ ] 定义 `McpServerConfig` 为 discriminated union，对齐 Claude Code / SDK config vocabulary：
+- [x] 定义 `McpServerConfig` 为 discriminated union，对齐 Claude Code / SDK config vocabulary：
   - Shared field：`enabled?: boolean`，默认 `true`。Phase 1A 不支持单独的 `disabled` 字段。
-  - `type: "stdio"`：包含 `command`，可选 `args`、`env`、`cwd`、`enabled`。
+  - `type: "stdio"`：包含 `command`，可选 `args`、`env`、`cwd`、`timeoutMs`、`enabled`。
   - `type: "http"`：表示 MCP Streamable HTTP，包含 `url`，可选 `headers`、`timeoutMs`、`enabled`。
   - `type: "sse"`：只保留 discriminant，Phase 1A parser 拒绝；本计划不创建 runtime transport support。
-- [ ] 明确定义 dynamic-key 边界：`mcp.servers` 是以 normalized server id 为 key 的 record；`stdio.env` 和 `http.headers` 是 typed records；但每个 server config object 仍保持 strict，拒绝未知 transport fields。
-- [ ] 跨 transports 一致定义 `McpServerConfig` secret references；`env` 和 `headers` 可引用环境变量，但 raw secrets 不能出现在 model-facing output 或 audit 中。
-- [ ] 文档明确 `type: "http"` 表示 MCP Streamable HTTP，不是任意 HTTP fetch。
-- [ ] 在 `config.json` 的 `mcp.servers` 下定义 persisted config shape，复用同一个 normalized server config model。Phase 1A 不把 source/fingerprint metadata 持久化到 user config；实现里使用的 source/fingerprint metadata 只能是 internal derived state。
-- [ ] Phase 1A schema 拒绝 HTTP session policy、reconnect policy、OAuth/browser auth、legacy SSE fields；parser 必须拒绝这些 unknown fields，而不是保留。
+- [x] 明确定义 dynamic-key 边界：`mcp.servers` 是以 normalized server id 为 key 的 record；`stdio.env` 和 `http.headers` 是 typed records；但每个 server config object 仍保持 strict，拒绝未知 transport fields。
+- [x] 跨 transports 一致定义 `McpServerConfig` secret handling；`env` 和 `headers` 不进入 model-facing output 或 audit，stdio startup 只继承 MCP SDK safe default environment、低敏 runtime env allowlist 和 per-server explicit overrides。
+- [x] 文档明确 `type: "http"` 表示 MCP Streamable HTTP，不是任意 HTTP fetch。
+- [x] 在 `config.json` 的 `mcp.servers` 下定义 persisted config shape，复用同一个 normalized server config model。Phase 1A 不把 source/fingerprint metadata 持久化到 user config；实现里使用的 source/fingerprint metadata 只能是 internal derived state。
+- [x] Phase 1A schema 拒绝 HTTP session policy、reconnect policy、OAuth/browser auth、legacy SSE fields；parser 必须拒绝这些 unknown fields，而不是保留。
 - [x] 定义 internal MCP server runtime snapshots：这是 manager 的 read-only derived state，只用于 tests/diagnostics；读取 snapshots 不得 start、reconnect、initialize、list tools 或 call tools。
-- [ ] 定义 `McpToolBinding`：model-facing name 到 server id、original tool name、schema fingerprint、generation。
-- [ ] 定义 MCP permission keys：默认 remember key 是 fully-qualified tool `mcp__<server>__<tool>`；server-level `mcp__<server>` 和 wildcard `mcp__<server>__*` 只作为 hand-authored rule forms。冲突时沿用现有 matcher 顺序：任一 matching deny 胜过 ask/allow，任一 matching ask 胜过 allow，allow 只在没有 deny/ask match 时生效。
-- [ ] 定义 MCP call arguments 只作为 prompt/audit payload；arguments 不得序列化进 permission allow/ask/deny keys。
-- [ ] 定义 Claude Code-style server/tool name normalization：非法字符替换为 `_`，生成 `mcp__<server>__<tool>`，并在 `mcpInfo` 保留原始 server/tool names 用于 logging/calls。
-- [x] 定义简单 collision 行为：现有 config precedence 先产出 effective `mcp.servers` map；builtin/static tools 先占用 names；随后 MCP bindings 按 normalized server id 和 normalized tool name 的稳定顺序处理。两个 MCP bindings 生成同一个 `mcp__<server>__<tool>` name 时，保留第一个 binding，suppress 后续 duplicates。Suppressed duplicates 只进入 internal runtime snapshots/debug logs；不暴露给模型、不写入 user config、Phase 1A 不用 hash suffix 或 alias 自动修复。Claude Code tool names 使用 normalized `mcp__<server>__<tool>` 并保留原始 `mcpInfo`；connector/server-name 层可能有 human-readable numeric suffix，但 Formax Phase 1A 不需要 hash aliases。
+- [x] 定义 `McpToolBinding`：model-facing name 到 server id、original tool name、schema fingerprint；Phase 1A generation 隐含在 manager snapshot 中。
+- [x] 定义 MCP permission keys：默认 remember key 是 fully-qualified tool `mcp__<server>__<tool>`；server-level `mcp__<server>` 和 wildcard `mcp__<server>__*` 只作为 hand-authored rule forms。冲突时沿用现有 matcher 顺序：任一 matching deny 胜过 ask/allow，任一 matching ask 胜过 allow，allow 只在没有 deny/ask match 时生效。
+- [x] 定义 MCP call arguments 只作为 prompt/audit payload；arguments 不得序列化进 permission allow/ask/deny keys。
+- [x] 定义 Claude Code-style server/tool name normalization：非法字符替换为 `_`，生成 `mcp__<server>__<tool>`，并在 `mcpInfo` 保留原始 server/tool names 用于 logging/calls。
+- [x] 定义简单 collision 行为：user/global config resolution 先产出 effective `mcp.servers` map；builtin/static tools 先占用 names；随后 MCP bindings 按 normalized server id 和 normalized tool name 的稳定顺序处理。两个 MCP bindings 生成同一个 `mcp__<server>__<tool>` name 时，保留第一个 binding，suppress 后续 duplicates。Suppressed duplicates 只进入 internal runtime snapshots/debug logs；不暴露给模型、不写入 user config、Phase 1A 不用 hash suffix 或 alias 自动修复。Claude Code tool names 使用 normalized `mcp__<server>__<tool>` 并保留原始 `mcpInfo`；connector/server-name 层可能有 human-readable numeric suffix，但 Formax Phase 1A 不需要 hash aliases。
 - [x] 定义 Claude Code-style MCP result mapping 到现有 `ToolResult`：text 保持 text，`structuredContent` 变 JSON text，images/audio/non-image blobs 保存为文件并返回 path text，resource links 只返回 placeholder text 且不注入 body，所有大输出/二进制输出都必须 bounded。
-- [ ] 定义 Phase 1A result bounds：text 和 JSON-stringified `structuredContent` 使用 Claude Code 对齐的 MCP output budget：默认 `MAX_MCP_OUTPUT_TOKENS = 25_000`，第一版允许在 mapper 里先用 `maxTokens * 4` 作为字符预算，直到 Formax 有 token estimator。截断输出必须追加明确 marker，并写明 token limit。Binary/blob payloads 永远不 inline/base64 发给模型；Formax Phase 1A 本地安全边界允许 `10 MiB` 以内的 blobs 写入 manager-owned `mcp-output/<session-id>/` 目录，优先放在 `cfg.paths.logsDir` 下，否则使用 OS temp directory。更大的 blobs 返回带 size metadata 的 error text result，不写文件。
+- [x] 定义 Phase 1A result bounds：text 和 JSON-stringified `structuredContent` 使用 Claude Code 对齐的 MCP output budget：默认 `MAX_MCP_OUTPUT_TOKENS = 25_000`，第一版允许在 mapper 里先用 `maxTokens * 4` 作为字符预算，直到 Formax 有 token estimator。截断输出必须追加明确 marker，并写明 token limit。Binary/blob payloads 永远不 inline/base64 发给模型；Formax Phase 1A 本地安全边界允许 `10 MiB` 以内的 blobs 写入 manager-owned `mcp-output/<session-id>/` 目录，并放在 `cfg.paths.logsDir` 下。更大的 blobs 返回带 size metadata 的 error text result，不写文件。
 - [x] 定义 image handling：Phase 1A generic `ToolResult` mapping 不发 provider image blocks，也不发 raw image base64；images 走和其他 blobs 相同的 file-backed path flow；provider-native image blocks 延后到 adapter-specific non-text payload path 存在后再做。
-- [ ] 定义 file-backed output cleanup：MCP output files 归 MCP manager/query/session scope 所有，在 manager disposal/query close 时 best-effort 删除；cleanup failures 只进入 diagnostics，不写 user config，也不阻塞 shutdown。
-- [ ] 添加 SDK-backed real transports 前，先定义 fake client interfaces。
-- [ ] 定义薄 SDK transport adapter 边界：config parsing 产出 normalized transport configs；Phase 1A manager activation 只创建 `StdioClientTransport` 或 `StreamableHTTPClientTransport`。
-- [ ] 定义 startup/connect side-effect 边界：真实 stdio spawn 或 Streamable HTTP connect 只能发生在 scoped MCP server manager/transport activation path 中，且 active host-provided config 来源为 REPL effective `config.json` 和 SDK explicit overlay。
-- [ ] 定义 activation/listTools side-effect 边界：manager activation 负责对 enabled servers connect、initialize、list tools；tool catalog building 只读 already-discovered metadata；第一次 MCP tool call 可以 ensure/reuse existing client，但不得作为 initial discovery path。
+- [x] 定义 file-backed output persistence：写到 logsDir 下的 MCP output files 归 runtime/session artifact scope 所有，并在 manager disposal/query close 后保留，因为 transcript rows 会引用这些 path。自动清理延后到未来明确 retention policy。
+- [x] 添加 SDK-backed real transports 前，先定义 fake client interfaces。
+- [x] 定义薄 SDK transport adapter 边界：config parsing 产出 normalized transport configs；Phase 1A manager activation 只创建 `StdioClientTransport` 或 `StreamableHTTPClientTransport`。
+- [x] 定义 startup/connect side-effect 边界：真实 stdio spawn 或 Streamable HTTP connect 只能发生在 scoped MCP server manager/transport activation path 中，且 active host-provided config 来源为 REPL user/global `config.json` 和 SDK explicit overlay。
+- [x] 定义 activation/listTools side-effect 边界：manager activation 负责对 enabled servers connect、initialize、list tools；tool catalog building 只读 already-discovered metadata；第一次 MCP tool call 可以 reuse existing client，但不得作为 initial discovery path。
 
 ### 1.3 Types / Interfaces
-- [ ] 在 `packages/core/src/mcp/` 下新增 pure MCP types。
-- [ ] 新增 name helpers 构造和解析 `mcp__<server>__<tool>`，但执行真实调用时不能依赖 split parsing 作为唯一依据。
-- [ ] 新增 config parser，用于 SDK/session overlay input 和 persisted `config.json` shape，并产出单一 normalized internal `McpServerConfig` model。
-- [ ] REPL runtime manager inputs 来自 effective runtime config `mcp.servers`；SDK runtime manager inputs 只来自 explicit SDK/session overlay。
-- [ ] 新增 result mapper，遵循 Claude Code-style plain mapping：text passthrough、`structuredContent` JSON stringify、MCP output token cap 默认 `25_000` tokens 并用 `tokens * 4` 近似字符截断、file-backed blobs/images <=10 MiB 并返回 path text、larger blobs stable error、resource links 作为不含 body 的 placeholder text、scoped cleanup。
-- [ ] 新增 manager/client abstractions，并用 fake-client-backed tests 覆盖。
-- [ ] 新增一个 MCP `ToolHandler`，通过 manager dispatch 已知 MCP tool names。
-- [ ] 新增 shared catalog resolver helpers，让 REPL/app-server/SDK 一致合并 builtin tools 和 MCP tools。
+- [x] 在 `packages/core/src/mcp/` 下新增 pure MCP types。
+- [x] 新增 name helpers 构造和解析 `mcp__<server>__<tool>`，但执行真实调用时不能依赖 split parsing 作为唯一依据。
+- [x] 新增 config parser，用于 SDK/session overlay input 和 persisted `config.json` shape，并产出单一 normalized internal `McpServerConfig` model。
+- [x] REPL runtime manager inputs 来自 user/global runtime config `mcp.servers`；SDK runtime manager inputs 只来自 explicit SDK/session overlay。
+- [x] 新增 result mapper，遵循 Claude Code-style plain mapping：text passthrough、`structuredContent` JSON stringify、MCP output token cap 默认 `25_000` tokens 并用 `tokens * 4` 近似字符截断、file-backed blobs/images <=10 MiB 并返回 path text、larger blobs stable error、resource links 作为不含 body 的 placeholder text、file-backed artifacts 持久保留。
+- [x] 新增 manager/client abstractions，并用 fake-client-backed tests 覆盖。
+- [x] 新增一个 MCP `ToolHandler`，通过 manager dispatch 已知 MCP tool names。
+- [x] 新增 shared catalog resolver helpers，让 REPL/app-server/SDK 一致合并 builtin tools 和 MCP tools。
 
 ### 1.4 语义决策表
 | 决策 | 接受规则 | 来源 | 拒绝 / 延后的替代方案 | Contract 目标 | 测试含义 |
 |---|---|---|---|---|---|
 | MCP 架构 | Hybrid：dynamic catalog + 一个 MCP dispatch handler，并接入现有 direct/deferred exposure modes | User-aligned；WebGPT-reviewed；Formax-existing tool runtime | 单一 broker tool；global registry patch；per-tool static modules；MCP-specific search tool | `mcp-client`, `tool-runtime`, `prompt-tool-exposure` | MCP tools 以普通 `ToolDefinition` 出现，但通过一个 handler 执行 |
 | Phase 1 transport model | 从第一天使用 `@modelcontextprotocol/sdk` transports：`stdio` 和 Streamable HTTP `type: "http"`；Phase 1A 拒绝 legacy `sse`，但为后续 compatibility scope 保留 discriminant | MCP SDK/spec-derived；User-aligned | 手写 JSON-RPC transport；stdio-only types 导致后续 union 返工；legacy SSE 作为主路径 | `mcp-client`, `config-settings`, `permissions-policy` | parser 接受/normalize stdio/http shapes，拒绝 sse；runtime 只在 manager activation 创建 SDK transports；SDK 不读 disk config |
-| Config storage | persisted MCP config 存在现有 `config.json` 的 `mcp.servers` 下；跨 transports 与 SDK overlay 共享 parser/schema | User-aligned；Formax-existing config system | 单独 `.mcp.json`；runtime 先 ship 后再设计 storage；SDK 读取 local config files | `config-settings`, `mcp-client` | REPL effective config 可激活支持的 transports；单纯 parsing 不启动/list/connect servers |
+| Config storage | persisted MCP config 存在现有 `config.json` 的 `mcp.servers` 下；Phase 1A REPL 只读 user/global config，repo-local project MCP config 先忽略直到有 trust gate；SDK explicit overlay 与 REPL 跨 transports 共享 parser/schema | User-aligned；Formax-existing config system；safety review | 单独 `.mcp.json`；runtime 先 ship 后再设计 storage；SDK 读取 local config files；没有 trust gate 就激活 repo-local MCP config | `config-settings`, `mcp-client` | REPL user/global config 可激活支持的 transports；SDK overlay 可激活支持的 transports；单纯 parsing 不启动/list/connect servers |
 | Discovery | MCP tools 是和现有 tools 同层级的 dynamic tools。direct exposure mode 下可以进入 initial provider tools；global deferred mode 下像其他 deferred catalog tools 一样进入现有 deferred exposure runtime | User-aligned；Formax-existing prompt/tool exposure | MCP-only always-deferred 行为；MCP-specific search tool；broker-only tool | `prompt-tool-exposure` | direct mode 可暴露 `mcp__*`；deferred mode 通过现有 deferred 机制加载 `mcp__*` |
 | Naming | `mcp__<server>__<tool>`，简单 normalization，保留原始 `mcpInfo`。Builtins 先占用 names；MCP duplicates 按 normalized server/tool 稳定顺序 suppress，diagnostics 只保留 internal。Formax Phase 1A 不增加 hash aliases | Claude Code-derived；User-aligned | Hash suffix；alias registry；复杂 collision resolver | `mcp-client`, `tool-runtime` | duplicate names 不 crash，也不静默覆盖 builtins；diagnostics 解释 dropped/hidden MCP tools |
 | Tool permission | MCP tool calls 使用现有 tool permission / approval flow，key 为 fully-qualified tool name。默认 interactive path prompt；remember 默认 `mcp__<server>__<tool>`，不包含 arguments | Claude Code-derived；Formax-existing permissions；User-aligned | 复用 `Bash(...)` command matching；`net.fetch`；trust annotations；default allow；独立 `mcp.server.start` approval action；默认 argument-exact remember | `permissions-policy` | MCP calls 在 interactive main path prompt；non-interactive/subagent 在没有匹配 allow 时 deny；remembered same-tool 不因不同 args 再 prompt |
-| Server startup/connect | Startup/connect 是 host/runtime config activation，不是 model tool call。Phase 1A 只从 REPL effective config 或 explicit SDK/session overlay 激活支持的 transports；不能由 model output、REPL command、app-server RPC、Web UI、config parsing、catalog construction、deferred exposure resolution、status reads、dry-run 触发 | Claude Code-derived startup timing；User-aligned entrypoint boundary | Model/chat-created startup config；SDK local-file reads；manager lifecycle 外 activation | `mcp-client`, `config-settings`, `permissions-policy` | parser/catalog/status tests 断言没有 client spawn/connect/list side effects；REPL startup path 是唯一 disk-backed activation path |
-| Result mapping | 遵循 SDK/Claude Code-style result mapping，并采用 Phase 1A bounds：text/JSON 由 MCP output budget 限制，默认 25,000 tokens，第一版用 `tokens * 4` 近似字符截断；blobs/images file-backed up to 10 MiB under manager-owned output dir；resource bodies 不注入；manager/query disposal 时 cleanup | Claude Code-derived text/token cap；Formax-Phase-1 safety choice for byte/file caps | Raw base64/blob injection；custom structured AST；automatic resource context injection；generic `ToolResult` 里的 provider image blocks；unbounded output | `tool-runtime`, `mcp-client` | mapper 不发 unbounded raw binary payloads；media 降级为 file-backed/text output；resource bodies 不进 prompt；oversized blobs 返回 stable errors |
-| SDK controls | runtime 存在后解锁 `options.mcpServers` 子集；Phase 1A 中 SDK MCP control methods 保持 unsupported，包括 `query.mcpServerStatus()` | Formax-existing unsupported surface；User-aligned | Phase 1A 做 live set/status/reconnect/toggle | `mcp-client`, SDK matrix | control methods 继续返回 stable unsupported errors |
+| Server startup/connect | Startup/connect 是 host/runtime config activation，不是 model tool call。Phase 1A 只从 REPL user/global config 和 SDK explicit overlay 激活支持的 transports。Activation 不能由 model output、REPL command、app-server RPC、Web UI、config parsing、catalog construction、deferred exposure resolution、status reads、dry-run 触发 | Claude Code-derived startup timing；User-aligned entrypoint boundary；safety review | Model/chat-created startup config；没有 trust gate 就激活 repo-local project MCP config；SDK local-file reads；manager lifecycle 外 activation | `mcp-client`, `config-settings`, `permissions-policy` | parser/catalog/status tests 断言没有 client spawn/connect/list side effects；REPL startup path 是唯一 disk-backed activation path；SDK activation 只来自 explicit overlay |
+| Result mapping | 遵循 SDK/Claude Code-style result mapping，并采用 Phase 1A bounds：text/JSON 由 MCP output budget 限制，默认 25,000 tokens，第一版用 `tokens * 4` 近似字符截断；blobs/images file-backed up to 10 MiB under logsDir-owned output dir；resource bodies 不注入；file-backed artifacts 在 manager/query disposal 后保留 | Claude Code-derived text/token cap；Formax-Phase-1 safety choice for byte/file caps | Raw base64/blob injection；custom structured AST；automatic resource context injection；generic `ToolResult` 里的 provider image blocks；unbounded output | `tool-runtime`, `mcp-client` | mapper 不发 unbounded raw binary payloads；media 降级为 file-backed/text output；resource bodies 不进 prompt；oversized blobs 返回 stable errors；transcript paths 在 shutdown 后仍有效 |
+| SDK controls | 支持 strict `options.mcpServers` explicit overlay 子集；Phase 1A 中 SDK MCP control methods 保持 unsupported，包括 `query.mcpServerStatus()` | Formax-existing unsupported control surface；User-aligned | Phase 1A 做 live set/status/reconnect/toggle；SDK 读取 local config | `mcp-client`, SDK matrix | overlay query tools 可暴露；control methods 继续返回 stable unsupported errors |
 
 ### 1.5 EntryPoint Matrix
 | EntryPoint | Reads config? | Activates runtime? | Exposes capability? | UI/transcript behavior | Tests |
 |---|---|---|---|---|---|
-| REPL | 是：effective user/project `config.json` `mcp.servers` | 是：runtime/session setup 后后台 manager activation | 是：discovery 后 MCP dynamic tools 进入当前 active tool exposure mode | generic REPL/TUI MCP presenter；不做 `/mcp` management UI | config activation、manager、exposure、permissions、generic presenter |
-| SDK | 不读 local config；只读 explicit `options.mcpServers` / session overlay | 是：第一次 model request 前 await query/session manager activation | 是：supported overlay MCP tools 进入当前 active tool exposure mode | 无 MCP management UI；live control methods 保持 unsupported | SDK query overlay、unsupported controls、cleanup |
+| REPL | 是：user/global `config.json` `mcp.servers`；repo-local project MCP config 先忽略直到有 trust gate | 是：runtime/session setup 后后台 manager activation | 是：discovery 后 MCP dynamic tools 进入当前 active tool exposure mode | generic REPL/TUI MCP presenter；不做 `/mcp` management UI | config activation、manager、exposure、permissions、generic presenter |
+| SDK | 不读 local config；public `options.mcpServers` 支持 strict explicit overlay 子集 | 是：第一次 model request 前 await query/session manager activation | 是：通过 shared runtime 暴露 supported overlay MCP tools | 无 MCP management UI；live control methods 保持 unsupported | SDK query overlay、unsupported controls、cleanup |
 | app-server | 不读 local MCP config；只传 explicit empty MCP overlay | 否：Phase 1A 不 manager activation、connect、initialize、listTools | 否：Phase 1A 不暴露 MCP tools | 无 management UI；无 read-only status events | empty overlay、不读 config、不 activation、不暴露 MCP tools |
 | Web | 不读 MCP config | 不激活 MCP | 只展示 supported backend paths 产生的 MCP transcript events；不暴露/管理 servers | generic `mcp__*` tool block renderer；无 management UI | generic MCP tool block renderer |
 | Electron | Phase 1A 无 Electron-specific MCP config reads | Phase 1A 无 Electron-specific activation | 无 Electron-specific MCP management/exposure path | 仅使用现有 surfaces；无 management UI | 由 shared app-server/Web/REPL tests 覆盖；Phase 1A 无单独 Electron MCP tests |
@@ -157,43 +157,43 @@
 - [x] 新增 MCP server manager 模块。
 - [x] 新增 MCP tool binding 模块。
 - [x] 新增 `packages/core/src/mcp/toolCatalog.ts`。
-- [ ] 新增 MCP SDK transport adapter 模块，在 fake-client semantics 锁定后作为 `@modelcontextprotocol/sdk` transports 的薄 adapter。
-- [ ] 新增 `packages/core/src/tools/modules/mcp/{index,handler,presenter}.tsx`，在 REPL/TUI 中为所有 `mcp__*` tools 提供一个 Claude Code-style generic MCP presenter。
-- [ ] 新增 shared catalog resolver code，用于 builtin specs + MCP dynamic specs。
-- [ ] 更新 `packages/core/src/tools/modules/index.ts`，注册 MCP handler module。
-- [ ] 更新 REPL/TUI tool presenter routing/registry，让动态 `mcp__*` tool names resolve 到 generic MCP presenter，而不是每个 MCP tool 注册一个 presenter。
-- [ ] contract 定义 MCP tool-name permission behavior 后，再更新 permission/preflight/approval code；不要新增 `mcp.call` `PolicyAction`。
-- [ ] 确保所有 MCP lifecycle cleanup 尊重 abort/query close/scope disposal。
+- [x] 新增 MCP SDK transport adapter 模块，在 fake-client semantics 锁定后作为 `@modelcontextprotocol/sdk` transports 的薄 adapter。
+- [x] 新增 `packages/core/src/tools/modules/mcp/{index,handler,presenter}.tsx`，在 REPL/TUI 中为所有 `mcp__*` tools 提供一个 Claude Code-style generic MCP presenter。
+- [x] 新增 shared catalog resolver code，用于 builtin specs + MCP dynamic specs。
+- [x] 在 runtime bootstrap（`packages/core/src/runtime/bootstrap/tooling.ts`）注册 manager-bound MCP handler module，而不是放进静态 builtin module registry。
+- [x] 更新 REPL/TUI tool presenter routing/registry，让动态 `mcp__*` tool names resolve 到 generic MCP presenter，而不是每个 MCP tool 注册一个 presenter。
+- [x] contract 定义 MCP tool-name permission behavior 后，再更新 permission/preflight/approval code；不要新增 `mcp.call` `PolicyAction`。
+- [x] 确保所有 MCP lifecycle cleanup 尊重 abort/query close/scope disposal。
 
 ## 3. Entrypoint Boundary
-- [ ] REPL 把 effective runtime config `mcp.servers`、session scope、cwd、runtime inputs 传入 shared MCP catalog helpers。
-- [ ] Phase 1A app-server 把 thread scope/cwd/runtime inputs 加 explicit empty MCP overlay 传入 shared MCP catalog helpers。
-- [ ] SDK 只把 query/session overlay 和 control calls 传入 shared MCP manager；不能拥有单独 MCP executor。
-- [ ] SDK/query runner 可以创建并关闭 query/session-scoped manager，但 naming、config parsing、catalog、dispatch、policy、result mapping 必须保留在 shared MCP/runtime modules。
-- [ ] Phase 1A app-server 不得从 local config 读取 `mcp.servers`，不得创建/activate MCP manager，不得 connect/list tools，不得暴露 MCP tools。它只用 empty overlay 保持 shared resolver type/shape。
-- [ ] Phase 1A 不做 Web/Electron MCP management UI。
-- [ ] Web transcript 行为要独立于 REPL/TUI 定义：在 `packages/web-reference-react/src/components/tool/toolBlocksRegistry.ts` 增加 generic `mcp__*` renderer；MCP transcript rows 不依赖 default fallback rendering。
-- [ ] Phase 1A 不做 app-server MCP management RPC。
-- [ ] Phase 1A 不增加 app-server/Web read-only MCP status events。
+- [x] REPL 把 user/global runtime config `mcp.servers`、session scope、cwd、runtime inputs 传入 shared MCP catalog helpers。
+- [x] Phase 1A app-server 把 thread scope/cwd/runtime inputs 加 explicit empty MCP overlay 传入 shared MCP catalog helpers。
+- [x] SDK 只把 query/session overlay 和 control calls 传入 shared MCP manager；不拥有单独 MCP executor。
+- [x] SDK/query runner 创建并关闭 query/session-scoped manager，但 naming、config parsing、catalog、dispatch、policy、result mapping 保留在 shared MCP/runtime modules。
+- [x] Phase 1A app-server 不从 local config 读取 `mcp.servers`，不创建/activate MCP manager，不 connect/list tools，不暴露 MCP tools。它只用 empty overlay 保持 shared resolver type/shape。
+- [x] Phase 1A 不做 Web/Electron MCP management UI。
+- [x] Web transcript 行为要独立于 REPL/TUI 定义：在 `packages/web-reference-react/src/components/tool/toolBlocksRegistry.ts` 增加 generic `mcp__*` renderer；MCP transcript rows 不依赖 default fallback rendering。
+- [x] Phase 1A 不做 app-server MCP management RPC。
+- [x] Phase 1A 不增加 app-server/Web read-only MCP status events。
 
 ## 4. Tests
 - [x] 新增 `packages/core/src/mcp/names.test.ts`。
 - [x] 新增 `packages/core/src/mcp/config.test.ts`：接受 SDK/session 和 persisted `config.json` 的 `stdio`/`http` shapes；拒绝 legacy/unsupported transports 和 unsupported auth modes；确保 parsing alone 不 instantiate clients、不 starts/connects/list tools；区分 REPL disk-backed activation 和 SDK overlay-only 行为。
 - [x] 新增 `packages/core/src/mcp/resultMapper.test.ts`：映射 text/errors；JSON-stringify `structuredContent`；text/JSON 按 MCP output budget 截断，默认 25,000 tokens，用 `tokens * 4` 近似字符预算并加 marker；images/audio/non-image blobs <=10 MiB 保存文件并返回 path text；larger blobs 返回 stable error text；resource links 映射为不含 body 的 placeholder text；永不 raw base64/blob injection。
-- [ ] 增加 manager/query disposal tests，清理 file-backed MCP output。
+- [x] 增加 manager/query disposal tests，断言 file-backed MCP artifacts 在正常 shutdown 后仍可用于 transcript path inspection。
 - [x] 新增 MCP server manager tests。
 - [x] 新增 MCP tool binding tests：stable binding、simple normalization、builtin-name reservation、按 normalized server/tool 顺序 suppress duplicates、suppressed duplicates 的 internal diagnostics、保留原始 `mcpInfo`，Phase 1A 不出现 hash suffixes 或 alias registry。
 - [x] 新增 `packages/core/src/mcp/toolCatalog.test.ts`：只消费 already-discovered metadata，永不 connect/start servers。
-- [ ] 增加 MCP exposure tests：direct exposure mode 可以把 `mcp__*` 放进 provider tools；global deferred mode 可以通过现有 deferred 机制暴露/加载 `mcp__*`。
-- [ ] 在 `packages/core/src/adapters/permissions/matcher.test.ts` 增加 MCP cases：`mcp__server__tool` exact match；`mcp__server` / `mcp__server__*` match server-level MCP tools；arguments 永远不进入 permission key；冲突沿用现有 `deny > ask > allow` 顺序，而不是 specificity。
-- [ ] 在 `packages/core/src/tools/executor/index.test.ts` 增加 MCP cases：`PreToolUse` 收到完整 `mcp__server__tool`，可在 client call 前 block；`PostToolUse` 在 success/error 后仍运行。
-- [ ] 在 `packages/core/src/tools/executor/policyPreflight.test.ts` 增加 MCP cases：默认 interactive MCP tool call prompts；remembered fully-qualified MCP tool 对不同 call arguments 仍允许；deny/ask wins；non-interactive/subagent fail closed without pending approval。
-- [ ] 在 `packages/core/src/tools/executor/approvalService.test.ts` 增加 MCP approval side-effect cases：`approve_remember` 写入/记住 exact fully-qualified MCP tool name，不记 arguments；hand-authored server/wildcard rules 可匹配但不自动生成。
-- [ ] 增加 REPL/TUI MCP presenter/router tests：任意 `mcp__server__tool` transcript row 使用 generic MCP presenter，展示 normalized server/tool identity 和 concise params/progress/result summary，大输出 warning/truncate，malformed names clean fallback。
-- [ ] 增加 Web transcript MCP test：`mcp__server__tool` 使用 generic MCP tool block renderer，且不增加 MCP management UI。
-- [ ] runtime 可用后，在 `packages/core/src/sdk/query.test.ts` 增加 SDK MCP cases。
-- [ ] 增加 app-server Phase 1A tests，断言 empty MCP overlay behavior：不读取 local MCP config、不 manager activation/connect/listTools、不暴露 MCP tools，shared resolver shape 仍接受 empty overlay。
-- [ ] 本任务不跑 coverage。
+- [x] 增加 MCP exposure tests：direct exposure mode 可以把 `mcp__*` 放进 provider tools；global deferred mode 可以通过现有 deferred 机制暴露/加载 `mcp__*`。
+- [x] 在 `packages/core/src/adapters/permissions/matcher.test.ts` 增加 MCP cases：`mcp__server__tool` exact match；`mcp__server` / `mcp__server__*` match server-level MCP tools；arguments 永远不进入 permission key；冲突沿用现有 `deny > ask > allow` 顺序，而不是 specificity。
+- [x] 在 `packages/core/src/tools/executor/index.test.ts` 增加 MCP cases：`PreToolUse` 收到完整 `mcp__server__tool`，可在 client call 前 block；`PostToolUse` 在 success/error 后仍运行。
+- [x] 在 `packages/core/src/tools/executor/policyPreflight.test.ts` 增加 MCP cases：默认 interactive MCP tool call prompts；remembered fully-qualified MCP tool 对不同 call arguments 仍允许；deny/ask wins；non-interactive/subagent fail closed without pending approval。
+- [x] 在 `packages/core/src/tools/executor/approvalService.test.ts` 增加 MCP approval side-effect cases：`approve_remember` 写入/记住 exact fully-qualified MCP tool name，不记 arguments；hand-authored server/wildcard rules 可匹配但不自动生成。
+- [x] 增加 REPL/TUI MCP presenter/router tests：任意 `mcp__server__tool` transcript row 使用 generic MCP presenter，展示 normalized server/tool identity 和 concise params/result summary，malformed names clean fallback。
+- [x] 增加 Web transcript MCP test：`mcp__server__tool` 使用 generic MCP tool block renderer，且不增加 MCP management UI。
+- [x] runtime 可用后，在 `packages/core/src/sdk/query.test.ts` 增加 SDK MCP cases。
+- [x] 增加 app-server Phase 1A tests，断言 empty MCP overlay behavior：initialize 不解析 local MCP config、不 manager activation/connect/listTools、不暴露 MCP tools，shared resolver shape 仍接受 empty overlay。
+- [x] 本任务不跑 coverage。
 
 ## 5. 推荐执行顺序
 
@@ -212,11 +212,11 @@
 
 - [x] 新增 `docs/contracts/mcp-client-contract.md`。
 - [x] 更新 tool runtime、prompt/tool exposure、permissions/policy、hooks、config contracts。
-- [x] 锁定 Phase 1A startup authority：REPL effective runtime config 和 SDK explicit overlay 可授权 server startup；MCP tool-call approval 永远不授权或暗示 server startup。
-- [x] 锁定 activation timing：REPL 在 runtime/session setup 后后台启动 MCP manager activation，不阻塞首屏，也不保证首轮 MCP 可用；one-shot SDK/non-interactive activation 在第一次 model request 前 await。
+- [x] 锁定 Phase 1A startup authority：REPL user/global runtime config 可授权 disk-backed server startup；SDK explicit overlay 授权 SDK-scoped server startup；MCP tool-call approval 永远不授权或暗示 server startup。
+- [x] 锁定 activation timing：REPL 在 runtime/session setup 后后台启动 MCP manager activation，不阻塞首屏，也不保证首轮 MCP 可用；one-shot SDK/non-interactive activation 对 explicit overlay config 在第一次 model request 前 await。
 - [x] 锁定 side-effect-free phases：config parsing、name normalization、pure catalog mapping、status reads、deferred exposure resolution、dry-run 都不能 spawn/connect/list tools。
 - [x] 锁定 persisted config storage：MCP config 属于现有 `config.json` 的 `mcp.servers`，不是单独 MCP config file。
-- [x] 锁定 disk activation boundary：REPL 可把 effective `mcp.servers` 传入 active runtime manager；SDK 不能读取或喂入 user/project local config files。
+- [x] 锁定 disk activation boundary：REPL 可把 user/global `mcp.servers` 传入 active runtime manager；repo-local project MCP config 先忽略，直到有 project trust gate；SDK 不能读取或喂入 user/project local config files。
 - [x] 锁定 no-startup-approval rule：Phase 1 不增加 `mcp.server.start` 独立 approval action；未来 persisted activation 应作为显式 config behavior 处理。
 - [x] 锁定 MCP exposure/executor parity：MCP metadata 转成 `ToolDefinition` 后，MCP tools 像其他 tools 一样遵守现有 active exposure mode 和 executor `allowTools`/`denyTools` 行为；不定义 MCP-specific visibility、not-loaded 或 fallback errors。
 - [x] 锁定 MCP tool-name allow/remember semantics：remember 默认 fully-qualified tool name；server/wildcard rules 是 explicit hand-authored permissions；matching 排除 individual call arguments。
@@ -258,13 +258,13 @@
 ### Loop 3 — Fake-Client MCP Runtime Manager
 
 #### Loop Contract
-- Purpose：用 fake MCP client 证明 lifecycle、tool discovery、binding、call dispatch、status、cleanup。
+- Purpose：用 fake MCP client 证明 lifecycle、tool discovery、binding、call dispatch、status、client cleanup。
 - In scope：internal client interface、fake client、scoped manager、tool binding、fake-backed handler execution helper。
 - Out of scope：stdio transport、SDK public behavior、REPL/app-server wiring、policy side effects。
 - Blocking findings：cross-scope leakage、stale binding execution、missing cleanup、manager owning `cwd` incorrectly。
 - Non-blocking / later-loop findings：idle TTL、richer diagnostics、live reconnect/toggle。
 - Known unresolved semantics：本 loop 不定义 public status；runtime snapshots 仅 internal。
-- Required targeted tests：manager、binding、fake client、cleanup、manager call cancellation。
+- Required targeted tests：manager、binding、fake client、client cleanup、manager call cancellation。
 - Review prompt scope：确认 manager scope 和 lifecycle 可被 REPL/app-server/SDK 复用。
 - Exit criteria：fake manager 可在无 process I/O 下 list/call MCP tools。
 
@@ -293,22 +293,29 @@
 - Required targeted tests：catalog/exposure resolver、executor、policy preflight；如果 catalog merging 改 request tools，还要 chat engine tests。
 - Review prompt scope：确认 MCP calls 是普通 tool calls，且受 policy 保护。
 - Exit criteria：fake MCP tools 可在 direct mode 暴露、在 deferred mode 加载，并且只能通过 executor/policy 调用。
+- Review triage：
+  - 已修 review blocker：runtime bootstrap 现在注册 manager-bound MCP module，所以 MCP handlers/presenters/catalog patching 已进入真实 `ToolRegistry`。
+  - 已修 review blocker：unknown/stale `mcp__*` names 在 `PermissionRequest` hooks 或 approval UI 前直接 rejected。
+  - 已修 review blocker：SDK approval suggestions 现在包含 `tool.name`/MCP add-rule suggestions，所以 SDK `canUseTool` remember flow 可以 round-trip 到 `approve_remember`。
+  - 已修 review blocker：MCP approval 的 `updated_input_json` 会先按 MCP tool input schema 校验，再允许 mutation call input。
+  - 已修 review blocker：普通 runtime 现在创建真实 `McpServerManager`，接入 SDK-backed client factory，把 manager 传进 `ToolRegistry`，并在 runtime setup 后后台启动 REPL activation。
+  - 已修 review blocker：REPL MCP activation 不再阻塞 runtime bootstrap/首屏；首轮是否已经有 MCP tools 取决于后台 discovery 是否完成。
 
-- [ ] 增加 MCP tool module，包含一个 dispatch handler。
-- [ ] 增加一个 Claude Code-style generic MCP tool presenter for REPL/TUI；不要为每个 MCP server tool 创建 presenter files/modules。
-- [ ] 增加 Web `toolBlocksRegistry` generic `mcp__*` renderer；MCP calls 不依赖 default renderer fallback。
-- [ ] 增加 shared resolver：先合并 builtin tools 和 MCP dynamic tools，再应用当前 direct/deferred exposure mode。
-- [ ] direct exposure mode 下，允许 MCP dynamic tools 像其他可用 tools 一样进入 provider tools。
-- [ ] 任意 exposure mode 下，MCP dynamic tools 都通过与其他 tools 相同的 resolver/executor allow-list flow；不增加 MCP-specific fallback、not-loaded 或 allow/deny behavior。
-- [ ] 在 unknown tools fall through `toolCallToPolicyAction(...)=null` 前增加 MCP tool-name preflight branch：`mcp__*` calls 在 interactive main path 默认 prompt，在 subagent/non-interactive deny，并按 tool name 查询 permissions。
-- [ ] 使用 fully-qualified MCP tool name 把 MCP tool calls 路由到现有 approval UI/service，不新增 `mcp.call` policy action。
-- [ ] 增加 permission matching，支持 fully-qualified MCP tool rules 和 explicit hand-authored server-level `mcp__server` / wildcard `mcp__server__*` rules，复用现有 matcher precedence（`deny > ask > allow`），不增加 MCP-specific specificity ordering。
-- [ ] 增加 MCP tool calls 的 interactive prompt default 和 non-interactive/subagent deny behavior。
-- [ ] 确保 MCP annotations 永不降低 policy。
-- [ ] 确保 `PreToolUse`、`PermissionRequest`、`PostToolUse`、audit payloads 携带完整 qualified MCP tool name。
-- [ ] 运行 targeted catalog/exposure/executor/policy tests。
-- [ ] 继续前 triage review findings。
-- [ ] targeted verification 通过后运行 `codex review`。
+- [x] 增加 MCP tool module，包含一个 dispatch handler。
+- [x] 增加一个 Claude Code-style generic MCP tool presenter for REPL/TUI；不要为每个 MCP server tool 创建 presenter files/modules。
+- [x] 增加 Web `toolBlocksRegistry` generic `mcp__*` renderer；MCP calls 不依赖 default renderer fallback。
+- [x] 增加 shared resolver：先合并 builtin tools 和 MCP dynamic tools，再应用当前 direct/deferred exposure mode。
+- [x] direct exposure mode 下，允许 MCP dynamic tools 像其他可用 tools 一样进入 provider tools。
+- [x] 任意 exposure mode 下，MCP dynamic tools 都通过与其他 tools 相同的 resolver/executor allow-list flow；不增加 MCP-specific fallback、not-loaded 或 allow/deny behavior。
+- [x] 在 unknown tools fall through `toolCallToPolicyAction(...)=null` 前增加 MCP tool-name preflight branch：`mcp__*` calls 在 interactive main path 默认 prompt，在 subagent/non-interactive deny，并按 tool name 查询 permissions。
+- [x] 使用 fully-qualified MCP tool name 把 MCP tool calls 路由到现有 approval UI/service，不新增 `mcp.call` policy action。
+- [x] 增加 permission matching，支持 fully-qualified MCP tool rules 和 explicit hand-authored server-level `mcp__server` / wildcard `mcp__server__*` rules，复用现有 matcher precedence（`deny > ask > allow`），不增加 MCP-specific specificity ordering。
+- [x] 增加 MCP tool calls 的 interactive prompt default 和 non-interactive/subagent deny behavior。
+- [x] 确保 MCP annotations 永不降低 policy。
+- [x] 确保 `PreToolUse`、`PermissionRequest`、`PostToolUse`、audit payloads 携带完整 qualified MCP tool name。
+- [x] 运行 targeted catalog/exposure/executor/policy tests。
+- [x] 继续前 triage review findings。
+- [ ] targeted verification 通过后，复跑 `codex review`。
 
 ### Loop 5 — SDK Transport Adapter and Lifecycle
 
@@ -323,49 +330,49 @@
 - Review prompt scope：确认 SDK transport use 保持 thin，product glue 不重写 MCP protocol details。
 - Exit criteria：stdio 和 basic HTTP MCP servers 可在 controlled tests 中通过 SDK `Client.connect(transport)` list/call tools，并可靠 close。
 
-- [ ] 增加 official MCP TypeScript SDK dependency。
-- [ ] 增加 thin SDK transport adapter，把 normalized config dispatch 到 SDK `StdioClientTransport` 或 `StreamableHTTPClientTransport`。
-- [ ] 增加 SDK `Client` wrapper：connect/list tools/call tool/close 和 capability/status extraction。
-- [ ] 增加 controlled fake stdio MCP server fixture for tests。
-- [ ] 在 adapter boundary 增加 mocked Streamable HTTP transport tests；Phase 1A 不要求真实 HTTP server fixture。
-- [ ] 将 SDK client adapter 接入 manager。
-- [ ] 断言 stdio spawn 和 HTTP connect 只能发生在 scoped manager/transport activation path，不能来自 config parser、tool catalog、exposure resolver、status reads、SDK validation、dry-run。
-- [ ] 断言 manager activation 对 enabled servers 执行 connect/initialize/listTools，并记录 failed/pending state；failed servers 不暴露 tools。
-- [ ] 断言 catalog construction 只使用已有 manager tool metadata，永不调用 connect/initialize/listTools。
-- [ ] 断言 stdio startup 使用 executable + argv，不做 shell string interpolation。
-- [ ] 断言 environment inheritance 显式且最小化，secrets 不写入 model-facing output 或 audit。
-- [ ] 增加 timeouts 和 bounded result handling。
-- [ ] 限制 stdout、stderr、result payloads。
-- [ ] 确保 startup/list-tools timeout 产生 disconnected/failed status，且没有 dynamic tools。
-- [ ] stdio transport tests 使用 explicit fixtures；为 project/global persisted config files 增加单独 REPL activation tests。
-- [ ] 在 manager scope disposal、query close/interruption、process shutdown path 增加 cleanup。
-- [ ] 运行 targeted SDK transport lifecycle tests。
-- [ ] 继续前 triage review findings。
+- [x] 增加 official MCP TypeScript SDK dependency。
+- [x] 增加 thin SDK transport adapter，把 normalized config dispatch 到 SDK `StdioClientTransport` 或 `StreamableHTTPClientTransport`。
+- [x] 增加 SDK `Client` wrapper：connect/list tools/call tool/close 和 capability/status extraction。
+- [x] 增加 controlled stdio MCP server fixture for tests。
+- [x] 在 adapter boundary 增加 mocked Streamable HTTP transport tests；Phase 1A 不要求真实 HTTP server fixture。
+- [x] 将 SDK client adapter 接入 manager。
+- [x] 断言 stdio spawn 和 HTTP connect 只能发生在 scoped manager/transport activation path，不能来自 config parser、tool catalog、exposure resolver、status reads、SDK validation、dry-run。
+- [x] 断言 manager activation 对 enabled servers 执行 connect/initialize/listTools，并记录 failed/pending state；failed servers 不暴露 tools。
+- [x] 断言 catalog construction 只使用已有 manager tool metadata，永不调用 connect/initialize/listTools。
+- [x] 断言 stdio startup 使用 executable + argv，不做 shell string interpolation。
+- [x] 断言 stdio startup 只继承 MCP SDK safe default environment 加低敏 runtime env allowlist，并应用 per-server explicit `env` overrides；不能把无关 parent-process secrets 泄露给 child process、model-facing output 或 audit。
+- [x] 增加 timeouts 和 bounded result handling。
+- [x] 限制 stdio protocol/output handling：stdout 交给 SDK protocol stream，stderr 改为 pipe/drain 而不是 inherit，MCP result payloads 有边界。
+- [x] 确保 startup/list-tools timeout 产生 failed status，且没有 dynamic tools。
+- [x] stdio transport tests 使用 explicit fixtures；为 project/global persisted config files 增加单独 REPL activation tests。
+- [x] 在 manager scope disposal、query close/interruption、process shutdown path 增加 lifecycle handling，但保留 transcript 引用的 file-backed MCP artifacts。
+- [x] 运行 targeted SDK transport lifecycle tests。
+- [x] 继续前 triage review findings。
 - [ ] targeted verification 通过后运行 `codex review`。
 
 ### Loop 6 — SDK Surface and Shared Entrypoint Polish
 
 #### Loop Contract
 - Purpose：通过 REPL config activation、SDK overlay、shared entrypoint wiring 暴露经过测试的 Phase 1A MCP runtime。
-- In scope：REPL effective `config.json` activation、SDK `options.mcpServers` supported subset、以及 app-server explicit empty MCP overlay 的 shared resolver shape。
+- In scope：REPL user/global `config.json` activation、SDK explicit `options.mcpServers` overlay activation、app-server explicit empty MCP overlay 的 shared resolver shape。
 - Out of scope：live dynamic MCP controls、REPL `/mcp` 或 status command、app-server/Web activation/UX、Web management UI。
 - Blocking findings：SDK-only MCP path、entrypoint parity drift、unsupported methods silently no-op、session cleanup leaks。
 - Non-blocking / later-loop findings：app-server status notification、REPL slash command、app-server/Web activation/UX。
 - Known unresolved semantics：Phase 1A public SDK MCP status 没有未决语义；`query.mcpServerStatus()` 保持 unsupported。
 - Required targeted tests：SDK query tests、如果 touched 则 REPL/app-server resolver tests、cleanup tests。
 - Review prompt scope：确认 public surface 符合 contracts 且不 over-promise。
-- Exit criteria：REPL 从现有 config resolution 读取 effective `mcp.servers`；SDK `options.mcpServers` 接受 transport-aware config shape；enabled runtime transports 通过 shared runtime 工作；unsupported runtime transports 清晰失败。
+- Exit criteria：REPL 从现有 config resolution 读取 user/global `mcp.servers` 并忽略 repo-local project MCP config；enabled runtime transports 通过 shared runtime 工作；app-server 保持 empty-overlay/no-activation；public SDK `options.mcpServers` 支持 strict explicit overlay 子集。
 
-- [ ] REPL runtime/session setup 把 effective runtime config `mcp.servers` 传入 shared MCP manager，并后台启动 activation，不阻塞首屏。
-- [ ] 停止拒绝 supported transport-aware config shape 的 `options.mcpServers`，同时清楚 gate unsupported runtime transports。
-- [ ] Phase 1A 中 `strictMcpConfig` 和 live dynamic controls 保持 unsupported。
-- [ ] Phase 1A 中 SDK `query.mcpServerStatus()` 保持 unsupported，并沿用现有 stable unsupported error；Phase 1A 不增加 REPL status command/API；internal manager runtime snapshots 只允许用于 tests/diagnostics，且不得 start、reconnect、discover、list tools 或 call tools。
-- [ ] 通过 shared catalog helper types 接入 app-server，并传 explicit empty MCP overlay；Phase 1A 中 app-server config reads、activation、connection、listTools 和 MCP tool exposure 都保持 disabled。
-- [ ] 确保 query close/interruption dispose query-scoped MCP clients。
-- [ ] 确保 SDK/one-shot non-interactive query setup 在第一次 model request 前 await MCP manager activation，同时 live MCP control methods 继续返回 explicit unsupported errors。
-- [ ] 更新 SDK docs/matrix notes，说明 supported 和 unsupported MCP behavior。
-- [ ] 运行 targeted SDK 和 entrypoint tests。
-- [ ] 继续前 triage review findings。
+- [x] REPL runtime/session setup 把 user/global runtime config `mcp.servers` 传入 shared MCP manager，并后台启动 activation，不阻塞首屏。
+- [x] 支持 public SDK `options.mcpServers` strict transport-aware explicit overlay shape。
+- [x] Phase 1A 中 `strictMcpConfig` 和 live dynamic controls 保持 unsupported。
+- [x] Phase 1A 中 SDK `query.mcpServerStatus()` 保持 unsupported，并沿用现有 stable unsupported error；Phase 1A 不增加 REPL status command/API；internal manager runtime snapshots 只允许用于 tests/diagnostics，且不得 start、reconnect、discover、list tools 或 call tools。
+- [x] 通过 shared catalog helper types 接入 app-server，并传 explicit empty MCP overlay；Phase 1A 中 app-server config reads、activation、connection、listTools 和 MCP tool exposure 都保持 disabled。
+- [x] 确保 query close/interruption dispose query-scoped MCP clients。
+- [x] SDK/one-shot non-interactive MCP activation 对 explicit overlay path 在第一次 model request 前 await manager activation；live MCP control methods 继续返回 explicit unsupported errors。
+- [x] 更新 SDK docs/matrix notes，说明 supported 和 unsupported MCP behavior。
+- [x] 运行 targeted SDK 和 entrypoint tests。
+- [x] 继续前 triage review findings。
 - [ ] targeted verification 通过后运行 `codex review`。
 
 ## 6. Stop Conditions

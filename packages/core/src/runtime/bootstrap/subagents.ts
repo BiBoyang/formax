@@ -17,6 +17,7 @@ import { createToolExecutor } from '../../tools/executor/index.js'
 export type SubagentRuntime = {
   allowedSubagents: SubAgentListItem[]
   reloadSubagents: () => Promise<SubAgentListItem[]>
+  refreshTools: () => Promise<void>
   tools: Awaited<ReturnType<ToolRegistry['listSpecs']>>
 }
 
@@ -72,9 +73,16 @@ export async function createSubagentRuntime(args: {
   args.toolRegistry.addPatch((tools) => patchTaskToolForSubagents(tools, allowedSubagents))
 
   const tools = await args.toolRegistry.listSpecs()
+  const refreshTools = async () => {
+    const refreshedTools = await args.toolRegistry.listSpecs()
+    const refreshedToolsForSubagents = refreshedTools.filter((tool) => tool.name !== 'Task')
+    toolsForSubagents.splice(0, toolsForSubagents.length, ...refreshedToolsForSubagents)
+    tools.splice(0, tools.length, ...refreshedTools)
+  }
   return {
     allowedSubagents,
     reloadSubagents,
+    refreshTools,
     tools,
   }
 }

@@ -42,3 +42,9 @@ export type SkillApprovalDecision =
   | { kind: 'approve_remember' }
   | { kind: 'feedback'; feedback: string }
   | { kind: 'cancel' }
+
+export type McpApprovalDecision =
+  | { kind: 'approve' }
+  | { kind: 'approve_remember' }
+  | { kind: 'feedback'; feedback: string }
+  | { kind: 'cancel' }

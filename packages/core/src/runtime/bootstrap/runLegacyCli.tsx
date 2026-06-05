@@ -5,6 +5,13 @@ import { resolveInitialSession } from './session.js'
 import { renderLegacyReplApp as renderReplApp } from '../../services/runtimeUiBridge.js'
 import { resetInkStaticOutputForStdout } from '../../tui/inkStreams.js'
 
+async function exitWithBootstrapError(err: unknown): Promise<void> {
+  await clearTerminal()
+  const message = err instanceof Error ? err.message : String(err)
+  process.stderr.write(`Error: ${message}\n`)
+  process.exit(1)
+}
+
 export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forceSetup?: boolean } = {}): Promise<void> {
   await clearTerminal()
 
@@ -19,10 +26,7 @@ export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forc
       },
     })
   } catch (err) {
-    await clearTerminal()
-    const message = err instanceof Error ? err.message : String(err)
-    process.stderr.write(`Error: ${message}\n`)
-    process.exit(1)
+    await exitWithBootstrapError(err)
     return
   }
 
@@ -33,24 +37,31 @@ export async function runLegacyCli(opts: { app?: App; resumeLast?: boolean; forc
     // equivalent frames, Ink can skip the next paint and leave a blank screen.
     await clearTerminal()
   }
-  const initialSession = await resolveInitialSession({
-    cwd: runtime.cwd,
-    env: runtime.env,
-    resumeLast: opts.resumeLast === true,
-  })
-  renderReplApp({
-    engine: runtime.engine,
-    tools: runtime.tools,
-    cfg: runtime.cfg,
-    initialSession,
-    allowedSubagents: runtime.allowedSubagents,
-    reloadSubagents: runtime.reloadSubagents,
-    toolRegistry: runtime.toolRegistry,
-    taskManager: runtime.taskManager,
-    userInputManager: runtime.userInputManager,
-    onClearTerminal,
-    onExit: () => {
-      process.exit(0)
-    },
-  })
+  try {
+    const initialSession = await resolveInitialSession({
+      cwd: runtime.cwd,
+      env: runtime.env,
+      resumeLast: opts.resumeLast === true,
+    })
+    renderReplApp({
+      engine: runtime.engine,
+      tools: runtime.tools,
+      cfg: runtime.cfg,
+      initialSession,
+      allowedSubagents: runtime.allowedSubagents,
+      reloadSubagents: runtime.reloadSubagents,
+      toolRegistry: runtime.toolRegistry,
+      taskManager: runtime.taskManager,
+      userInputManager: runtime.userInputManager,
+      onClearTerminal,
+      onExit: () => {
+        void runtime.dispose().finally(() => {
+          process.exit(0)
+        })
+      },
+    })
+  } catch (err) {
+    await runtime.dispose()
+    await exitWithBootstrapError(err)
+  }
 }

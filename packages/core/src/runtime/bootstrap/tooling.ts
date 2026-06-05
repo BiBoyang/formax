@@ -7,6 +7,8 @@ import { createUserInputManager } from '../../tools/runtime/userInputManager.js'
 import { createAskUserQuestionToolModule } from '../../tools/modules/askUserQuestion/index.js'
 import { createKillShellToolModule } from '../../tools/modules/killShell/index.js'
 import { createToolSearchToolModule } from '../../tools/modules/toolSearch/index.js'
+import type { McpServerManager } from '../../mcp/serverManager.js'
+import { createMcpToolModule } from '../../tools/modules/mcp/index.js'
 import { LocalBashPresenter } from '../../components/tool/LocalBashPresenter.js'
 import type { AnthropicCompatibleStreamClient } from '../../streaming/index.js'
 
@@ -14,16 +16,19 @@ export type ToolingRuntime = {
   toolRegistry: ToolRegistry
   taskManager: TaskManager
   userInputManager: ReturnType<typeof createUserInputManager>
+  mcpServerManager: McpServerManager
 }
 
 export function createToolingRuntime(args: {
   cwd: string
   env: NodeJS.ProcessEnv
   webFetchClient: AnthropicCompatibleStreamClient
+  mcpServerManager: McpServerManager
 }): ToolingRuntime {
   const toolRegistry = new ToolRegistry()
   const taskManager = new TaskManager()
   const userInputManager = createUserInputManager()
+  const mcpServerManager = args.mcpServerManager
 
   registerBuiltinToolModules(toolRegistry, { taskManager, userInput: userInputManager, cwd: args.cwd })
   toolRegistry.register(createToolSearchToolModule())
@@ -39,10 +44,12 @@ export function createToolingRuntime(args: {
   toolRegistry.register(createTaskOutputToolModule(taskManager))
   toolRegistry.register(createKillShellToolModule(taskManager))
   toolRegistry.register(createAskUserQuestionToolModule(userInputManager))
+  toolRegistry.register(createMcpToolModule({ manager: mcpServerManager }))
 
   return {
     toolRegistry,
     taskManager,
     userInputManager,
+    mcpServerManager,
   }
 }

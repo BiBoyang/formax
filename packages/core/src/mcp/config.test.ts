@@ -9,7 +9,7 @@ describe('MCP config parsing', () => {
   it('accepts the Phase 1A stdio and http schema with enabled defaulting true', () => {
     const result = parseMcpConfig({
       servers: {
-        fs: { type: 'stdio', command: 'mcp-files', args: ['--cwd', '.'], env: { API_KEY: 'x' } },
+        fs: { type: 'stdio', command: 'mcp-files', args: ['--cwd', '.'], env: { API_KEY: 'x' }, timeoutMs: 5_000 },
         jira: {
           type: 'http',
           url: 'https://mcp.example.com/session',
@@ -23,7 +23,14 @@ describe('MCP config parsing', () => {
       ok: true,
       config: {
         servers: {
-          fs: { type: 'stdio', command: 'mcp-files', args: ['--cwd', '.'], env: { API_KEY: 'x' }, enabled: true },
+          fs: {
+            type: 'stdio',
+            command: 'mcp-files',
+            args: ['--cwd', '.'],
+            env: { API_KEY: 'x' },
+            timeoutMs: 5_000,
+            enabled: true,
+          },
           jira: {
             type: 'http',
             url: 'https://mcp.example.com/session',

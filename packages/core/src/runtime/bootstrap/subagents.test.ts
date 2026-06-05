@@ -61,9 +61,14 @@ describe('createSubagentRuntime', () => {
     const taskModule = { name: 'Task' }
     const toolsBeforePatch = [{ name: 'Read' }]
     const toolsAfterPatch = [{ name: 'Read' }, { name: 'Task' }]
+    const toolsAfterMcpActivation = [{ name: 'Read' }, { name: 'Task' }, { name: 'mcp__github__create_issue' }]
     const addPatch = vi.fn()
     const register = vi.fn()
-    const listSpecs = vi.fn().mockResolvedValueOnce(toolsBeforePatch).mockResolvedValueOnce(toolsAfterPatch)
+    const listSpecs = vi
+      .fn()
+      .mockResolvedValueOnce(toolsBeforePatch)
+      .mockResolvedValueOnce(toolsAfterPatch)
+      .mockResolvedValueOnce(toolsAfterMcpActivation)
 
     mocks.createSubAgentRunner.mockReturnValue(runner)
     mocks.createTaskSubAgentToolHandler.mockReturnValue(taskHandler)
@@ -133,6 +138,9 @@ describe('createSubagentRuntime', () => {
 
     expect(out.allowedSubagents).toEqual([{ name: 'a', description: 'A', model: 'sonnet' }])
     expect(out.tools).toEqual(toolsAfterPatch)
+    await out.refreshTools()
+    expect(out.tools).toEqual(toolsAfterMcpActivation)
+    expect(toolsBeforePatch).toEqual([{ name: 'Read' }, { name: 'mcp__github__create_issue' }])
     expect(await out.reloadSubagents()).toEqual([{ name: 'b', description: 'B', model: 'haiku' }])
   })
 

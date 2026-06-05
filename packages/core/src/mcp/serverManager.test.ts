@@ -242,6 +242,27 @@ describe('McpServerManager', () => {
     ])
   })
 
+  it('records listTools timeout failures without exposing dynamic tools', async () => {
+    const client = {
+      listTools: vi.fn(async () => {
+        throw new Error('Timed out after 1000ms')
+      }),
+      callTool: vi.fn(),
+      close: vi.fn(async () => {}),
+    } satisfies McpClient
+    const manager = new McpServerManager({
+      config: { servers: { slow: { type: 'stdio', command: 'slow-mcp', enabled: true, timeoutMs: 1000 } } },
+      clientFactory: async () => client,
+    })
+
+    await expect(manager.activate()).resolves.toEqual({ bindings: [], diagnostics: [] })
+    expect(manager.getCatalog()).toEqual({ bindings: [], diagnostics: [] })
+    expect(client.close).toHaveBeenCalledTimes(1)
+    expect(manager.listStatuses()).toEqual([
+      { serverId: 'slow', state: 'failed', enabled: true, errorMessage: 'Timed out after 1000ms' },
+    ])
+  })
+
   it('propagates activation aborts and closes any partially initialized client', async () => {
     const controller = new AbortController()
     const client = {

@@ -10,6 +10,7 @@ const McpStdioServerConfigSchema = z.object({
   args: z.array(z.string()).optional(),
   env: StringRecordSchema.optional(),
   cwd: z.string().min(1).optional(),
+  timeoutMs: z.number().int().positive().optional(),
   enabled: z.boolean().default(true),
 }).strict()
 

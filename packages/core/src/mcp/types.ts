@@ -8,6 +8,7 @@ export type McpStdioServerConfig = {
   args?: string[]
   env?: Record<string, string>
   cwd?: string
+  timeoutMs?: number
   enabled: boolean
 }
 

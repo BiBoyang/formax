@@ -162,8 +162,7 @@ async function mapContentBlock(
         : 'application/octet-stream'
       return textBlock(await blobPlaceholder('resource', content.resource.blob, mimeType, options.blobWriter))
     }
-    const hasText = typeof content.resource.text === 'string'
-    return textBlock(`[MCP resource available: ${content.resource.uri}${content.resource.mimeType ? ` (${content.resource.mimeType})` : ''}${hasText ? '; body omitted' : ''}]`)
+    return textBlock(`[MCP resource available: ${content.resource.uri}${content.resource.mimeType ? ` (${content.resource.mimeType})` : ''}]`)
   }
 
   if (content.type === 'image' || content.type === 'audio' || content.type === 'resource') {

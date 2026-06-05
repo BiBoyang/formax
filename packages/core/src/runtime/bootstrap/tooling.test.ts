@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => {
   const createAskUserQuestionToolModule = vi.fn()
   const createKillShellToolModule = vi.fn()
   const createToolSearchToolModule = vi.fn()
+  const createMcpToolModule = vi.fn()
   const LocalBashPresenter = { name: 'LocalBashPresenter' }
+  const mcpServerManagerInstances: any[] = []
 
   class ToolRegistry {
     register = vi.fn()
@@ -29,9 +31,19 @@ const mocks = vi.hoisted(() => {
     }
   }
 
+  class McpServerManager {
+    options: any
+
+    constructor(options: any) {
+      this.options = options
+      mcpServerManagerInstances.push(this)
+    }
+  }
+
   return {
     ToolRegistry,
     TaskManager,
+    McpServerManager,
     registerBuiltinToolModules,
     createWebFetchToolModule,
     createTaskOutputToolModule,
@@ -39,9 +51,11 @@ const mocks = vi.hoisted(() => {
     createAskUserQuestionToolModule,
     createKillShellToolModule,
     createToolSearchToolModule,
+    createMcpToolModule,
     LocalBashPresenter,
     toolRegistryInstances,
     taskManagerInstances,
+    mcpServerManagerInstances,
   }
 })
 
@@ -72,6 +86,12 @@ vi.mock('../../tools/modules/killShell/index.js', () => ({
 vi.mock('../../tools/modules/toolSearch/index.js', () => ({
   createToolSearchToolModule: mocks.createToolSearchToolModule,
 }))
+vi.mock('../../mcp/serverManager.js', () => ({
+  McpServerManager: mocks.McpServerManager,
+}))
+vi.mock('../../tools/modules/mcp/index.js', () => ({
+  createMcpToolModule: mocks.createMcpToolModule,
+}))
 vi.mock('../../components/tool/LocalBashPresenter.js', () => ({
   LocalBashPresenter: mocks.LocalBashPresenter,
 }))
@@ -83,16 +103,19 @@ describe('createToolingRuntime', () => {
     vi.clearAllMocks()
     mocks.toolRegistryInstances.length = 0
     mocks.taskManagerInstances.length = 0
+    mocks.mcpServerManagerInstances.length = 0
     mocks.createUserInputManager.mockReturnValue({ kind: 'user-input' })
     mocks.createWebFetchToolModule.mockReturnValue({ name: 'WebFetch' })
     mocks.createTaskOutputToolModule.mockReturnValue({ name: 'TaskOutput' })
     mocks.createKillShellToolModule.mockReturnValue({ name: 'KillShell' })
     mocks.createAskUserQuestionToolModule.mockReturnValue({ name: 'AskUserQuestion' })
     mocks.createToolSearchToolModule.mockReturnValue({ name: 'ToolSearch' })
+    mocks.createMcpToolModule.mockReturnValue({ name: 'mcp' })
   })
 
   it('registers builtins plus extra tool modules and returns runtime objects', () => {
     const webFetchClient = { stream: vi.fn() }
+    const mcpServerManager = { kind: 'mcp-manager' }
 
     const out = createToolingRuntime({
       cwd: '/repo',
@@ -101,6 +124,7 @@ describe('createToolingRuntime', () => {
         FORMAX_WEBFETCH_MAX_INPUT_CHARS: '240000',
       },
       webFetchClient: webFetchClient as any,
+      mcpServerManager: mcpServerManager as any,
     })
 
     const registry = mocks.toolRegistryInstances[0]
@@ -129,10 +153,30 @@ describe('createToolingRuntime', () => {
     expect(registry.register).toHaveBeenNthCalledWith(5, { name: 'KillShell' })
     expect(mocks.createAskUserQuestionToolModule).toHaveBeenCalledWith({ kind: 'user-input' })
     expect(registry.register).toHaveBeenNthCalledWith(6, { name: 'AskUserQuestion' })
+    expect(mocks.createMcpToolModule).toHaveBeenCalledWith({
+      manager: mcpServerManager,
+    })
+    expect(registry.register).toHaveBeenNthCalledWith(7, { name: 'mcp' })
 
     expect(out.toolRegistry).toBe(registry)
     expect(out.taskManager).toBe(taskManager)
     expect(out.userInputManager).toEqual({ kind: 'user-input' })
+    expect(out.mcpServerManager).toBe(mcpServerManager)
+  })
+
+  it('does not instantiate an MCP server manager inside tooling', () => {
+    const mcpServerManager = { kind: 'mcp-manager' }
+
+    const out = createToolingRuntime({
+      cwd: '/repo',
+      env: {},
+      webFetchClient: { stream: vi.fn() } as any,
+      mcpServerManager: mcpServerManager as any,
+    })
+
+    expect(mocks.mcpServerManagerInstances).toHaveLength(0)
+    expect(mocks.createMcpToolModule).toHaveBeenCalledWith({ manager: mcpServerManager })
+    expect(out.mcpServerManager).toBe(mcpServerManager)
   })
 
   it('uses default WebFetch limits when env vars are absent', () => {
@@ -140,6 +184,7 @@ describe('createToolingRuntime', () => {
       cwd: '/repo',
       env: {},
       webFetchClient: { stream: vi.fn() } as any,
+      mcpServerManager: { kind: 'mcp-manager' } as any,
     })
 
     expect(mocks.createWebFetchToolModule).toHaveBeenCalledWith({

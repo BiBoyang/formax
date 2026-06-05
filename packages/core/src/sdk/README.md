@@ -92,7 +92,7 @@ Implemented and available now:
 - Query persistence alignment (`persistSession` supported via local session persistence; `forkSession` supported for resume/continue history rebinding; `enableFileCheckpointing` supported via persisted history snapshots)
 - Query filesystem-sandbox alignment (`additionalDirectories` supported as an in-process compatibility no-op option; `sandbox` remains explicit unsupported)
 - Query agent alignment (`agent/agents` supported as in-process compatibility no-op options)
-- Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` currently fails explicitly as unsupported)
+- Query tools/MCP alignment (`tools` supported as base-tool filter subset; `mcpServers` supported as an explicit SDK overlay using the shared MCP runtime/parser; local MCP config files are not read by SDK)
 - Query hook-permission alignment (`hooks` remains explicit unsupported; `canUseTool` is supported as the primary approval/user-input callback, including `approval_request` `updatedInput` forwarding via controlled mapping with execution-side policy revalidation, plus destination-aware `updatedPermissions` -> `approve_remember` mapping for supported update types)
 - Query extension alignment (`plugins/settingSources` supported as in-process compatibility no-op options; `onElicitation` supported for `ask_user_question` fallback handling when `canUseTool` is not provided)
 - Session discovery (`listSessions`)
@@ -119,7 +119,6 @@ These are intentionally not implemented in this phase:
 These remain out of scope for SDK phase-1:
 - `createSdkMcpServer`
 - `tool` (SDK MCP helper)
-- `mcpServers`
 - `query(...).mcpServerStatus()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).setMcpServers()` capability data (method exists but currently returns explicit unsupported error)
 - `query(...).reconnectMcpServer()` capability data (method exists but currently returns explicit unsupported error)

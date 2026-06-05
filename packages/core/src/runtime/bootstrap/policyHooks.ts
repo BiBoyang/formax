@@ -7,6 +7,7 @@ import { createHooksRuntime } from '../../hooks/runtime.js'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { ToolRegistry } from '../../tools/registry.js'
 import type { UserInputManager } from '../../tools/runtime/userInputManager.js'
+import type { McpServerManager } from '../../mcp/serverManager.js'
 
 export type PolicyHooksRuntime = {
   audit: ReturnType<typeof createNodeAuditLog>
@@ -20,11 +21,26 @@ export function createPolicyAndHooksRuntime(args: {
   fileStore: FileStore
   userInputManager: UserInputManager
   toolRegistry: ToolRegistry
+  mcpServerManager?: McpServerManager
   env: NodeJS.ProcessEnv
 }): PolicyHooksRuntime {
   const audit = createNodeAuditLog({ logsDir: args.cfgPathsLogsDir })
   const approval = createApprovalService({ fileStore: args.fileStore, userInput: args.userInputManager, audit })
-  const policyPreflight = createPolicyPreflight({ fileStore: args.fileStore, approval, audit, env: args.env })
+  const policyPreflight = createPolicyPreflight({
+    fileStore: args.fileStore,
+    approval,
+    audit,
+    env: args.env,
+    ...(args.mcpServerManager
+      ? {
+          isKnownMcpToolName: (toolName: string) =>
+            args.mcpServerManager!.getCatalog().bindings.some((binding) => binding.modelName === toolName),
+          getMcpToolInputSchema: (toolName: string) =>
+            args.mcpServerManager!.getCatalog().bindings.find((binding) => binding.modelName === toolName)
+              ?.definition.input_schema,
+        }
+      : {}),
+  })
   const skillPreflight = createSkillPreflight({ fileStore: args.fileStore, userInput: args.userInputManager })
   const preflight: ToolPreflight = async (call, ctx) =>
     (await skillPreflight(call, ctx)) ?? policyPreflight(call, ctx)

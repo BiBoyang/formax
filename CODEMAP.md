@@ -205,7 +205,9 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool definitions (ToolDefinition): `packages/core/src/tools/types.ts`
 - Tool module registry: `packages/core/src/tools/registry.ts`
 - Built-in tool modules registration: `packages/core/src/tools/modules/index.ts`
+- Runtime tool module wiring (including manager-bound MCP module): `packages/core/src/runtime/bootstrap/tooling.ts`
 - MCP tool-name/config/catalog/result pure helpers: `packages/core/src/mcp/*`
+- MCP generic tool module (dynamic catalog patch, handler, REPL/TUI presenter): `packages/core/src/tools/modules/mcp/*`
 
 ### Tool execution pipeline
 - Executor entry (enforces allow/deny lists, routes to handlers): `packages/core/src/tools/executor/index.ts`
@@ -224,6 +226,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Tool UI Blocks renderer (C-lite): `packages/core/src/components/tool/ToolUiBlocks.tsx`
 - Presenter interface: `packages/core/src/shared/toolPresenterContracts.ts`
 - Blocks presenter helper: `createToolBlocksPresenter` in `packages/core/src/shared/toolPresenterContracts.ts`
+- Web generic tool block registry, including `mcp__*` renderer: `packages/web-reference-react/src/components/tool/toolBlocksRegistry.ts`
 - FS read approval bridge (blocks presenter → runtime user input): `packages/core/src/components/tool/FsReadApprovalToolBlock.tsx`
 - Shared approval prompt (Edit/Write/NotebookEdit): `packages/core/src/components/tool/editApprovalPrompt.tsx`
 - Fallback presenter: `packages/core/src/components/tool/FallbackToolPresenter.tsx`
@@ -251,6 +254,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Task (sub-agents + nested prompts UI): `packages/core/src/tools/modules/task/*`
 - TaskOutput (background task UI): `packages/core/src/tools/modules/taskOutput/*`
 - Search (high-level search): `packages/core/src/tools/modules/search/*`
+- MCP generic dynamic tools: `packages/core/src/tools/modules/mcp/*`
 
 ## Plan Mode
 - REPL mode type: `packages/core/src/features/repl/mode.ts`

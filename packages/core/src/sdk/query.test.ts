@@ -147,6 +147,7 @@ function createRuntimeFixture(args?: {
       submitAnswers: vi.fn(() => true),
       reject: vi.fn(() => true),
     },
+    dispose: vi.fn(async () => {}),
     engine: {
       runTurn: vi.fn(),
     },
@@ -1332,6 +1333,36 @@ describe('sdk query()', () => {
 
     const account = await queryIterator.accountInfo()
     expect(account.model).toBe('claude-set-model')
+  })
+
+  it('does not activate MCP overlays for metadata helper methods', async () => {
+    const runtime = createRuntimeFixture()
+    runtime.allowedSubagents = [{ name: 'Plan', description: 'Design implementation plans' }]
+    runtime.cfg.llm.provider = 'anthropic'
+    runtime.cfg.llm.model = 'claude-sonnet-4-6'
+    state.createRuntime.mockResolvedValue(runtime)
+
+    const queryIterator = query({
+      prompt: 'metadata helpers',
+      options: { mcpServers: { local: { type: 'stdio', command: 'slow-mcp-server' } } },
+    })
+
+    await expect(queryIterator.supportedAgents()).resolves.toEqual([
+      { name: 'Plan', description: 'Design implementation plans' },
+    ])
+    await expect(queryIterator.supportedModels()).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ model: 'claude-sonnet-4-6' })]),
+    )
+    await expect(queryIterator.accountInfo()).resolves.toMatchObject({
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-6',
+    })
+
+    expect(state.createRuntime).toHaveBeenCalledTimes(3)
+    for (const [args] of state.createRuntime.mock.calls) {
+      expect(args).toEqual(expect.objectContaining({ mcpRuntimeEntrypoint: 'sdk' }))
+      expect(args).not.toHaveProperty('mcpServersOverlay')
+    }
   })
 
   it('validates accountInfo() input options', async () => {
@@ -3507,25 +3538,33 @@ describe('sdk query()', () => {
     }
   })
 
-  it('returns explicit unsupported error when mcpServers is provided', async () => {
+  it('passes mcpServers overlay into the SDK runtime and exposes returned MCP tools', async () => {
     const runTurn = vi.fn(async (turnArgs: any) => {
+      expect(turnArgs.tools.map((tool: ToolDefinition) => tool.name)).toContain('mcp__local__ping')
       return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }]
     })
-    const runtime = createRuntimeFixture({ runTurn })
+    const runtime = createRuntimeFixture({
+      tools: [createTool('Read'), createTool('mcp__local__ping')],
+      runTurn,
+    })
     state.createRuntime.mockResolvedValue(runtime)
 
     const messages = await collectMessages({
-      prompt: 'tools mcp option unsupported',
+      prompt: 'tools mcp option supported',
       options: { mcpServers: { local: { type: 'stdio', command: 'mcp-server' } } },
     })
 
-    expect(runTurn).not.toHaveBeenCalled()
+    expect(state.createRuntime).toHaveBeenCalledWith(expect.objectContaining({
+      mcpRuntimeEntrypoint: 'sdk',
+      mcpServersOverlay: { local: { type: 'stdio', command: 'mcp-server' } },
+    }))
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    const init = messages.find((message) => message.type === 'system' && message.subtype === 'init')
+    expect(init?.tools.map((tool) => tool.name)).toContain('mcp__local__ping')
     const result = messages[messages.length - 1]
     expect(result?.type).toBe('result')
     if (result?.type === 'result') {
-      expect(result.subtype).toBe('error_during_execution')
-      expect(result.error).toContain('options.mcpServers')
-      expect(result.error).toContain('is not supported in Formax SDK yet')
+      expect(result.subtype).toBe('success')
     }
   })
 
@@ -4360,6 +4399,52 @@ describe('sdk query()', () => {
     expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-directories', {
       decision: 'approve_remember',
       scope: 'global',
+    })
+  })
+
+  it('passes MCP tool-name permission suggestions into canUseTool', async () => {
+    const runTurn = vi.fn(async (turnArgs: any) => {
+      turnArgs.onEvent({
+        type: 'approval_request',
+        toolUseId: 'tool-approval-mcp',
+        toolName: 'mcp__github__create_issue',
+        action: { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+        effectiveDecision: 'prompt',
+      })
+      return [...turnArgs.history, turnArgs.user, { role: 'assistant', content: [{ type: 'text', text: 'approved' }] }]
+    })
+    const runtime = createRuntimeFixture({ runTurn })
+    state.createRuntime.mockResolvedValue(runtime)
+    const canUseTool = vi.fn(async (_toolName: string, _input: unknown, options: any) => ({
+      behavior: 'allow' as const,
+      updatedPermissions: options.suggestions,
+    }))
+
+    await collectMessages({
+      prompt: 'mcp approval',
+      options: {
+        interactive: true,
+        canUseTool,
+      },
+    })
+
+    expect(canUseTool).toHaveBeenCalledWith(
+      'mcp__github__create_issue',
+      { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+      expect.objectContaining({
+        suggestions: [
+          {
+            type: 'addRules',
+            rules: [{ toolName: 'mcp__github__create_issue', ruleContent: 'mcp__github__create_issue' }],
+            behavior: 'allow',
+            destination: 'session',
+          },
+        ],
+      }),
+    )
+    expect(runtime.userInputManager.submitAnswers).toHaveBeenCalledWith('tool-approval-mcp', {
+      decision: 'approve_remember',
+      scope: 'session',
     })
   })
 

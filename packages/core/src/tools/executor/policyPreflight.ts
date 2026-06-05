@@ -3,7 +3,7 @@ import path from 'node:path'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import { getConfigPaths, type Platform } from '../../adapters/fs/configPaths.js'
 import { loadPolicyRules } from '../../core/policy/store.js'
-import type { PolicyAction } from '../../core/policy/types.js'
+import type { PolicyAction, PolicyDecision } from '../../core/policy/types.js'
 import type { ToolCall, ToolResult } from '../types.js'
 import type { ExecutionContext, ToolPreflight } from './index.js'
 import type { ApprovalService } from './approvalService.js'
@@ -22,6 +22,7 @@ import { formatPathForDisplay, normalizePathForCompare } from '../../shared/util
 import type { HookRun } from '../../hooks/types.js'
 import { appendHookRunAuditEvents } from '../../hooks/audit.js'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath.js'
+import { isMcpModelToolName } from '../../mcp/names.js'
 
 function normalizeWorkspacePath(rawPath: string, cwd: string): string | null {
   const normalized = normalizePathForCompare(rawPath, cwd)
@@ -188,6 +189,8 @@ export function createPolicyPreflight(args: {
   env?: NodeJS.ProcessEnv
   platform?: Platform
   homedir?: string
+  isKnownMcpToolName?: (toolName: string) => boolean
+  getMcpToolInputSchema?: (toolName: string) => unknown
 }): ToolPreflight {
   const env = args.env ?? process.env
   const grepSymlinkScanCache = new Map<string, GrepSymlinkScanCacheEntry>()
@@ -240,9 +243,6 @@ export function createPolicyPreflight(args: {
   }
 
   return async (call, ctx): Promise<ToolResult | null> => {
-    const action: PolicyAction | null = toolCallToPolicyAction(call, ctx)
-    if (!action) return null
-
     const replMode = ctx.getReplMode?.() ?? ctx.replMode
     const cwd = ctx.cwd || process.cwd()
     let isAutoMemoryWriteTarget = false
@@ -270,6 +270,109 @@ export function createPolicyPreflight(args: {
         platform: args.platform,
         homedir: args.homedir,
       })
+    }
+    const action: PolicyAction | null = toolCallToPolicyAction(call, ctx)
+
+    if (!action) {
+      if (!isMcpModelToolName(call.name)) return null
+      if (!args.isKnownMcpToolName?.(call.name)) {
+        return { tool_use_id: call.id, content: `Error: Unknown MCP tool: ${call.name}`, is_error: true }
+      }
+      if (replMode === 'plan') {
+        return {
+          tool_use_id: call.id,
+          content: 'Error: Plan mode is active. MCP tools are unavailable.',
+          is_error: true,
+        }
+      }
+
+      const permissions = await getMergedPermissions()
+      const sessionAllows = args.approval?.getSessionPermissionAllows?.() ?? []
+      const effectivePermissions = sessionAllows.length
+        ? {
+            ...permissions,
+            allow: [
+              ...sessionAllows.map((rule) => ({
+                rule,
+                scope: 'projectLocal' as const,
+                filePath: '(session)',
+              })),
+              ...permissions.allow,
+            ],
+          }
+        : permissions
+      const perm = decideToolPermission({ permissions: effectivePermissions, toolName: call.name })
+      const permissionDecision: PolicyDecision =
+        perm.decision === 'allow' ? 'allow' : perm.decision === 'deny' ? 'deny' : 'prompt'
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'policy.decision',
+          agentDepth: ctx.agentDepth,
+          trace: traceForCall,
+          tool: { name: call.name, toolUseId: call.id },
+          replMode: replMode ?? undefined,
+          action: { kind: 'tool.name', toolName: call.name, input: call.input ?? {} },
+          decision: {
+            raw: permissionDecision,
+            effective: permissionDecision,
+            matchedRule: perm.match
+              ? {
+                  kind: 'permission',
+                  permissionKind: perm.match.kind,
+                  rule: perm.match.entry.rule,
+                  scope: perm.match.entry.scope,
+                  filePath: perm.match.entry.filePath,
+                }
+              : undefined,
+            suggestions: [],
+          },
+        })
+      }
+
+      if (perm.decision === 'deny') {
+        return { tool_use_id: call.id, content: `Error: Permission denied ${call.name}`, is_error: true }
+      }
+
+      if (perm.decision === 'allow') return null
+
+      if (ctx.agentDepth > 0) {
+        return { tool_use_id: call.id, content: 'Error: Approval required', is_error: true }
+      }
+
+      if (ctx.interactive === false) {
+        return { tool_use_id: call.id, content: `Error: Approval required for ${call.name}`, is_error: true }
+      }
+
+      if (!args.approval?.ensureToolNameApproved) {
+        return { tool_use_id: call.id, content: `Error: Approval required for ${call.name}`, is_error: true }
+      }
+
+      if (ctx.hooks) {
+        const permHook = await ctx.hooks.runPermissionRequest({
+          toolName: call.name,
+          toolInput: call.input as Record<string, unknown>,
+          cwd,
+          signal: ctx.signal,
+        })
+        auditHookRuns('PermissionRequest', permHook.runs)
+        if (permHook.blocked) {
+          const stderr = permHook.blockedBy?.stderr?.trim()
+          const content = stderr ? `Error: Permission denied ${call.name}\n${stderr}` : `Error: Permission denied ${call.name}`
+          return { tool_use_id: call.id, content, is_error: true }
+        }
+      }
+
+      const approved = await args.approval.ensureToolNameApproved({
+        call,
+        ctx,
+        toolName: call.name,
+        effectiveDecision: 'prompt',
+        inputSchema: args.getMcpToolInputSchema?.(call.name),
+      })
+      if (approved.ok !== true) return approved.result
+      return null
     }
 
     // Plan mode: only allow editing the plan file itself (no approvals for non-plan paths).

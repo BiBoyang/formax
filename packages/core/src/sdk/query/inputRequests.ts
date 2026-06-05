@@ -308,6 +308,7 @@ function buildPermissionSuggestionsFromApprovalEvent(
     'net.fetch': event.action.url,
     'net.search': event.action.query,
     'tool.install': event.action.tool,
+    'tool.name': event.action.toolName ?? event.toolName,
   }
   const fallbackRule = buildPermissionRuleSuggestion({
     toolName: event.toolName,

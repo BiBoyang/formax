@@ -18,6 +18,7 @@ export type ChatHistory = PromptMessage[]
 
 export interface ChatEngine {
   beginNewSession?: (args?: { source?: 'startup' | 'clear' | 'resume' }) => void
+  prepareTurn?: () => Promise<void>
   runTurn(args: {
     history: ChatHistory
     requestHistory?: ChatHistory

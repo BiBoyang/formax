@@ -435,6 +435,7 @@ export class TurnRunner {
     const runtimeConfig = await loadRuntimeConfig(this.env ?? process.env, cwd, {
       platform: this.platform,
       homedir: this.homedir,
+      loadMcpConfig: false,
     })
     const runtimeProfile = resolveEffectiveRuntimeModelProfile({
       cfg: runtimeConfig,

@@ -113,6 +113,30 @@ const defaultRenderer: ToolBlockRenderer = (item, context) => {
   })
 }
 
+function parseMcpToolName(toolName: string): { serverId: string; toolName: string } | null {
+  if (!toolName.startsWith('mcp__')) return null
+  const rest = toolName.slice('mcp__'.length)
+  const separator = rest.indexOf('__')
+  if (separator <= 0 || separator >= rest.length - 2) return null
+  return {
+    serverId: rest.slice(0, separator),
+    toolName: rest.slice(separator + 2),
+  }
+}
+
+const mcpRenderer: ToolBlockRenderer = (item, context) => {
+  const parsed = parseMcpToolName(item.toolName)
+  const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
+  const paramsText = stringifyToolParams(params) ?? item.paramsText
+  return withStandardBlocks({
+    item,
+    title: parsed ? `MCP ${parsed.serverId}/${parsed.toolName}` : item.toolName,
+    summary: item.status === 'running' ? '' : item.summary,
+    cwd: context.cwd,
+    ...(paramsText ? { paramsText } : {}),
+  })
+}
+
 function pickParamValue(params: ReturnType<typeof formatToolParams>, label: string): string | undefined {
   return params.find((param) => param.label === label)?.value
 }
@@ -706,7 +730,9 @@ const semanticRenderers: Partial<Record<ToolPresentationSemantic, ToolBlockRende
 
 export function buildToolUiBlocks(item: ToolCallItem, context: ToolRenderContext = {}): ToolUiBlock[] {
   const semantic = getToolPresentationSemantic(item.toolName)
-  const renderer = semanticRenderers[semantic] ?? renderers[item.toolName] ?? defaultRenderer
+  const renderer = parseMcpToolName(item.toolName)
+    ? mcpRenderer
+    : semanticRenderers[semantic] ?? renderers[item.toolName] ?? defaultRenderer
   return renderer(item, {
     cwd: context.cwd,
     density: context.density ?? 'compact',

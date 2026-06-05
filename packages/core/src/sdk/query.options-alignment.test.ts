@@ -84,6 +84,7 @@ function createRuntimeFixture(runTurn?: (turnArgs: any) => Promise<PromptMessage
       submitAnswers: vi.fn(() => true),
       reject: vi.fn(() => true),
     },
+    dispose: vi.fn(async () => {}),
     engine: {
       runTurn: vi.fn(),
     },

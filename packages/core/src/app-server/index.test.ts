@@ -18,6 +18,7 @@ async function runWithLines(
       interruptTurn: (params: any) => Promise<any>
       submitInput: (params: any) => Promise<any>
     }
+    globalConfig?: unknown
   },
 ): Promise<any[]> {
   const input = new PassThrough()
@@ -25,6 +26,9 @@ async function runWithLines(
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-run-cwd-'))
   const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-run-config-'))
   const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+  if (options?.globalConfig !== undefined) {
+    await fs.writeFile(path.join(configDir, 'config.json'), JSON.stringify(options.globalConfig), 'utf8')
+  }
   const responses: any[] = []
   let buffer = ''
 
@@ -77,6 +81,25 @@ describe('runAppServer', () => {
     expect(responses[0]?.error?.code).toBe(JSON_RPC_ERRORS.NOT_INITIALIZED)
     expect(responses[1]?.result?.serverInfo?.name).toBe('formax')
     expect(responses[2]?.result?.thread?.id).toBeTypeOf('string')
+  })
+
+  it('does not parse persisted MCP config during app-server initialize', async () => {
+    const responses = await runWithLines([
+      '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"web","version":"1.0.0"}}}',
+    ], {
+      globalConfig: {
+        version: 1,
+        mcp: {
+          servers: {
+            broken: { type: 'http', url: 'file:///not-http' },
+          },
+        },
+      },
+    })
+
+    expect(responses).toHaveLength(1)
+    expect(responses[0]?.result?.serverInfo?.name).toBe('formax')
+    expect(responses[0]?.error).toBeUndefined()
   })
 
   it('returns PAYLOAD_TOO_LARGE for oversized request lines', async () => {

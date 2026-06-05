@@ -16,8 +16,172 @@ describe('loadRuntimeConfig', () => {
       await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), { version: 1, ui: { } })
       await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), { version: 1, ui: { } })
 
-      const cfg = await loadRuntimeConfig({ FORMAX_CONFIG_DIR: globalConfigDir } as any, projectDir)
+      const cfg = await loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        projectDir,
+        { loadMcpConfig: true },
+      )
       expect(cfg.ui.assistantTextMode).toBe('buffered')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('loads persisted MCP config from global config.json and ignores project MCP in Phase 1A', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            shared: { type: 'stdio', command: 'global-shared' },
+            globalOnly: { type: 'http', url: 'https://example.com/mcp' },
+          },
+        },
+      })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            shared: { type: 'stdio', command: 'project-shared' },
+          },
+        },
+      })
+
+      const cfg = await loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        projectDir,
+        { loadMcpConfig: true },
+      )
+
+      expect(cfg.mcp).toEqual({
+        servers: {
+          shared: { type: 'stdio', command: 'global-shared', enabled: true },
+          globalonly: { type: 'http', url: 'https://example.com/mcp', enabled: true },
+        },
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps valid global MCP servers when project MCP config is invalid', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            global: { type: 'stdio', command: 'global-mcp' },
+          },
+        },
+      })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            broken: { type: 'http', url: 'file:///not-http' },
+          },
+        },
+      })
+
+      const cfg = await loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        projectDir,
+        { loadMcpConfig: true },
+      )
+
+      expect(cfg.mcp).toEqual({
+        servers: {
+          global: { type: 'stdio', command: 'global-mcp', enabled: true },
+        },
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid global MCP config instead of silently disabling MCP', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            broken: { type: 'http', url: 'file:///not-http' },
+          },
+        },
+      })
+
+      await expect(loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        projectDir,
+        { loadMcpConfig: true },
+      ))
+        .rejects
+        .toThrow('Invalid MCP config:')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not parse optional MCP config by default for legacy config reads', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            broken: { type: 'http', url: 'file:///not-http' },
+          },
+        },
+      })
+
+      const cfg = await loadRuntimeConfig({ FORMAX_CONFIG_DIR: globalConfigDir } as any, projectDir)
+      expect(cfg.mcp).toEqual({ servers: {} })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('skips persisted MCP parsing when MCP config loading is disabled', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-env-config-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        mcp: {
+          servers: {
+            broken: { type: 'http', url: 'file:///not-http' },
+          },
+        },
+      })
+
+      const cfg = await loadRuntimeConfig(
+        { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        projectDir,
+        { loadMcpConfig: false },
+      )
+      expect(cfg.mcp).toEqual({ servers: {} })
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

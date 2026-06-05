@@ -92,7 +92,7 @@ env override 只对 `resolve.ts` 显式解析的变量生效。未解析或历�
 Persisted MCP server config MUST live under existing `config.json` storage as `mcp.servers`. Formax MUST NOT add a separate `.mcp.json` or MCP-specific persisted config file in Phase 1A.
 
 `CFG-151`  
-REPL Phase 1A MUST feed effective `mcp.servers` from existing user/project `config.json` precedence into the MCP manager activation path.
+REPL Phase 1A MUST feed `mcp.servers` from user/global `config.json` into the MCP manager activation path. Repo-local project MCP config MUST be ignored in Phase 1A until a project MCP trust/approval gate exists.
 
 `CFG-152`  
 SDK Phase 1A MUST NOT read local user/project config files for MCP. SDK MCP servers MUST come only from explicit `options.mcpServers` / session overlay.
@@ -102,6 +102,9 @@ app-server/Web/Electron Phase 1A MUST NOT read local MCP config or activate MCP 
 
 `CFG-154`  
 `mcp.servers` parsing MUST be strict. Unknown transport fields, OAuth/browser auth fields, HTTP session policy fields, reconnect policy fields, and legacy SSE runtime fields MUST be rejected for Phase 1A.
+
+`CFG-155`
+Invalid user/global `mcp.servers` MUST fail MCP config loading with actionable validation issues for entrypoints that load MCP config. MCP config MUST NOT silently degrade to an empty server map. SDK/app-server Phase 1A MUST skip persisted MCP parsing entirely, and repo-local project MCP config remains ignored until a project trust gate exists.
 
 ## 3. Auth 与运行时派生
 

@@ -94,6 +94,7 @@ describe('runLegacyCli', () => {
       runtimeFlags: {},
       executor: { kind: 'chat-executor' },
       engine: { kind: 'chat-engine' },
+      dispose: vi.fn(async () => {}),
     })
     resolveInitialSession.mockResolvedValue(null)
     renderReplApp.mockReturnValue({
@@ -197,10 +198,23 @@ describe('runLegacyCli', () => {
     expect(renderArgs).toBeDefined()
     await renderArgs.onClearTerminal()
     renderArgs.onExit()
+    await Promise.resolve()
 
     expect(resetInkStaticOutputForStdout).toHaveBeenCalledWith(process.stdout)
     // initial clear + after setup + explicit onClearTerminal
     expect(clearTerminal).toHaveBeenCalledTimes(3)
     expect(processExit).toHaveBeenCalledWith(0)
+  })
+
+  it('disposes runtime when initial session resolution fails after startup', async () => {
+    resolveInitialSession.mockRejectedValueOnce(new Error('session failed'))
+
+    const { runLegacyCli } = await import('./runLegacyCli.js')
+    await runLegacyCli()
+
+    const resolvedRuntime = await createRuntime.mock.results[0]?.value
+    expect(resolvedRuntime.dispose).toHaveBeenCalledTimes(1)
+    expect(stderrWrite).toHaveBeenCalledWith('Error: session failed\n')
+    expect(processExit).toHaveBeenCalledWith(1)
   })
 })

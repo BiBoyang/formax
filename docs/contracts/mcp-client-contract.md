@@ -1,6 +1,6 @@
 # MCP Client 合同（唯一事实源）
 
-最后更新：2026-06-04  
+最后更新：2026-06-05
 状态：规范性（Normative）
 
 本文档定义 Formax 作为 MCP client/host 的 Phase 1A 合同。
@@ -40,7 +40,7 @@
 Formax Phase 1A MUST 只实现 MCP client/host 支持。Formax MUST NOT 实现 MCP server。
 
 `MCP-002`  
-REPL 是 Phase 1A 唯一 disk-backed MCP activation 入口。REPL MUST 从 effective runtime config 的 `mcp.servers` 读取启用的 MCP servers。
+REPL 是 Phase 1A 唯一 disk-backed MCP activation 入口。REPL MUST 只从 user/global `config.json` 的 `mcp.servers` 读取启用的 MCP servers。Repo-local project `config.json` 中的 MCP config MUST be ignored in Phase 1A until a project MCP trust/approval gate exists.
 
 `MCP-003`  
 SDK MUST NOT 读取 user/project local MCP config files。SDK Phase 1A MCP servers MUST 只来自 explicit `options.mcpServers` / session overlay。
@@ -62,9 +62,9 @@ Persisted MCP config MUST live under existing Formax `config.json` storage as `m
 `MCP-103`  
 `McpServerConfig` Phase 1A MUST be a strict discriminated union:
 
-1. shared field: `enabled?: boolean`, default `true`
-2. `type: "stdio"` with `command`, optional `args`, optional `env`, optional `cwd`, optional `enabled`
-3. `type: "http"` for MCP Streamable HTTP with `url`, optional `headers`, optional `timeoutMs`, optional `enabled`
+1. shared fields: `enabled?: boolean`, default `true`; `timeoutMs?: number`
+2. `type: "stdio"` with `command`, optional `args`, optional `env`, optional `cwd`, optional shared fields
+3. `type: "http"` for MCP Streamable HTTP with `url`, optional `headers`, optional shared fields
 4. reserved `type: "sse"` rejected by the Phase 1A parser
 
 `MCP-104`  
@@ -72,6 +72,8 @@ The parser MUST reject unknown transport fields, OAuth/browser auth fields, HTTP
 
 `MCP-105`  
 `stdio.env` and `http.headers` MAY reference environment variables. Raw secrets MUST NOT be emitted to model-facing output, prompt helper blocks, transcript summaries, diagnostics shown to the model, or audit text.
+
+For stdio servers, Formax Phase 1A MUST spawn the configured command with the MCP SDK safe default environment plus a small allowlist of non-secret runtime environment variables needed for local process startup (for example PATH, temporary-directory, locale, and SSH agent variables), then apply `stdio.env` as explicit overrides. Formax MUST NOT inherit the entire parent process environment into stdio MCP children by default.
 
 `MCP-106`  
 Source/fingerprint metadata MUST NOT be persisted into user config in Phase 1A. Any source/fingerprint metadata used by implementation MUST be internal derived state only.
@@ -92,7 +94,7 @@ The following phases MUST be side-effect-free and MUST NOT spawn, connect, initi
 Interactive REPL MUST start enabled MCP server connect/initialize/listTools in a background manager activation after runtime/session setup. This activation MUST NOT block first render and MUST NOT guarantee first-turn MCP tool availability.
 
 `MCP-203`  
-SDK / one-shot non-interactive query setup MUST await MCP manager activation before the first model request so supported overlay MCP tools can be visible.
+SDK / one-shot non-interactive query setup MUST await MCP manager activation before the first model request. SDK activation MUST use only the explicit `options.mcpServers` / session overlay shape and MUST NOT read user/project local MCP config files.
 
 `MCP-204`  
 Server startup/connect is host/runtime config activation. It MUST NOT be authorized by model output and MUST NOT be represented as a model tool-call permission.
@@ -146,6 +148,9 @@ MCP call arguments MUST be prompt/audit payload only. Arguments MUST NOT be seri
 Interactive main path MCP tool calls MUST prompt by default when no matching allow exists. Non-interactive and sub-agent paths MUST fail closed without pending approval.
 
 `MCP-407`  
+Plan mode MUST fail closed for MCP tool calls in Phase 1A. Formax Phase 1A does not infer MCP tools' filesystem effects or target paths, so MCP tools MUST NOT bypass plan-mode's existing "only edit the active plan file" protection.
+
+`MCP-408`  
 `PreToolUse`, `PermissionRequest`, `PostToolUse`, and audit payloads MUST carry the full qualified MCP tool name.
 
 ## 6. Result Mapping 与 IO 边界
@@ -166,10 +171,10 @@ Raw binary/blob payloads MUST NOT be emitted inline/base64 to the model.
 Formax Phase 1A generic `ToolResult` mapping MUST NOT emit provider image blocks or raw image base64. Provider-native MCP image blocks are deferred until Formax has an adapter-specific non-text payload path that cannot be stringified by generic transcript/pruning/provider fallbacks.
 
 `MCP-506`  
-Images, audio, and non-image blobs up to `10 MiB` MAY be saved as file-backed output under manager-owned `mcp-output/<session-id>/`, rooted in `cfg.paths.logsDir` when available and otherwise OS temp. Larger blobs MUST return stable error text with size metadata and no file write.
+Images, audio, and non-image blobs up to `10 MiB` MAY be saved as file-backed output under manager-owned `mcp-output/<session-id>/`, rooted in `cfg.paths.logsDir`. Larger blobs MUST return stable error text with size metadata and no file write.
 
 `MCP-507`  
-File-backed MCP output MUST be best-effort cleaned on manager disposal / query close. Cleanup failures are diagnostics only and MUST NOT block shutdown or write to user config.
+File-backed MCP output written under the configured logs directory MUST be preserved after manager disposal / query close because transcript output contains filesystem path placeholders. Cleanup of these persisted artifacts is deferred to an explicit future retention policy and MUST NOT run implicitly during normal runtime shutdown.
 
 ## 7. Roots 与非 Tool Capability
 
@@ -191,7 +196,7 @@ Sampling, resource templates, resource subscribe/poll, and MCP tasks are out of 
 ## 8. SDK Surface
 
 `MCP-701`  
-SDK `options.mcpServers` MAY be unlocked only for the supported strict transport-aware config shape after runtime semantics are tested.
+SDK `options.mcpServers` is supported in Phase 1A only for the strict transport-aware overlay shape. It MUST use the shared MCP parser/runtime path, support `stdio` and Streamable HTTP `type: "http"`, and reject OAuth/session/reconnect/legacy SSE fields.
 
 `MCP-702`  
 `strictMcpConfig`, `query.mcpServerStatus()`, `setMcpServers()`, `reconnectMcpServer()`, and `toggleMcpServer()` MUST remain stable unsupported surfaces in Phase 1A.

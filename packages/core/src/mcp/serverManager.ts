@@ -105,6 +105,25 @@ export class McpServerManager {
     return cloneMcpToolCatalog(this.catalog)
   }
 
+  suppressToolBindings(modelNames: Iterable<string>): void {
+    const suppressed = new Set(modelNames)
+    if (suppressed.size === 0) return
+    const dropped = this.catalog.bindings.filter((binding) => suppressed.has(binding.modelName))
+    if (dropped.length === 0) return
+    this.catalog = {
+      bindings: this.catalog.bindings.filter((binding) => !suppressed.has(binding.modelName)),
+      diagnostics: [
+        ...this.catalog.diagnostics,
+        ...dropped.map((binding) => ({
+          type: 'reserved-tool-name' as const,
+          modelName: binding.modelName,
+          dropped: { serverId: binding.originalServerId, toolName: binding.originalToolName },
+        })),
+      ],
+    }
+    this.bindingIndex = createMcpToolBindingIndex(this.catalog)
+  }
+
   listStatuses(): McpServerStatusProjection[] {
     return Array.from(this.servers.values()).map((server) => projectMcpServerStatus({
       serverId: server.serverId,

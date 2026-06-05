@@ -858,6 +858,36 @@ describe('runMainSendTurn', () => {
     })
   })
 
+  it('prepares dynamic runtime tools before resolving tools for the current turn', async () => {
+    const tools = [{ name: 'Skill' }, { name: 'Read' }]
+    const engine = {
+      prepareTurn: vi.fn(async () => {
+        tools.push({ name: 'mcp__github__create_issue' })
+      }),
+      runTurn: vi.fn(async (args: any) => [
+        ...(args.history || []),
+        args.user,
+        { role: 'assistant', content: [{ type: 'text', text: 'assistant' }] },
+      ]),
+    }
+    const harness = createHarness({
+      deps: {
+        ...createHarness().deps,
+        engine,
+        tools,
+      },
+    })
+
+    await runMainSendTurn(harness as any)
+
+    expect(engine.prepareTurn).toHaveBeenCalledTimes(1)
+    expect(engine.runTurn.mock.calls[0][0].tools.map((tool: any) => tool.name)).toEqual([
+      'Skill',
+      'Read',
+      'mcp__github__create_issue',
+    ])
+  })
+
   it('passes prepared requestHistory separately from persisted history into engine.runTurn', async () => {
     prepareHistoryForTurn.mockResolvedValueOnce({
       history: [{ role: 'assistant', content: [{ type: 'text', text: 'persisted-summary' }] }],

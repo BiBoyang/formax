@@ -5,6 +5,8 @@ import { createNodeFileStore } from './nodeFileStore.js'
 import { loadConfigFiles } from './configFiles.js'
 import { getConfigPaths } from './configPaths.js'
 import { resolveActiveModel } from './modelTier.js'
+import { parseMcpConfigFromFormaxConfig } from '../mcp/config.js'
+import type { McpConfig } from '../mcp/types.js'
 import type {
   CapabilityConfidence,
   CapabilitySource,
@@ -59,6 +61,7 @@ export type RuntimeConfig = {
     outputStyle: 'default' | 'explanatory' | 'learning'
     verboseOutput: boolean
   }
+  mcp?: McpConfig
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -90,10 +93,28 @@ function sameBinding(args: {
   )
 }
 
+function resolvePersistedMcpConfig(args: {
+  globalConfig: unknown | null
+  projectConfig: unknown | null
+}): McpConfig {
+  const globalMcp = parseMcpConfigFromFormaxConfig(args.globalConfig)
+  // Phase 1A activates only user/global MCP config. Repo-local project MCP config
+  // needs a trust gate before it can spawn stdio processes.
+  void args.projectConfig
+  if (globalMcp.ok === false) {
+    throw new Error(`Invalid MCP config: ${globalMcp.issues.join('; ')}`)
+  }
+  return {
+    servers: {
+      ...globalMcp.config.servers,
+    },
+  }
+}
+
 export async function loadRuntimeConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
-  opts: { fileStore?: FileStore; platform?: string; homedir?: string } = {},
+  opts: { fileStore?: FileStore; platform?: string; homedir?: string; loadMcpConfig?: boolean } = {},
 ): Promise<RuntimeConfig> {
   const store = opts.fileStore ?? createNodeFileStore()
   const disk = await loadConfigFiles({
@@ -109,6 +130,12 @@ export async function loadRuntimeConfig(
     projectConfig: disk.projectConfig,
     authStore: disk.authStore,
   })
+  const mcp = opts.loadMcpConfig === true
+    ? resolvePersistedMcpConfig({
+        globalConfig: disk.globalConfig,
+        projectConfig: disk.projectConfig,
+      })
+    : { servers: {} }
 
   const logsDirRaw = resolved.config.paths.logsDir || env.FORMAX_LOGS_DIR || ''
   const logsDir = logsDirRaw
@@ -240,5 +267,6 @@ export async function loadRuntimeConfig(
       outputStyle,
       verboseOutput,
     },
+    mcp,
   }
 }

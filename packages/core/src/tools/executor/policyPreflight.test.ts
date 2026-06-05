@@ -17,6 +17,14 @@ import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { AuditEventV1 } from '../../core/audit/schema.js'
 import { buildAutoMemoryDirectoryPath } from '../../shared/utils/autoMemoryPath.js'
 
+const KNOWN_MCP_TOOL_NAMES = new Set([
+  'mcp__github__create_issue',
+  'mcp__github__delete_repo',
+  'mcp__linear__create_issue',
+])
+
+const isKnownMcpToolNameForTest = (toolName: string): boolean => KNOWN_MCP_TOOL_NAMES.has(toolName)
+
 describe('createPolicyPreflight', () => {
   it('denies WebFetch by default when no rules exist', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-'))
@@ -77,6 +85,7 @@ describe('createPolicyPreflight', () => {
         env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
         platform: 'linux',
         homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
       })
 
       const res = await preflight(
@@ -187,6 +196,447 @@ describe('createPolicyPreflight', () => {
 
       expect(res?.is_error).toBe(true)
       expect(res?.content).toContain('Permission denied WebFetch')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prompts MCP tool calls by fully-qualified tool name in the interactive main path', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-prompt-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      const onEvent = vi.fn()
+      const auditEntries: any[] = []
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        audit: { append: async (entry) => void auditEntries.push(entry) } as any,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      const res = await preflight(
+        {
+          id: 'mcp-1',
+          name: 'mcp__github__create_issue',
+          input: { title: 'A' },
+        },
+        { cwd: projectDir, agentDepth: 0, onEvent },
+      )
+
+      expect(res).toBeNull()
+      expect(userInput.requestAnswers).toHaveBeenCalledTimes(1)
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'approval_request',
+        toolUseId: 'mcp-1',
+        toolName: 'mcp__github__create_issue',
+        action: { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+      }))
+      expect(auditEntries).toContainEqual(expect.objectContaining({
+        kind: 'policy.decision',
+        tool: { name: 'mcp__github__create_issue', toolUseId: 'mcp-1' },
+        action: { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+        decision: expect.objectContaining({
+          raw: 'prompt',
+          effective: 'prompt',
+          suggestions: [],
+        }),
+      }))
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects unknown MCP tool names before hooks or approval UI', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-unknown-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const permissionRequest = vi.fn(async () => ({
+        runs: [],
+        blocked: false,
+      }))
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: () => false,
+      })
+
+      const res = await preflight(
+        { id: 'mcp-unknown', name: 'mcp__github__missing_tool', input: { title: 'A' } },
+        {
+          cwd: projectDir,
+          agentDepth: 0,
+          onEvent: () => {},
+          hooks: { runPermissionRequest: permissionRequest } as any as HooksRuntime,
+        },
+      )
+
+      expect(res).toEqual({
+        tool_use_id: 'mcp-unknown',
+        content: 'Error: Unknown MCP tool: mcp__github__missing_tool',
+        is_error: true,
+      })
+      expect(permissionRequest).not.toHaveBeenCalled()
+      expect(userInput.requestAnswers).not.toHaveBeenCalled()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('remembers MCP approvals by exact tool name for the session, not arguments', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-session-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve_remember', scope: 'session' })),
+      } as any
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      await expect(preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )).resolves.toBeNull()
+      await expect(preflight(
+        { id: 'mcp-2', name: 'mcp__github__create_issue', input: { title: 'B' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )).resolves.toBeNull()
+
+      expect(userInput.requestAnswers).toHaveBeenCalledTimes(1)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps broader MCP ask rules ahead of exact session allows', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-session-ask-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          ask: ['mcp__github__*'],
+          deny: ['mcp__github__delete_repo'],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve_remember', scope: 'session' })),
+      } as any
+      const approval = createApprovalService({ fileStore: store, userInput })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      await expect(preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )).resolves.toBeNull()
+      await expect(preflight(
+        { id: 'mcp-2', name: 'mcp__github__create_issue', input: { title: 'B' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )).resolves.toBeNull()
+      const denied = await preflight(
+        { id: 'mcp-3', name: 'mcp__github__delete_repo', input: {} },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )
+
+      expect(userInput.requestAnswers).toHaveBeenCalledTimes(2)
+      expect(denied?.is_error).toBe(true)
+      expect(denied?.content).toContain('Permission denied mcp__github__delete_repo')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps broader MCP ask rules ahead of persisted exact allows', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-persisted-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: ['mcp__github__create_issue'],
+          ask: ['mcp__github__*'],
+          deny: ['mcp__github__delete_repo'],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      await expect(preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )).resolves.toBeNull()
+      const denied = await preflight(
+        { id: 'mcp-2', name: 'mcp__github__delete_repo', input: {} },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {} },
+      )
+
+      expect(userInput.requestAnswers).toHaveBeenCalledTimes(1)
+      expect(denied?.is_error).toBe(true)
+      expect(denied?.content).toContain('Permission denied mcp__github__delete_repo')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('applies MCP permission rules using deny > ask > allow precedence', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-perms-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: ['mcp__github__create_issue'],
+          ask: ['mcp__github__*'],
+          deny: ['mcp__github'],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      const res = await preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0 },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Permission denied mcp__github__create_issue')
+      expect(userInput.requestAnswers).not.toHaveBeenCalled()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('allows MCP server-level and wildcard rules without prompting', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-allow-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: ['mcp__github', 'mcp__linear__*'],
+          ask: [],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      await expect(preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: {} },
+        { cwd: projectDir, agentDepth: 0 },
+      )).resolves.toBeNull()
+      await expect(preflight(
+        { id: 'mcp-2', name: 'mcp__linear__create_issue', input: {} },
+        { cwd: projectDir, agentDepth: 0 },
+      )).resolves.toBeNull()
+      expect(userInput.requestAnswers).not.toHaveBeenCalled()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('denies MCP prompts in subagents and non-interactive contexts', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-deny-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      const subagent = await preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: {} },
+        { cwd: projectDir, agentDepth: 1 },
+      )
+      const nonInteractive = await preflight(
+        { id: 'mcp-2', name: 'mcp__github__create_issue', input: {} },
+        { cwd: projectDir, agentDepth: 0, interactive: false },
+      )
+
+      expect(subagent?.content).toBe('Error: Approval required')
+      expect(nonInteractive?.content).toBe('Error: Approval required for mcp__github__create_issue')
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks MCP tools in plan mode because Phase 1A cannot classify their filesystem effects', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-plan-mode-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.mkdir(path.join(projectDir, '.formax'), { recursive: true })
+      await store.writeJsonAtomic(path.join(projectDir, '.formax', 'settings.local.json'), {
+        version: 1,
+        permissions: {
+          allow: ['mcp__github__create_issue'],
+          ask: [],
+          deny: [],
+          workspace: { additionalDirectories: [] },
+        },
+      })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      const res = await preflight(
+        { id: 'mcp-plan', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0, replMode: 'plan' },
+      )
+
+      expect(res?.is_error).toBe(true)
+      expect(res?.content).toContain('Plan mode is active. MCP tools are unavailable.')
+      expect(userInput.requestAnswers).not.toHaveBeenCalled()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('runs PermissionRequest hooks with full MCP tool names before approval UI', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-policy-preflight-mcp-hook-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const projectDir = path.join(dir, 'repo')
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.mkdir(projectDir, { recursive: true })
+      const userInput = {
+        requestAnswers: vi.fn(async () => ({ decision: 'approve' })),
+      } as any
+      const permissionRequest = vi.fn(async () => ({
+        runs: [],
+        blocked: false,
+      }))
+      const hooks = {
+        runPermissionRequest: permissionRequest,
+      } as any as HooksRuntime
+      const preflight = createPolicyPreflight({
+        fileStore: store,
+        approval: createApprovalService({ fileStore: store, userInput }),
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: dir,
+        isKnownMcpToolName: isKnownMcpToolNameForTest,
+      })
+
+      await expect(preflight(
+        { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+        { cwd: projectDir, agentDepth: 0, onEvent: () => {}, hooks },
+      )).resolves.toBeNull()
+
+      expect(permissionRequest).toHaveBeenCalledWith(expect.objectContaining({
+        toolName: 'mcp__github__create_issue',
+        toolInput: { title: 'A' },
+        cwd: projectDir,
+      }))
+      expect(userInput.requestAnswers).toHaveBeenCalledTimes(1)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

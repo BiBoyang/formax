@@ -96,7 +96,7 @@ describe('MCP result mapper', () => {
     ])
   })
 
-  it('maps resource links without injecting resource bodies', async () => {
+  it('maps inline resource text to placeholders without body injection', async () => {
     const result = await mapMcpToolResult({
       content: [{ type: 'resource', resource: { uri: 'file:///tmp/a.txt', mimeType: 'text/plain', text: 'secret body' } }],
       isError: true,
@@ -104,10 +104,19 @@ describe('MCP result mapper', () => {
 
     expect(result).toEqual({
       tool_use_id: 'toolu_resource',
-      content: [{ type: 'text', text: '[MCP resource available: file:///tmp/a.txt (text/plain); body omitted]' }],
+      content: [{ type: 'text', text: '[MCP resource available: file:///tmp/a.txt (text/plain)]' }],
       is_error: true,
     })
-    expect(toolResultContentToText(result.content)).not.toContain('secret body')
+  })
+
+  it('maps resource links without inline text to placeholders', async () => {
+    const result = await mapMcpToolResult({
+      content: [{ type: 'resource', resource: { uri: 'file:///tmp/a.txt', mimeType: 'text/plain' } }],
+    }, { toolUseId: 'toolu_resource_link' })
+
+    expect(result.content).toEqual([
+      { type: 'text', text: '[MCP resource available: file:///tmp/a.txt (text/plain)]' },
+    ])
   })
 
   it('does not crash on malformed content blocks or leak malformed blob payloads', async () => {

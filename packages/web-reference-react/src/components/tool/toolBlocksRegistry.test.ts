@@ -31,6 +31,25 @@ describe('buildToolUiBlocks', () => {
     expect(header?.summary).toBe('Custom completion summary')
   })
 
+  it('renders MCP tools with a generic server/tool header instead of default fallback title', () => {
+    const item = makeToolItem({
+      toolName: 'mcp__github__create_issue',
+      status: 'completed',
+      paramsText: 'title="Hello"',
+      summary: 'created issue',
+      detailLines: ['issue #1'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    const details = blocks.find((block) => block.kind === 'details')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('MCP github/create_issue')
+    expect(header?.summary).toBe('created issue')
+    expect(header?.paramsText).toBe('title="Hello"')
+    expect(details?.kind).toBe('details')
+    expect(details?.lines).toEqual(['issue #1'])
+  })
+
   it('uses semantic ask summary when completed detail lines include answers', () => {
     const item = makeToolItem({
       detailLines: ['{"answers":{"q1":"Yes","q2":"No"}}'],

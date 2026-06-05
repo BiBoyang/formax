@@ -43,6 +43,28 @@ describe('ToolRegistry', () => {
     expect(registry.getHandlers()).toEqual([handler])
   })
 
+  it('supports dynamic presenter matchers after exact and alias lookup', () => {
+    const registry = new ToolRegistry()
+    const exactPresenter = vi.fn() as any
+    const dynamicPresenter = vi.fn() as any
+
+    registry.register({
+      name: 'Exact',
+      aliases: ['Alias'],
+      presenter: exactPresenter,
+    })
+    registry.register({
+      name: 'dynamic',
+      presenter: dynamicPresenter,
+      canPresent: (name) => name.startsWith('mcp__'),
+    })
+
+    expect(registry.getPresenter('Exact')).toBe(exactPresenter)
+    expect(registry.getPresenter('Alias')).toBe(exactPresenter)
+    expect(registry.getPresenter('mcp__github__create_issue')).toBe(dynamicPresenter)
+    expect(registry.getPresenter('Other')).toBeUndefined()
+  })
+
   it('listSpecs supports function specs (base may be undefined)', async () => {
     const registry = new ToolRegistry()
 
@@ -72,6 +94,20 @@ describe('ToolRegistry', () => {
     await expect(registry.listSpecs()).resolves.toEqual([
       { name: 'b', description: 'B', input_schema: {} },
       { name: 'c', description: 'C', input_schema: {} },
+    ])
+  })
+
+  it('applies patch from registered module', async () => {
+    const registry = new ToolRegistry()
+    registry.register({ name: 'a', spec: { name: 'a', description: 'A', input_schema: {} } })
+    registry.register({
+      name: 'patcher',
+      patch: (tools) => [...tools, { name: 'b', description: 'B', input_schema: {} }],
+    })
+
+    await expect(registry.listSpecs()).resolves.toEqual([
+      { name: 'a', description: 'A', input_schema: {} },
+      { name: 'b', description: 'B', input_schema: {} },
     ])
   })
 

@@ -125,6 +125,7 @@ export async function runMainSendTurn(raw: RunMainSendTurnArgs): Promise<{
         : args.planSession?.getPlanPath() ?? null
 
     const cwd = process.cwd()
+    await args.engine.prepareTurn?.()
     const { allowTools, disallowedTools } = resolveToolFilters({
       env: process.env,
       interactive: true,

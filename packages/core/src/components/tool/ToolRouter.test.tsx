@@ -113,6 +113,29 @@ describe('ToolRouter', () => {
     expect(frame).toContain('Found 1 files')
   })
 
+  it('routes dynamic MCP presenters registered by matcher', () => {
+    const registry = new ToolRegistry()
+
+    registry.register({
+      name: 'mcp',
+      presenter: createToolBlocksPresenter(({ message }) => ({
+        blocks: [{ kind: 'header', status: 'completed', label: `MCP:${message.toolInfo?.name}` }],
+      })),
+      canPresent: (name) => name.startsWith('mcp__'),
+    })
+
+    const msg = createToolMsg({
+      toolInfo: {
+        name: 'mcp__github__create_issue',
+        input: { title: 'hello' },
+        status: 'completed',
+      },
+      content: 'created',
+    })
+    const { lastFrame } = render(<ToolRouter message={msg} registry={registry} />)
+    expect(lastFrame()).toContain('MCP:mcp__github__create_issue')
+  })
+
   it('adds a surface suffix when hooks debug is enabled with toolUseId and message id', () => {
     withHooksDebug('yes', () => {
       const registry = new ToolRegistry()

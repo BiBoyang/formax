@@ -166,6 +166,175 @@ describe('ApprovalService', () => {
     expect(settings?.permissions?.allow).toEqual(['Bash(echo hi)'])
   })
 
+  it('approve_remember + MCP tool name stores session-only exact allow without arguments', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'session' }),
+      } as any,
+    })
+
+    const res = await approval.ensureToolNameApproved({
+      call: { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+      ctx: { cwd: process.cwd(), agentDepth: 0, onEvent: () => {} },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+    })
+
+    expect(res.ok).toBe(true)
+    expect(approval.getSessionPermissionAllows()).toEqual(['mcp__github__create_issue'])
+    expect(approval.getSessionRules()).toEqual([])
+  })
+
+  it('applies updated_input_json to MCP tool call input on approve', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ title: 'patched', dryRun: true }),
+        }),
+      } as any,
+    })
+    const call: ToolCall = { id: 'mcp-updated', name: 'mcp__github__create_issue', input: { title: 'original' } } as any
+
+    const res = await approval.ensureToolNameApproved({
+      call,
+      ctx: { cwd: process.cwd(), agentDepth: 0, onEvent: () => {} },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          dryRun: { type: 'boolean' },
+        },
+        required: ['title'],
+        additionalProperties: false,
+      },
+    })
+
+    expect(res.ok).toBe(true)
+    expect(call.input).toEqual({ title: 'patched', dryRun: true })
+  })
+
+  it('rejects MCP updated_input_json that violates the tool input schema', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: JSON.stringify({ title: 'patched', extra: true }),
+        }),
+      } as any,
+    })
+    const call: ToolCall = { id: 'mcp-schema-invalid', name: 'mcp__github__create_issue', input: { title: 'original' } } as any
+
+    const res = await approval.ensureToolNameApproved({
+      call,
+      ctx: { cwd: process.cwd(), agentDepth: 0, onEvent: () => {} },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+        },
+        required: ['title'],
+        additionalProperties: false,
+      },
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('updated_input_json failed MCP input schema validation')
+    expect(String(res.result.content)).toContain('$.extra is not allowed')
+    expect(call.input).toEqual({ title: 'original' })
+  })
+
+  it('returns error for invalid MCP updated_input_json without mutating call input', async () => {
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({
+          decision: 'approve',
+          updated_input_json: '{not-json',
+        }),
+      } as any,
+    })
+    const call: ToolCall = { id: 'mcp-invalid-json', name: 'mcp__github__create_issue', input: { title: 'original' } } as any
+
+    const res = await approval.ensureToolNameApproved({
+      call,
+      ctx: { cwd: process.cwd(), agentDepth: 0, onEvent: () => {} },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+    })
+
+    expect(res.ok).toBe(false)
+    if (res.ok !== false) throw new Error('Expected ok=false')
+    expect(res.result.is_error).toBe(true)
+    expect(String(res.result.content)).toContain('invalid updated_input_json')
+    expect(call.input).toEqual({ title: 'original' })
+  })
+
+  it('approve_remember + MCP tool name persists project-local exact allow', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-mcp-approval-'))
+    const store = createNodeFileStore()
+
+    const approval = createApprovalService({
+      fileStore: store,
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve_remember', scope: 'project' }),
+      } as any,
+    })
+
+    const res = await approval.ensureToolNameApproved({
+      call: { id: 'mcp-2', name: 'mcp__github__create_issue', input: { title: 'A' } },
+      ctx: { cwd: tmp, agentDepth: 0, onEvent: () => {} },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+    })
+
+    expect(res.ok).toBe(true)
+    const settingsPath = path.join(tmp, '.formax', 'settings.local.json')
+    const settings = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as any
+    expect(settings?.permissions?.allow).toEqual(['mcp__github__create_issue'])
+  })
+
+  it('logs MCP approval prompt/result with the fully-qualified tool name', async () => {
+    const auditEntries: any[] = []
+    const onEvent = vi.fn()
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: {
+        requestAnswers: async () => ({ decision: 'approve' }),
+      } as any,
+      audit: { append: async (e) => void auditEntries.push(e) },
+    })
+
+    const res = await approval.ensureToolNameApproved({
+      call: { id: 'mcp-audit', name: 'mcp__github__create_issue', input: { title: 'A' } },
+      ctx: { cwd: process.cwd(), agentDepth: 0, onEvent },
+      toolName: 'mcp__github__create_issue',
+      effectiveDecision: 'prompt',
+    })
+
+    expect(res.ok).toBe(true)
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'approval_request',
+      toolUseId: 'mcp-audit',
+      toolName: 'mcp__github__create_issue',
+      action: { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+    }))
+    expect(auditEntries.map((entry) => entry.kind)).toEqual(['approval.prompt', 'approval.result'])
+    expect(auditEntries[0]).toEqual(expect.objectContaining({
+      tool: { name: 'mcp__github__create_issue', toolUseId: 'mcp-audit' },
+      action: { kind: 'tool.name', toolName: 'mcp__github__create_issue', input: { title: 'A' } },
+    }))
+  })
+
   it('approve_remember + updated_input_json persists allow key from patched bash command', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-approval-updated-'))
     const store = createNodeFileStore()

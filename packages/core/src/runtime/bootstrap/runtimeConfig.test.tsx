@@ -29,7 +29,26 @@ describe('createRuntimeConfigContext', () => {
     await createRuntimeConfigContext({ cwd: '/repo', env: process.env })
 
     expect(loadRuntimeConfig).toHaveBeenCalledTimes(1)
+    expect(loadRuntimeConfig).toHaveBeenCalledWith(
+      process.env,
+      '/repo',
+      { fileStore: { kind: 'file-store' }, loadMcpConfig: true },
+    )
     expect(runLegacySetupWizard).not.toHaveBeenCalled()
+  })
+
+  it('can skip MCP config loading for non-REPL entrypoints', async () => {
+    loadRuntimeConfig.mockResolvedValue({
+      llm: { apiKey: 'key' },
+    })
+    const { createRuntimeConfigContext } = await import('./runtimeConfig.js')
+    await createRuntimeConfigContext({ cwd: '/repo', env: process.env, loadMcpConfig: false })
+
+    expect(loadRuntimeConfig).toHaveBeenCalledWith(
+      process.env,
+      '/repo',
+      { fileStore: { kind: 'file-store' }, loadMcpConfig: false },
+    )
   })
 
   it('forces setup wizard when forceSetup=true', async () => {

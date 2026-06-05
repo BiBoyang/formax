@@ -451,10 +451,18 @@ export type StructuredOutputParseResult =
   | { ok: true; value: unknown }
   | { ok: false; error: string }
 
-export function validateStructuredOutputValue(args: {
-  schema: Record<string, unknown>
+export function validateJsonSchemaValue(args: {
+  schema: unknown
   value: unknown
+  errorPrefix?: string
 }): StructuredOutputParseResult {
+  if (!isPlainObject(args.schema)) {
+    return {
+      ok: false,
+      error: `${args.errorPrefix ?? 'JSON value failed schema validation'}: schema must be an object`,
+    }
+  }
+
   const validationError = validateJsonValue({
     rootSchema: args.schema,
     schema: args.schema,
@@ -466,7 +474,7 @@ export function validateStructuredOutputValue(args: {
   if (validationError) {
     return {
       ok: false,
-      error: `Structured output failed schema validation: ${validationError}`,
+      error: `${args.errorPrefix ?? 'JSON value failed schema validation'}: ${validationError}`,
     }
   }
 
@@ -474,6 +482,17 @@ export function validateStructuredOutputValue(args: {
     ok: true,
     value: args.value,
   }
+}
+
+export function validateStructuredOutputValue(args: {
+  schema: Record<string, unknown>
+  value: unknown
+}): StructuredOutputParseResult {
+  return validateJsonSchemaValue({
+    schema: args.schema,
+    value: args.value,
+    errorPrefix: 'Structured output failed schema validation',
+  })
 }
 
 export function parseAndValidateStructuredOutput(args: {

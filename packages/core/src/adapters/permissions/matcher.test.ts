@@ -40,6 +40,38 @@ describe('decideToolPermission', () => {
     expect(res.match?.entry.rule).toBe('WebFetch')
   })
 
+  it('matches MCP exact, server-level, and server wildcard rules without using arguments', () => {
+    const exact = permissions({ allow: ['mcp__github__create_issue'] })
+    expect(decideToolPermission({
+      permissions: exact,
+      toolName: 'mcp__github__create_issue',
+      toolSpec: '{"title":"a"}',
+    }).decision).toBe('allow')
+    expect(decideToolPermission({
+      permissions: exact,
+      toolName: 'mcp__github__create_issue',
+      toolSpec: '{"title":"b"}',
+    }).decision).toBe('allow')
+
+    const server = permissions({ allow: ['mcp__github'] })
+    expect(decideToolPermission({ permissions: server, toolName: 'mcp__github__create_issue' }).decision).toBe('allow')
+    expect(decideToolPermission({ permissions: server, toolName: 'mcp__github_enterprise__create_issue' }).decision).toBe('none')
+
+    const wildcard = permissions({ ask: ['mcp__github__*'] })
+    expect(decideToolPermission({ permissions: wildcard, toolName: 'mcp__github__list_repos' }).decision).toBe('ask')
+  })
+
+  it('keeps global permission precedence for MCP rules without specificity ordering', () => {
+    const p = permissions({
+      allow: ['mcp__github__create_issue'],
+      ask: ['mcp__github__*'],
+      deny: ['mcp__github'],
+    })
+    const res = decideToolPermission({ permissions: p, toolName: 'mcp__github__create_issue' })
+    expect(res.decision).toBe('deny')
+    expect(res.match?.entry.rule).toBe('mcp__github')
+  })
+
   it('matches non-bash parenthesized rule with empty spec', () => {
     const res = decideToolPermission({
       permissions: permissions({ ask: ['WebFetch()'] }),

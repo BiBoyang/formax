@@ -1452,6 +1452,54 @@ describe('ChatEngine', () => {
     expect(events.some((ev) => ev.type === 'tool_update')).toBe(true)
   })
 
+  it('passes fully-qualified MCP tool names to PostToolUse hooks', async () => {
+    let callCount = 0
+    let postToolUseArgs: any = null
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({ runs: [], blocked: false }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async (args: any) => {
+        postToolUseArgs = args
+        return { runs: [], additionalContext: [], blockingErrors: [] }
+      },
+    }
+    const executor: ToolExecutor = async (call) => ({ tool_use_id: call.id, content: 'created' })
+    const client: LlmStreamClient = {
+      async streamOnce(args: LlmStreamOnceArgs): Promise<StreamTurnResult> {
+        callCount += 1
+        if (callCount === 1) {
+          const toolCall = { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } }
+          const toolResult = await args.executeTool(toolCall)
+          return {
+            assistantBlocks: [{ type: 'tool_use', id: toolCall.id, name: toolCall.name, input: toolCall.input }],
+            stopReason: 'tool_use',
+            toolResults: [toolResult],
+          }
+        }
+        return { assistantBlocks: [{ type: 'text', text: 'done' }], stopReason: 'end_turn', toolResults: [] }
+      },
+    }
+
+    const engine = createChatEngine({ client, executor, hooks })
+    await engine.runTurn({
+      history: [],
+      user: { role: 'user', content: [{ type: 'text', text: 'go' }] },
+      system: [],
+      tools: [],
+      onEvent: () => {},
+      cwd: '/tmp',
+    })
+
+    expect(postToolUseArgs).toEqual(expect.objectContaining({
+      toolUseId: 'mcp-1',
+      toolName: 'mcp__github__create_issue',
+      toolInput: { title: 'A' },
+    }))
+  })
+
   it('does not inject pre-call extras onto tool_result-only user messages', async () => {
     let firstCallMessages: PromptMessage[] | null = null
     const hooks: HooksRuntime = {

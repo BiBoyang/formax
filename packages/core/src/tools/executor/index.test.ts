@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createToolExecutor, type ToolHandler } from './index'
 import type { ToolCall, ToolResult } from '../types'
 import type { HooksRuntime } from '../../hooks/runtime.js'
 import type { AuditEventV1 } from '../../core/audit/schema.js'
 import { getDeferredToolExposureStore } from '../runtime/deferredToolExposure'
+import { FakeMcpClient } from '../../mcp/fakeClient'
+import { McpServerManager } from '../../mcp/serverManager'
+import { createMcpToolHandler } from '../modules/mcp/handler'
 
 describe('createToolExecutor', () => {
   it('checks abort before handler resolution', async () => {
@@ -442,5 +445,121 @@ describe('createToolExecutor', () => {
 
     expect(res.is_error).toBeUndefined()
     expect(executed).toBe(true)
+  })
+
+  it('passes fully-qualified MCP tool names through PreToolUse and audit', async () => {
+    const auditEvents: AuditEventV1[] = []
+    const preToolUseCalls: Array<{ toolName: string; toolInput: unknown }> = []
+    const handler: ToolHandler = {
+      canHandle: (name) => name.startsWith('mcp__'),
+      execute: async (call) => ({ tool_use_id: call.id, content: 'called' }),
+    }
+    const hooks: HooksRuntime = {
+      runPreToolUse: async (args) => {
+        preToolUseCalls.push({ toolName: args.toolName, toolInput: args.toolInput })
+        return { runs: [], blocked: false }
+      },
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const exec = createToolExecutor([handler], {
+      audit: {
+        append: async (e) => {
+          auditEvents.push(e)
+        },
+      },
+    })
+    const res = await exec(
+      { id: 'mcp-1', name: 'mcp__github__create_issue', input: { title: 'A' } },
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(res.content).toBe('called')
+    expect(preToolUseCalls).toEqual([
+      { toolName: 'mcp__github__create_issue', toolInput: { title: 'A' } },
+    ])
+    expect(auditEvents.filter((event) => event.kind === 'tool.start')).toEqual([
+      expect.objectContaining({ tool: { name: 'mcp__github__create_issue', toolUseId: 'mcp-1' } }),
+    ])
+    expect(auditEvents.filter((event) => event.kind === 'tool.end')).toEqual([
+      expect.objectContaining({ tool: { name: 'mcp__github__create_issue', toolUseId: 'mcp-1' } }),
+    ])
+  })
+
+  it('lets PreToolUse block MCP calls before the handler executes', async () => {
+    let handlerCalls = 0
+    const handler: ToolHandler = {
+      canHandle: (name) => name.startsWith('mcp__'),
+      execute: async (call) => {
+        handlerCalls += 1
+        return { tool_use_id: call.id, content: 'called' }
+      },
+    }
+    const hooks: HooksRuntime = {
+      runPreToolUse: async () => ({
+        runs: [],
+        blocked: true,
+        blockedBy: {
+          command: 'echo block',
+          exitCode: 2,
+          signal: null,
+          stdout: '',
+          stderr: 'blocked mcp',
+          durationMs: 1,
+          timedOut: false,
+          parsedJson: null,
+        },
+      }),
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const exec = createToolExecutor([handler])
+    const res = await exec(
+      { id: 'mcp-block', name: 'mcp__github__create_issue', input: { title: 'A' } },
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(res.is_error).toBe(true)
+    expect(String(res.content)).toContain('blocked mcp')
+    expect(handlerCalls).toBe(0)
+  })
+
+  it('routes unknown MCP tool names through the MCP handler instead of generic not-implemented', async () => {
+    const client = new FakeMcpClient([{ name: 'create_issue', inputSchema: { type: 'object' } }])
+    const manager = new McpServerManager({
+      config: { servers: { github: { type: 'stdio', command: 'github-mcp', enabled: true } } },
+      clientFactory: async () => client,
+    })
+    await manager.activate()
+    const runPreToolUse = vi.fn(async () => ({ runs: [], blocked: false }))
+    const hooks: HooksRuntime = {
+      runPreToolUse,
+      runPermissionRequest: async () => ({ runs: [], blocked: false }),
+      runUserPromptSubmit: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runSessionStart: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runStop: async () => ({ runs: [], additionalContext: [], blocked: false }),
+      runPostToolUse: async () => ({ runs: [], additionalContext: [], blockingErrors: [] }),
+    }
+
+    const exec = createToolExecutor([createMcpToolHandler(manager)])
+    const res = await exec(
+      { id: 'mcp-unknown', name: 'mcp__github__missing_tool', input: {} },
+      { cwd: process.cwd(), agentDepth: 0, hooks },
+    )
+
+    expect(res).toEqual({
+      tool_use_id: 'mcp-unknown',
+      content: 'Error: Unknown MCP tool: mcp__github__missing_tool',
+      is_error: true,
+    })
+    expect(runPreToolUse).toHaveBeenCalledTimes(1)
   })
 })

@@ -22,7 +22,7 @@
 
 - 外部契约对齐：只对齐“项目当前已支持 + 有测试覆盖”的能力。
 - 内部实现解耦：`query` 继续做编排入口，复杂分支拆到子模块。
-- 未支持能力不做：`mcpServers`、`createSdkMcpServer`、`tool`、`hooks`、`plugins`、`settingSources` 等暂不实现。
+- 未支持能力不做：`createSdkMcpServer`、`tool`、`hooks` 等暂不实现；`mcpServers` 已在 MCP Phase 1A 中解锁 strict explicit overlay 子集，仍不读取本地 config。
 - 不做 SDK 以外大结构改造，不做发布层改造。
 
 ## 对齐原则（固定）

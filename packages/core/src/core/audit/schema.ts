@@ -1,5 +1,4 @@
-import type { PolicyAction, PolicyDecision } from '../policy/types.js'
-import type { PolicyMatchedRule } from '../policy/engine.js'
+import type { PolicyDecision } from '../policy/types.js'
 
 export type AuditSchemaVersion = 1
 
@@ -36,11 +35,11 @@ export type PolicyDecisionEvent = AuditEventBase & {
   kind: 'policy.decision'
   tool: { name: string; toolUseId: string }
   replMode?: string
-  action: PolicyAction
+  action: unknown
   decision: {
     raw: PolicyDecision
     effective: PolicyDecision
-    matchedRule?: PolicyMatchedRule
+    matchedRule?: unknown
     suggestions: string[]
   }
 }
@@ -48,14 +47,14 @@ export type PolicyDecisionEvent = AuditEventBase & {
 export type ApprovalPromptEvent = AuditEventBase & {
   kind: 'approval.prompt'
   tool: { name: string; toolUseId: string }
-  action: PolicyAction
+  action: unknown
   effectiveDecision: PolicyDecision
 }
 
 export type ApprovalResultEvent = AuditEventBase & {
   kind: 'approval.result'
   tool: { name: string; toolUseId: string }
-  action: PolicyAction
+  action: unknown
   outcome: 'approve' | 'approve_remember' | 'feedback' | 'cancel'
   scope?: string
 }

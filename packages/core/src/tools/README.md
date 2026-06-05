@@ -12,7 +12,7 @@ Canonical docs:
 
 本文件用于代码近侧说明、扩展路径和调试提示；涉及稳定工具执行顺序、`ToolSearch` runtime、`ToolResult` / `CommandResult` 边界、用户输入语义、权限规则或 hooks 交互时，先更新上面的 canonical docs。
 
-Last verified: 2026-03-12
+Last verified: 2026-06-05
 
 ## 1) 作用（What）
 
@@ -75,6 +75,7 @@ flowchart LR
 - handler 不直接操作 overlay / command-subline UI；这些属于 slash-command pipeline
 - presenter 负责渲染，不承担副作用或协议定义
 - deferred `ToolSearch` 的“何时暴露给模型”看 prompt/tool exposure 合同，不在这里重复
+- MCP dynamic tools 通过 `modules/mcp` 的一个 generic handler/presenter 接入 registry；权限、deferred exposure、hooks、audit 仍走普通 tool runtime。
 
 ## 5) 如何扩展（How to extend）
 

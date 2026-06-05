@@ -386,9 +386,7 @@ function assertAgentOptionsSupported(args: {
 function assertToolsAndMcpOptionsSupported(args: {
   mcpServers?: Record<string, unknown>
 }): void {
-  if (args.mcpServers !== undefined) {
-    throw new Error('options.mcpServers is not supported in Formax SDK yet')
-  }
+  void args
 }
 
 function assertHookAndToolPermissionOptionsSupported(args: {
@@ -778,6 +776,19 @@ function applyQueryControlOverrides(
   return next
 }
 
+function createSdkRuntime(args: {
+  cwd: string
+  env: NodeJS.ProcessEnv
+  mcpServers?: Record<string, unknown>
+}): Promise<RuntimeBundle> {
+  return createRuntime({
+    cwd: args.cwd,
+    env: args.env,
+    mcpRuntimeEntrypoint: 'sdk',
+    ...(args.mcpServers !== undefined ? { mcpServersOverlay: args.mcpServers } : {}),
+  })
+}
+
 function resolveInitializationOnce(state: QueryControlState, message: SystemMessage): void {
   if (state.initSettled) return
   state.initSettled = true
@@ -831,15 +842,19 @@ async function listSupportedAgents(args: QueryArgs, state: QueryControlState): P
     const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
     const cwd = path.resolve(options.cwd ?? process.cwd())
     const env = options.env ?? process.env
-    const runtime = await createRuntime({ cwd, env })
-    const agents = runtime.allowedSubagents.map((agent) => ({
-      name: agent.name,
-      description: agent.description,
-      ...(typeof agent.model === 'string' && agent.model.trim().length > 0
-        ? { model: agent.model.trim() }
-        : {}),
-    }))
-    return parseAgentInfoListOutput(agents)
+    const runtime = await createSdkRuntime({ cwd, env })
+    try {
+      const agents = runtime.allowedSubagents.map((agent) => ({
+        name: agent.name,
+        description: agent.description,
+        ...(typeof agent.model === 'string' && agent.model.trim().length > 0
+          ? { model: agent.model.trim() }
+          : {}),
+      }))
+      return parseAgentInfoListOutput(agents)
+    } finally {
+      await runtime.dispose()
+    }
   } catch (error) {
     throw asValidationError(
       error,
@@ -854,10 +869,11 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
     const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
     const cwd = path.resolve(options.cwd ?? process.cwd())
     const env = options.env ?? process.env
-    const runtime = await createRuntime({ cwd, env })
-    const provider = String(runtime.cfg.llm.provider)
-    const activeModel = String(runtime.cfg.llm.model || '').trim()
-    const defaultModels = getDefaultModels(provider).map((model) => ({
+    const runtime = await createSdkRuntime({ cwd, env })
+    try {
+      const provider = String(runtime.cfg.llm.provider)
+      const activeModel = String(runtime.cfg.llm.model || '').trim()
+      const defaultModels = getDefaultModels(provider).map((model) => ({
       model: model.model,
       provider: model.provider,
       value: model.model,
@@ -920,7 +936,10 @@ async function listSupportedModels(args: QueryArgs, state: QueryControlState): P
             }),
       })
     }
-    return parseModelInfoListOutput(defaultModels)
+      return parseModelInfoListOutput(defaultModels)
+    } finally {
+      await runtime.dispose()
+    }
   } catch (error) {
     throw asValidationError(
       error,
@@ -935,26 +954,30 @@ async function queryAccountInfo(args: QueryArgs, state: QueryControlState): Prom
     const options = applyQueryControlOverrides({ ...(parsedArgs.options ?? {}) }, state)
     const cwd = path.resolve(options.cwd ?? process.cwd())
     const env = options.env ?? process.env
-    const runtime = await createRuntime({ cwd, env })
-    const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
-    const apiKey = String(runtime.cfg.llm.apiKey || '').trim()
-    const hasApiKey = apiKey.length > 0
-    const inferTokenSource = (): 'env' | 'config' | undefined => {
-      if (!hasApiKey) return undefined
-      const configuredEnvApiKey = String(env.FORMAX_API_KEY || '').trim()
-      if (configuredEnvApiKey && configuredEnvApiKey === apiKey) return 'env'
-      return 'config'
+    const runtime = await createSdkRuntime({ cwd, env })
+    try {
+      const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
+      const apiKey = String(runtime.cfg.llm.apiKey || '').trim()
+      const hasApiKey = apiKey.length > 0
+      const inferTokenSource = (): 'env' | 'config' | undefined => {
+        if (!hasApiKey) return undefined
+        const configuredEnvApiKey = String(env.FORMAX_API_KEY || '').trim()
+        if (configuredEnvApiKey && configuredEnvApiKey === apiKey) return 'env'
+        return 'config'
+      }
+      const tokenSource = inferTokenSource()
+      const apiKeySource = tokenSource ? (tokenSource === 'env' ? 'temporary' : 'user') : undefined
+      return parseAccountInfoOutput({
+        provider: runtime.cfg.llm.provider,
+        model,
+        ...(runtime.cfg.llm.baseUrl ? { baseUrl: runtime.cfg.llm.baseUrl } : {}),
+        hasApiKey,
+        ...(tokenSource ? { tokenSource } : {}),
+        ...(apiKeySource ? { apiKeySource } : {}),
+      })
+    } finally {
+      await runtime.dispose()
     }
-    const tokenSource = inferTokenSource()
-    const apiKeySource = tokenSource ? (tokenSource === 'env' ? 'temporary' : 'user') : undefined
-    return parseAccountInfoOutput({
-      provider: runtime.cfg.llm.provider,
-      model,
-      ...(runtime.cfg.llm.baseUrl ? { baseUrl: runtime.cfg.llm.baseUrl } : {}),
-      hasApiKey,
-      ...(tokenSource ? { tokenSource } : {}),
-      ...(apiKeySource ? { apiKeySource } : {}),
-    })
   } catch (error) {
     throw asValidationError(
       error,
@@ -1205,7 +1228,7 @@ async function* runQuery(
             runtimeBundle.runtimeFlags?.deferredToolExposureEnabled !== true,
         })
       if (Array.isArray(options.tools) && options.tools.length > 0) {
-        runtime = await createRuntime({ cwd, env })
+        runtime = await createSdkRuntime({ cwd, env, mcpServers: options.mcpServers })
         // Validate tools early so invalid tool lists fail before async prompt stream consumption.
         void selectToolsForQuery({
           tools: getPatchedRuntimeTools(runtime),
@@ -1229,7 +1252,7 @@ async function* runQuery(
         outputFormatEnabled: outputFormat?.type === 'json_schema',
       })
 
-      runtime = runtime ?? await createRuntime({ cwd, env })
+      runtime = runtime ?? await createSdkRuntime({ cwd, env, mcpServers: options.mcpServers })
       const model = String(options.model || runtime.cfg.llm.model || '').trim() || runtime.cfg.llm.model
       const shouldPersistSession =
         options.persistSession === true || options.enableFileCheckpointing === true
@@ -1679,6 +1702,7 @@ async function* runQuery(
         await Promise.allSettled(Array.from(pendingInputResolutions))
       }
       await shutdownQuerySessionPersistence(sessionPersistence)
+      await runtime?.dispose()
       restorePatchedStreamOnce?.()
     }
   })()

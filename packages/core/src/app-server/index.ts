@@ -234,13 +234,14 @@ export async function runAppServer(args?: {
   const initializeConfig = await loadRuntimeConfig(env, cwd, {
     platform: args?.platform,
     homedir: args?.homedir,
+    loadMcpConfig: false,
   }).catch(() => null)
   const runtimeFlagFingerprintForDefaults = () => JSON.stringify(createRuntimeFlags(env))
   const readRuntimeDefaults = async () => {
     const configPaths = getConfigPaths({ cwd, env, platform: args?.platform, homedir: args?.homedir })
     const fileStore = createNodeFileStore()
     const [runtimeConfig, savedPatch] = await Promise.all([
-      loadRuntimeConfig(env, cwd, { platform: args?.platform, homedir: args?.homedir }),
+      loadRuntimeConfig(env, cwd, { platform: args?.platform, homedir: args?.homedir, loadMcpConfig: false }),
       readConfigPatch({
         fileStore,
         filePath: configPaths.globalConfigPath,
@@ -330,6 +331,7 @@ export async function runAppServer(args?: {
       const runtimeConfig = await loadRuntimeConfig(env, cwd, {
         platform: args?.platform,
         homedir: args?.homedir,
+        loadMcpConfig: false,
       })
       return summarizeRuntimeModelProfile(
         resolveEffectiveRuntimeModelProfile({
@@ -347,6 +349,7 @@ export async function runAppServer(args?: {
       const runtimeConfig = await loadRuntimeConfig(env, runtimeCwd, {
         platform: args?.platform,
         homedir: args?.homedir,
+        loadMcpConfig: false,
       })
       const runtimeFlagFingerprint = JSON.stringify(runtimeFlags)
       const runtimeProfile = resolveEffectiveRuntimeModelProfile({
@@ -376,7 +379,7 @@ export async function runAppServer(args?: {
         if (resolverArgs?.threadId) turnRunnerByThreadId.set(resolverArgs.threadId, cachedRunner)
         return cachedRunner
       }
-      const runtime = await createRuntime({ cwd: runtimeCwd, env, runtimeFlags })
+      const runtime = await createRuntime({ cwd: runtimeCwd, env, runtimeFlags, mcpRuntimeEntrypoint: 'app-server' })
       const runner = new TurnRunner({
         engine: runtime.engine,
         tools: runtime.tools,
@@ -418,7 +421,7 @@ export async function runAppServer(args?: {
       preferences,
       format,
     }) => {
-      const runtime = await createRuntime({ cwd: dispatchCwd, env })
+      const runtime = await createRuntime({ cwd: dispatchCwd, env, mcpRuntimeEntrypoint: 'app-server' })
       const runtimeFlagFingerprint = JSON.stringify(runtime.runtimeFlags ?? {})
       const runtimeProfile = resolveEffectiveRuntimeModelProfile({
         cfg: runtime.cfg,

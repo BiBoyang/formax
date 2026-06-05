@@ -18,6 +18,7 @@ import type { UserInputManager } from '../runtime/userInputManager.js'
 import {
   loadMergedPermissions,
   persistProjectPermissionAllow,
+  persistPermissionRule,
   persistWorkspaceDirectory,
 } from '../../adapters/permissions/permissionsStore.js'
 import { buildToolPermissionKey } from '../../adapters/permissions/permissionKeys.js'
@@ -27,6 +28,7 @@ import {
   promptForApprovalLikeAnswer,
   resolveApprovalLikeOutcome,
 } from './approvalLikePrompt.js'
+import { validateJsonSchemaValue } from '../../sdk/structuredOutput.js'
 
 export type WorkspaceAccessRequest = {
   dir: string
@@ -41,6 +43,7 @@ type ApprovalAnswer = {
 
 export type ApprovalService = {
   getSessionRules: () => PolicyRule[]
+  getSessionPermissionAllows?: () => string[]
   ensureApproved: (args: {
     call: ToolCall
     ctx: ExecutionContext
@@ -49,6 +52,13 @@ export type ApprovalService = {
     explained: PolicyExplainResult
     loaded: LoadedPolicyRules
     workspaceRequest?: WorkspaceAccessRequest | null
+  }) => Promise<{ ok: true } | { ok: false; result: ToolResult }>
+  ensureToolNameApproved?: (args: {
+    call: ToolCall
+    ctx: ExecutionContext
+    toolName: string
+    effectiveDecision: PolicyDecision
+    inputSchema?: unknown
   }) => Promise<{ ok: true } | { ok: false; result: ToolResult }>
 }
 
@@ -62,8 +72,10 @@ export function createApprovalService(args: {
 }): ApprovalService {
   const env = args.env ?? process.env
   const sessionRules: PolicyRule[] = []
+  const sessionPermissionAllows = new Set<string>()
 
   const getSessionRules = () => sessionRules.slice()
+  const getSessionPermissionAllows = () => Array.from(sessionPermissionAllows)
 
   async function validateUpdatedInput(args2: {
     call: ToolCall
@@ -441,5 +453,192 @@ export function createApprovalService(args: {
     return { ok: false, result: outcome.result }
   }
 
-  return { getSessionRules, ensureApproved }
+  async function persistToolNameAllow(args2: {
+    call: ToolCall
+    ctx: ExecutionContext
+    toolName: string
+    scope: PolicyScope
+  }): Promise<{ ok: true } | { ok: false; result: ToolResult }> {
+    const toolName = String(args2.toolName || '').trim()
+    if (!toolName) return { ok: true }
+
+    if (args2.scope === 'session') {
+      sessionPermissionAllows.add(toolName)
+      return { ok: true }
+    }
+
+    const scope = args2.scope === 'global' ? 'user' : 'projectLocal'
+    try {
+      await persistPermissionRule({
+        fileStore: args.fileStore,
+        cwd: args2.ctx.cwd || process.cwd(),
+        scope,
+        kind: 'allow',
+        rule: toolName,
+        env,
+        platform: args.platform,
+        homedir: args.homedir,
+      })
+      return { ok: true }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return {
+        ok: false,
+        result: {
+          tool_use_id: args2.call.id,
+          content: `Error: Failed to save permission rule: ${msg}`,
+          is_error: true,
+        },
+      }
+    }
+  }
+
+  async function ensureToolNameApproved(args2: {
+    call: ToolCall
+    ctx: ExecutionContext
+    toolName: string
+    effectiveDecision: PolicyDecision
+    inputSchema?: unknown
+  }): Promise<{ ok: true } | { ok: false; result: ToolResult }> {
+    const { call, ctx } = args2
+    const toolName = String(args2.toolName || call.name || '').trim()
+    const traceForCall: TraceContext = { ...(ctx.trace ?? {}), toolUseId: call.id }
+    const action = { kind: 'tool.name', toolName, input: call.input ?? {} }
+    const approvalDescriptor = createApprovalPromptDescriptor({
+      call,
+      toolName,
+      action,
+      effectiveDecision: args2.effectiveDecision,
+    })
+
+    const promptResult = await promptForApprovalLikeAnswer<ApprovalAnswer>({
+      call,
+      ctx,
+      userInput: args.userInput,
+      descriptor: approvalDescriptor,
+      unavailableContent: `Error: Approval required for ${toolName}`,
+      abortedContent: 'Error: Request aborted',
+      beforeRequest: () => {
+        if (args.audit) {
+          void args.audit.append({
+            schemaVersion: 1,
+            ts: nowIso(),
+            kind: 'approval.prompt',
+            agentDepth: ctx.agentDepth,
+            trace: traceForCall,
+            tool: { name: toolName, toolUseId: call.id },
+            action,
+            effectiveDecision: args2.effectiveDecision,
+          })
+        }
+      },
+    })
+    if (promptResult.ok !== true) {
+      return { ok: false, result: promptResult.result }
+    }
+
+    const { answers, decision, feedback } = promptResult
+    const scopeRaw = String(answers.scope || '').trim().toLowerCase()
+    const scope: PolicyScope = scopeRaw === 'global' ? 'global' : scopeRaw === 'project' ? 'project' : 'session'
+    const updatedInputJson = String(answers.updated_input_json || '').trim()
+    const parseUpdatedInput = (): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } | null => {
+      if (!updatedInputJson) return null
+      try {
+        const parsed = JSON.parse(updatedInputJson)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          return { ok: false, error: 'updated_input_json must decode to an object' }
+        }
+        return { ok: true, value: parsed as Record<string, unknown> }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return { ok: false, error: `invalid updated_input_json: ${message}` }
+      }
+    }
+    const parsedUpdatedInput = parseUpdatedInput()
+    const updatedInputError =
+      parsedUpdatedInput && parsedUpdatedInput.ok === false
+        ? parsedUpdatedInput.error
+        : null
+    if (updatedInputError) {
+      return {
+        ok: false,
+        result: {
+          tool_use_id: call.id,
+          content: `Error: ${updatedInputError}`,
+          is_error: true,
+        },
+      }
+    }
+    if (parsedUpdatedInput?.ok && args2.inputSchema !== undefined) {
+      const schemaValidation = validateJsonSchemaValue({
+        schema: args2.inputSchema,
+        value: parsedUpdatedInput.value,
+        errorPrefix: 'updated_input_json failed MCP input schema validation',
+      })
+      if (schemaValidation.ok === false) {
+        return {
+          ok: false,
+          result: {
+            tool_use_id: call.id,
+            content: `Error: ${schemaValidation.error}`,
+            is_error: true,
+          },
+        }
+      }
+    }
+    const outcome = resolveApprovalLikeOutcome({ call, decision, feedback })
+
+    if ((outcome.type === 'approve' || outcome.type === 'approve_remember') && parsedUpdatedInput?.ok) {
+      call.input = parsedUpdatedInput.value
+    }
+
+    if (outcome.type === 'approve') {
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'approval.result',
+          agentDepth: ctx.agentDepth,
+          trace: traceForCall,
+          tool: { name: toolName, toolUseId: call.id },
+          action,
+          outcome: 'approve',
+        })
+      }
+      return { ok: true }
+    }
+
+    if (outcome.type === 'approve_remember') {
+      if (args.audit) {
+        void args.audit.append({
+          schemaVersion: 1,
+          ts: nowIso(),
+          kind: 'approval.result',
+          agentDepth: ctx.agentDepth,
+          trace: traceForCall,
+          tool: { name: toolName, toolUseId: call.id },
+          action,
+          outcome: 'approve_remember',
+          scope,
+        })
+      }
+      return await persistToolNameAllow({ call, ctx, toolName, scope })
+    }
+
+    if (args.audit) {
+      void args.audit.append({
+        schemaVersion: 1,
+        ts: nowIso(),
+        kind: 'approval.result',
+        agentDepth: ctx.agentDepth,
+        trace: traceForCall,
+        tool: { name: toolName, toolUseId: call.id },
+        action,
+        outcome: outcome.type === 'feedback' ? 'feedback' : 'cancel',
+      })
+    }
+    return { ok: false, result: outcome.result }
+  }
+
+  return { getSessionRules, getSessionPermissionAllows, ensureApproved, ensureToolNameApproved }
 }

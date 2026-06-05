@@ -1,4 +1,5 @@
 import type { LoadedPermissions, PermissionListKind, PermissionRuleEntry } from './permissionsStore.js'
+import { parseMcpModelToolName } from '../../mcp/names.js'
 
 export type PermissionMatch = {
   kind: PermissionListKind
@@ -50,6 +51,11 @@ function matchesRule(args: { kind: PermissionListKind; rule: string; toolName: s
   if (!toolName) return false
 
   if (rule === toolName) return true
+
+  const mcp = parseMcpModelToolName(toolName)
+  if (mcp) {
+    return rule === `mcp__${mcp.serverId}` || rule === `mcp__${mcp.serverId}__*`
+  }
 
   const m = /^([A-Za-z0-9_:-]+)\((.*)\)$/.exec(rule)
   if (!m) return false

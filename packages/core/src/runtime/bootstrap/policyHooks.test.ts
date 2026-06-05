@@ -61,18 +61,43 @@ describe('createPolicyAndHooksRuntime', () => {
     const userInputManager = { submitAnswers: vi.fn() }
     const fileStore = { readFile: vi.fn() }
     const env = { NODE_ENV: 'test' }
+    const mcpServerManager = {
+      getCatalog: vi.fn(() => ({
+        bindings: [{
+          modelName: 'mcp__github__create_issue',
+          definition: { input_schema: { type: 'object', properties: { title: { type: 'string' } } } },
+        }],
+        diagnostics: [],
+      })),
+    }
 
     const out = createPolicyAndHooksRuntime({
       cfgPathsLogsDir: '/tmp/logs',
       fileStore: fileStore as any,
       userInputManager: userInputManager as any,
       toolRegistry: toolRegistry as any,
+      mcpServerManager: mcpServerManager as any,
       env,
     })
 
     expect(createNodeAuditLog).toHaveBeenCalledWith({ logsDir: '/tmp/logs' })
     expect(createApprovalService).toHaveBeenCalledWith({ fileStore, userInput: userInputManager, audit })
-    expect(createPolicyPreflight).toHaveBeenCalledWith({ fileStore, approval, audit, env })
+    expect(createPolicyPreflight).toHaveBeenCalledWith({
+      fileStore,
+      approval,
+      audit,
+      env,
+      isKnownMcpToolName: expect.any(Function),
+      getMcpToolInputSchema: expect.any(Function),
+    })
+    const { isKnownMcpToolName, getMcpToolInputSchema } = createPolicyPreflight.mock.calls[0][0]
+    expect(isKnownMcpToolName('mcp__github__create_issue')).toBe(true)
+    expect(isKnownMcpToolName('mcp__github__missing_tool')).toBe(false)
+    expect(getMcpToolInputSchema('mcp__github__create_issue')).toEqual({
+      type: 'object',
+      properties: { title: { type: 'string' } },
+    })
+    expect(getMcpToolInputSchema('mcp__github__missing_tool')).toBeUndefined()
     expect(createSkillPreflight).toHaveBeenCalledWith({ fileStore, userInput: userInputManager })
     expect(createHooksRuntime).toHaveBeenCalledWith({ fileStore, env })
 
