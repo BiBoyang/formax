@@ -6,6 +6,7 @@ import type { PresentationAskQuestion } from '../../features/tools/presentation/
 type MockUserInput = {
   submitAnswers: (toolUseId: string, answers: Record<string, string>) => void
   reject: (toolUseId: string, error: Error) => void
+  isPending?: (toolUseId: string) => boolean
 }
 
 const mocks = vi.hoisted(() => ({
@@ -85,6 +86,19 @@ describe('AskUserQuestionToolBlock', () => {
     }
     const noQuestions = render(<AskUserQuestionToolBlock toolUseId="t1" questions={[]} />)
     expect(noQuestions.lastFrame()).toContain('Preparing questions')
+  })
+
+  it('does not render the prompt when the request is queued behind another prompt', () => {
+    mocks.userInput = {
+      submitAnswers: vi.fn(),
+      reject: vi.fn(),
+      isPending: () => false,
+    }
+
+    const view = render(<AskUserQuestionToolBlock toolUseId="queued" questions={[singleQuestion()]} />)
+
+    expect(view.lastFrame()).toBe('')
+    expect(mocks.scopedHandler).toBeNull()
   })
 
   it('submits a single-select answer using numeric shortcut and review submit', async () => {

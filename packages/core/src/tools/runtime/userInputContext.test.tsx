@@ -3,6 +3,7 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { UserInputManager } from './userInputManager'
+import { createUserInputManager } from './userInputManager'
 import { UserInputProvider, useUserInputManager } from './userInputContext'
 
 function tick(ms = 10): Promise<void> {
@@ -103,5 +104,38 @@ describe('UserInputProvider / useUserInputManager', () => {
 
     wrapped.clearBufferedAnswers()
     expect(base.clearBufferedAnswers).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-renders when a base manager advances the active prompt outside the wrapper', async () => {
+    const base = createUserInputManager()
+    const onManager = vi.fn()
+    render(
+      <UserInputProvider userInput={base}>
+        <Probe onManager={onManager} />
+      </UserInputProvider>,
+    )
+    await tick()
+
+    const renders0 = onManager.mock.calls.length
+    const p1 = base.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = base.requestAnswers({ toolUseId: 'b', questions: [] })
+    await tick()
+    expect(onManager.mock.calls.length).toBeGreaterThan(renders0)
+
+    const wrapped = onManager.mock.lastCall?.[0] as UserInputManager
+    expect(wrapped.isPending('a')).toBe(true)
+    expect(wrapped.isPending('b')).toBe(false)
+
+    const renders1 = onManager.mock.calls.length
+    base.submitAnswers('a', { A: '1' })
+    await expect(p1).resolves.toEqual({ A: '1' })
+    await tick()
+
+    expect(onManager.mock.calls.length).toBeGreaterThan(renders1)
+    expect(wrapped.isPending('a')).toBe(false)
+    expect(wrapped.isPending('b')).toBe(true)
+
+    base.submitAnswers('b', { B: '2' })
+    await expect(p2).resolves.toEqual({ B: '2' })
   })
 })

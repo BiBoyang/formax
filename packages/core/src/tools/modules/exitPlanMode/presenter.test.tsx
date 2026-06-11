@@ -63,6 +63,34 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('ExitPlanModeToolPresenter', () => {
+  it('does not render the interactive prompt when the request is queued', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const userInput = createUserInput(() => true)
+      userInput.isPending = () => false
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <PlanProvider planSession={planSession}>
+            <UserInputProvider userInput={userInput}>
+              <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+            </UserInputProvider>
+          </PlanProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('ExitPlanMode')
+      expect(lastFrame()).not.toContain('Would you like to exit plan mode and start implementation?')
+    } finally {
+      cleanup()
+    }
+  })
+
   it('falls back to default prompt labels when no interactive model is resolved', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\n')
     const promptSpy = vi.spyOn(interactivePrompts, 'resolveInteractivePromptModel').mockReturnValue(null)

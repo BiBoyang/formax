@@ -4,6 +4,7 @@ import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { ToolUiBlocks } from '../../../components/tool/ToolUiBlocks'
+import { createUserInputManager } from '../../runtime/userInputManager'
 
 type MockUserInput = {
   isPending: (toolUseId: string) => boolean
@@ -64,6 +65,43 @@ describe('GlobToolPresenter', () => {
 
     lastPrompt.onDecision({ kind: 'cancel' })
     expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'cancel' })
+  })
+
+  it('renders only the active approval prompt when multiple requests are queued', () => {
+    const mgr = createUserInputManager()
+    void mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    void mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+    userInput = {
+      ...mgr,
+      isPending: (toolUseId: string) => mgr.getPendingToolUseIds?.()[0] === toolUseId && mgr.isPending(toolUseId),
+    }
+
+    const first: Msg = {
+      id: 'tool-a',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'Glob', toolUseId: 'a', status: 'running', input: { pattern: '*.ts', path: '/tmp/a' } },
+    }
+    const second: Msg = {
+      id: 'tool-b',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: { name: 'Glob', toolUseId: 'b', status: 'running', input: { pattern: '*.md', path: '/tmp/b' } },
+    }
+
+    const view = render(
+      <>
+        <ToolUiBlocks blocks={GlobToolPresenter({ message: first }).blocks} />
+        <ToolUiBlocks blocks={GlobToolPresenter({ message: second }).blocks} />
+      </>,
+    )
+    const frame = stripAnsi(view.lastFrame() ?? '')
+
+    expect(frame.match(/Approve this Search call\?/g)).toHaveLength(1)
+    expect(frame).toContain('pattern: "*.ts"')
+    expect(frame).toContain('pattern: "*.md"')
   })
 
   it('renders only the completed summary for search results', () => {

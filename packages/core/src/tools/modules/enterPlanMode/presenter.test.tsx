@@ -83,6 +83,23 @@ describe('EnterPlanModeToolPresenter', () => {
     expect(lastFrame()).toContain('Preparing…')
   })
 
+  it('does not render the interactive prompt when the request is queued', async () => {
+    const userInput = createUserInput(() => true)
+    userInput.isPending = () => false
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <EnterPlanModeToolPresenter message={createRunningMessage()} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('EnterPlanMode')
+    expect(lastFrame()).not.toContain('Should we enter plan mode?')
+  })
+
   it('submits enter when pressing 1 then Enter', async () => {
     const submitAnswers = vi.fn<UserInputManager['submitAnswers']>(() => true)
     const userInput = createUserInput(submitAnswers)

@@ -24,6 +24,8 @@ export type UserInputManager = {
   rejectAllPending: (error: Error) => number
   isPending: (toolUseId: string) => boolean
   clearBufferedAnswers: () => void
+  getPendingToolUseIds?: () => string[]
+  subscribe?: (listener: () => void) => () => void
 }
 
 type PendingRequest = {
@@ -35,10 +37,21 @@ type PendingRequest = {
 
 export function createUserInputManager(): UserInputManager {
   const pending = new Map<string, PendingRequest>()
+  const pendingOrder: string[] = []
+  const listeners = new Set<() => void>()
   type BufferedEntry = { answers: AskUserAnswers; ts: number }
   const bufferedAnswers = new Map<string, BufferedEntry>()
   const MAX_BUFFERED = 50
   const BUFFER_TTL_MS = 60_000
+
+  function notifyChanged(): void {
+    for (const listener of listeners) listener()
+  }
+
+  function removePendingOrder(toolUseId: string): void {
+    const index = pendingOrder.indexOf(toolUseId)
+    if (index >= 0) pendingOrder.splice(index, 1)
+  }
 
   function pruneBuffered(now = Date.now()): void {
     for (const [id, entry] of bufferedAnswers) {
@@ -91,6 +104,8 @@ export function createUserInputManager(): UserInputManager {
       const onAbort = () => {
         pending.delete(args.toolUseId)
         request.cleanup()
+        removePendingOrder(args.toolUseId)
+        notifyChanged()
         reject(new Error('Request aborted'))
       }
       args.signal.addEventListener('abort', onAbort, { once: true })
@@ -98,6 +113,8 @@ export function createUserInputManager(): UserInputManager {
     }
 
     pending.set(args.toolUseId, request)
+    pendingOrder.push(args.toolUseId)
+    notifyChanged()
     return promise
   }
 
@@ -111,6 +128,8 @@ export function createUserInputManager(): UserInputManager {
     }
     pending.delete(toolUseId)
     req.cleanup()
+    removePendingOrder(toolUseId)
+    notifyChanged()
     req.resolve(answers)
     return true
   }
@@ -120,6 +139,8 @@ export function createUserInputManager(): UserInputManager {
     if (!req) return false
     pending.delete(toolUseId)
     req.cleanup()
+    removePendingOrder(toolUseId)
+    notifyChanged()
     req.reject(error)
     return true
   }
@@ -140,6 +161,18 @@ export function createUserInputManager(): UserInputManager {
     return pending.has(toolUseId)
   }
 
+  function getPendingToolUseIds(): string[] {
+    return pendingOrder.filter((id) => pending.has(id))
+  }
+
+  function subscribe(listener: () => void): () => void {
+    listeners.add(listener)
+    listener()
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
   return {
     requestAnswers,
     submitAnswers,
@@ -147,5 +180,7 @@ export function createUserInputManager(): UserInputManager {
     rejectAllPending,
     isPending,
     clearBufferedAnswers,
+    getPendingToolUseIds,
+    subscribe,
   }
 }

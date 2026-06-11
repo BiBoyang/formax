@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { UserInputManager } from './userInputManager'
 
 const UserInputCtx = createContext<UserInputManager | null>(null)
@@ -15,6 +15,11 @@ export function UserInputProvider({
 
   const wrapped = useMemo<UserInputManager>(() => {
     const bump = () => setVersion((v) => v + 1)
+    const isActivePending = (toolUseId: string): boolean => {
+      const pendingIds = userInput.getPendingToolUseIds?.()
+      if (!pendingIds) return userInput.isPending(toolUseId)
+      return pendingIds[0] === toolUseId && userInput.isPending(toolUseId)
+    }
 
     return {
       requestAnswers: (args) => {
@@ -37,9 +42,16 @@ export function UserInputProvider({
         if (n > 0) bump()
         return n
       },
-      isPending: (toolUseId) => userInput.isPending(toolUseId),
+      isPending: isActivePending,
       clearBufferedAnswers: () => userInput.clearBufferedAnswers(),
+      ...(userInput.getPendingToolUseIds ? { getPendingToolUseIds: userInput.getPendingToolUseIds } : {}),
+      ...(userInput.subscribe ? { subscribe: userInput.subscribe } : {}),
     }
+  }, [userInput])
+
+  useEffect(() => {
+    if (!userInput.subscribe) return undefined
+    return userInput.subscribe(() => setVersion((v) => v + 1))
   }, [userInput])
 
   return (

@@ -45,6 +45,91 @@ describe('UserInputManager', () => {
     await expect(p2).resolves.toEqual({ A: '1' })
   })
 
+  it('tracks pending request order for UI projection', async () => {
+    const mgr = createUserInputManager()
+
+    const p1 = mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+
+    expect(mgr.isPending('a')).toBe(true)
+    expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['a', 'b'])
+
+    mgr.submitAnswers('a', { A: '1' })
+    await expect(p1).resolves.toEqual({ A: '1' })
+
+    expect(mgr.isPending('a')).toBe(false)
+    expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['b'])
+
+    mgr.submitAnswers('b', { B: '2' })
+    await expect(p2).resolves.toEqual({ B: '2' })
+    expect(mgr.isPending('b')).toBe(false)
+    expect(mgr.getPendingToolUseIds?.()).toEqual([])
+  })
+
+  it('removes rejected requests from pending order', async () => {
+    const mgr = createUserInputManager()
+
+    const p1 = mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+
+    expect(mgr.isPending('a')).toBe(true)
+    expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['a', 'b'])
+
+    mgr.reject('a', new Error('Canceled'))
+    await expect(p1).rejects.toThrow('Canceled')
+
+    expect(mgr.isPending('a')).toBe(false)
+    expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['b'])
+
+    mgr.submitAnswers('b', { B: '2' })
+    await expect(p2).resolves.toEqual({ B: '2' })
+  })
+
+  it('allows programmatic answers for later pending requests', async () => {
+    const mgr = createUserInputManager()
+
+    const p1 = mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+
+    expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.submitAnswers('b', { B: 'early' })).toBe(true)
+    await expect(p2).resolves.toEqual({ B: 'early' })
+    expect(mgr.isPending('b')).toBe(false)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['a'])
+
+    expect(mgr.submitAnswers('a', { A: '1' })).toBe(true)
+    await expect(p1).resolves.toEqual({ A: '1' })
+  })
+
+  it('notifies subscribers when pending order changes', async () => {
+    const mgr = createUserInputManager()
+    const onChange = vi.fn()
+    const unsubscribe = mgr.subscribe?.(onChange)
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+
+    const p1 = mgr.requestAnswers({ toolUseId: 'a', questions: [] })
+    const p2 = mgr.requestAnswers({ toolUseId: 'b', questions: [] })
+
+    expect(onChange).toHaveBeenCalledTimes(3)
+    expect(mgr.isPending('a')).toBe(true)
+    expect(mgr.isPending('b')).toBe(true)
+
+    mgr.submitAnswers('a', { A: '1' })
+    await expect(p1).resolves.toEqual({ A: '1' })
+    expect(onChange).toHaveBeenCalledTimes(4)
+    expect(mgr.isPending('b')).toBe(true)
+
+    unsubscribe?.()
+    mgr.submitAnswers('b', { B: '2' })
+    await expect(p2).resolves.toEqual({ B: '2' })
+    expect(onChange).toHaveBeenCalledTimes(4)
+  })
+
   it('evicts the oldest buffered answers when exceeding the cap', async () => {
     const mgr = createUserInputManager()
 

@@ -40,6 +40,8 @@ export function AskUserQuestionToolBlock({
   const userInput = useUserInputManager()
   const replUi = useReplUi()
 
+  if (userInput && typeof userInput.isPending === 'function' && !userInput.isPending(toolUseId)) return null
+
   if (!userInput || questions.length === 0) {
     return (
       <Box flexDirection="column">

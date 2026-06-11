@@ -28,6 +28,7 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
         </Box>
       )
     }
+    if (!userInput.isPending(toolUseId)) return <FallbackToolPresenter message={message} />
 
     return (
       <EnterPlanModePrompt

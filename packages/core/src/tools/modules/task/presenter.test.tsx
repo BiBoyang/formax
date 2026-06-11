@@ -316,19 +316,20 @@ describe('TaskToolPresenter', () => {
   })
 
   it('renders nested prompts for Bash, Edit, and AskUserQuestion', () => {
-    const userInput = createUserInputManager()
-    userInput.requestAnswers({
-      toolUseId: 'nested-bash',
-      questions: [{ header: 'B', question: 'Run command?', options: [{ label: 'Y', description: '' }], multiSelect: false }],
-    })
-    userInput.requestAnswers({
-      toolUseId: 'nested-edit',
-      questions: [{ header: 'E', question: 'Apply edit?', options: [{ label: 'Y', description: '' }], multiSelect: false }],
-    })
-    userInput.requestAnswers({
-      toolUseId: 'nested-ask',
-      questions: [{ header: 'A', question: 'Pick one', options: [{ label: 'Y', description: '' }], multiSelect: false }],
-    })
+    const renderWithPending = (toolUseId: string, message: Msg): string => {
+      const userInput = createUserInputManager()
+      userInput.requestAnswers({
+        toolUseId,
+        questions: [{ header: 'Prompt', question: 'Continue?', options: [{ label: 'Y', description: '' }], multiSelect: false }],
+      })
+      return (
+        render(
+          <UserInputProvider userInput={userInput}>
+            <TaskToolPresenter message={message} />
+          </UserInputProvider>,
+        ).lastFrame() ?? ''
+      )
+    }
 
     const bashMsg: Msg = {
       id: 'task-bash',
@@ -377,21 +378,9 @@ describe('TaskToolPresenter', () => {
       },
     }
 
-    const bashFrame = render(
-      <UserInputProvider userInput={userInput}>
-        <TaskToolPresenter message={bashMsg} />
-      </UserInputProvider>,
-    ).lastFrame()
-    const editFrame = render(
-      <UserInputProvider userInput={userInput}>
-        <TaskToolPresenter message={editMsg} />
-      </UserInputProvider>,
-    ).lastFrame()
-    const askFrame = render(
-      <UserInputProvider userInput={userInput}>
-        <TaskToolPresenter message={askMsg} />
-      </UserInputProvider>,
-    ).lastFrame()
+    const bashFrame = renderWithPending('nested-bash', bashMsg)
+    const editFrame = renderWithPending('nested-edit', editMsg)
+    const askFrame = renderWithPending('nested-ask', askMsg)
 
     expect(bashFrame).toContain('Approve running this command?')
     expect(editFrame).toContain('Do you want to make this edit to e.ts?')
