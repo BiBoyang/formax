@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import fs from 'node:fs'
@@ -14,6 +14,18 @@ import { __testOnlyExitPlanMode, ExitPlanModeToolPresenter } from './presenter'
 import * as interactivePrompts from '../../../features/tools/presentation/interactivePrompts'
 import * as escapeSequences from '../../../features/repl/keys/escapeSequences.js'
 import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
+
+const mocks = vi.hoisted(() => ({
+  columns: 100 as number | undefined,
+}))
+
+vi.mock('ink', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ink')>()
+  return {
+    ...actual,
+    useStdout: () => ({ stdout: { columns: mocks.columns } }),
+  }
+})
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -64,6 +76,10 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('ExitPlanModeToolPresenter', () => {
+  beforeEach(() => {
+    mocks.columns = 100
+  })
+
   it('does not render the interactive prompt when the request is queued', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\n')
     try {
@@ -261,6 +277,27 @@ describe('ExitPlanModeToolPresenter', () => {
     } finally {
       cleanup()
     }
+  })
+
+  it('sizes the shared shell separator and plan dividers from stdout columns', async () => {
+    mocks.columns = 36
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <__testOnlyExitPlanMode.ExitPlanModePrompt
+          planPath="/tmp/plan.md"
+          planText={'Step 1\nStep 2'}
+          onAuto={() => {}}
+          onManual={() => {}}
+          onFeedback={() => {}}
+          onCancel={() => {}}
+        />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    const lines = (lastFrame() ?? '').split('\n').map((line) => line.trim())
+    expect(lines.find((line) => /^─+$/.test(line))?.length).toBe(36)
+    expect(lines.filter((line) => /^╌+$/.test(line)).map((line) => line.length)).toEqual([36, 36])
   })
 
   it('submits manual when pressing 2 then Enter', async () => {
@@ -1073,6 +1110,8 @@ describe('ExitPlanModeToolPresenter', () => {
       stdin.write('3')
       await tick()
       stdin.write('ab')
+      await tick()
+      stdin.write('\u001B[D')
       await tick()
       stdin.write('\u001B[D')
       await tick()

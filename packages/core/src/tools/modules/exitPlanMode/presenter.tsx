@@ -15,6 +15,7 @@ import { useScopeActivation, useScopedInput } from '../../../features/repl/input
 import { consumeBufferedArrow, consumeBufferedHorizontal } from '../../../features/repl/keys/escapeSequences.js'
 import { isDeleteOrBackspaceToken, isPrintableToken, isReturnKeyToken } from '../../../features/repl/keys/keyTokens'
 import { resolveInteractivePromptModel } from '../../../features/tools/presentation/interactivePrompts'
+import { usePromptSeparatorLine } from '../../../components/ui/ApprovalHeader'
 
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -145,10 +146,7 @@ export function ExitPlanModePrompt({
   const scope = 'prompt:exitPlanMode'
   useScopeActivation(scope)
   const { stdout } = useStdout()
-  const separator = useMemo(() => {
-    const width = Math.max(20, stdout?.columns ?? 80)
-    return '─'.repeat(width)
-  }, [stdout?.columns])
+  const separator = usePromptSeparatorLine()
   const planDivider = useMemo(() => {
     const width = Math.max(20, stdout?.columns ?? 80)
     return '╌'.repeat(width)

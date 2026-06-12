@@ -10,6 +10,7 @@ import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
 import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
+import { usePromptSeparatorLine } from '../../../components/ui/ApprovalHeader'
 
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
@@ -78,7 +79,7 @@ export function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; 
 
   const scope = 'prompt:enterPlanMode'
   useScopeActivation(scope)
-  const separator = '─'.repeat(80)
+  const separator = usePromptSeparatorLine()
   const [cursor, setCursor] = useState(0)
   const submittedRef = useRef(false)
 

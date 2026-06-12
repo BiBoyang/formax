@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text, useStdout } from 'ink'
+import { Box, Text } from 'ink'
 import { getTheme } from '../../tui/theme'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import { isToolUseActivePrompt } from '../../tools/runtime/userInputManager'
@@ -10,6 +10,7 @@ import {
   fieldIdForAskQuestion,
   type PresentationAskQuestion,
 } from '../../features/tools/presentation/askQuestions'
+import { usePromptSeparatorLine } from '../ui/ApprovalHeader'
 
 type AskQuestion = PresentationAskQuestion
 
@@ -76,19 +77,15 @@ function InteractiveAsk({
   onAbort: () => void
 }): React.ReactNode {
   const theme = getTheme()
-  const { stdout } = useStdout()
   const scope = 'prompt:askUserQuestion'
   useScopeActivation(scope)
+  const separator = usePromptSeparatorLine()
 
   const [activeTab, setActiveTab] = useState(0) // 0..questions.length (submit tab)
   const [reviewCursor, setReviewCursor] = useState(0) // 0 submit / 1 cancel
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submittedRef = useRef(false)
   const [state, setState] = useState<QuestionState[]>(() => questions.map(() => createInitialQuestionState()))
-  const separator = useMemo(() => {
-    const width = Math.max(20, stdout?.columns ?? 80)
-    return '─'.repeat(width)
-  }, [stdout?.columns])
 
   const submitTab = questions.length
   const isSubmitTab = activeTab >= submitTab

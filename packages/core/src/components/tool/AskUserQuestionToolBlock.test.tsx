@@ -14,10 +14,25 @@ const mocks = vi.hoisted(() => ({
   replUi: null as null | { abort: () => void },
   scopedHandler: null as null | ((input: string, key: any) => void),
   activateCalls: [] as string[],
+  columns: 100 as number | undefined,
 }))
 
+vi.mock('ink', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ink')>()
+  return {
+    ...actual,
+    useStdout: () => ({ stdout: { columns: mocks.columns } }),
+  }
+})
+
 vi.mock('../../tools/runtime/userInputContext', () => ({
-  useUserInputManager: () => mocks.userInput,
+  useUserInputManager: () =>
+    mocks.userInput
+      ? {
+          isPending: () => true,
+          ...mocks.userInput,
+        }
+      : null,
 }))
 
 vi.mock('../../features/repl/replUiContext', () => ({
@@ -74,6 +89,7 @@ describe('AskUserQuestionToolBlock', () => {
     mocks.replUi = null
     mocks.scopedHandler = null
     mocks.activateCalls.length = 0
+    mocks.columns = 100
   })
 
   it('shows preparing state when input manager is missing or no questions are provided', () => {
@@ -148,6 +164,23 @@ describe('AskUserQuestionToolBlock', () => {
     await input('', { return: true })
 
     expect(submitAnswers).toHaveBeenCalledWith('tool-typing', { Other: 'x' })
+  })
+
+  it('uses the shared interactive shell width for the top separator', () => {
+    mocks.userInput = {
+      submitAnswers: vi.fn(),
+      reject: vi.fn(),
+    }
+    mocks.columns = 44
+
+    const view = render(<AskUserQuestionToolBlock toolUseId="tool-shell" questions={[singleQuestion()]} />)
+    const ruleLine = (view.lastFrame() ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /^─+$/.test(line))
+
+    expect(ruleLine).toBeDefined()
+    expect(ruleLine?.length).toBe(44)
   })
 
   it('supports multi-select toggling via Space and submits from the submit row', async () => {

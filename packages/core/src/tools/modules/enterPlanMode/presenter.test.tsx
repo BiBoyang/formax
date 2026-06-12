@@ -1,12 +1,24 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import type { UserInputManager } from '../../runtime/userInputManager'
-import { EnterPlanModeToolPresenter } from './presenter'
+import { EnterPlanModePrompt, EnterPlanModeToolPresenter } from './presenter'
 import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
+
+const mocks = vi.hoisted(() => ({
+  columns: 100 as number | undefined,
+}))
+
+vi.mock('ink', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ink')>()
+  return {
+    ...actual,
+    useStdout: () => ({ stdout: { columns: mocks.columns } }),
+  }
+})
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -54,6 +66,10 @@ function createUserInput(submitAnswers: UserInputManager['submitAnswers']): User
 }
 
 describe('EnterPlanModeToolPresenter', () => {
+  beforeEach(() => {
+    mocks.columns = 100
+  })
+
   it('falls back when toolInfo is missing', async () => {
     const message: Msg = {
       id: 'tool-missing',
@@ -378,5 +394,24 @@ describe('EnterPlanModeToolPresenter', () => {
 
     await tick()
     expect(lastFrame()).toContain('Plan mode skipped')
+  })
+
+  it('sizes the separator from stdout columns instead of hard-coding 80 characters', async () => {
+    mocks.columns = 40
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <EnterPlanModePrompt onEnter={() => {}} onSkip={() => {}} />
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    const ruleLine = (lastFrame() ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => /^─+$/.test(line))
+
+    expect(ruleLine).toBeDefined()
+    expect(ruleLine?.length).toBe(40)
   })
 })
