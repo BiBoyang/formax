@@ -5,6 +5,7 @@ import { render } from 'ink-testing-library'
 import type { UserInputManager } from './userInputManager'
 import { createUserInputManager } from './userInputManager'
 import { UserInputProvider, useUserInputManager } from './userInputContext'
+import type { InteractivePromptDescriptor } from './interactivePromptDescriptor'
 
 function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -25,6 +26,20 @@ function createManager(overrides: Partial<UserInputManager> = {}): UserInputMana
     isPending: vi.fn(() => false),
     clearBufferedAnswers: vi.fn(),
     ...overrides,
+  }
+}
+
+function approvalDescriptor(toolUseId: string): InteractivePromptDescriptor {
+  return {
+    kind: 'approval',
+    requestEvent: {
+      type: 'approval_request',
+      toolUseId,
+      toolName: 'Bash',
+      action: { kind: 'bash.exec', command: 'pwd' },
+      effectiveDecision: 'ask',
+    },
+    ui: { promptVariant: 'bash', title: 'Approve command?', command: 'pwd', cwd: '/repo' },
   }
 }
 
@@ -137,5 +152,42 @@ describe('UserInputProvider / useUserInputManager', () => {
 
     base.submitAnswers('b', { B: '2' })
     await expect(p2).resolves.toEqual({ B: '2' })
+  })
+
+  it('exposes active prompt descriptor through the provider wrapper', async () => {
+    const base = createUserInputManager()
+    const onManager = vi.fn()
+    render(
+      <UserInputProvider userInput={base}>
+        <Probe onManager={onManager} />
+      </UserInputProvider>,
+    )
+    await tick()
+
+    const p1 = base.requestAnswers({
+      toolUseId: 'a',
+      questions: [],
+      descriptor: approvalDescriptor('a'),
+    })
+    const p2 = base.requestAnswers({
+      toolUseId: 'b',
+      questions: [],
+      descriptor: { ...approvalDescriptor('b'), ui: { promptVariant: 'bash', title: 'Second' } },
+    })
+    await tick()
+
+    const wrapped = onManager.mock.lastCall?.[0] as UserInputManager
+    expect(wrapped.getActivePrompt?.()?.requestEvent.toolUseId).toBe('a')
+    expect(wrapped.getActivePrompt?.()?.ui?.title).toBe('Approve command?')
+
+    base.submitAnswers('a', { decision: 'approve' })
+    await expect(p1).resolves.toEqual({ decision: 'approve' })
+    await tick()
+
+    expect(wrapped.getActivePrompt?.()?.requestEvent.toolUseId).toBe('b')
+    expect(wrapped.getActivePrompt?.()?.ui?.title).toBe('Second')
+
+    base.submitAnswers('b', { decision: 'approve' })
+    await expect(p2).resolves.toEqual({ decision: 'approve' })
   })
 })

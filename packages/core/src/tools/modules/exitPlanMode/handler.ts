@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import type { ToolCall, ToolResult } from '../../types'
 import type { ExecutionContext, ToolHandler } from '../../executor'
 import type { AskUserQuestion, UserInputManager } from '../../runtime/userInputManager'
@@ -30,12 +31,14 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
         }
 
         const planPath = ctx.getPlanPath?.() ?? ctx.planPath ?? null
+        const promptData = await loadExitPlanPromptData(planPath)
 
         const answersResult = await requestAskUserQuestionAnswersResult({
           call,
           ctx,
           userInput,
           questions: QUESTIONS,
+          promptData,
         })
         if (answersResult.ok !== true) {
           return toInteractivePromptFailureToolResult({
@@ -88,6 +91,37 @@ export function createExitPlanModeToolHandler(userInput: UserInputManager): Tool
         return { tool_use_id: call.id, content: `Error: ${msg}`, is_error: true }
       }
     },
+  }
+}
+
+async function loadExitPlanPromptData(planPath: string | null) {
+  if (!planPath) {
+    return {
+      kind: 'exit_plan_mode' as const,
+      planPath: null,
+      planContentState: {
+        status: 'error' as const,
+        message: 'No plan found. Please write your plan to the plan file first.',
+      },
+    }
+  }
+
+  try {
+    const text = await readFile(planPath, 'utf8')
+    return {
+      kind: 'exit_plan_mode' as const,
+      planPath,
+      planContentState: { status: 'loaded' as const, text },
+    }
+  } catch {
+    return {
+      kind: 'exit_plan_mode' as const,
+      planPath,
+      planContentState: {
+        status: 'error' as const,
+        message: 'Unable to load the plan file. Please reopen the plan or edit it before proceeding.',
+      },
+    }
   }
 }
 

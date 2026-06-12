@@ -45,6 +45,7 @@ export function UserInputProvider({
       isPending: isActivePending,
       clearBufferedAnswers: () => userInput.clearBufferedAnswers(),
       ...(userInput.getPendingToolUseIds ? { getPendingToolUseIds: userInput.getPendingToolUseIds } : {}),
+      ...(userInput.getActivePrompt ? { getActivePrompt: userInput.getActivePrompt } : {}),
       ...(userInput.subscribe ? { subscribe: userInput.subscribe } : {}),
     }
   }, [userInput])

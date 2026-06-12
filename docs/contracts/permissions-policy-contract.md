@@ -1,6 +1,6 @@
 # Permissions 与 Policy 合同（唯一事实源）
 
-最后更新：2026-06-04  
+最后更新：2026-06-12
 状态：规范性（Normative）
 
 本文档定义 Formax 中 permissions / policy preflight / approval remember side effects 的唯一事实来源。
@@ -267,6 +267,9 @@ approval-like 决策解释（`approve` / `approve_remember` / `feedback` / `canc
 2. `packages/core/src/tools/executor/approvalService.ts`
 3. `packages/core/src/tools/executor/skillPreflight.ts`
 
+`PERM-611`
+Approval prompt UI ownership or placement changes MUST NOT alter permissions/policy semantics. Moving Ink REPL approval controls from transcript rows into a bottom prompt slot does not re-evaluate, merge, drop, auto-resolve, or reorder pending approvals, and does not change `approve_remember` side effects.
+
 ## 8. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
@@ -283,6 +286,7 @@ approval-like 决策解释（`approve` / `approve_remember` / `feedback` / `canc
 2. policy 默认值或规则优先级
 3. workspace boundary / workspace remember
 4. `approve_remember` side effects
+5. approval prompt UI relocation that could accidentally affect policy side effects
 
 必须按以下顺序执行：
 1. 先更新本文件。

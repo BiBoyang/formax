@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { FileStore } from '../../adapters/fs/fileStore.js'
 import type { Platform } from '../../adapters/fs/configPaths.js'
 import type { PolicyRule, PolicyScope } from '../../core/policy/schema.js'
@@ -15,6 +16,7 @@ import { toolCallToPolicyAction } from './policyAction.js'
 import { classifyBashCommand } from '../modules/bash/policy.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
+import type { InteractivePromptUi } from '../runtime/interactivePromptDescriptor.js'
 import {
   loadMergedPermissions,
   persistProjectPermissionAllow,
@@ -243,6 +245,12 @@ export function createApprovalService(args: {
       ...(decisionReason ? { decisionReason } : {}),
       ...(args2.workspaceRequest?.dir ? { blockedPath: args2.workspaceRequest.dir } : {}),
       ...(args2.workspaceRequest ? { workspaceRequest: args2.workspaceRequest } : {}),
+      ui: buildApprovalPromptUi({
+        call,
+        ctx,
+        action: args2.action,
+        workspaceRequest: args2.workspaceRequest,
+      }),
     })
     const promptResult = await promptForApprovalLikeAnswer<ApprovalAnswer>({
       call,
@@ -509,6 +517,12 @@ export function createApprovalService(args: {
       toolName,
       action,
       effectiveDecision: args2.effectiveDecision,
+      ui: {
+        promptVariant: 'mcp',
+        title: `Approve this ${toolName} call?`,
+        toolLabel: toolName,
+        rememberLabel: `Yes, don't ask again for ${toolName}`,
+      },
     })
 
     const promptResult = await promptForApprovalLikeAnswer<ApprovalAnswer>({
@@ -641,4 +655,74 @@ export function createApprovalService(args: {
   }
 
   return { getSessionRules, getSessionPermissionAllows, ensureApproved, ensureToolNameApproved }
+}
+
+function buildApprovalPromptUi(args: {
+  call: ToolCall
+  ctx: ExecutionContext
+  action: PolicyAction
+  workspaceRequest?: WorkspaceAccessRequest | null
+}): InteractivePromptUi {
+  const toolName = args.call.name
+
+  if (toolName === 'Bash' && args.action.kind === 'bash.exec') {
+    return {
+      promptVariant: 'bash',
+      title: 'Approve running this command?',
+      command: args.action.command,
+      cwd: readStringField(args.call.input, 'cwd') || args.ctx.cwd || process.cwd(),
+    }
+  }
+
+  if (args.action.kind === 'fs.read') {
+    const directoryPath =
+      args.workspaceRequest?.dir ||
+      (toolName === 'Read' && args.action.path ? path.dirname(args.action.path) : args.action.path) ||
+      args.ctx.cwd ||
+      process.cwd()
+    return {
+      promptVariant: 'fs_read',
+      title: `Approve this ${toolName === 'Glob' || toolName === 'Grep' ? 'Search' : toolName} call?`,
+      directoryPath,
+      targetLabel: directoryPath,
+    }
+  }
+
+  if (args.action.kind === 'fs.write') {
+    return {
+      promptVariant: 'fs_write',
+      title: `Approve this ${toolName} call?`,
+      targetLabel: args.action.path,
+    }
+  }
+
+  if (toolName === 'WebSearch' && args.action.kind === 'net.search') {
+    const query = String(args.action.query || '').trim()
+    return {
+      promptVariant: 'web_search',
+      title: query ? `Do you want to search for "${query}"?` : 'Do you want to search the web?',
+      targetLabel: query,
+    }
+  }
+
+  if (toolName === 'WebFetch' && args.action.kind === 'net.fetch') {
+    const url = String(args.action.url || '').trim()
+    return {
+      promptVariant: 'web_fetch',
+      title: url ? `Do you want to fetch ${url}?` : 'Do you want to fetch this URL?',
+      targetLabel: url,
+    }
+  }
+
+  return {
+    promptVariant: 'generic_approval',
+    title: `Approve this ${toolName} call?`,
+    targetLabel: toolName,
+  }
+}
+
+function readStringField(input: unknown, field: string): string {
+  const rec = typeof input === 'object' && input !== null && !Array.isArray(input) ? (input as Record<string, unknown>) : null
+  const value = rec?.[field]
+  return typeof value === 'string' && value.trim() ? value : ''
 }

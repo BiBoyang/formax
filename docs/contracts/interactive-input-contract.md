@@ -1,6 +1,6 @@
 # 交互输入合同（唯一事实源）
 
-最后更新：2026-03-12  
+最后更新：2026-06-12
 状态：规范性（Normative）
 
 本文档是 Formax 中交互输入行为的唯一事实来源（Single Source of Truth）。
@@ -10,6 +10,7 @@
 - 语义交互入口与协议映射（含 `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode`）
 - 交互 preflight 入口归类（含 policy approval 与 skill approval-like 现状）
 - 覆盖 app-server、TUI、Web 共享的生命周期与提交语义
+- Ink REPL active interactive prompt 的 bottom input surface 所有权
 
 不在范围内：
 - 非交互式 tool 输出渲染
@@ -180,6 +181,23 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 `RENDER-005`  
 视觉密度或卡片尺寸调整 MUST NOT 改变 payload 形状与决策语义。
 
+### 5.1 Ink REPL Active Prompt Surface
+
+`RENDER-101`
+Ink REPL MUST render at most one active interactive prompt at a time. The active prompt MUST be the FIFO head descriptor exposed by `UserInputManager.getActivePrompt()`.
+
+`RENDER-102`
+Ink REPL MUST render the active interactive prompt in the REPL bottom prompt slot, after transcript rows and before the ordinary `InputBar`. While an active prompt descriptor exists, the ordinary `InputBar` MUST be hidden.
+
+`RENDER-103`
+Ink REPL MUST NOT derive the active prompt by reverse-scanning visible transcript rows. Transcript rows MAY show tool status, summaries, and non-interactive previews, but the active decision/input controls are owned by the bottom prompt slot.
+
+`RENDER-104`
+Descriptor-less `requestAnswers` callers MAY remain supported for tests or non-rendering legacy callers, but they MUST NOT drive the Ink REPL bottom prompt slot.
+
+`RENDER-105`
+Renderer hints such as `descriptor.ui.promptVariant` MAY guide component selection, but canonical `requestEvent`, `action`, and `toolName` remain the semantic source for payload handling.
+
 ## 6. Web Dev Runtime Helper 合同
 
 `DEV-001`  
@@ -209,6 +227,9 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 5. `packages/core/src/tools/executor/policyPreflight.test.ts`
 6. `packages/core/src/components/tool/*approvalPrompt.test.tsx`
 7. 与 `packages/core/src/components/tool/AskUserQuestionToolBlock.tsx` 相关的 presenter 测试
+8. `packages/core/src/tools/runtime/userInputManager.test.ts`
+9. `packages/core/src/screens/repl/ActivePromptSlot.test.tsx`
+10. `packages/core/src/screens/REPL.coverage.test.tsx`
 
 ## 8. 变更控制
 
@@ -216,6 +237,7 @@ TUI MAY 保持单步 confirm-menu；Web MAY 使用多步流程。
 1. `approval` / `ask_user_question` 生命周期与提交语义
 2. `AskUserQuestion` / `EnterPlanMode` / `ExitPlanMode` 到协议 `kind` 的映射
 3. `Skill` preflight 的 approval payload 形状或协议映射（`approval_request` / `action.kind='skill.use'`）
+4. Ink REPL active interactive prompt ownership or bottom-slot placement
 
 必须：
 1. 先更新本文件。

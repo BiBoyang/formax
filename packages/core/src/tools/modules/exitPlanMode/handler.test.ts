@@ -1,5 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createExitPlanModeToolHandler } from './handler'
+
+const mocks = vi.hoisted(() => ({
+  readFile: vi.fn(async () => 'plan body'),
+}))
+
+vi.mock('node:fs/promises', () => ({
+  readFile: mocks.readFile,
+}))
 
 function createStubUserInput(overrides: {
   requestAnswers?: (args: any) => Promise<Record<string, string>>
@@ -15,6 +23,38 @@ function createStubUserInput(overrides: {
 }
 
 describe('ExitPlanMode tool handler', () => {
+  beforeEach(() => {
+    mocks.readFile.mockClear()
+    mocks.readFile.mockResolvedValue('plan body')
+  })
+
+  it('snapshots plan prompt data into the interactive descriptor', async () => {
+    const requestAnswers = vi.fn(async () => ({ choice: 'cancel' }))
+    const handler = createExitPlanModeToolHandler(
+      createStubUserInput({
+        requestAnswers,
+      }) as any,
+    )
+
+    await handler.execute(
+      { id: 't-snapshot', name: 'ExitPlanMode', input: {} },
+      { cwd: '/tmp', agentDepth: 0, replMode: 'plan', planPath: '/tmp/plan.md' },
+    )
+
+    expect(mocks.readFile).toHaveBeenCalledWith('/tmp/plan.md', 'utf8')
+    expect(requestAnswers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        descriptor: expect.objectContaining({
+          promptData: {
+            kind: 'exit_plan_mode',
+            planPath: '/tmp/plan.md',
+            planContentState: { status: 'loaded', text: 'plan body' },
+          },
+        }),
+      }),
+    )
+  })
+
   it('matches only ExitPlanMode tool name', async () => {
     const handler = createExitPlanModeToolHandler(createStubUserInput() as any)
     expect(handler.canHandle('ExitPlanMode')).toBe(true)

@@ -5,9 +5,11 @@ import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPres
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { FsWriteApprovalPrompt } from '../../../components/tool/fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 export const NotebookEditToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -17,7 +19,7 @@ export const NotebookEditToolPresenter: ToolPresenterComponent = ({ message }: {
   const notebookPathRaw = String((input as any).notebook_path || '')
   const notebookName = useMemo(() => path.basename(notebookPathRaw || 'notebook'), [notebookPathRaw])
 
-  if (status === 'running' && userInput?.isPending(toolUseId)) {
+  if (inlineAllowed && status === 'running' && userInput?.isPending(toolUseId)) {
     return (
       <FsWriteApprovalPrompt
         title={`Do you want to edit ${notebookName}?`}

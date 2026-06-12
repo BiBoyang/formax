@@ -1,3 +1,5 @@
+import type { InteractivePromptDescriptor } from './interactivePromptDescriptor.js'
+
 export type AskUserQuestionOption = {
   label: string
   description: string
@@ -18,6 +20,7 @@ export type UserInputManager = {
     toolUseId: string
     questions: AskUserQuestion[]
     signal?: AbortSignal
+    descriptor?: InteractivePromptDescriptor
   }) => Promise<AskUserAnswers>
   submitAnswers: (toolUseId: string, answers: AskUserAnswers) => boolean
   reject: (toolUseId: string, error: Error) => boolean
@@ -25,6 +28,7 @@ export type UserInputManager = {
   isPending: (toolUseId: string) => boolean
   clearBufferedAnswers: () => void
   getPendingToolUseIds?: () => string[]
+  getActivePrompt?: () => InteractivePromptDescriptor | null
   subscribe?: (listener: () => void) => () => void
 }
 
@@ -33,6 +37,7 @@ type PendingRequest = {
   resolve: (answers: AskUserAnswers) => void
   reject: (error: Error) => void
   cleanup: () => void
+  descriptor?: InteractivePromptDescriptor
 }
 
 export function createUserInputManager(): UserInputManager {
@@ -70,6 +75,7 @@ export function createUserInputManager(): UserInputManager {
     toolUseId: string
     questions: AskUserQuestion[]
     signal?: AbortSignal
+    descriptor?: InteractivePromptDescriptor
   }): Promise<AskUserAnswers> {
     pruneBuffered()
     const existing = pending.get(args.toolUseId)
@@ -98,6 +104,7 @@ export function createUserInputManager(): UserInputManager {
       resolve,
       reject,
       cleanup: () => {},
+      ...(args.descriptor ? { descriptor: snapshotInteractivePromptDescriptor(args.descriptor) } : {}),
     }
 
     if (args.signal) {
@@ -165,6 +172,12 @@ export function createUserInputManager(): UserInputManager {
     return pendingOrder.filter((id) => pending.has(id))
   }
 
+  function getActivePrompt(): InteractivePromptDescriptor | null {
+    const id = getPendingToolUseIds()[0]
+    if (!id) return null
+    return pending.get(id)?.descriptor ?? null
+  }
+
   function subscribe(listener: () => void): () => void {
     listeners.add(listener)
     listener()
@@ -181,6 +194,74 @@ export function createUserInputManager(): UserInputManager {
     isPending,
     clearBufferedAnswers,
     getPendingToolUseIds,
+    getActivePrompt,
     subscribe,
+  }
+}
+
+function snapshotQuestions(questions: AskUserQuestion[]): AskUserQuestion[] {
+  return questions.map((question) => ({
+    question: question.question,
+    header: question.header,
+    ...(question.fieldId !== undefined ? { fieldId: question.fieldId } : {}),
+    multiSelect: question.multiSelect,
+    options: question.options.map((option) => ({
+      label: option.label,
+      description: option.description,
+    })),
+  }))
+}
+
+function snapshotInteractivePromptDescriptor(descriptor: InteractivePromptDescriptor): InteractivePromptDescriptor {
+  if (descriptor.kind === 'ask_user_question') {
+    const questions = snapshotQuestions(descriptor.questions)
+    return {
+      kind: 'ask_user_question',
+      questions,
+      requestEvent: {
+        ...descriptor.requestEvent,
+        questions,
+      },
+      ...(descriptor.emitToolUpdate !== undefined ? { emitToolUpdate: descriptor.emitToolUpdate } : {}),
+      ...(descriptor.ui ? { ui: { ...descriptor.ui } } : {}),
+      ...(descriptor.promptData ? { promptData: snapshotValue(descriptor.promptData) } : {}),
+    }
+  }
+
+  return {
+    kind: 'approval',
+    requestEvent: {
+      ...descriptor.requestEvent,
+      action: snapshotValue(descriptor.requestEvent.action),
+      effectiveDecision: snapshotValue(descriptor.requestEvent.effectiveDecision),
+      ...(descriptor.requestEvent.suggestions ? { suggestions: [...descriptor.requestEvent.suggestions] } : {}),
+      ...(descriptor.requestEvent.workspaceRequest
+        ? { workspaceRequest: snapshotValue(descriptor.requestEvent.workspaceRequest) }
+        : descriptor.requestEvent.workspaceRequest === null
+          ? { workspaceRequest: null }
+          : {}),
+    },
+    ...(descriptor.questions ? { questions: snapshotQuestions(descriptor.questions) } : {}),
+    ...(descriptor.emitToolUpdate !== undefined ? { emitToolUpdate: descriptor.emitToolUpdate } : {}),
+    ...(descriptor.ui ? { ui: { ...descriptor.ui } } : {}),
+    ...(descriptor.promptData ? { promptData: snapshotValue(descriptor.promptData) } : {}),
+  }
+}
+
+function snapshotValue<T>(value: T): T {
+  if (value === null || value === undefined || typeof value !== 'object') return value
+  const structuredClone = (globalThis as { structuredClone?: <V>(value: V) => V }).structuredClone
+  if (structuredClone) {
+    try {
+      return structuredClone(value)
+    } catch {
+      // Fall through to JSON/plain-object snapshot for values that structuredClone cannot copy.
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    if (Array.isArray(value)) return [...value] as T
+    return { ...(value as Record<string, unknown>) } as T
   }
 }

@@ -52,6 +52,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `packages/core/src/screens/repl/hotkeys.ts`
 - Prompt mode gating (overlays/prompt blocks disable hotkeys): `packages/core/src/screens/repl/promptMode.ts`
 - Transcript renderers (Primary vs Expanded): `packages/core/src/screens/repl/transcript.tsx`
+- Active interactive bottom prompt slot (approval / ask-user controls after transcript): `packages/core/src/screens/repl/ActivePromptSlot.tsx`
 - Expanded Transcript tests: `packages/core/src/screens/repl/expandedTranscript.test.tsx`
 - Input UI: `packages/core/src/components/chat/InputBar.tsx`
 - Header: `packages/core/src/components/chat/HeaderBanner.tsx`
@@ -214,6 +215,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Executor handlers (e.g. Task): `packages/core/src/tools/executor/handlers/*`
 - Runtime task manager (background tasks, cancel): `packages/core/src/tools/runtime/taskManager.ts`
 - Runtime user input manager (approval prompts / AskUserQuestion answers): `packages/core/src/tools/runtime/userInputManager.ts`
+- Runtime active interactive prompt descriptor surface: `packages/core/src/tools/runtime/interactivePromptDescriptor.ts`, `packages/core/src/tools/runtime/userInputContext.tsx`
 - Runtime ask-user-question transaction helper: `packages/core/src/tools/runtime/askUserQuestionPrompt.ts`
 - Runtime interactive prompt descriptor builders (approval / ask payload wiring): `packages/core/src/tools/runtime/interactivePromptDescriptor.ts`
 - Runtime unified interactive prompt transaction core: `packages/core/src/tools/runtime/interactivePromptTransaction.ts`
@@ -228,6 +230,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Blocks presenter helper: `createToolBlocksPresenter` in `packages/core/src/shared/toolPresenterContracts.ts`
 - Web generic tool block registry, including `mcp__*` renderer: `packages/web-reference-react/src/components/tool/toolBlocksRegistry.ts`
 - FS read approval bridge (blocks presenter → runtime user input): `packages/core/src/components/tool/FsReadApprovalToolBlock.tsx`
+- Inline interactive prompt surface guard: `packages/core/src/components/tool/InteractivePromptSurfaceContext.tsx`
 - Shared approval prompt (Edit/Write/NotebookEdit): `packages/core/src/components/tool/editApprovalPrompt.tsx`
 - Fallback presenter: `packages/core/src/components/tool/FallbackToolPresenter.tsx`
 

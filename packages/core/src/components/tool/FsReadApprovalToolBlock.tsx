@@ -1,6 +1,7 @@
 import React from 'react'
 import { FsReadApprovalPrompt } from './fsReadApprovalPrompt'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 export function FsReadApprovalToolBlock({
   toolUseId,
@@ -12,8 +13,9 @@ export function FsReadApprovalToolBlock({
   directoryPath: string
 }): React.ReactNode {
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
-  if (!userInput?.isPending(toolUseId)) return null
+  if (!inlineAllowed || !userInput?.isPending(toolUseId)) return null
 
   return (
     <FsReadApprovalPrompt

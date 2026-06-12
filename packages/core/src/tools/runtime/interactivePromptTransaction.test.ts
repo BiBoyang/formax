@@ -150,11 +150,13 @@ describe('runInteractivePromptTransaction', () => {
     const userInput = createUserInput({
       requestAnswers: async () => ({ decision: 'approve' }),
     })
+    const requestAnswersSpy = vi.spyOn(userInput, 'requestAnswers')
     const descriptor = createApprovalPromptDescriptor({
       call: { id: 't1' },
       toolName: 'Bash',
       action: { kind: 'bash.exec', command: 'echo hi' },
       effectiveDecision: 'prompt',
+      ui: { promptVariant: 'bash', title: 'Approve command?', command: 'echo hi', cwd: '/tmp' },
       emitToolUpdate: false,
     })
     const res = await runInteractivePromptTransaction({
@@ -175,6 +177,12 @@ describe('runInteractivePromptTransaction', () => {
         type: 'approval_request',
         toolUseId: 't1',
         toolName: 'Bash',
+      }),
+    )
+    expect(requestAnswersSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolUseId: 't1',
+        descriptor,
       }),
     )
     expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 't1' }))
@@ -206,6 +214,7 @@ describe('runInteractivePromptTransaction', () => {
       expect.objectContaining({
         toolUseId: 'ask-1',
         questions: [{ question: 'Pick', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+        descriptor,
       }),
     )
   })

@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render } from 'ink-testing-library'
 import { Text } from 'ink'
 import type { RuntimeConfig } from '../config/config'
+import { UserInputProvider } from '../tools/runtime/userInputContext'
+import { createUserInputManager } from '../tools/runtime/userInputManager'
+import { InputScopeProvider } from '../features/repl/inputScopeContext'
 
 let mockState: any
 let mockActions: any
@@ -213,6 +216,10 @@ function baseState(overrides?: Partial<any>) {
 
 function tick(ms = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, '')
 }
 
 describe('REPL.tsx coverage branches', () => {
@@ -465,6 +472,121 @@ describe('REPL.tsx coverage branches', () => {
 
     // Cleanup path for timer effect.
     ui.unmount()
+  }, 30000)
+
+  it('renders active bottom prompts instead of the input bar', async () => {
+    const { REPL } = await import('./REPL')
+    const userInput = createUserInputManager()
+    void userInput.requestAnswers({
+      toolUseId: 'search-approval',
+      questions: [],
+      descriptor: {
+        kind: 'approval',
+        requestEvent: {
+          type: 'approval_request',
+          toolUseId: 'search-approval',
+          toolName: 'Glob',
+          action: { kind: 'fs.read', path: '/repo' },
+          effectiveDecision: 'ask',
+        },
+        ui: {
+          promptVariant: 'fs_read',
+          title: 'Approve this Search call?',
+          directoryPath: '/repo',
+        },
+      },
+    })
+
+    const ui = render(
+      <InputScopeProvider>
+        <UserInputProvider userInput={userInput}>
+          <REPL engine={engine as any} tools={[]} cfg={cfg} />
+        </UserInputProvider>
+      </InputScopeProvider>,
+    )
+    await tick(10)
+
+    const frame = stripAnsi(ui.lastFrame() || '')
+    expect(frame).toContain('PRIMARY:')
+    expect(frame).toContain('Approve this Search call?')
+    expect(frame).toMatch(/PRIMARY:[^\n]*\n\n─/)
+    expect(frame).not.toMatch(/PRIMARY:[^\n]*\n\n\n─/)
+    expect(frame).not.toContain('INPUT:')
+    expect(inputBarProps).toBeUndefined()
+  }, 30000)
+
+  it('keeps loading input visible after approvals while tools are still running', async () => {
+    const { REPL } = await import('./REPL')
+    mockState = baseState({
+      isLoading: true,
+      transientMessages: [
+        {
+          id: 'tool-search-1',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(),
+          toolInfo: {
+            name: 'Glob',
+            toolUseId: 'search-1',
+            status: 'running',
+            input: { pattern: '**/.formax/**/*.md', path: '/Users/david' },
+          },
+        },
+        {
+          id: 'tool-search-2',
+          role: 'tool',
+          content: '',
+          timestamp: new Date(),
+          toolInfo: {
+            name: 'Glob',
+            toolUseId: 'search-2',
+            status: 'running',
+            input: { pattern: '**/*browser*node*repl*', path: '/Users/david' },
+          },
+        },
+      ],
+    })
+
+    const ui = render(<REPL engine={engine as any} tools={[]} cfg={cfg} />)
+    await tick(10)
+
+    const frame = ui.lastFrame() || ''
+    expect(frame).toContain('PRIMARY:')
+    expect(frame).toContain('Running 2 tools')
+    expect(frame).toContain('waiting for results')
+    expect(frame).toContain('INPUT:normal:0')
+    expect(inputBarProps).toBeTruthy()
+  }, 30000)
+
+  it('uses the same loading input path during ordinary model loading', async () => {
+    const { REPL } = await import('./REPL')
+    mockState = baseState({
+      isLoading: true,
+      loadingText: 'Preparing write',
+      transientMessages: [],
+    })
+
+    const ui = render(<REPL engine={engine as any} tools={[]} cfg={cfg} />)
+    await tick(10)
+
+    const frame = ui.lastFrame() || ''
+    expect(frame).toContain('PRIMARY:')
+    expect(frame).toContain('Preparing write')
+    expect(frame).toContain('INPUT:normal:0')
+    expect(inputBarProps).toBeTruthy()
+  }, 30000)
+
+  it('does not show the input bar while a blocking command overlay is open', async () => {
+    const { REPL } = await import('./REPL')
+    mockState = baseState({ modelDialogOpen: true })
+
+    const ui = render(<REPL engine={engine as any} tools={[]} cfg={cfg} />)
+    await tick(10)
+
+    const frame = ui.lastFrame() || ''
+    expect(frame).toContain('MODEL:')
+    expect(frame).not.toContain('INPUT:')
+    expect(inputBarProps).toBeUndefined()
   }, 30000)
 
   it('covers cancelled workspace root load branch on unmount', async () => {

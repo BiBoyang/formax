@@ -20,19 +20,36 @@ function createUserInput(overrides: Partial<UserInputManager> = {}): UserInputMa
 describe('requestAskUserQuestionAnswersResult', () => {
   it('returns collected answers', async () => {
     const onEvent = vi.fn()
+    const requestAnswers = vi.fn(async () => ({ header: 'value' }))
     const userInput = createUserInput({
-      requestAnswers: async () => ({ header: 'value' }),
+      requestAnswers,
     })
     const res = await requestAskUserQuestionAnswersResult({
       call: { id: 'ask-1', name: 'AskUserQuestion', input: {} } as any,
       ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
       userInput,
       questions: [{ question: 'Q', header: 'H', options: [], multiSelect: false }],
+      promptData: {
+        kind: 'exit_plan_mode',
+        planPath: '/tmp/plan.md',
+        planContentState: { status: 'loaded', text: 'plan body' },
+      },
     })
 
     expect(res.ok).toBe(true)
     if (res.ok !== true) throw new Error('Expected success')
     expect(res.answers).toEqual({ header: 'value' })
+    expect(requestAnswers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        descriptor: expect.objectContaining({
+          promptData: {
+            kind: 'exit_plan_mode',
+            planPath: '/tmp/plan.md',
+            planContentState: { status: 'loaded', text: 'plan body' },
+          },
+        }),
+      }),
+    )
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'ask_user_question', toolUseId: 'ask-1' }))
     expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 'ask-1' }))
   })

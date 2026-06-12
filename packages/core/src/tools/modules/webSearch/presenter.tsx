@@ -7,9 +7,11 @@ import type { Msg } from '../../../shared/toolMessageTypes'
 import { EditApprovalPrompt } from '../../../components/tool/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
 import { ToolHeaderLine } from '../../../components/tool/ToolUiPrimitives'
+import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 export const WebSearchToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -18,7 +20,7 @@ export const WebSearchToolPresenter: ToolPresenterComponent = ({ message }: { me
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  if (status === 'running' && userInput?.isPending(toolUseId)) {
+  if (inlineAllowed && status === 'running' && userInput?.isPending(toolUseId)) {
     const query = String((input as any)?.query || '').trim()
     const title = query ? `Do you want to search for "${query}"?` : 'Do you want to search the web?'
 

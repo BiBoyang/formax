@@ -111,6 +111,7 @@ export async function runInteractivePromptTransaction<TAnswers extends AskUserAn
     toolUseId: args.call.id,
     questions,
     signal: args.ctx.signal,
+    ...(args.descriptor ? { descriptor: args.descriptor } : {}),
   })
 
   if (emitToolUpdate !== false) {

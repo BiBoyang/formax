@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
+import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../tui/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
@@ -17,6 +18,7 @@ import { resolveInteractivePromptModel } from '../../../features/tools/presentat
 export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
   const planSession = usePlanSession()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
@@ -37,6 +39,7 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
         </Box>
       )
     }
+    if (!inlineAllowed) return <FallbackToolPresenter message={message} />
     if (!userInput.isPending(toolUseId)) return <FallbackToolPresenter message={message} />
 
     return (
@@ -101,9 +104,10 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
   )
 }
 
-function ExitPlanModePrompt({
+export function ExitPlanModePrompt({
   planPath,
   planText,
+  planContentState,
   onAuto,
   onManual,
   onFeedback,
@@ -111,6 +115,7 @@ function ExitPlanModePrompt({
 }: {
   planPath?: string | null
   planText: string
+  planContentState?: ExitPlanPromptPlanContentState
   onAuto: () => void
   onManual: () => void
   onFeedback: (text: string) => void
@@ -329,8 +334,16 @@ function ExitPlanModePrompt({
   const typingBeforeCursor = typingValue.slice(0, typingCursor)
   const typingAfterCursor = typingValue.slice(typingCursor)
   const feedbackLine = typingValue.trim() ? typingValue.trim() : ''
+  const resolvedPlanContentState: ExitPlanPromptPlanContentState =
+    planContentState ?? { status: 'loaded', text: planText }
   const planBody = useMemo(() => {
-    const raw = (planText || '').trimEnd()
+    if (resolvedPlanContentState.status === 'loading') {
+      return 'Loading plan...'
+    }
+    if (resolvedPlanContentState.status === 'error') {
+      return resolvedPlanContentState.message || 'Unable to load the plan file. Please reopen the plan or edit it before proceeding.'
+    }
+    const raw = (resolvedPlanContentState.text || '').trimEnd()
     if (!raw) return 'No plan found. Please write your plan to the plan file first.'
     const lines = raw.split(/\r?\n/)
     if (lines.length <= MAX_PLAN_PROMPT_LINES) return raw
@@ -338,7 +351,7 @@ function ExitPlanModePrompt({
       lines.slice(0, MAX_PLAN_PROMPT_LINES).join('\n') +
       `\n… (${lines.length - MAX_PLAN_PROMPT_LINES} more lines)`
     )
-  }, [planText])
+  }, [resolvedPlanContentState])
   const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
   const staticPromptSection = useMemo(
     () => (
@@ -412,6 +425,10 @@ function ExitPlanModePrompt({
   )
 }
 
+export type ExitPlanPromptPlanContentState =
+  | { status: 'loaded'; text: string }
+  | { status: 'error'; message?: string }
+
 function MenuRow({ cursor, index, label }: { cursor: boolean; index: number; label: string }): React.ReactNode {
   const theme = getTheme()
   const prefixColor = cursor ? theme.permission : undefined
@@ -432,7 +449,7 @@ const MAX_PLAN_APPROVED_LINES = 40
 const PLAN_PROMPT_BORDER_COLOR = '#48968c'
 const PLAN_PROMPT_DIVIDER_COLOR = '#505050'
 
-function safeReadFile(filePath: string): string {
+export function safeReadFile(filePath: string): string {
   try {
     return fs.readFileSync(filePath, 'utf8')
   } catch {

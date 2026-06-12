@@ -4,6 +4,7 @@ import { getTheme } from '../../tui/theme'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
+import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 import {
   fieldIdForAskQuestion,
   type PresentationAskQuestion,
@@ -39,7 +40,9 @@ export function AskUserQuestionToolBlock({
   const theme = getTheme()
   const userInput = useUserInputManager()
   const replUi = useReplUi()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
+  if (!inlineAllowed) return null
   if (userInput && typeof userInput.isPending === 'function' && !userInput.isPending(toolUseId)) return null
 
   if (!userInput || questions.length === 0) {

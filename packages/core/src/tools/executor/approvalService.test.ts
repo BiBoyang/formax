@@ -790,6 +790,34 @@ describe('ApprovalService', () => {
     )
   })
 
+  it('uses the parent directory for Read active prompt descriptors', async () => {
+    const requestAnswers = vi.fn(async (_args: any) => ({ decision: 'approve' }))
+    const approval = createApprovalService({
+      fileStore: createNodeFileStore(),
+      userInput: { requestAnswers } as any,
+    })
+
+    const res = await approval.ensureApproved({
+      call: { id: 't-read-ui', name: 'Read', input: { file_path: '/tmp/project/src/file.ts' } } as any,
+      ctx: { cwd: '/tmp/project', agentDepth: 0, onEvent: () => {} },
+      action: { kind: 'fs.read', path: '/tmp/project/src/file.ts' } as any,
+      effectiveDecision: 'prompt',
+      explained: { decision: 'prompt' } as any,
+      loaded: {} as any,
+    })
+
+    expect(res.ok).toBe(true)
+    const requestArgs = requestAnswers.mock.calls[0]?.[0] as any
+    expect(requestArgs.descriptor.ui).toEqual(
+      expect.objectContaining({
+        promptVariant: 'fs_read',
+        title: 'Approve this Read call?',
+        directoryPath: '/tmp/project/src',
+        targetLabel: '/tmp/project/src',
+      }),
+    )
+  })
+
   it('applies updated_input_json to tool call input on approve', async () => {
     const approval = createApprovalService({
       fileStore: createNodeFileStore(),

@@ -1,6 +1,6 @@
 # Transcript Surface 合同（唯一事实源）
 
-最后更新：2026-05-21
+最后更新：2026-06-12
 状态：规范性（Normative）
 
 本文档定义 Formax REPL transcript 物理渲染面的 reset/remount 语义，以及 `/clear`、`/resume`、compact / expanded view 切换时的 shared reset transaction 合同。
@@ -10,6 +10,7 @@
 - `replaceTranscript` / `resetTranscriptSurface` / `surfaceOpQueueRef` 的 shared owner 合同
 - `transcriptSeq` 与 transcript Static key 的 remount 规则
 - `/clear`、`/resume`、Ctrl+O / Ctrl+E、compact boundary 触发的 surface reset 路径
+- Ink REPL transcript rows 与 active interactive bottom prompt 的 surface ownership 边界
 - legacy runner 的 terminal clear ownership
 
 不在范围内：
@@ -125,7 +126,21 @@ expanded transcript view MUST 使用 `projectExpandedTranscript(...)`，并声�
 `SURFACE-504`
 任何新增 diagnostics transcript surface MUST 消费 `buildContextProjection(...).diagnosticsProjection` 或其 canonical facts，并在 UI 层只做展示适配；不得在 renderer 中重新扫描 transcript 来推导 compression stage 顺序。
 
-## 6. Guardrails
+## 6. Interactive Prompt Surface Ownership
+
+`SURFACE-601`
+Ink REPL transcript rows MUST NOT own active interactive controls for pending `approval` or `ask_user_question` inputs. Active controls belong to the REPL bottom prompt slot defined by `docs/contracts/interactive-input-contract.md`.
+
+`SURFACE-602`
+Transcript rows MUST remain responsible for tool status, summaries, and non-interactive previews. Large Write/Edit diffs or argument previews SHOULD stay in transcript rows, while decision controls render in the bottom prompt slot.
+
+`SURFACE-603`
+When later running tool rows are appended while an active prompt is visible, those rows MUST render above the active prompt slot. The UI MUST NOT produce an ordering where a later transcript row appears below the active prompt.
+
+`SURFACE-604`
+Inline prompt presenters MAY exist as compatibility components, but in an Ink REPL bottom-slot surface they MUST suppress interactive controls and avoid registering prompt key handlers.
+
+## 7. Guardrails
 
 `SURFACE-401`  
 不得把 `HeaderBanner` 或主消息列表搬出 `Static` 作为规避重复渲染的长期方案。
@@ -136,7 +151,7 @@ expanded transcript view MUST 使用 `projectExpandedTranscript(...)`，并声�
 `SURFACE-403`  
 若问题根因是 semantic row ownership / handoff 漂移，而不是 surface transaction，本合同不允许用 surface-only 补丁掩盖数据层问题。
 
-## 7. 一致性测试映射（Conformance Test Map）
+## 8. 一致性测试映射（Conformance Test Map）
 
 本合同的主测试集：
 1. `packages/core/src/features/repl/controller/ui/surfaceReset.test.ts`
@@ -146,14 +161,17 @@ expanded transcript view MUST 使用 `projectExpandedTranscript(...)`，并声�
 5. `packages/core/src/runtime/bootstrap/runLegacyCli.test.tsx`
 6. `packages/core/src/features/repl/useReplController.test.tsx`
 7. `packages/core/src/screens/repl/compactProjection.test.ts`
+8. `packages/core/src/screens/repl/ActivePromptSlot.test.tsx`
+9. `packages/core/src/screens/REPL.coverage.test.tsx`
 
-## 8. 变更控制
+## 9. 变更控制
 
 当变更以下任一行为时：
 1. `/clear` / `/resume` 的 transcript reset 路径
 2. `Ctrl+O` / `Ctrl+E` / compact 的 surface reset 路径
 3. `transcriptSeq` / Static key / remount 规则
 4. legacy runner terminal clear path
+5. Ink REPL transcript row ownership for active interactive controls
 
 必须按以下顺序执行：
 1. 先更新本文件。

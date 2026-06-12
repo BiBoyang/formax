@@ -4,6 +4,7 @@ import { ApprovalHeader } from '../ui/ApprovalHeader'
 import { PatchApprovalPreview } from './PatchApprovalPreview'
 import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 export function EditApprovalToolBlock({
   toolUseId,
@@ -19,6 +20,7 @@ export function EditApprovalToolBlock({
   newText: string
 }): React.ReactNode {
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
   if (!userInput?.isPending(toolUseId)) return null
 
@@ -34,16 +36,18 @@ export function EditApprovalToolBlock({
         Do you want to make this edit to <Text bold>{fileName}</Text>?
       </Text>
 
-      <FsWriteApprovalPrompt
-        title={`Do you want to make this edit to ${fileName}?`}
-        variant="inline"
-        onDecision={(d) => {
-          if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-          else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
-          else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
-          else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-        }}
-      />
+      {inlineAllowed ? (
+        <FsWriteApprovalPrompt
+          title={`Do you want to make this edit to ${fileName}?`}
+          variant="inline"
+          onDecision={(d) => {
+            if (d.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
+            else if (d.kind === 'approve_remember') userInput.submitAnswers(toolUseId, { decision: 'approve_remember' })
+            else if (d.kind === 'feedback') userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: d.feedback })
+            else userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+          }}
+        />
+      ) : null}
     </Box>
   )
 }

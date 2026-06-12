@@ -54,6 +54,13 @@ import type { SubAgentListItem } from '../features/subagents/types.js'
 import { SubagentPresentationProvider } from '../shared/subagentPresentationContext'
 import { normalizeSubagentLookupKey, resolveSubagentColor } from '../shared/subagentPresentation'
 import type { PromptBlock } from '../prompts'
+import { InteractivePromptSurfaceProvider } from '../components/tool/InteractivePromptSurfaceContext'
+import { ActivePromptSlot } from './repl/ActivePromptSlot'
+import {
+  formatRunningToolsText,
+  resolveReplBlockingOverlay,
+  resolveReplBottomSlotState,
+} from './repl/bottomSlotState'
 
 type Props = {
   onExit?: () => void
@@ -312,13 +319,51 @@ export function REPL({
   )
 
   const primaryPartition = useMemo(() => partitionMessages(primaryTranscriptMessages), [primaryTranscriptMessages])
+  const runningToolCount = useMemo(
+    () =>
+      primaryTranscriptMessages.filter((message) => message.role === 'tool' && message.toolInfo?.status === 'running')
+        .length,
+    [primaryTranscriptMessages],
+  )
 
   const primaryTranscriptSeq = useMemo(
     () => buildPrimaryTranscriptStaticKey(state.transcriptSeq, primaryTranscriptStartIndex),
     [primaryTranscriptStartIndex, state.transcriptSeq],
   )
 
-  const expandedViewActive = expandedTranscriptOpen && !isPromptMode
+  const activeInteractivePrompt = userInput?.getActivePrompt?.() ?? null
+  const hasActiveInteractivePrompt = Boolean(activeInteractivePrompt)
+  const expandedViewActive = expandedTranscriptOpen && !isPromptMode && !hasActiveInteractivePrompt
+  const blockingOverlay = useMemo(
+    () =>
+      resolveReplBlockingOverlay({
+        agentsDialogOpen: state.agentsDialogOpen,
+        permissionsDialogOpen: state.permissionsDialogOpen,
+        hooksDialogOpen: state.hooksDialogOpen,
+        configDialogOpen: state.configDialogOpen,
+        modelDialogOpen: state.modelDialogOpen,
+        resumeDialogOpen: state.resumeDialogOpen,
+      }),
+    [
+      state.agentsDialogOpen,
+      state.permissionsDialogOpen,
+      state.hooksDialogOpen,
+      state.configDialogOpen,
+      state.modelDialogOpen,
+      state.resumeDialogOpen,
+    ],
+  )
+  const bottomSlotState = useMemo(
+    () =>
+      resolveReplBottomSlotState({
+        blockingOverlay,
+        expandedViewActive,
+        hasActiveInteractivePrompt,
+        isLoading: state.isLoading,
+        runningToolCount,
+      }),
+    [blockingOverlay, expandedViewActive, hasActiveInteractivePrompt, state.isLoading, runningToolCount],
+  )
 
   useEffect(() => {
     if (ctrlCArmedUntilMs === null) return
@@ -594,11 +639,6 @@ export function REPL({
 
   const replCwd = useMemo(() => process.cwd(), [])
 
-  const showLoadingBlock = useMemo(() => {
-    if (!state.isLoading || isPromptMode) return false
-    return true
-  }, [isPromptMode, state.isLoading])
-
   const expandedTranscriptTask = useMemo(() => {
     if (!expandedViewActive) return null
     return (
@@ -657,32 +697,74 @@ export function REPL({
 
   const showFooterContext = Boolean(contextLine && ctrlCArmedUntilMs === null)
 
+  const renderInputLoadingBlock = (count: number) => {
+    const runningText = formatRunningToolsText(count)
+    const loadingText = runningText ?? loadingOverrideText ?? undefined
+
+    return (
+      <Box flexDirection="column" marginBottom={1}>
+        {state.thinkingStartedAtMs !== null && (
+          <Box marginBottom={1}>
+            <ThinkingStatusLine
+              startedAtMs={state.thinkingStartedAtMs}
+              showThinkingHint={Boolean(state.thinkingText.trim())}
+            />
+          </Box>
+        )}
+        {expandedTranscriptOpen && state.thinkingText.trim() && (
+          <Box marginBottom={1}>
+            <Text dimColor>{state.thinkingText.trimEnd()}</Text>
+          </Box>
+        )}
+        <LoadingStatusLine
+          text={loadingText}
+          cycleWords={!runningText && !loadingOverrideText}
+          baseColor={isCompactLoading ? '#d6b15d' : undefined}
+          highlightColor={isCompactLoading ? '#f2cf84' : undefined}
+          hint={
+            runningText ? (
+              <>
+                <Text color={theme.secondaryText}> (waiting for results, </Text>
+                <Text color={theme.secondaryText} bold>
+                  esc
+                </Text>
+                <Text color={theme.secondaryText}> to interrupt)</Text>
+              </>
+            ) : undefined
+          }
+        />
+      </Box>
+    )
+  }
+
   return (
     <SubagentPresentationProvider catalog={subagentPresentationCatalog}>
       <PlanProvider planSession={planSession}>
         <ReplUiProvider abort={actions.abort}>
           <Box flexDirection="column" height="100%">
             <Box flexDirection="column" flexGrow={1} overflow="hidden">
-              {expandedViewActive ? (
-                <ExpandedReplTranscript
-                  transcriptSeq={state.transcriptSeq}
-                  version={(pkg as any).version || '0.0.0'}
-                  modelLabel={modelLabel}
-                  cwd={replCwd}
-                  messages={expandedTranscriptMessages}
-                  renderMessage={renderExpandedMessage}
-                />
-              ) : (
-                <ReplTranscript
-                  transcriptSeq={primaryTranscriptSeq}
-                  version={(pkg as any).version || '0.0.0'}
-                  modelLabel={modelLabel}
-                  cwd={replCwd}
-                  staticMessages={primaryPartition.staticMessages}
-                  transientMessages={primaryPartition.transientMessages}
-                  renderMessage={renderMessage}
-                />
-              )}
+              <InteractivePromptSurfaceProvider surface="bottom-slot">
+                {expandedViewActive ? (
+                  <ExpandedReplTranscript
+                    transcriptSeq={state.transcriptSeq}
+                    version={(pkg as any).version || '0.0.0'}
+                    modelLabel={modelLabel}
+                    cwd={replCwd}
+                    messages={expandedTranscriptMessages}
+                    renderMessage={renderExpandedMessage}
+                  />
+                ) : (
+                  <ReplTranscript
+                    transcriptSeq={primaryTranscriptSeq}
+                    version={(pkg as any).version || '0.0.0'}
+                    modelLabel={modelLabel}
+                    cwd={replCwd}
+                    staticMessages={primaryPartition.staticMessages}
+                    transientMessages={primaryPartition.transientMessages}
+                    renderMessage={renderMessage}
+                  />
+                )}
+              </InteractivePromptSurfaceProvider>
 
             {expandedViewActive && lastExploreGroup?.tasks?.length ? (
               <ExploreAgentsPanel tasks={lastExploreGroup.tasks} />
@@ -726,30 +808,6 @@ export function REPL({
               />
             )}
 
-            {showLoadingBlock && (
-              <Box marginTop={1} flexDirection="column">
-                {state.thinkingStartedAtMs !== null && (
-                  <Box marginBottom={1}>
-                    <ThinkingStatusLine
-                      startedAtMs={state.thinkingStartedAtMs}
-                      showThinkingHint={Boolean(state.thinkingText.trim())}
-                    />
-                  </Box>
-                )}
-                {expandedTranscriptOpen && state.thinkingText.trim() && (
-                  <Box marginBottom={1}>
-                    <Text dimColor>{state.thinkingText.trimEnd()}</Text>
-                  </Box>
-                )}
-                <LoadingStatusLine
-                  text={loadingOverrideText ?? undefined}
-                  cycleWords={!loadingOverrideText}
-                  baseColor={isCompactLoading ? '#d6b15d' : undefined}
-                  highlightColor={isCompactLoading ? '#f2cf84' : undefined}
-                />
-              </Box>
-            )}
-
             {state.error && !state.isLoading && !suppressGlobalError && (
               <Box marginTop={1}>
                 <PulsingDot color="red" />
@@ -758,7 +816,7 @@ export function REPL({
             )}
             </Box>
 
-            {expandedViewActive && (
+            {bottomSlotState.kind === 'expanded_hint' && (
               <Box flexDirection="column" flexShrink={0} marginTop={1}>
                 <Text color={theme.secondaryText}>{'─'.repeat(Math.max((process.stdout.columns || 80), 40))}</Text>
                 <Text color={theme.secondaryText}>{'  Showing detailed transcript · ctrl+o to toggle'}</Text>
@@ -772,8 +830,15 @@ export function REPL({
               </Box>
             )}
 
-            {!isPromptMode && !expandedViewActive && (
+            {bottomSlotState.kind === 'active_prompt' && (
+              <Box flexDirection="column" flexShrink={0}>
+                <ActivePromptSlot />
+              </Box>
+            )}
+
+            {bottomSlotState.kind === 'input' && (
               <Box flexDirection="column" flexShrink={0} marginTop={1}>
+                {bottomSlotState.mode === 'loading' && renderInputLoadingBlock(bottomSlotState.runningToolCount)}
                 {queuedDuringLoading.length > 0 && (
                   <Box flexDirection="column">
                     {queuedDuringLoading.map((queued, idx) => (

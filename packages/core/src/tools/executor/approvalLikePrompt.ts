@@ -4,6 +4,7 @@ import type { ExecutionContext } from './index.js'
 import {
   createApprovalPromptDescriptor as createApprovalPromptDescriptorBase,
   type ApprovalPromptDescriptor,
+  type InteractivePromptUi,
 } from '../runtime/interactivePromptDescriptor.js'
 import {
   normalizeApprovalLikeAnswer,
@@ -43,6 +44,7 @@ export type ApprovalPromptDescriptorArgs = {
   blockedPath?: string
   decisionReason?: string
   agentID?: string
+  ui?: InteractivePromptUi
   emitToolUpdate?: boolean
 }
 

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import type { ToolPresenterComponent } from '../../../shared/toolPresenterContracts'
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
+import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../tui/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
@@ -12,6 +13,7 @@ import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/pla
 export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: { message: Msg }) => {
   const theme = getTheme()
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
   if (!message.toolInfo) return <FallbackToolPresenter message={message} />
 
@@ -28,6 +30,7 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
         </Box>
       )
     }
+    if (!inlineAllowed) return <FallbackToolPresenter message={message} />
     if (!userInput.isPending(toolUseId)) return <FallbackToolPresenter message={message} />
 
     return (
@@ -66,7 +69,7 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
   )
 }
 
-function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
+export function EnterPlanModePrompt({ onEnter, onSkip }: { onEnter: () => void; onSkip: () => void }): React.ReactNode {
   const theme = getTheme()
   const question = ENTER_PLAN_MODE_PROMPT.question
   const yesLabel = ENTER_PLAN_MODE_PROMPT.options[0]!.label

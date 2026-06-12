@@ -1,6 +1,7 @@
 import React from 'react'
 import { BashApprovalPrompt } from './bashApprovalPrompt'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 export function BashApprovalToolBlock({
   toolUseId,
@@ -14,8 +15,9 @@ export function BashApprovalToolBlock({
   cwd: string
 }): React.ReactNode {
   const userInput = useUserInputManager()
+  const inlineAllowed = useInlineInteractivePromptAllowed()
 
-  if (!userInput?.isPending(toolUseId)) return null
+  if (!inlineAllowed || !userInput?.isPending(toolUseId)) return null
 
   return (
     <BashApprovalPrompt

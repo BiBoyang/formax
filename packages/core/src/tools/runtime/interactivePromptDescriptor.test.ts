@@ -9,12 +9,22 @@ describe('interactive prompt descriptor builders', () => {
     const descriptor = createAskUserQuestionPromptDescriptor({
       call: { id: 'ask-1' },
       questions: [{ question: 'Pick one?', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
+      promptData: {
+        kind: 'exit_plan_mode',
+        planPath: '/tmp/plan.md',
+        planContentState: { status: 'loaded', text: 'plan body' },
+      },
       emitToolUpdate: false,
     })
     expect(descriptor).toEqual({
       kind: 'ask_user_question',
       questions: [{ question: 'Pick one?', header: 'Choice', options: [{ label: 'A', description: 'Option A' }], multiSelect: false }],
       emitToolUpdate: false,
+      promptData: {
+        kind: 'exit_plan_mode',
+        planPath: '/tmp/plan.md',
+        planContentState: { status: 'loaded', text: 'plan body' },
+      },
       requestEvent: {
         type: 'ask_user_question',
         toolUseId: 'ask-1',
@@ -34,6 +44,11 @@ describe('interactive prompt descriptor builders', () => {
       blockedPath: '/tmp/project',
       decisionReason: 'outside workspace',
       agentID: 'agent-1',
+      promptData: {
+        kind: 'exit_plan_mode',
+        planPath: '/tmp/plan.md',
+        planContentState: { status: 'error', message: 'Unable to load plan' },
+      },
     })
     expect(descriptor).toEqual({
       kind: 'approval',
@@ -48,6 +63,11 @@ describe('interactive prompt descriptor builders', () => {
         blockedPath: '/tmp/project',
         decisionReason: 'outside workspace',
         agentID: 'agent-1',
+      },
+      promptData: {
+        kind: 'exit_plan_mode',
+        planPath: '/tmp/plan.md',
+        planContentState: { status: 'error', message: 'Unable to load plan' },
       },
     })
   })

@@ -69,6 +69,11 @@ export function createSkillPreflight(args: {
         toolName: 'Skill',
         action: { kind: 'skill.use', skill },
         effectiveDecision: 'prompt',
+        ui: {
+          promptVariant: 'skill',
+          title: `Use skill ${skill || 'Skill'}?`,
+          rememberLabel: `Yes, and don't ask again for ${skill || 'this skill'} in this repo`,
+        },
       }),
       unavailableContent: 'Error: Skill requires user approval.',
       abortedContent: 'Request aborted',

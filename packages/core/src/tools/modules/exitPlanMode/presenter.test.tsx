@@ -13,6 +13,7 @@ import type { PlanSessionManager } from '../../../features/repl/planSession'
 import { __testOnlyExitPlanMode, ExitPlanModeToolPresenter } from './presenter'
 import * as interactivePrompts from '../../../features/tools/presentation/interactivePrompts'
 import * as escapeSequences from '../../../features/repl/keys/escapeSequences.js'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -86,6 +87,36 @@ describe('ExitPlanModeToolPresenter', () => {
       await tick()
       expect(lastFrame()).toContain('ExitPlanMode')
       expect(lastFrame()).not.toContain('Would you like to exit plan mode and start implementation?')
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not render the inline prompt on the bottom-slot surface', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    try {
+      const userInput = createUserInput(() => true)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <InteractivePromptSurfaceProvider surface="bottom-slot">
+            <PlanProvider planSession={planSession}>
+              <UserInputProvider userInput={userInput}>
+                <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+              </UserInputProvider>
+            </PlanProvider>
+          </InteractivePromptSurfaceProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('ExitPlanMode')
+      expect(lastFrame()).not.toContain('Would you like to exit plan mode and start implementation?')
+      expect(lastFrame()).not.toContain('Ready to code?')
     } finally {
       cleanup()
     }

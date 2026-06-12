@@ -6,6 +6,7 @@ import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import type { UserInputManager } from '../../runtime/userInputManager'
 import { EnterPlanModeToolPresenter } from './presenter'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -92,6 +93,24 @@ describe('EnterPlanModeToolPresenter', () => {
         <UserInputProvider userInput={userInput}>
           <EnterPlanModeToolPresenter message={createRunningMessage()} />
         </UserInputProvider>
+      </InputScopeProvider>,
+    )
+
+    await tick()
+    expect(lastFrame()).toContain('EnterPlanMode')
+    expect(lastFrame()).not.toContain('Should we enter plan mode?')
+  })
+
+  it('does not render the inline prompt on the bottom-slot surface', async () => {
+    const userInput = createUserInput(() => true)
+
+    const { lastFrame } = render(
+      <InputScopeProvider>
+        <InteractivePromptSurfaceProvider surface="bottom-slot">
+          <UserInputProvider userInput={userInput}>
+            <EnterPlanModeToolPresenter message={createRunningMessage()} />
+          </UserInputProvider>
+        </InteractivePromptSurfaceProvider>
       </InputScopeProvider>,
     )
 

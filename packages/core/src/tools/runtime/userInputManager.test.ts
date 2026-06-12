@@ -1,5 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createUserInputManager } from './userInputManager'
+import type { InteractivePromptDescriptor } from './interactivePromptDescriptor'
+
+function approvalDescriptor(toolUseId: string, title = 'Approve?'): Extract<InteractivePromptDescriptor, { kind: 'approval' }> {
+  return {
+    kind: 'approval',
+    requestEvent: {
+      type: 'approval_request',
+      toolUseId,
+      toolName: 'Bash',
+      action: { kind: 'bash.exec', command: 'ls' },
+      effectiveDecision: 'ask',
+    },
+    ui: {
+      promptVariant: 'bash',
+      title,
+      command: 'ls',
+      cwd: '/repo',
+    },
+  }
+}
 
 describe('UserInputManager', () => {
   it('resolves answers when submitted', async () => {
@@ -66,6 +86,112 @@ describe('UserInputManager', () => {
     await expect(p2).resolves.toEqual({ B: '2' })
     expect(mgr.isPending('b')).toBe(false)
     expect(mgr.getPendingToolUseIds?.()).toEqual([])
+  })
+
+  it('returns the FIFO head descriptor as the active prompt', async () => {
+    const mgr = createUserInputManager()
+
+    const p1 = mgr.requestAnswers({
+      toolUseId: 'a',
+      questions: [],
+      descriptor: approvalDescriptor('a', 'Approve A?'),
+    })
+    const p2 = mgr.requestAnswers({
+      toolUseId: 'b',
+      questions: [],
+      descriptor: approvalDescriptor('b', 'Approve B?'),
+    })
+
+    expect(mgr.getActivePrompt?.()?.requestEvent.toolUseId).toBe('a')
+    expect(mgr.getActivePrompt?.()?.ui?.title).toBe('Approve A?')
+
+    mgr.submitAnswers('a', { decision: 'approve' })
+    await expect(p1).resolves.toEqual({ decision: 'approve' })
+
+    expect(mgr.getActivePrompt?.()?.requestEvent.toolUseId).toBe('b')
+    expect(mgr.getActivePrompt?.()?.ui?.title).toBe('Approve B?')
+
+    mgr.submitAnswers('b', { decision: 'approve' })
+    await expect(p2).resolves.toEqual({ decision: 'approve' })
+    expect(mgr.getActivePrompt?.()).toBeNull()
+  })
+
+  it('does not return descriptor-less pending requests as active prompts', async () => {
+    const mgr = createUserInputManager()
+
+    const p = mgr.requestAnswers({ toolUseId: 'legacy', questions: [] })
+
+    expect(mgr.isPending('legacy')).toBe(true)
+    expect(mgr.getPendingToolUseIds?.()).toEqual(['legacy'])
+    expect(mgr.getActivePrompt?.()).toBeNull()
+
+    mgr.submitAnswers('legacy', { ok: '1' })
+    await expect(p).resolves.toEqual({ ok: '1' })
+  })
+
+  it('captures descriptor metadata as a stable snapshot', async () => {
+    const mgr = createUserInputManager()
+    const descriptor = approvalDescriptor('snap', 'Original title')
+    descriptor.requestEvent.suggestions = ['first']
+    descriptor.requestEvent.action = { kind: 'bash.exec', command: 'ls', metadata: { cwd: '/before' } } as any
+    descriptor.requestEvent.workspaceRequest = { kind: 'read', dir: '/before' } as any
+    descriptor.promptData = {
+      kind: 'exit_plan_mode',
+      planPath: '/before/plan.md',
+      planContentState: { status: 'loaded', text: 'before body' },
+    }
+
+    const p = mgr.requestAnswers({
+      toolUseId: 'snap',
+      questions: [],
+      descriptor,
+    })
+
+    descriptor.ui!.title = 'Mutated title'
+    descriptor.requestEvent.suggestions.push('second')
+    ;(descriptor.requestEvent.action as any).metadata.cwd = '/after'
+    ;(descriptor.requestEvent.workspaceRequest as any).dir = '/after'
+    ;(descriptor.promptData as any).planPath = '/after/plan.md'
+    ;(descriptor.promptData as any).planContentState.text = 'after body'
+
+    const active = mgr.getActivePrompt?.()
+    expect(active?.kind).toBe('approval')
+    if (!active || active.kind !== 'approval') throw new Error('Expected approval descriptor')
+    expect(active.ui?.title).toBe('Original title')
+    expect(active.requestEvent.suggestions).toEqual(['first'])
+    expect((active.requestEvent.action as any).metadata.cwd).toBe('/before')
+    expect((active.requestEvent.workspaceRequest as any).dir).toBe('/before')
+    expect((active.promptData as any).planPath).toBe('/before/plan.md')
+    expect((active.promptData as any).planContentState.text).toBe('before body')
+
+    mgr.submitAnswers('snap', { decision: 'approve' })
+    await expect(p).resolves.toEqual({ decision: 'approve' })
+  })
+
+  it('clears active descriptor atomically when rejecting and aborting requests', async () => {
+    const mgr = createUserInputManager()
+    const ac = new AbortController()
+
+    const p1 = mgr.requestAnswers({
+      toolUseId: 'reject-me',
+      questions: [],
+      descriptor: approvalDescriptor('reject-me'),
+    })
+    const p2 = mgr.requestAnswers({
+      toolUseId: 'abort-me',
+      questions: [],
+      signal: ac.signal,
+      descriptor: approvalDescriptor('abort-me'),
+    })
+
+    expect(mgr.getActivePrompt?.()?.requestEvent.toolUseId).toBe('reject-me')
+    mgr.reject('reject-me', new Error('nope'))
+    await expect(p1).rejects.toThrow('nope')
+    expect(mgr.getActivePrompt?.()?.requestEvent.toolUseId).toBe('abort-me')
+
+    ac.abort()
+    await expect(p2).rejects.toThrow('Request aborted')
+    expect(mgr.getActivePrompt?.()).toBeNull()
   })
 
   it('removes rejected requests from pending order', async () => {
