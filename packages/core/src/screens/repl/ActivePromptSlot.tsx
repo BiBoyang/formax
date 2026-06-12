@@ -17,109 +17,15 @@ import { ExitPlanModePrompt } from '../../tools/modules/exitPlanMode/presenter'
 export function ActivePromptSlot(): React.ReactNode {
   const userInput = useUserInputManager()
   const descriptor = userInput?.getActivePrompt?.() ?? null
-  const activePromptVariant = descriptor ? resolvePromptVariant(descriptor) : null
   if (!userInput || !descriptor) return null
 
   const toolUseId = descriptor.requestEvent.toolUseId
-  const submitApproval = (decision: { kind: string; feedback?: string; scope?: string }) => {
-    if (decision.kind === 'approve') userInput.submitAnswers(toolUseId, { decision: 'approve' })
-    else if (decision.kind === 'approve_remember') {
-      userInput.submitAnswers(toolUseId, {
-        decision: 'approve_remember',
-        ...(decision.scope ? { scope: decision.scope } : {}),
-      })
-    } else if (decision.kind === 'feedback') {
-      userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: decision.feedback ?? '' })
-    } else {
-      userInput.submitAnswers(toolUseId, { decision: 'cancel' })
-    }
-  }
 
   if (descriptor.kind === 'ask_user_question') {
-    const variant = activePromptVariant
-    if (variant === 'enter_plan_mode') {
-      return (
-        <EnterPlanModePrompt
-          key={toolUseId}
-          onEnter={() => userInput.submitAnswers(toolUseId, { choice: 'enter' })}
-          onSkip={() => userInput.submitAnswers(toolUseId, { choice: 'skip' })}
-        />
-      )
-    }
-    if (variant === 'exit_plan_mode') {
-      const promptData = descriptor.promptData?.kind === 'exit_plan_mode' ? descriptor.promptData : null
-      return (
-        <ExitPlanModePrompt
-          key={toolUseId}
-          planPath={promptData?.planPath ?? null}
-          planText={promptData?.planContentState.status === 'loaded' ? promptData.planContentState.text : ''}
-          planContentState={promptData?.planContentState}
-          onAuto={() => userInput.submitAnswers(toolUseId, { choice: 'auto' })}
-          onManual={() => userInput.submitAnswers(toolUseId, { choice: 'manual' })}
-          onFeedback={(feedback) => userInput.submitAnswers(toolUseId, { choice: 'feedback', feedback })}
-          onCancel={() => userInput.submitAnswers(toolUseId, { choice: 'cancel' })}
-        />
-      )
-    }
-    return <AskUserQuestionToolBlock key={toolUseId} toolUseId={toolUseId} questions={descriptor.questions} />
+    return renderAskPrompt({ descriptor, userInput, toolUseId })
   }
 
-  const variant = resolvePromptVariant(descriptor)
-  const ui = descriptor.ui ?? {}
-  const title = ui.title || defaultApprovalTitle(descriptor)
-
-  if (variant === 'fs_read') {
-    return (
-      <FsReadApprovalPrompt
-        key={toolUseId}
-        title={title}
-        directoryPath={ui.directoryPath || ui.targetLabel || process.cwd()}
-        onDecision={submitApproval}
-      />
-    )
-  }
-
-  if (variant === 'bash') {
-    return (
-      <BashApprovalPrompt
-        key={toolUseId}
-        title={title}
-        command={ui.command || readActionString(descriptor, 'command')}
-        cwd={ui.cwd || process.cwd()}
-        onDecision={submitApproval}
-      />
-    )
-  }
-
-  if (variant === 'mcp') {
-    const toolLabel = ui.toolLabel || ui.targetLabel || descriptor.requestEvent.toolName
-    return (
-      <McpApprovalPrompt
-        key={toolUseId}
-        title={title}
-        toolLabel={toolLabel}
-        rememberLabel={ui.rememberLabel || `Yes, allow ${toolLabel} during this session`}
-        onDecision={submitApproval}
-      />
-    )
-  }
-
-  if (variant === 'skill') {
-    return (
-      <SkillApprovalPrompt
-        key={toolUseId}
-        title={title}
-        rememberLabel={ui.rememberLabel || 'Yes, and don\'t ask again for this skill in this repo'}
-        onDecision={submitApproval}
-      />
-    )
-  }
-
-  if (variant === 'fs_write') {
-    return <FsWriteApprovalPrompt key={toolUseId} title={title} onDecision={submitApproval} />
-  }
-
-  return <EditApprovalPrompt key={toolUseId} title={title} onDecision={submitApproval} />
+  return renderApprovalPrompt({ descriptor, userInput, toolUseId })
 }
 
 export function resolvePromptVariant(descriptor: InteractivePromptDescriptor): InteractivePromptVariant {
@@ -156,4 +62,139 @@ function readActionString(descriptor: Extract<InteractivePromptDescriptor, { kin
   const action = descriptor.requestEvent.action as Record<string, unknown> | null | undefined
   const value = action?.[field]
   return typeof value === 'string' ? value : ''
+}
+
+function getExitPlanPromptSnapshot(
+  descriptor: Extract<InteractivePromptDescriptor, { kind: 'ask_user_question' }>,
+) {
+  if (descriptor.ui?.promptVariant !== 'exit_plan_mode') return null
+  return 'promptData' in descriptor && descriptor.promptData.kind === 'exit_plan_mode'
+    ? descriptor.promptData
+    : null
+}
+
+function submitApprovalDecision(
+  userInput: NonNullable<ReturnType<typeof useUserInputManager>>,
+  toolUseId: string,
+  decision: { kind: string; feedback?: string; scope?: string },
+): void {
+  if (decision.kind === 'approve') {
+    userInput.submitAnswers(toolUseId, { decision: 'approve' })
+    return
+  }
+  if (decision.kind === 'approve_remember') {
+    userInput.submitAnswers(toolUseId, {
+      decision: 'approve_remember',
+      ...(decision.scope ? { scope: decision.scope } : {}),
+    })
+    return
+  }
+  if (decision.kind === 'feedback') {
+    userInput.submitAnswers(toolUseId, { decision: 'feedback', feedback: decision.feedback ?? '' })
+    return
+  }
+  userInput.submitAnswers(toolUseId, { decision: 'cancel' })
+}
+
+function renderAskPrompt(args: {
+  descriptor: Extract<InteractivePromptDescriptor, { kind: 'ask_user_question' }>
+  userInput: NonNullable<ReturnType<typeof useUserInputManager>>
+  toolUseId: string
+}): React.ReactNode {
+  const { descriptor, userInput, toolUseId } = args
+  const variant = resolvePromptVariant(descriptor)
+
+  if (variant === 'enter_plan_mode') {
+    return (
+      <EnterPlanModePrompt
+        key={toolUseId}
+        onEnter={() => userInput.submitAnswers(toolUseId, { choice: 'enter' })}
+        onSkip={() => userInput.submitAnswers(toolUseId, { choice: 'skip' })}
+      />
+    )
+  }
+
+  if (variant === 'exit_plan_mode') {
+    const promptData = getExitPlanPromptSnapshot(descriptor)
+    return (
+      <ExitPlanModePrompt
+        key={toolUseId}
+        planPath={promptData?.planPath ?? null}
+        planText={promptData?.planContentState.status === 'loaded' ? promptData.planContentState.text : ''}
+        planContentState={promptData?.planContentState}
+        onAuto={() => userInput.submitAnswers(toolUseId, { choice: 'auto' })}
+        onManual={() => userInput.submitAnswers(toolUseId, { choice: 'manual' })}
+        onFeedback={(feedback) => userInput.submitAnswers(toolUseId, { choice: 'feedback', feedback })}
+        onCancel={() => userInput.submitAnswers(toolUseId, { choice: 'cancel' })}
+      />
+    )
+  }
+
+  return <AskUserQuestionToolBlock key={toolUseId} toolUseId={toolUseId} questions={descriptor.questions} />
+}
+
+function renderApprovalPrompt(args: {
+  descriptor: Extract<InteractivePromptDescriptor, { kind: 'approval' }>
+  userInput: NonNullable<ReturnType<typeof useUserInputManager>>
+  toolUseId: string
+}): React.ReactNode {
+  const { descriptor, userInput, toolUseId } = args
+  const variant = resolvePromptVariant(descriptor)
+  const ui = descriptor.ui ?? {}
+  const title = ui.title || defaultApprovalTitle(descriptor)
+  const onDecision = (decision: { kind: string; feedback?: string; scope?: string }) =>
+    submitApprovalDecision(userInput, toolUseId, decision)
+
+  if (variant === 'fs_read') {
+    return (
+      <FsReadApprovalPrompt
+        key={toolUseId}
+        title={title}
+        directoryPath={ui.directoryPath || ui.targetLabel || process.cwd()}
+        onDecision={onDecision}
+      />
+    )
+  }
+
+  if (variant === 'bash') {
+    return (
+      <BashApprovalPrompt
+        key={toolUseId}
+        title={title}
+        command={ui.command || readActionString(descriptor, 'command')}
+        cwd={ui.cwd || process.cwd()}
+        onDecision={onDecision}
+      />
+    )
+  }
+
+  if (variant === 'mcp') {
+    const toolLabel = ui.toolLabel || ui.targetLabel || descriptor.requestEvent.toolName
+    return (
+      <McpApprovalPrompt
+        key={toolUseId}
+        title={title}
+        toolLabel={toolLabel}
+        rememberLabel={ui.rememberLabel || `Yes, allow ${toolLabel} during this session`}
+        onDecision={onDecision}
+      />
+    )
+  }
+
+  if (variant === 'skill') {
+    return (
+      <SkillApprovalPrompt
+        key={toolUseId}
+        title={title}
+        rememberLabel={ui.rememberLabel || 'Yes, and don\'t ask again for this skill in this repo'}
+        onDecision={onDecision}
+      />
+    )
+  }
+
+  if (variant === 'fs_write') {
+    return <FsWriteApprovalPrompt key={toolUseId} title={title} onDecision={onDecision} />
+  }
+
+  return <EditApprovalPrompt key={toolUseId} title={title} onDecision={onDecision} />
 }

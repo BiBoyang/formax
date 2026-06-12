@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../shared/toolMessageTypes'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import { createUserInputManager } from '../../runtime/userInputManager'
 import { SkillToolPresenter } from './presenter'
@@ -77,6 +78,51 @@ describe('SkillToolPresenter', () => {
     const frame = lastFrame()
     expect(frame).toContain('Skill(unknown)')
     expect(frame).toContain('Use skill')
+
+    userInput.rejectAllPending(new Error('cleanup'))
+  })
+
+  it('does not render the inline approval prompt on the bottom-slot surface', () => {
+    const userInput = createUserInputManager()
+
+    const toolUseId = 'pending-bottom'
+    userInput
+      .requestAnswers({
+        toolUseId,
+        questions: [
+          {
+            header: 'h',
+            question: 'q',
+            multiSelect: false,
+            options: [{ label: 'ok', description: 'ok' }],
+          },
+        ],
+      })
+      .catch(() => {})
+
+    const message: Msg = {
+      id: `tool-${toolUseId}`,
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'Skill',
+        status: 'running',
+        input: { skill: 'typescript' },
+      },
+    }
+
+    const { lastFrame } = render(
+      <InteractivePromptSurfaceProvider surface="bottom-slot">
+        <UserInputProvider userInput={userInput}>
+          <SkillToolPresenter message={message} />
+        </UserInputProvider>
+      </InteractivePromptSurfaceProvider>,
+    )
+
+    const frame = lastFrame()
+    expect(frame).toContain('Skill(typescript)')
+    expect(frame).not.toContain('Use skill typescript?')
 
     userInput.rejectAllPending(new Error('cleanup'))
   })

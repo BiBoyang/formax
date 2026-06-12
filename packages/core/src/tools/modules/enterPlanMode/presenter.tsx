@@ -6,6 +6,7 @@ import { useInlineInteractivePromptAllowed } from '../../../components/tool/Inte
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../tui/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { useScopeActivation, useScopedInput } from '../../../features/repl/inputScopeContext'
 import { summarizePlanModeStatus } from '../../../features/tools/presentation/labels'
 import { ENTER_PLAN_MODE_PROMPT } from '../../../features/tools/presentation/planModeQuestions'
@@ -31,7 +32,7 @@ export const EnterPlanModeToolPresenter: ToolPresenterComponent = ({ message }: 
       )
     }
     if (!inlineAllowed) return <FallbackToolPresenter message={message} />
-    if (!userInput.isPending(toolUseId)) return <FallbackToolPresenter message={message} />
+    if (!isToolUseActivePrompt(userInput, toolUseId)) return <FallbackToolPresenter message={message} />
 
     return (
       <EnterPlanModePrompt

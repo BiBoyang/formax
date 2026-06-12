@@ -4,6 +4,7 @@ import { ApprovalHeader } from '../ui/ApprovalHeader'
 import { PatchApprovalPreview } from './PatchApprovalPreview'
 import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../tools/runtime/userInputManager'
 import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 export function EditApprovalToolBlock({
@@ -22,7 +23,7 @@ export function EditApprovalToolBlock({
   const userInput = useUserInputManager()
   const inlineAllowed = useInlineInteractivePromptAllowed()
 
-  if (!userInput?.isPending(toolUseId)) return null
+  if (!isToolUseActivePrompt(userInput, toolUseId)) return null
 
   return (
     <Box flexDirection="column" marginTop={1}>

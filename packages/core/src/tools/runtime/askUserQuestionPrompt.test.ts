@@ -18,7 +18,7 @@ function createUserInput(overrides: Partial<UserInputManager> = {}): UserInputMa
 }
 
 describe('requestAskUserQuestionAnswersResult', () => {
-  it('returns collected answers', async () => {
+  it('returns collected answers for generic ask_user_question prompts without prompt snapshot data', async () => {
     const onEvent = vi.fn()
     const requestAnswers = vi.fn(async () => ({ header: 'value' }))
     const userInput = createUserInput({
@@ -27,6 +27,32 @@ describe('requestAskUserQuestionAnswersResult', () => {
     const res = await requestAskUserQuestionAnswersResult({
       call: { id: 'ask-1', name: 'AskUserQuestion', input: {} } as any,
       ctx: { cwd: '/tmp', agentDepth: 0, onEvent },
+      userInput,
+      questions: [{ question: 'Q', header: 'H', options: [], multiSelect: false }],
+    })
+
+    expect(res.ok).toBe(true)
+    if (res.ok !== true) throw new Error('Expected success')
+    expect(res.answers).toEqual({ header: 'value' })
+    expect(requestAnswers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        descriptor: expect.objectContaining({
+          ui: expect.objectContaining({ promptVariant: 'ask_user_question' }),
+        }),
+      }),
+    )
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'ask_user_question', toolUseId: 'ask-1' }))
+    expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 'ask-1' }))
+  })
+
+  it('passes exit-plan snapshot data only for ExitPlanMode prompts', async () => {
+    const requestAnswers = vi.fn(async () => ({ choice: 'manual' }))
+    const userInput = createUserInput({
+      requestAnswers,
+    })
+    const res = await requestAskUserQuestionAnswersResult({
+      call: { id: 'exit-1', name: 'ExitPlanMode', input: {} } as any,
+      ctx: { cwd: '/tmp', agentDepth: 0 },
       userInput,
       questions: [{ question: 'Q', header: 'H', options: [], multiSelect: false }],
       promptData: {
@@ -38,10 +64,10 @@ describe('requestAskUserQuestionAnswersResult', () => {
 
     expect(res.ok).toBe(true)
     if (res.ok !== true) throw new Error('Expected success')
-    expect(res.answers).toEqual({ header: 'value' })
     expect(requestAnswers).toHaveBeenCalledWith(
       expect.objectContaining({
         descriptor: expect.objectContaining({
+          ui: expect.objectContaining({ promptVariant: 'exit_plan_mode' }),
           promptData: {
             kind: 'exit_plan_mode',
             planPath: '/tmp/plan.md',
@@ -50,8 +76,6 @@ describe('requestAskUserQuestionAnswersResult', () => {
         }),
       }),
     )
-    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'ask_user_question', toolUseId: 'ask-1' }))
-    expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'tool_update', id: 'ask-1' }))
   })
 
   it('returns failed result when prompt request throws', async () => {

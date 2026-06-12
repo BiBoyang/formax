@@ -198,6 +198,18 @@ Descriptor-less `requestAnswers` callers MAY remain supported for tests or non-r
 `RENDER-105`
 Renderer hints such as `descriptor.ui.promptVariant` MAY guide component selection, but canonical `requestEvent`, `action`, and `toolName` remain the semantic source for payload handling.
 
+`RENDER-106`
+Any production Ink REPL interactive path that expects bottom-slot rendering MUST pass a valid `InteractivePromptDescriptor` into `requestAnswers(...)`. Descriptor-less `requestAnswers(...)` remains allowed only for tests, non-rendering callers, or explicitly legacy-compatibility callers.
+
+`RENDER-107`
+`ask_user_question` MUST be treated as a protocol/lifecycle family, not a single UI family. Renderer/domain families under that protocol MAY include generic ask-user form rendering, `EnterPlanMode`, and `ExitPlanMode`, but they MUST continue to share the canonical `ask_user_question` protocol kind.
+
+`RENDER-108`
+Domain prompt variants that require snapshot data MUST bind `descriptor.ui.promptVariant` to `descriptor.promptData.kind`. In particular, `exit_plan_mode` bottom-slot descriptors MUST include `promptData.kind='exit_plan_mode'` plus the loaded/error `planContentState` snapshot required for rendering.
+
+`RENDER-109`
+When UI code needs to know whether a pending request is the currently renderable prompt, it SHOULD use the explicit active-prompt query (`isActivePrompt`) when available instead of overloading lifecycle-pending checks. In Phase 1, provider-wrapped `isPending` MAY remain as a compatibility alias for active-render guards, but new or migrated transcript-inline compatibility paths SHOULD prefer the explicit active query.
+
 ## 6. Web Dev Runtime Helper 合同
 
 `DEV-001`  

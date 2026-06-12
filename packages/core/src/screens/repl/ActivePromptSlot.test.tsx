@@ -3,7 +3,11 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { UserInputManager } from '../../tools/runtime/userInputManager'
-import type { InteractivePromptDescriptor } from '../../tools/runtime/interactivePromptDescriptor'
+import type {
+  ApprovalPromptDescriptor,
+  ExitPlanPromptSnapshot,
+  InteractivePromptDescriptor,
+} from '../../tools/runtime/interactivePromptDescriptor'
 
 const mocks = vi.hoisted(() => ({
   userInput: null as UserInputManager | null,
@@ -102,8 +106,8 @@ function approvalDescriptor(args: {
   toolUseId?: string
   toolName: string
   action: Record<string, unknown>
-  ui?: InteractivePromptDescriptor['ui']
-}): InteractivePromptDescriptor {
+  ui?: ApprovalPromptDescriptor['ui']
+}): ApprovalPromptDescriptor {
   const toolUseId = args.toolUseId ?? 'tool-1'
   return {
     kind: 'approval',
@@ -121,16 +125,37 @@ function approvalDescriptor(args: {
 function askDescriptor(args: {
   toolUseId: string
   promptVariant: 'ask_user_question' | 'enter_plan_mode' | 'exit_plan_mode'
+  promptData?: ExitPlanPromptSnapshot
 }): InteractivePromptDescriptor {
-  return {
-    kind: 'ask_user_question',
+  const base = {
+    kind: 'ask_user_question' as const,
     requestEvent: {
-      type: 'ask_user_question',
+      type: 'ask_user_question' as const,
       toolUseId: args.toolUseId,
       questions: [{ question: 'Pick?', header: 'Choice', options: [], multiSelect: false }],
     },
     questions: [{ question: 'Pick?', header: 'Choice', options: [], multiSelect: false }],
-    ui: { promptVariant: args.promptVariant },
+  }
+
+  if (args.promptVariant === 'exit_plan_mode') {
+    if (!args.promptData) throw new Error('exit_plan_mode tests require promptData')
+    return {
+      ...base,
+      ui: { promptVariant: args.promptVariant },
+      promptData: args.promptData,
+    }
+  }
+
+  if (args.promptVariant === 'enter_plan_mode') {
+    return {
+      ...base,
+      ui: { promptVariant: args.promptVariant },
+    }
+  }
+
+  return {
+    ...base,
+    ui: { promptVariant: 'ask_user_question' },
   }
 }
 
@@ -298,13 +323,18 @@ describe('ActivePromptSlot', () => {
     mocks.promptProps.onEnter()
     expect(submitAnswers).toHaveBeenCalledWith('enter-1', { choice: 'enter' })
 
-    const exitDescriptor = askDescriptor({ toolUseId: 'exit-1', promptVariant: 'exit_plan_mode' })
-    exitDescriptor.promptData = {
-      kind: 'exit_plan_mode',
-      planPath: '/tmp/plan.md',
-      planContentState: { status: 'loaded', text: 'plan body' },
-    }
-    mocks.userInput = createUserInput(exitDescriptor, submitAnswers)
+    mocks.userInput = createUserInput(
+      askDescriptor({
+        toolUseId: 'exit-1',
+        promptVariant: 'exit_plan_mode',
+        promptData: {
+          kind: 'exit_plan_mode',
+          planPath: '/tmp/plan.md',
+          planContentState: { status: 'loaded', text: 'plan body' },
+        },
+      }),
+      submitAnswers,
+    )
     view.rerender(<ActivePromptSlot />)
     expect(view.lastFrame()).toContain('ExitPlanMode:loaded:plan body')
     expect(mocks.promptProps.kind).toBe('exit_plan_mode')

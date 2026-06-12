@@ -17,6 +17,16 @@ export type InteractivePromptVariant =
   | 'exit_plan_mode'
   | 'generic_approval'
 
+export type ApprovalPromptVariant = Exclude<
+  InteractivePromptVariant,
+  'ask_user_question' | 'enter_plan_mode' | 'exit_plan_mode'
+>
+
+export type AskUserQuestionPromptVariant = Extract<
+  InteractivePromptVariant,
+  'ask_user_question' | 'enter_plan_mode' | 'exit_plan_mode'
+>
+
 export type InteractivePromptUi = {
   promptVariant?: InteractivePromptVariant
   title?: string
@@ -36,48 +46,82 @@ export type ExitPlanPromptSnapshot = {
 
 export type InteractivePromptData = ExitPlanPromptSnapshot
 
+export type ApprovalPromptUi = Omit<InteractivePromptUi, 'promptVariant'> & {
+  promptVariant?: ApprovalPromptVariant
+}
+
+export type GenericAskUserQuestionPromptUi = Omit<InteractivePromptUi, 'promptVariant'> & {
+  promptVariant?: 'ask_user_question'
+}
+
+export type EnterPlanModePromptUi = Omit<InteractivePromptUi, 'promptVariant'> & {
+  promptVariant: 'enter_plan_mode'
+}
+
+export type ExitPlanModePromptUi = Omit<InteractivePromptUi, 'promptVariant'> & {
+  promptVariant: 'exit_plan_mode'
+}
+
 export type ApprovalPromptDescriptor = {
   kind: 'approval'
   requestEvent: Extract<StreamEvent, { type: 'approval_request' }>
   questions?: AskUserQuestion[]
   emitToolUpdate?: boolean
-  ui?: InteractivePromptUi
-  promptData?: InteractivePromptData
+  ui?: ApprovalPromptUi
 }
 
-export type AskUserQuestionPromptDescriptor = {
+export type GenericAskUserQuestionPromptDescriptor = {
   kind: 'ask_user_question'
   requestEvent: Extract<StreamEvent, { type: 'ask_user_question' }>
   questions: AskUserQuestion[]
   emitToolUpdate?: boolean
-  ui?: InteractivePromptUi
-  promptData?: InteractivePromptData
+  ui?: GenericAskUserQuestionPromptUi
 }
+
+export type EnterPlanModePromptDescriptor = {
+  kind: 'ask_user_question'
+  requestEvent: Extract<StreamEvent, { type: 'ask_user_question' }>
+  questions: AskUserQuestion[]
+  emitToolUpdate?: boolean
+  ui: EnterPlanModePromptUi
+}
+
+export type ExitPlanModePromptDescriptor = {
+  kind: 'ask_user_question'
+  requestEvent: Extract<StreamEvent, { type: 'ask_user_question' }>
+  questions: AskUserQuestion[]
+  emitToolUpdate?: boolean
+  ui: ExitPlanModePromptUi
+  promptData: ExitPlanPromptSnapshot
+}
+
+export type AskUserQuestionPromptDescriptor =
+  | GenericAskUserQuestionPromptDescriptor
+  | EnterPlanModePromptDescriptor
+  | ExitPlanModePromptDescriptor
 
 export type InteractivePromptDescriptor = ApprovalPromptDescriptor | AskUserQuestionPromptDescriptor
 
-export function createAskUserQuestionPromptDescriptor(args: {
+type AskUserQuestionPromptDescriptorArgs = {
   call: Pick<ToolCall, 'id'>
   questions: AskUserQuestion[]
-  ui?: InteractivePromptUi
-  promptData?: InteractivePromptData
   emitToolUpdate?: boolean
-}): AskUserQuestionPromptDescriptor {
-  return {
-    kind: 'ask_user_question',
-    questions: args.questions,
-    requestEvent: {
-      type: 'ask_user_question',
-      toolUseId: args.call.id,
-      questions: args.questions,
-    },
-    ...(args.ui ? { ui: args.ui } : {}),
-    ...(args.promptData ? { promptData: args.promptData } : {}),
-    ...(args.emitToolUpdate !== undefined ? { emitToolUpdate: args.emitToolUpdate } : {}),
-  }
-}
+} & (
+  | {
+      ui?: GenericAskUserQuestionPromptUi
+      promptData?: never
+    }
+  | {
+      ui: EnterPlanModePromptUi
+      promptData?: never
+    }
+  | {
+      ui: ExitPlanModePromptUi
+      promptData: ExitPlanPromptSnapshot
+    }
+)
 
-export function createApprovalPromptDescriptor(args: {
+type ApprovalPromptDescriptorArgs = {
   call: Pick<ToolCall, 'id'>
   toolName: string
   action: unknown
@@ -87,11 +131,53 @@ export function createApprovalPromptDescriptor(args: {
   blockedPath?: string
   decisionReason?: string
   agentID?: string
-  ui?: InteractivePromptUi
-  promptData?: InteractivePromptData
+  ui?: ApprovalPromptUi
   emitToolUpdate?: boolean
-}): ApprovalPromptDescriptor {
-  return {
+}
+
+export function createAskUserQuestionPromptDescriptor(args: AskUserQuestionPromptDescriptorArgs): AskUserQuestionPromptDescriptor {
+  const base = {
+    kind: 'ask_user_question' as const,
+    questions: args.questions,
+    requestEvent: {
+      type: 'ask_user_question' as const,
+      toolUseId: args.call.id,
+      questions: args.questions,
+    },
+    ...(args.emitToolUpdate !== undefined ? { emitToolUpdate: args.emitToolUpdate } : {}),
+  }
+
+  if (args.ui?.promptVariant === 'exit_plan_mode') {
+    return validateInteractivePromptDescriptor({
+      ...base,
+      ui: args.ui,
+      promptData: args.promptData,
+    })
+  }
+
+  if (args.ui?.promptVariant === 'enter_plan_mode') {
+    return validateInteractivePromptDescriptor({
+      ...base,
+      ui: args.ui,
+    })
+  }
+
+  if (args.promptData !== undefined) {
+    return validateInteractivePromptDescriptor({
+      ...base,
+      ...(args.ui ? { ui: args.ui } : {}),
+      promptData: args.promptData,
+    } as AskUserQuestionPromptDescriptor)
+  }
+
+  return validateInteractivePromptDescriptor({
+    ...base,
+    ...(args.ui ? { ui: args.ui } : {}),
+  })
+}
+
+export function createApprovalPromptDescriptor(args: ApprovalPromptDescriptorArgs): ApprovalPromptDescriptor {
+  return validateInteractivePromptDescriptor({
     kind: 'approval',
     requestEvent: {
       type: 'approval_request',
@@ -106,7 +192,27 @@ export function createApprovalPromptDescriptor(args: {
       ...(args.agentID ? { agentID: args.agentID } : {}),
     },
     ...(args.ui ? { ui: args.ui } : {}),
-    ...(args.promptData ? { promptData: args.promptData } : {}),
     ...(args.emitToolUpdate !== undefined ? { emitToolUpdate: args.emitToolUpdate } : {}),
+  })
+}
+
+export function validateInteractivePromptDescriptor<T extends InteractivePromptDescriptor>(descriptor: T): T {
+  if (descriptor.kind === 'approval') {
+    return descriptor
   }
+
+  const variant = descriptor.ui?.promptVariant ?? 'ask_user_question'
+  if (variant === 'exit_plan_mode') {
+    const promptData = 'promptData' in descriptor ? descriptor.promptData : undefined
+    if (!promptData || promptData.kind !== 'exit_plan_mode') {
+      throw new Error('exit_plan_mode descriptors require matching promptData')
+    }
+    return descriptor
+  }
+
+  if ('promptData' in descriptor && descriptor.promptData !== undefined) {
+    throw new Error('promptData is only supported for domain prompt variants that require snapshot data')
+  }
+
+  return descriptor
 }

@@ -6,6 +6,7 @@ import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../../features/repl/replUiContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import type { UserInputManager } from '../../runtime/userInputManager'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 import { WebSearchToolPresenter } from './presenter'
 
 function tick(): Promise<void> {
@@ -22,19 +23,26 @@ async function waitForText(lastFrame: () => string | undefined, text: string, ti
   throw new Error(`Timed out waiting for UI to contain: ${text}\n\nLast frame:\n${lastFrame() || ''}`)
 }
 
-function renderWithProviders(args: { message: Msg; userInput?: UserInputManager | null }) {
+function renderWithProviders(args: {
+  message: Msg
+  userInput?: UserInputManager | null
+  surface?: 'legacy-inline' | 'bottom-slot'
+}) {
   const userInput = args.userInput ?? null
+  const surface = args.surface ?? 'legacy-inline'
 
   return render(
     <InputScopeProvider>
       <ReplUiProvider abort={() => {}}>
-        {userInput ? (
-          <UserInputProvider userInput={userInput}>
+        <InteractivePromptSurfaceProvider surface={surface}>
+          {userInput ? (
+            <UserInputProvider userInput={userInput}>
+              <WebSearchToolPresenter message={args.message} />
+            </UserInputProvider>
+          ) : (
             <WebSearchToolPresenter message={args.message} />
-          </UserInputProvider>
-        ) : (
-          <WebSearchToolPresenter message={args.message} />
-        )}
+          )}
+        </InteractivePromptSurfaceProvider>
       </ReplUiProvider>
     </InputScopeProvider>,
   )
@@ -191,6 +199,40 @@ describe('WebSearchToolPresenter', () => {
     const { lastFrame } = renderWithProviders({ message })
     expect(lastFrame()).toContain('WebSearch')
     expect(lastFrame()).toContain('foxes')
+  })
+
+  it('does not render the inline approval prompt on the bottom-slot surface', async () => {
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({}),
+      submitAnswers: vi.fn(() => true),
+      reject: () => true,
+      rejectAllPending: () => 0,
+      isPending: (toolUseId) => toolUseId === 'ws-bottom',
+      clearBufferedAnswers: () => {},
+    }
+
+    const message: Msg = {
+      id: 'tool-ws-bottom',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'WebSearch',
+        status: 'running',
+        input: { query: 'bottom slot' },
+        toolUseId: 'ws-bottom',
+      },
+    }
+
+    const { lastFrame } = renderWithProviders({
+      message,
+      userInput,
+      surface: 'bottom-slot',
+    })
+
+    await tick()
+    expect(lastFrame()).toContain('WebSearch(query: "bottom slot")')
+    expect(lastFrame()).not.toContain('Do you want to search for "bottom slot"?')
   })
 
   it('covers error status branch', () => {

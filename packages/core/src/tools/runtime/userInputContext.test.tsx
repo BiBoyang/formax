@@ -5,7 +5,7 @@ import { render } from 'ink-testing-library'
 import type { UserInputManager } from './userInputManager'
 import { createUserInputManager } from './userInputManager'
 import { UserInputProvider, useUserInputManager } from './userInputContext'
-import type { InteractivePromptDescriptor } from './interactivePromptDescriptor'
+import type { ApprovalPromptDescriptor } from './interactivePromptDescriptor'
 
 function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -29,7 +29,7 @@ function createManager(overrides: Partial<UserInputManager> = {}): UserInputMana
   }
 }
 
-function approvalDescriptor(toolUseId: string): InteractivePromptDescriptor {
+function approvalDescriptor(toolUseId: string): ApprovalPromptDescriptor {
   return {
     kind: 'approval',
     requestEvent: {
@@ -116,6 +116,8 @@ describe('UserInputProvider / useUserInputManager', () => {
 
     expect(wrapped.isPending('t2')).toBe(true)
     expect(base.isPending).toHaveBeenCalledWith('t2')
+    expect(wrapped.isActivePrompt?.('t2')).toBe(true)
+    expect(base.isPending).toHaveBeenCalledWith('t2')
 
     wrapped.clearBufferedAnswers()
     expect(base.clearBufferedAnswers).toHaveBeenCalledTimes(1)
@@ -140,6 +142,8 @@ describe('UserInputProvider / useUserInputManager', () => {
     const wrapped = onManager.mock.lastCall?.[0] as UserInputManager
     expect(wrapped.isPending('a')).toBe(true)
     expect(wrapped.isPending('b')).toBe(false)
+    expect(wrapped.isActivePrompt?.('a')).toBe(true)
+    expect(wrapped.isActivePrompt?.('b')).toBe(false)
 
     const renders1 = onManager.mock.calls.length
     base.submitAnswers('a', { A: '1' })
@@ -149,6 +153,8 @@ describe('UserInputProvider / useUserInputManager', () => {
     expect(onManager.mock.calls.length).toBeGreaterThan(renders1)
     expect(wrapped.isPending('a')).toBe(false)
     expect(wrapped.isPending('b')).toBe(true)
+    expect(wrapped.isActivePrompt?.('a')).toBe(false)
+    expect(wrapped.isActivePrompt?.('b')).toBe(true)
 
     base.submitAnswers('b', { B: '2' })
     await expect(p2).resolves.toEqual({ B: '2' })

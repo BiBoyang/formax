@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import { getTheme } from '../../tui/theme'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../tools/runtime/userInputManager'
 import { useReplUi } from '../../features/repl/replUiContext'
 import { useScopeActivation, useScopedInput } from '../../features/repl/inputScopeContext'
 import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
@@ -43,7 +44,7 @@ export function AskUserQuestionToolBlock({
   const inlineAllowed = useInlineInteractivePromptAllowed()
 
   if (!inlineAllowed) return null
-  if (userInput && typeof userInput.isPending === 'function' && !userInput.isPending(toolUseId)) return null
+  if (userInput && !isToolUseActivePrompt(userInput, toolUseId)) return null
 
   if (!userInput || questions.length === 0) {
     return (

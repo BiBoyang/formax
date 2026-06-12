@@ -140,6 +140,9 @@ When later running tool rows are appended while an active prompt is visible, tho
 `SURFACE-604`
 Inline prompt presenters MAY exist as compatibility components, but in an Ink REPL bottom-slot surface they MUST suppress interactive controls and avoid registering prompt key handlers.
 
+`SURFACE-605`
+Inline compatibility presenters rendered under the Ink REPL bottom-slot surface MUST NOT re-own active prompt data. If a presenter is only showing fallback/status output while the real interactive prompt is owned by the bottom slot, it MUST avoid view-time reads whose only purpose is to reconstruct active prompt content from session state, filesystem state, or transcript-row-local state.
+
 ## 7. Guardrails
 
 `SURFACE-401`  
@@ -163,6 +166,7 @@ Inline prompt presenters MAY exist as compatibility components, but in an Ink RE
 7. `packages/core/src/screens/repl/compactProjection.test.ts`
 8. `packages/core/src/screens/repl/ActivePromptSlot.test.tsx`
 9. `packages/core/src/screens/REPL.coverage.test.tsx`
+10. `packages/core/src/tools/modules/exitPlanMode/presenter.test.tsx`
 
 ## 9. 变更控制
 

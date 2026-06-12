@@ -122,6 +122,37 @@ describe('ExitPlanModeToolPresenter', () => {
     }
   })
 
+  it('does not read the plan file when running on the bottom-slot surface fallback path', async () => {
+    const { filePath, cleanup } = createTempPlanFile('Step 1\n')
+    const readSpy = vi.spyOn(fs, 'readFileSync')
+    try {
+      const userInput = createUserInput(() => true)
+      const planSession: PlanSessionManager = {
+        getPlanPath: () => filePath,
+        startNewPlan: () => filePath,
+      }
+
+      const { lastFrame } = render(
+        <InputScopeProvider>
+          <InteractivePromptSurfaceProvider surface="bottom-slot">
+            <PlanProvider planSession={planSession}>
+              <UserInputProvider userInput={userInput}>
+                <ExitPlanModeToolPresenter message={createRunningExitPlanModeMessage()} />
+              </UserInputProvider>
+            </PlanProvider>
+          </InteractivePromptSurfaceProvider>
+        </InputScopeProvider>,
+      )
+
+      await tick()
+      expect(lastFrame()).toContain('ExitPlanMode')
+      expect(readSpy).not.toHaveBeenCalled()
+    } finally {
+      readSpy.mockRestore()
+      cleanup()
+    }
+  })
+
   it('falls back to default prompt labels when no interactive model is resolved', async () => {
     const { filePath, cleanup } = createTempPlanFile('Step 1\n')
     const promptSpy = vi.spyOn(interactivePrompts, 'resolveInteractivePromptModel').mockReturnValue(null)

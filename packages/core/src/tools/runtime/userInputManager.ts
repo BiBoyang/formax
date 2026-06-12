@@ -1,4 +1,8 @@
-import type { InteractivePromptDescriptor } from './interactivePromptDescriptor.js'
+import {
+  createAskUserQuestionPromptDescriptor,
+  type InteractivePromptDescriptor,
+  validateInteractivePromptDescriptor,
+} from './interactivePromptDescriptor.js'
 
 export type AskUserQuestionOption = {
   label: string
@@ -26,6 +30,7 @@ export type UserInputManager = {
   reject: (toolUseId: string, error: Error) => boolean
   rejectAllPending: (error: Error) => number
   isPending: (toolUseId: string) => boolean
+  isActivePrompt?: (toolUseId: string) => boolean
   clearBufferedAnswers: () => void
   getPendingToolUseIds?: () => string[]
   getActivePrompt?: () => InteractivePromptDescriptor | null
@@ -168,6 +173,11 @@ export function createUserInputManager(): UserInputManager {
     return pending.has(toolUseId)
   }
 
+  function isActivePrompt(toolUseId: string): boolean {
+    const id = getPendingToolUseIds()[0]
+    return id === toolUseId && pending.has(toolUseId)
+  }
+
   function getPendingToolUseIds(): string[] {
     return pendingOrder.filter((id) => pending.has(id))
   }
@@ -192,11 +202,20 @@ export function createUserInputManager(): UserInputManager {
     reject: rejectRequest,
     rejectAllPending,
     isPending,
+    isActivePrompt,
     clearBufferedAnswers,
     getPendingToolUseIds,
     getActivePrompt,
     subscribe,
   }
+}
+
+export function isToolUseActivePrompt(
+  userInput: Pick<UserInputManager, 'isPending'> & { isActivePrompt?: (toolUseId: string) => boolean } | null | undefined,
+  toolUseId: string,
+): boolean {
+  if (!userInput) return false
+  return userInput.isActivePrompt ? userInput.isActivePrompt(toolUseId) : userInput.isPending(toolUseId)
 }
 
 function snapshotQuestions(questions: AskUserQuestion[]): AskUserQuestion[] {
@@ -213,19 +232,43 @@ function snapshotQuestions(questions: AskUserQuestion[]): AskUserQuestion[] {
 }
 
 function snapshotInteractivePromptDescriptor(descriptor: InteractivePromptDescriptor): InteractivePromptDescriptor {
+  validateInteractivePromptDescriptor(descriptor)
+
   if (descriptor.kind === 'ask_user_question') {
     const questions = snapshotQuestions(descriptor.questions)
-    return {
-      kind: 'ask_user_question',
+    const promptData = 'promptData' in descriptor ? descriptor.promptData : undefined
+    const promptVariant = descriptor.ui?.promptVariant ?? 'ask_user_question'
+    const common = {
+      call: { id: descriptor.requestEvent.toolUseId },
       questions,
-      requestEvent: {
-        ...descriptor.requestEvent,
-        questions,
-      },
       ...(descriptor.emitToolUpdate !== undefined ? { emitToolUpdate: descriptor.emitToolUpdate } : {}),
-      ...(descriptor.ui ? { ui: { ...descriptor.ui } } : {}),
-      ...(descriptor.promptData ? { promptData: snapshotValue(descriptor.promptData) } : {}),
     }
+    if (promptVariant === 'exit_plan_mode' && promptData) {
+      return createAskUserQuestionPromptDescriptor({
+        ...common,
+        ui: { ...descriptor.ui, promptVariant: 'exit_plan_mode' },
+        promptData: snapshotValue(promptData),
+      })
+    }
+
+    if (promptVariant === 'enter_plan_mode') {
+      return createAskUserQuestionPromptDescriptor({
+        ...common,
+        ui: { ...descriptor.ui, promptVariant: 'enter_plan_mode' },
+      })
+    }
+
+    return createAskUserQuestionPromptDescriptor({
+      ...common,
+      ...(descriptor.ui
+        ? {
+            ui: {
+              ...descriptor.ui,
+              promptVariant: 'ask_user_question' as const,
+            },
+          }
+        : {}),
+    })
   }
 
   return {
@@ -244,7 +287,6 @@ function snapshotInteractivePromptDescriptor(descriptor: InteractivePromptDescri
     ...(descriptor.questions ? { questions: snapshotQuestions(descriptor.questions) } : {}),
     ...(descriptor.emitToolUpdate !== undefined ? { emitToolUpdate: descriptor.emitToolUpdate } : {}),
     ...(descriptor.ui ? { ui: { ...descriptor.ui } } : {}),
-    ...(descriptor.promptData ? { promptData: snapshotValue(descriptor.promptData) } : {}),
   }
 }
 

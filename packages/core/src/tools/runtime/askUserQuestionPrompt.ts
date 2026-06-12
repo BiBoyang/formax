@@ -2,7 +2,12 @@ import type { ToolCall, ToolResult } from '../types.js'
 import type { AskUserQuestion, AskUserAnswers, UserInputManager } from './userInputManager.js'
 import type { ExecutionContext } from '../executor/index.js'
 import { createAskUserQuestionPromptDescriptor } from './interactivePromptDescriptor.js'
-import type { InteractivePromptData, InteractivePromptUi, InteractivePromptVariant } from './interactivePromptDescriptor.js'
+import type {
+  ExitPlanPromptSnapshot,
+  GenericAskUserQuestionPromptUi,
+  InteractivePromptUi,
+  InteractivePromptVariant,
+} from './interactivePromptDescriptor.js'
 import {
   runInteractivePromptTransaction,
   throwInteractivePromptFailure,
@@ -18,22 +23,36 @@ export async function requestAskUserQuestionAnswersResult(args: {
   userInput: UserInputManager
   questions: AskUserQuestion[]
   descriptorUi?: InteractivePromptUi
-  promptData?: InteractivePromptData
+  promptData?: ExitPlanPromptSnapshot
 }): Promise<AskUserQuestionPromptResult> {
   const promptVariant = askUserQuestionPromptVariant(args.call.name)
+  const baseUi = { promptVariant, ...(args.descriptorUi ?? {}) }
+  const descriptor =
+    promptVariant === 'exit_plan_mode'
+      ? createAskUserQuestionPromptDescriptor({
+          call: args.call,
+          questions: args.questions,
+          ui: baseUi as InteractivePromptUi & { promptVariant: 'exit_plan_mode' },
+          promptData:
+            args.promptData ??
+            (() => {
+              throw new Error('ExitPlanMode requires promptData for bottom-slot rendering')
+            })(),
+          emitToolUpdate: false,
+        })
+      : createAskUserQuestionPromptDescriptor({
+          call: args.call,
+          questions: args.questions,
+          ui: baseUi as GenericAskUserQuestionPromptUi,
+          // AskUserQuestion handlers historically do not emit tool_update keepalive
+          // rows while waiting for answers.
+          emitToolUpdate: false,
+        })
   const tx = await runInteractivePromptTransaction<AskUserAnswers>({
     call: args.call,
     ctx: args.ctx,
     userInput: args.userInput,
-    descriptor: createAskUserQuestionPromptDescriptor({
-      call: args.call,
-      questions: args.questions,
-      ui: { promptVariant, ...(args.descriptorUi ?? {}) },
-      ...(args.promptData ? { promptData: args.promptData } : {}),
-      // AskUserQuestion handlers historically do not emit tool_update keepalive
-      // rows while waiting for answers.
-      emitToolUpdate: false,
-    }),
+    descriptor,
     unavailableContent: 'User input unavailable',
     abortedContent: 'Request aborted',
   })

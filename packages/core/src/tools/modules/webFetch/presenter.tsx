@@ -6,6 +6,7 @@ import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPres
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { EditApprovalPrompt } from '../../../components/tool/editApprovalPrompt'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { ToolHeaderLine } from '../../../components/tool/ToolUiPrimitives'
 import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
 
@@ -21,7 +22,7 @@ export const WebFetchToolPresenter: ToolPresenterComponent = ({ message }: { mes
   const toolUseId =
     message.toolInfo.toolUseId || (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  if (inlineAllowed && status === 'running' && userInput?.isPending(toolUseId)) {
+  if (inlineAllowed && status === 'running' && isToolUseActivePrompt(userInput, toolUseId)) {
     const url = String((input as any)?.url || '')
     const title = url ? `Do you want to fetch ${url}?` : 'Do you want to fetch this URL?'
 

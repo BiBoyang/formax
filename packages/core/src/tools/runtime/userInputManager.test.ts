@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createUserInputManager } from './userInputManager'
-import type { InteractivePromptDescriptor } from './interactivePromptDescriptor'
+import type {
+  ExitPlanPromptSnapshot,
+  InteractivePromptDescriptor,
+} from './interactivePromptDescriptor'
 
 function approvalDescriptor(toolUseId: string, title = 'Approve?'): Extract<InteractivePromptDescriptor, { kind: 'approval' }> {
   return {
@@ -18,6 +21,22 @@ function approvalDescriptor(toolUseId: string, title = 'Approve?'): Extract<Inte
       command: 'ls',
       cwd: '/repo',
     },
+  }
+}
+
+function exitPlanDescriptor(toolUseId: string, promptData: ExitPlanPromptSnapshot): Extract<InteractivePromptDescriptor, { kind: 'ask_user_question' }> {
+  return {
+    kind: 'ask_user_question',
+    requestEvent: {
+      type: 'ask_user_question',
+      toolUseId,
+      questions: [],
+    },
+    questions: [],
+    ui: {
+      promptVariant: 'exit_plan_mode',
+    },
+    promptData,
   }
 }
 
@@ -73,6 +92,8 @@ describe('UserInputManager', () => {
 
     expect(mgr.isPending('a')).toBe(true)
     expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.isActivePrompt?.('a')).toBe(true)
+    expect(mgr.isActivePrompt?.('b')).toBe(false)
     expect(mgr.getPendingToolUseIds?.()).toEqual(['a', 'b'])
 
     mgr.submitAnswers('a', { A: '1' })
@@ -80,11 +101,14 @@ describe('UserInputManager', () => {
 
     expect(mgr.isPending('a')).toBe(false)
     expect(mgr.isPending('b')).toBe(true)
+    expect(mgr.isActivePrompt?.('a')).toBe(false)
+    expect(mgr.isActivePrompt?.('b')).toBe(true)
     expect(mgr.getPendingToolUseIds?.()).toEqual(['b'])
 
     mgr.submitAnswers('b', { B: '2' })
     await expect(p2).resolves.toEqual({ B: '2' })
     expect(mgr.isPending('b')).toBe(false)
+    expect(mgr.isActivePrompt?.('b')).toBe(false)
     expect(mgr.getPendingToolUseIds?.()).toEqual([])
   })
 
@@ -122,11 +146,38 @@ describe('UserInputManager', () => {
     const p = mgr.requestAnswers({ toolUseId: 'legacy', questions: [] })
 
     expect(mgr.isPending('legacy')).toBe(true)
+    expect(mgr.isActivePrompt?.('legacy')).toBe(true)
     expect(mgr.getPendingToolUseIds?.()).toEqual(['legacy'])
     expect(mgr.getActivePrompt?.()).toBeNull()
 
     mgr.submitAnswers('legacy', { ok: '1' })
     await expect(p).resolves.toEqual({ ok: '1' })
+  })
+
+  it('rejects invalid descriptors before they enter the pending queue', () => {
+    const mgr = createUserInputManager()
+
+    expect(() =>
+      mgr.requestAnswers({
+        toolUseId: 'invalid-exit',
+        questions: [],
+        descriptor: {
+          kind: 'ask_user_question',
+          requestEvent: {
+            type: 'ask_user_question',
+            toolUseId: 'invalid-exit',
+            questions: [],
+          },
+          questions: [],
+          ui: { promptVariant: 'exit_plan_mode' },
+        } as InteractivePromptDescriptor,
+      }),
+    ).toThrowError('exit_plan_mode descriptors require matching promptData')
+
+    expect(mgr.isPending('invalid-exit')).toBe(false)
+    expect(mgr.isActivePrompt?.('invalid-exit')).toBe(false)
+    expect(mgr.getPendingToolUseIds?.()).toEqual([])
+    expect(mgr.getActivePrompt?.()).toBeNull()
   })
 
   it('captures descriptor metadata as a stable snapshot', async () => {
@@ -135,11 +186,6 @@ describe('UserInputManager', () => {
     descriptor.requestEvent.suggestions = ['first']
     descriptor.requestEvent.action = { kind: 'bash.exec', command: 'ls', metadata: { cwd: '/before' } } as any
     descriptor.requestEvent.workspaceRequest = { kind: 'read', dir: '/before' } as any
-    descriptor.promptData = {
-      kind: 'exit_plan_mode',
-      planPath: '/before/plan.md',
-      planContentState: { status: 'loaded', text: 'before body' },
-    }
 
     const p = mgr.requestAnswers({
       toolUseId: 'snap',
@@ -151,8 +197,6 @@ describe('UserInputManager', () => {
     descriptor.requestEvent.suggestions.push('second')
     ;(descriptor.requestEvent.action as any).metadata.cwd = '/after'
     ;(descriptor.requestEvent.workspaceRequest as any).dir = '/after'
-    ;(descriptor.promptData as any).planPath = '/after/plan.md'
-    ;(descriptor.promptData as any).planContentState.text = 'after body'
 
     const active = mgr.getActivePrompt?.()
     expect(active?.kind).toBe('approval')
@@ -161,11 +205,40 @@ describe('UserInputManager', () => {
     expect(active.requestEvent.suggestions).toEqual(['first'])
     expect((active.requestEvent.action as any).metadata.cwd).toBe('/before')
     expect((active.requestEvent.workspaceRequest as any).dir).toBe('/before')
-    expect((active.promptData as any).planPath).toBe('/before/plan.md')
-    expect((active.promptData as any).planContentState.text).toBe('before body')
 
     mgr.submitAnswers('snap', { decision: 'approve' })
     await expect(p).resolves.toEqual({ decision: 'approve' })
+  })
+
+  it('captures exit-plan prompt snapshot data as stable descriptor metadata', async () => {
+    const mgr = createUserInputManager()
+    const descriptor = exitPlanDescriptor('exit-snap', {
+      kind: 'exit_plan_mode',
+      planPath: '/before/plan.md',
+      planContentState: { status: 'loaded', text: 'before body' },
+    })
+
+    const p = mgr.requestAnswers({
+      toolUseId: 'exit-snap',
+      questions: [],
+      descriptor,
+    })
+
+    if (!('promptData' in descriptor)) throw new Error('Expected promptData on exit-plan descriptor')
+    descriptor.promptData.planPath = '/after/plan.md'
+    if (descriptor.promptData.planContentState.status !== 'loaded') throw new Error('Expected loaded plan content state')
+    descriptor.promptData.planContentState.text = 'after body'
+
+    const active = mgr.getActivePrompt?.()
+    expect(active?.kind).toBe('ask_user_question')
+    if (!active || active.kind !== 'ask_user_question') throw new Error('Expected ask_user_question descriptor')
+    if (!('promptData' in active)) throw new Error('Expected promptData on exit-plan descriptor')
+    expect(active.promptData.planPath).toBe('/before/plan.md')
+    if (active.promptData.planContentState.status !== 'loaded') throw new Error('Expected loaded plan content state')
+    expect(active.promptData.planContentState.text).toBe('before body')
+
+    mgr.submitAnswers('exit-snap', { choice: 'manual' })
+    await expect(p).resolves.toEqual({ choice: 'manual' })
   })
 
   it('clears active descriptor atomically when rejecting and aborting requests', async () => {

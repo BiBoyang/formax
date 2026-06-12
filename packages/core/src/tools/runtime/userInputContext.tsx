@@ -16,6 +16,7 @@ export function UserInputProvider({
   const wrapped = useMemo<UserInputManager>(() => {
     const bump = () => setVersion((v) => v + 1)
     const isActivePending = (toolUseId: string): boolean => {
+      if (userInput.isActivePrompt) return userInput.isActivePrompt(toolUseId)
       const pendingIds = userInput.getPendingToolUseIds?.()
       if (!pendingIds) return userInput.isPending(toolUseId)
       return pendingIds[0] === toolUseId && userInput.isPending(toolUseId)
@@ -42,7 +43,10 @@ export function UserInputProvider({
         if (n > 0) bump()
         return n
       },
+      // Keep the provider-wrapped isPending behavior as an active-render alias
+      // for compatibility while new UI code migrates to isActivePrompt.
       isPending: isActivePending,
+      isActivePrompt: isActivePending,
       clearBufferedAnswers: () => userInput.clearBufferedAnswers(),
       ...(userInput.getPendingToolUseIds ? { getPendingToolUseIds: userInput.getPendingToolUseIds } : {}),
       ...(userInput.getActivePrompt ? { getActivePrompt: userInput.getActivePrompt } : {}),

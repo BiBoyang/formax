@@ -16,7 +16,7 @@ import { toolCallToPolicyAction } from './policyAction.js'
 import { classifyBashCommand } from '../modules/bash/policy.js'
 
 import type { UserInputManager } from '../runtime/userInputManager.js'
-import type { InteractivePromptUi } from '../runtime/interactivePromptDescriptor.js'
+import type { ApprovalPromptUi } from '../runtime/interactivePromptDescriptor.js'
 import {
   loadMergedPermissions,
   persistProjectPermissionAllow,
@@ -662,7 +662,7 @@ function buildApprovalPromptUi(args: {
   ctx: ExecutionContext
   action: PolicyAction
   workspaceRequest?: WorkspaceAccessRequest | null
-}): InteractivePromptUi {
+}): ApprovalPromptUi {
   const toolName = args.call.name
 
   if (toolName === 'Bash' && args.action.kind === 'bash.exec') {

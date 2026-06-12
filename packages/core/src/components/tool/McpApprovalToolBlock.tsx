@@ -1,6 +1,7 @@
 import React from 'react'
 import { McpApprovalPrompt } from './mcpApprovalPrompt'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../tools/runtime/userInputManager'
 import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 export function McpApprovalToolBlock({
@@ -15,7 +16,7 @@ export function McpApprovalToolBlock({
   const userInput = useUserInputManager()
   const inlineAllowed = useInlineInteractivePromptAllowed()
 
-  if (!inlineAllowed || !userInput?.isPending(toolUseId)) return null
+  if (!inlineAllowed || !isToolUseActivePrompt(userInput, toolUseId)) return null
 
   return (
     <McpApprovalPrompt

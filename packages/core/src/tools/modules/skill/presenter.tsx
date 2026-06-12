@@ -5,6 +5,7 @@ import type { ToolPresenterComponent } from '../../../shared/toolPresenterContra
 import { FallbackToolPresenter } from '../../../components/tool/FallbackToolPresenter'
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { ToolHeaderLine, ToolSubline } from '../../../components/tool/ToolUiPrimitives'
 import { SkillApprovalPrompt } from '../../../components/tool/skillApprovalPrompt'
 import { useInlineInteractivePromptAllowed } from '../../../components/tool/InteractivePromptSurfaceContext'
@@ -26,7 +27,7 @@ export const SkillToolPresenter: ToolPresenterComponent = ({ message }: { messag
     <Box flexDirection="column" marginTop={1} marginBottom={0}>
       <ToolHeaderLine status={status} label="Skill" params={skillName || 'unknown'} />
 
-      {inlineAllowed && status === 'running' && userInput?.isPending(toolUseId) ? (
+      {inlineAllowed && status === 'running' && isToolUseActivePrompt(userInput, toolUseId) ? (
         <SkillApprovalPrompt
           title={`Use skill ${skillName || 'Skill'}?`}
           rememberLabel={`Yes, and don't ask again for ${skillName || 'this skill'} in this repo`}

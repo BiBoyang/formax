@@ -3,6 +3,7 @@ import React from 'react'
 import { Text } from 'ink'
 import { render } from 'ink-testing-library'
 import type { Msg } from '../../../shared/toolMessageTypes'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 let lastPromptProps: null | { title: string; onDecision: (d: any) => void } = null
 
@@ -81,6 +82,34 @@ describe('NotebookEditToolPresenter', () => {
 
     lastPromptProps.onDecision({ kind: 'cancel' })
     expect(submitAnswers).toHaveBeenLastCalledWith('abc', { decision: 'cancel' })
+  })
+
+  it('does not render the inline approval prompt on the bottom-slot surface', () => {
+    const submitAnswers = vi.fn()
+    userInput = { isPending: () => true, submitAnswers }
+
+    const message: Msg = {
+      id: 'tool-bottom',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'NotebookEdit',
+        status: 'running',
+        input: { notebook_path: '/a/b/n.ipynb' },
+        result: '',
+      },
+    }
+
+    const { lastFrame } = render(
+      <InteractivePromptSurfaceProvider surface="bottom-slot">
+        <NotebookEditToolPresenter message={message} />
+      </InteractivePromptSurfaceProvider>,
+    )
+
+    expect(lastFrame()).toContain('NotebookEdit')
+    expect(lastFrame()).not.toContain('Do you want to edit n.ipynb?')
+    expect(lastPromptProps).toBe(null)
   })
 
   it('prefers toolInfo.toolUseId over message.id when checking pending and submitting answers', () => {

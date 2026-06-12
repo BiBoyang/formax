@@ -7,6 +7,7 @@ import { InputScopeProvider } from '../../../features/repl/inputScopeContext'
 import { ReplUiProvider } from '../../../features/repl/replUiContext'
 import { UserInputProvider } from '../../runtime/userInputContext'
 import type { UserInputManager } from '../../runtime/userInputManager'
+import { InteractivePromptSurfaceProvider } from '../../../components/tool/InteractivePromptSurfaceContext'
 
 let promptProps: null | { title: string; onDecision: (d: any) => void } = null
 
@@ -23,19 +24,26 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 5))
 }
 
-function renderWithProviders(args: { message: Msg; userInput?: UserInputManager | null }) {
+function renderWithProviders(args: {
+  message: Msg
+  userInput?: UserInputManager | null
+  surface?: 'legacy-inline' | 'bottom-slot'
+}) {
   const userInput = args.userInput ?? null
+  const surface = args.surface ?? 'legacy-inline'
 
   return render(
     <InputScopeProvider>
       <ReplUiProvider abort={() => {}}>
-        {userInput ? (
-          <UserInputProvider userInput={userInput}>
+        <InteractivePromptSurfaceProvider surface={surface}>
+          {userInput ? (
+            <UserInputProvider userInput={userInput}>
+              <WebFetchToolPresenter message={args.message} />
+            </UserInputProvider>
+          ) : (
             <WebFetchToolPresenter message={args.message} />
-          </UserInputProvider>
-        ) : (
-          <WebFetchToolPresenter message={args.message} />
-        )}
+          )}
+        </InteractivePromptSurfaceProvider>
       </ReplUiProvider>
     </InputScopeProvider>,
   )
@@ -135,6 +143,41 @@ describe('WebFetchToolPresenter', () => {
     const { lastFrame } = renderWithProviders({ message, userInput })
     await tick()
     expect(lastFrame()).toContain('WebFetch')
+  })
+
+  it('does not render the inline approval prompt on the bottom-slot surface', async () => {
+    const userInput: UserInputManager = {
+      requestAnswers: async () => ({}),
+      submitAnswers: vi.fn(() => true),
+      reject: () => true,
+      rejectAllPending: () => 0,
+      isPending: (toolUseId) => toolUseId === 'wf-bottom',
+      clearBufferedAnswers: () => {},
+    }
+
+    const message: Msg = {
+      id: 'tool-wf-bottom',
+      role: 'tool',
+      content: '',
+      timestamp: new Date(),
+      toolInfo: {
+        name: 'WebFetch',
+        status: 'running',
+        input: { url: 'https://example.com' },
+        toolUseId: 'wf-bottom',
+      },
+    }
+
+    const { lastFrame } = renderWithProviders({
+      message,
+      userInput,
+      surface: 'bottom-slot',
+    })
+
+    await tick()
+    expect(lastFrame()).toContain('WebFetch')
+    expect(lastFrame()).not.toContain('Do you want to fetch https://example.com?')
+    expect(promptProps).toBe(null)
   })
 
   it('uses raw message id when toolUseId is missing and id has no tool- prefix', async () => {

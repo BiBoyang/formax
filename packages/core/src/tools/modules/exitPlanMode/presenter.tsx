@@ -7,6 +7,7 @@ import { useInlineInteractivePromptAllowed } from '../../../components/tool/Inte
 import type { Msg } from '../../../shared/toolMessageTypes'
 import { getTheme } from '../../../tui/theme'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { usePlanSession } from '../../../features/repl/planContext'
 import { formatPlanPathForDisplay } from '../../../shared/utils/planMode'
 import { ToolHeaderLine, ToolSubline } from '../../../components/tool/ToolUiPrimitives'
@@ -28,9 +29,6 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
     message.toolInfo.toolUseId ??
     (message.id.startsWith('tool-') ? message.id.slice('tool-'.length) : message.id)
 
-  const planPath = planSession?.getPlanPath() ?? null
-  const planText = useMemo(() => (planPath ? safeReadFile(planPath) : ''), [planPath])
-
   if (status === 'running') {
     if (!userInput) {
       return (
@@ -40,7 +38,10 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
       )
     }
     if (!inlineAllowed) return <FallbackToolPresenter message={message} />
-    if (!userInput.isPending(toolUseId)) return <FallbackToolPresenter message={message} />
+    if (!isToolUseActivePrompt(userInput, toolUseId)) return <FallbackToolPresenter message={message} />
+
+    const planPath = planSession?.getPlanPath() ?? null
+    const planText = planPath ? safeReadFile(planPath) : ''
 
     return (
       <ExitPlanModePrompt
@@ -61,6 +62,8 @@ export const ExitPlanModeToolPresenter: ToolPresenterComponent = ({ message }: {
 
   const approved = status !== 'error' && resultStr.includes('User has approved your plan')
   if (approved) {
+    const planPath = planSession?.getPlanPath() ?? null
+    const planText = planPath ? safeReadFile(planPath) : ''
     const planPathDisplay = planPath ? formatPlanPathForDisplay(planPath) : '(unknown plan file)'
     const planBody = (planText || '').trimEnd() || '(empty plan)'
     const indented = indentBlock(planBody, 5, MAX_PLAN_APPROVED_LINES)
@@ -337,9 +340,6 @@ export function ExitPlanModePrompt({
   const resolvedPlanContentState: ExitPlanPromptPlanContentState =
     planContentState ?? { status: 'loaded', text: planText }
   const planBody = useMemo(() => {
-    if (resolvedPlanContentState.status === 'loading') {
-      return 'Loading plan...'
-    }
     if (resolvedPlanContentState.status === 'error') {
       return resolvedPlanContentState.message || 'Unable to load the plan file. Please reopen the plan or edit it before proceeding.'
     }

@@ -11,6 +11,7 @@ import {
 } from '../../../shared/subagentPresentation'
 import { useSubagentPresentationCatalog } from '../../../shared/subagentPresentationContext'
 import { useUserInputManager } from '../../runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../runtime/userInputManager'
 import { BashToolPresenter } from '../bash/presenter'
 import { WriteToolPresenter } from '../write/presenter'
 import { EditToolPresenter } from '../edit/presenter'
@@ -50,7 +51,7 @@ export const TaskToolPresenter: ToolPresenterComponent = ({ message }: { message
       const id = typeof t?.id === 'string' ? t.id : String(t?.id || '')
       if (!id) continue
       if (t?.status !== 'running') continue
-      if (userInput.isPending(id)) return { ...t, id }
+      if (isToolUseActivePrompt(userInput, id)) return { ...t, id }
     }
     return null
   }, [message.toolInfo?.nestedTools, status, userInput])

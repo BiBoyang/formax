@@ -5,6 +5,7 @@ import { ApprovalPreview } from './ApprovalPreview'
 import { FsWriteApprovalPrompt } from './fsWriteApprovalPrompt'
 import { MarkdownBlock } from '../ui/MarkdownBlock'
 import { useUserInputManager } from '../../tools/runtime/userInputContext'
+import { isToolUseActivePrompt } from '../../tools/runtime/userInputManager'
 import { useInlineInteractivePromptAllowed } from './InteractivePromptSurfaceContext'
 
 function buildPreviewMarkdown(
@@ -34,7 +35,7 @@ export function WriteApprovalToolBlock({
   const userInput = useUserInputManager()
   const inlineAllowed = useInlineInteractivePromptAllowed()
 
-  if (!userInput?.isPending(toolUseId)) return null
+  if (!isToolUseActivePrompt(userInput, toolUseId)) return null
 
   const cols = Math.max((process.stdout.columns || 80), 40)
   const preview = buildPreviewMarkdown(content, 18)
