@@ -23,9 +23,10 @@ describe('ToolTranscriptItem', () => {
     const item = makeToolItem({
       paramsText: 'command="pwd"',
     })
-    const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    const { container, rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
-    expect(document.querySelector('.animate-pulse')).not.toBeNull()
+    expect(container.querySelector('.cadenced-shimmer[data-active="true"]')).not.toBeNull()
+    expect(screen.queryByTestId('tool-status-dot')).not.toBeInTheDocument()
     expect(screen.getByText('Bash')).toBeInTheDocument()
     expect(screen.getByText('pwd')).toBeInTheDocument()
     expect(screen.queryByText('IN')).not.toBeInTheDocument()
@@ -36,7 +37,7 @@ describe('ToolTranscriptItem', () => {
     expect(screen.queryByText('OUT')).not.toBeInTheDocument()
   })
 
-  it('renders approval input lifecycle label', () => {
+  it('hides approval input lifecycle badge and status dot', () => {
     const item = makeToolItem({
       inputState: {
         kind: 'approval',
@@ -44,12 +45,11 @@ describe('ToolTranscriptItem', () => {
       },
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
-    expect(screen.getByText('approval:pending')).toBeInTheDocument()
-    const dot = screen.getByTestId('tool-status-dot')
-    expect(dot).toHaveClass('bg-amber-500')
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tool-status-dot')).not.toBeInTheDocument()
   })
 
-  it('prioritizes failed input lifecycle as red status dot', () => {
+  it('hides failed input lifecycle badge and status dot', () => {
     const item = makeToolItem({
       status: 'running',
       inputState: {
@@ -58,8 +58,8 @@ describe('ToolTranscriptItem', () => {
       },
     })
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
-    const dot = screen.getByTestId('tool-status-dot')
-    expect(dot).toHaveClass('bg-red-500')
+    expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tool-status-dot')).not.toBeInTheDocument()
   })
 
   it('renders bash command from params and defers completed output until expanded', () => {
@@ -69,15 +69,31 @@ describe('ToolTranscriptItem', () => {
       summary: 'completed',
       detailLines: [],
     })
-    const { rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+    const { container, rerender } = render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
     expect(screen.getByText('Bash')).toBeInTheDocument()
     expect(screen.getByText('ls -la')).toBeInTheDocument()
     expect(screen.queryByText('OUT')).not.toBeInTheDocument()
-    expect(screen.getByTestId('tool-status-dot')).not.toHaveClass('animate-pulse')
+    expect(screen.queryByTestId('tool-status-dot')).not.toBeInTheDocument()
+    expect(container.querySelector('.font-semibold')).toBeNull()
+    expect(container.querySelector('.ui-text-primary')).toBeNull()
 
     rerender(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
     expect(screen.getByText('OUT')).toBeInTheDocument()
+  })
+
+  it('uses bash command instead of description in the collapsed header', () => {
+    const item = makeToolItem({
+      status: 'completed',
+      paramsText: 'command="pwd", description="Print working directory"',
+      summary: 'completed',
+      detailLines: [],
+    })
+    render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
+
+    expect(screen.getByText('Bash')).toBeInTheDocument()
+    expect(screen.getByText('pwd')).toBeInTheDocument()
+    expect(screen.queryByText('Print working directory')).not.toBeInTheDocument()
   })
 
   it('parses bash params when command contains comma and pairs have no spaces', () => {
@@ -331,10 +347,11 @@ describe('ToolTranscriptItem', () => {
       summary: '<tool_use_error>No exact match found</tool_use_error>',
       detailLines: ['No exact match found for old_string in src/demo.js'],
     })
-    render(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
+    const { container } = render(<ToolTranscriptItem item={item} open onToggle={vi.fn()} />)
 
     expect(screen.getByText('Edit')).toBeInTheDocument()
     expect(screen.getByText('src/demo.js')).toBeInTheDocument()
+    expect(container.querySelector('.text-red-600\\/80')).not.toBeNull()
     expect(screen.queryByText('foo')).not.toBeInTheDocument()
     expect(screen.queryByText('bar')).not.toBeInTheDocument()
     expect(screen.queryByText(/No exact match found/)).not.toBeInTheDocument()
@@ -444,6 +461,7 @@ describe('ToolTranscriptItem', () => {
     render(<ToolTranscriptItem item={item} open={false} onToggle={vi.fn()} />)
 
     expect(screen.getByText('Update Todos')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-status-dot')).toHaveClass('bg-[var(--tool-status-completed)]')
     expect(screen.getByText('Task1')).toHaveClass('line-through')
     expect(screen.getByText('Task2')).toBeInTheDocument()
     expect(screen.getByText('Task3')).toBeInTheDocument()

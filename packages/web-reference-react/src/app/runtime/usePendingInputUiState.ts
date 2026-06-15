@@ -152,11 +152,6 @@ export function usePendingInputUiState(args: UsePendingInputUiStateArgs) {
     setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: true }))
   }, [selectedInput])
 
-  const onAskDismiss = useCallback(() => {
-    if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
-    setAskDockOpenByInputId((prev) => ({ ...prev, [selectedInput.inputId]: false }))
-  }, [selectedInput])
-
   const onAskPageChange = useCallback(
     (page: number) => {
       if (!selectedInput || selectedInput.kind !== 'ask_user_question') return
@@ -192,7 +187,6 @@ export function usePendingInputUiState(args: UsePendingInputUiStateArgs) {
     setAskDraftByInputId,
     setAskPageIndexByInputId,
     onAskOpen,
-    onAskDismiss,
     onAskPageChange,
     onAskDraftChange,
     syncPendingInputsFromReplayState,

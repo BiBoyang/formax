@@ -186,7 +186,6 @@ function withExitCodeLead(lines: string[]): string[] {
 const bashRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const command = pickParamValue(params, 'command') ?? ''
-  const description = pickParamValue(params, 'description')
   const outputLines = item.status === 'running'
     ? []
     : item.status === 'error'
@@ -197,11 +196,7 @@ const bashRenderer: ToolBlockRenderer = (item, context) => {
       kind: 'header',
       status: toToolStatus(item.status),
       title: 'Bash',
-      ...(description
-        ? { subtitle: sanitizeToolTextPaths(description, context.cwd) }
-        : command
-          ? { subtitle: sanitizeToolTextPaths(command, context.cwd), subtitleMono: true }
-          : {}),
+      ...(command ? { subtitle: sanitizeToolTextPaths(command, context.cwd), subtitleMono: true } : {}),
       ...(item.inputState ? { inputState: item.inputState } : {}),
       expandable: canExpandToolItem(item, Boolean(command || outputLines.length > 0)),
     },
@@ -653,6 +648,7 @@ const todoWriteRenderer: ToolBlockRenderer = (item, context) => {
       status: toToolStatus(item.status),
       title: 'Update Todos',
       ...(item.inputState ? { inputState: item.inputState } : {}),
+      headerVariant: 'todo',
       expandable: false,
     },
   ]

@@ -172,11 +172,11 @@ function ReasoningItem(props: {
         )}
       </button>
       {props.open && hasContent ? (
-        <div className="mt-1 rounded-md bg-muted/20 px-3 py-2 text-muted-foreground/80">
+        <div data-testid="reasoning-content" className="mt-1 text-muted-foreground/80">
           <MarkdownRenderer
             text={item.text}
             cacheKey={item.id}
-            className="ui-text-meta leading-relaxed opacity-90"
+            className="reasoning-markdown ui-text-meta leading-relaxed opacity-90"
             cwd={props.activeThreadCwd}
           />
         </div>

@@ -81,7 +81,7 @@ type ApprovalSection = Pick<
   | 'submitStatus'
   | 'isSubmittingInput'
   | 'onAskOpen'
-  | 'onAskDismiss'
+  | 'onCancelInput'
   | 'onAskPageChange'
   | 'onAskDraftChange'
   | 'onSubmitInput'

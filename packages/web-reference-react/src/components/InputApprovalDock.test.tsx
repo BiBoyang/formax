@@ -141,10 +141,12 @@ const approvalInputSkill: PendingInput = {
 
 function AskHarness(props: {
   input?: PendingInput
+  onCancelInput?: (inputId: string) => void
   onSubmitInput?: (inputId: string, answers: Record<string, string>) => void
   language?: I18nProviderProps['language']
 }) {
   const input = props.input ?? askInput
+  const onCancelInput = props.onCancelInput ?? vi.fn()
   const onSubmitInput = props.onSubmitInput ?? vi.fn()
   const language = props.language ?? 'en-US'
   const [isOpen, setIsOpen] = useState(true)
@@ -160,7 +162,7 @@ function AskHarness(props: {
         askDraftValues={draftValues}
         isSubmitting={false}
         onAskOpen={() => setIsOpen(true)}
-        onAskDismiss={() => setIsOpen(false)}
+        onCancelInput={onCancelInput}
         onAskPageChange={setPageIndex}
         onAskDraftChange={(fieldId, value) => {
           setDraftValues((prev) => ({ ...prev, [fieldId]: value }))
@@ -194,18 +196,16 @@ describe('InputApprovalDock', () => {
     expect(onSubmitInput).toHaveBeenCalledWith('ask-1', { os: 'macOS', theme: 'Light' })
   })
 
-  it('supports ask dismiss and esc collapse while keeping draft', () => {
-    render(<AskHarness />)
+  it('cancels ask input from dismiss and escape', () => {
+    const onCancelInput = vi.fn()
+    render(<AskHarness onCancelInput={onCancelInput} />)
 
     fireEvent.click(screen.getByRole('button', { name: /1\. macOS/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    expect(screen.getByTestId('ask-dock-collapsed')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()
+    expect(onCancelInput).toHaveBeenNthCalledWith(1, 'ask-1')
 
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(screen.getByTestId('ask-dock-collapsed')).toBeInTheDocument()
+    expect(onCancelInput).toHaveBeenNthCalledWith(2, 'ask-1')
   })
 
   it('submits bash remember directly without entering scope step', () => {
@@ -219,7 +219,7 @@ describe('InputApprovalDock', () => {
           askDraftValues={{}}
           isSubmitting={false}
           onAskOpen={vi.fn()}
-          onAskDismiss={vi.fn()}
+          onCancelInput={vi.fn()}
           onAskPageChange={vi.fn()}
           onAskDraftChange={vi.fn()}
           onSubmitInput={onSubmitInput}
@@ -249,7 +249,7 @@ describe('InputApprovalDock', () => {
           askDraftValues={{}}
           isSubmitting={false}
           onAskOpen={vi.fn()}
-          onAskDismiss={vi.fn()}
+          onCancelInput={vi.fn()}
           onAskPageChange={vi.fn()}
           onAskDraftChange={vi.fn()}
           onSubmitInput={onSubmitInput}
@@ -303,7 +303,7 @@ describe('InputApprovalDock', () => {
           askDraftValues={{}}
           isSubmitting={false}
           onAskOpen={vi.fn()}
-          onAskDismiss={vi.fn()}
+          onCancelInput={vi.fn()}
           onAskPageChange={vi.fn()}
           onAskDraftChange={vi.fn()}
           onSubmitInput={onSubmitInput}
@@ -341,7 +341,7 @@ describe('InputApprovalDock', () => {
           askDraftValues={{}}
           isSubmitting={false}
           onAskOpen={vi.fn()}
-          onAskDismiss={vi.fn()}
+          onCancelInput={vi.fn()}
           onAskPageChange={vi.fn()}
           onAskDraftChange={vi.fn()}
           onSubmitInput={vi.fn()}
@@ -354,12 +354,12 @@ describe('InputApprovalDock', () => {
   })
 
   it('renders zh-CN approval and ask copy through i18n messages', () => {
-    render(<AskHarness language="zh-CN" />)
+    const onCancelInput = vi.fn()
+    render(<AskHarness language="zh-CN" onCancelInput={onCancelInput} />)
 
     fireEvent.click(screen.getByRole('button', { name: /1\. macOS/i }))
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
-    expect(screen.getByText('问题待处理，准备好后可继续。')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '继续处理' })).toBeInTheDocument()
+    expect(onCancelInput).toHaveBeenCalledWith('ask-1')
 
     renderDock(
       <InputApprovalDock
@@ -369,7 +369,7 @@ describe('InputApprovalDock', () => {
         askDraftValues={{}}
         isSubmitting={false}
         onAskOpen={vi.fn()}
-        onAskDismiss={vi.fn()}
+        onCancelInput={vi.fn()}
         onAskPageChange={vi.fn()}
         onAskDraftChange={vi.fn()}
         onSubmitInput={vi.fn()}

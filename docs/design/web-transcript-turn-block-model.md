@@ -265,6 +265,11 @@ type ToolGroupHeader =
 
 Tool item expansion policy:
 
+- Ordinary `ToolItem` collapsed/header rows should be low-emphasis transcript metadata: muted text, no completed status dot, no bold title, and no hover background fill.
+- The text after the tool name should identify the concrete operation target or parameter, not a natural-language description/summary. For `Bash`, show the command text rather than the optional command description.
+- A running ordinary `ToolItem` may use the same shimmer treatment as the `ToolGroup` live header. Completed and failed items must not shimmer; failed rows may use a subtle red text treatment.
+- `inputState` should not add a separate dot or `approval:*` / `question:*` badge to ordinary `ToolItem` rows. Pending interaction is represented by the active dock and the normal running/loading treatment.
+- `TodoWrite` is intentionally excluded from the ordinary low-emphasis rule for now and may keep its existing structured/todo-specific presentation until that tool is redesigned separately.
 - Plain tool items do not expose their own chevron/details. Current examples: `Read`, `Skill`, `ToolSearch`, `Glob`, `Grep`, and `LS`.
 - `Glob` is a locked one-row plain item for now: do not render derived result rows such as `Found N files`, and do not list matched paths in the collapsed or expanded group view.
 - Expandable tool items show only their header row by default and mount details after expansion. Current examples: `Bash`, `Edit`, `MultiEdit`, `Write`, `Task`, `WebFetch`, and `WebSearch`.
@@ -291,6 +296,7 @@ Formax should support the same display model at the UI projection layer:
 - Collapsing a future outer `WorkPhase` must not hide `AssistantAnswerBlock`.
 - Turns without tools or reasoning may have only `AssistantAnswerBlock`.
 - Turns that fail before producing an answer may show `ErrorBlock` in the answer position.
+- Closing an `AskUserQuestion` dock is a cancel action, not a visual-only collapse. In the current Web implementation this maps to interrupting the input's owning turn so the pending input resolves as `canceled`.
 - `AssistantGroup.blocks` must remain ordered. If assistant text and work items are interleaved, the UI projection should preserve that order instead of collecting all work into one bucket and all assistant text into another bucket. This can produce more than one `ToolGroup` in one assistant group.
 
 This is a UI projection rule, not a prompt requirement. Formax does not currently plan to change the system prompt to force a Codex-style final summary. The renderer must therefore not infer `AssistantAnswerBlock` by checking whether the text "looks like a summary"; it should use transcript event order and event kinds. The final assistant text emitted after the work loop is the answer block, even if it is short or not summary-like.

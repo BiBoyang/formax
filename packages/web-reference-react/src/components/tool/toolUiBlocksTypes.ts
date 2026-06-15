@@ -16,6 +16,7 @@ export type ToolUiBlockHeader = {
   paramsText?: string
   summary?: string
   inputState?: ToolInputState
+  headerVariant?: 'todo'
   expandable: boolean
 }
 

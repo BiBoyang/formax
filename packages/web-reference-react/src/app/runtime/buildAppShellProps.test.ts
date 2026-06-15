@@ -88,7 +88,7 @@ describe('buildAppShellProps', () => {
         submitStatus: null,
         isSubmittingInput: false,
         onAskOpen: vi.fn(),
-        onAskDismiss: vi.fn(),
+        onCancelInput: vi.fn(),
         onAskPageChange: vi.fn(),
         onAskDraftChange: vi.fn(),
         onSubmitInput: vi.fn(),

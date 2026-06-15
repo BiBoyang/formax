@@ -469,16 +469,21 @@ describe('App thread history integration', () => {
 
     expect(screen.getByTestId('input-approval-dock-host')).toBeInTheDocument()
     expect(screen.getByLabelText('Question index')).toHaveTextContent('1 of 1')
-    expect(screen.getByText('question:pending')).toBeInTheDocument()
+    expect(screen.queryByText('question:pending')).not.toBeInTheDocument()
     expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
     expect(screen.getByTestId('composer-locked')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    expect(screen.getByTestId('ask-dock-collapsed')).toBeInTheDocument()
-    expect(screen.getByTestId('composer')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
-    expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        rpcMock.requests.some(
+          (entry) =>
+            entry.method === 'turn/interrupt' &&
+            (entry.params as { threadId?: string; turnId?: string } | undefined)?.threadId === 'thread-alpha' &&
+            (entry.params as { threadId?: string; turnId?: string } | undefined)?.turnId === 'turn-ask',
+        ),
+      ).toBe(true)
+    })
 
     await act(async () => {
       rpcMock.emitNotification({
@@ -495,10 +500,11 @@ describe('App thread history integration', () => {
             turnId: 'turn-ask',
             toolUseId: 'ask-tool-1',
             kind: 'ask_user_question',
-            status: 'submitted',
+            status: 'canceled',
             createdAt: '2026-02-10T00:00:01.000Z',
             expiresAt: '2030-02-10T00:05:01.000Z',
             resolvedAt: '2026-02-10T00:00:20.000Z',
+            reason: 'turn_interrupted',
           },
         },
       })
@@ -628,7 +634,7 @@ describe('App thread history integration', () => {
 
     expect(screen.queryByLabelText('Question index')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
-    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
     expect(screen.queryByTestId('composer')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Approval step')).toHaveTextContent('1 of 1')
 
@@ -1014,7 +1020,7 @@ describe('App thread history integration', () => {
       })
     })
 
-    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
 
     await waitFor(() => {
@@ -1368,7 +1374,7 @@ describe('App thread history integration', () => {
       })
     })
 
-    expect(screen.getAllByText('approval:pending')).toHaveLength(2)
+    expect(screen.queryAllByText('approval:pending')).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
     fireEvent.click(screen.getByRole('button', { name: /Beta Session/i }))
     await screen.findByText('beta reply')
@@ -1380,7 +1386,7 @@ describe('App thread history integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
-    expect(screen.getAllByText('approval:pending')).toHaveLength(1)
+    expect(screen.queryAllByText('approval:pending')).toHaveLength(0)
     expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
   })
 
@@ -1513,7 +1519,7 @@ describe('App thread history integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
-    expect(screen.getByText('approval:pending')).toBeInTheDocument()
+    expect(screen.queryByText('approval:pending')).not.toBeInTheDocument()
     expect(screen.queryByText('approval:failed')).not.toBeInTheDocument()
   })
 

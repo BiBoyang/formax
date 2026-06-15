@@ -11,6 +11,7 @@ describe('composerUiHandlers', () => {
       activeThreadIdRef: { current: 'thread-1' },
       onSend: vi.fn(),
       interruptTurn: vi.fn(async () => undefined),
+      cancelInputById: vi.fn(async () => undefined),
       loadEarlierHistory: vi.fn(async () => undefined),
       submitInputById: vi.fn(async () => undefined),
       requestDevLoadAll: vi.fn(),
@@ -26,9 +27,11 @@ describe('composerUiHandlers', () => {
   it('routes async actions through runAsyncSafely and forwards send/dev handlers', () => {
     const onSend = vi.fn()
     const interruptPromise = Promise.resolve()
+    const cancelInputPromise = Promise.resolve()
     const loadEarlierPromise = Promise.resolve()
     const submitPromise = Promise.resolve()
     const interruptTurn = vi.fn(() => interruptPromise)
+    const cancelInputById = vi.fn(() => cancelInputPromise)
     const loadEarlierHistory = vi.fn(() => loadEarlierPromise)
     const submitInputById = vi.fn(() => submitPromise)
     const requestDevLoadAll = vi.fn()
@@ -39,6 +42,7 @@ describe('composerUiHandlers', () => {
       activeThreadIdRef: { current: null },
       onSend,
       interruptTurn,
+      cancelInputById,
       loadEarlierHistory,
       submitInputById,
       requestDevLoadAll,
@@ -48,17 +52,20 @@ describe('composerUiHandlers', () => {
     const submitEvent = { preventDefault: vi.fn() } as any
     handlers.onSend(submitEvent)
     handlers.onInterrupt()
+    handlers.onCancelInput('input-cancel-1')
     handlers.onLoadEarlier()
     handlers.onSubmitInput('input-1', { approve: 'yes' })
     handlers.onDevLoadAllEarlier()
 
     expect(onSend).toHaveBeenCalledWith(submitEvent)
     expect(interruptTurn).toHaveBeenCalledWith()
+    expect(cancelInputById).toHaveBeenCalledWith('input-cancel-1')
     expect(loadEarlierHistory).toHaveBeenCalledWith()
     expect(submitInputById).toHaveBeenCalledWith('input-1', { approve: 'yes' })
     expect(runAsyncSafely).toHaveBeenNthCalledWith(1, interruptPromise)
-    expect(runAsyncSafely).toHaveBeenNthCalledWith(2, loadEarlierPromise)
-    expect(runAsyncSafely).toHaveBeenNthCalledWith(3, submitPromise)
+    expect(runAsyncSafely).toHaveBeenNthCalledWith(2, cancelInputPromise)
+    expect(runAsyncSafely).toHaveBeenNthCalledWith(3, loadEarlierPromise)
+    expect(runAsyncSafely).toHaveBeenNthCalledWith(4, submitPromise)
     expect(requestDevLoadAll).toHaveBeenCalledWith()
   })
 })

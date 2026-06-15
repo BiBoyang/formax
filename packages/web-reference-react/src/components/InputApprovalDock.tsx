@@ -19,7 +19,7 @@ export type InputApprovalDockProps = {
   submitStatus?: SubmitUiStatus | null
   isSubmitting: boolean
   onAskOpen: () => void
-  onAskDismiss: () => void
+  onCancelInput: (inputId: string) => void
   onAskPageChange: (page: number) => void
   onAskDraftChange: (fieldId: string, value: string) => void
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
@@ -35,7 +35,7 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
     submitStatus = null,
     isSubmitting,
     onAskOpen,
-    onAskDismiss,
+    onCancelInput,
     onAskPageChange,
     onAskDraftChange,
     onSubmitInput,
@@ -64,7 +64,7 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
               pageIndex={askPageIndex}
               draftValues={askDraftValues}
               isSubmitting={isSubmitting}
-              onDismiss={onAskDismiss}
+              onDismiss={() => onCancelInput(input.inputId)}
               onPageChange={onAskPageChange}
               onDraftChange={onAskDraftChange}
               onSubmit={(answers) => onSubmitInput(input.inputId, answers)}

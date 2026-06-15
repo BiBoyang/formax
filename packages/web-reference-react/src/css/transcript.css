@@ -205,6 +205,12 @@
   font-weight: 600;
 }
 
+.reasoning-markdown .codex-md {
+  --codex-md-text: color-mix(in oklch, var(--foreground) 52%, var(--background));
+  --codex-md-text-muted: color-mix(in oklch, var(--foreground) 42%, var(--background));
+  --codex-md-text-subtle: color-mix(in oklch, var(--foreground) 34%, var(--background));
+}
+
 .cadenced-shimmer {
   color: var(--shimmer-text-secondary);
   -webkit-text-fill-color: currentColor;

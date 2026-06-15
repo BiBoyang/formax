@@ -658,6 +658,12 @@ describe('TranscriptPane', () => {
     fireEvent.click(reasoning)
     expect(reasoning).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Step A. Step B.')).toBeInTheDocument()
+    const reasoningContent = screen.getByTestId('reasoning-content')
+    expect(reasoningContent.querySelector('.reasoning-markdown')).not.toBeNull()
+    expect(reasoningContent).not.toHaveClass('bg-muted/20')
+    expect(reasoningContent).not.toHaveClass('px-3')
+    expect(reasoningContent).not.toHaveClass('py-2')
+    expect(reasoningContent).not.toHaveClass('rounded-md')
   })
 
   it('renders compact welcome canvas without prompt ideas', () => {

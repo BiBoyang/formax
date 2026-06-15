@@ -216,7 +216,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
     thread.selectThreadRef.current = selectThread
   }, [thread.selectThreadRef, selectThread])
 
-  const { interruptTurn, submitInputById, onSend } = useMemo(
+  const { interruptTurn, cancelInputById, submitInputById, onSend } = useMemo(
     () => {
       const retirePendingInputLocally = (args: {
         input: PendingInput
@@ -417,6 +417,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
     archiveThread,
     loadEarlierHistory,
     interruptTurn,
+    cancelInputById,
     submitInputById,
     onSend,
   }

@@ -7,6 +7,7 @@ type ComposerUiHandlersArgs = {
   activeThreadIdRef: { current: string | null }
   onSend: (event: FormEvent) => void
   interruptTurn: () => Promise<void>
+  cancelInputById: (inputId: string) => Promise<void>
   loadEarlierHistory: () => Promise<void>
   submitInputById: (inputId: string, answers: Record<string, string>) => Promise<void>
   requestDevLoadAll: () => void
@@ -22,6 +23,9 @@ export function createComposerUiHandlers(args: ComposerUiHandlersArgs) {
     onSend: args.onSend,
     onInterrupt: () => {
       args.runAsyncSafely(args.interruptTurn())
+    },
+    onCancelInput: (inputId: string) => {
+      args.runAsyncSafely(args.cancelInputById(inputId))
     },
     onLoadEarlier: () => {
       args.runAsyncSafely(args.loadEarlierHistory())

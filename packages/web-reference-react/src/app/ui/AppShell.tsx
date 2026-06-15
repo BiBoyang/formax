@@ -100,7 +100,7 @@ export type AppShellProps = {
   submitStatus: { status: string; kind: 'success' | 'error'; message?: string } | null
   isSubmittingInput: boolean
   onAskOpen: () => void
-  onAskDismiss: () => void
+  onCancelInput: (inputId: string) => void
   onAskPageChange: (page: number) => void
   onAskDraftChange: (fieldId: string, value: string) => void
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
@@ -378,7 +378,7 @@ export function AppShell(props: AppShellProps) {
       submitStatus: isThreadSurface ? props.submitStatus : null,
       isSubmitting: isThreadSurface ? props.isSubmittingInput : false,
       onAskOpen: props.onAskOpen,
-      onAskDismiss: props.onAskDismiss,
+      onCancelInput: props.onCancelInput,
       onAskPageChange: props.onAskPageChange,
       onAskDraftChange: props.onAskDraftChange,
       onSubmitInput: props.onSubmitInput,
@@ -387,7 +387,7 @@ export function AppShell(props: AppShellProps) {
       isThreadSurface,
       props.isSelectedAskOpen,
       props.isSubmittingInput,
-      props.onAskDismiss,
+      props.onCancelInput,
       props.onAskDraftChange,
       props.onAskOpen,
       props.onAskPageChange,

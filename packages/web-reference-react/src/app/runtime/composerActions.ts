@@ -239,6 +239,21 @@ export function createComposerActions(ctx: ComposerActionsContext) {
     }
   }
 
+  const cancelInputById = async (inputId: string) => {
+    const input = ctx.getPendingInputById(inputId)
+    if (!input || ctx.isInterruptingTurn) return
+    ctx.setIsInterruptingTurn(true)
+    try {
+      await ctx.request('turn/interrupt', {
+        threadId: input.threadId,
+        turnId: input.turnId,
+      })
+      ctx.log(`Input cancel requested: ${input.inputId}`, 'warn', input.turnId)
+    } finally {
+      ctx.setIsInterruptingTurn(false)
+    }
+  }
+
   const submitInputById = async (inputId: string, answers: Record<string, string>) => {
     const input = ctx.getPendingInputById(inputId)
     if (!input || ctx.isSubmittingInput) return
@@ -317,6 +332,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
   return {
     startTurn,
     interruptTurn,
+    cancelInputById,
     submitInputById,
     onSend,
   }

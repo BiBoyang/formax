@@ -7,7 +7,6 @@ import { CadencedShimmerText } from '../CadencedShimmerText'
 import { TOOL_PREVIEW_MAX_HEIGHT_PX, TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
 import type {
   ToolDisplayDensity,
-  ToolInputState,
   ToolUiBlock,
   ToolUiBlockCodePreview,
   ToolUiBlockDetails,
@@ -40,34 +39,16 @@ function statusDotClass(status: ToolStatus): string {
   return 'bg-muted-foreground/40'
 }
 
-function statusDotClassForBlock(status: ToolStatus, inputState?: ToolInputState): string {
-  if (inputState?.status === 'pending') return 'bg-amber-500 animate-pulse'
-  if (inputState?.status === 'failed') return 'bg-red-500'
-  if (inputState?.status === 'expired' || inputState?.status === 'canceled') return 'bg-muted-foreground/50'
-  return statusDotClass(status)
-}
-
-function inputStateLabel(inputState: ToolInputState): string {
-  const prefix = inputState.kind === 'approval' ? 'approval' : 'question'
-  return `${prefix}:${inputState.status}`
-}
-
-function inputStateClass(inputState: ToolInputState): string {
-  if (inputState.status === 'pending') return 'bg-amber-500/15 text-amber-700 border-amber-500/30 animate-pulse'
-  if (inputState.status === 'submitted') return 'bg-emerald-500/12 text-emerald-700 border-emerald-500/25'
-  if (inputState.status === 'failed') return 'bg-red-500/12 text-red-700 border-red-500/25'
-  if (inputState.status === 'expired' || inputState.status === 'canceled') return 'bg-muted text-muted-foreground border-border'
-  return 'bg-muted text-muted-foreground border-border'
-}
-
 function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle: () => void; displayDensity: ToolDisplayDensity }) {
   const { block, open, onToggle, displayDensity } = props
   const showParams = Boolean(block.paramsText) && (displayDensity === 'verbose' || open || !block.expandable)
   const label = block.title
   const subtitle = clipHeaderDetailText(block.subtitle ?? (showParams ? block.paramsText : undefined))
   const trailingParams = clipHeaderDetailText(block.subtitle && showParams ? block.paramsText : undefined)
-  const showInputStateBadge = Boolean(block.inputState && block.inputState.status !== 'submitted')
   const isRunning = block.status === 'running'
+  const preserveLegacyHeader = block.headerVariant === 'todo'
+  const quietTextClass = block.status === 'error' ? 'text-red-600/80' : 'text-muted-foreground'
+  const quietDetailClass = block.status === 'error' ? 'text-red-600/70' : 'text-muted-foreground'
   return (
     <button
       type="button"
@@ -77,21 +58,27 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
       )}
       onClick={block.expandable ? onToggle : undefined}
     >
-      <span
-        data-testid="tool-status-dot"
-        className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
-      />
+      {preserveLegacyHeader ? (
+        <span
+          data-testid="tool-status-dot"
+          className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClass(block.status))}
+        />
+      ) : null}
       <CadencedShimmerText
         text={label}
         active={isRunning}
-        className="shrink-0 ui-text-base leading-5 font-semibold ui-text-primary"
+        className={cn(
+          'shrink-0 ui-text-base leading-5',
+          preserveLegacyHeader ? 'font-semibold ui-text-primary' : quietTextClass,
+        )}
       />
       {subtitle ? (
         <CadencedShimmerText
           text={subtitle}
           active={isRunning}
           className={cn(
-            'min-w-0 truncate ui-text-base leading-5 text-muted-foreground',
+            'min-w-0 truncate ui-text-base leading-5',
+            quietDetailClass,
             block.subtitleMono ? 'font-mono' : null,
           )}
         />
@@ -100,13 +87,8 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         <CadencedShimmerText
           text={trailingParams}
           active={isRunning}
-          className="min-w-0 truncate ui-text-base leading-5 text-muted-foreground"
+          className={cn('min-w-0 truncate ui-text-base leading-5', quietDetailClass)}
         />
-      ) : null}
-      {showInputStateBadge && block.inputState ? (
-        <span className={cn('shrink-0 rounded-full border px-2 py-0.5 ui-text-micro font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
-          {inputStateLabel(block.inputState)}
-        </span>
       ) : null}
       {block.expandable ? (
         open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
