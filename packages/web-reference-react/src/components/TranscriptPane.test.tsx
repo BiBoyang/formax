@@ -390,6 +390,45 @@ describe('TranscriptPane', () => {
 
     expect(screen.getByText('Please choose a project before starting a new thread')).toBeInTheDocument()
     expect(screen.getByText('RPC Error: rpc failed')).toBeInTheDocument()
+    expect(screen.getByText('Request failed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(screen.getByText(/"method": "thread\/start"/)).toBeInTheDocument()
+  })
+
+  it('copies user messages and assistant group answer text from transcript operations', async () => {
+    const writeText = vi.fn(async () => undefined)
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    try {
+      renderWithI18n(
+        <TranscriptPane
+          {...baseProps({
+            logs: [
+              { id: 'u1', kind: 'message', role: 'user', text: 'make it smaller', turnId: 'turn-1' },
+              { id: 'a1', kind: 'message', role: 'assistant', text: 'First answer.', turnId: 'turn-1' },
+              { id: 'a2', kind: 'message', role: 'assistant', text: 'Second answer.', turnId: 'turn-1' },
+            ],
+          })}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy user message' }))
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('make it smaller'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy assistant message' }))
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('First answer.\n\nSecond answer.'))
+    } finally {
+      if (originalClipboard) {
+        Object.defineProperty(navigator, 'clipboard', originalClipboard)
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard')
+      }
+    }
   })
 
   it('renders assistant markdown into structured content', async () => {
@@ -603,15 +642,22 @@ describe('TranscriptPane', () => {
     expect(onSend).toHaveBeenCalledTimes(1)
   })
 
-  it('renders running thinking as lightweight line', () => {
+  it('renders running reasoning as a collapsed block', () => {
     renderWithI18n(
       <TranscriptPane
         {...baseProps({ logs: [{ id: 'thinking-1', kind: 'thinking', status: 'running', text: 'Step A. Step B.', turnId: 'turn-1' }] })}
       />,
     )
 
-    expect(screen.getByText('∴ Thinking…')).toBeInTheDocument()
+    const reasoning = screen.getByRole('button', { name: /Reasoning/i })
+    expect(reasoning).toHaveAttribute('aria-expanded', 'false')
+    expect(reasoning.className).not.toContain('hover:bg')
+    expect(reasoning).not.toHaveClass('px-1')
     expect(screen.queryByText('Step A. Step B.')).not.toBeInTheDocument()
+
+    fireEvent.click(reasoning)
+    expect(reasoning).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Step A. Step B.')).toBeInTheDocument()
   })
 
   it('renders compact welcome canvas without prompt ideas', () => {
@@ -651,7 +697,7 @@ describe('TranscriptPane', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
   })
 
-  it('does not render finalized thinking rows in the primary transcript', () => {
+  it('renders finalized reasoning as a collapsed block', () => {
     renderWithI18n(
       <TranscriptPane
         {...baseProps({
@@ -660,11 +706,16 @@ describe('TranscriptPane', () => {
       />,
     )
 
-    expect(screen.queryByText('∴ Thinking…')).not.toBeInTheDocument()
+    const reasoning = screen.getByRole('button', { name: /Reasoning/i })
+    expect(reasoning).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(/Step A\.\s*Step B\./)).not.toBeInTheDocument()
+
+    fireEvent.click(reasoning)
+    expect(reasoning).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText(/Step A\.\s*Step B\./)).toBeInTheDocument()
   })
 
-  it('does not count finalized thinking rows against transcript render window', () => {
+  it('counts finalized reasoning rows against transcript render window', () => {
     const messageLogs = Array.from({ length: 25 }, (_, index) => ({
       id: `msg-${index}`,
       kind: 'message' as const,
@@ -687,8 +738,11 @@ describe('TranscriptPane', () => {
       />,
     )
 
-    expect(screen.getByText('msg-0')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Render earlier messages/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('msg-0')).not.toBeInTheDocument()
+    expect(screen.getByText('msg-5')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Render earlier messages/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Reasoning/i })).toHaveLength(10)
+    expect(screen.queryByText('hidden-think-0')).not.toBeInTheDocument()
   })
 
   it('adds visual turn boundaries when turn id changes in transcript stream', () => {
@@ -767,10 +821,119 @@ describe('TranscriptPane', () => {
     )
 
     expect(screen.getByText('warn log')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Worked with 1 tool/i })).not.toBeInTheDocument()
+    const toolGroupButton = screen.getByRole('button', { name: /ran 1 command/i })
+    expect(toolGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(/^Bash$/)).not.toBeInTheDocument()
+
+    fireEvent.click(toolGroupButton)
+    const expandedToolGroupBody = toolGroupButton.nextElementSibling
+    expect(expandedToolGroupBody).toBeInstanceOf(HTMLElement)
+    expect(expandedToolGroupBody).not.toHaveClass('border-l')
+    expect(expandedToolGroupBody).not.toHaveClass('pl-3')
     expect(screen.getByText(/^Bash$/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }))
     expect(onLoadEarlier).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the running tool item text as the live tool group title', () => {
+    const { container } = renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'turn-1',
+          composerLocked: true,
+          logs: [
+            {
+              id: 't1',
+              kind: 'tool_call',
+              turnId: 'turn-1',
+              toolUseId: 'tool-1',
+              toolName: 'Bash',
+              status: 'running',
+              summary: 'Running command',
+              paramsText: 'command="pwd"',
+              detailLines: [],
+            },
+          ],
+        })}
+      />,
+    )
+
+    const toolGroupButton = screen.getByRole('button', { name: /Bash pwd/i })
+    expect(toolGroupButton.className).not.toContain('hover:bg')
+    expect(toolGroupButton).not.toHaveClass('px-1')
+    expect(container.querySelector('.cadenced-shimmer[data-active="true"]')).not.toBeNull()
+  })
+
+  it('shows thinking on the latest completed tool group while waiting for the next turn event', () => {
+    const { container } = renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'turn-1',
+          composerLocked: true,
+          logs: [
+            {
+              id: 't1',
+              kind: 'tool_call',
+              turnId: 'turn-1',
+              toolUseId: 'tool-1',
+              toolName: 'Bash',
+              status: 'completed',
+              summary: 'Ran command',
+              paramsText: 'command="pwd"',
+              detailLines: ['ok'],
+            },
+          ],
+        })}
+      />,
+    )
+
+    const toolGroupButton = screen.getByRole('button', { name: /Thinking/i })
+    expect(toolGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('turn-live-activity')).toBeNull()
+    expect(container.querySelector('.cadenced-shimmer[data-active="true"]')).not.toBeNull()
+  })
+
+  it('shows a standalone thinking activity row after a submitted user message without a carrier block', () => {
+    const { container } = renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'turn-1',
+          composerLocked: true,
+          logs: [
+            {
+              id: 'u1',
+              kind: 'message',
+              role: 'user',
+              text: 'hello',
+              turnId: 'turn-1',
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('hello')).toBeInTheDocument()
+    const liveActivity = screen.getByTestId('turn-live-activity')
+    expect(liveActivity).toHaveTextContent('Thinking')
+    expect(liveActivity).not.toHaveClass('px-1')
+    expect(container.querySelector('.cadenced-shimmer[data-active="true"]')).not.toBeNull()
+  })
+
+  it('hides the empty-thread placeholder while the first turn is starting', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'turn-1',
+          logs: [],
+          isSending: true,
+        })}
+      />,
+    )
+
+    expect(screen.queryByText('This thread is empty. Start with a first message.')).not.toBeInTheDocument()
+    expect(screen.getByTestId('turn-live-activity')).toHaveTextContent('Thinking')
   })
 
   it('renders notice rows as system feedback items', () => {
@@ -964,7 +1127,7 @@ describe('TranscriptPane', () => {
     await waitFor(() => {
       expect(scrollTopValue).toBe(1200)
     })
-    expect(screen.getByTestId('turn-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('turn-loading')).toBeNull()
   })
 
   it('renders long history in batches and can reveal earlier in-memory messages', () => {

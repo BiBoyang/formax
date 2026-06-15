@@ -183,7 +183,9 @@ describe('buildToolUiBlocks', () => {
     const io = blocks.find((block) => block.kind === 'io')
     expect(header?.kind).toBe('header')
     expect(header?.title).toBe('Bash')
+    expect(header?.expandable).toBe(true)
     expect(header?.paramsText).toBeUndefined()
+    expect(header?.subtitle).toBe('ls -la')
     expect(io?.kind).toBe('io')
     expect(io?.inputText).toBe('ls -la')
   })
@@ -201,6 +203,8 @@ describe('buildToolUiBlocks', () => {
     const io = blocks.find((block) => block.kind === 'io')
     expect(header?.kind).toBe('header')
     expect(header?.title).toBe('Bash')
+    expect(header?.expandable).toBe(true)
+    expect(header?.subtitle).toBe('pwd')
     expect(header?.paramsText).toBeUndefined()
     expect(io?.kind).toBe('io')
     expect(io?.inputText).toBe('pwd')
@@ -236,7 +240,7 @@ describe('buildToolUiBlocks', () => {
     expect(io?.outputLines).toBeUndefined()
   })
 
-  it('renders glob with pattern subtitle and summary info', () => {
+  it('renders glob with pattern subtitle only', () => {
     const item = makeToolItem({
       toolName: 'Glob',
       status: 'completed',
@@ -250,8 +254,7 @@ describe('buildToolUiBlocks', () => {
     expect(header?.kind).toBe('header')
     expect(header?.title).toBe('Glob')
     expect(header?.subtitle).toBe('pattern: "**/*.ts"')
-    expect(info?.kind).toBe('info')
-    expect(info?.text).toBe('Found 101 files')
+    expect(info).toBeUndefined()
   })
 
   it('keeps glob compact even when detail lines exist', () => {
@@ -265,12 +268,14 @@ describe('buildToolUiBlocks', () => {
     const blocks = buildToolUiBlocks(item)
     const header = blocks.find((block) => block.kind === 'header')
     const details = blocks.find((block) => block.kind === 'details')
+    const info = blocks.find((block) => block.kind === 'info')
     expect(header?.kind).toBe('header')
     expect(header?.expandable).toBe(false)
     expect(details).toBeUndefined()
+    expect(info).toBeUndefined()
   })
 
-  it('normalizes raw glob output into Found N files summary', () => {
+  it('does not emit glob file-count info from raw output', () => {
     const item = makeToolItem({
       toolName: 'Glob',
       status: 'completed',
@@ -280,8 +285,7 @@ describe('buildToolUiBlocks', () => {
     })
     const blocks = buildToolUiBlocks(item)
     const info = blocks.find((block) => block.kind === 'info')
-    expect(info?.kind).toBe('info')
-    expect(info?.text).toBe('Found 3 files')
+    expect(info).toBeUndefined()
   })
 
   it('does not count running-status text as glob results', () => {
@@ -382,7 +386,7 @@ describe('buildToolUiBlocks', () => {
     expect(taskBlocks.find((block) => block.kind === 'details')).toBeUndefined()
   })
 
-  it('shows bounded Task detail lines when nested progress exists', () => {
+  it('makes Task expandable when nested progress exists', () => {
     const taskBlocks = buildToolUiBlocks(
       makeToolItem({
         toolName: 'Task',
@@ -555,6 +559,21 @@ describe('buildToolUiBlocks', () => {
     expect(blocks.find((block) => block.kind === 'io')).toBeUndefined()
   })
 
+  it('keeps Skill plain even when detail lines exist', () => {
+    const item = makeToolItem({
+      toolName: 'Skill',
+      status: 'completed',
+      summary: 'Read React Best Practices skill',
+      detailLines: ['large skill body should not render here'],
+    })
+    const blocks = buildToolUiBlocks(item)
+    const header = blocks.find((block) => block.kind === 'header')
+    expect(header?.kind).toBe('header')
+    expect(header?.title).toBe('Skill')
+    expect(header?.expandable).toBe(false)
+    expect(blocks.find((block) => block.kind === 'details')).toBeUndefined()
+  })
+
   it('keeps edit renderer as header-only when edit fails', () => {
     const item = makeToolItem({
       toolName: 'Edit',
@@ -573,7 +592,7 @@ describe('buildToolUiBlocks', () => {
     expect(blocks.find((block) => block.kind === 'diff')).toBeUndefined()
   })
 
-  it('renders edit as diff block with file subtitle only in header', () => {
+  it('renders edit as expandable diff block with file subtitle only in header', () => {
     const item = makeToolItem({
       toolName: 'Edit',
       status: 'completed',
@@ -587,9 +606,8 @@ describe('buildToolUiBlocks', () => {
     expect(header?.kind).toBe('header')
     expect(header?.subtitle).toBe('src/demo.js')
     expect(header?.paramsText).toBeUndefined()
-    expect(header?.expandable).toBe(false)
+    expect(header?.expandable).toBe(true)
     expect(diff?.kind).toBe('diff')
-    expect(diff?.alwaysVisible).toBe(true)
     expect(diff?.files[0]?.path).toBe('src/demo.js')
     expect(diff?.files[0]?.patch).toContain('@@ @@')
     expect(diff?.files[0]?.patch).toContain('-foo')

@@ -205,17 +205,88 @@
   font-weight: 600;
 }
 
-.loading-shimmer {
-  color: color-mix(in oklch, var(--muted-foreground) 85%, var(--foreground));
-  animation: loading-breathe 1.35s ease-in-out infinite;
+.cadenced-shimmer {
+  color: var(--shimmer-text-secondary);
+  -webkit-text-fill-color: currentColor;
+  text-fill-color: currentColor;
+  background: transparent;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  animation: none;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  vertical-align: bottom;
 }
 
-@keyframes loading-breathe {
-  0%,
-  100% {
-    opacity: 0.6;
+.cadenced-shimmer-base {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cadenced-shimmer-sweep {
+  inset: 0 auto 0 0;
+  pointer-events: none;
+  position: absolute;
+  overflow: hidden;
+  transform: translate(-100%);
+  width: 50%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 40% 60%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 40% 60%, transparent 100%);
+}
+
+.cadenced-shimmer-sweep::before {
+  color: var(--shimmer-contrast);
+  content: attr(data-text);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-text-fill-color: currentColor;
+  text-fill-color: currentColor;
+  transform: translate(50%);
+  white-space: nowrap;
+  width: 200%;
+}
+
+.cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep,
+.cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep::before {
+  animation-duration: 1s;
+  animation-iteration-count: 1;
+  animation-timing-function: steps(48, end);
+}
+
+.cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep {
+  animation-name: cadenced-loading-shimmer-sweep;
+}
+
+.cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep::before {
+  animation-name: cadenced-loading-shimmer-highlight;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep,
+  .cadenced-shimmer[data-active='true'] .cadenced-shimmer-sweep::before {
+    animation: none;
   }
-  50% {
-    opacity: 1;
+}
+
+@keyframes cadenced-loading-shimmer-sweep {
+  0% {
+    transform: translate(-100%);
+  }
+  100% {
+    transform: translate(250%);
+  }
+}
+
+@keyframes cadenced-loading-shimmer-highlight {
+  0% {
+    transform: translate(50%);
+  }
+  100% {
+    transform: translate(-125%);
   }
 }

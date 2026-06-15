@@ -174,6 +174,9 @@ export function processNotification(
         ctx.cacheThreadMode(threadId ?? ctx.activeThreadIdRef.current, nextMode)
       }
       ctx.dispatch({ type: 'set_active_turn', turnId: turnId || null })
+      if (turnId) {
+        ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId })
+      }
       break
     }
 

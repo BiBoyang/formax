@@ -36,7 +36,9 @@ export type AppAction =
   | { type: 'prepend_logs'; logs: TranscriptItem[] }
   | { type: 'clear_pending_inputs' }
   | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error'; turnId?: string }
-  | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string }
+  | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string; id?: string; optimistic?: boolean }
+  | { type: 'remove_transcript_item'; id: string }
+  | { type: 'bind_last_optimistic_user_message_turn'; turnId: string }
   | { type: 'bind_last_user_message_turn'; turnId: string }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
@@ -188,13 +190,32 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'push_message': {
       const next: TranscriptItem = {
-        id: itemId(),
+        id: action.id ?? itemId(),
         kind: 'message',
         role: action.role,
         text: action.text,
         ...(action.turnId ? { turnId: action.turnId } : {}),
+        ...(action.optimistic ? { optimistic: true } : {}),
       }
       return { ...state, logs: [...state.logs, next] }
+    }
+
+    case 'remove_transcript_item': {
+      const nextLogs = state.logs.filter((item) => item.id !== action.id)
+      if (nextLogs.length === state.logs.length) return state
+      return { ...state, logs: nextLogs }
+    }
+
+    case 'bind_last_optimistic_user_message_turn': {
+      for (let idx = state.logs.length - 1; idx >= 0; idx -= 1) {
+        const item = state.logs[idx]
+        if (item?.kind === 'message' && item.role === 'user' && item.optimistic && !item.turnId) {
+          const updated = state.logs.slice()
+          updated[idx] = { ...item, turnId: action.turnId }
+          return { ...state, logs: updated }
+        }
+      }
+      return state
     }
 
     case 'bind_last_user_message_turn': {

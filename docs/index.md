@@ -71,6 +71,7 @@
 ## 设计（Design）
 
 - 语义架构蓝图：`docs/design/semantics-architecture-blueprint.md`
+- Web transcript turn/block 展示模型：`docs/design/web-transcript-turn-block-model.md`
 
 ## 审计（Audits）
 

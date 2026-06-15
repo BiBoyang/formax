@@ -120,6 +120,18 @@ export function createComposerActions(ctx: ComposerActionsContext) {
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     let requestThreadId = ctx.activeThreadId
     let requestCwd = requestThreadId ? ctx.resolveRequestCwd(requestThreadId) : draftCwd
+    let optimisticUserMessageId: string | null = null
+    const pushOptimisticUserMessage = () => {
+      if (shouldDispatchCommand || optimisticUserMessageId) return
+      optimisticUserMessageId = `optimistic-user-${ctx.nowMs()}`
+      ctx.dispatch({
+        type: 'push_message',
+        id: optimisticUserMessageId,
+        role: 'user',
+        text,
+        optimistic: true,
+      })
+    }
     ctx.setIsSendingTurn(true)
     let draftCreatedThread: CreatedThreadResult | null = null
     const refreshDraftCreatedThread = () => {
@@ -163,6 +175,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         return
       }
 
+      pushOptimisticUserMessage()
       const result = shouldDispatchCommand
         ? await ctx.request('command/dispatch', {
             threadId: requestThreadId,
@@ -180,13 +193,18 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       const localStdout = parsedTurnResult.localStdout
       if (localStdout) {
         refreshDraftCreatedThread()
-        ctx.dispatch({ type: 'push_message', role: 'user', text })
+        if (!optimisticUserMessageId) {
+          ctx.dispatch({ type: 'push_message', role: 'user', text })
+        }
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
       refreshDraftCreatedThread()
       const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
+        if (optimisticUserMessageId) {
+          ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId })
+        }
         ctx.dispatch({ type: 'set_active_turn', turnId })
         if (shouldDispatchCommand) {
           ctx.commandByTurnRef.current.set(turnId, text)
@@ -198,6 +216,9 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
       }
       ctx.setInputText((current) => (current.trim() ? current : text))
+      if (optimisticUserMessageId) {
+        ctx.dispatch({ type: 'remove_transcript_item', id: optimisticUserMessageId })
+      }
       throw error
     } finally {
       ctx.setIsSendingTurn(false)

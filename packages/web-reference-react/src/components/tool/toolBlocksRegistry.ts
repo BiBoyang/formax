@@ -17,6 +17,7 @@ import {
   type ToolPresentationSemantic,
 } from '../../parity/tools/toolSemantics'
 import { resolveInteractivePromptModel } from '../../parity/tools/interactivePrompts'
+import { isToolItemExpandable } from './toolItemExpansionPolicy'
 
 type ToolRenderContext = {
   cwd?: string
@@ -35,6 +36,14 @@ function looksLikeRawJsonPayload(summary: string): boolean {
 function toToolStatus(status: ToolCallItem['status']): ToolStatus {
   if (status === 'running' || status === 'completed' || status === 'error') return status
   return 'pending'
+}
+
+function canExpandToolItem(item: ToolCallItem, hasDetails: boolean): boolean {
+  return isToolItemExpandable({
+    toolName: item.toolName,
+    semantic: getToolPresentationSemantic(item.toolName),
+    hasDetails,
+  })
 }
 
 function parseJsonArray(raw: string | undefined): unknown[] | null {
@@ -82,6 +91,7 @@ function withStandardBlocks(args: {
   const summary = sanitizeToolTextPaths(args.summary, args.cwd)
   const rawDetailLines = args.detailLines ?? args.item.detailLines
   const detailLines = rawDetailLines.map((line) => sanitizeToolTextPaths(line, args.cwd))
+  const expandable = canExpandToolItem(args.item, detailLines.length > 0)
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
@@ -92,10 +102,10 @@ function withStandardBlocks(args: {
       ...(args.paramsText ? { paramsText: args.paramsText } : {}),
       summary,
       ...(args.item.inputState ? { inputState: args.item.inputState } : {}),
-      expandable: detailLines.length > 0,
+      expandable,
     },
   ]
-  if (detailLines.length > 0) {
+  if (expandable) {
     blocks.push({ kind: 'details', lines: detailLines })
   }
   return blocks
@@ -160,30 +170,6 @@ function formatOutputLineCount(count: number): string {
   return `${count} ${count === 1 ? 'line' : 'lines'} of output`
 }
 
-function expandAndDedupeLines(lines: string[]): string[] {
-  const out: string[] = []
-  for (const raw of lines) {
-    const exploded = raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-    for (const line of exploded) {
-      if (!out.includes(line)) out.push(line)
-    }
-  }
-  return out
-}
-
-function parseGlobFoundCount(summary: string): number | null {
-  const trimmed = summary.trim()
-  if (!trimmed) return null
-  if (/^no files found$/i.test(trimmed)) return 0
-  const hit = /^found\s+(\d+)\s+files?$/i.exec(trimmed)
-  if (!hit) return null
-  const parsed = Number.parseInt(hit[1] ?? '', 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 function withExitCodeLead(lines: string[]): string[] {
   if (lines.length === 0) return lines
   const pattern = /\bexit code\s+(\d+)\b/i
@@ -211,9 +197,13 @@ const bashRenderer: ToolBlockRenderer = (item, context) => {
       kind: 'header',
       status: toToolStatus(item.status),
       title: 'Bash',
-      ...(description ? { subtitle: sanitizeToolTextPaths(description, context.cwd) } : {}),
+      ...(description
+        ? { subtitle: sanitizeToolTextPaths(description, context.cwd) }
+        : command
+          ? { subtitle: sanitizeToolTextPaths(command, context.cwd), subtitleMono: true }
+          : {}),
       ...(item.inputState ? { inputState: item.inputState } : {}),
-      expandable: false,
+      expandable: canExpandToolItem(item, Boolean(command || outputLines.length > 0)),
     },
     {
       kind: 'io',
@@ -234,18 +224,8 @@ const bashRenderer: ToolBlockRenderer = (item, context) => {
 const globRenderer: ToolBlockRenderer = (item, context) => {
   const params = formatToolParams({ toolName: item.toolName, paramsText: item.paramsText, cwd: context.cwd })
   const pattern = params.find((param) => param.label === 'pattern')?.value
-  const detailLines = item.detailLines.map((line) => sanitizeToolTextPaths(line, context.cwd))
   const otherParams = params.filter((param) => param.label !== 'pattern')
   const paramsText = otherParams.length > 0 ? stringifyToolParams(otherParams) : undefined
-  const summary = sanitizeToolTextPaths(item.summary, context.cwd)
-  const summaryText = (() => {
-    if (item.status !== 'completed') return ''
-    const explicitCount = parseGlobFoundCount(summary)
-    const sourceLines = detailLines.length > 0 ? detailLines : [summary]
-    const normalizedLines = expandAndDedupeLines(sourceLines)
-    const fileCount = explicitCount ?? normalizedLines.filter((line) => !/^no files found$/i.test(line)).length
-    return `Found ${fileCount} ${fileCount === 1 ? 'file' : 'files'}`
-  })()
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
@@ -257,9 +237,6 @@ const globRenderer: ToolBlockRenderer = (item, context) => {
       expandable: false,
     },
   ]
-  if (summaryText) {
-    blocks.push({ kind: 'info', text: summaryText })
-  }
   return blocks
 }
 
@@ -470,6 +447,8 @@ const writeRenderer: ToolBlockRenderer = (item, context) => {
     typeof rawContent === 'string' && isLikelyClippedParamString(rawContent, item.paramsText)
   const previewLines = typeof rawContent === 'string' ? toWriteContentLines(rawContent) : []
   const errorLines = item.status === 'error' ? collectToolOutputLines({ item, cwd: context.cwd }) : []
+  const hasDeferredDetails = item.status !== 'running' &&
+    (errorLines.length > 0 || paramsTextTruncated || contentTruncated || previewLines.length > 0)
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
@@ -477,7 +456,7 @@ const writeRenderer: ToolBlockRenderer = (item, context) => {
       title: 'Write',
       ...(file ? { subtitle: file, subtitleMono: true } : {}),
       ...(item.inputState ? { inputState: item.inputState } : {}),
-      expandable: errorLines.length > 0,
+      expandable: canExpandToolItem(item, hasDeferredDetails),
     },
   ]
   if (errorLines.length > 0) {
@@ -510,6 +489,9 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
   const inputNewString = pickInputString(item.input, ['new_string'])
   const rawOldString = inputOldString ?? pickRawParam(rawParams, ['old_string'])
   const rawNewString = inputNewString ?? pickRawParam(rawParams, ['new_string'])
+  const hasEditDiff = item.status !== 'running' &&
+    item.status !== 'error' &&
+    (typeof rawOldString === 'string' || typeof rawNewString === 'string')
   const blocks: ToolUiBlock[] = [
     {
       kind: 'header',
@@ -517,7 +499,7 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
       title: 'Edit',
       ...(file ? { subtitle: file, subtitleMono: true } : {}),
       ...(item.inputState ? { inputState: item.inputState } : {}),
-      expandable: false,
+      expandable: canExpandToolItem(item, hasEditDiff),
     },
   ]
 
@@ -534,7 +516,6 @@ const editRenderer: ToolBlockRenderer = (item, context) => {
       )
       blocks.push({
         kind: 'diff',
-        alwaysVisible: true,
         files: [
           {
             path: file ?? 'file',
@@ -599,15 +580,22 @@ const taskRenderer: ToolBlockRenderer = (item, context) => {
       : item.paramsText
   const maxDetailLines = item.status === 'running' ? 8 : 20
   const detailLines = item.detailLines.slice(-maxDetailLines)
-  return withStandardBlocks({
-    item,
-    title,
-    summary: item.summary,
-    cwd: context.cwd,
-    ...(subtitle ? { subtitle } : {}),
-    ...(paramsText ? { paramsText } : {}),
-    detailLines,
-  })
+  const expandable = canExpandToolItem(item, detailLines.length > 0)
+  const blocks: ToolUiBlock[] = [
+    {
+      kind: 'header',
+      status: toToolStatus(item.status),
+      title,
+      ...(subtitle ? { subtitle } : {}),
+      ...(paramsText ? { paramsText } : {}),
+      ...(item.inputState ? { inputState: item.inputState } : {}),
+      expandable,
+    },
+  ]
+  if (expandable) {
+    blocks.push({ kind: 'details', lines: detailLines.map((line) => sanitizeToolTextPaths(line, context.cwd)) })
+  }
+  return blocks
 }
 
 const askQuestionRenderer: ToolBlockRenderer = (item, context) => {

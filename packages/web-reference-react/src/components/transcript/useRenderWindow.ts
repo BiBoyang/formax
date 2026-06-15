@@ -13,8 +13,7 @@ const VIRTUALIZED_RENDER_WINDOW_CAP = 120
 const NEAR_BOTTOM_THRESHOLD_PX = 32
 
 function shouldRenderTranscriptItem(item: TranscriptItem): boolean {
-  if (item.kind !== 'thinking') return true
-  return item.status === 'running'
+  return Boolean(item)
 }
 
 function isViewportNearBottom(viewport: HTMLElement): boolean {

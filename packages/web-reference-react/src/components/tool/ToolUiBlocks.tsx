@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils'
 import { DiffPatchView } from '../diff/DiffPatchView'
 import { truncatePathFromLeft } from '../diff/diffTypes'
 import { Button } from '../ui/button'
+import { CadencedShimmerText } from '../CadencedShimmerText'
 import { TOOL_PREVIEW_MAX_HEIGHT_PX, TOOL_PREVIEW_MAX_LINES, TOOL_PREVIEW_MAX_RENDER_LINES } from './toolUiConstants'
 import type {
   ToolDisplayDensity,
@@ -66,6 +67,7 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
   const subtitle = clipHeaderDetailText(block.subtitle ?? (showParams ? block.paramsText : undefined))
   const trailingParams = clipHeaderDetailText(block.subtitle && showParams ? block.paramsText : undefined)
   const showInputStateBadge = Boolean(block.inputState && block.inputState.status !== 'submitted')
+  const isRunning = block.status === 'running'
   return (
     <button
       type="button"
@@ -79,21 +81,27 @@ function HeaderBlock(props: { block: ToolUiBlockHeader; open: boolean; onToggle:
         data-testid="tool-status-dot"
         className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClassForBlock(block.status, block.inputState))}
       />
-      <span className="shrink-0 ui-text-base leading-5 font-semibold ui-text-primary">{label}</span>
+      <CadencedShimmerText
+        text={label}
+        active={isRunning}
+        className="shrink-0 ui-text-base leading-5 font-semibold ui-text-primary"
+      />
       {subtitle ? (
-        <span
+        <CadencedShimmerText
+          text={subtitle}
+          active={isRunning}
           className={cn(
             'min-w-0 truncate ui-text-base leading-5 text-muted-foreground',
             block.subtitleMono ? 'font-mono' : null,
           )}
-        >
-          {subtitle}
-        </span>
+        />
       ) : null}
       {trailingParams ? (
-        <span className="min-w-0 truncate ui-text-base leading-5 text-muted-foreground">
-          {trailingParams}
-        </span>
+        <CadencedShimmerText
+          text={trailingParams}
+          active={isRunning}
+          className="min-w-0 truncate ui-text-base leading-5 text-muted-foreground"
+        />
       ) : null}
       {showInputStateBadge && block.inputState ? (
         <span className={cn('shrink-0 rounded-full border px-2 py-0.5 ui-text-micro font-medium uppercase tracking-wide', inputStateClass(block.inputState))}>
@@ -164,7 +172,7 @@ function CodePreviewBlock({ block }: { block: ToolUiBlockCodePreview }) {
 
 function DetailsBlock({ block }: { block: ToolUiBlockDetails }) {
   return (
-    <div className="ml-3 mt-1 border-l border-border/60 pl-4">
+    <div className="mt-1">
       <div className="space-y-0.5 font-mono ui-text-meta ui-text-secondary">
         {block.lines.map((line, index) => (
           <div key={`tool-line-${index}`} className="whitespace-pre-wrap break-all leading-5">
@@ -184,7 +192,7 @@ function TodoListBlock({ block }: { block: ToolUiBlockTodoList }) {
   }
 
   return (
-    <div className="ml-[18px] mt-2 space-y-2.5">
+    <div className="mt-2 space-y-2.5">
       {block.items.map((item, index) => (
         <div key={`todo-item-${index}-${item.content}`} className="flex items-center gap-2 min-w-0">
           <Button
@@ -221,7 +229,7 @@ function TodoListBlock({ block }: { block: ToolUiBlockTodoList }) {
 function DiffBlock({ block }: { block: ToolUiBlockDiff }) {
   const showFileHeader = block.files.length > 1
   return (
-    <div className="ml-3 mt-2 space-y-2">
+    <div className="mt-2 space-y-2">
       {block.files.map((file) => (
         <div key={`${file.path}-${(file.patch ?? '').length}`} className="rounded-[10px] overflow-hidden border border-border/70 bg-muted/25">
           {showFileHeader ? (
@@ -252,19 +260,21 @@ export function ToolUiBlocks({ blocks, open, onToggle, displayDensity = 'compact
   const info = blocks.find((block) => block.kind === 'info')
   const todoList = blocks.find((block): block is ToolUiBlockTodoList => block.kind === 'todo_list')
   const diff = blocks.find((block): block is ToolUiBlockDiff => block.kind === 'diff')
-  const showDiff = Boolean(diff) && (diff?.alwaysVisible || open || !header || !header.expandable)
+  const showSupplementalBlocks = open || !header || !header.expandable
+  const showExpandableDetails = Boolean(open && header?.expandable)
+  const showDiff = Boolean(diff) && showSupplementalBlocks
 
   return (
     <div className="py-0.5">
       {header ? <HeaderBlock block={header} open={open} onToggle={onToggle} displayDensity={displayDensity} /> : null}
-      {ioBlock ? <IoBlock block={ioBlock} /> : null}
-      {codePreviewBlock ? <CodePreviewBlock block={codePreviewBlock} /> : null}
-      {info && info.kind === 'info' ? (
-        <div className="ml-[18px] ui-text-base text-muted-foreground">{info.text}</div>
+      {ioBlock && showSupplementalBlocks ? <IoBlock block={ioBlock} /> : null}
+      {codePreviewBlock && showSupplementalBlocks ? <CodePreviewBlock block={codePreviewBlock} /> : null}
+      {info && info.kind === 'info' && showSupplementalBlocks ? (
+        <div className="ui-text-base text-muted-foreground">{info.text}</div>
       ) : null}
-      {todoList ? <TodoListBlock block={todoList} /> : null}
+      {todoList && showSupplementalBlocks ? <TodoListBlock block={todoList} /> : null}
       {showDiff && diff ? <DiffBlock block={diff} /> : null}
-      {details && open ? <DetailsBlock block={details} /> : null}
+      {details && showExpandableDetails ? <DetailsBlock block={details} /> : null}
     </div>
   )
 }

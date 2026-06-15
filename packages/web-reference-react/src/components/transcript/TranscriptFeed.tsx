@@ -1,9 +1,8 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { FolderSearch } from 'lucide-react'
+import { AlertTriangle, FolderSearch } from 'lucide-react'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
-import { LoadingStatusLine } from '../LoadingStatusLine'
 import { cn } from '../../lib/utils'
 import { Card } from '../ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
@@ -91,8 +90,50 @@ export type TranscriptFeedProps = {
   bottomRef: { current: HTMLDivElement | null }
 }
 
+export function TranscriptErrorBlock(props: {
+  message: string
+  details: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  className?: string
+}) {
+  const { t } = useI18n()
+  return (
+    <Collapsible open={props.open} onOpenChange={props.onOpenChange}>
+      <Card className={cn('gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none', props.className)}>
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive/80" />
+            <div>
+              <div className="ui-text-meta font-semibold text-destructive">{t('transcript.errorBlockTitle')}</div>
+              <div className="ui-text-meta text-destructive/90 break-words [overflow-wrap:anywhere]">
+                {t('transcript.rpcErrorPrefix')}: {props.message}
+              </div>
+            </div>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button type="button" variant="ghost" size="xs" className="h-6 shrink-0 px-2 ui-text-meta hover:bg-destructive/10">
+              {props.open ? t('transcript.hide') : t('transcript.details')}
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
+            {props.details}
+          </pre>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  )
+}
+
 export const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeedProps) {
   const { t } = useI18n()
+
+  const showEmptyThreadLayout =
+    !props.isWelcomeState &&
+    props.renderedLogsCount === 0 &&
+    !props.showTurnLoading
 
   const showStaticWelcomeLayout =
     props.isWelcomeState &&
@@ -142,42 +183,24 @@ export const TranscriptFeed = memo(function TranscriptFeed(props: TranscriptFeed
           {props.renderedLogsCount === 0 ? (
             props.isWelcomeState ? (
               <WelcomeCanvas />
-            ) : (
+            ) : showEmptyThreadLayout ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
                 <FolderSearch className="h-8 w-8 text-muted-foreground/25" />
                 <span className="ui-text-base ui-text-muted">{t('transcript.emptyThread')}</span>
               </div>
-            )
+            ) : null
           ) : null}
 
           {props.rowsContent}
 
-          {props.showTurnLoading ? (
-            <div data-testid="turn-loading" className="py-1">
-              <LoadingStatusLine text={t('transcript.thinking')} cycleWords />
-            </div>
-          ) : null}
-
           {props.lastRpcError ? (
-            <Collapsible open={props.showErrorDetails} onOpenChange={props.onShowErrorDetailsChange}>
-              <Card className="gap-2 rounded-xl border-destructive/30 bg-destructive/5 px-3 py-3 shadow-none mx-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="ui-text-meta text-destructive font-medium">
-                    {t('transcript.rpcErrorPrefix')}: {props.lastRpcError.message}
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button type="button" variant="ghost" size="xs" className="h-6 px-2 ui-text-meta hover:bg-destructive/10">
-                      {props.showErrorDetails ? t('transcript.hide') : t('transcript.details')}
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-                <CollapsibleContent>
-                  <pre className="mt-2 max-h-52 overflow-auto rounded border bg-background/50 p-2 ui-text-micro whitespace-pre-wrap font-mono">
-                    {props.lastRpcErrorDetails}
-                  </pre>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+            <TranscriptErrorBlock
+              message={props.lastRpcError.message}
+              details={props.lastRpcErrorDetails}
+              open={props.showErrorDetails}
+              onOpenChange={props.onShowErrorDetailsChange}
+              className="mx-4"
+            />
           ) : null}
           <div ref={props.bottomRef} className="h-4" />
         </div>

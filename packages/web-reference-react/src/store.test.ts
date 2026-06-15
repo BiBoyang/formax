@@ -72,6 +72,55 @@ describe('appReducer', () => {
     })
   })
 
+  it('binds only the latest optimistic user message to a turn id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'push_message',
+      id: 'regular-user',
+      role: 'user',
+      text: 'older user',
+    })
+    state = appReducer(state, {
+      type: 'push_message',
+      id: 'optimistic-user-1',
+      role: 'user',
+      text: 'hello',
+      optimistic: true,
+    })
+
+    state = appReducer(state, {
+      type: 'bind_last_optimistic_user_message_turn',
+      turnId: 'turn-1',
+    })
+
+    expect(state.logs).toHaveLength(2)
+    expect(state.logs[0]).toMatchObject({ id: 'regular-user' })
+    expect(state.logs[0]).not.toHaveProperty('turnId')
+    expect(state.logs[1]).toMatchObject({
+      id: 'optimistic-user-1',
+      role: 'user',
+      text: 'hello',
+      turnId: 'turn-1',
+      optimistic: true,
+    })
+  })
+
+  it('removes a transcript item by id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'push_message',
+      id: 'optimistic-user-1',
+      role: 'user',
+      text: 'hello',
+      optimistic: true,
+    })
+
+    state = appReducer(state, {
+      type: 'remove_transcript_item',
+      id: 'optimistic-user-1',
+    })
+
+    expect(state.logs).toEqual([])
+  })
+
   it('keeps state reference stable when connection status is unchanged', () => {
     const state = {
       ...initialAppState,

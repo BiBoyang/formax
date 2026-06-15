@@ -89,7 +89,7 @@ describe('composerActions', () => {
     expect(ctx.request).not.toHaveBeenCalled()
   })
 
-  it('starts a turn using resolved cwd and binds returned turn id', async () => {
+  it('starts a turn using resolved cwd and optimistically renders the user message before the request', async () => {
     const ctx = createBaseContext({
       request: vi.fn(async () => ({ turn: { id: 'turn-2' } })),
     })
@@ -104,9 +104,18 @@ describe('composerActions', () => {
       mode: 'normal',
       cwd: '/repo',
     })
-    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'push_message', role: 'user', text: 'hello' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'push_message',
+      id: 'optimistic-user-123',
+      role: 'user',
+      text: 'hello',
+      optimistic: true,
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_optimistic_user_message_turn', turnId: 'turn-2' })
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-2' })
-    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'bind_last_user_message_turn', turnId: 'turn-2' })
+    const pushOrder = (ctx.dispatch as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    const requestOrder = (ctx.request as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    expect(pushOrder).toBeLessThan(requestOrder)
     expect(ctx.setInputText).toHaveBeenCalledWith('')
     expect(ctx.setIsSendingTurn).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsSendingTurn).toHaveBeenLastCalledWith(false)
@@ -310,6 +319,17 @@ describe('composerActions', () => {
 
     expect(inputValue).toBe('hello')
     expect(setInputText).toHaveBeenCalledWith('')
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'push_message',
+      id: 'optimistic-user-123',
+      role: 'user',
+      text: 'hello',
+      optimistic: true,
+    })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'remove_transcript_item',
+      id: 'optimistic-user-123',
+    })
     const restoreCall = setInputText.mock.calls.find(
       (call) => typeof call[0] === 'function',
     )

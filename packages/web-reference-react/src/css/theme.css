@@ -76,6 +76,8 @@
   --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
   --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
   --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
+  --shimmer-text-secondary: color-mix(in srgb, var(--foreground) 58%, transparent);
+  --shimmer-contrast: color-mix(in srgb, var(--foreground) 78%, transparent);
   --vscode-terminal-background: var(--background);
   --vscode-terminal-foreground: var(--foreground);
   --terminal-cursor: var(--foreground);
@@ -170,6 +172,8 @@
   --tool-status-running: color-mix(in oklch, var(--muted-foreground) 82%, transparent);
   --tool-status-completed: color-mix(in oklch, var(--diff-add) 86%, var(--foreground));
   --tool-status-error: color-mix(in oklch, var(--destructive) 90%, var(--foreground));
+  --shimmer-text-secondary: color-mix(in srgb, var(--foreground) 58%, transparent);
+  --shimmer-contrast: color-mix(in srgb, var(--foreground) 78%, transparent);
   --vscode-terminal-background: var(--background);
   --vscode-terminal-foreground: var(--foreground);
   --terminal-cursor: var(--foreground);

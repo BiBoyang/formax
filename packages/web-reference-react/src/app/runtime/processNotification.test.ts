@@ -93,6 +93,7 @@ describe('processNotification', () => {
     expect(ctx.runtimeStateByThreadRef.current['thread-1']).toBeUndefined()
     expect(ctx.setMode).toHaveBeenCalledWith('plan')
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-1' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_optimistic_user_message_turn', turnId: 'turn-1' })
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
   })
 

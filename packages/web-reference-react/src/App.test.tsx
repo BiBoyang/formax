@@ -1731,9 +1731,14 @@ describe('App thread history integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('assistant-before-tool')).toBeInTheDocument()
-      expect(screen.getByText('Write')).toBeInTheDocument()
-      expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
+      expect(screen.queryByRole('button', { name: /Worked with 1 tool/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /edited 1 file/i })).toHaveAttribute('aria-expanded', 'false')
     })
+
+    fireEvent.click(screen.getByRole('button', { name: /edited 1 file/i }))
+
+    expect(screen.getByText('Write')).toBeInTheDocument()
+    expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
 
     const centerText = screen.getByTestId('center-pane').textContent ?? ''
     const snakePathIndex = centerText.indexOf('snake-game.html')
@@ -1798,10 +1803,15 @@ describe('App thread history integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('assistant-before')).toBeInTheDocument()
-      expect(screen.getByText('Write')).toBeInTheDocument()
-      expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
+      expect(screen.queryByRole('button', { name: /Working with 1 tool/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /edited 1 file/i })).toHaveAttribute('aria-expanded', 'false')
       expect(screen.getByText('assistant-after')).toBeInTheDocument()
     })
+
+    fireEvent.click(screen.getByRole('button', { name: /edited 1 file/i }))
+
+    expect(screen.getByText('Write')).toBeInTheDocument()
+    expect(screen.getAllByText('snake-game.html').length).toBeGreaterThan(0)
 
     const centerText = screen.getByTestId('center-pane').textContent ?? ''
     const snakePathIndex = centerText.indexOf('snake-game.html')
