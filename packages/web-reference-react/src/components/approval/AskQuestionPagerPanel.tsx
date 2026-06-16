@@ -1,9 +1,17 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useI18n } from '../../app/i18n/I18nProvider'
-import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
+import {
+  ApprovalDismissButton,
+  ApprovalOptionButton,
+  ApprovalPanelSurface,
+  ApprovalPrimaryButton,
+  approvalPanelBodyClass,
+  approvalPanelFooterClass,
+  approvalPanelHeaderClass,
+  approvalPanelTitleClass,
+} from './PanelPrimitives'
 import {
   buildAskAnswersFromDraft,
   fieldIdForAskQuestion,
@@ -124,17 +132,14 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
   if (!current) {
     return (
       <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
-        <h3 className="px-3 py-2 text-[15px] font-semibold tracking-tight text-foreground">{t('askQuestion.noQuestionsTitle')}</h3>
-        <p className="px-3 text-sm text-muted-foreground">
+        <div className={approvalPanelHeaderClass}>
+          <h3 className={approvalPanelTitleClass}>{t('askQuestion.noQuestionsTitle')}</h3>
+        </div>
+        <p className={`${approvalPanelBodyClass} text-sm text-muted-foreground`}>
           {t('askQuestion.noQuestionsBody')}
         </p>
-        <div className="mt-4 flex items-center justify-between gap-3 px-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
-              {t('askQuestion.dismiss')}
-            </Button>
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
-          </div>
+        <div className={`${approvalPanelFooterClass} justify-between`}>
+          <ApprovalDismissButton label={t('askQuestion.dismiss')} onClick={onDismiss} />
         </div>
       </ApprovalPanelSurface>
     )
@@ -145,9 +150,9 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
 
   return (
     <ApprovalPanelSurface testId={`ask-question-panel-${inputId}`}>
-      <div className="flex items-start justify-between gap-2 px-3">
-        <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{title}</h3>
-        <div className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
+      <div className={approvalPanelHeaderClass}>
+        <h3 className={approvalPanelTitleClass}>{title}</h3>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <button
             type="button"
             aria-label={t('askQuestion.previous')}
@@ -172,7 +177,7 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         </div>
       </div>
 
-      <div className="mt-1 space-y-1">
+      <div className={`${approvalPanelBodyClass} space-y-1`}>
         {options.length > 0 ? (
           <>
             {current.multiSelect ? (
@@ -196,7 +201,8 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
                     onDraftChange(currentFieldId, option.label)
                   }}
                   selected={selected}
-                  primaryText={`${optionIndex + 1}. ${option.label}`}
+                  ordinal={optionIndex + 1}
+                  primaryText={option.label}
                   secondaryText={option.description}
                 />
               )
@@ -213,14 +219,9 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
         )}
       </div>
 
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-3 text-sm" onClick={onDismiss}>
-            {t('askQuestion.dismiss')}
-          </Button>
-          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">ESC</span>
-        </div>
-        <Button
+      <div className={`${approvalPanelFooterClass} justify-between`}>
+        <ApprovalDismissButton label={t('askQuestion.dismiss')} onClick={onDismiss} />
+        <ApprovalPrimaryButton
           type="button"
           onClick={() => {
             if (isLastPage) {
@@ -230,10 +231,8 @@ export function AskQuestionPagerPanel(props: AskQuestionPagerPanelProps) {
             onPageChange(clampedPageIndex + 1)
           }}
           disabled={isSubmitting || (isLastPage ? !canSubmitAll : !canMoveForward)}
-          className="h-8 rounded-full px-5 text-sm font-medium"
-        >
-          {isSubmitting ? t('askQuestion.submitting') : isLastPage ? t('askQuestion.submit') : t('askQuestion.continue')}
-        </Button>
+          label={isSubmitting ? t('askQuestion.submitting') : isLastPage ? t('askQuestion.submit') : t('askQuestion.continue')}
+        />
       </div>
     </ApprovalPanelSurface>
   )

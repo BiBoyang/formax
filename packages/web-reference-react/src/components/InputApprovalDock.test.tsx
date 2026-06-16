@@ -184,6 +184,7 @@ describe('InputApprovalDock', () => {
 
     expect(screen.getByLabelText('Question index')).toHaveTextContent('1 of 2')
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    expect(screen.getByText('(Apple device)')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /1\. macOS/i }))
     expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()

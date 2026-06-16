@@ -2,7 +2,16 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useI18n, type I18nTranslator } from '../../app/i18n/I18nProvider'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
-import { ApprovalOptionButton, ApprovalPanelSurface } from './PanelPrimitives'
+import {
+  ApprovalOptionButton,
+  ApprovalPanelSurface,
+  ApprovalPrimaryButton,
+  approvalPanelBodyClass,
+  approvalPanelFooterClass,
+  approvalPanelGhostActionClass,
+  approvalPanelHeaderClass,
+  approvalPanelTitleClass,
+} from './PanelPrimitives'
 
 type ApprovalSubmitPanelProps = {
   inputId: string
@@ -137,23 +146,25 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
 
   return (
     <ApprovalPanelSurface testId={`approval-submit-panel-${inputId}`} onSubmit={submit}>
-      <div className="flex items-start justify-between gap-2 px-3">
-        <h3 className="py-2 text-[15px] leading-tight font-semibold tracking-tight text-foreground">{getPanelTitle(payloadRecord, t)}</h3>
-        <span aria-label={t('approval.stepLabel')} className="pt-2 text-xs text-muted-foreground">
+      <div className={approvalPanelHeaderClass}>
+        <h3 className={approvalPanelTitleClass}>{getPanelTitle(payloadRecord, t)}</h3>
+        <span aria-label={t('approval.stepLabel')} className="text-xs text-muted-foreground">
           {stepLabel}
         </span>
       </div>
 
-      <div className="mt-1 rounded-xl bg-muted/35 px-3 py-2">
-        {command ? (
-          <div className="font-mono text-[12px] leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">{command}</div>
-        ) : (
-          <div className="text-xs text-muted-foreground">{t('approval.toolLabel', { toolName })}</div>
-        )}
+      <div className={approvalPanelBodyClass}>
+        <div className="rounded-xl bg-muted/35 px-3 py-2">
+          {command ? (
+            <div className="font-mono text-[12px] leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">{command}</div>
+          ) : (
+            <div className="text-xs text-muted-foreground">{t('approval.toolLabel', { toolName })}</div>
+          )}
+        </div>
       </div>
 
       {suggestions.length > 0 ? (
-        <div className="mt-2 space-y-1 px-1 text-xs text-muted-foreground">
+        <div className="space-y-1 px-3 pt-1 text-xs text-muted-foreground">
           {suggestions.map((line, index) => (
             <div key={`${inputId}-suggestion-${index}`}>{line}</div>
           ))}
@@ -162,7 +173,7 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
 
       {step === 'decision' ? (
         <>
-          <div className="mt-2 space-y-1">
+          <div className={`${approvalPanelBodyClass} space-y-1`}>
             {decisionOptions.map((option, index) => {
               const selected = decision === option.key
               return (
@@ -170,7 +181,8 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
                   key={option.key}
                   onClick={() => setDecision(option.key)}
                   selected={selected}
-                  primaryText={`${index + 1}. ${option.label}`}
+                  ordinal={index + 1}
+                  primaryText={option.label}
                   secondaryText={option.detail}
                 />
               )
@@ -178,7 +190,7 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
           </div>
 
           {decision === 'feedback' ? (
-            <div className="mt-2">
+            <div className="px-2 pt-1">
               <Textarea
                 aria-label={t('approval.feedbackLabel')}
                 value={feedback}
@@ -189,49 +201,52 @@ export function ApprovalSubmitPanel(props: ApprovalSubmitPanelProps) {
             </div>
           ) : null}
 
-          <div className="mt-2 flex justify-end">
-            <Button
+          <div className={`${approvalPanelFooterClass} justify-end`}>
+            <ApprovalPrimaryButton
               type="submit"
               disabled={isSubmitting || !canSubmitDecisionStep}
-              className="h-8 rounded-full px-5 text-sm font-medium"
-            >
-              {isSubmitting ? t('approval.submitting') : decisionNeedsScopeStep ? t('approval.continue') : t('approval.submit')}
-            </Button>
+              label={isSubmitting ? t('approval.submitting') : decisionNeedsScopeStep ? t('approval.continue') : t('approval.submit')}
+            />
           </div>
         </>
       ) : (
         <>
-          <div className="mt-2">
+          <div className={approvalPanelBodyClass}>
             <div className="mb-2 px-1 text-xs text-muted-foreground">{t('approval.scope.title')}</div>
             <div className="space-y-1">
               <ApprovalOptionButton
                 onClick={() => setScope('session')}
                 selected={scope === 'session'}
-                primaryText={`1. ${t('approval.scope.session.label')}`}
+                ordinal={1}
+                primaryText={t('approval.scope.session.label')}
                 secondaryText={t('approval.scope.session.detail')}
               />
               <ApprovalOptionButton
                 onClick={() => setScope('project')}
                 selected={scope === 'project'}
-                primaryText={`2. ${t('approval.scope.project.label')}`}
+                ordinal={2}
+                primaryText={t('approval.scope.project.label')}
                 secondaryText={t('approval.scope.project.detail')}
               />
               <ApprovalOptionButton
                 onClick={() => setScope('global')}
                 selected={scope === 'global'}
-                primaryText={`3. ${t('approval.scope.global.label')}`}
+                ordinal={3}
+                primaryText={t('approval.scope.global.label')}
                 secondaryText={t('approval.scope.global.detail')}
               />
             </div>
           </div>
 
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <Button type="button" variant="ghost" className="h-8 px-3 text-sm" onClick={() => setStep('decision')}>
+          <div className={`${approvalPanelFooterClass} justify-end`}>
+            <Button type="button" variant="ghost" className={approvalPanelGhostActionClass} onClick={() => setStep('decision')}>
               {t('approval.back')}
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="h-8 rounded-full px-5 text-sm font-medium">
-              {isSubmitting ? t('approval.submitting') : t('approval.submit')}
-            </Button>
+            <ApprovalPrimaryButton
+              type="submit"
+              disabled={isSubmitting}
+              label={isSubmitting ? t('approval.submitting') : t('approval.submit')}
+            />
           </div>
         </>
       )}

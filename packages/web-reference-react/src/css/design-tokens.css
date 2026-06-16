@@ -186,8 +186,14 @@
   /* button 键盘焦点环：全局替换 shadcn 默认蓝色 ring，保留可见键盘焦点。 */
   --button-focus-ring: color-mix(in oklch, var(--foreground) 22%, transparent);
 
+  /* composer action dock 最大宽度：输入框、approval、ask-user-question 共用同一横向边界。 */
+  --composer-action-dock-max-width: 768px;
+
   /* composer 外框最大宽度：对齐目标输入框宽度。 */
-  --composer-dock-max-width: 768px;
+  --composer-dock-max-width: var(--composer-action-dock-max-width);
+
+  /* approval/ask-user-question dock 最大宽度：语义别名，默认和 composer action dock 同宽。 */
+  --input-approval-dock-max-width: var(--composer-action-dock-max-width);
 
   /* composer 默认外框高度：空输入状态下的目标高度。 */
   --composer-dock-height: 104px;

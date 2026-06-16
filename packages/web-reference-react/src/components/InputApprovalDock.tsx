@@ -46,7 +46,7 @@ export function InputApprovalDock(props: InputApprovalDockProps) {
 
   return (
     <div data-testid="input-approval-dock-host" className="absolute inset-x-0 bottom-4 px-4 pointer-events-none">
-      <div className="mx-auto max-w-[42rem] pointer-events-auto">
+      <div className="mx-auto w-full max-w-[var(--input-approval-dock-max-width)] pointer-events-auto">
         {submitStatus ? (
           <div className="mb-3 rounded-xl border bg-background/95 px-3 py-2 text-xs text-muted-foreground">
             <span className={submitStatus.kind === 'error' ? 'text-red-600' : 'text-emerald-700'}>
