@@ -431,6 +431,21 @@ describe('TranscriptPane', () => {
     }
   })
 
+  it('keeps user message operations out of layout flow', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          logs: [
+            { id: 'u1', kind: 'message', role: 'user', text: 'make it smaller', turnId: 'turn-1' },
+          ],
+        })}
+      />,
+    )
+
+    const copyButton = screen.getByRole('button', { name: 'Copy user message' })
+    expect(copyButton.parentElement).toHaveClass('absolute')
+  })
+
   it('renders assistant markdown into structured content', async () => {
     renderWithI18n(
       <TranscriptPane

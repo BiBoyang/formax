@@ -390,13 +390,13 @@ function UserMessageItem(props: {
   const { t } = useI18n()
   const { item } = props
   return (
-    <div className="group/message flex w-full flex-col items-end gap-0.5 mb-1">
+    <div className="group/message relative flex w-full justify-end mb-1">
       <div className="max-w-[85%] rounded-[14px] ui-surface-user-bubble px-3 py-1 text-foreground selection:bg-primary/20 transition-all duration-300">
         <div className="ui-text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-0.5">
           {item.text}
         </div>
       </div>
-      <div className="flex h-6 items-center opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+      <div className="absolute right-0 top-full z-10 flex h-6 items-center opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
         <TranscriptOperationButton
           label={t('transcript.copyUserMessage')}
           onClick={() => props.onCopyText(item.text)}
