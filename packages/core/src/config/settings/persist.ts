@@ -1,6 +1,12 @@
 import type { FileStore } from './fileStore.js'
 import type { FormaxConfigV1, FormaxConfigV1Patch, TierContextWindowMapping } from './schema.js'
-import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from './schema.js'
+import {
+  ContextConfigPatchSchema,
+  FormaxConfigV1Schema,
+  LlmConfigPatchSchema,
+  PathsConfigPatchSchema,
+  UiConfigPatchSchema,
+} from './schema.js'
 
 const DEFAULT_CONFIG: FormaxConfigV1 = FormaxConfigV1Schema.parse({})
 
@@ -47,19 +53,99 @@ async function readJsonIfExists(
   }
 }
 
+function isPlainObject(input: unknown): input is Record<string, unknown> {
+  return !!input && typeof input === 'object' && !Array.isArray(input)
+}
+
+type SectionShape = Record<string, { safeParse: (value: unknown) => { success: boolean; data?: unknown } }>
+
+function readSectionPatch<T extends Record<string, unknown>>(args: {
+  input: unknown
+  section: 'llm' | 'paths' | 'ui' | 'context'
+  shape: SectionShape
+  label: string
+  warnings: string[]
+}): T | undefined {
+  if (args.input === undefined) return undefined
+  if (!isPlainObject(args.input)) {
+    args.warnings.push(`${args.label} field "${args.section}" is invalid and was ignored`)
+    return undefined
+  }
+
+  const out: Record<string, unknown> = {}
+  for (const [key, schema] of Object.entries(args.shape)) {
+    if (!Object.prototype.hasOwnProperty.call(args.input, key)) continue
+    const parsed = schema.safeParse((args.input as Record<string, unknown>)[key])
+    if (parsed.success) {
+      out[key] = parsed.data
+      continue
+    }
+    args.warnings.push(`${args.label} field "${args.section}.${key}" is invalid and was ignored`)
+  }
+  return Object.keys(out).length > 0 ? (out as T) : undefined
+}
+
+function parseConfigPatchLenient(input: unknown, label: string, warnings: string[]): FormaxConfigV1Patch {
+  if (input == null || input === false) return {}
+  if (!isPlainObject(input)) {
+    warnings.push(`${label} is invalid and was ignored`)
+    return {}
+  }
+
+  const patch: FormaxConfigV1Patch = {}
+  if (Object.prototype.hasOwnProperty.call(input, 'version')) {
+    if (input.version === 1) patch.version = 1
+    else warnings.push(`${label} field "version" is invalid and was ignored`)
+  }
+
+  const llm = readSectionPatch<NonNullable<FormaxConfigV1Patch['llm']>>({
+    input: input.llm,
+    section: 'llm',
+    shape: LlmConfigPatchSchema.shape as SectionShape,
+    label,
+    warnings,
+  })
+  if (llm) patch.llm = llm
+
+  const paths = readSectionPatch<NonNullable<FormaxConfigV1Patch['paths']>>({
+    input: input.paths,
+    section: 'paths',
+    shape: PathsConfigPatchSchema.shape as SectionShape,
+    label,
+    warnings,
+  })
+  if (paths) patch.paths = paths
+
+  const ui = readSectionPatch<NonNullable<FormaxConfigV1Patch['ui']>>({
+    input: input.ui,
+    section: 'ui',
+    shape: UiConfigPatchSchema.shape as SectionShape,
+    label,
+    warnings,
+  })
+  if (ui) patch.ui = ui
+
+  const context = readSectionPatch<NonNullable<FormaxConfigV1Patch['context']>>({
+    input: input.context,
+    section: 'context',
+    shape: ContextConfigPatchSchema.shape as SectionShape,
+    label,
+    warnings,
+  })
+  if (context) patch.context = context
+
+  return patch
+}
+
 export async function readConfigPatch(args: {
   fileStore: FileStore
   filePath: string
   label?: string
 }): Promise<ReadConfigPatchResult> {
   const warnings: string[] = []
-  const raw = await readJsonIfExists(args.fileStore, args.filePath, args.label ?? 'config', warnings)
-
-  const parsed = FormaxConfigV1PatchSchema.safeParse(raw ?? {})
-  if (parsed.success) return { patch: parsed.data, warnings }
-
-  if (raw) warnings.push(`${args.label ?? 'config'} is invalid and was ignored`)
-  return { patch: {}, warnings }
+  const label = args.label ?? 'config'
+  const raw = await readJsonIfExists(args.fileStore, args.filePath, label, warnings)
+  return { patch: parseConfigPatchLenient(raw, label, warnings), warnings }
 }
 
 export function mergeConfigPatches(base: FormaxConfigV1Patch, next: FormaxConfigV1Patch): FormaxConfigV1Patch {

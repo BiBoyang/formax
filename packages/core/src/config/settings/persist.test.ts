@@ -105,14 +105,31 @@ describe('readConfigPatch', () => {
     expect(res.warnings).toContain('Failed to parse config JSON at /cfg.json')
   })
 
-  it('adds warning when patch schema is invalid', async () => {
+  it('keeps valid fields and warns for invalid fields when patch schema is partially invalid', async () => {
     const fileStore = createFileStore({
       exists: { '/cfg.json': true },
-      text: { '/cfg.json': '{"llm":{"timeoutMs":"bad"}}' },
+      text: {
+        '/cfg.json': JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'openai',
+            baseUrl: 'https://api.openai.com/v1',
+            model: 'gpt-test',
+            timeoutMs: 'bad',
+          },
+        }),
+      },
     })
     const res = await readConfigPatch({ fileStore, filePath: '/cfg.json', label: 'config' })
-    expect(res.patch).toEqual({})
-    expect(res.warnings).toContain('config is invalid and was ignored')
+    expect(res.patch).toEqual({
+      version: 1,
+      llm: {
+        provider: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-test',
+      },
+    })
+    expect(res.warnings).toContain('config field "llm.timeoutMs" is invalid and was ignored')
   })
 
   it('uses default label fallback when label is omitted', async () => {
@@ -121,7 +138,8 @@ describe('readConfigPatch', () => {
       text: { '/cfg.json': '{"llm":{"timeoutMs":"bad"}}' },
     })
     const res = await readConfigPatch({ fileStore, filePath: '/cfg.json' })
-    expect(res.warnings).toContain('config is invalid and was ignored')
+    expect(res.patch).toEqual({})
+    expect(res.warnings).toContain('config field "llm.timeoutMs" is invalid and was ignored')
   })
 
   it('handles schema-invalid falsy raw value without invalid-warning push', async () => {
@@ -142,6 +160,41 @@ describe('readConfigPatch', () => {
     const res = await readConfigPatch({ fileStore, filePath: '/cfg.json', label: 'config' })
     expect(res.patch).toEqual({ llm: { model: 'x' } })
     expect(res.warnings).toEqual([])
+  })
+
+  it('preserves setup config fields when update writes a runtime default over a partially invalid config', async () => {
+    const fileStore = createFileStore({
+      exists: { '/cfg.json': true },
+      text: {
+        '/cfg.json': JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'openai',
+            baseUrl: 'https://api.openai.com/v1',
+            model: 'gpt-test',
+            timeoutMs: 'bad',
+          },
+          ui: {
+            outputStyle: 'default',
+          },
+        }),
+      },
+    })
+
+    const res = await updateConfigPatchFile({
+      fileStore,
+      filePath: '/cfg.json',
+      nextPatch: { llm: { thinkingMode: false } },
+      label: 'config',
+    })
+
+    expect(res.patchWritten.llm).toEqual({
+      provider: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-test',
+      thinkingMode: false,
+    })
+    expect(res.warnings).toContain('config field "llm.timeoutMs" is invalid and was ignored')
   })
 })
 
