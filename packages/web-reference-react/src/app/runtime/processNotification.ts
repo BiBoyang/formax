@@ -40,6 +40,12 @@ function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+function extractClientMessageId(params: Record<string, unknown>): string | null {
+  const input = asObject(params.input)
+  const clientMessageId = input.clientMessageId
+  return typeof clientMessageId === 'string' && clientMessageId.trim() ? clientMessageId : null
+}
+
 export function processNotification(
   notification: RpcNotification,
   ctx: ProcessNotificationContext,
@@ -96,6 +102,19 @@ export function processNotification(
 
   const isActiveThread = () =>
     isNotificationForActiveThread({ params, activeThreadId: ctx.activeThreadIdRef.current })
+
+  if (notification.method === 'turn/started' && isActiveThread()) {
+    const turn = asObject(params.turn)
+    const turnId = typeof turn.id === 'string' ? turn.id : ''
+    const clientMessageId = extractClientMessageId(params)
+    if (turnId) {
+      if (clientMessageId) {
+        ctx.dispatch({ type: 'bind_optimistic_user_message_turn', clientMessageId, turnId, activate: true })
+      } else {
+        ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId, activate: true })
+      }
+    }
+  }
 
   if (threadId) {
     if (notification.method === 'turn/started') {
@@ -174,9 +193,6 @@ export function processNotification(
         ctx.cacheThreadMode(threadId ?? ctx.activeThreadIdRef.current, nextMode)
       }
       ctx.dispatch({ type: 'set_active_turn', turnId: turnId || null })
-      if (turnId) {
-        ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId })
-      }
       break
     }
 

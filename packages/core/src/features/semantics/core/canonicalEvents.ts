@@ -88,6 +88,7 @@ export type CanonicalUserMessageEvent = CanonicalEventEnvelope & {
   kind: 'user_message'
   turnId: string
   text: string
+  clientMessageId?: string
   uiKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
 }
 

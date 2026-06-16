@@ -80,6 +80,9 @@ The generic runtime-state patch lane is closed in v1: only the `preferences` fac
 `SEM-203`  
 Single-writer 约束 MUST 保持：业务流程不得绕开 canonical/projection 直接写 transcript 真值。
 
+`SEM-203A`
+GUI MAY render a local pending user row immediately after submit, but that row is renderer-side pending state, not projection truth. For app-server turns, clients SHOULD send `turn/start.input.clientMessageId`; app-server MUST echo it on `turn/started.input.clientMessageId`; canonical `user_message` MUST preserve it so renderers can replace the pending row with the canonical row instead of showing duplicates.
+
 `SEM-204`  
 语义终态（如 turn/tool 终态）MUST NOT 被后续非权威事件降级覆盖。
 

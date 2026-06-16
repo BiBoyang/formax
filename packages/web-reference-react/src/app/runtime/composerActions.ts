@@ -3,11 +3,18 @@ import { resolveCommandRouting } from '../../semantics'
 import { isWebSupportedCommand } from '../core/commandSupport'
 import { parseInputSubmitResponse, parseTurnStartLikeResponse } from '../core/rpcContracts'
 import { toSubmitUiStatus, type RpcErrorDetails } from '../core/threadTransforms'
-import type { PendingInput } from '../../types'
+import type { PendingInput, TranscriptItem } from '../../types'
 import type { AppAction } from '../../store'
 import type { CreatedThreadResult } from './threadActions'
 import type { NewThreadDraftState } from './newThreadDraft'
 import { normalizeDraftCwd } from './newThreadDraft'
+import {
+  commitPendingTurnDraftAction,
+  createPendingTurnDraft,
+  pushPendingTurnDraftActions,
+  rollbackPendingTurnDraftActions,
+  type PendingTurnDraft,
+} from './pendingTurnDraft'
 
 export type ComposerActionsContext = {
   inputText: string
@@ -35,12 +42,13 @@ export type ComposerActionsContext = {
   createThreadOnServerInCwd: (cwd: string) => Promise<CreatedThreadResult | null>
   activateCreatedThread: (
     created: CreatedThreadResult,
-    options?: { synchronize?: boolean; modeOverride?: 'normal' | 'plan' | 'acceptEdits' },
+    options?: { synchronize?: boolean; modeOverride?: 'normal' | 'plan' | 'acceptEdits'; fallbackLogs?: TranscriptItem[] },
   ) => Promise<void>
   leaveNewThreadDraft: () => void
   refreshThreads: () => Promise<void>
   refreshWorkspaceDiff: (cwdOverride?: string | null) => Promise<void>
   awaitPreferencePersistence?: () => Promise<void>
+  persistDraftRuntimePreferences?: (threadId: string) => Promise<void>
   getCurrentActiveThreadId: () => string | null
   getCurrentNewThreadDraft: () => NewThreadDraftState
   retirePendingInputLocally: (args: {
@@ -51,6 +59,15 @@ export type ComposerActionsContext = {
 }
 
 export function createComposerActions(ctx: ComposerActionsContext) {
+  let startTurnInFlight = false
+  let submittedMessageSeq = 0
+
+  const dispatchAll = (actions: AppAction[]) => {
+    for (const action of actions) {
+      ctx.dispatch(action)
+    }
+  }
+
   const resolveRpcErrorKind = (data: unknown): string | null => {
     if (!data || typeof data !== 'object') return null
     const kind = (data as { kind?: unknown }).kind
@@ -72,7 +89,14 @@ export function createComposerActions(ctx: ComposerActionsContext) {
 
   const startTurn = async () => {
     const text = ctx.inputText.trim()
-    if (!text || ctx.isSendingTurn) return
+    if (
+      !text ||
+      ctx.isSendingTurn ||
+      startTurnInFlight
+    ) {
+      return
+    }
+    startTurnInFlight = true
 
     const commandRouting = resolveCommandRouting(text)
     if (
@@ -86,6 +110,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         role: 'assistant',
         text: `Web reference does not support ${commandRouting.commandName} yet. Please use TUI for this command.`,
       })
+      startTurnInFlight = false
       return
     }
 
@@ -98,39 +123,47 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       ctx.setInputText('')
       if (commandRouting.commandArgs) {
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: 'Usage: /clear' })
+        startTurnInFlight = false
         return
       }
       if (draftActive) {
+        startTurnInFlight = false
         return
       }
-      await ctx.startThread()
+      try {
+        await ctx.startThread()
+      } finally {
+        startTurnInFlight = false
+      }
       return
     }
 
     if (!ctx.activeThreadId && !draftActive) {
       ctx.log('Please select or create a thread first', 'warn')
+      startTurnInFlight = false
       return
     }
 
     if (draftActive && !draftCwd) {
       ctx.log('Please choose a project before starting a new thread', 'warn')
+      startTurnInFlight = false
       return
     }
 
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     let requestThreadId = ctx.activeThreadId
     let requestCwd = requestThreadId ? ctx.resolveRequestCwd(requestThreadId) : draftCwd
-    let optimisticUserMessageId: string | null = null
+    const clientMessageId = `client-message-${ctx.nowMs()}-${submittedMessageSeq += 1}`
+    const pendingTurnDraft: PendingTurnDraft | null = shouldDispatchCommand
+      ? null
+      : createPendingTurnDraft({
+          text,
+          clientMessageId,
+          messageId: `optimistic-user-${ctx.nowMs()}`,
+        })
     const pushOptimisticUserMessage = () => {
-      if (shouldDispatchCommand || optimisticUserMessageId) return
-      optimisticUserMessageId = `optimistic-user-${ctx.nowMs()}`
-      ctx.dispatch({
-        type: 'push_message',
-        id: optimisticUserMessageId,
-        role: 'user',
-        text,
-        optimistic: true,
-      })
+      if (!pendingTurnDraft) return
+      dispatchAll(pushPendingTurnDraftActions(pendingTurnDraft, { activate: Boolean(requestThreadId) }))
     }
     ctx.setIsSendingTurn(true)
     let draftCreatedThread: CreatedThreadResult | null = null
@@ -146,6 +179,8 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         ctx.log(`Command queued: ${text}`, 'info')
       }
 
+      pushOptimisticUserMessage()
+
       if (!requestThreadId && draftCwd) {
         const created = await ctx.createThreadOnServerInCwd(draftCwd)
         if (!created) {
@@ -160,14 +195,25 @@ export function createComposerActions(ctx: ComposerActionsContext) {
           normalizeDraftCwd(currentDraft.cwd) === draftToken.cwd &&
           ctx.getCurrentActiveThreadId() == null
         if (!draftSendStillActive) {
+          if (pendingTurnDraft) {
+            dispatchAll(rollbackPendingTurnDraftActions(pendingTurnDraft))
+          }
           void ctx.refreshThreads().catch(() => undefined)
           return
         }
-        await ctx.activateCreatedThread(created, { synchronize: false, modeOverride: ctx.mode })
+        await ctx.activateCreatedThread(created, {
+          synchronize: false,
+          modeOverride: ctx.mode,
+          ...(pendingTurnDraft ? { fallbackLogs: [pendingTurnDraft.message] } : {}),
+        })
+        if (pendingTurnDraft) {
+          ctx.dispatch({ type: 'set_active_turn', turnId: pendingTurnDraft.pendingTurnId })
+        }
         ctx.leaveNewThreadDraft()
         draftCreatedThread = created
         requestThreadId = created.thread.id
         requestCwd = created.effectiveCwd ?? draftCwd
+        await ctx.persistDraftRuntimePreferences?.(requestThreadId)
       }
 
       if (!requestThreadId) {
@@ -175,7 +221,6 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         return
       }
 
-      pushOptimisticUserMessage()
       const result = shouldDispatchCommand
         ? await ctx.request('command/dispatch', {
             threadId: requestThreadId,
@@ -185,7 +230,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
           })
         : await ctx.request('turn/start', {
             threadId: requestThreadId,
-            input: { text },
+            input: { text, clientMessageId },
             mode: ctx.mode,
             ...(requestCwd ? { cwd: requestCwd } : {}),
           })
@@ -193,19 +238,18 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       const localStdout = parsedTurnResult.localStdout
       if (localStdout) {
         refreshDraftCreatedThread()
-        if (!optimisticUserMessageId) {
-          ctx.dispatch({ type: 'push_message', role: 'user', text })
-        }
+        ctx.dispatch({ type: 'push_message', role: 'user', text })
         ctx.dispatch({ type: 'push_message', role: 'assistant', text: localStdout })
         return
       }
       refreshDraftCreatedThread()
       const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
-        if (optimisticUserMessageId) {
-          ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId })
+        if (pendingTurnDraft) {
+          ctx.dispatch(commitPendingTurnDraftAction(pendingTurnDraft, turnId))
+        } else {
+          ctx.dispatch({ type: 'set_active_turn', turnId })
         }
-        ctx.dispatch({ type: 'set_active_turn', turnId })
         if (shouldDispatchCommand) {
           ctx.commandByTurnRef.current.set(turnId, text)
         }
@@ -216,12 +260,13 @@ export function createComposerActions(ctx: ComposerActionsContext) {
         void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
       }
       ctx.setInputText((current) => (current.trim() ? current : text))
-      if (optimisticUserMessageId) {
-        ctx.dispatch({ type: 'remove_transcript_item', id: optimisticUserMessageId })
+      if (pendingTurnDraft) {
+        dispatchAll(rollbackPendingTurnDraftActions(pendingTurnDraft))
       }
       throw error
     } finally {
       ctx.setIsSendingTurn(false)
+      startTurnInFlight = false
     }
   }
 

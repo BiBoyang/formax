@@ -176,13 +176,13 @@ describe('protocol parsers', () => {
     expect(
       parseTurnStartParams({
         threadId: 't1',
-        input: { text: ' hello ' },
+        input: { text: ' hello ', clientMessageId: ' client-1 ' },
         mode: 'plan',
         cwd: ' /repo ',
       }),
     ).toEqual({
       threadId: 't1',
-      input: { text: 'hello' },
+      input: { text: 'hello', clientMessageId: 'client-1' },
       mode: 'plan',
       cwd: '/repo',
     })

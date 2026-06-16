@@ -84,12 +84,14 @@ describe('appReducer', () => {
       id: 'optimistic-user-1',
       role: 'user',
       text: 'hello',
+      turnId: 'pending-turn:client-message-1',
       optimistic: true,
     })
 
     state = appReducer(state, {
       type: 'bind_last_optimistic_user_message_turn',
       turnId: 'turn-1',
+      activate: true,
     })
 
     expect(state.logs).toHaveLength(2)
@@ -102,6 +104,36 @@ describe('appReducer', () => {
       turnId: 'turn-1',
       optimistic: true,
     })
+    expect(state.activeTurnId).toBe('turn-1')
+  })
+
+  it('replaces an optimistic user row with the canonical user projection by client message id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'push_message',
+      id: 'optimistic-user-1',
+      role: 'user',
+      text: 'hello',
+      clientMessageId: 'client-message-1',
+      optimistic: true,
+    })
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'evt-user-1' },
+        { kind: 'user_message', turnId: 'turn-1', text: 'hello', clientMessageId: 'client-message-1' },
+      ),
+    })
+
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      id: 'turn-1:user:1',
+      kind: 'message',
+      role: 'user',
+      text: 'hello',
+      turnId: 'turn-1',
+      clientMessageId: 'client-message-1',
+    })
+    expect(state.logs[0]).not.toHaveProperty('optimistic')
   })
 
   it('removes a transcript item by id', () => {
@@ -119,6 +151,25 @@ describe('appReducer', () => {
     })
 
     expect(state.logs).toEqual([])
+  })
+
+  it('clears active turn only when it still matches the expected pending turn', () => {
+    const state = {
+      ...initialAppState,
+      activeTurnId: 'pending-turn:client-message-1',
+    }
+
+    const cleared = appReducer(state, {
+      type: 'clear_active_turn_if_matches',
+      turnId: 'pending-turn:client-message-1',
+    })
+    expect(cleared.activeTurnId).toBeNull()
+
+    const unchanged = appReducer({ ...state, activeTurnId: 'turn-other' }, {
+      type: 'clear_active_turn_if_matches',
+      turnId: 'pending-turn:client-message-1',
+    })
+    expect(unchanged.activeTurnId).toBe('turn-other')
   })
 
   it('keeps state reference stable when connection status is unchanged', () => {

@@ -1,6 +1,6 @@
 # Config Settings 合同（唯一事实源）
 
-最后更新：2026-06-04  
+最后更新：2026-06-16
 状态：规范性（Normative）
 
 本文档定义 Formax runtime config 合并、`/config` 持久化与当前 settings 分类的唯一事实来源。
@@ -153,6 +153,9 @@ TUI `/model <tier>` and `/config thinkingMode` remain global-default writes. The
 `CFG-401`  
 config patch 写盘 MUST 采用 merge-on-read，再执行默认值剥离；与默认值相同的字段 MUST NOT 长期保留在 patch 文件中。
 
+`CFG-401A`
+config patch 写盘前读取既有 patch 时 MUST 使用字段级容错。某个 section 字段无效或未知时，MUST 只忽略该字段并保留同一文件中其它合法字段；MUST NOT 因为单个无效字段或 schema 漂移把整份既有 config 当作空 patch 写回。
+
 `CFG-402`  
 `/config` 保存后 MUST 立即重新加载 effective runtime config；当前行为 MUST NOT 依赖“重启后才生效”。
 
@@ -185,6 +188,9 @@ config patch 写盘 MUST 采用 merge-on-read，再执行默认值剥离；与�
 
 `CFG-505`  
 当 session save 启用时，`config_exit` 事件 MAY 记录所有退出；但 `output_style_changed` 与 `local_command_injection(source=config_output_style)` 只应出现在 `outputStyle` 变更路径。
+
+`CFG-506`
+Web 新建线程草稿页中的 model tier / thinking mode / thinking effort 选择 MUST 视为 draft-local runtime preference。它 MAY 以 global runtime defaults 作为初始显示值，但修改 MUST NOT 写入 global config。首条消息创建真实 thread 后，Web MAY 将 draft-local preference 写入该 thread 的 runtime state。
 
 ## 7. 变更流程
 

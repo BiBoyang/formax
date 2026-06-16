@@ -163,7 +163,7 @@ type TurnLiveActivity =
 Rendering rules:
 
 - The transcript should show at most one live status at a time. Streaming text, streaming reasoning, and running tool rows already prove the turn is active, so they should suppress extra `Thinking` placeholders.
-- During `submitting`, the UI should optimistically render the submitted user message before the `Thinking` live activity. The loading row must not be the first visible row for a text turn the user just submitted.
+- During `submitting`, the UI may create a local pending user row so the submitted prompt is visible before `turn/started` arrives. For normal server turns, that row must carry `clientMessageId`; app-server echoes it on `turn/started.input.clientMessageId`, and the canonical `user_message` projection replaces the pending row. Local rows without a canonical handoff remain reserved for local command outputs that do not enter the server turn stream.
 - `submitting`, `queued`, and `waiting_for_assistant` may render the same `Thinking` loading row, but they are different diagnostic states.
 - `streaming_text` should not render an extra `Thinking` row because visible text streaming is already the loading feedback.
 - `streaming_reasoning` should render as a `ReasoningBlock`; it must not be confused with the `Thinking` loading placeholder.

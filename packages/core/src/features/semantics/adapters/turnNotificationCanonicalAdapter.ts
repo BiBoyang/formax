@@ -156,6 +156,14 @@ function resolveTurnStartedInputText(params: Record<string, unknown> | undefined
   return text
 }
 
+function resolveTurnStartedClientMessageId(params: Record<string, unknown> | undefined): string | null {
+  const input = params?.input
+  if (!input || typeof input !== 'object') return null
+  const clientMessageId = (input as Record<string, unknown>).clientMessageId
+  if (typeof clientMessageId !== 'string' || !clientMessageId.trim()) return null
+  return clientMessageId
+}
+
 function toEventId(args: {
   params: Record<string, unknown> | undefined
   threadId: string
@@ -278,12 +286,14 @@ export function toCanonicalEventsFromTurnNotification(
     if (replaySeq == null) return []
     const text = resolveTurnStartedInputText(params)
     if (!text) return []
+    const clientMessageId = resolveTurnStartedClientMessageId(params)
     return [
       {
         ...toEnvelope({ params, threadId, turnId, kind: 'user_message', replaySeq, source, now: ctx.now }),
         kind: 'user_message',
         turnId,
         text,
+        ...(clientMessageId ? { clientMessageId } : {}),
       },
     ]
   }

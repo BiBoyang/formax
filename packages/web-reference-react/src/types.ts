@@ -243,6 +243,7 @@ export type TranscriptItem =
       text: string
       turnId?: string
       messageKind?: TranscriptMessageKind
+      clientMessageId?: string
       optimistic?: true
     }
   | {

@@ -2,28 +2,32 @@
 
 ## Context
 
-Web previously inserted a local optimistic `user` transcript row before the canonical turn stream arrived.
-After refresh/replay, that row could disappear when canonical/replay state did not project the same user segment.
+Web needs to show the submitted user prompt immediately, before the canonical turn stream arrives.
+Earlier implementations either inserted an unlinked optimistic `user` transcript row or removed the optimistic row entirely.
+The first approach could duplicate the prompt when canonical projection arrived; the second approach left first-send/new-thread cases showing only `Thinking`.
 
 ## Root Cause
 
-User transcript ownership was split across two writers:
+User transcript ownership was split across two unlinked writers:
 
-1. Web runtime optimistic dispatch (`push_message` + `bind_last_user_message_turn`)
+1. Web runtime optimistic dispatch (`push_message` + last-row binding)
 2. Canonical projection/replay pipeline
 
-This violated single-writer semantics for transcript state and made refresh behavior depend on timing.
+This violated single-writer semantics for persisted transcript truth and made live rendering depend on notification/response timing.
+Binding "the latest optimistic user row" is also not a stable identity model: draft activation, replay, or nearby local rows can make "latest" ambiguous.
 
 ## Canonical Fix
 
-1. App-server `turn/started` notification now carries `input.text`.
-2. Semantics adapter maps `turn/started` to canonical `user_message`.
-3. Web projection no longer drops canonical `user` segments.
-4. Web composer removes optimistic user insertion for normal turns.
+1. Web composer generates a `clientMessageId` for each normal `turn/start` submission.
+2. Web renders a local pending user row with that `clientMessageId` before `turn/started` arrives.
+3. App-server `turn/started` notification carries `input.text` and echoes `input.clientMessageId` when provided.
+4. Semantics adapter maps `turn/started` to canonical `user_message` and preserves `clientMessageId`.
+5. Web projection replaces the pending row with the canonical user row by `clientMessageId`; `turnId`/last-row binding is only a compatibility fallback.
 
-Result: refresh/replay rebuilds the same user row from canonical events, so transcript state is stable.
+Result: live UI has an immediate submitted prompt, while refresh/replay still rebuilds the durable transcript from canonical events.
 
 ## Guardrail
 
-For cross-surface parity, treat user transcript rows as canonical/replay-owned data.
-Renderer-local optimistic user rows are allowed only for explicitly local command outputs that never enter server turn stream.
+For cross-surface parity, treat canonical/replay as the durable owner of user transcript rows.
+Renderer-local pending user rows are allowed for server turns only when they have a stable `clientMessageId` handoff to canonical projection.
+Renderer-local rows without canonical handoff are allowed only for explicitly local command outputs that never enter the server turn stream.

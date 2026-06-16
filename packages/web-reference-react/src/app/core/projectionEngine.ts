@@ -31,6 +31,7 @@ export function toTranscriptItemFromProjectionSegment(args: {
       role: 'user',
       turnId: segment.turnId,
       text: segment.text,
+      ...(segment.clientMessageId ? { clientMessageId: segment.clientMessageId } : {}),
       ...(segment.messageKind ? { messageKind: segment.messageKind } : {}),
     }
   }
@@ -125,9 +126,19 @@ function mergeTurnProjectionLogs(args: {
   const { logs, turnId, projectedItems } = args
   const pendingProjectionItems = [...projectedItems]
   const projectedItemIds = new Set(projectedItems.map((item) => item.id))
+  const projectedClientMessageIds = new Set(
+    projectedItems
+      .map((item) => (item.kind === 'message' && item.role === 'user' ? item.clientMessageId : undefined))
+      .filter((id): id is string => Boolean(id)),
+  )
   const merged: TranscriptItem[] = []
   for (const item of logs) {
-    if (isProjectionManagedTurnItem(item, turnId) || projectedItemIds.has(item.id)) {
+    const matchesProjectedClientMessage =
+      item.kind === 'message' &&
+      item.role === 'user' &&
+      typeof item.clientMessageId === 'string' &&
+      projectedClientMessageIds.has(item.clientMessageId)
+    if (isProjectionManagedTurnItem(item, turnId) || projectedItemIds.has(item.id) || matchesProjectedClientMessage) {
       if (pendingProjectionItems.length > 0) {
         merged.push(pendingProjectionItems.shift()!)
       }

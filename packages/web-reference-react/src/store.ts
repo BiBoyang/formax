@@ -32,13 +32,15 @@ export type AppAction =
   | { type: 'set_threads'; threads: ThreadSummary[] }
   | { type: 'set_active_thread'; threadId: string | null }
   | { type: 'set_active_turn'; turnId: string | null }
+  | { type: 'clear_active_turn_if_matches'; turnId: string }
   | { type: 'replace_logs'; logs: TranscriptItem[] }
   | { type: 'prepend_logs'; logs: TranscriptItem[] }
   | { type: 'clear_pending_inputs' }
   | { type: 'push_log'; text: string; level?: 'info' | 'warn' | 'error'; turnId?: string }
-  | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string; id?: string; optimistic?: boolean }
+  | { type: 'push_message'; role: 'user' | 'assistant'; text: string; turnId?: string; id?: string; clientMessageId?: string; optimistic?: boolean }
   | { type: 'remove_transcript_item'; id: string }
-  | { type: 'bind_last_optimistic_user_message_turn'; turnId: string }
+  | { type: 'bind_last_optimistic_user_message_turn'; turnId: string; activate?: boolean }
+  | { type: 'bind_optimistic_user_message_turn'; clientMessageId: string; turnId: string; activate?: boolean }
   | { type: 'bind_last_user_message_turn'; turnId: string }
   | { type: 'input_requested'; input: PendingInput }
   | { type: 'input_resolved'; inputId: string; status?: string; resolvedAt?: string; reason?: string }
@@ -165,6 +167,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (state.activeTurnId === action.turnId) return state
       return { ...state, activeTurnId: action.turnId }
 
+    case 'clear_active_turn_if_matches':
+      if (state.activeTurnId !== action.turnId) return state
+      return { ...state, activeTurnId: null }
+
     case 'replace_logs':
       if (state.logs === action.logs && state.transcriptProjection === null) return state
       return { ...state, logs: action.logs, transcriptProjection: null }
@@ -195,6 +201,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         role: action.role,
         text: action.text,
         ...(action.turnId ? { turnId: action.turnId } : {}),
+        ...('clientMessageId' in action && typeof action.clientMessageId === 'string' ? { clientMessageId: action.clientMessageId } : {}),
         ...(action.optimistic ? { optimistic: true } : {}),
       }
       return { ...state, logs: [...state.logs, next] }
@@ -209,13 +216,28 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'bind_last_optimistic_user_message_turn': {
       for (let idx = state.logs.length - 1; idx >= 0; idx -= 1) {
         const item = state.logs[idx]
-        if (item?.kind === 'message' && item.role === 'user' && item.optimistic && !item.turnId) {
+        if (item?.kind === 'message' && item.role === 'user' && item.optimistic) {
           const updated = state.logs.slice()
           updated[idx] = { ...item, turnId: action.turnId }
-          return { ...state, logs: updated }
+          return { ...state, logs: updated, ...(action.activate ? { activeTurnId: action.turnId } : {}) }
         }
       }
       return state
+    }
+
+    case 'bind_optimistic_user_message_turn': {
+      const clientMessageId = action.clientMessageId.trim()
+      if (!clientMessageId) return state
+      const index = state.logs.findIndex((item) =>
+        item.kind === 'message' &&
+        item.role === 'user' &&
+        item.optimistic &&
+        item.clientMessageId === clientMessageId,
+      )
+      if (index < 0) return state
+      const updated = state.logs.slice()
+      updated[index] = { ...updated[index], turnId: action.turnId } as TranscriptItem
+      return { ...state, logs: updated, ...(action.activate ? { activeTurnId: action.turnId } : {}) }
     }
 
     case 'bind_last_user_message_turn': {

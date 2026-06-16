@@ -312,7 +312,7 @@ describe('TurnRunner', () => {
       },
     })
 
-    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello', clientMessageId: 'client-1' } })
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
     expect(
       notifications.some(
@@ -353,10 +353,11 @@ describe('TurnRunner', () => {
       },
     })
 
-    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello', clientMessageId: 'client-1' } })
     await waitForNotification(notifications, (n) => n.method === 'turn/completed')
 
     const started = notifications.find((n) => n.method === 'turn/started')
+    expect(started?.params?.input).toMatchObject({ text: 'hello', clientMessageId: 'client-1' })
     expect(started?.params?.contextMeter).toMatchObject({
       schemaVersion: 1,
       budgetRaw: {

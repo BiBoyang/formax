@@ -58,7 +58,7 @@
 3. `Send` 在真实 thread surface 下仅在已连接且存在 active thread 时可用。
 4. `Send` 在 `newThreadDraft` 下仅在已连接、已选择 path 且输入非空时可用。
 5. `newThreadDraft` 下 composer 居中显示；真实 thread 下保持底部 composer 布局。
-6. 发送前将用户输入追加到 transcript；draft 首发前不得先创建伪 thread 占位。
+6. 发送前将用户输入以本地 pending user row 追加到 transcript；该 row MUST 带客户端生成的 `clientMessageId`，并在 `turn/started.input.clientMessageId` 对应的 canonical `user_message` 到达时被归并/接管为同一条视觉消息。draft 首发前不得先创建伪 thread 占位。
 7. `assistant_delta` 以流式方式增量更新同一 assistant 气泡。
 8. `turn/completed` 与 `turn/failed` 必须写入可见日志。
 9. `Interrupt` 仅在 active turn 存在时可用。

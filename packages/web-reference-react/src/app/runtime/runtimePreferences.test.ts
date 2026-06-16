@@ -14,10 +14,13 @@ describe('runtimePreferences', () => {
     })
   })
 
-  it('resolves draft and threadless surfaces to global defaults', () => {
+  it('resolves draft surface writes to draft-local state', () => {
     expect(resolvePreferenceWriteTarget({ visibleSurface: 'newThreadDraft', activeThreadId: null })).toEqual({
-      kind: 'globalDefaults',
+      kind: 'newThreadDraft',
     })
+  })
+
+  it('resolves threadless non-draft surfaces to global defaults', () => {
     expect(resolvePreferenceWriteTarget({ visibleSurface: 'thread', activeThreadId: null })).toEqual({
       kind: 'globalDefaults',
     })

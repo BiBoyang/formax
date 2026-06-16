@@ -24,6 +24,7 @@ export type RuntimePreferencePatch = {
 
 export type RuntimePreferenceWriteTarget =
   | { kind: 'thread'; threadId: string }
+  | { kind: 'newThreadDraft' }
   | { kind: 'globalDefaults' }
 
 export const DEFAULT_RUNTIME_PREFERENCES: RuntimePreferenceView = {
@@ -71,6 +72,9 @@ export function resolvePreferenceWriteTarget(args: {
   visibleSurface: VisibleSurface
   activeThreadId: string | null
 }): RuntimePreferenceWriteTarget {
+  if (args.visibleSurface === 'newThreadDraft') {
+    return { kind: 'newThreadDraft' }
+  }
   if (args.visibleSurface === 'thread' && args.activeThreadId) {
     return { kind: 'thread', threadId: args.activeThreadId }
   }
@@ -78,5 +82,6 @@ export function resolvePreferenceWriteTarget(args: {
 }
 
 export function preferenceTargetKey(target: RuntimePreferenceWriteTarget): string {
+  if (target.kind === 'newThreadDraft') return 'newThreadDraft'
   return target.kind === 'thread' ? `thread:${target.threadId}` : 'globalDefaults'
 }

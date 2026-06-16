@@ -93,7 +93,7 @@ describe('processNotification', () => {
     expect(ctx.runtimeStateByThreadRef.current['thread-1']).toBeUndefined()
     expect(ctx.setMode).toHaveBeenCalledWith('plan')
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-1' })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_optimistic_user_message_turn', turnId: 'turn-1' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_optimistic_user_message_turn', turnId: 'turn-1', activate: true })
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
   })
 
@@ -120,6 +120,39 @@ describe('processNotification', () => {
       lastReplaySeq: 7,
     })
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(7)
+  })
+
+  it('binds the pending optimistic user row before applying turn/started canonical projection', () => {
+    const dispatch = vi.fn()
+    const ctx = createContext({ dispatch })
+    const notification: RpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/started',
+      params: {
+        replaySeq: 7,
+        eventId: 'evt-7',
+        ts: '2026-02-20T00:00:00.000Z',
+        source: 'engine',
+        threadId: 'thread-1',
+        turn: { id: 'turn-1', threadId: 'thread-1', mode: 'normal', status: 'running' },
+        input: { text: 'hello', clientMessageId: 'client-message-1' },
+      },
+    }
+
+    processNotification(notification, ctx)
+
+    const bindIndex = dispatch.mock.calls.findIndex(([action]) =>
+      action.type === 'bind_optimistic_user_message_turn' &&
+      action.clientMessageId === 'client-message-1' &&
+      action.turnId === 'turn-1' &&
+      action.activate === true,
+    )
+    const projectionIndex = dispatch.mock.calls.findIndex(([action]) =>
+      action.type === 'apply_canonical_event' && action.event.kind === 'user_message',
+    )
+    expect(bindIndex).toBeGreaterThanOrEqual(0)
+    expect(projectionIndex).toBeGreaterThanOrEqual(0)
+    expect(bindIndex).toBeLessThan(projectionIndex)
   })
 
   it('applies runtime preference notifications even when replaySeq is omitted', () => {

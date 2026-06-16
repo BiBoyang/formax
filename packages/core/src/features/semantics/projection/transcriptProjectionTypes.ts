@@ -6,6 +6,7 @@ export type UserSegment = {
   kind: 'user'
   turnId: string
   text: string
+  clientMessageId?: string
   messageKind?: Extract<CanonicalMessageUiKind, 'compact_summary'>
 }
 

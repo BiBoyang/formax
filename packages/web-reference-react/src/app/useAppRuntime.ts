@@ -89,6 +89,27 @@ function resolveBridgeUrl(): string {
   return DEFAULT_BRIDGE_URL
 }
 
+function applyDraftRuntimePreferencePatch(
+  previous: Partial<RuntimePreferenceView>,
+  patch: Partial<RuntimePreferenceView>,
+  defaults: RuntimePreferenceView,
+): Partial<RuntimePreferenceView> {
+  const next = { ...previous }
+  if (patch.modelTier !== undefined) {
+    if (patch.modelTier === defaults.modelTier) delete next.modelTier
+    else next.modelTier = patch.modelTier
+  }
+  if (patch.thinkingMode !== undefined) {
+    if (patch.thinkingMode === defaults.thinkingMode) delete next.thinkingMode
+    else next.thinkingMode = patch.thinkingMode
+  }
+  if (patch.thinkingEffort !== undefined) {
+    if (patch.thinkingEffort === defaults.thinkingEffort) delete next.thinkingEffort
+    else next.thinkingEffort = patch.thinkingEffort
+  }
+  return next
+}
+
 function isDevRuntime(): boolean {
   return import.meta.env.DEV
 }
@@ -112,6 +133,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [runtimeDefaultProvider, setRuntimeDefaultProvider] = useState<string | null>(null)
   const [thinkingEffortCapabilityProvider, setThinkingEffortCapabilityProvider] = useState<string | null>(null)
   const [threadRuntimeProviderByThreadId, setThreadRuntimeProviderByThreadId] = useState<Record<string, string>>({})
+  const [newThreadDraftRuntimePreferences, setNewThreadDraftRuntimePreferences] = useState<Partial<RuntimePreferenceView>>({})
   const [runtimePreferenceRevision, setRuntimePreferenceRevision] = useState(0)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, isRightRailOpen, setIsRightRailOpen, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
@@ -219,6 +241,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   )
   const newThreadDraftRef = useRef(newThreadDraft)
   newThreadDraftRef.current = newThreadDraft
+  const newThreadDraftRuntimePreferencesRef = useRef(newThreadDraftRuntimePreferences)
+  newThreadDraftRuntimePreferencesRef.current = newThreadDraftRuntimePreferences
+  const replaceNewThreadDraftRuntimePreferences = useCallback((next: Partial<RuntimePreferenceView>) => {
+    newThreadDraftRuntimePreferencesRef.current = next
+    setNewThreadDraftRuntimePreferences(next)
+  }, [])
   const resolveThreadOwnedDiffCwd = useCallback(() => {
     const activeThreadId = activeThreadIdRef.current
     if (!activeThreadId) return null
@@ -536,7 +564,6 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       pendingArchiveOpsRef,
     },
   })
-
   const { sortedThreads, cwdOptions } = useThreadSelection({
     threads: state.threads,
     activeThreadId: state.activeThreadId,
@@ -565,12 +592,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     const threadPreferences =
       visibleSurface === 'thread' && state.activeThreadId
         ? threadRuntimePreferencesRef.current[state.activeThreadId]
+        : visibleSurface === 'newThreadDraft'
+          ? newThreadDraftRuntimePreferences
         : null
     return resolveRuntimePreferenceView({
       globalDefaults: runtimeDefaults,
-      threadPreferences,
+      threadPreferences: threadPreferences as ThreadRuntimePreferences | null,
     })
-  }, [runtimeDefaults, runtimePreferenceRevision, runtimeStateByThreadRef, state.activeThreadId, visibleSurface])
+  }, [newThreadDraftRuntimePreferences, runtimeDefaults, runtimePreferenceRevision, runtimeStateByThreadRef, state.activeThreadId, visibleSurface])
 
   const activeRuntimeProvider =
     visibleSurface === 'thread' && state.activeThreadId
@@ -594,6 +623,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     (patch: Partial<RuntimePreferenceView>) => {
       const target = resolvePreferenceWriteTarget({ visibleSurface, activeThreadId: state.activeThreadId })
       const promise = (async () => {
+        if (target.kind === 'newThreadDraft') {
+          replaceNewThreadDraftRuntimePreferences(applyDraftRuntimePreferencePatch(
+            newThreadDraftRuntimePreferencesRef.current,
+            patch,
+            runtimeDefaults,
+          ))
+          return
+        }
         if (target.kind === 'thread') {
           bumpThreadRuntimeHydrationEpoch(target.threadId)
           const threadPatch = resolveThreadPreferencePatchForDefaults(patch, runtimeDefaults)
@@ -639,7 +676,14 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         setRuntimeDefaultProvider(parsed.profile?.provider ?? null)
         setThinkingEffortCapabilityProvider(parsed.capabilities?.thinkingEffort?.provider ?? null)
       })().catch(async (error) => {
-        const details = toRpcError(target.kind === 'thread' ? 'thread/runtimeState/patch' : 'config/runtimeDefaults/patch', error)
+        const details = toRpcError(
+          target.kind === 'thread'
+            ? 'thread/runtimeState/patch'
+            : target.kind === 'newThreadDraft'
+              ? 'draft/runtimePreferences'
+              : 'config/runtimeDefaults/patch',
+          error,
+        )
         log(`Runtime preference update failed: ${details.message}`, 'error')
         if (target.kind === 'thread') {
           try {
@@ -667,6 +711,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       bumpThreadRuntimeHydrationEpoch,
       rememberThreadRuntimeProvider,
       rememberPendingPreferenceUpdate,
+      replaceNewThreadDraftRuntimePreferences,
       request,
       runtimeDefaults,
       setThreadRuntimePreferences,
@@ -681,6 +726,31 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     const pending = pendingPreferenceUpdateByTargetRef.current.get(preferenceTargetKey(target))
     if (pending) await pending
   }, [activeThreadIdRef, visibleSurface])
+
+  const persistDraftRuntimePreferences = useCallback(async (threadId: string) => {
+    const draftPreferences = newThreadDraftRuntimePreferencesRef.current
+    if (Object.keys(draftPreferences).length === 0) return
+    bumpThreadRuntimeHydrationEpoch(threadId)
+    const threadPatch = resolveThreadPreferencePatchForDefaults(draftPreferences, runtimeDefaults)
+    if (Object.keys(threadPatch).length === 0) return
+    const result = await request('thread/runtimeState/patch', {
+      threadId,
+      patch: { preferences: threadPatch },
+    })
+    const preferences = (result && typeof result === 'object' && 'state' in result)
+      ? (result as { state?: { preferences?: ThreadRuntimePreferences } }).state?.preferences
+      : undefined
+    setThreadRuntimePreferences(threadId, preferences ?? (draftPreferences as ThreadRuntimePreferences))
+    replaceNewThreadDraftRuntimePreferences({})
+    rememberThreadRuntimeProvider(threadId, parseEffectiveProfileProvider(result))
+  }, [
+    bumpThreadRuntimeHydrationEpoch,
+    rememberThreadRuntimeProvider,
+    replaceNewThreadDraftRuntimePreferences,
+    request,
+    runtimeDefaults,
+    setThreadRuntimePreferences,
+  ])
 
   const onModelTierChange = useCallback((modelTier: RuntimeModelTier) => {
     void patchRuntimePreferences({ modelTier })
@@ -757,6 +827,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       leaveNewThreadDraft,
       newThreadDraftRef,
       awaitPreferencePersistence,
+      persistDraftRuntimePreferences,
     },
   })
 
@@ -768,6 +839,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       ...args,
       cwd: fallbackDraftCwd,
     })
+    replaceNewThreadDraftRuntimePreferences({})
     clearThreadOnlySurfaceState()
     setSelectedCwdStable(fallbackDraftCwd)
     setModeStable('normal')
@@ -776,18 +848,20 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     dispatch({ type: 'set_active_turn', turnId: null })
     dispatch({ type: 'clear_pending_inputs' })
     dispatch({ type: 'replace_logs', logs: [] })
-  }, [activeThreadIdRef, clearThreadOnlySurfaceState, dispatch, enterNewThreadDraftState, setModeStable])
+  }, [activeThreadIdRef, clearThreadOnlySurfaceState, dispatch, enterNewThreadDraftState, replaceNewThreadDraftRuntimePreferences, setModeStable])
 
   useEffect(() => {
     if (state.activeThreadId) return
     if (newThreadDraft.status === 'active') return
     clearThreadOnlySurfaceState()
     setSelectedCwdStable(null)
+    replaceNewThreadDraftRuntimePreferences({})
     enterNewThreadDraftState({ source: 'newThread', cwd: null })
   }, [
     clearThreadOnlySurfaceState,
     enterNewThreadDraftState,
     newThreadDraft.status,
+    replaceNewThreadDraftRuntimePreferences,
     state.activeThreadId,
     setSelectedCwdStable,
   ])

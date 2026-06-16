@@ -523,6 +523,7 @@ export class TurnRunner {
       },
       input: {
         text: running.inputText,
+        ...(params.input.clientMessageId ? { clientMessageId: params.input.clientMessageId } : {}),
       },
     })
 

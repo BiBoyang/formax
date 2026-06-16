@@ -176,8 +176,9 @@
 
 ## 2.5 turn/start
 
-- 入参：`{ threadId, input: { text }, cwd?: string }`
+- 入参：`{ threadId, input: { text, clientMessageId? }, cwd?: string }`
 - 返回：`{ turn: { id, threadId, status: "running" } }`
+- `input.clientMessageId` 是客户端生成的提交身份，用于 GUI 在 `turn/started` 前展示 pending user row，并在 canonical `user_message` 到达时归并为同一条视觉消息。服务端 MUST 在 `turn/started.input.clientMessageId` 中原样回显该字段（若提供）。
 - context-overflow recovery:
   - app-server normal turns MUST match the interactive TUI reactive compact policy defined in `docs/contracts/context-strategy-stack-contract.md` `CSS-312`.
   - When the initial provider request fails with an eligible context-overflow signal, app-server MUST run reactive compact preparation and retry the turn at most once with the reactive-prepared `history`, `requestHistory`, `requestUser`, and request-side `cacheEditPlan`.

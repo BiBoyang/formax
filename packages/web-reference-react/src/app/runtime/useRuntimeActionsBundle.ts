@@ -65,6 +65,7 @@ type ComposerDeps = {
   leaveNewThreadDraft: ComposerActionsContext['leaveNewThreadDraft']
   newThreadDraftRef: { current: NewThreadDraftState }
   awaitPreferencePersistence?: ComposerActionsContext['awaitPreferencePersistence']
+  persistDraftRuntimePreferences?: ComposerActionsContext['persistDraftRuntimePreferences']
 }
 
 type UseRuntimeActionsBundleArgs = {
@@ -360,6 +361,8 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
         leaveNewThreadDraft: composer.leaveNewThreadDraft,
         refreshThreads: thread.refreshThreads,
         refreshWorkspaceDiff: thread.refreshWorkspaceDiff,
+        awaitPreferencePersistence: composer.awaitPreferencePersistence,
+        persistDraftRuntimePreferences: composer.persistDraftRuntimePreferences,
         getCurrentActiveThreadId: () => thread.activeThreadIdRef.current,
         getCurrentNewThreadDraft: () => composer.newThreadDraftRef.current,
         retirePendingInputLocally,
@@ -389,6 +392,7 @@ export function useRuntimeActionsBundle(args: UseRuntimeActionsBundleArgs) {
       composer.leaveNewThreadDraft,
       composer.newThreadDraftRef,
       composer.awaitPreferencePersistence,
+      composer.persistDraftRuntimePreferences,
       createThreadOnServerInCwd,
       startThread,
       thread.activeThreadIdRef,

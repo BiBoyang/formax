@@ -1055,24 +1055,82 @@ describe('App thread history integration', () => {
     })
   })
 
-  it('routes draft thinking effort changes to global runtime defaults', async () => {
+  it('keeps draft thinking effort local instead of writing global defaults', async () => {
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'initialize') return {}
+      if (method === 'bridge/readDiff') {
+        return {
+          cwd: '/repo',
+          generatedAt: '2026-02-10T00:00:00.000Z',
+          hasChanges: false,
+          truncated: false,
+          files: [],
+        }
+      }
+      if (method === 'thread/list') {
+        return {
+          data: [
+            {
+              id: 'thread-alpha',
+              cwd: '/repo',
+              createdAt: '2026-02-10T00:00:00.000Z',
+              updatedAt: '2026-02-10T00:00:10.000Z',
+              messageCount: 2,
+              lastUserPrompt: 'alpha',
+              label: 'Alpha Session',
+            },
+          ],
+        }
+      }
+      if (method === 'thread/messages') {
+        const threadId = (params as { threadId?: string } | undefined)?.threadId
+        if (threadId === 'thread-alpha') {
+          return {
+            data: [{ id: 'a-1', kind: 'message', role: 'assistant', text: 'alpha reply' }],
+            nextCursor: null,
+          }
+        }
+        if (threadId === 'thread-draft') return { data: [], nextCursor: null }
+      }
+      if (method === 'thread/start') {
+        return {
+          thread: {
+            id: 'thread-draft',
+            cwd: (params as { cwd?: string }).cwd ?? '/repo-alpha',
+            createdAt: '2026-02-10T00:00:00.000Z',
+            updatedAt: '2026-02-10T00:00:00.000Z',
+            messageCount: 0,
+            label: 'Draft Session',
+          },
+          effectiveCwd: (params as { cwd?: string }).cwd ?? '/repo-alpha',
+        }
+      }
+      if (method === 'turn/start') return { turn: { id: 'turn-draft-1', status: 'running' } }
+      return {}
+    })
     render(<App />)
 
+    fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
+    await screen.findByText('alpha reply')
     fireEvent.click(await screen.findByRole('button', { name: 'New thread' }))
     await screen.findByTestId('new-thread-draft-surface')
+    fireEvent.click(screen.getByRole('button', { name: /Choose project/i }))
+    fireEvent.click(await screen.findByRole('option', { name: /repo/i }))
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Model and thinking mode' }), { key: 'Enter' })
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Medium' }))
     fireEvent.click(await screen.findByText('Max'))
 
     await waitFor(() => {
-      expect(
-        rpcMock.requests.some((entry) =>
-          entry.method === 'config/runtimeDefaults/patch' &&
-          (entry.params as any)?.thinkingEffort === 'max'
-        ),
-      ).toBe(true)
+      expect(screen.getByRole('button', { name: 'Model and thinking mode' })).toHaveTextContent(/Max/i)
     })
+
+    expect(
+      rpcMock.requests.some((entry) =>
+        entry.method === 'config/runtimeDefaults/patch' &&
+        (entry.params as any)?.thinkingEffort === 'max'
+      ),
+    ).toBe(false)
   })
 
   it('enters draft surface without creating a thread when clicking New thread', async () => {
@@ -1335,6 +1393,10 @@ describe('App thread history integration', () => {
     const input = screen.getByPlaceholderText('Ask for follow-up changes')
     fireEvent.change(input, { target: { value: 'draft hello' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('draft hello')).toHaveLength(1)
+    })
 
     await waitFor(() => {
       expect(

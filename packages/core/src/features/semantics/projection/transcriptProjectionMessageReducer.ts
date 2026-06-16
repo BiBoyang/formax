@@ -22,6 +22,7 @@ export function appendUserMessageSegment(args: {
     kind: 'user',
     turnId: event.turnId,
     text: event.text,
+    ...(event.clientMessageId ? { clientMessageId: event.clientMessageId } : {}),
     ...(event.uiKind ? { messageKind: event.uiKind } : {}),
   }
   draft.segments.push(next)

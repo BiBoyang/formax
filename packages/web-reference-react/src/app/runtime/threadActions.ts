@@ -93,7 +93,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
 
   const activateCreatedThread = async (
     created: CreatedThreadResult,
-    options?: { synchronize?: boolean; modeOverride?: ReplMode },
+    options?: { synchronize?: boolean; modeOverride?: ReplMode; fallbackLogs?: TranscriptItem[] },
   ) => {
     const { thread, effectiveCwd } = created
     if (effectiveCwd) {
@@ -109,7 +109,7 @@ export function createThreadActions(ctx: ThreadActionsContext) {
     ctx.dispatch({ type: 'clear_pending_inputs' })
     ctx.dispatch({
       type: 'replace_logs',
-      logs: selectThreadTranscriptLogs({ threadId: thread.id, logsByThreadId: ctx.logsByThreadId, fallbackLogs: [] }),
+      logs: selectThreadTranscriptLogs({ threadId: thread.id, logsByThreadId: ctx.logsByThreadId, fallbackLogs: options?.fallbackLogs ?? [] }),
     })
 
     if (options?.synchronize === false) return

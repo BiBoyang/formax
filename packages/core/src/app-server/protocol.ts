@@ -110,6 +110,7 @@ export type TurnStartParams = {
   threadId: string
   input: {
     text: string
+    clientMessageId?: string
   }
   mode?: ReplMode
   cwd?: string
@@ -346,6 +347,7 @@ export function parseTurnStartParams(params: unknown): TurnStartParams {
   const threadId = parseRequiredNonEmptyString(params.threadId, 'params.threadId')
   if (!isObject(params.input)) throw new Error('Invalid params.input: expected object')
   const text = parseRequiredNonEmptyString(params.input.text, 'params.input.text')
+  const clientMessageId = parseOptionalNonEmptyString(params.input.clientMessageId, 'params.input.clientMessageId')
   const modeRaw = parseOptionalNonEmptyString(params.mode, 'params.mode')
   const cwd = parseOptionalNonEmptyString(params.cwd, 'params.cwd')
 
@@ -358,7 +360,10 @@ export function parseTurnStartParams(params: unknown): TurnStartParams {
 
   return {
     threadId,
-    input: { text },
+    input: {
+      text,
+      ...(clientMessageId ? { clientMessageId } : {}),
+    },
     ...(mode ? { mode } : {}),
     ...(cwd ? { cwd } : {}),
   }

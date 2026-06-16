@@ -89,7 +89,7 @@ describe('composerActions', () => {
     expect(ctx.request).not.toHaveBeenCalled()
   })
 
-  it('starts a turn using resolved cwd and optimistically renders the user message before the request', async () => {
+  it('starts a turn using resolved cwd and exposes a pending user row before canonical projection', async () => {
     const ctx = createBaseContext({
       request: vi.fn(async () => ({ turn: { id: 'turn-2' } })),
     })
@@ -100,25 +100,67 @@ describe('composerActions', () => {
     expect(ctx.resolveRequestCwd).toHaveBeenCalledWith('thread-1')
     expect(ctx.request).toHaveBeenCalledWith('turn/start', {
       threadId: 'thread-1',
-      input: { text: 'hello' },
+      input: { text: 'hello', clientMessageId: 'client-message-123-1' },
       mode: 'normal',
       cwd: '/repo',
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({
       type: 'push_message',
-      id: 'optimistic-user-123',
       role: 'user',
       text: 'hello',
+      turnId: 'pending-turn:client-message-123-1',
+      clientMessageId: 'client-message-123-1',
       optimistic: true,
+    }))
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'set_active_turn',
+      turnId: 'pending-turn:client-message-123-1',
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'bind_last_optimistic_user_message_turn', turnId: 'turn-2' })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-2' })
-    const pushOrder = (ctx.dispatch as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'bind_optimistic_user_message_turn',
+      clientMessageId: 'client-message-123-1',
+      turnId: 'turn-2',
+      activate: true,
+    })
+    const pushOrder = (ctx.dispatch as ReturnType<typeof vi.fn>).mock.invocationCallOrder[
+      (ctx.dispatch as ReturnType<typeof vi.fn>).mock.calls.findIndex(([action]) => action.type === 'push_message')
+    ]
     const requestOrder = (ctx.request as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
     expect(pushOrder).toBeLessThan(requestOrder)
     expect(ctx.setInputText).toHaveBeenCalledWith('')
     expect(ctx.setIsSendingTurn).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsSendingTurn).toHaveBeenLastCalledWith(false)
+  })
+
+  it('coalesces duplicate send submissions while the first turn start is in flight', async () => {
+    let resolveTurn!: (value: unknown) => void
+    const request = vi.fn(() => new Promise((resolve) => {
+      resolveTurn = resolve
+    }))
+    const ctx = createBaseContext({ request })
+    const actions = createComposerActions(ctx)
+    const event = { preventDefault: vi.fn() } as any
+
+    actions.onSend(event)
+    actions.onSend(event)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(ctx.dispatch).toHaveBeenCalledTimes(2)
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'push_message', role: 'user' }))
+
+    resolveTurn({ turn: { id: 'turn-2' } })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'bind_optimistic_user_message_turn',
+      clientMessageId: 'client-message-123-1',
+      turnId: 'turn-2',
+      activate: true,
+    })
   })
 
   it('waits for pending preference persistence before starting a turn', async () => {
@@ -158,11 +200,13 @@ describe('composerActions', () => {
 
   it('creates and activates a draft thread before first turn start', async () => {
     const request = vi.fn(async () => ({ turn: { id: 'turn-draft-1' } }))
+    const persistDraftRuntimePreferences = vi.fn(async () => undefined)
     const ctx = createBaseContext({
       inputText: 'build it',
       activeThreadId: null,
       newThreadDraft: { status: 'active', source: 'newThread', cwd: '/draft-repo' },
       request,
+      persistDraftRuntimePreferences,
     })
 
     const actions = createComposerActions(ctx)
@@ -172,17 +216,54 @@ describe('composerActions', () => {
     expect(ctx.activateCreatedThread).toHaveBeenCalledWith({
       thread: { id: 'draft-thread', cwd: '/draft-repo' },
       effectiveCwd: '/draft-repo',
-    }, { synchronize: false, modeOverride: 'normal' })
+    }, {
+      synchronize: false,
+      modeOverride: 'normal',
+      fallbackLogs: [
+        expect.objectContaining({
+          kind: 'message',
+          role: 'user',
+          text: 'build it',
+          turnId: 'pending-turn:client-message-123-1',
+          clientMessageId: 'client-message-123-1',
+          optimistic: true,
+        }),
+      ],
+    })
+    expect(persistDraftRuntimePreferences).toHaveBeenCalledWith('draft-thread')
     expect(ctx.leaveNewThreadDraft).toHaveBeenCalledTimes(1)
     expect(ctx.request).toHaveBeenCalledWith('turn/start', {
       threadId: 'draft-thread',
-      input: { text: 'build it' },
+      input: { text: 'build it', clientMessageId: 'client-message-123-1' },
       mode: 'normal',
       cwd: '/draft-repo',
     })
+    expect(persistDraftRuntimePreferences.mock.invocationCallOrder[0]).toBeLessThan(
+      (request as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+    )
     expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
     expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'turn-draft-1' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: 'pending-turn:client-message-123-1' })
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'bind_optimistic_user_message_turn',
+      clientMessageId: 'client-message-123-1',
+      turnId: 'turn-draft-1',
+      activate: true,
+    })
+    const dispatch = ctx.dispatch as ReturnType<typeof vi.fn>
+    const pushCallIndex = dispatch.mock.calls.findIndex(([action]) => action.type === 'push_message')
+    expect(pushCallIndex).toBeGreaterThanOrEqual(0)
+    expect(dispatch.mock.calls[pushCallIndex]?.[0]).toMatchObject({
+      type: 'push_message',
+      role: 'user',
+      text: 'build it',
+      turnId: 'pending-turn:client-message-123-1',
+      clientMessageId: 'client-message-123-1',
+      optimistic: true,
+    })
+    expect(dispatch.mock.invocationCallOrder[pushCallIndex]).toBeLessThan(
+      (request as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+    )
   })
 
   it('creates and activates a draft thread before supported slash command dispatch', async () => {
@@ -319,17 +400,13 @@ describe('composerActions', () => {
 
     expect(inputValue).toBe('hello')
     expect(setInputText).toHaveBeenCalledWith('')
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'push_message', role: 'user' }))
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'remove_transcript_item' }))
     expect(ctx.dispatch).toHaveBeenCalledWith({
-      type: 'push_message',
-      id: 'optimistic-user-123',
-      role: 'user',
-      text: 'hello',
-      optimistic: true,
+      type: 'clear_active_turn_if_matches',
+      turnId: 'pending-turn:client-message-123-1',
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({
-      type: 'remove_transcript_item',
-      id: 'optimistic-user-123',
-    })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
     const restoreCall = setInputText.mock.calls.find(
       (call) => typeof call[0] === 'function',
     )
@@ -359,6 +436,20 @@ describe('composerActions', () => {
     expect(ctx.refreshThreads).toHaveBeenCalledTimes(1)
     expect(ctx.refreshWorkspaceDiff).toHaveBeenCalledWith('/draft-repo')
     expect(inputValue).toBe('hello')
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'push_message',
+      role: 'user',
+      text: 'hello',
+      turnId: 'pending-turn:client-message-123-1',
+      clientMessageId: 'client-message-123-1',
+      optimistic: true,
+    }))
+    expect(ctx.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'remove_transcript_item' }))
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'clear_active_turn_if_matches',
+      turnId: 'pending-turn:client-message-123-1',
+    })
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
   })
 
   it('submits pending input by id via getter lookup', async () => {

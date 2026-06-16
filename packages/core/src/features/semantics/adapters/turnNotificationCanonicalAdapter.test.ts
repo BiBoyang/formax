@@ -10,7 +10,7 @@ describe('turnNotificationCanonicalAdapter', () => {
         params: {
           threadId: 'thread-1',
           turn: { id: 'turn-1', threadId: 'thread-1', status: 'running', mode: 'normal' },
-          input: { text: 'hello from turn started' },
+          input: { text: 'hello from turn started', clientMessageId: 'client-1' },
           replaySeq: 5,
           eventId: 'evt-5',
           ts: '2026-02-25T00:00:00.000Z',
@@ -27,6 +27,7 @@ describe('turnNotificationCanonicalAdapter', () => {
         turnId: 'turn-1',
         replaySeq: 5,
         text: 'hello from turn started',
+        clientMessageId: 'client-1',
         source: 'system',
       }),
     ])
