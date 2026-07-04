@@ -957,6 +957,120 @@ describe('TranscriptPane', () => {
     expect(screen.getByTestId('turn-live-activity')).toHaveTextContent('Thinking')
   })
 
+  it('renders pending user and thinking inside one turn block on the first frame', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'pending-turn:client-message-1',
+          isSending: true,
+          pendingTurns: [
+            {
+              requestId: 'request-1',
+              clientMessageId: 'client-message-1',
+              pendingTurnId: 'pending-turn:client-message-1',
+              messageId: 'pending-user-1',
+              text: 'hello pending',
+              owner: { kind: 'thread', threadId: 'thread-1' },
+              threadId: 'thread-1',
+              createdAtMs: 10,
+              status: 'pending',
+            },
+          ],
+        })}
+      />,
+    )
+
+    const userText = screen.getByText('hello pending')
+    const liveActivity = screen.getByTestId('turn-live-activity')
+    expect(liveActivity).toHaveTextContent('Thinking')
+    expect(userText.closest('[data-testid="transcript-turn-block"]')).toBe(
+      liveActivity.closest('[data-testid="transcript-turn-block"]'),
+    )
+  })
+
+  it('renders draft pending user feedback before a thread exists', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          activeTurnId: 'pending-turn:client-message-1',
+          surfaceKind: 'newThreadDraft',
+          isSending: true,
+          pendingTurns: [
+            {
+              requestId: 'request-1',
+              clientMessageId: 'client-message-1',
+              pendingTurnId: 'pending-turn:client-message-1',
+              messageId: 'pending-user-1',
+              text: 'draft hello',
+              owner: { kind: 'draft', source: 'newThread', cwd: '/repo' },
+              threadId: null,
+              createdAtMs: 10,
+              status: 'pending',
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getByText('draft hello')).toBeInTheDocument()
+    expect(screen.getByTestId('turn-live-activity')).toHaveTextContent('Thinking')
+  })
+
+  it('does not render draft loading without a pending turn', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeThreadId: null,
+          activeTurnId: null,
+          surfaceKind: 'newThreadDraft',
+          isSending: true,
+          pendingTurns: [],
+          logs: [],
+        })}
+      />,
+    )
+
+    expect(screen.queryByTestId('turn-live-activity')).toBeNull()
+  })
+
+  it('does not duplicate pending user after canonical handoff', () => {
+    renderWithI18n(
+      <TranscriptPane
+        {...baseProps({
+          activeTurnId: 'turn-1',
+          logs: [
+            {
+              id: 'turn-1:user:1',
+              kind: 'message',
+              role: 'user',
+              text: 'hello once',
+              turnId: 'turn-1',
+              clientMessageId: 'client-message-1',
+            },
+          ],
+          pendingTurns: [
+            {
+              requestId: 'request-1',
+              clientMessageId: 'client-message-1',
+              pendingTurnId: 'pending-turn:client-message-1',
+              messageId: 'pending-user-1',
+              text: 'hello once',
+              owner: { kind: 'thread', threadId: 'thread-1' },
+              threadId: 'thread-1',
+              turnId: 'turn-1',
+              createdAtMs: 10,
+              status: 'committed',
+            },
+          ],
+        })}
+      />,
+    )
+
+    expect(screen.getAllByText('hello once')).toHaveLength(1)
+    expect(screen.getByTestId('turn-live-activity')).toHaveTextContent('Thinking')
+  })
+
   it('renders notice rows as system feedback items', () => {
     renderWithI18n(
       <TranscriptPane

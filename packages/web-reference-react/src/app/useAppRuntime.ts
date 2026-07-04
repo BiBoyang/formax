@@ -1022,6 +1022,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       draftCwdOptions: cwdOptions,
       onDraftCwdChange: setNewThreadDraftCwdStable,
       logs: activeLogs,
+      pendingTurns: Object.values(state.pendingTurns),
       inputText,
       mode,
       modelTier: activeRuntimePreferences.modelTier,
@@ -1048,6 +1049,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [
       activeHistoryLoading,
       activeLogs,
+      state.pendingTurns,
       activeThread,
       activeThreadLatestCompactBoundary,
       activeThreadLatestRequestCollapse,

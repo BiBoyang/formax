@@ -122,7 +122,7 @@ describe('processNotification', () => {
     expect(ctx.replayCursorByThreadRef.current['thread-1']).toBe(7)
   })
 
-  it('binds the pending optimistic user row before applying turn/started canonical projection', () => {
+  it('commits the pending turn before applying turn/started canonical projection', () => {
     const dispatch = vi.fn()
     const ctx = createContext({ dispatch })
     const notification: RpcNotification = {
@@ -141,8 +141,8 @@ describe('processNotification', () => {
 
     processNotification(notification, ctx)
 
-    const bindIndex = dispatch.mock.calls.findIndex(([action]) =>
-      action.type === 'bind_optimistic_user_message_turn' &&
+    const commitIndex = dispatch.mock.calls.findIndex(([action]) =>
+      action.type === 'commit_pending_turn' &&
       action.clientMessageId === 'client-message-1' &&
       action.turnId === 'turn-1' &&
       action.activate === true,
@@ -150,9 +150,9 @@ describe('processNotification', () => {
     const projectionIndex = dispatch.mock.calls.findIndex(([action]) =>
       action.type === 'apply_canonical_event' && action.event.kind === 'user_message',
     )
-    expect(bindIndex).toBeGreaterThanOrEqual(0)
+    expect(commitIndex).toBeGreaterThanOrEqual(0)
     expect(projectionIndex).toBeGreaterThanOrEqual(0)
-    expect(bindIndex).toBeLessThan(projectionIndex)
+    expect(commitIndex).toBeLessThan(projectionIndex)
   })
 
   it('applies runtime preference notifications even when replaySeq is omitted', () => {
@@ -475,7 +475,7 @@ describe('processNotification', () => {
         status: 'completed',
       }),
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'clear_active_turn_if_matches', turnId: 'turn-30' })
   })
 
   it('maps turn/failed to canonical finalize events only via adapter when envelope is complete', () => {
@@ -518,7 +518,7 @@ describe('processNotification', () => {
         message: 'boom',
       }),
     })
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'clear_active_turn_if_matches', turnId: 'turn-40' })
   })
 
   it('does not project canonical finalize events for turn/completed when envelope is incomplete', () => {
@@ -536,7 +536,7 @@ describe('processNotification', () => {
     processNotification(notification, ctx)
 
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'clear_active_turn_if_matches', turnId: 'turn-50' })
     expect(ctx.log).toHaveBeenCalledWith(
       expect.stringContaining('Skipped canonical projection for turn/completed: missing envelope fields'),
       'warn',
@@ -559,7 +559,7 @@ describe('processNotification', () => {
     processNotification(notification, ctx)
 
     expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'apply_canonical_event' }))
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'set_active_turn', turnId: null })
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'clear_active_turn_if_matches', turnId: 'turn-51' })
     expect(ctx.log).toHaveBeenCalledWith(
       expect.stringContaining('Skipped canonical projection for turn/failed: missing envelope fields'),
       'warn',

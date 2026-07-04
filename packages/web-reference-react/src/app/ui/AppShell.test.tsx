@@ -21,10 +21,11 @@ vi.mock('../../components/LeftRail', () => ({
 }))
 
 vi.mock('../../components/TranscriptPane', () => ({
-  TranscriptPane: (props: { activeThreadId: string | null; logs: unknown[] }) => (
+  TranscriptPane: (props: { activeThreadId: string | null; activeTurnId: string | null; logs: unknown[] }) => (
     <div
       data-testid="mock-transcript-pane"
       data-active-thread-id={props.activeThreadId ?? ''}
+      data-active-turn-id={props.activeTurnId ?? ''}
       data-log-count={String(props.logs.length)}
     />
   ),
@@ -155,6 +156,7 @@ function createProps(overrides: Partial<AppShellProps> = {}): AppShellProps {
     draftCwdOptions: ['/repo-draft'],
     onDraftCwdChange: vi.fn(),
     logs: [],
+    pendingTurns: [],
     inputText: '',
     mode: 'normal',
     modelTier: 'sonnet',
@@ -279,6 +281,33 @@ describe('AppShell', () => {
     expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '1')
   })
 
+  it('passes active turn through on the draft surface when it belongs to a draft pending turn', () => {
+    renderShell({
+      visibleSurface: 'newThreadDraft',
+      activeThreadId: null,
+      activeThread: undefined,
+      activeTurnId: 'pending-turn:client-message-1',
+      pendingTurns: [
+        {
+          requestId: 'request-1',
+          clientMessageId: 'client-message-1',
+          pendingTurnId: 'pending-turn:client-message-1',
+          messageId: 'pending-user-1',
+          text: 'hello',
+          owner: { kind: 'draft', source: 'newThread', cwd: '/repo-draft' },
+          threadId: null,
+          createdAtMs: 10,
+          status: 'pending',
+        },
+      ],
+    })
+
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute(
+      'data-active-turn-id',
+      'pending-turn:client-message-1',
+    )
+  })
+
   it('keeps the draft surface even when stale thread-only state is still present', () => {
     renderShell({
       visibleSurface: 'newThreadDraft',
@@ -325,6 +354,7 @@ describe('AppShell', () => {
     expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-active-thread-id', '')
     expect(screen.getByTestId('mock-left-rail')).toHaveAttribute('data-current-group-cwd', '')
     expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-active-thread-id', '')
+    expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-active-turn-id', '')
     expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '1')
   })
 })

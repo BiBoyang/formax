@@ -172,6 +172,231 @@ describe('appReducer', () => {
     expect(unchanged.activeTurnId).toBe('turn-other')
   })
 
+  it('starts pending turn as transient state without writing transcript logs', () => {
+    const state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'thread', threadId: 'thread-1' },
+      createdAtMs: 10,
+      activate: true,
+    })
+
+    expect(state.logs).toHaveLength(0)
+    expect(state.activeTurnId).toBe('pending-turn:client-message-1')
+    expect(state.pendingTurns['client-message-1']).toMatchObject({
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      pendingTurnId: 'pending-turn:client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      threadId: 'thread-1',
+      status: 'pending',
+    })
+  })
+
+  it('commits pending turn idempotently and activates canonical turn id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'thread', threadId: 'thread-1' },
+      createdAtMs: 10,
+      activate: true,
+    })
+
+    state = appReducer(state, {
+      type: 'commit_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      activate: true,
+    })
+    const committed = state
+    state = appReducer(state, {
+      type: 'commit_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      activate: true,
+    })
+
+    expect(state).toBe(committed)
+    expect(state.activeTurnId).toBe('turn-1')
+    expect(state.pendingTurns['client-message-1']).toMatchObject({
+      turnId: 'turn-1',
+      status: 'committed',
+    })
+  })
+
+  it('materializes a pending draft thread only for the matching request id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'draft', source: 'newThread', cwd: '/repo' },
+      createdAtMs: 10,
+      activate: true,
+    })
+
+    const stale = appReducer(state, {
+      type: 'materialize_pending_turn_thread',
+      requestId: 'request-stale',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-stale',
+    })
+    expect(stale).toBe(state)
+
+    state = appReducer(state, {
+      type: 'materialize_pending_turn_thread',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-1',
+    })
+    expect(state.pendingTurns['client-message-1']?.threadId).toBe('thread-1')
+  })
+
+  it('rolls back only the matching pending request id', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'thread', threadId: 'thread-1' },
+      createdAtMs: 10,
+      activate: true,
+    })
+
+    const stale = appReducer(state, {
+      type: 'rollback_pending_turn',
+      requestId: 'request-stale',
+      clientMessageId: 'client-message-1',
+    })
+    expect(stale).toBe(state)
+
+    state = appReducer(state, {
+      type: 'rollback_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+    })
+    expect(state.pendingTurns['client-message-1']).toBeUndefined()
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('removes pending turn when canonical user message with client message id arrives', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'thread', threadId: 'thread-1' },
+      createdAtMs: 10,
+      activate: true,
+    })
+
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'evt-user-1' },
+        { kind: 'user_message', turnId: 'turn-1', text: 'hello', clientMessageId: 'client-message-1' },
+      ),
+    })
+
+    expect(state.pendingTurns['client-message-1']).toBeUndefined()
+    expect(state.logs).toHaveLength(1)
+    expect(state.logs[0]).toMatchObject({
+      kind: 'message',
+      role: 'user',
+      turnId: 'turn-1',
+      clientMessageId: 'client-message-1',
+    })
+  })
+
+  it('reconciles pending turn state when replacing logs with canonical history', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'thread', threadId: 'thread-1' },
+      createdAtMs: 10,
+      activate: true,
+    })
+    state = appReducer(state, {
+      type: 'commit_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      activate: true,
+    })
+
+    state = appReducer(state, {
+      type: 'replace_logs',
+      logs: [
+        {
+          id: 'turn-1:user:1',
+          kind: 'message',
+          role: 'user',
+          text: 'hello',
+          turnId: 'turn-1',
+          clientMessageId: 'client-message-1',
+        },
+        {
+          id: 'turn-1:footer',
+          kind: 'turn_footer',
+          turnId: 'turn-1',
+          status: 'completed',
+          createdAt: '2026-02-13T01:10:00.000Z',
+        },
+      ],
+    })
+
+    expect(state.pendingTurns['client-message-1']).toBeUndefined()
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('keeps pending draft turn when replacing logs with empty created-thread history', () => {
+    let state = appReducer(initialAppState, {
+      type: 'start_pending_turn',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      messageId: 'pending-user-1',
+      text: 'hello',
+      owner: { kind: 'draft', source: 'newThread', cwd: '/repo' },
+      createdAtMs: 10,
+      activate: true,
+    })
+    state = appReducer(state, {
+      type: 'materialize_pending_turn_thread',
+      requestId: 'request-1',
+      clientMessageId: 'client-message-1',
+      threadId: 'thread-1',
+    })
+
+    state = appReducer(state, {
+      type: 'replace_logs',
+      logs: [],
+    })
+
+    expect(state.pendingTurns['client-message-1']).toMatchObject({
+      threadId: 'thread-1',
+      status: 'pending',
+    })
+    expect(state.activeTurnId).toBe('pending-turn:client-message-1')
+  })
+
   it('keeps state reference stable when connection status is unchanged', () => {
     const state = {
       ...initialAppState,

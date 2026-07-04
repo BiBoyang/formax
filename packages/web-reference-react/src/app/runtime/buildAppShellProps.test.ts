@@ -57,6 +57,7 @@ describe('buildAppShellProps', () => {
         draftCwdOptions: ['/repo'],
         onDraftCwdChange: vi.fn(),
         logs: [],
+        pendingTurns: [],
         inputText: 'hello',
         mode: 'normal',
         modelTier: 'sonnet',

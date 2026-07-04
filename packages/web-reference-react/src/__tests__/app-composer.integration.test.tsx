@@ -520,6 +520,22 @@ describe('App thread history integration', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
     await screen.findByText('alpha reply')
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'turn/start') {
+        const record = (params && typeof params === 'object' ? params : {}) as {
+          threadId?: string
+          input?: { text?: string }
+        }
+        return {
+          turn: {
+            id: `turn-${String(record.input?.text ?? 'message').replace(/\W+/g, '-')}`,
+            threadId: record.threadId ?? 'thread-alpha',
+            status: 'running',
+          },
+        }
+      }
+      return {}
+    })
 
     const input = screen.getByPlaceholderText('Ask for follow-up changes')
     fireEvent.change(input, { target: { value: 'hello normal' } })

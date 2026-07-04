@@ -42,9 +42,13 @@ type MutableTurnBlock = TranscriptTurnBlock & {
 }
 
 function makeMutableTurnBlock(row: TranscriptRow, turnId: string): MutableTurnBlock {
+  const visualId =
+    row.item.kind === 'message' && row.item.role === 'user' && row.item.clientMessageId
+      ? `turn-visual:${row.item.clientMessageId}`
+      : `turn:${turnId}:${row.item.id}`
   return {
     kind: 'turn',
-    id: `turn:${turnId}:${row.item.id}`,
+    id: visualId,
     turnId,
     turnGroupStart: row.turnGroupStart,
     showTurnGap: row.showTurnGap,

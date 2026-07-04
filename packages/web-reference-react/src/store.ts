@@ -1,5 +1,13 @@
 import type { ConnectionStatus } from './rpcClient'
-import type { ContextMeterSnapshotRaw, ContextMeterThreadRaw, PendingInput, ThreadSummary, TranscriptItem } from './types'
+import type {
+  ContextMeterSnapshotRaw,
+  ContextMeterThreadRaw,
+  PendingInput,
+  PendingTurnOwner,
+  PendingTurnRuntime,
+  ThreadSummary,
+  TranscriptItem,
+} from './types'
 import type { CanonicalEvent } from './semantics'
 import type { ContextMeterBudgetRaw } from '@formax/shared/utils/contextMeter'
 import type { TokenUsage } from '@formax/shared/streaming'
@@ -21,6 +29,7 @@ export type AppState = {
   activeTurnId: string | null
   // Render model consumed by transcript UI; built from history hydrate + canonical projection patches.
   logs: TranscriptItem[]
+  pendingTurns: Record<string, PendingTurnRuntime>
   pendingInputs: Record<string, PendingInput>
   selectedInputId: string | null
   transcriptProjection: TranscriptProjectionState | null
@@ -33,6 +42,26 @@ export type AppAction =
   | { type: 'set_active_thread'; threadId: string | null }
   | { type: 'set_active_turn'; turnId: string | null }
   | { type: 'clear_active_turn_if_matches'; turnId: string }
+  | {
+      type: 'start_pending_turn'
+      requestId: string
+      clientMessageId: string
+      messageId: string
+      text: string
+      owner: PendingTurnOwner
+      createdAtMs: number
+      activate?: boolean
+    }
+  | { type: 'materialize_pending_turn_thread'; clientMessageId: string; threadId: string; requestId?: string }
+  | {
+      type: 'commit_pending_turn'
+      clientMessageId: string
+      turnId: string
+      threadId?: string | null
+      requestId?: string
+      activate?: boolean
+    }
+  | { type: 'rollback_pending_turn'; requestId: string; clientMessageId: string }
   | { type: 'replace_logs'; logs: TranscriptItem[] }
   | { type: 'prepend_logs'; logs: TranscriptItem[] }
   | { type: 'clear_pending_inputs' }
@@ -74,6 +103,7 @@ export const initialAppState: AppState = {
   activeThreadId: null,
   activeTurnId: null,
   logs: [],
+  pendingTurns: {},
   pendingInputs: {},
   selectedInputId: null,
   transcriptProjection: null,
@@ -82,6 +112,66 @@ export const initialAppState: AppState = {
 
 function itemId(): string {
   return `${Date.now()}-${Math.random()}`
+}
+
+function pendingTurnId(clientMessageId: string): string {
+  return `pending-turn:${clientMessageId}`
+}
+
+function omitPendingTurn(
+  pendingTurns: Record<string, PendingTurnRuntime>,
+  clientMessageId: string,
+): Record<string, PendingTurnRuntime> {
+  if (!Object.prototype.hasOwnProperty.call(pendingTurns, clientMessageId)) return pendingTurns
+  const next = { ...pendingTurns }
+  delete next[clientMessageId]
+  return next
+}
+
+function reconcilePendingTurnsForReplacedLogs(
+  state: AppState,
+  logs: TranscriptItem[],
+): Pick<AppState, 'activeTurnId' | 'pendingTurns'> {
+  if (Object.keys(state.pendingTurns).length === 0) {
+    return { activeTurnId: state.activeTurnId, pendingTurns: state.pendingTurns }
+  }
+
+  const canonicalTurnIdByClientMessageId = new Map<string, string>()
+  const terminalTurnIds = new Set<string>()
+  for (const item of logs) {
+    if (
+      item.kind === 'message' &&
+      item.role === 'user' &&
+      typeof item.clientMessageId === 'string' &&
+      item.clientMessageId.trim() &&
+      item.turnId
+    ) {
+      canonicalTurnIdByClientMessageId.set(item.clientMessageId, item.turnId)
+    } else if (item.kind === 'turn_footer') {
+      terminalTurnIds.add(item.turnId)
+    }
+  }
+
+  let pendingTurns = state.pendingTurns
+  let activeTurnId = state.activeTurnId
+  for (const pending of Object.values(state.pendingTurns)) {
+    const canonicalTurnId = canonicalTurnIdByClientMessageId.get(pending.clientMessageId)
+    const terminalTurnId = pending.turnId ?? canonicalTurnId
+    const isTerminal = terminalTurnId ? terminalTurnIds.has(terminalTurnId) : false
+    if (!canonicalTurnId && !isTerminal) continue
+
+    pendingTurns = omitPendingTurn(pendingTurns, pending.clientMessageId)
+    if (activeTurnId === pending.pendingTurnId) {
+      activeTurnId = isTerminal ? null : canonicalTurnId ?? pending.turnId ?? null
+    } else if (
+      isTerminal &&
+      (activeTurnId === pending.turnId || activeTurnId === canonicalTurnId)
+    ) {
+      activeTurnId = null
+    }
+  }
+
+  return { activeTurnId, pendingTurns }
 }
 
 function areThreadSummariesEqual(a: ThreadSummary, b: ThreadSummary): boolean {
@@ -171,9 +261,117 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (state.activeTurnId !== action.turnId) return state
       return { ...state, activeTurnId: null }
 
-    case 'replace_logs':
-      if (state.logs === action.logs && state.transcriptProjection === null) return state
-      return { ...state, logs: action.logs, transcriptProjection: null }
+    case 'start_pending_turn': {
+      const clientMessageId = action.clientMessageId.trim()
+      const requestId = action.requestId.trim()
+      const text = action.text.trim()
+      if (!clientMessageId || !requestId || !text) return state
+      const pending: PendingTurnRuntime = {
+        requestId,
+        clientMessageId,
+        pendingTurnId: pendingTurnId(clientMessageId),
+        messageId: action.messageId,
+        text,
+        owner: action.owner,
+        threadId: action.owner.kind === 'thread' ? action.owner.threadId : null,
+        createdAtMs: action.createdAtMs,
+        status: 'pending',
+      }
+      return {
+        ...state,
+        pendingTurns: {
+          ...state.pendingTurns,
+          [clientMessageId]: pending,
+        },
+        ...(action.activate ? { activeTurnId: pending.pendingTurnId } : {}),
+      }
+    }
+
+    case 'materialize_pending_turn_thread': {
+      const pending = state.pendingTurns[action.clientMessageId]
+      if (action.requestId && pending?.requestId !== action.requestId) return state
+      if (!pending || pending.threadId === action.threadId) return state
+      return {
+        ...state,
+        pendingTurns: {
+          ...state.pendingTurns,
+          [action.clientMessageId]: {
+            ...pending,
+            threadId: action.threadId,
+          },
+        },
+      }
+    }
+
+    case 'commit_pending_turn': {
+      const pending = state.pendingTurns[action.clientMessageId]
+      if (!pending) {
+        return action.activate && state.activeTurnId !== action.turnId
+          ? { ...state, activeTurnId: action.turnId }
+          : state
+      }
+      if (action.requestId && pending.requestId !== action.requestId) return state
+      const nextPending: PendingTurnRuntime = {
+        ...pending,
+        status: 'committed',
+        turnId: action.turnId,
+        threadId: action.threadId ?? pending.threadId,
+      }
+      const activeTurnId =
+        state.activeTurnId === pending.pendingTurnId || action.activate
+          ? action.turnId
+          : state.activeTurnId
+      if (
+        pending.status === nextPending.status &&
+        pending.turnId === nextPending.turnId &&
+        pending.threadId === nextPending.threadId &&
+        state.activeTurnId === activeTurnId
+      ) {
+        return state
+      }
+      return {
+        ...state,
+        activeTurnId,
+        pendingTurns: {
+          ...state.pendingTurns,
+          [action.clientMessageId]: nextPending,
+        },
+      }
+    }
+
+    case 'rollback_pending_turn': {
+      const pending = state.pendingTurns[action.clientMessageId]
+      if (!pending || pending.requestId !== action.requestId) return state
+      const nextPendingTurns = omitPendingTurn(state.pendingTurns, action.clientMessageId)
+      const activeTurnId =
+        state.activeTurnId === pending.pendingTurnId || (pending.turnId && state.activeTurnId === pending.turnId)
+          ? null
+          : state.activeTurnId
+      return {
+        ...state,
+        activeTurnId,
+        pendingTurns: nextPendingTurns,
+      }
+    }
+
+    case 'replace_logs': {
+      const reconciled = reconcilePendingTurnsForReplacedLogs(state, action.logs)
+      if (
+        state.logs === action.logs &&
+        state.transcriptProjection === null &&
+        state.pendingTurns === reconciled.pendingTurns &&
+        state.activeTurnId === reconciled.activeTurnId
+      ) {
+        return state
+      }
+      return {
+        ...state,
+        logs: action.logs,
+        transcriptProjection: null,
+        activeTurnId: reconciled.activeTurnId,
+        pendingTurns: reconciled.pendingTurns,
+      }
+    }
 
     case 'prepend_logs':
       if (action.logs.length === 0) return state
@@ -394,9 +592,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ) {
           return state
         }
+        const clientMessageId = action.event.kind === 'user_message' ? action.event.clientMessageId : undefined
+        const pendingTurns =
+          typeof clientMessageId === 'string' && clientMessageId.trim()
+            ? omitPendingTurn(state.pendingTurns, clientMessageId)
+            : state.pendingTurns
         return {
           ...state,
           ...projectionPatch,
+          pendingTurns,
         }
       }
 

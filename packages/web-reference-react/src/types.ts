@@ -232,6 +232,23 @@ export type ContextMeterView = {
   tone: 'normal' | 'warning' | 'danger'
 }
 
+export type PendingTurnOwner =
+  | { kind: 'thread'; threadId: string }
+  | { kind: 'draft'; source: string; cwd: string | null }
+
+export type PendingTurnRuntime = {
+  requestId: string
+  clientMessageId: string
+  pendingTurnId: string
+  messageId: string
+  text: string
+  owner: PendingTurnOwner
+  threadId: string | null
+  turnId?: string
+  createdAtMs: number
+  status: 'pending' | 'committed' | 'terminal' | 'rolled_back'
+}
+
 export type TranscriptItem =
   | { id: string; kind: 'log'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }
   | { id: string; kind: 'notice'; text: string; level: 'info' | 'warn' | 'error'; turnId?: string }

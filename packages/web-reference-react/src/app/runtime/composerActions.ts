@@ -11,8 +11,9 @@ import { normalizeDraftCwd } from './newThreadDraft'
 import {
   commitPendingTurnDraftAction,
   createPendingTurnDraft,
-  pushPendingTurnDraftActions,
-  rollbackPendingTurnDraftActions,
+  materializePendingTurnDraftThreadAction,
+  rollbackPendingTurnDraftAction,
+  startPendingTurnDraftAction,
   type PendingTurnDraft,
 } from './pendingTurnDraft'
 
@@ -61,12 +62,6 @@ export type ComposerActionsContext = {
 export function createComposerActions(ctx: ComposerActionsContext) {
   let startTurnInFlight = false
   let submittedMessageSeq = 0
-
-  const dispatchAll = (actions: AppAction[]) => {
-    for (const action of actions) {
-      ctx.dispatch(action)
-    }
-  }
 
   const resolveRpcErrorKind = (data: unknown): string | null => {
     if (!data || typeof data !== 'object') return null
@@ -153,17 +148,27 @@ export function createComposerActions(ctx: ComposerActionsContext) {
     const shouldDispatchCommand = commandRouting.shouldUseCommandDispatch
     let requestThreadId = ctx.activeThreadId
     let requestCwd = requestThreadId ? ctx.resolveRequestCwd(requestThreadId) : draftCwd
-    const clientMessageId = `client-message-${ctx.nowMs()}-${submittedMessageSeq += 1}`
+    const submittedAtMs = ctx.nowMs()
+    const submittedSeq = submittedMessageSeq += 1
+    const clientMessageId = `client-message-${submittedAtMs}-${submittedSeq}`
+    const requestId = `turn-request-${submittedAtMs}-${submittedSeq}`
     const pendingTurnDraft: PendingTurnDraft | null = shouldDispatchCommand
       ? null
       : createPendingTurnDraft({
           text,
+          requestId,
           clientMessageId,
-          messageId: `optimistic-user-${ctx.nowMs()}`,
+          messageId: `pending-user-${clientMessageId}`,
+          createdAtMs: submittedAtMs,
         })
-    const pushOptimisticUserMessage = () => {
+    const startPendingTurn = () => {
       if (!pendingTurnDraft) return
-      dispatchAll(pushPendingTurnDraftActions(pendingTurnDraft, { activate: Boolean(requestThreadId) }))
+      ctx.dispatch(startPendingTurnDraftAction(pendingTurnDraft, {
+        owner: requestThreadId
+          ? { kind: 'thread', threadId: requestThreadId }
+          : { kind: 'draft', source: draftToken?.source ?? 'newThread', cwd: draftCwd },
+        activate: true,
+      }))
     }
     ctx.setIsSendingTurn(true)
     let draftCreatedThread: CreatedThreadResult | null = null
@@ -173,13 +178,13 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       void ctx.refreshWorkspaceDiff(draftCreatedThread.effectiveCwd ?? requestCwd ?? null).catch(() => undefined)
     }
     try {
-      await ctx.awaitPreferencePersistence?.()
       ctx.setInputText('')
       if (shouldDispatchCommand) {
         ctx.log(`Command queued: ${text}`, 'info')
       }
 
-      pushOptimisticUserMessage()
+      startPendingTurn()
+      await ctx.awaitPreferencePersistence?.()
 
       if (!requestThreadId && draftCwd) {
         const created = await ctx.createThreadOnServerInCwd(draftCwd)
@@ -196,15 +201,17 @@ export function createComposerActions(ctx: ComposerActionsContext) {
           ctx.getCurrentActiveThreadId() == null
         if (!draftSendStillActive) {
           if (pendingTurnDraft) {
-            dispatchAll(rollbackPendingTurnDraftActions(pendingTurnDraft))
+            ctx.dispatch(rollbackPendingTurnDraftAction(pendingTurnDraft))
           }
           void ctx.refreshThreads().catch(() => undefined)
           return
         }
+        if (pendingTurnDraft) {
+          ctx.dispatch(materializePendingTurnDraftThreadAction(pendingTurnDraft, created.thread.id))
+        }
         await ctx.activateCreatedThread(created, {
           synchronize: false,
           modeOverride: ctx.mode,
-          ...(pendingTurnDraft ? { fallbackLogs: [pendingTurnDraft.message] } : {}),
         })
         if (pendingTurnDraft) {
           ctx.dispatch({ type: 'set_active_turn', turnId: pendingTurnDraft.pendingTurnId })
@@ -246,7 +253,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       const turnId = parsedTurnResult.turnId ?? ''
       if (turnId) {
         if (pendingTurnDraft) {
-          ctx.dispatch(commitPendingTurnDraftAction(pendingTurnDraft, turnId))
+          ctx.dispatch(commitPendingTurnDraftAction(pendingTurnDraft, turnId, requestThreadId))
         } else {
           ctx.dispatch({ type: 'set_active_turn', turnId })
         }
@@ -261,7 +268,7 @@ export function createComposerActions(ctx: ComposerActionsContext) {
       }
       ctx.setInputText((current) => (current.trim() ? current : text))
       if (pendingTurnDraft) {
-        dispatchAll(rollbackPendingTurnDraftActions(pendingTurnDraft))
+        ctx.dispatch(rollbackPendingTurnDraftAction(pendingTurnDraft))
       }
       throw error
     } finally {

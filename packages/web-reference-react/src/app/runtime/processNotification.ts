@@ -109,7 +109,7 @@ export function processNotification(
     const clientMessageId = extractClientMessageId(params)
     if (turnId) {
       if (clientMessageId) {
-        ctx.dispatch({ type: 'bind_optimistic_user_message_turn', clientMessageId, turnId, activate: true })
+        ctx.dispatch({ type: 'commit_pending_turn', clientMessageId, turnId, threadId, activate: true })
       } else {
         ctx.dispatch({ type: 'bind_last_optimistic_user_message_turn', turnId, activate: true })
       }
@@ -192,7 +192,9 @@ export function processNotification(
         ctx.setMode(nextMode)
         ctx.cacheThreadMode(threadId ?? ctx.activeThreadIdRef.current, nextMode)
       }
-      ctx.dispatch({ type: 'set_active_turn', turnId: turnId || null })
+      if (!turnId || !extractClientMessageId(params)) {
+        ctx.dispatch({ type: 'set_active_turn', turnId: turnId || null })
+      }
       break
     }
 
@@ -216,7 +218,11 @@ export function processNotification(
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      ctx.dispatch({ type: 'set_active_turn', turnId: null })
+      if (turnId) {
+        ctx.dispatch({ type: 'clear_active_turn_if_matches', turnId })
+      } else {
+        ctx.dispatch({ type: 'set_active_turn', turnId: null })
+      }
       if (turnId) {
         ctx.commandByTurnRef.current.delete(turnId)
       }
@@ -235,7 +241,11 @@ export function processNotification(
         void ctx.refreshWorkspaceDiff().catch(() => undefined)
         break
       }
-      ctx.dispatch({ type: 'set_active_turn', turnId: null })
+      if (turnId) {
+        ctx.dispatch({ type: 'clear_active_turn_if_matches', turnId })
+      } else {
+        ctx.dispatch({ type: 'set_active_turn', turnId: null })
+      }
       const command = turnId ? ctx.commandByTurnRef.current.get(turnId) : undefined
       if (command) {
         ctx.log(`Command failed: ${command}`, 'error', turnId)

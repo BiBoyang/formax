@@ -174,6 +174,26 @@ Rendering rules:
 
 This status model is enough for the current UI discussion without app-server changes. A future app-server-owned lifecycle status would require a canonical contract change, but that is not necessary for the collapse/loading behavior described here.
 
+## Pending Turn Runtime
+
+Web pending sends are a runtime/display concern, not durable transcript truth. A submitted user prompt that has not yet been handed off to canonical projection should live in `AppState.pendingTurns`, then be composed into the rendered transcript by the Web selector. It must not be inserted into `logs` as an ordinary optimistic transcript item on the normal server-turn path.
+
+The pending turn runtime has three separate identities:
+
+- `requestId`: ownership guard for rollback. A failed request may only roll back the pending turn it created.
+- `clientMessageId`: stable handoff key between Web submit, `turn/start`, `turn/started.input.clientMessageId`, and canonical `user_message`.
+- `turnId`: canonical server identity, known only after `turn/start` or `turn/started`.
+
+Rendering rules:
+
+- The first visible frame after send should be one `TurnBlock` containing the pending user message and the derived `Thinking` activity row.
+- The visual block key should prefer `clientMessageId` so pending-to-canonical handoff does not remount the whole block when `turnId` becomes known.
+- On draft first send, `thread/start` materializes the owner thread for the existing pending turn; it should not pass pending user rows through thread activation `fallbackLogs`.
+- HTTP `turn/start` responses and live `turn/started` notifications both commit the same pending turn. The commit path must be idempotent.
+- Canonical `user_message` with the same `clientMessageId` removes the pending display row. Until that canonical event arrives, the pending row is only a visual placeholder.
+- Rollback must match `requestId + clientMessageId` and may clear `activeTurnId` only if it still points at that pending or committed turn.
+- Terminal notifications should clear active turn state only when the terminal `turnId` matches the current active turn. They must not clear the active turn for another thread or a newer in-flight send.
+
 ## Reasoning Block
 
 Use `reasoning` for real model reasoning content in product/UI language. The current lower-level protocol and projection names still use `thinking` (`thinking_delta`, `thinking_stop`, `kind: "thinking"`) for compatibility; the Web display model should map those items to `ReasoningBlock`.
@@ -351,6 +371,7 @@ Current Web transcript projection still works with item kinds such as `message`,
 Suggested mapping:
 
 - user `message` items become `Turn.user`
+- pending send runtime in `AppState.pendingTurns` is composed as a temporary user message before canonical handoff; it is not a raw transcript item source
 - assistant text emitted as the final user-visible response becomes `AssistantBlock(kind: "answer")`
 - consecutive `tool_call` items become `AssistantBlock(kind: "tool_group")`
 - a single `tool_call` item still becomes a one-item `ToolGroup`

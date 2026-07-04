@@ -1,79 +1,80 @@
 import type { AppAction } from '../../store'
-import type { TranscriptItem } from '../../types'
-
-type PendingTurnMessage = Extract<TranscriptItem, { kind: 'message' }> & {
-  role: 'user'
-  turnId: string
-  clientMessageId: string
-  optimistic: true
-}
+import type { PendingTurnOwner } from '../../types'
 
 export type PendingTurnDraft = {
+  requestId: string
   clientMessageId: string
   pendingTurnId: string
   messageId: string
-  message: PendingTurnMessage
+  text: string
+  createdAtMs: number
 }
 
 export function createPendingTurnDraft(args: {
   text: string
+  requestId: string
   clientMessageId: string
   messageId: string
+  createdAtMs: number
 }): PendingTurnDraft {
   const pendingTurnId = `pending-turn:${args.clientMessageId}`
-  const message: PendingTurnMessage = {
-    kind: 'message',
-    id: args.messageId,
-    role: 'user',
-    text: args.text,
-    turnId: pendingTurnId,
-    clientMessageId: args.clientMessageId,
-    optimistic: true,
-  }
   return {
+    requestId: args.requestId,
     clientMessageId: args.clientMessageId,
     pendingTurnId,
     messageId: args.messageId,
-    message,
+    text: args.text,
+    createdAtMs: args.createdAtMs,
   }
 }
 
-export function pushPendingTurnDraftActions(
+export function startPendingTurnDraftAction(
   draft: PendingTurnDraft,
-  options?: { activate?: boolean },
-): AppAction[] {
-  const actions: AppAction[] = [
-    {
-      type: 'push_message',
-      id: draft.messageId,
-      role: 'user',
-      text: draft.message.text,
-      turnId: draft.pendingTurnId,
-      clientMessageId: draft.clientMessageId,
-      optimistic: true,
-    },
-  ]
-  if (options?.activate) {
-    actions.push({ type: 'set_active_turn', turnId: draft.pendingTurnId })
+  args: { owner: PendingTurnOwner; activate?: boolean },
+): AppAction {
+  return {
+    type: 'start_pending_turn',
+    requestId: draft.requestId,
+    clientMessageId: draft.clientMessageId,
+    messageId: draft.messageId,
+    text: draft.text,
+    owner: args.owner,
+    createdAtMs: draft.createdAtMs,
+    activate: args.activate,
   }
-  return actions
+}
+
+export function materializePendingTurnDraftThreadAction(
+  draft: PendingTurnDraft,
+  threadId: string,
+): AppAction {
+  return {
+    type: 'materialize_pending_turn_thread',
+    requestId: draft.requestId,
+    clientMessageId: draft.clientMessageId,
+    threadId,
+  }
 }
 
 export function commitPendingTurnDraftAction(
   draft: PendingTurnDraft,
   turnId: string,
+  threadId?: string | null,
 ): AppAction {
   return {
-    type: 'bind_optimistic_user_message_turn',
+    type: 'commit_pending_turn',
+    requestId: draft.requestId,
     clientMessageId: draft.clientMessageId,
     turnId,
+    threadId,
     activate: true,
   }
 }
 
-export function rollbackPendingTurnDraftActions(draft: PendingTurnDraft): AppAction[] {
-  return [
-    { type: 'remove_transcript_item', id: draft.messageId },
-    { type: 'clear_active_turn_if_matches', turnId: draft.pendingTurnId },
-  ]
+export function rollbackPendingTurnDraftAction(draft: PendingTurnDraft): AppAction {
+  return {
+    type: 'rollback_pending_turn',
+    requestId: draft.requestId,
+    clientMessageId: draft.clientMessageId,
+  }
 }

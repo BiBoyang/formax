@@ -12,7 +12,15 @@ import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
 import { cn } from '../../lib/utils'
 import { SettingsPane } from '../../components/SettingsPane'
-import type { CompactBoundarySummary, ContextMeterView, PendingInput, RequestCollapseSummary, ThreadSummary, TranscriptItem } from '../../types'
+import type {
+  CompactBoundarySummary,
+  ContextMeterView,
+  PendingInput,
+  PendingTurnRuntime,
+  RequestCollapseSummary,
+  ThreadSummary,
+  TranscriptItem,
+} from '../../types'
 import type { ThreadViewModel } from '../core/threadViewModel'
 import { type UpdateUserSetting, type UserSettings } from '../core/userSettings'
 import { useI18n } from '../i18n/I18nProvider'
@@ -31,6 +39,16 @@ const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
+
+function isDraftPendingTurnActive(activeTurnId: string | null, pendingTurns: PendingTurnRuntime[]): boolean {
+  if (!activeTurnId) return false
+  return pendingTurns.some((pending) =>
+    pending.owner.kind === 'draft' &&
+    pending.status !== 'rolled_back' &&
+    pending.status !== 'terminal' &&
+    (pending.pendingTurnId === activeTurnId || pending.turnId === activeTurnId),
+  )
+}
 
 export type AppShellProps = {
   sortedThreads: ThreadViewModel[]
@@ -71,6 +89,7 @@ export type AppShellProps = {
   draftCwdOptions: string[]
   onDraftCwdChange: (cwd: string) => void
   logs: TranscriptItem[]
+  pendingTurns: PendingTurnRuntime[]
   inputText: string
   mode: ReplMode
   modelTier: RuntimeModelTier
@@ -135,6 +154,9 @@ export function AppShell(props: AppShellProps) {
   const terminalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(null)
   const isThreadSurface = props.visibleSurface === 'thread' && props.activeThreadId != null
   const isDraftSurface = props.visibleSurface === 'newThreadDraft'
+  const transcriptActiveTurnId = isThreadSurface || isDraftPendingTurnActive(props.activeTurnId, props.pendingTurns)
+    ? props.activeTurnId
+    : null
   const headerWorkspaceCwd = isThreadSurface
     ? props.activeThread?.cwd ?? null
     : isDraftSurface
@@ -294,7 +316,7 @@ export function AppShell(props: AppShellProps) {
     () => ({
       activeThread: isThreadSurface ? props.activeThread : undefined,
       activeThreadId: isThreadSurface ? props.activeThreadId : null,
-      activeTurnId: isThreadSurface ? props.activeTurnId : null,
+      activeTurnId: transcriptActiveTurnId,
       composerLocked: isThreadSurface ? props.composerLocked : false,
       surfaceKind: props.visibleSurface,
       draftCwd: props.draftCwd,
@@ -303,6 +325,7 @@ export function AppShell(props: AppShellProps) {
       onDraftAddProject: desktopBridge?.pickProjectFolder ? onDraftAddProject : undefined,
       virtualizationEnabled: props.transcriptVirtualizationEnabled,
       logs: props.logs,
+      pendingTurns: props.pendingTurns,
       inputText: props.inputText,
       mode: props.mode,
       modelTier: props.modelTier,
@@ -346,6 +369,7 @@ export function AppShell(props: AppShellProps) {
       props.isSending,
       props.lastRpcError,
       props.logs,
+      props.pendingTurns,
       props.mode,
       props.modelTier,
       props.thinkingMode,
@@ -366,6 +390,7 @@ export function AppShell(props: AppShellProps) {
       props.transcriptVirtualizationEnabled,
       desktopBridge,
       onDraftAddProject,
+      transcriptActiveTurnId,
     ],
   )
 

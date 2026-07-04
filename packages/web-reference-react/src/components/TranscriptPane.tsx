@@ -4,7 +4,7 @@ import { useI18n } from '../app/i18n/I18nProvider'
 import { cn } from '../lib/utils'
 import { copyToClipboard } from '../lib/clipboard'
 import { Badge } from './ui/badge'
-import type { ContextMeterView, TranscriptItem, ThreadSummary } from '../types'
+import type { ContextMeterView, PendingTurnRuntime, TranscriptItem, ThreadSummary } from '../types'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ToolTranscriptItem } from './tool/ToolTranscriptItem'
 import { buildToolUiBlocks } from './tool/toolBlocksRegistry'
@@ -106,6 +106,7 @@ export type TranscriptPaneProps = {
 
   surfaceKind?: VisibleSurface
   logs: TranscriptItem[]
+  pendingTurns?: PendingTurnRuntime[]
   composerLocked?: boolean
   inputText: string
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
@@ -203,6 +204,103 @@ function TurnFooterItem({ item }: { item: Extract<TranscriptItem, { kind: 'turn_
       <span className="ui-text-micro text-muted-foreground/70 font-mono">{item.turnId.slice(0, 8)}</span>
       {item.message ? <span className="ui-text-micro text-muted-foreground/70 truncate max-w-[320px]">{item.message}</span> : null}
     </div>
+  )
+}
+
+function isPendingTurnVisible(args: {
+  pending: PendingTurnRuntime
+  activeThreadId: string | null
+  surfaceKind: VisibleSurface
+}): boolean {
+  const { pending, activeThreadId, surfaceKind } = args
+  if (pending.status === 'rolled_back' || pending.status === 'terminal') {
+    return false
+  }
+  if (surfaceKind === 'newThreadDraft') {
+    return activeThreadId == null && pending.owner.kind === 'draft'
+  }
+  if (surfaceKind === 'thread' && activeThreadId) {
+    return pending.threadId === activeThreadId ||
+      (pending.owner.kind === 'thread' && pending.owner.threadId === activeThreadId)
+  }
+  return false
+}
+
+function toPendingTranscriptItem(pending: PendingTurnRuntime): Extract<TranscriptItem, { kind: 'message' }> {
+  return {
+    id: pending.messageId,
+    kind: 'message',
+    role: 'user',
+    text: pending.text,
+    turnId: pending.turnId ?? pending.pendingTurnId,
+    clientMessageId: pending.clientMessageId,
+    optimistic: true,
+  }
+}
+
+function mergePendingTranscriptItems(args: {
+  logs: TranscriptItem[]
+  pendingTurns: PendingTurnRuntime[]
+  activeThreadId: string | null
+  surfaceKind: VisibleSurface
+}): TranscriptItem[] {
+  if (args.pendingTurns.length === 0) return args.logs
+  const canonicalClientMessageIds = collectCanonicalClientMessageIds(args.logs)
+  const existingItemIds = new Set<string>()
+  for (const item of args.logs) {
+    existingItemIds.add(item.id)
+  }
+  const pendingItems = args.pendingTurns
+    .filter((pending) => isPendingTurnVisible({
+      pending,
+      activeThreadId: args.activeThreadId,
+      surfaceKind: args.surfaceKind,
+    }))
+    .filter((pending) => !canonicalClientMessageIds.has(pending.clientMessageId))
+    .sort((a, b) => a.createdAtMs - b.createdAtMs)
+    .map(toPendingTranscriptItem)
+    .filter((item) => !existingItemIds.has(item.id))
+  if (pendingItems.length === 0) return args.logs
+
+  const merged = [...args.logs]
+  for (const item of pendingItems) {
+    const turnId = item.turnId
+    const insertionIndex = turnId
+      ? merged.findIndex((existing) => existing.turnId === turnId)
+      : -1
+    if (insertionIndex >= 0) {
+      merged.splice(insertionIndex, 0, item)
+    } else {
+      merged.push(item)
+    }
+  }
+  return merged
+}
+
+function collectCanonicalClientMessageIds(logs: TranscriptItem[]): Set<string> {
+  const ids = new Set<string>()
+  for (const item of logs) {
+    if (item.kind === 'message' && item.role === 'user' && item.clientMessageId) {
+      ids.add(item.clientMessageId)
+    }
+  }
+  return ids
+}
+
+function hasVisiblePendingTurn(args: {
+  logs: TranscriptItem[]
+  pendingTurns: PendingTurnRuntime[]
+  activeThreadId: string | null
+  surfaceKind: VisibleSurface
+}): boolean {
+  if (args.pendingTurns.length === 0) return false
+  const canonicalClientMessageIds = collectCanonicalClientMessageIds(args.logs)
+  return args.pendingTurns.some((pending) =>
+    isPendingTurnVisible({
+      pending,
+      activeThreadId: args.activeThreadId,
+      surfaceKind: args.surfaceKind,
+    }) && !canonicalClientMessageIds.has(pending.clientMessageId),
   )
 }
 
@@ -559,6 +657,7 @@ function TranscriptTurnBlockItem(props: {
   const isLiveTurn = props.showTurnLoading && props.activeTurnId === block.turnId
   return (
     <div
+      data-testid="transcript-turn-block"
       data-turn-group-start={block.turnGroupStart ? 'true' : undefined}
       className={cn('min-w-0 ui-content-auto', block.showTurnGap ? 'mt-3 pt-1' : null)}
     >
@@ -614,6 +713,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     virtualizationEnabled = false,
     surfaceKind = activeThreadId ? 'thread' : 'newThreadDraft',
     logs,
+    pendingTurns = [],
     composerLocked = false,
     inputText,
     mode,
@@ -649,8 +749,28 @@ export function TranscriptPane(props: TranscriptPaneProps) {
   const [openToolGroupIds, dispatchOpenToolGroupIds] = useReducer(openIdsReducer, new Set<string>())
   const [openReasoningIds, dispatchOpenReasoningIds] = useReducer(openIdsReducer, new Set<string>())
   const hasActiveTurn = Boolean(activeTurnId)
+  const hasPendingTurnActivity = useMemo(
+    () => hasVisiblePendingTurn({
+      logs,
+      pendingTurns,
+      activeThreadId,
+      surfaceKind,
+    }),
+    [activeThreadId, logs, pendingTurns, surfaceKind],
+  )
+  const displayLogs = useMemo(
+    () => mergePendingTranscriptItems({
+      logs,
+      pendingTurns,
+      activeThreadId,
+      surfaceKind,
+    }),
+    [activeThreadId, logs, pendingTurns, surfaceKind],
+  )
 
-  const showTurnLoading = Boolean(activeThreadId) &&
+  const canShowTurnLoadingOnSurface = Boolean(activeThreadId) ||
+    (surfaceKind === 'newThreadDraft' && hasPendingTurnActivity)
+  const showTurnLoading = canShowTurnLoadingOnSurface &&
     connectionStatus === 'connected' &&
     !isInterrupting &&
     (isSending || hasActiveTurn)
@@ -664,7 +784,7 @@ export function TranscriptPane(props: TranscriptPaneProps) {
     jumpToBottom,
     stickToBottom,
   } = useRenderWindow({
-    logs,
+    logs: displayLogs,
     activeThreadId,
     activeTurnId,
     virtualizationEnabled,

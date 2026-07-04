@@ -48,6 +48,7 @@ type TranscriptSection = Pick<
   | 'draftCwdOptions'
   | 'onDraftCwdChange'
   | 'logs'
+  | 'pendingTurns'
   | 'inputText'
   | 'mode'
   | 'modelTier'
