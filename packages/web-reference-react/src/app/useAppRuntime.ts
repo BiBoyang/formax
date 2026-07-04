@@ -455,7 +455,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [log, request, setDurableSnipByThreadId, setHiddenGroupCwdsStable, setLatestRequestCollapseByThreadId],
   )
 
-  const { refreshWorkspaceDiff, requestDiffFilePatch } = useMemo(
+  const { refreshWorkspaceDiff, requestDiffFilePatch, requestDiffFilePreview } = useMemo(
     () =>
       createDiffDataOps({
         request,
@@ -889,9 +889,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       createDiffUiHandlers({
         refreshWorkspaceDiff,
         requestDiffFilePatch,
+        requestDiffFilePreview,
         runAsyncSafely,
       }),
-    [refreshWorkspaceDiff, requestDiffFilePatch],
+    [refreshWorkspaceDiff, requestDiffFilePatch, requestDiffFilePreview],
   )
 
   const threadSection = useMemo<BuildAppShellPropsArgs['thread']>(
@@ -1037,6 +1038,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       diffSnapshot,
       onRefreshDiff: diffUiHandlers.onRefreshDiff,
       onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
+      onRequestDiffPreview: diffUiHandlers.onRequestDiffPreview,
       isRefreshingDiff,
     }),
     [diffSnapshot, diffUiHandlers, isRefreshingDiff],

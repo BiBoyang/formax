@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider, type I18nProviderProps } from '../app/i18n/I18nProvider'
-import { WorktreeDiffPane } from './WorktreeDiffPane'
+import { WorktreeDiffPane, type DiffFilePreviewPayload } from './WorktreeDiffPane'
 
 const TEST_TIMEOUT_MS = 20_000
 
@@ -145,6 +145,169 @@ describe('WorktreeDiffPane', () => {
     expect(iconTokenByPath('.gitignore')).toBe('git')
   }, TEST_TIMEOUT_MS)
 
+
+  it('lazy-loads image previews per expanded file item', async () => {
+    let resolvePreview: (value: DiffFilePreviewPayload) => void = () => undefined
+    const onRequestPreview = vi.fn(
+      () =>
+        new Promise<DiffFilePreviewPayload>((resolve) => {
+          resolvePreview = resolve
+        }),
+    )
+    const onRequestPatch = vi.fn(async () => null)
+
+    renderPane(
+      <WorktreeDiffPane
+        onRequestPatch={onRequestPatch}
+        onRequestPreview={onRequestPreview}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            { path: 'images/a.webp', additions: 0, deletions: 0 },
+            { path: 'src/a.ts', additions: 1, deletions: 0 },
+          ],
+        }}
+      />,
+    )
+
+    expect(onRequestPreview).not.toHaveBeenCalled()
+    expect(onRequestPatch).not.toHaveBeenCalled()
+
+    await clickFileToggle(0)
+    expect(screen.getByTestId('worktree-diff-image-preview-loading')).toHaveTextContent('Loading image preview...')
+    expect(onRequestPreview).toHaveBeenCalledWith('images/a.webp')
+    expect(onRequestPatch).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolvePreview({
+        path: 'images/a.webp',
+        found: true,
+        preview: {
+          kind: 'image',
+          mimeType: 'image/webp',
+          dataUrl: 'data:image/webp;base64,abc',
+          sizeBytes: 1536,
+        },
+      })
+    })
+
+    const preview = await screen.findByTestId('worktree-diff-image-preview')
+    expect(preview.querySelector('img')).toHaveAttribute('src', 'data:image/webp;base64,abc')
+    expect(preview).toHaveTextContent('image/webp')
+    expect(preview).toHaveTextContent('1.5 KB')
+
+    await clickFileToggle(0)
+    expect(screen.queryByTestId('worktree-diff-image-preview')).not.toBeInTheDocument()
+    await clickFileToggle(0)
+    expect(screen.getByTestId('worktree-diff-image-preview')).toBeInTheDocument()
+    expect(onRequestPreview).toHaveBeenCalledTimes(1)
+  }, TEST_TIMEOUT_MS)
+
+  it('shows deleted image previews with a no-image marker', async () => {
+    const onRequestPreview = vi.fn(async (): Promise<DiffFilePreviewPayload> => ({
+      path: 'images/deleted.webp',
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType: 'image/webp',
+        dataUrl: 'data:image/webp;base64,abc',
+        sizeBytes: 1536,
+        source: 'head',
+        changeKind: 'deleted',
+      },
+    }))
+
+    renderPane(
+      <WorktreeDiffPane
+        onRequestPreview={onRequestPreview}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'images/deleted.webp', additions: 0, deletions: 0 }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    const preview = await screen.findByTestId('worktree-diff-image-preview')
+    expect(preview).toHaveAttribute('data-change-kind', 'deleted')
+    expect(preview.querySelector('img')).toHaveAttribute('src', 'data:image/webp;base64,abc')
+    expect(screen.getByTestId('worktree-diff-image-preview-deleted')).toHaveTextContent('No image')
+  }, TEST_TIMEOUT_MS)
+
+  it('shows an image preview error state when preview loading fails', async () => {
+    const onRequestPreview = vi.fn()
+    onRequestPreview.mockResolvedValueOnce({
+      path: 'images/a.webp',
+      found: false,
+      preview: null,
+      error: 'not_found',
+    })
+    onRequestPreview.mockResolvedValueOnce({
+      path: 'images/a.webp',
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType: 'image/webp',
+        dataUrl: 'data:image/webp;base64,retried',
+        sizeBytes: 3,
+      },
+    })
+
+    renderPane(
+      <WorktreeDiffPane
+        onRequestPreview={onRequestPreview}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'images/a.webp', additions: 0, deletions: 0 }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    const error = await screen.findByTestId('worktree-diff-image-preview-error')
+    expect(error).toHaveAttribute('data-error', 'unavailable')
+    expect(error).toHaveTextContent('Image preview unavailable')
+
+    await clickFileToggle()
+    expect(screen.queryByTestId('worktree-diff-image-preview-error')).not.toBeInTheDocument()
+    await clickFileToggle()
+
+    const preview = await screen.findByTestId('worktree-diff-image-preview')
+    expect(preview.querySelector('img')).toHaveAttribute('src', 'data:image/webp;base64,retried')
+    expect(onRequestPreview).toHaveBeenCalledTimes(2)
+  }, TEST_TIMEOUT_MS)
+
+  it('does not leave image rows loading forever when no preview handler exists', async () => {
+    const onRequestPatch = vi.fn(async () => null)
+
+    renderPane(
+      <WorktreeDiffPane
+        onRequestPatch={onRequestPatch}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'images/a.webp', additions: 0, deletions: 0 }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    await waitFor(() => {
+      expect(onRequestPatch).toHaveBeenCalledWith('images/a.webp')
+    })
+    expect(screen.queryByTestId('worktree-diff-image-preview-loading')).not.toBeInTheDocument()
+  }, TEST_TIMEOUT_MS)
 
   it('switches between unified and split diff rendering', async () => {
     renderPane(

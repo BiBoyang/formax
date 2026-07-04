@@ -1,4 +1,4 @@
-import type { DiffFilePatchPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
+import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
 
 export type DiffDataOpsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>
@@ -70,6 +70,41 @@ function asDiffFilePatchPayload(value: unknown): DiffFilePatchPayload | null {
   }
 }
 
+function asDiffFilePreviewPayload(value: unknown): DiffFilePreviewPayload | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  const preview = raw.preview
+  if (!preview || typeof preview !== 'object') {
+    return {
+      path: typeof raw.path === 'string' ? raw.path : '',
+      found: raw.found === true,
+      preview: null,
+      error: typeof raw.error === 'string' ? raw.error : undefined,
+    }
+  }
+  const rawPreview = preview as Record<string, unknown>
+  const kind = rawPreview.kind === 'image' ? 'image' : null
+  if (!kind) return null
+  const source = rawPreview.source === 'head' || rawPreview.source === 'working_tree' ? rawPreview.source : undefined
+  const changeKind =
+    rawPreview.changeKind === 'added' || rawPreview.changeKind === 'modified' || rawPreview.changeKind === 'deleted'
+      ? rawPreview.changeKind
+      : undefined
+  return {
+    path: typeof raw.path === 'string' ? raw.path : '',
+    found: raw.found === true,
+    preview: {
+      kind,
+      mimeType: typeof rawPreview.mimeType === 'string' ? rawPreview.mimeType : '',
+      dataUrl: typeof rawPreview.dataUrl === 'string' ? rawPreview.dataUrl : '',
+      sizeBytes: typeof rawPreview.sizeBytes === 'number' ? rawPreview.sizeBytes : 0,
+      ...(source ? { source } : {}),
+      ...(changeKind ? { changeKind } : {}),
+    },
+    error: typeof raw.error === 'string' ? raw.error : undefined,
+  }
+}
+
 export function createDiffDataOps(ctx: DiffDataOpsContext) {
   const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {
     if (!ctx.canRefreshDiff()) return
@@ -117,8 +152,20 @@ export function createDiffDataOps(ctx: DiffDataOpsContext) {
     return payload
   }
 
+  const requestDiffFilePreview = async (filePath: string, cwdOverride?: string | null): Promise<DiffFilePreviewPayload | null> => {
+    const path = filePath.trim()
+    if (!path) return null
+    if (!ctx.canRefreshDiff()) return null
+    const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+    const result = await ctx
+      .request('bridge/readDiffFilePreview', { path, maxBytes: 8 * 1024 * 1024, ...(cwd ? { cwd } : {}) })
+      .catch(() => null)
+    return asDiffFilePreviewPayload(result)
+  }
+
   return {
     refreshWorkspaceDiff,
     requestDiffFilePatch,
+    requestDiffFilePreview,
   }
 }

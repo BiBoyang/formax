@@ -158,6 +158,46 @@ describe('diffDataOps', () => {
     })
   })
 
+  it('requests image preview via bridge/readDiffFilePreview', async () => {
+    const ctx = createBaseContext({
+      request: vi.fn((method: string) => {
+        if (method === 'bridge/readDiffFilePreview') {
+          return Promise.resolve({
+            path: 'images/a.webp',
+            found: true,
+            preview: {
+              kind: 'image',
+              mimeType: 'image/webp',
+              dataUrl: 'data:image/webp;base64,abc',
+              sizeBytes: 3,
+            },
+          })
+        }
+        return Promise.resolve({})
+      }),
+    })
+    const ops = createDiffDataOps(ctx)
+
+    const result = await ops.requestDiffFilePreview('images/a.webp')
+
+    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffFilePreview', {
+      path: 'images/a.webp',
+      maxBytes: 8 * 1024 * 1024,
+      cwd: '/repo',
+    })
+    expect(result).toEqual({
+      path: 'images/a.webp',
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType: 'image/webp',
+        dataUrl: 'data:image/webp;base64,abc',
+        sizeBytes: 3,
+      },
+      error: undefined,
+    })
+  })
+
   it('still requests a diff file patch when the current thread has no resolved cwd', async () => {
     const ctx = createBaseContext({
       resolveDiffCwd: vi.fn(() => null),

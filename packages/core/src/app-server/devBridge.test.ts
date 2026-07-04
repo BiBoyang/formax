@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
@@ -587,6 +587,36 @@ describe('startAppServerDevBridge', () => {
       expect(payload.result?.file?.patch).toContain('@@')
       expect(payload.result?.file?.patch).toContain('+two-updated')
       expect(payload.result?.file?.patch).toContain('+three')
+
+      await bridge.close()
+    } finally {
+      await rm(repoDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads a single image preview via bridge/readDiffFilePreview', async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-rpc-'))
+    try {
+      runGit(repoDir, ['init'])
+      await mkdir(path.join(repoDir, 'images'))
+      const bytes = Buffer.from([0x52, 0x49, 0x46, 0x46])
+      await writeFile(path.join(repoDir, 'images', 'a.webp'), bytes)
+
+      const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: repoDir })
+      const onConnection = getConnectionHandler()
+      const socket = createMockSocket()
+      onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+      socket.emitMessage(
+        '{"jsonrpc":"2.0","id":246,"method":"bridge/readDiffFilePreview","params":{"path":"images/a.webp","maxBytes":4096}}\n',
+      )
+      await waitFor(() => socket.send.mock.calls.length > 0)
+
+      const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+      expect(payload.id).toBe(246)
+      expect(payload.result?.found).toBe(true)
+      expect(payload.result?.preview?.mimeType).toBe('image/webp')
+      expect(payload.result?.preview?.dataUrl).toBe(`data:image/webp;base64,${bytes.toString('base64')}`)
 
       await bridge.close()
     } finally {

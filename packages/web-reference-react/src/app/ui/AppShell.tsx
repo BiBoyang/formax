@@ -6,7 +6,7 @@ import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
 import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
-import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
+import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffFilePreviewPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
@@ -107,6 +107,7 @@ export type AppShellProps = {
   diffSnapshot: DiffSnapshot | null
   onRefreshDiff: () => void
   onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
+  onRequestDiffPreview: (filePath: string) => Promise<DiffFilePreviewPayload | null>
   isRefreshingDiff: boolean
   noticeMessage: string | null
   userSettings: UserSettings
@@ -406,6 +407,7 @@ export function AppShell(props: AppShellProps) {
       latestRequestCollapse: isThreadSurface ? props.activeThreadLatestRequestCollapse : null,
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
+      onRequestPreview: props.onRequestDiffPreview,
       isRefreshingDiff: isThreadSurface ? props.isRefreshingDiff : false,
       showHeader: true as const,
     }),
@@ -417,6 +419,7 @@ export function AppShell(props: AppShellProps) {
       props.isRefreshingDiff,
       props.onRefreshDiff,
       props.onRequestDiffPatch,
+      props.onRequestDiffPreview,
     ],
   )
 

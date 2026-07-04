@@ -197,6 +197,7 @@ function createProps(overrides: Partial<AppShellProps> = {}): AppShellProps {
     },
     onRefreshDiff: vi.fn(),
     onRequestDiffPatch: vi.fn(async () => null),
+    onRequestDiffPreview: vi.fn(async () => null),
     isRefreshingDiff: false,
     noticeMessage: null,
     userSettings: {

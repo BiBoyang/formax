@@ -10,6 +10,27 @@ import { type DiffFileViewModel } from './diff/diffTypes'
 
 type DiffFile = DiffFileViewModel
 type PatchErrorKind = 'unavailable' | 'load_failed'
+type PreviewErrorKind = 'unavailable' | 'load_failed'
+
+export type DiffFilePreviewPayload = {
+  path: string
+  found: boolean
+  preview: {
+    kind: 'image'
+    mimeType: string
+    dataUrl: string
+    sizeBytes: number
+    source?: 'working_tree' | 'head'
+    changeKind?: 'added' | 'modified' | 'deleted'
+  } | null
+  error?: string
+}
+
+type ImagePreviewState =
+  | { status: 'idle' }
+  | { status: 'loading'; requestKey: string }
+  | { status: 'ready'; requestKey: string; preview: NonNullable<DiffFilePreviewPayload['preview']> }
+  | { status: 'error'; requestKey: string; error: PreviewErrorKind }
 
 export type DiffSnapshot = {
   cwd: string
@@ -29,12 +50,14 @@ export type DiffFilePatchPayload = {
   untracked?: boolean
 }
 
+
 export type WorktreeDiffPaneProps = {
   activeThreadId?: string | null
   diffSnapshot?: DiffSnapshot | null
   latestRequestCollapse?: RequestCollapseSummary | null
   onRefreshDiff?: () => void
   onRequestPatch?: (filePath: string) => Promise<DiffFilePatchPayload | null>
+  onRequestPreview?: (filePath: string) => Promise<DiffFilePreviewPayload | null>
   isRefreshingDiff?: boolean
   showHeader?: boolean
 }
@@ -42,6 +65,7 @@ export type WorktreeDiffPaneProps = {
 const MAX_RENDERABLE_DIFF_FILES = 120
 const DIFF_WORKER_POOL_PROVIDER_SETTLE_MS = 50
 const DIFF_VIEW_MODES: DiffRenderStyle[] = ['unified', 'split']
+const PREVIEWABLE_IMAGE_EXTENSIONS = new Set(['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'webp'])
 type DiffWorkerPoolModuleState = {
   status: 'ready'
   Provider: typeof import('@pierre/diffs/react').WorkerPoolContextProvider
@@ -437,6 +461,11 @@ function getFileIconMeta(path: string): FileIconMeta {
 }
 
 
+function isPreviewableImagePath(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+  return PREVIEWABLE_IMAGE_EXTENSIONS.has(ext)
+}
+
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const { t } = useI18n()
   const {
@@ -444,6 +473,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     latestRequestCollapse = null,
     onRefreshDiff,
     onRequestPatch,
+  onRequestPreview,
     isRefreshingDiff = false,
     showHeader = true,
   } = props
@@ -458,6 +488,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const [patchByPath, setPatchByPath] = useState<Record<string, DiffFilePatchPayload>>({})
   const [patchLoadingByPath, setPatchLoadingByPath] = useState<Record<string, boolean>>({})
   const [patchErrorByPath, setPatchErrorByPath] = useState<Record<string, PatchErrorKind>>({})
+  const [previewByPath, setPreviewByPath] = useState<Record<string, ImagePreviewState>>({})
   const [diffViewMode, setDiffViewMode] = useState<DiffRenderStyle>('unified')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [workerPoolEnabled, setWorkerPoolEnabled] = useState(false)
@@ -481,6 +512,42 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     setPatchByPath({})
     setPatchLoadingByPath({})
     setPatchErrorByPath({})
+    setPreviewByPath({})
+    requestedPatchPathsRef.current.clear()
+  }, [fileSetKey, snapshotKey])
+
+  useEffect(() => {
+    const previousExpansionScopeKey = expansionScopeKeyRef.current
+    expansionScopeKeyRef.current = expansionScopeKey
+
+    setExpandedPaths((prev) => {
+      if (prev.size === 0) return prev
+      if (previousExpansionScopeKey !== expansionScopeKey) return new Set()
+
+      const currentFilePaths = new Set(filePathsKey ? filePathsKey.split('\0') : [])
+      let changed = false
+      const next = new Set<string>()
+      for (const filePath of prev) {
+        if (currentFilePaths.has(filePath)) {
+          next.add(filePath)
+          continue
+        }
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [expansionScopeKey, filePathsKey])
+
+  const canPreviewImage = useCallback((filePath: string) => {
+    return Boolean(onRequestPreview) && isPreviewableImagePath(filePath)
+  }, [onRequestPreview])
+
+  useEffect(() => {
+    snapshotKeyRef.current = snapshotKey
+    setPatchByPath({})
+    setPatchLoadingByPath({})
+    setPatchErrorByPath({})
+    setPreviewByPath({})
     requestedPatchPathsRef.current.clear()
   }, [fileSetKey, snapshotKey])
 
@@ -548,11 +615,43 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     }
   }, [onRequestPatch])
 
+  const requestPreview = useCallback(async (filePath: string) => {
+    if (!onRequestPreview || !canPreviewImage(filePath)) return
+    const requestSnapshotKey = snapshotKeyRef.current
+    const requestKey = `${requestSnapshotKey}\0${filePath}`
+    const current = previewByPath[filePath]
+    if (current?.status === 'ready' && current.requestKey === requestKey) return
+    if (current?.status === 'loading' && current.requestKey === requestKey) return
+    setPreviewByPath((prev) => ({ ...prev, [filePath]: { status: 'loading', requestKey } }))
+
+    try {
+      const payload = await onRequestPreview(filePath)
+      if (snapshotKeyRef.current !== requestSnapshotKey) return
+      const preview = payload?.preview
+      if (!payload?.found || !preview?.dataUrl) {
+        setPreviewByPath((prev) => ({ ...prev, [filePath]: { status: 'error', requestKey, error: 'unavailable' } }))
+        return
+      }
+      setPreviewByPath((prev) => ({ ...prev, [filePath]: { status: 'ready', requestKey, preview } }))
+    } catch {
+      if (snapshotKeyRef.current !== requestSnapshotKey) return
+      setPreviewByPath((prev) => ({ ...prev, [filePath]: { status: 'error', requestKey, error: 'load_failed' } }))
+    }
+  }, [canPreviewImage, onRequestPreview, previewByPath])
+
   const requestPatchIfNeeded = useCallback((file: DiffFile) => {
+    if (canPreviewImage(file.path)) return
     if (!file.patch && !patchByPath[file.path] && !patchLoadingByPath[file.path]) {
       void requestPatch(file.path)
     }
-  }, [patchByPath, patchLoadingByPath, requestPatch])
+  }, [canPreviewImage, patchByPath, patchLoadingByPath, requestPatch])
+
+  const requestPreviewIfNeeded = useCallback((file: DiffFile) => {
+    if (!canPreviewImage(file.path)) return
+    const previewState = previewByPath[file.path]
+    if (previewState?.status === 'ready' || previewState?.status === 'loading') return
+    void requestPreview(file.path)
+  }, [canPreviewImage, previewByPath, requestPreview])
 
   const applyFileToggle = useCallback((file: DiffFile, options?: { requestPatch?: boolean }) => {
     setExpandedPaths((prev) => {
@@ -563,18 +662,26 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       }
 
       next.add(file.path)
-      if (options?.requestPatch !== false) {
+      if (canPreviewImage(file.path)) {
+        requestPreviewIfNeeded(file)
+      } else if (options?.requestPatch !== false) {
         requestPatchIfNeeded(file)
       }
       return next
     })
-  }, [requestPatchIfNeeded])
+  }, [canPreviewImage, requestPatchIfNeeded, requestPreviewIfNeeded])
 
   const clearPendingFirstToggle = useCallback(() => {
     pendingFirstTogglePathRef.current = null
   }, [])
 
   const toggleFile = useCallback((file: DiffFile) => {
+    if (canPreviewImage(file.path)) {
+      clearPendingFirstToggle()
+      applyFileToggle(file)
+      return
+    }
+
     if (!workerPoolReady && typeof Worker === 'function') {
       setWorkerPoolEnabled(true)
       requestPatchIfNeeded(file)
@@ -585,7 +692,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
 
     clearPendingFirstToggle()
     applyFileToggle(file)
-  }, [applyFileToggle, clearPendingFirstToggle, requestPatchIfNeeded, workerPoolReady])
+  }, [applyFileToggle, canPreviewImage, clearPendingFirstToggle, requestPatchIfNeeded, workerPoolReady])
 
   const getPatchStatusMessage = useCallback((filePath: string) => {
     const patchError = patchErrorByPath[filePath]
@@ -604,11 +711,23 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     if (!onRequestPatch || expandedPaths.size === 0) return
     for (const file of files) {
       if (!expandedPaths.has(file.path)) continue
+      if (canPreviewImage(file.path)) continue
       if (file.patch || patchByPath[file.path] || patchLoadingByPath[file.path]) continue
       if (patchErrorByPath[file.path]) continue
       void requestPatch(file.path)
     }
-  }, [expandedPaths, files, onRequestPatch, patchByPath, patchErrorByPath, patchLoadingByPath, requestPatch, snapshotKey])
+  }, [canPreviewImage, expandedPaths, files, onRequestPatch, patchByPath, patchErrorByPath, patchLoadingByPath, requestPatch, snapshotKey])
+
+  useEffect(() => {
+    if (!onRequestPreview || expandedPaths.size === 0) return
+    for (const file of files) {
+      if (!expandedPaths.has(file.path)) continue
+      if (!canPreviewImage(file.path)) continue
+      const previewState = previewByPath[file.path]
+      if (previewState?.status === 'loading' || previewState?.status === 'ready') continue
+      void requestPreview(file.path)
+    }
+  }, [canPreviewImage, expandedPaths, files, onRequestPreview, previewByPath, requestPreview, snapshotKey])
 
   useEffect(() => clearPendingFirstToggle, [clearPendingFirstToggle])
 
@@ -763,7 +882,17 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                   const additions = loadedPatch?.additions ?? file.additions
                   const deletions = loadedPatch?.deletions ?? file.deletions
                   const truncated = loadedPatch?.truncated
-                  const body = patch ? (
+                  const isImagePreview = canPreviewImage(file.path)
+                  const body = isImagePreview ? (
+                    <ImagePreviewBody
+                      path={file.path}
+                      state={previewByPath[file.path] ?? { status: 'idle' }}
+                      loadingLabel={t('worktreeDiff.loadingImagePreview')}
+                      unavailableLabel={t('worktreeDiff.imagePreviewUnavailable')}
+                      deletedLabel={t('worktreeDiff.imagePreviewDeleted')}
+                      alt={t('worktreeDiff.imagePreviewAlt')}
+                    />
+                  ) : patch ? (
                     <DiffPatchView
                       path={file.path}
                       patch={patch}
@@ -948,4 +1077,79 @@ function DiffFileCard(props: {
       ) : null}
     </section>
   )
+}
+
+function ImagePreviewBody(props: {
+  path: string
+  state: ImagePreviewState
+  loadingLabel: string
+  unavailableLabel: string
+  deletedLabel: string
+  alt: string
+}) {
+  if (props.state.status === 'ready') {
+    const isDeleted = props.state.preview.changeKind === 'deleted'
+    return (
+      <div
+        data-testid="worktree-diff-image-preview"
+        data-change-kind={props.state.preview.changeKind ?? 'modified'}
+        className={cn(
+          'min-w-0 bg-background px-4 py-5',
+          isDeleted && 'grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(160px,0.42fr)] md:items-stretch',
+        )}
+      >
+        <div className="min-w-0">
+          <div className="flex min-h-28 items-center justify-center overflow-auto rounded-md bg-muted/20 p-3">
+            <img
+              src={props.state.preview.dataUrl}
+              alt={props.alt}
+              title={props.path}
+              className="max-h-[420px] max-w-full rounded-sm object-contain shadow-sm"
+            />
+          </div>
+          <div className="mt-2 text-center ui-text-meta text-muted-foreground">
+            {props.state.preview.mimeType} · {formatBytes(props.state.preview.sizeBytes)}
+          </div>
+        </div>
+        {isDeleted ? (
+          <div
+            data-testid="worktree-diff-image-preview-deleted"
+            className="flex min-h-28 items-center justify-center rounded-md bg-muted/15 px-4 py-5 text-center"
+          >
+            <div className="ui-text-base font-medium text-muted-foreground">{props.deletedLabel}</div>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (props.state.status === 'error') {
+    return (
+      <div
+        data-testid="worktree-diff-image-preview-error"
+        data-error={props.state.error}
+        className="bg-muted/20 px-4 py-3 ui-text-meta text-muted-foreground"
+      >
+        {props.unavailableLabel}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-testid="worktree-diff-image-preview-loading"
+      className="flex min-h-24 items-center justify-center bg-muted/20 px-4 py-4 ui-text-meta text-muted-foreground"
+    >
+      {props.loadingLabel}
+    </div>
+  )
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  const kib = bytes / 1024
+  if (kib < 1024) return `${kib.toFixed(kib >= 10 ? 0 : 1)} KB`
+  const mib = kib / 1024
+  return `${mib.toFixed(mib >= 10 ? 0 : 1)} MB`
 }

@@ -89,7 +89,7 @@ type ApprovalSection = Pick<
 
 type DiffSection = Pick<
   AppShellProps,
-  'diffSnapshot' | 'onRefreshDiff' | 'onRequestDiffPatch' | 'isRefreshingDiff'
+  'diffSnapshot' | 'onRefreshDiff' | 'onRequestDiffPatch' | 'onRequestDiffPreview' | 'isRefreshingDiff'
 >
 
 type FeedbackSection = Pick<AppShellProps, 'noticeMessage'>

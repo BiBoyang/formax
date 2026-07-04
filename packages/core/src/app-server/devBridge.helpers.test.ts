@@ -19,10 +19,17 @@ describe('devBridge helper hooks', () => {
     expect(__devBridgeTestHooks.normalizeMaxFiles('x', 33)).toBe(33)
     expect(__devBridgeTestHooks.normalizeMaxFiles(1)).toBe(20)
     expect(__devBridgeTestHooks.normalizeMaxFiles(9_999)).toBe(5000)
+    expect(__devBridgeTestHooks.normalizePreviewMaxBytes('x', 1234)).toBe(1234)
+    expect(__devBridgeTestHooks.normalizePreviewMaxBytes(1)).toBe(32 * 1024)
+    expect(__devBridgeTestHooks.normalizePreviewMaxBytes(99_999_999)).toBe(8 * 1024 * 1024)
 
     expect(__devBridgeTestHooks.resolveDiffCwd('/base', undefined)).toBe('/base')
     expect(__devBridgeTestHooks.resolveDiffCwd('/base', '   ')).toBe('/base')
     expect(__devBridgeTestHooks.resolveDiffCwd('/base', './a')).toBe(path.resolve('./a'))
+    expect(__devBridgeTestHooks.isPathInsideCwd('/repo', '/repo/images/a.webp')).toBe(true)
+    expect(__devBridgeTestHooks.isPathInsideCwd('/repo', '/repo-other/a.webp')).toBe(false)
+    expect(__devBridgeTestHooks.getImagePreviewMimeType('a.webp')).toBe('image/webp')
+    expect(__devBridgeTestHooks.getImagePreviewMimeType('a.svg')).toBeNull()
   })
 
   it('writes jsonl lines and broadcasts safely', () => {
@@ -109,6 +116,26 @@ describe('devBridge helper hooks', () => {
       execFileFn: ((_f, _a, _o, cb) => cb?.({ message: '' } as any, '', '')) as any,
     })
     expect(withFallback).toEqual({ ok: false, error: 'git command failed' })
+  })
+
+  it('runs bridge git commands with unquoted unicode paths', async () => {
+    const calls: string[][] = []
+    const result = await __devBridgeTestHooks.runGit('/tmp/repo', ['diff', '--numstat'], {
+      execFileFn: ((_file, args, _options, cb) => {
+        calls.push(args as string[])
+        cb?.(null, '', '')
+      }) as any,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(calls[0]).toEqual([
+      '-C',
+      '/tmp/repo',
+      '-c',
+      'core.quotepath=false',
+      'diff',
+      '--numstat',
+    ])
   })
 
   it('parses patch/rename/numstat formats', () => {
@@ -233,6 +260,90 @@ describe('devBridge helper hooks', () => {
     }
   })
 
+  it('reads diff image previews as data URLs', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-'))
+    try {
+      runGit(dir, ['init'])
+      await mkdir(path.join(dir, 'images'))
+      const bytes = Buffer.from([0x52, 0x49, 0x46, 0x46])
+      await writeFile(path.join(dir, 'images', 'a.webp'), bytes)
+
+      const result = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        path: 'images/a.webp',
+        maxBytes: 1024,
+      })
+
+      expect(result.found).toBe(true)
+      expect(result.preview?.kind).toBe('image')
+      expect(result.preview?.mimeType).toBe('image/webp')
+      expect(result.preview?.dataUrl).toBe(`data:image/webp;base64,${bytes.toString('base64')}`)
+      expect(result.preview?.sizeBytes).toBe(bytes.byteLength)
+      expect(result.preview?.source).toBe('working_tree')
+      expect(result.preview?.changeKind).toBe('added')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads deleted image previews from the HEAD blob', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-deleted-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await mkdir(path.join(dir, 'images'))
+      const bytes = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x01])
+      await writeFile(path.join(dir, 'images', 'deleted.webp'), bytes)
+      runGit(dir, ['add', 'images/deleted.webp'])
+      runGit(dir, ['commit', '-m', 'init'])
+      await rm(path.join(dir, 'images', 'deleted.webp'))
+
+      const result = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        path: 'images/deleted.webp',
+        maxBytes: 1024,
+      })
+
+      expect(result.found).toBe(true)
+      expect(result.preview?.kind).toBe('image')
+      expect(result.preview?.mimeType).toBe('image/webp')
+      expect(result.preview?.dataUrl).toBe(`data:image/webp;base64,${bytes.toString('base64')}`)
+      expect(result.preview?.sizeBytes).toBe(bytes.byteLength)
+      expect(result.preview?.source).toBe('head')
+      expect(result.preview?.changeKind).toBe('deleted')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects image preview requests outside the diff set', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-reject-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(dir, 'a.svg'), '<svg />', 'utf8')
+      await writeFile(path.join(dir, 'tracked.png'), Buffer.from([1, 2, 3]))
+      await writeFile(path.join(dir, 'large.png'), Buffer.alloc(64 * 1024))
+      runGit(dir, ['add', 'tracked.png'])
+      runGit(dir, ['commit', '-m', 'init'])
+
+      await expect(
+        __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, { path: '../outside.webp' }),
+      ).resolves.toMatchObject({ found: false, preview: null, error: 'outside_workspace' })
+      await expect(
+        __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, { path: 'a.svg' }),
+      ).resolves.toMatchObject({ found: false, preview: null, error: 'not_image' })
+      await expect(
+        __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, { path: 'tracked.png' }),
+      ).resolves.toMatchObject({ found: false, preview: null, error: 'not_found' })
+      await expect(
+        __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, { path: 'large.png', maxBytes: 32 * 1024 }),
+      ).resolves.toMatchObject({ found: true, preview: null, error: 'too_large' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('reads diff/diffSummary/diffFilePatch paths from git repos', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-read-hooks-'))
     try {
@@ -240,9 +351,14 @@ describe('devBridge helper hooks', () => {
       runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
       runGit(dir, ['config', 'user.name', 'Dev Bridge'])
       await writeFile(path.join(dir, 'tracked.txt'), 'one\n', 'utf8')
+      await mkdir(path.join(dir, 'images', 'momota'), { recursive: true })
+      const unicodePath = 'images/momota/note_04_桃田贤斗.webp'
+      await writeFile(path.join(dir, unicodePath), 'old\n', 'utf8')
       runGit(dir, ['add', 'tracked.txt'])
+      runGit(dir, ['add', unicodePath])
       runGit(dir, ['commit', '-m', 'init'])
       await writeFile(path.join(dir, 'tracked.txt'), 'one\ntwo\n', 'utf8')
+      await writeFile(path.join(dir, unicodePath), 'old\nnew\n', 'utf8')
       await writeFile(path.join(dir, 'new.txt'), 'new\n', 'utf8')
       for (let i = 0; i < 25; i++) {
         await writeFile(path.join(dir, `extra-${i}.txt`), `line-${i}\n`, 'utf8')
@@ -256,10 +372,18 @@ describe('devBridge helper hooks', () => {
       expect(summary.hasChanges).toBe(true)
       expect(summary.truncated).toBe(true)
       expect(summary.files.length).toBe(20)
+      expect(summary.files.some((file) => file.path === unicodePath)).toBe(true)
+      expect(summary.files.some((file) => file.path.includes('\\345'))).toBe(false)
 
       const patch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, { path: 'tracked.txt', maxBytes: 200_000 })
       expect(patch.found).toBe(true)
       expect(patch.file?.path).toBe('tracked.txt')
+
+      const unicodePatch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, { path: unicodePath, maxBytes: 200_000 })
+      expect(unicodePatch.found).toBe(true)
+      expect(unicodePatch.file?.path).toBe(unicodePath)
+      expect(unicodePatch.file?.patch).toContain(unicodePath)
+      expect(unicodePatch.file?.patch).not.toContain('\\345')
 
       const missing = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, { path: 'missing.txt', maxBytes: 200_000 })
       expect(missing.found).toBe(false)
