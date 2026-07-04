@@ -1,54 +1,24 @@
-import { ChevronRight, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkerPoolOptions } from '@pierre/diffs/react'
 import { useI18n } from '../app/i18n/I18nProvider'
 import type { RequestCollapseSummary } from '../types'
 import { cn } from '../lib/utils'
 import { CodexFileTreeIconSprite } from './diff/CodexFileTreeIconSprite'
-import { DiffPatchView, type DiffRenderStyle } from './diff/DiffPatchView'
-import { type DiffFileViewModel } from './diff/diffTypes'
+import { DiffFileCard } from './diff/DiffFileCard'
+import type { DiffRenderStyle } from './diff/DiffPatchView'
+import { WorktreeDiffFileBody } from './diff/WorktreeDiffFileBody'
+import {
+  type DiffFilePatchPayload,
+  type DiffFilePreviewPayload,
+  type DiffFileViewModel,
+  type DiffSnapshot,
+  type ImagePreviewState,
+  type PatchErrorKind,
+} from './diff/diffTypes'
 
 type DiffFile = DiffFileViewModel
-type PatchErrorKind = 'unavailable' | 'load_failed'
-type PreviewErrorKind = 'unavailable' | 'load_failed'
-
-export type DiffFilePreviewPayload = {
-  path: string
-  found: boolean
-  preview: {
-    kind: 'image'
-    mimeType: string
-    dataUrl: string
-    sizeBytes: number
-    source?: 'working_tree' | 'head'
-    changeKind?: 'added' | 'modified' | 'deleted'
-  } | null
-  error?: string
-}
-
-type ImagePreviewState =
-  | { status: 'idle' }
-  | { status: 'loading'; requestKey: string }
-  | { status: 'ready'; requestKey: string; preview: NonNullable<DiffFilePreviewPayload['preview']> }
-  | { status: 'error'; requestKey: string; error: PreviewErrorKind }
-
-export type DiffSnapshot = {
-  cwd: string
-  generatedAt: string
-  hasChanges: boolean
-  truncated: boolean
-  files: DiffFile[]
-}
-
-export type DiffFilePatchPayload = {
-  path: string
-  found: boolean
-  truncated: boolean
-  patch: string
-  additions: number
-  deletions: number
-  untracked?: boolean
-}
+export type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from './diff/diffTypes'
 
 export type WorktreeDiffPaneProps = {
   activeThreadId?: string | null
@@ -757,6 +727,12 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       </div>
     </div>
   ) : null
+  const imagePreviewLabels = {
+    loading: t('worktreeDiff.loadingImagePreview'),
+    unavailable: t('worktreeDiff.imagePreviewUnavailable'),
+    deleted: t('worktreeDiff.imagePreviewDeleted'),
+    alt: t('worktreeDiff.imagePreviewAlt'),
+  }
 
   return (
     <aside
@@ -902,45 +878,36 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                       const deletions = loadedPatch?.deletions ?? file.deletions
                       const truncated = loadedPatch?.truncated
                       const isImagePreview = canPreviewImage(file.path)
-                      const body = isImagePreview ? (
-                        <ImagePreviewBody
-                          path={file.path}
-                          state={previewByPath[file.path] ?? { status: 'idle' }}
-                          loadingLabel={t('worktreeDiff.loadingImagePreview')}
-                          unavailableLabel={t('worktreeDiff.imagePreviewUnavailable')}
-                          deletedLabel={t('worktreeDiff.imagePreviewDeleted')}
-                          alt={t('worktreeDiff.imagePreviewAlt')}
-                        />
-                      ) : patch ? (
-                        <DiffPatchView
-                          path={file.path}
-                          patch={patch}
-                          additions={additions}
-                          deletions={deletions}
-                          truncated={truncated}
-                          diffStyle={diffViewMode}
-                          showFileHeader={false}
-                        />
-                      ) : (
-                        <div
-                          data-testid="worktree-diff-file-status"
-                          className="border-x border-b border-border/70 bg-muted/25 px-4 py-3 ui-text-meta text-muted-foreground"
-                        >
-                          {getPatchStatusMessage(file.path)}
-                        </div>
-                      )
+                      const fileParts = getFileDisplayParts(file.path)
+                      const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(file.path)
 
                       return (
                         <DiffFileCard
                           key={file.path}
-                          file={file}
+                          filePath={file.path}
+                          pathDir={fileParts.dir}
+                          pathName={fileParts.name}
+                          fileIconClassName={fileIconClassName}
+                          fileIconToken={fileIconToken}
+                          untracked={file.untracked}
                           expanded={expanded}
                           additions={additions}
                           deletions={deletions}
                           toggleLabel={t('worktreeDiff.toggleFile')}
                           onToggle={() => toggleFile(file)}
                         >
-                          {body}
+                          <WorktreeDiffFileBody
+                            path={file.path}
+                            isImagePreview={isImagePreview}
+                            previewState={previewByPath[file.path] ?? { status: 'idle' }}
+                            patch={patch}
+                            additions={additions}
+                            deletions={deletions}
+                            truncated={truncated}
+                            diffViewMode={diffViewMode}
+                            statusMessage={isImagePreview || patch ? '' : getPatchStatusMessage(file.path)}
+                            imageLabels={imagePreviewLabels}
+                          />
                         </DiffFileCard>
                       )
                     })}
@@ -1004,183 +971,4 @@ function DiffWorkerPoolBoundary(props: { enabled: boolean; onReady: () => void; 
       {props.children}
     </Provider>
   )
-}
-
-function DiffFileCard(props: {
-  file: DiffFile
-  expanded: boolean
-  additions: number
-  deletions: number
-  toggleLabel: string
-  onToggle: () => void
-  children: ReactNode
-}) {
-  const fileParts = getFileDisplayParts(props.file.path)
-  const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(props.file.path)
-
-  return (
-    <section
-      data-testid="worktree-diff-file-card"
-      data-review-path={props.file.path}
-      data-expanded={props.expanded ? 'true' : 'false'}
-      className="group/file-diff flex min-w-0 flex-col overflow-clip bg-background"
-    >
-      <div
-        role="button"
-        tabIndex={0}
-        className="sticky top-0 z-10 cursor-pointer select-none bg-background/90 backdrop-blur-sm focus-visible:outline-none"
-        onClick={props.onToggle}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter' && event.key !== ' ') return
-          event.preventDefault()
-          props.onToggle()
-        }}
-      >
-        <div className="group/diff-header @container/diff-header relative mb-0.5 flex min-h-8 items-center gap-2 py-0.5 pe-2 ps-3 text-size-chat hover:bg-muted/55">
-          <div className="flex min-w-0 flex-1 items-center gap-0.5 text-foreground">
-            <div className="flex min-w-0 items-center gap-2 pl-1">
-              <span
-                aria-hidden="true"
-                data-file-icon-token={fileIconToken}
-                className={cn('inline-flex size-4 shrink-0 items-center justify-center', fileIconClassName)}
-              >
-                <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 16 16">
-                  <use href={`#file-tree-builtin-${fileIconToken}`} />
-                </svg>
-              </span>
-              <span
-                className="min-w-0 truncate text-start text-foreground [direction:rtl]"
-                title={props.file.path}
-              >
-                <span className="sr-only">{props.file.path}</span>
-                <span className="min-w-0 truncate [direction:ltr] [unicode-bidi:plaintext]">
-                  {fileParts.dir ? (
-                    <span className="text-muted-foreground">{fileParts.dir}</span>
-                  ) : null}
-                  <span className="text-foreground">{fileParts.name}</span>
-                </span>
-              </span>
-            </div>
-            <button
-              type="button"
-              data-testid="worktree-diff-file-toggle"
-              data-app-action-review-file-toggle=""
-              data-app-action-review-file-expanded={props.expanded ? 'true' : 'false'}
-              aria-label={props.toggleLabel}
-              aria-expanded={props.expanded}
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/55 opacity-0 transition-[color,opacity,transform] duration-150 hover:bg-transparent hover:text-muted-foreground group-focus-within/diff-header:opacity-100 group-hover/diff-header:opacity-100"
-              onKeyDown={(event) => {
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggle()
-              }}
-            >
-              <ChevronRight
-                className={cn(
-                  'size-4 transition-transform duration-200',
-                  props.expanded ? 'rotate-90' : 'rotate-0',
-                )}
-                strokeWidth={2.1}
-              />
-            </button>
-          </div>
-          <div className="ms-auto flex shrink-0 items-center gap-0">
-            <span className="me-1 flex shrink-0 items-center">
-              <span className="inline-flex items-center gap-1 text-size-chat tabular-nums tracking-tight">
-                <span className="flex shrink-0 items-center ui-text-diff-add">+{props.additions}</span>
-                <span className="flex shrink-0 items-center ui-text-diff-del">-{props.deletions}</span>
-              </span>
-            </span>
-          </div>
-          {props.file.untracked ? (
-            <span data-testid="worktree-diff-untracked-indicator" className="sr-only">
-              untracked
-            </span>
-          ) : null}
-        </div>
-      </div>
-      {props.expanded ? (
-        <div data-testid="worktree-diff-file-body" className="min-w-0">
-          {props.children}
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-function ImagePreviewBody(props: {
-  path: string
-  state: ImagePreviewState
-  loadingLabel: string
-  unavailableLabel: string
-  deletedLabel: string
-  alt: string
-}) {
-  if (props.state.status === 'ready') {
-    const isDeleted = props.state.preview.changeKind === 'deleted'
-    return (
-      <div
-        data-testid="worktree-diff-image-preview"
-        data-change-kind={props.state.preview.changeKind ?? 'modified'}
-        className={cn(
-          'min-w-0 bg-background px-4 py-5',
-          isDeleted && 'grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(160px,0.42fr)] md:items-stretch',
-        )}
-      >
-        <div className="min-w-0">
-          <div className="flex min-h-28 items-center justify-center overflow-auto rounded-md bg-muted/20 p-3">
-            <img
-              src={props.state.preview.dataUrl}
-              alt={props.alt}
-              title={props.path}
-              className="max-h-[420px] max-w-full rounded-sm object-contain shadow-sm"
-            />
-          </div>
-          <div className="mt-2 text-center ui-text-meta text-muted-foreground">
-            {props.state.preview.mimeType} · {formatBytes(props.state.preview.sizeBytes)}
-          </div>
-        </div>
-        {isDeleted ? (
-          <div
-            data-testid="worktree-diff-image-preview-deleted"
-            className="flex min-h-28 items-center justify-center rounded-md bg-muted/15 px-4 py-5 text-center"
-          >
-            <div className="ui-text-base font-medium text-muted-foreground">{props.deletedLabel}</div>
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-
-  if (props.state.status === 'error') {
-    return (
-      <div
-        data-testid="worktree-diff-image-preview-error"
-        data-error={props.state.error}
-        className="bg-muted/20 px-4 py-3 ui-text-meta text-muted-foreground"
-      >
-        {props.unavailableLabel}
-      </div>
-    )
-  }
-
-  return (
-    <div
-      data-testid="worktree-diff-image-preview-loading"
-      className="flex min-h-24 items-center justify-center bg-muted/20 px-4 py-4 ui-text-meta text-muted-foreground"
-    >
-      {props.loadingLabel}
-    </div>
-  )
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  const kib = bytes / 1024
-  if (kib < 1024) return `${kib.toFixed(kib >= 10 ? 0 : 1)} KB`
-  const mib = kib / 1024
-  return `${mib.toFixed(mib >= 10 ? 0 : 1)} MB`
 }

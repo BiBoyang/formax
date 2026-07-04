@@ -1,4 +1,4 @@
-import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from '../../components/WorktreeDiffPane'
+import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from '../../components/diff/diffTypes'
 
 export type DiffDataOpsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>

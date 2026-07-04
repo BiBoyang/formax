@@ -1,4 +1,4 @@
-import type { DiffFilePatchPayload, DiffFilePreviewPayload } from '../../components/WorktreeDiffPane'
+import type { DiffFilePatchPayload, DiffFilePreviewPayload } from '../../components/diff/diffTypes'
 
 type DiffUiHandlersArgs = {
   refreshWorkspaceDiff: () => Promise<void>

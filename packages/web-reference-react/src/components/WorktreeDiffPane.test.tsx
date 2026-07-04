@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider, type I18nProviderProps } from '../app/i18n/I18nProvider'
-import { WorktreeDiffPane, type DiffFilePreviewPayload } from './WorktreeDiffPane'
+import { WorktreeDiffPane } from './WorktreeDiffPane'
+import type { DiffFilePreviewPayload } from './diff/diffTypes'
 
 const TEST_TIMEOUT_MS = 20_000
 
