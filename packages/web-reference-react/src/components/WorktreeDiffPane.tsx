@@ -1,4 +1,4 @@
-import { ChevronDown, RefreshCw } from 'lucide-react'
+import { ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkerPoolOptions } from '@pierre/diffs/react'
 import { useI18n } from '../app/i18n/I18nProvider'
@@ -50,7 +50,6 @@ export type DiffFilePatchPayload = {
   untracked?: boolean
 }
 
-
 export type WorktreeDiffPaneProps = {
   activeThreadId?: string | null
   diffSnapshot?: DiffSnapshot | null
@@ -71,6 +70,11 @@ type DiffWorkerPoolModuleState = {
   Provider: typeof import('@pierre/diffs/react').WorkerPoolContextProvider
   poolOptions: WorkerPoolOptions
 } | { status: 'failed' }
+
+type FileDisplayParts = {
+  dir: string
+  name: string
+}
 
 type FileIconMeta = {
   className: string
@@ -425,6 +429,15 @@ const CODEX_FILE_ICON_COLOR_CLASS: Record<CodexFileIconToken, string> = {
   zip: 'text-amber-600',
 }
 
+function getFileDisplayParts(path: string): FileDisplayParts {
+  const lastSlashIndex = path.lastIndexOf('/')
+  if (lastSlashIndex < 0) return { dir: '', name: path }
+  return {
+    dir: path.slice(0, lastSlashIndex + 1),
+    name: path.slice(lastSlashIndex + 1),
+  }
+}
+
 function getFileName(path: string): string {
   const pathParts = path.split('/')
   return pathParts[pathParts.length - 1] ?? path
@@ -460,7 +473,6 @@ function getFileIconMeta(path: string): FileIconMeta {
   return { className: CODEX_FILE_ICON_COLOR_CLASS[token], token }
 }
 
-
 function isPreviewableImagePath(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
   return PREVIEWABLE_IMAGE_EXTENSIONS.has(ext)
@@ -473,7 +485,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     latestRequestCollapse = null,
     onRefreshDiff,
     onRequestPatch,
-  onRequestPreview,
+    onRequestPreview,
     isRefreshingDiff = false,
     showHeader = true,
   } = props
@@ -484,7 +496,6 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const expansionScopeKey = `${threadScopeKey}\0${cwdKey}`
   const snapshotKey = `${threadScopeKey}\0${cwdKey}\0${diffSnapshot?.generatedAt ?? ''}`
   const fileSetKey = `${threadScopeKey}\0${cwdKey}\0${filePathsKey}`
-  const [listOpen, setListOpen] = useState(true)
   const [patchByPath, setPatchByPath] = useState<Record<string, DiffFilePatchPayload>>({})
   const [patchLoadingByPath, setPatchLoadingByPath] = useState<Record<string, boolean>>({})
   const [patchErrorByPath, setPatchErrorByPath] = useState<Record<string, PatchErrorKind>>({})
@@ -502,42 +513,12 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const isLargeChangeSet = Boolean(diffSnapshot && diffSnapshot.hasChanges && exceedsRenderFileLimit)
   const hasTruncatedPreview = Boolean(diffSnapshot?.truncated)
   const hasTruncatedButNoFiles = Boolean(diffSnapshot?.hasChanges && diffSnapshot?.truncated && files.length === 0)
+  const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0)
+  const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0)
   const collapsePhaseLabel =
     latestRequestCollapse?.phase === 'reactive_retry'
       ? t('appShell.collapsePhase.reactiveRetry')
       : t('appShell.collapsePhase.initial')
-
-  useEffect(() => {
-    snapshotKeyRef.current = snapshotKey
-    setPatchByPath({})
-    setPatchLoadingByPath({})
-    setPatchErrorByPath({})
-    setPreviewByPath({})
-    requestedPatchPathsRef.current.clear()
-  }, [fileSetKey, snapshotKey])
-
-  useEffect(() => {
-    const previousExpansionScopeKey = expansionScopeKeyRef.current
-    expansionScopeKeyRef.current = expansionScopeKey
-
-    setExpandedPaths((prev) => {
-      if (prev.size === 0) return prev
-      if (previousExpansionScopeKey !== expansionScopeKey) return new Set()
-
-      const currentFilePaths = new Set(filePathsKey ? filePathsKey.split('\0') : [])
-      let changed = false
-      const next = new Set<string>()
-      for (const filePath of prev) {
-        if (currentFilePaths.has(filePath)) {
-          next.add(filePath)
-          continue
-        }
-        changed = true
-      }
-      return changed ? next : prev
-    })
-  }, [expansionScopeKey, filePathsKey])
-
   const canPreviewImage = useCallback((filePath: string) => {
     return Boolean(onRequestPreview) && isPreviewableImagePath(filePath)
   }, [onRequestPreview])
@@ -724,7 +705,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       if (!expandedPaths.has(file.path)) continue
       if (!canPreviewImage(file.path)) continue
       const previewState = previewByPath[file.path]
-      if (previewState?.status === 'loading' || previewState?.status === 'ready') continue
+      if (previewState?.status === 'ready' || previewState?.status === 'loading' || previewState?.status === 'error') continue
       void requestPreview(file.path)
     }
   }, [canPreviewImage, expandedPaths, files, onRequestPreview, previewByPath, requestPreview, snapshotKey])
@@ -737,10 +718,10 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       return
     }
     clearPendingFirstToggle()
-  }, [clearPendingFirstToggle, fileSetKey, listOpen, snapshotKey])
+  }, [clearPendingFirstToggle, fileSetKey, snapshotKey])
 
   useEffect(() => {
-    if (!workerPoolReady || !listOpen) return
+    if (!workerPoolReady) return
     const pendingPath = pendingFirstTogglePathRef.current
     if (!pendingPath) return
     pendingFirstTogglePathRef.current = null
@@ -748,53 +729,92 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     if (pendingFile) {
       applyFileToggle(pendingFile, { requestPatch: false })
     }
-  }, [applyFileToggle, files, listOpen, workerPoolReady])
+  }, [applyFileToggle, files, workerPoolReady])
+
+  const collapseSummary = latestRequestCollapse ? (
+    <div
+      data-testid="worktree-collapse-summary"
+      className="mx-3 mb-2 mt-2 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="ui-text-base font-medium ui-text-primary">
+            {t('worktreeDiff.latestCollapseTitle')}
+          </div>
+          <div className="mt-1 ui-text-meta ui-text-secondary">
+            {t('worktreeDiff.latestCollapseSummary', {
+              tokens: String(latestRequestCollapse.estimatedTokensSaved),
+              messages: String(latestRequestCollapse.collapsedHeadMessageCount),
+              phase: collapsePhaseLabel,
+            })}
+          </div>
+        </div>
+        {latestRequestCollapse.recapFingerprint ? (
+          <div className="shrink-0 rounded-md border border-border/60 bg-background/70 px-2 py-1 font-mono text-[11px] text-muted-foreground">
+            {latestRequestCollapse.recapFingerprint.slice(0, 12)}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  ) : null
 
   return (
     <aside
       data-testid="worktree-diff-pane"
-      className="h-full w-full min-w-0 flex flex-col overflow-hidden overflow-x-hidden bg-background selection:bg-primary/10"
+      className="relative grid h-full min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background selection:bg-primary/10"
     >
       {showHeader ? (
-        <div className="flex-none flex items-center justify-between gap-3 px-6 h-14 bg-background z-[30]">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 cursor-pointer select-none" onClick={() => setListOpen(!listOpen)}>
-            <h2 className="min-w-0 truncate ui-text-base font-semibold ui-text-primary">{t('worktreeDiff.title')}</h2>
-            <ChevronDown className={cn('size-3.5 ui-text-secondary transition-transform', !listOpen && '-rotate-90')} />
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <div
-              role="group"
-              aria-label={t('worktreeDiff.viewMode')}
-              className="inline-flex h-7 shrink-0 items-center rounded-md border border-border/70 bg-muted/35 p-0.5 font-mono text-[11px] leading-none"
-            >
-              {DIFF_VIEW_MODES.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={diffViewMode === mode}
-                  className={cn(
-                    'h-6 whitespace-nowrap rounded-[5px] px-2.5 transition-colors',
-                    diffViewMode === mode
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setDiffViewMode(mode)
-                  }}
-                >
-                  {t(mode === 'unified' ? 'worktreeDiff.viewModeUnified' : 'worktreeDiff.viewModeSplit')}
-                </button>
-              ))}
+        <div className="min-h-0 max-w-full min-w-0">
+          <div className="grid h-toolbar-pane grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-border/70 px-2 text-muted-foreground [container-name:review-header] [container-type:inline-size]">
+            <div className="flex w-full min-w-0 flex-col overflow-hidden text-size-chat">
+              <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                <div className="flex h-token-button-composer w-fit max-w-[320px] shrink-0 items-center gap-1.5 rounded-lg px-1.5 text-foreground">
+                  <span className="min-w-0 truncate">{t('worktreeDiff.title')}</span>
+                  <span className="inline-flex shrink-0 items-center rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs font-medium leading-none text-muted-foreground">
+                    {files.length}
+                  </span>
+                </div>
+                <span className="mr-1 inline-flex shrink-0 select-none items-center gap-1 font-mono text-size-chat tabular-nums tracking-tight">
+                  <span className="flex shrink-0 items-center ui-text-diff-add">+{totalAdditions}</span>
+                  <span className="flex shrink-0 items-center ui-text-diff-del">-{totalDeletions}</span>
+                </span>
+              </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2.5 ui-text-secondary">
-              <span className="ui-text-meta ui-text-secondary">{t('worktreeDiff.changesCount', { count: files.length })}</span>
+            <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+              <div
+                role="group"
+                aria-label={t('worktreeDiff.viewMode')}
+                className="inline-flex h-7 shrink-0 items-center rounded-lg border border-border/70 bg-muted/35 p-0.5 font-mono text-[11px] leading-none"
+              >
+                {DIFF_VIEW_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={diffViewMode === mode}
+                    className={cn(
+                      'h-6 whitespace-nowrap rounded-[6px] px-2.5 transition-colors',
+                      diffViewMode === mode
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setDiffViewMode(mode)
+                    }}
+                  >
+                    {t(mode === 'unified' ? 'worktreeDiff.viewModeUnified' : 'worktreeDiff.viewModeSplit')}
+                  </button>
+                ))}
+              </div>
+
+              <span className="hidden shrink-0 ui-text-meta ui-text-secondary @container_review-header_(min-width:720px):inline">
+                {t('worktreeDiff.changesCount', { count: files.length })}
+              </span>
               <button
                 type="button"
                 aria-label={t('worktreeDiff.refresh')}
-                className="inline-flex items-center justify-center rounded-md p-0.5"
+                className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation()
                   onRefreshDiff?.()
@@ -802,7 +822,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
               >
                 <RefreshCw
                   className={cn(
-                    'size-3.5 hover:text-foreground transition-all cursor-pointer',
+                    'size-4 transition-all cursor-pointer',
                     isRefreshingDiff && 'animate-spin',
                   )}
                 />
@@ -812,124 +832,125 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
         </div>
       ) : null}
 
-      {latestRequestCollapse ? (
-        <div
-          data-testid="worktree-collapse-summary"
-          className="mx-6 mb-3 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-3"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="ui-text-base font-medium ui-text-primary">
-                {t('worktreeDiff.latestCollapseTitle')}
-              </div>
-              <div className="mt-1 ui-text-meta ui-text-secondary">
-                {t('worktreeDiff.latestCollapseSummary', {
-                  tokens: String(latestRequestCollapse.estimatedTokensSaved),
-                  messages: String(latestRequestCollapse.collapsedHeadMessageCount),
-                  phase: collapsePhaseLabel,
-                })}
+      <div className="flex min-h-0 max-w-full min-w-0">
+        <div className="relative flex h-full min-w-0 flex-1">
+          {!diffSnapshot ? null : isLargeChangeSet ? (
+            <div className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+              {collapseSummary}
+              <div className="grid min-h-[55vh] flex-1 place-items-center">
+                <div className="text-center">
+                  <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.changeSetTooLargeTitle')}</h3>
+                  <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.changeSetTooLargeBody')}</p>
+                </div>
               </div>
             </div>
-            {latestRequestCollapse.recapFingerprint ? (
-              <div className="shrink-0 rounded-md border border-border/60 bg-background/70 px-2 py-1 font-mono text-[11px] text-muted-foreground">
-                {latestRequestCollapse.recapFingerprint.slice(0, 12)}
+          ) : files.length === 0 && !diffSnapshot.hasChanges ? (
+            <div className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+              {collapseSummary}
+              <div className="grid min-h-[55vh] flex-1 place-items-center">
+                <div className="text-center">
+                  <div className="text-[30px] leading-none">🧹</div>
+                  <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.emptyTitle')}</h3>
+                  <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.emptyBody')}</p>
+                </div>
               </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {listOpen ? (
-        !diffSnapshot ? null : isLargeChangeSet ? (
-          <div className="grid min-h-[55vh] place-items-center">
-            <div className="text-center">
-              <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.changeSetTooLargeTitle')}</h3>
-              <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.changeSetTooLargeBody')}</p>
             </div>
-          </div>
-        ) : files.length === 0 && !diffSnapshot.hasChanges ? (
-          <div className="grid min-h-[55vh] place-items-center">
-            <div className="text-center">
-              <div className="text-[30px] leading-none">🧹</div>
-              <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.emptyTitle')}</h3>
-              <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.emptyBody')}</p>
-            </div>
-          </div>
-        ) : hasTruncatedButNoFiles ? (
-          <div className="grid min-h-[55vh] place-items-center">
-            <div className="text-center">
-              <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.largeDiffTitle')}</h3>
-              <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.previewUnavailable')}</p>
-            </div>
-          </div>
-        ) : (
-          <DiffWorkerPoolBoundary enabled={workerPoolEnabled} onReady={markWorkerPoolReady}>
-            {hasTruncatedPreview ? (
-              <div className="mx-6 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-2">
-                <div className="ui-text-meta ui-text-secondary">{t('worktreeDiff.partialPreview')}</div>
+          ) : hasTruncatedButNoFiles ? (
+            <div className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+              {collapseSummary}
+              <div className="grid min-h-[55vh] flex-1 place-items-center">
+                <div className="text-center">
+                  <h3 className="mt-4 ui-text-base font-semibold tracking-tight ui-text-primary">{t('worktreeDiff.largeDiffTitle')}</h3>
+                  <p className="mt-2 ui-text-base text-muted-foreground">{t('worktreeDiff.previewUnavailable')}</p>
+                </div>
               </div>
-            ) : null}
-            <div
-              data-testid="worktree-diff-card-list"
-              className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-2 [overflow-anchor:none]"
-            >
-              <div className="flex min-w-0 flex-col gap-2">
-                <CodexFileTreeIconSprite />
-                {files.map((file) => {
-                  const loadedPatch = patchByPath[file.path]
-                  const patch = file.patch ?? loadedPatch?.patch ?? ''
-                  const expanded = expandedPaths.has(file.path)
-                  const additions = loadedPatch?.additions ?? file.additions
-                  const deletions = loadedPatch?.deletions ?? file.deletions
-                  const truncated = loadedPatch?.truncated
-                  const isImagePreview = canPreviewImage(file.path)
-                  const body = isImagePreview ? (
-                    <ImagePreviewBody
-                      path={file.path}
-                      state={previewByPath[file.path] ?? { status: 'idle' }}
-                      loadingLabel={t('worktreeDiff.loadingImagePreview')}
-                      unavailableLabel={t('worktreeDiff.imagePreviewUnavailable')}
-                      deletedLabel={t('worktreeDiff.imagePreviewDeleted')}
-                      alt={t('worktreeDiff.imagePreviewAlt')}
-                    />
-                  ) : patch ? (
-                    <DiffPatchView
-                      path={file.path}
-                      patch={patch}
-                      additions={additions}
-                      deletions={deletions}
-                      truncated={truncated}
-                      diffStyle={diffViewMode}
-                      showFileHeader={false}
-                    />
-                  ) : (
-                    <div
-                      data-testid="worktree-diff-file-status"
-                      className="rounded-b-[10px] border-x border-b border-border/70 bg-muted/25 px-4 py-3 ui-text-meta text-muted-foreground"
-                    >
-                      {getPatchStatusMessage(file.path)}
+            </div>
+          ) : (
+            <DiffWorkerPoolBoundary enabled={workerPoolEnabled} onReady={markWorkerPoolReady}>
+              <div
+                id="review-diffs-collapsed"
+                data-testid="worktree-diff-card-list"
+                data-app-action-review-scroll=""
+                data-thread-find-target="review"
+                className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-8 [overflow-anchor:none]"
+              >
+                <div className="flex w-full flex-col">
+                  <span
+                    aria-hidden="true"
+                    data-review-diff-metrics-probe=""
+                    className="pointer-events-none invisible absolute left-0 top-0 block whitespace-pre"
+                    style={{
+                      fontFamily: 'var(--diffs-font-family)',
+                      fontSize: 'var(--diffs-font-size)',
+                      height: 'var(--diffs-line-height)',
+                      lineHeight: 'var(--diffs-line-height)',
+                    }}
+                  />
+                  <CodexFileTreeIconSprite />
+                  {collapseSummary}
+                  {hasTruncatedPreview ? (
+                    <div className="mx-3 mb-2 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-2">
+                      <div className="ui-text-meta ui-text-secondary">{t('worktreeDiff.partialPreview')}</div>
                     </div>
-                  )
+                  ) : null}
+                  <div className="flex flex-col">
+                    {files.map((file) => {
+                      const loadedPatch = patchByPath[file.path]
+                      const patch = file.patch ?? loadedPatch?.patch ?? ''
+                      const expanded = expandedPaths.has(file.path)
+                      const additions = loadedPatch?.additions ?? file.additions
+                      const deletions = loadedPatch?.deletions ?? file.deletions
+                      const truncated = loadedPatch?.truncated
+                      const isImagePreview = canPreviewImage(file.path)
+                      const body = isImagePreview ? (
+                        <ImagePreviewBody
+                          path={file.path}
+                          state={previewByPath[file.path] ?? { status: 'idle' }}
+                          loadingLabel={t('worktreeDiff.loadingImagePreview')}
+                          unavailableLabel={t('worktreeDiff.imagePreviewUnavailable')}
+                          deletedLabel={t('worktreeDiff.imagePreviewDeleted')}
+                          alt={t('worktreeDiff.imagePreviewAlt')}
+                        />
+                      ) : patch ? (
+                        <DiffPatchView
+                          path={file.path}
+                          patch={patch}
+                          additions={additions}
+                          deletions={deletions}
+                          truncated={truncated}
+                          diffStyle={diffViewMode}
+                          showFileHeader={false}
+                        />
+                      ) : (
+                        <div
+                          data-testid="worktree-diff-file-status"
+                          className="border-x border-b border-border/70 bg-muted/25 px-4 py-3 ui-text-meta text-muted-foreground"
+                        >
+                          {getPatchStatusMessage(file.path)}
+                        </div>
+                      )
 
-                  return (
-                    <DiffFileCard
-                      key={file.path}
-                      file={file}
-                      expanded={expanded}
-                      additions={additions}
-                      deletions={deletions}
-                      toggleLabel={t('worktreeDiff.toggleFile')}
-                      onToggle={() => toggleFile(file)}
-                    >
-                      {body}
-                    </DiffFileCard>
-                  )
-                })}
+                      return (
+                        <DiffFileCard
+                          key={file.path}
+                          file={file}
+                          expanded={expanded}
+                          additions={additions}
+                          deletions={deletions}
+                          toggleLabel={t('worktreeDiff.toggleFile')}
+                          onToggle={() => toggleFile(file)}
+                        >
+                          {body}
+                        </DiffFileCard>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          </DiffWorkerPoolBoundary>
-        )
-      ) : null}
+            </DiffWorkerPoolBoundary>
+          )}
+        </div>
+      </div>
     </aside>
   )
 }
@@ -994,6 +1015,7 @@ function DiffFileCard(props: {
   onToggle: () => void
   children: ReactNode
 }) {
+  const fileParts = getFileDisplayParts(props.file.path)
   const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(props.file.path)
 
   return (
@@ -1001,12 +1023,12 @@ function DiffFileCard(props: {
       data-testid="worktree-diff-file-card"
       data-review-path={props.file.path}
       data-expanded={props.expanded ? 'true' : 'false'}
-      className="group/file-diff min-w-0 overflow-clip rounded-[10px] bg-background"
+      className="group/file-diff flex min-w-0 flex-col overflow-clip bg-background"
     >
       <div
         role="button"
         tabIndex={0}
-        className="sticky top-0 z-10 cursor-pointer select-none bg-background"
+        className="sticky top-0 z-10 cursor-pointer select-none bg-background/90 backdrop-blur-sm focus-visible:outline-none"
         onClick={props.onToggle}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
@@ -1014,32 +1036,9 @@ function DiffFileCard(props: {
           props.onToggle()
         }}
       >
-        <div className="px-2 py-[2px]">
-          <div className="group/diff-header @container/diff-header relative flex min-h-9 items-center gap-2 rounded-[6px] px-0.5 py-0.5 hover:bg-muted/50">
-            <button
-              type="button"
-              data-testid="worktree-diff-file-toggle"
-              data-app-action-review-file-toggle=""
-              data-app-action-review-file-expanded={props.expanded ? 'true' : 'false'}
-              aria-label={props.toggleLabel}
-              aria-expanded={props.expanded}
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground transition-colors hover:bg-muted"
-              onKeyDown={(event) => {
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggle()
-              }}
-            >
-              <ChevronDown
-                className={cn(
-                  'size-4 transition-transform duration-200',
-                  props.expanded ? 'rotate-180' : 'rotate-0',
-                )}
-              />
-            </button>
-            <div className="flex min-w-0 flex-1 items-center gap-2 ui-text-base ui-text-primary">
+        <div className="group/diff-header @container/diff-header relative mb-0.5 flex min-h-8 items-center gap-2 py-0.5 pe-2 ps-3 text-size-chat hover:bg-muted/55">
+          <div className="flex min-w-0 flex-1 items-center gap-0.5 text-foreground">
+            <div className="flex min-w-0 items-center gap-2 pl-1">
               <span
                 aria-hidden="true"
                 data-file-icon-token={fileIconToken}
@@ -1050,24 +1049,56 @@ function DiffFileCard(props: {
                 </svg>
               </span>
               <span
-                className="min-w-0 truncate font-mono text-[13px] [direction:rtl]"
+                className="min-w-0 truncate text-start text-foreground [direction:rtl]"
                 title={props.file.path}
               >
+                <span className="sr-only">{props.file.path}</span>
                 <span className="min-w-0 truncate [direction:ltr] [unicode-bidi:plaintext]">
-                  {props.file.path}
+                  {fileParts.dir ? (
+                    <span className="text-muted-foreground">{fileParts.dir}</span>
+                  ) : null}
+                  <span className="text-foreground">{fileParts.name}</span>
                 </span>
               </span>
-              {props.file.untracked ? (
-                <span data-testid="worktree-diff-untracked-indicator" className="mb-0.5 text-primary">
-                  <span className="inline-block size-1.5 rounded-full bg-current" />
-                </span>
-              ) : null}
             </div>
-            <div className="ms-auto flex shrink-0 items-center gap-1 font-mono text-[13px] tabular-nums tracking-normal">
-              <span className="ui-text-diff-add">+{props.additions}</span>
-              <span className="ui-text-diff-del">-{props.deletions}</span>
-            </div>
+            <button
+              type="button"
+              data-testid="worktree-diff-file-toggle"
+              data-app-action-review-file-toggle=""
+              data-app-action-review-file-expanded={props.expanded ? 'true' : 'false'}
+              aria-label={props.toggleLabel}
+              aria-expanded={props.expanded}
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/55 opacity-0 transition-[color,opacity,transform] duration-150 hover:bg-transparent hover:text-muted-foreground group-focus-within/diff-header:opacity-100 group-hover/diff-header:opacity-100"
+              onKeyDown={(event) => {
+                event.stopPropagation()
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                props.onToggle()
+              }}
+            >
+              <ChevronRight
+                className={cn(
+                  'size-4 transition-transform duration-200',
+                  props.expanded ? 'rotate-90' : 'rotate-0',
+                )}
+                strokeWidth={2.1}
+              />
+            </button>
           </div>
+          <div className="ms-auto flex shrink-0 items-center gap-0">
+            <span className="me-1 flex shrink-0 items-center">
+              <span className="inline-flex items-center gap-1 text-size-chat tabular-nums tracking-tight">
+                <span className="flex shrink-0 items-center ui-text-diff-add">+{props.additions}</span>
+                <span className="flex shrink-0 items-center ui-text-diff-del">-{props.deletions}</span>
+              </span>
+            </span>
+          </div>
+          {props.file.untracked ? (
+            <span data-testid="worktree-diff-untracked-indicator" className="sr-only">
+              untracked
+            </span>
+          ) : null}
         </div>
       </div>
       {props.expanded ? (

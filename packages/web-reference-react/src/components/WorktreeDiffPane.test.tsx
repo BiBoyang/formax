@@ -145,7 +145,6 @@ describe('WorktreeDiffPane', () => {
     expect(iconTokenByPath('.gitignore')).toBe('git')
   }, TEST_TIMEOUT_MS)
 
-
   it('lazy-loads image previews per expanded file item', async () => {
     let resolvePreview: (value: DiffFilePreviewPayload) => void = () => undefined
     const onRequestPreview = vi.fn(
@@ -1185,6 +1184,12 @@ describe('WorktreeDiffPane', () => {
   it('shows budget message when snapshot is truncated and no files are available', () => {
     renderPane(
       <WorktreeDiffPane
+        latestRequestCollapse={{
+          phase: 'reactive_retry',
+          collapsedHeadMessageCount: 5,
+          estimatedTokensSaved: 320,
+          recapFingerprint: 'recap-abcdef123456',
+        }}
         diffSnapshot={{
           cwd: '/repo',
           generatedAt: '2026-02-09T00:00:00.000Z',
@@ -1196,11 +1201,18 @@ describe('WorktreeDiffPane', () => {
     )
     expect(screen.getByText('Large diff detected')).toBeInTheDocument()
     expect(screen.getByText('Preview unavailable for current diff budget')).toBeInTheDocument()
+    expect(screen.getByTestId('worktree-collapse-summary')).toHaveTextContent('Latest request collapse')
   }, TEST_TIMEOUT_MS)
 
   it('shows large-change-set message when file count exceeds render limit', () => {
     renderPane(
       <WorktreeDiffPane
+        latestRequestCollapse={{
+          phase: 'reactive_retry',
+          collapsedHeadMessageCount: 5,
+          estimatedTokensSaved: 320,
+          recapFingerprint: 'recap-abcdef123456',
+        }}
         diffSnapshot={{
           cwd: '/repo',
           generatedAt: '2026-02-09T00:00:00.000Z',
@@ -1217,6 +1229,7 @@ describe('WorktreeDiffPane', () => {
     )
     expect(screen.getByText('Change set too large to preview')).toBeInTheDocument()
     expect(screen.queryByTestId('worktree-diff-file-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('worktree-collapse-summary')).toHaveTextContent('Latest request collapse')
   }, TEST_TIMEOUT_MS)
 
   it('shows partial preview banner and keeps renderable files when diff is truncated', async () => {
