@@ -115,6 +115,37 @@ describe('WorktreeDiffPane', () => {
     expect(document.querySelectorAll('diffs-container')).toHaveLength(1)
   }, TEST_TIMEOUT_MS)
 
+  it('uses Codex file icon tokens for common code and config files', () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            { path: 'src/App.tsx', additions: 1, deletions: 0 },
+            { path: 'src/index.ts', additions: 1, deletions: 0 },
+            { path: 'src/app.js', additions: 1, deletions: 0 },
+            { path: 'vite.config.ts', additions: 1, deletions: 0 },
+            { path: '.gitignore', additions: 1, deletions: 0 },
+          ],
+        }}
+      />,
+    )
+
+    const iconTokenByPath = (path: string) => document
+      .querySelector(`[data-review-path="${path}"] [data-file-icon-token]`)
+      ?.getAttribute('data-file-icon-token')
+
+    expect(iconTokenByPath('src/App.tsx')).toBe('react')
+    expect(iconTokenByPath('src/index.ts')).toBe('typescript')
+    expect(iconTokenByPath('src/app.js')).toBe('javascript')
+    expect(iconTokenByPath('vite.config.ts')).toBe('vite')
+    expect(iconTokenByPath('.gitignore')).toBe('git')
+  }, TEST_TIMEOUT_MS)
+
+
   it('switches between unified and split diff rendering', async () => {
     renderPane(
       <WorktreeDiffPane

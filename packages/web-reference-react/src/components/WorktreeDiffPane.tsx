@@ -4,6 +4,7 @@ import type { WorkerPoolOptions } from '@pierre/diffs/react'
 import { useI18n } from '../app/i18n/I18nProvider'
 import type { RequestCollapseSummary } from '../types'
 import { cn } from '../lib/utils'
+import { CodexFileTreeIconSprite } from './diff/CodexFileTreeIconSprite'
 import { DiffPatchView, type DiffRenderStyle } from './diff/DiffPatchView'
 import { type DiffFileViewModel } from './diff/diffTypes'
 
@@ -46,6 +47,395 @@ type DiffWorkerPoolModuleState = {
   Provider: typeof import('@pierre/diffs/react').WorkerPoolContextProvider
   poolOptions: WorkerPoolOptions
 } | { status: 'failed' }
+
+type FileIconMeta = {
+  className: string
+  token: CodexFileIconToken
+}
+
+type CodexFileIconToken =
+  | 'astro'
+  | 'babel'
+  | 'bash'
+  | 'biome'
+  | 'bootstrap'
+  | 'browserslist'
+  | 'bun'
+  | 'c'
+  | 'claude'
+  | 'cpp'
+  | 'css'
+  | 'database'
+  | 'default'
+  | 'docker'
+  | 'eslint'
+  | 'font'
+  | 'git'
+  | 'go'
+  | 'graphql'
+  | 'html'
+  | 'image'
+  | 'javascript'
+  | 'json'
+  | 'markdown'
+  | 'mcp'
+  | 'nextjs'
+  | 'npm'
+  | 'oxc'
+  | 'postcss'
+  | 'prettier'
+  | 'python'
+  | 'react'
+  | 'ruby'
+  | 'rust'
+  | 'sass'
+  | 'stylelint'
+  | 'svelte'
+  | 'svg'
+  | 'svgo'
+  | 'swift'
+  | 'table'
+  | 'tailwind'
+  | 'terraform'
+  | 'text'
+  | 'typescript'
+  | 'vite'
+  | 'vscode'
+  | 'vue'
+  | 'wasm'
+  | 'webpack'
+  | 'yml'
+  | 'zig'
+  | 'zip'
+
+const CODEX_FILE_NAME_ICON_TOKENS: Record<string, CodexFileIconToken> = {
+  '.babelrc': 'babel',
+  '.babelrc.json': 'babel',
+  '.bash_profile': 'bash',
+  '.bashrc': 'bash',
+  '.browserslistrc': 'browserslist',
+  '.dockerignore': 'docker',
+  '.eslintignore': 'eslint',
+  '.eslintrc': 'eslint',
+  '.eslintrc.cjs': 'eslint',
+  '.eslintrc.js': 'eslint',
+  '.eslintrc.json': 'eslint',
+  '.eslintrc.yaml': 'eslint',
+  '.eslintrc.yml': 'eslint',
+  '.gitattributes': 'git',
+  '.gitignore': 'git',
+  '.gitkeep': 'git',
+  '.gitmodules': 'git',
+  '.oxlintrc.json': 'oxc',
+  '.postcssrc': 'postcss',
+  '.postcssrc.json': 'postcss',
+  '.postcssrc.yaml': 'postcss',
+  '.postcssrc.yml': 'postcss',
+  '.prettierignore': 'prettier',
+  '.prettierrc': 'prettier',
+  '.prettierrc.cjs': 'prettier',
+  '.prettierrc.js': 'prettier',
+  '.prettierrc.json': 'prettier',
+  '.prettierrc.mjs': 'prettier',
+  '.prettierrc.toml': 'prettier',
+  '.prettierrc.yaml': 'prettier',
+  '.prettierrc.yml': 'prettier',
+  '.stylelintignore': 'stylelint',
+  '.stylelintrc': 'stylelint',
+  '.stylelintrc.cjs': 'stylelint',
+  '.stylelintrc.js': 'stylelint',
+  '.stylelintrc.json': 'stylelint',
+  '.stylelintrc.mjs': 'stylelint',
+  '.stylelintrc.yaml': 'stylelint',
+  '.stylelintrc.yml': 'stylelint',
+  '.terraform.lock.hcl': 'terraform',
+  '.zprofile': 'bash',
+  '.zshenv': 'bash',
+  '.zshrc': 'bash',
+  'babel.config.cjs': 'babel',
+  'babel.config.js': 'babel',
+  'babel.config.json': 'babel',
+  'babel.config.mjs': 'babel',
+  'biome.json': 'biome',
+  'biome.jsonc': 'biome',
+  'bootstrap.bundle.js': 'bootstrap',
+  'bootstrap.bundle.min.js': 'bootstrap',
+  'bootstrap.css': 'bootstrap',
+  'bootstrap.js': 'bootstrap',
+  'bootstrap.min.css': 'bootstrap',
+  'bootstrap.min.js': 'bootstrap',
+  'bun.lock': 'bun',
+  'bun.lockb': 'bun',
+  'bunfig.toml': 'bun',
+  'claude.md': 'claude',
+  'compose.yaml': 'docker',
+  'compose.yml': 'docker',
+  'docker-compose.override.yml': 'docker',
+  'docker-compose.yaml': 'docker',
+  'docker-compose.yml': 'docker',
+  dockerfile: 'docker',
+  'eslint.config.cjs': 'eslint',
+  'eslint.config.js': 'eslint',
+  'eslint.config.mjs': 'eslint',
+  'eslint.config.mts': 'eslint',
+  'eslint.config.ts': 'eslint',
+  gemfile: 'ruby',
+  'next.config.js': 'nextjs',
+  'next.config.mjs': 'nextjs',
+  'next.config.mts': 'nextjs',
+  'next.config.ts': 'nextjs',
+  'postcss.config.cjs': 'postcss',
+  'postcss.config.js': 'postcss',
+  'postcss.config.mjs': 'postcss',
+  'postcss.config.ts': 'postcss',
+  'prettier.config.cjs': 'prettier',
+  'prettier.config.js': 'prettier',
+  'prettier.config.mjs': 'prettier',
+  rakefile: 'ruby',
+  'readme.md': 'markdown',
+  'stylelint.config.cjs': 'stylelint',
+  'stylelint.config.js': 'stylelint',
+  'stylelint.config.mjs': 'stylelint',
+  'svgo.config.cjs': 'svgo',
+  'svgo.config.js': 'svgo',
+  'svgo.config.mjs': 'svgo',
+  'svgo.config.ts': 'svgo',
+  'tailwind.config.cjs': 'tailwind',
+  'tailwind.config.js': 'tailwind',
+  'tailwind.config.mjs': 'tailwind',
+  'tailwind.config.ts': 'tailwind',
+  'vite.config.js': 'vite',
+  'vite.config.mjs': 'vite',
+  'vite.config.mts': 'vite',
+  'vite.config.ts': 'vite',
+  'webpack.config.babel.js': 'webpack',
+  'webpack.config.cjs': 'webpack',
+  'webpack.config.js': 'webpack',
+  'webpack.config.mjs': 'webpack',
+  'webpack.config.ts': 'webpack',
+}
+
+const CODEX_FILE_EXTENSION_ICON_TOKENS: Record<string, CodexFileIconToken> = {
+  '7z': 'zip',
+  astro: 'astro',
+  authors: 'text',
+  avif: 'image',
+  bash: 'bash',
+  bmp: 'image',
+  bz2: 'zip',
+  c: 'c',
+  cc: 'cpp',
+  cfg: 'text',
+  changelog: 'text',
+  cjs: 'javascript',
+  'code-workspace': 'vscode',
+  conf: 'text',
+  contributors: 'text',
+  cpp: 'cpp',
+  csh: 'bash',
+  css: 'css',
+  csv: 'table',
+  cts: 'typescript',
+  cxx: 'cpp',
+  db: 'database',
+  editorconfig: 'text',
+  env: 'text',
+  'env.development': 'text',
+  'env.local': 'text',
+  'env.production': 'text',
+  eot: 'font',
+  erb: 'ruby',
+  fish: 'bash',
+  gemspec: 'ruby',
+  gif: 'image',
+  go: 'go',
+  gql: 'graphql',
+  graphql: 'graphql',
+  gz: 'zip',
+  h: 'c',
+  hh: 'cpp',
+  hpp: 'cpp',
+  htm: 'html',
+  html: 'html',
+  hxx: 'cpp',
+  icns: 'image',
+  ico: 'image',
+  ini: 'text',
+  inl: 'cpp',
+  jar: 'zip',
+  jpeg: 'image',
+  jpg: 'image',
+  js: 'javascript',
+  json: 'json',
+  json5: 'json',
+  jsonc: 'json',
+  jsonl: 'json',
+  jsx: 'javascript',
+  ksh: 'bash',
+  less: 'css',
+  license: 'text',
+  log: 'text',
+  markdown: 'markdown',
+  mcp: 'mcp',
+  md: 'markdown',
+  mdx: 'markdown',
+  'mdx.tsx': 'markdown',
+  mjs: 'javascript',
+  mm: 'cpp',
+  mts: 'typescript',
+  ods: 'table',
+  otf: 'font',
+  png: 'image',
+  postcss: 'css',
+  py: 'python',
+  pyi: 'python',
+  pyw: 'python',
+  pyx: 'python',
+  rake: 'ruby',
+  rar: 'zip',
+  rb: 'ruby',
+  rs: 'rust',
+  rst: 'text',
+  rtf: 'text',
+  sass: 'css',
+  scss: 'css',
+  sh: 'bash',
+  sql: 'database',
+  sqlite: 'database',
+  sqlite3: 'database',
+  styl: 'css',
+  svelte: 'svelte',
+  svg: 'svg',
+  swift: 'swift',
+  tar: 'zip',
+  tf: 'terraform',
+  tfstate: 'terraform',
+  tfvars: 'terraform',
+  tgz: 'zip',
+  tif: 'image',
+  tiff: 'image',
+  ts: 'typescript',
+  tsv: 'table',
+  tsx: 'typescript',
+  ttf: 'font',
+  txt: 'text',
+  vue: 'vue',
+  war: 'zip',
+  wasm: 'wasm',
+  wast: 'wasm',
+  wat: 'wasm',
+  webp: 'image',
+  woff: 'font',
+  woff2: 'font',
+  xhtml: 'html',
+  xls: 'table',
+  xlsx: 'table',
+  xz: 'zip',
+  yaml: 'yml',
+  yml: 'yml',
+  zig: 'zig',
+  zip: 'zip',
+  zsh: 'bash',
+}
+
+const CODEX_COMPLETE_EXTENSION_ICON_TOKENS: Record<string, CodexFileIconToken> = {
+  jsx: 'react',
+  sass: 'sass',
+  scss: 'sass',
+  tsx: 'react',
+}
+
+const CODEX_FILE_ICON_COLOR_CLASS: Record<CodexFileIconToken, string> = {
+  astro: 'text-orange-500',
+  babel: 'text-yellow-500',
+  bash: 'text-emerald-600',
+  biome: 'text-sky-600',
+  bootstrap: 'text-violet-600',
+  browserslist: 'text-orange-500',
+  bun: 'text-amber-800',
+  c: 'text-blue-600',
+  claude: 'text-orange-600',
+  cpp: 'text-blue-700',
+  css: 'text-blue-500',
+  database: 'text-sky-600',
+  default: 'text-muted-foreground',
+  docker: 'text-blue-500',
+  eslint: 'text-violet-600',
+  font: 'text-orange-500',
+  git: 'text-orange-600',
+  go: 'text-cyan-600',
+  graphql: 'text-pink-500',
+  html: 'text-orange-600',
+  image: 'text-pink-500',
+  javascript: 'text-yellow-600',
+  json: 'text-orange-600',
+  markdown: 'text-green-600',
+  mcp: 'text-blue-600',
+  nextjs: 'text-foreground',
+  npm: 'text-red-600',
+  oxc: 'text-slate-600',
+  postcss: 'text-orange-600',
+  prettier: 'text-purple-600',
+  python: 'text-blue-600',
+  react: 'text-sky-500',
+  ruby: 'text-red-600',
+  rust: 'text-orange-700',
+  sass: 'text-pink-500',
+  stylelint: 'text-indigo-600',
+  svelte: 'text-orange-600',
+  svg: 'text-orange-500',
+  svgo: 'text-orange-500',
+  swift: 'text-orange-500',
+  table: 'text-green-600',
+  tailwind: 'text-cyan-500',
+  terraform: 'text-violet-600',
+  text: 'text-muted-foreground',
+  typescript: 'text-blue-600',
+  vite: 'text-purple-600',
+  vscode: 'text-blue-600',
+  vue: 'text-emerald-600',
+  wasm: 'text-violet-600',
+  webpack: 'text-sky-600',
+  yml: 'text-red-600',
+  zig: 'text-orange-500',
+  zip: 'text-amber-600',
+}
+
+function getFileName(path: string): string {
+  const pathParts = path.split('/')
+  return pathParts[pathParts.length - 1] ?? path
+}
+
+function getFileExtensions(fileName: string): string[] {
+  const parts = fileName.toLowerCase().split('.')
+  const extensions: string[] = []
+  for (let index = 1; index < parts.length; index += 1) {
+    extensions.push(parts.slice(index).join('.'))
+  }
+  return extensions
+}
+
+function resolveCodexFileIconToken(path: string): CodexFileIconToken {
+  const fileName = getFileName(path)
+  const lowerFileName = fileName.toLowerCase()
+  const fileNameToken = CODEX_FILE_NAME_ICON_TOKENS[lowerFileName]
+  if (fileNameToken) return fileNameToken
+
+  const extensions = getFileExtensions(fileName)
+  for (const extension of extensions) {
+    const completeToken = CODEX_COMPLETE_EXTENSION_ICON_TOKENS[extension]
+    if (completeToken) return completeToken
+    const extensionToken = CODEX_FILE_EXTENSION_ICON_TOKENS[extension]
+    if (extensionToken) return extensionToken
+  }
+  return 'default'
+}
+
+function getFileIconMeta(path: string): FileIconMeta {
+  const token = resolveCodexFileIconToken(path)
+  return { className: CODEX_FILE_ICON_COLOR_CLASS[token], token }
+}
+
 
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const { t } = useI18n()
@@ -365,6 +755,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
               className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-4 pt-2 [overflow-anchor:none]"
             >
               <div className="flex min-w-0 flex-col gap-2">
+                <CodexFileTreeIconSprite />
                 {files.map((file) => {
                   const loadedPatch = patchByPath[file.path]
                   const patch = file.patch ?? loadedPatch?.patch ?? ''
@@ -474,6 +865,8 @@ function DiffFileCard(props: {
   onToggle: () => void
   children: ReactNode
 }) {
+  const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(props.file.path)
+
   return (
     <section
       data-testid="worktree-diff-file-card"
@@ -518,6 +911,15 @@ function DiffFileCard(props: {
               />
             </button>
             <div className="flex min-w-0 flex-1 items-center gap-2 ui-text-base ui-text-primary">
+              <span
+                aria-hidden="true"
+                data-file-icon-token={fileIconToken}
+                className={cn('inline-flex size-4 shrink-0 items-center justify-center', fileIconClassName)}
+              >
+                <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 16 16">
+                  <use href={`#file-tree-builtin-${fileIconToken}`} />
+                </svg>
+              </span>
               <span
                 className="min-w-0 truncate font-mono text-[13px] [direction:rtl]"
                 title={props.file.path}
