@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
-  --desktop-chrome-height: 3rem;
+  --desktop-chrome-height: 46px;
+  --review-toolbar-height: 40px;
   --desktop-chrome-row-height: 2rem;
   --desktop-chrome-row-padding-y: calc((var(--desktop-chrome-height) - var(--desktop-chrome-row-height)) / 2);
   --desktop-traffic-light-size: 14px;

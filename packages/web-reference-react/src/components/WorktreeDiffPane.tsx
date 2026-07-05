@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkerPoolOptions } from '@pierre/diffs/react'
 import { useI18n } from '../app/i18n/I18nProvider'
@@ -8,6 +8,12 @@ import { CodexFileTreeIconSprite } from './diff/CodexFileTreeIconSprite'
 import { DiffFileCard } from './diff/DiffFileCard'
 import type { DiffRenderStyle } from './diff/DiffPatchView'
 import { WorktreeDiffFileBody } from './diff/WorktreeDiffFileBody'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 import {
   type DiffFilePatchPayload,
   type DiffFilePreviewPayload,
@@ -33,7 +39,6 @@ export type WorktreeDiffPaneProps = {
 
 const MAX_RENDERABLE_DIFF_FILES = 120
 const DIFF_WORKER_POOL_PROVIDER_SETTLE_MS = 50
-const DIFF_VIEW_MODES: DiffRenderStyle[] = ['unified', 'split']
 const PREVIEWABLE_IMAGE_EXTENSIONS = new Set(['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'webp'])
 type DiffWorkerPoolModuleState = {
   status: 'ready'
@@ -485,6 +490,13 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const hasTruncatedButNoFiles = Boolean(diffSnapshot?.hasChanges && diffSnapshot?.truncated && files.length === 0)
   const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0)
   const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0)
+  const hasExpandableFiles = files.length > 0 && !isLargeChangeSet && !hasTruncatedButNoFiles
+  const allFilesExpanded = hasExpandableFiles && files.every((file) => expandedPaths.has(file.path))
+  const expandCollapseAllLabel = allFilesExpanded ? t('worktreeDiff.collapseAll') : t('worktreeDiff.expandAll')
+  const nextDiffViewMode: DiffRenderStyle = diffViewMode === 'unified' ? 'split' : 'unified'
+  const nextDiffViewModeLabel = t(
+    nextDiffViewMode === 'unified' ? 'worktreeDiff.switchToUnified' : 'worktreeDiff.switchToSplit',
+  )
   const collapsePhaseLabel =
     latestRequestCollapse?.phase === 'reactive_retry'
       ? t('appShell.collapsePhase.reactiveRetry')
@@ -645,6 +657,35 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     applyFileToggle(file)
   }, [applyFileToggle, canPreviewImage, clearPendingFirstToggle, requestPatchIfNeeded, workerPoolReady])
 
+  const toggleAllFiles = useCallback(() => {
+    if (!hasExpandableFiles) return
+    clearPendingFirstToggle()
+    if (allFilesExpanded) {
+      setExpandedPaths(new Set())
+      return
+    }
+
+    if (typeof Worker === 'function') {
+      setWorkerPoolEnabled(true)
+    }
+    for (const file of files) {
+      if (canPreviewImage(file.path)) {
+        requestPreviewIfNeeded(file)
+      } else {
+        requestPatchIfNeeded(file)
+      }
+    }
+    setExpandedPaths(new Set(files.map((file) => file.path)))
+  }, [
+    allFilesExpanded,
+    canPreviewImage,
+    clearPendingFirstToggle,
+    files,
+    hasExpandableFiles,
+    requestPatchIfNeeded,
+    requestPreviewIfNeeded,
+  ])
+
   const getPatchStatusMessage = useCallback((filePath: string) => {
     const patchError = patchErrorByPath[filePath]
     if (patchLoadingByPath[filePath]) return t('worktreeDiff.loadingPatch')
@@ -740,70 +781,86 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       className="relative grid h-full min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background selection:bg-primary/10"
     >
       {showHeader ? (
-        <div className="min-h-0 max-w-full min-w-0">
-          <div className="grid h-toolbar-pane grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-border/70 px-2 text-muted-foreground [container-name:review-header] [container-type:inline-size]">
-            <div className="flex w-full min-w-0 flex-col overflow-hidden text-size-chat">
-              <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-                <div className="flex h-token-button-composer w-fit max-w-[320px] shrink-0 items-center gap-1.5 rounded-lg px-1.5 text-foreground">
-                  <span className="min-w-0 truncate">{t('worktreeDiff.title')}</span>
-                  <span className="inline-flex shrink-0 items-center rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs font-medium leading-none text-muted-foreground">
-                    {files.length}
-                  </span>
-                </div>
-                <span className="mr-1 inline-flex shrink-0 select-none items-center gap-1 font-mono text-size-chat tabular-nums tracking-tight">
-                  <span className="flex shrink-0 items-center ui-text-diff-add">+{totalAdditions}</span>
-                  <span className="flex shrink-0 items-center ui-text-diff-del">-{totalDeletions}</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-              <div
-                role="group"
-                aria-label={t('worktreeDiff.viewMode')}
-                className="inline-flex h-7 shrink-0 items-center rounded-lg border border-border/70 bg-muted/35 p-0.5 font-mono text-[11px] leading-none"
-              >
-                {DIFF_VIEW_MODES.map((mode) => (
+        <div className="grid h-[var(--review-toolbar-height)] grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-border/70 px-2 text-muted-foreground [container-name:review-header] [container-type:inline-size]">
+          <div className="flex w-full min-w-0 flex-col overflow-hidden text-size-chat">
+            <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
-                    key={mode}
                     type="button"
-                    aria-pressed={diffViewMode === mode}
-                    className={cn(
-                      'h-6 whitespace-nowrap rounded-[6px] px-2.5 transition-colors',
-                      diffViewMode === mode
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setDiffViewMode(mode)
-                    }}
+                    className="flex h-token-button-composer w-fit max-w-[320px] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-1.5 text-foreground transition-colors hover:bg-muted/55 data-[state=open]:bg-muted/55"
                   >
-                    {t(mode === 'unified' ? 'worktreeDiff.viewModeUnified' : 'worktreeDiff.viewModeSplit')}
+                    <span className="flex max-w-full min-w-0 items-center gap-1.5 truncate">
+                      <span className="min-w-0 truncate font-semibold">{t('worktreeDiff.sourceUnstaged')}</span>
+                      <span className="inline-flex shrink-0 items-center rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs font-medium leading-none text-muted-foreground">
+                        {files.length}
+                      </span>
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   </button>
-                ))}
-              </div>
-
-              <span className="hidden shrink-0 ui-text-meta ui-text-secondary @container_review-header_(min-width:720px):inline">
-                {t('worktreeDiff.changesCount', { count: files.length })}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={6} className="ui-menu-content w-[var(--composer-menu-width)] p-1">
+                  <DropdownMenuItem className="ui-composer-menu-item ui-text-base">
+                    <span className="flex-1">{t('worktreeDiff.sourceUnstaged')}</span>
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{files.length}</span>
+                    <Check className="ml-1 h-4 w-4" />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="mr-1 inline-flex shrink-0 select-none items-center gap-1 font-mono text-size-chat tabular-nums tracking-tight">
+                <span className="flex shrink-0 items-center ui-text-diff-add">+{totalAdditions}</span>
+                <span className="flex shrink-0 items-center ui-text-diff-del">-{totalDeletions}</span>
               </span>
-              <button
-                type="button"
-                aria-label={t('worktreeDiff.refresh')}
-                className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRefreshDiff?.()
-                }}
-              >
-                <RefreshCw
-                  className={cn(
-                    'size-4 transition-all cursor-pointer',
-                    isRefreshingDiff && 'animate-spin',
-                  )}
-                />
-              </button>
             </div>
+          </div>
+
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              aria-label={expandCollapseAllLabel}
+              aria-pressed={allFilesExpanded}
+              disabled={!hasExpandableFiles}
+              className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground disabled:pointer-events-none disabled:opacity-45"
+              onClick={(event) => {
+                event.stopPropagation()
+                toggleAllFiles()
+              }}
+            >
+              <ReviewExpandToggleIcon expanded={allFilesExpanded} />
+            </button>
+
+            <button
+              type="button"
+              aria-label={nextDiffViewModeLabel}
+              aria-pressed={diffViewMode === 'split'}
+              className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
+              onClick={(event) => {
+                event.stopPropagation()
+                setDiffViewMode(nextDiffViewMode)
+              }}
+            >
+              <ReviewViewModeIcon mode={diffViewMode} />
+            </button>
+
+            <span className="hidden shrink-0 ui-text-meta ui-text-secondary @container_review-header_(min-width:720px):inline">
+              {t('worktreeDiff.changesCount', { count: files.length })}
+            </span>
+            <button
+              type="button"
+              aria-label={t('worktreeDiff.refresh')}
+              className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRefreshDiff?.()
+              }}
+            >
+              <RefreshCw
+                className={cn(
+                  'size-4 transition-all cursor-pointer',
+                  isRefreshingDiff && 'animate-spin',
+                )}
+              />
+            </button>
           </div>
         </div>
       ) : null}
@@ -919,6 +976,48 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
         </div>
       </div>
     </aside>
+  )
+}
+
+function ReviewExpandToggleIcon(props: { expanded: boolean }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="size-5">
+      <path d="M13 9.5L20 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M13 14.5L17 14.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M6.24 4V9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.24 15V20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      {props.expanded ? (
+        <>
+          <path d="M3.74 8.5L6.24 11L8.74 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8.74 15.5L6.24 13L3.74 15.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : (
+        <>
+          <path d="M3.74 16.5L6.24 14L8.74 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8.74 7.5L6.24 10L3.74 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      )}
+    </svg>
+  )
+}
+
+function ReviewViewModeIcon(props: { mode: DiffRenderStyle }) {
+  const split = props.mode === 'split'
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="size-5">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" strokeWidth="2" />
+      {split ? (
+        <>
+          <path d="M6 8C6 7.45 6.45 7 7 7H10.25C10.8 7 11.25 7.45 11.25 8V16C11.25 16.55 10.8 17 10.25 17H7C6.45 17 6 16.55 6 16V8Z" fill="#F84E63" fillOpacity="0.5" />
+          <path d="M12.75 8C12.75 7.45 13.2 7 13.75 7H17C17.55 7 18 7.45 18 8V16C18 16.55 17.55 17 17 17H13.75C13.2 17 12.75 16.55 12.75 16V8Z" fill="#36D958" fillOpacity="0.5" />
+        </>
+      ) : (
+        <>
+          <path d="M6 8C6 7.45 6.45 7 7 7H17C17.55 7 18 7.45 18 8V10.25C18 10.8 17.55 11.25 17 11.25H7C6.45 11.25 6 10.8 6 10.25V8Z" fill="#F84E63" fillOpacity="0.5" />
+          <path d="M6 13.75C6 13.2 6.45 12.75 7 12.75H17C17.55 12.75 18 13.2 18 13.75V16C18 16.55 17.55 17 17 17H7C6.45 17 6 16.55 6 16V13.75Z" fill="#36D958" fillOpacity="0.5" />
+        </>
+      )}
+    </svg>
   )
 }
 

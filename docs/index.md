@@ -70,6 +70,7 @@
 ## 设计（Design）
 
 - 语义架构蓝图：`docs/design/semantics-architecture-blueprint.md`
+- Web 右侧工作区蓝图（Review / Terminal / Browser / Files / Side Chat 分层）：`docs/design/web-right-rail-workspace-blueprint.md`
 
 ## 审计（Audits）
 

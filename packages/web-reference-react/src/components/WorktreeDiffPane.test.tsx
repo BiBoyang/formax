@@ -106,7 +106,7 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
+    expect(screen.getByText('Unstaged')).toBeInTheDocument()
     expect(screen.getByText('Changes: 1')).toBeInTheDocument()
     expect(screen.getAllByTestId('worktree-diff-file-card')).toHaveLength(1)
     expect(screen.getByText('packages/web-reference-react/src/App.tsx')).toBeInTheDocument()
@@ -329,24 +329,61 @@ describe('WorktreeDiffPane', () => {
       />,
     )
 
-    const unifiedButton = screen.getByRole('button', { name: 'Unified' })
-    const splitButton = screen.getByRole('button', { name: 'Split' })
-    expect(unifiedButton).toHaveAttribute('aria-pressed', 'true')
-    expect(splitButton).toHaveAttribute('aria-pressed', 'false')
+    const viewModeButton = screen.getByRole('button', { name: 'Switch to split diff view' })
+    expect(viewModeButton).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
     await clickFileToggle()
     await expectDiffRenderStyle('unified')
 
-    fireEvent.click(splitButton)
-    expect(unifiedButton).toHaveAttribute('aria-pressed', 'false')
-    expect(splitButton).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(viewModeButton)
+    expect(screen.getByRole('button', { name: 'Switch to unified diff view' })).toHaveAttribute('aria-pressed', 'true')
     await expectDiffRenderStyle('split')
 
-    fireEvent.click(unifiedButton)
-    expect(unifiedButton).toHaveAttribute('aria-pressed', 'true')
-    expect(splitButton).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to unified diff view' }))
+    expect(screen.getByRole('button', { name: 'Switch to split diff view' })).toHaveAttribute('aria-pressed', 'false')
     await expectDiffRenderStyle('unified')
     expect(screen.getByTestId('worktree-diff-file-body')).toBeInTheDocument()
+  }, TEST_TIMEOUT_MS)
+
+  it('expands and collapses all files from the review toolbar', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [
+            {
+              path: 'src/a.ts',
+              additions: 1,
+              deletions: 1,
+              patch: `diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-old\n+new-a`,
+            },
+            {
+              path: 'src/b.ts',
+              additions: 1,
+              deletions: 1,
+              patch: `diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+new-b`,
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.getAllByTestId('worktree-diff-file-card').map((card) => card.getAttribute('data-expanded'))).toEqual(['false', 'false'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(screen.getAllByTestId('worktree-diff-file-card').map((card) => card.getAttribute('data-expanded'))).toEqual(['true', 'true'])
+
+    await clickFileToggle(0)
+    expect(screen.getAllByTestId('worktree-diff-file-card').map((card) => card.getAttribute('data-expanded'))).toEqual(['false', 'true'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(screen.getAllByTestId('worktree-diff-file-card').map((card) => card.getAttribute('data-expanded'))).toEqual(['true', 'true'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    expect(screen.getAllByTestId('worktree-diff-file-card').map((card) => card.getAttribute('data-expanded'))).toEqual(['false', 'false'])
   }, TEST_TIMEOUT_MS)
 
   it('loads file patch when an unpatched summary row is expanded', async () => {
@@ -1275,10 +1312,9 @@ describe('WorktreeDiffPane', () => {
       'zh-CN',
     )
 
-    expect(screen.getByText('未提交的工作树变更')).toBeInTheDocument()
+    expect(screen.getByText('未暂存')).toBeInTheDocument()
     expect(screen.getByText('变更数：0')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '统一' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: '分栏' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '切换到分栏差异视图' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('没有未暂存的变更')).toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
 })

@@ -7,6 +7,11 @@ import { I18nProvider } from '../i18n/I18nProvider'
 
 const desktopState = vi.hoisted(() => ({
   openPath: vi.fn(() => Promise.resolve()),
+  terminalBridge: null as unknown,
+}))
+
+const panelDragState = vi.hoisted(() => ({
+  onToggleRightRail: vi.fn(),
 }))
 
 vi.mock('../../components/LeftRail', () => ({
@@ -51,7 +56,9 @@ vi.mock('../../components/WorktreeDiffPane', () => ({
 }))
 
 vi.mock('../../components/ui/resizable', () => ({
-  ResizablePanelGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ResizablePanelGroup: ({ children, direction }: { children: ReactNode; direction?: string }) => (
+    <div data-testid={`mock-panel-group-${direction ?? 'unknown'}`}>{children}</div>
+  ),
   ResizablePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ResizableHandle: () => <div data-testid="mock-resize-handle" />,
 }))
@@ -67,7 +74,7 @@ vi.mock('./useDesktopBridge', () => ({
     isDesktopClient: true,
     isWindowTransparent: false,
     onToggleWindowTransparency: vi.fn(),
-    terminalBridge: null,
+    terminalBridge: desktopState.terminalBridge,
   }),
 }))
 
@@ -77,12 +84,14 @@ vi.mock('./usePanelDragCommit', () => ({
     onLeftResize: vi.fn(),
     onRightDragStateChange: vi.fn(),
     onRightResize: vi.fn(),
-    onToggleRightRail: vi.fn(),
+    onToggleRightRail: panelDragState.onToggleRightRail,
     onToggleSidebar: vi.fn(),
   }),
 }))
 
 vi.mock('./useTerminalVisibility', () => ({
+  TERMINAL_MAX_SIZE: 70,
+  TERMINAL_MIN_SIZE: 12,
   useTerminalVisibility: (args: { activeThreadId: string | null }) => ({
     canToggleTerminal: false,
     onCloseTerminalPane: vi.fn(),
@@ -211,8 +220,10 @@ function createProps(overrides: Partial<AppShellProps> = {}): AppShellProps {
   }
 }
 
-function renderShell(overrides: Partial<AppShellProps> = {}) {
+function renderShell(overrides: Partial<AppShellProps> = {}, options: { terminalBridge?: unknown } = {}) {
   desktopState.openPath.mockClear()
+  desktopState.terminalBridge = options.terminalBridge ?? null
+  panelDragState.onToggleRightRail.mockClear()
   return render(
     <I18nProvider language="en-US">
       <AppShell {...createProps(overrides)} />
@@ -278,6 +289,105 @@ describe('AppShell', () => {
     })
 
     expect(screen.getByTestId('mock-transcript-pane')).toHaveAttribute('data-log-count', '1')
+  })
+
+  it('renders thread workspace controls in a dedicated right-rail header', () => {
+    renderShell({
+      visibleSurface: 'thread',
+      activeThreadId: 'thread-a',
+      activeThread: {
+        id: 'thread-a',
+        cwd: '/tmp',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:00.000Z',
+        messageCount: 1,
+        label: null,
+        lastUserPrompt: null,
+      },
+      isRightRailOpen: true,
+    })
+
+    expect(screen.getByTestId('right-rail-workspace-header')).toBeInTheDocument()
+    expect(screen.getByTestId('right-rail')).toContainElement(screen.getByTestId('right-rail-workspace-header'))
+    expect(screen.getByTestId('right-rail-workspace-header')).toContainElement(screen.getByTestId('app-shell-top-right-controls'))
+    expect(screen.getByTestId('app-shell-terminal-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-right-rail-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-worktree-diff-pane')).toHaveTextContent('/tmp')
+    expect(screen.queryByText('+1')).toBeNull()
+    expect(screen.queryByText('-0')).toBeNull()
+  })
+
+  it('keeps the right-rail toggle clickable from the floating header', () => {
+    renderShell({
+      visibleSurface: 'thread',
+      activeThreadId: 'thread-a',
+      activeThread: {
+        id: 'thread-a',
+        cwd: '/tmp',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:00.000Z',
+        messageCount: 1,
+        label: null,
+        lastUserPrompt: null,
+      },
+      isRightRailOpen: false,
+    })
+
+    fireEvent.click(screen.getByTestId('app-shell-right-rail-toggle'))
+
+    expect(panelDragState.onToggleRightRail).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the terminal split across the center and right rail area', () => {
+    renderShell({
+      visibleSurface: 'thread',
+      activeThreadId: 'thread-a',
+      activeThread: {
+        id: 'thread-a',
+        cwd: '/tmp',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:00.000Z',
+        messageCount: 1,
+        label: null,
+        lastUserPrompt: null,
+      },
+      isRightRailOpen: true,
+    }, { terminalBridge: {} })
+
+    const verticalGroups = screen.getAllByTestId('mock-panel-group-vertical')
+    const sharedTerminalGroup = verticalGroups.find((group) => group.contains(screen.getByTestId('right-rail')))
+    expect(sharedTerminalGroup).toBeDefined()
+    expect(sharedTerminalGroup).toContainElement(screen.getByTestId('mock-terminal-pane'))
+    expect(sharedTerminalGroup).toContainElement(screen.getByTestId('right-rail'))
+  })
+
+  it('keeps the input approval dock anchored to the full center pane', () => {
+    renderShell({
+      visibleSurface: 'thread',
+      activeThreadId: 'thread-a',
+      activeThread: {
+        id: 'thread-a',
+        cwd: '/tmp',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:00.000Z',
+        messageCount: 1,
+        label: null,
+        lastUserPrompt: null,
+      },
+      selectedInput: {
+        inputId: 'input-a',
+        threadId: 'thread-a',
+        turnId: 'turn-a',
+        toolUseId: 'tool-a',
+        kind: 'ask_user_question',
+        status: 'pending',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        expiresAt: '2026-05-23T00:01:00.000Z',
+        payload: { questions: [] },
+      },
+    })
+
+    expect(screen.getByTestId('mock-approval-dock').parentElement).toBe(screen.getByTestId('center-pane-host'))
   })
 
   it('keeps the draft surface even when stale thread-only state is still present', () => {
