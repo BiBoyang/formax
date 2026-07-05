@@ -6,7 +6,7 @@ import { LeftRail } from '../../components/LeftRail'
 import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
 import { WorktreeDiffPane } from '../../components/WorktreeDiffPane'
-import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from '../../components/diff/diffTypes'
+import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot, ReviewGitSource } from '../../components/diff/diffTypes'
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
@@ -108,9 +108,9 @@ export type AppShellProps = {
   onAskDraftChange: (fieldId: string, value: string) => void
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
   diffSnapshot: DiffSnapshot | null
-  onRefreshDiff: () => void
-  onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
-  onRequestDiffPreview: (filePath: string) => Promise<DiffFilePreviewPayload | null>
+  onRefreshDiff: (source?: ReviewGitSource | null) => void
+  onRequestDiffPatch: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
+  onRequestDiffPreview: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
   isRefreshingDiff: boolean
   noticeMessage: string | null
   userSettings: UserSettings

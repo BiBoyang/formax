@@ -76,26 +76,34 @@ Target controls:
 - Expand / collapse all file cards.
 - Unified / split diff view toggle.
 
-Initial functional subset:
+Current functional subset:
 
-- Source dropdown exposes the target source map, but only `Unstaged` is functional.
+- Source dropdown exposes Git-backed `Unstaged` and `Staged` sources.
 - File count and aggregate additions/deletions are derived from the current worktree diff snapshot.
 - Expand / collapse all controls the open state of file cards.
 - Unified / split toggle uses the existing diff view mode state.
-- More menu may be scaffolded with only low-risk actions such as refresh; complex actions stay deferred.
+- More menu may be scaffolded with only low-risk actions such as refresh and local display toggles; complex actions stay deferred.
 
 Review source map:
 
-- `Unstaged`: active now. Shows the current unstaged worktree diff.
-- `Staged`: disabled placeholder. Future source for `git diff --cached`.
+- `Unstaged`: active now. Shows tracked worktree-vs-index changes plus untracked files.
+- `Staged`: active now. Shows index-vs-HEAD changes and never includes untracked files.
 - `Commit`: disabled placeholder. This means inspecting the file diff for an existing commit; it is not the commit/push action.
 - `Branch`: disabled placeholder. Future source for comparing against another branch or base.
 - `Previous conversation`: disabled placeholder. Future source for reviewing a previous conversation's captured diff.
 
+Git review source semantics:
+
+- `sourceKey` partitions snapshot, lazy patch, preview, and file expansion identity. Initial keys are `git:unstaged` and `git:staged`.
+- `Unstaged` uses `git diff` for tracked files and separately appends safe untracked summaries/patches.
+- `Staged` uses `git diff --cached` for tracked/index files and excludes untracked files.
+- Staged image preview is intentionally unavailable in the first implementation; it must not read the worktree file as a fallback.
+- Future commit/branch review sources should extend the Git review operation layer instead of adding ad hoc git commands in the Web UI.
+
 Review more menu map:
 
 - `Refresh`: active now. Reloads the current worktree diff snapshot.
-- `Enable word wrap`: disabled placeholder. Future renderer display option.
+- `Enable word wrap`: active now. Local Review display state only; default remains horizontal scrolling.
 - `Do not load full file`: disabled placeholder. Future file-context loading policy.
 - `Enable rich text preview`: disabled placeholder. Future preview mode for rich text formats.
 - `Enable word diff`: disabled placeholder. Future inline word-level diff option.
@@ -107,8 +115,8 @@ Deferred Review Toolbar controls:
 - Show in folder.
 - Commit or push.
 - Create pull request.
-- Functional staged/commit/branch/previous-conversation sources.
-- Functional rich text preview, full-file loading, whitespace, text-diff, and auto-wrap toggles unless the renderer has stable behavior and tests.
+- Functional commit/branch/previous-conversation sources.
+- Functional rich text preview, full-file loading, whitespace, and text-diff toggles unless the renderer has stable behavior and tests.
 
 ##### Review Body
 
@@ -170,7 +178,7 @@ Use these names when discussing or implementing the right rail UI.
 ### Review Tab Level
 
 - **Review Pane**: the active content rendered by the Review Tab.
-- **Review Toolbar**: the first row inside the Review Pane. It contains source, stats, display, and refresh controls.
+- **Review Toolbar**: the first row inside the Review Pane. It contains source, stats, and display controls.
 - **Review Toolbar Height**: `40px`, matching the Codex review toolbar row.
 - **Review Source Selector**: the `Unstaged` dropdown in the Review Toolbar.
 - **Review Source Count Badge**: the count pill inside the Review Source Selector.
@@ -178,7 +186,7 @@ Use these names when discussing or implementing the right rail UI.
 - **Review More Menu**: the future three-dot menu for review display options and actions.
 - **Review Expand Toggle**: the single button that expands all file cards or collapses all file cards depending on current file-open state.
 - **Review View Mode Toggle**: the unified/split segmented control.
-- **Review Refresh Button**: the refresh button for reloading the worktree diff snapshot.
+- **Review Refresh Action**: the More Menu action for reloading the worktree diff snapshot.
 - **Review Body**: the scrollable area below the Review Toolbar.
 - **Diff File Card**: one file row plus its optional opened content.
 - **Diff File Header**: the clickable file row inside a Diff File Card.
@@ -201,9 +209,10 @@ Active rail tab:
 
 Review source:
 
-- Future state.
-- Initial value is always Unstaged.
-- Must not imply staged/commit/branch behavior until those data sources exist.
+- Owned by the Review feature boundary.
+- Initial value is Unstaged.
+- Supported Git values are Unstaged and Staged.
+- Commit/branch/previous-conversation entries must remain disabled until those data sources exist.
 
 Diff view mode:
 

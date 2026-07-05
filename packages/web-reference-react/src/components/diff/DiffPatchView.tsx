@@ -27,6 +27,7 @@ export type DiffPatchViewProps = {
   deletions?: number
   maxHeightClassName?: string
   diffStyle?: DiffRenderStyle
+  wordWrap?: boolean
   showFileHeader?: boolean
 }
 
@@ -131,6 +132,19 @@ const DIFFS_UNSAFE_CSS = `
 
 [data-line-type="deletion"] {
   background: color-mix(in oklab, rgb(239 68 68) 7%, transparent);
+}
+`
+
+const DIFFS_WORD_WRAP_UNSAFE_CSS = `
+[data-code] {
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-code] * {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 `
 
@@ -368,11 +382,16 @@ export function DiffPatchView(props: DiffPatchViewProps) {
   const LoadedPatchDiff = modules.PatchDiff
   const diffStyle = props.diffStyle ?? 'unified'
   const showFileHeader = props.showFileHeader ?? true
+  const wordWrap = props.wordWrap ?? false
+  const unsafeCSS = wordWrap
+    ? `${DIFFS_UNSAFE_CSS}\n${DIFFS_WORD_WRAP_UNSAFE_CSS}`
+    : DIFFS_UNSAFE_CSS
 
   return (
     <div className="bg-muted/35 rounded-b-[10px] overflow-hidden">
       <div
         data-testid="pierre-diff-view"
+        data-word-wrap={wordWrap ? 'true' : 'false'}
         className={cn(
           'min-w-0 overflow-x-hidden overflow-y-auto font-mono text-[13px]',
           props.maxHeightClassName,
@@ -380,7 +399,7 @@ export function DiffPatchView(props: DiffPatchViewProps) {
       >
         <DiffPatchViewErrorBoundary key={validation.renderKey} fallback={unavailableFallback}>
           <LoadedPatchDiff
-            key={validation.renderKey}
+            key={`${validation.renderKey}:${wordWrap ? 'wrap' : 'scroll'}`}
             patch={props.patch}
             metrics={{
               hunkLineCount: 50,
@@ -400,7 +419,7 @@ export function DiffPatchView(props: DiffPatchViewProps) {
               themeType: 'light',
               tokenizeMaxLength: 40_000,
               tokenizeMaxLineLength: 1_000,
-              unsafeCSS: SHOULD_INJECT_UNSAFE_CSS ? DIFFS_UNSAFE_CSS : undefined,
+              unsafeCSS: SHOULD_INJECT_UNSAFE_CSS ? unsafeCSS : undefined,
             }}
           />
         </DiffPatchViewErrorBoundary>

@@ -1,18 +1,18 @@
-import type { DiffFilePatchPayload, DiffFilePreviewPayload } from '../../components/diff/diffTypes'
+import type { DiffFilePatchPayload, DiffFilePreviewPayload, ReviewGitSource } from '../../components/diff/diffTypes'
 
 type DiffUiHandlersArgs = {
-  refreshWorkspaceDiff: () => Promise<void>
-  requestDiffFilePatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
-  requestDiffFilePreview: (filePath: string) => Promise<DiffFilePreviewPayload | null>
+  refreshWorkspaceDiff: (cwdOverride?: string | null, source?: ReviewGitSource | null) => Promise<void>
+  requestDiffFilePatch: (filePath: string, cwdOverride?: string | null, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
+  requestDiffFilePreview: (filePath: string, cwdOverride?: string | null, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
   runAsyncSafely: (task: Promise<unknown>) => void
 }
 
 export function createDiffUiHandlers(args: DiffUiHandlersArgs) {
   return {
-    onRefreshDiff: () => {
-      args.runAsyncSafely(args.refreshWorkspaceDiff())
+    onRefreshDiff: (source?: ReviewGitSource | null) => {
+      args.runAsyncSafely(args.refreshWorkspaceDiff(undefined, source))
     },
-    onRequestDiffPatch: (filePath: string) => args.requestDiffFilePatch(filePath),
-    onRequestDiffPreview: (filePath: string) => args.requestDiffFilePreview(filePath),
+    onRequestDiffPatch: (filePath: string, source?: ReviewGitSource | null) => args.requestDiffFilePatch(filePath, undefined, source),
+    onRequestDiffPreview: (filePath: string, source?: ReviewGitSource | null) => args.requestDiffFilePreview(filePath, undefined, source),
   }
 }

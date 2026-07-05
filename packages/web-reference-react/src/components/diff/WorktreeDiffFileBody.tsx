@@ -11,6 +11,7 @@ export function WorktreeDiffFileBody(props: {
   deletions: number
   truncated?: boolean
   diffViewMode: DiffRenderStyle
+  wrapDiffLines: boolean
   statusMessage: string
   imageLabels: {
     loading: string
@@ -41,6 +42,7 @@ export function WorktreeDiffFileBody(props: {
         deletions={props.deletions}
         truncated={props.truncated}
         diffStyle={props.diffViewMode}
+        wordWrap={props.wrapDiffLines}
         showFileHeader={false}
       />
     )

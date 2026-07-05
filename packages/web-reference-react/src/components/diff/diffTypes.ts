@@ -6,6 +6,14 @@ export type DiffFileViewModel = {
   untracked?: boolean
 }
 
+export type ReviewGitSourceKind = 'unstaged' | 'staged'
+
+export type ReviewGitSource = {
+  kind: ReviewGitSourceKind
+}
+
+export type ReviewGitSourceKey = `git:${ReviewGitSourceKind}`
+
 export type PatchErrorKind = 'unavailable' | 'load_failed'
 export type PreviewErrorKind = 'unavailable' | 'load_failed'
 
@@ -17,7 +25,7 @@ export type DiffFilePreviewPayload = {
     mimeType: string
     dataUrl: string
     sizeBytes: number
-    source?: 'working_tree' | 'head'
+    source?: 'working_tree' | 'head' | 'index'
     changeKind?: 'added' | 'modified' | 'deleted'
   } | null
   error?: string
@@ -31,6 +39,8 @@ export type ImagePreviewState =
 
 export type DiffSnapshot = {
   cwd: string
+  source?: ReviewGitSource
+  sourceKey?: ReviewGitSourceKey
   generatedAt: string
   hasChanges: boolean
   truncated: boolean

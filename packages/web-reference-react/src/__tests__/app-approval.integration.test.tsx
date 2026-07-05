@@ -262,7 +262,7 @@ describe('App thread history integration', () => {
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -349,7 +349,7 @@ describe('App thread history integration', () => {
   it('hydrates pending approval inputs from thread replay state snapshot', async () => {
     rpcMock.setRequestImpl((method) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -555,7 +555,7 @@ describe('App thread history integration', () => {
   it('submits bash remember approval directly without scope step', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -657,7 +657,7 @@ describe('App thread history integration', () => {
   it('submits scope in second step when approval remember requires policy scope', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -755,7 +755,7 @@ describe('App thread history integration', () => {
   it('retires stale approval input locally when submit returns INPUT_EXPIRED', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -843,7 +843,7 @@ describe('App thread history integration', () => {
   it('retires stale approval input locally when submit returns not_pending', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -927,7 +927,7 @@ describe('App thread history integration', () => {
   it('retires active-thread approval badge after the turn already ended', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1028,7 +1028,7 @@ describe('App thread history integration', () => {
     let rejectSubmit: ((error: unknown) => void) | null = null
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1144,7 +1144,7 @@ describe('App thread history integration', () => {
     let resolveSubmit: ((value: unknown) => void) | null = null
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1254,7 +1254,7 @@ describe('App thread history integration', () => {
     let resolveSubmit: ((value: unknown) => void) | null = null
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1388,7 +1388,7 @@ describe('App thread history integration', () => {
     let resolveSubmit: ((value: unknown) => void) | null = null
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',

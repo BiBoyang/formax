@@ -261,7 +261,7 @@ describe('App thread history integration', () => {
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -348,7 +348,7 @@ describe('App thread history integration', () => {
   it('re-baselines replay cursor after hasGap so next replay uses refreshed cursor', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -515,7 +515,7 @@ describe('App thread history integration', () => {
     let alphaHistoryCalls = 0
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -646,7 +646,7 @@ describe('App thread history integration', () => {
   it('uses replay projection snapshot on hasGap without falling back to thread/messages for that thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -812,7 +812,7 @@ describe('App thread history integration', () => {
   it('recovers hasGap from baseline replay snapshot without calling thread/messages', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -987,7 +987,7 @@ describe('App thread history integration', () => {
   it('ignores stale hasGap projection hydration after switching to another thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1125,7 +1125,7 @@ describe('App thread history integration', () => {
     let historyRequested = false
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1203,7 +1203,7 @@ describe('App thread history integration', () => {
     let pagedHistoryRequested = false
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',

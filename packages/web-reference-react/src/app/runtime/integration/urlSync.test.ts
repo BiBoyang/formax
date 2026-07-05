@@ -53,9 +53,11 @@ vi.mock('../../../rpcClient', () => {
           return {}
         case 'thread/list':
           return { data: [thread1, thread2] }
-        case 'bridge/readDiffSummary':
+        case 'bridge/reviewGit/readDiffSummary':
           return {
             cwd: typeof (params as { cwd?: unknown } | null)?.cwd === 'string' ? (params as { cwd: string }).cwd : '/repo-1',
+            source: { kind: 'unstaged' },
+            sourceKey: 'git:unstaged',
             generatedAt: '2026-02-22T00:00:00.000Z',
             hasChanges: false,
             truncated: false,
@@ -130,6 +132,6 @@ describe('URL Sync Integration', () => {
       expect(result.current.diffSnapshot).toBeNull()
       expect(new URL(window.location.href).searchParams.get('thread')).toBeNull()
     })
-    expect(rpcState.requestLog.some(({ method }) => method === 'bridge/readDiffSummary')).toBe(false)
+    expect(rpcState.requestLog.some(({ method }) => method === 'bridge/reviewGit/readDiffSummary')).toBe(false)
   })
 })

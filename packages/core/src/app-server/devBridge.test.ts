@@ -195,13 +195,13 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
-  it('handles bridge/readDiff locally without forwarding to app-server input', async () => {
+  it('handles bridge/reviewGit/readDiff locally without forwarding to app-server input', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
     const onConnection = getConnectionHandler()
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":42,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":42,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
     await waitFor(() => socket.send.mock.calls.length > 0)
 
     expect(readInputBuffer()).toBe('')
@@ -211,6 +211,19 @@ describe('startAppServerDevBridge', () => {
     expect(payload.result).toBeTruthy()
     expect(Array.isArray(payload.result.files)).toBe(true)
 
+    await bridge.close()
+  })
+
+  it('does not intercept source-less bridge/readDiff as a local bridge RPC', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":43,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    await waitFor(() => readInputBuffer().includes('"method":"bridge/readDiff"'))
+
+    expect(socket.send).not.toHaveBeenCalled()
     await bridge.close()
   })
 
@@ -351,7 +364,7 @@ describe('startAppServerDevBridge', () => {
       .mockImplementation(() => undefined)
 
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
-    socket.emitMessage('{"jsonrpc":"2.0","id":52,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":52,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
     await waitFor(() => socket.send.mock.calls.length > 1)
 
     const errorPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
@@ -377,7 +390,7 @@ describe('startAppServerDevBridge', () => {
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":53,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":53,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
     await waitFor(() => socket.send.mock.calls.length > 0)
     const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
     expect(payload.error?.code).toBe(-32603)
@@ -392,7 +405,7 @@ describe('startAppServerDevBridge', () => {
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":62,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":62,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
     socket.readyState = 0
     await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -410,20 +423,20 @@ describe('startAppServerDevBridge', () => {
     })
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":63,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":63,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
     await waitFor(() => socket.send.mock.calls.length > 0)
 
     expect(socket.send).toHaveBeenCalledTimes(1)
     await bridge.close()
   })
 
-  it('handles bridge/readDiffSummary locally without forwarding to app-server input', async () => {
+  it('handles bridge/reviewGit/readDiffSummary locally without forwarding to app-server input', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, cwd: process.cwd() })
     const onConnection = getConnectionHandler()
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":142,"method":"bridge/readDiffSummary","params":{"maxFiles":64}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":142,"method":"bridge/reviewGit/readDiffSummary","params":{"maxFiles":64}}\n')
     await waitFor(() => socket.send.mock.calls.length > 0)
 
     expect(readInputBuffer()).toBe('')
@@ -453,7 +466,7 @@ describe('startAppServerDevBridge', () => {
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":109,"method":"bridge/readDiff"}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":109,"method":"bridge/reviewGit/readDiff"}\n')
     await waitFor(() => socket.send.mock.calls.length > 0)
     const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
     expect(payload.id).toBe(109)
@@ -468,6 +481,8 @@ describe('startAppServerDevBridge', () => {
       rpcOverrides: {
         readDiffSummary: async () => ({
           cwd: '/tmp',
+          source: { kind: 'unstaged' },
+          sourceKey: 'git:unstaged',
           generatedAt: new Date().toISOString(),
           hasChanges: true,
           truncated: false,
@@ -475,6 +490,8 @@ describe('startAppServerDevBridge', () => {
         }),
         readDiffFilePatch: async () => ({
           cwd: '/tmp',
+          source: { kind: 'unstaged' },
+          sourceKey: 'git:unstaged',
           generatedAt: new Date().toISOString(),
           path: 'x.ts',
           found: true,
@@ -487,14 +504,20 @@ describe('startAppServerDevBridge', () => {
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-    socket.emitMessage('{"jsonrpc":"2.0","id":300,"method":"bridge/readDiffSummary"}\n')
-    socket.emitMessage('{"jsonrpc":"2.0","id":301,"method":"bridge/readDiffFilePatch"}\n')
-    await waitFor(() => socket.send.mock.calls.length >= 2)
+    socket.emitMessage('{"jsonrpc":"2.0","id":300,"method":"bridge/reviewGit/readDiffSummary"}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":301,"method":"bridge/reviewGit/readDiffFilePatch"}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":302,"method":"bridge/reviewGit/readDiffSummary","params":{"source":{"kind":"staged"}}}\n')
+    socket.emitMessage('{"jsonrpc":"2.0","id":303,"method":"bridge/reviewGit/readDiffFilePatch","params":{"source":{"kind":"staged"}}}\n')
+    await waitFor(() => socket.send.mock.calls.length >= 4)
 
     const first = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
     const second = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
+    const third = JSON.parse(String(socket.send.mock.calls[2]?.[0] ?? '{}'))
+    const fourth = JSON.parse(String(socket.send.mock.calls[3]?.[0] ?? '{}'))
     expect(first.id).toBe(300)
     expect(second.id).toBe(301)
+    expect(third.id).toBe(302)
+    expect(fourth.id).toBe(303)
     await bridge.close()
   })
 
@@ -509,7 +532,7 @@ describe('startAppServerDevBridge', () => {
       const socket = createMockSocket()
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-      socket.emitMessage('{"jsonrpc":"2.0","id":43,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+      socket.emitMessage('{"jsonrpc":"2.0","id":43,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
       await waitFor(() => socket.send.mock.calls.length > 0)
 
       const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
@@ -541,7 +564,7 @@ describe('startAppServerDevBridge', () => {
       const socket = createMockSocket()
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-      socket.emitMessage('{"jsonrpc":"2.0","id":44,"method":"bridge/readDiff","params":{"maxBytes":4096}}\n')
+      socket.emitMessage('{"jsonrpc":"2.0","id":44,"method":"bridge/reviewGit/readDiff","params":{"maxBytes":4096}}\n')
       await waitFor(() => socket.send.mock.calls.length > 0)
 
       const payload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
@@ -559,7 +582,7 @@ describe('startAppServerDevBridge', () => {
     }
   })
 
-  it('reads a single file patch via bridge/readDiffFilePatch', async () => {
+  it('reads a single file patch via bridge/reviewGit/readDiffFilePatch', async () => {
     const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-single-patch-'))
     try {
       runGit(repoDir, ['init'])
@@ -576,7 +599,7 @@ describe('startAppServerDevBridge', () => {
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
       socket.emitMessage(
-        '{"jsonrpc":"2.0","id":244,"method":"bridge/readDiffFilePatch","params":{"path":"tracked.txt","maxBytes":4096}}\n',
+        '{"jsonrpc":"2.0","id":244,"method":"bridge/reviewGit/readDiffFilePatch","params":{"path":"tracked.txt","maxBytes":4096}}\n',
       )
       await waitFor(() => socket.send.mock.calls.length > 0)
 
@@ -594,7 +617,7 @@ describe('startAppServerDevBridge', () => {
     }
   })
 
-  it('reads a single image preview via bridge/readDiffFilePreview', async () => {
+  it('reads a single image preview via bridge/reviewGit/readDiffFilePreview', async () => {
     const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-rpc-'))
     try {
       runGit(repoDir, ['init'])
@@ -608,7 +631,7 @@ describe('startAppServerDevBridge', () => {
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
       socket.emitMessage(
-        '{"jsonrpc":"2.0","id":246,"method":"bridge/readDiffFilePreview","params":{"path":"images/a.webp","maxBytes":4096}}\n',
+        '{"jsonrpc":"2.0","id":246,"method":"bridge/reviewGit/readDiffFilePreview","params":{"path":"images/a.webp","maxBytes":4096}}\n',
       )
       await waitFor(() => socket.send.mock.calls.length > 0)
 
@@ -624,7 +647,7 @@ describe('startAppServerDevBridge', () => {
     }
   })
 
-  it('returns found=false when bridge/readDiffFilePatch path does not exist in diff', async () => {
+  it('returns found=false when bridge/reviewGit/readDiffFilePatch path does not exist in diff', async () => {
     const repoDir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-single-patch-miss-'))
     try {
       runGit(repoDir, ['init'])
@@ -640,7 +663,7 @@ describe('startAppServerDevBridge', () => {
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
       socket.emitMessage(
-        '{"jsonrpc":"2.0","id":245,"method":"bridge/readDiffFilePatch","params":{"path":"missing.txt","maxBytes":4096}}\n',
+        '{"jsonrpc":"2.0","id":245,"method":"bridge/reviewGit/readDiffFilePatch","params":{"path":"missing.txt","maxBytes":4096}}\n',
       )
       await waitFor(() => socket.send.mock.calls.length > 0)
 
@@ -671,14 +694,16 @@ describe('startAppServerDevBridge', () => {
       const socket = createMockSocket()
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-      socket.emitMessage('{"jsonrpc":"2.0","id":344,"method":"bridge/readDiffSummary","params":{"maxFiles":256}}\n')
+      socket.emitMessage(
+        '{"jsonrpc":"2.0","id":344,"method":"bridge/reviewGit/readDiffSummary","params":{"source":{"kind":"staged"},"maxFiles":256}}\n',
+      )
       await waitFor(() => socket.send.mock.calls.length > 0)
       const summaryPayload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
       const renamedPath = (summaryPayload.result?.files ?? []).find((file: any) => file.path.includes('new-name'))?.path
       expect(renamedPath).toBe('new-name.txt')
 
       socket.emitMessage(
-        `{"jsonrpc":"2.0","id":345,"method":"bridge/readDiffFilePatch","params":{"path":"${renamedPath}","maxBytes":4096}}\n`,
+        `{"jsonrpc":"2.0","id":345,"method":"bridge/reviewGit/readDiffFilePatch","params":{"source":{"kind":"staged"},"path":"${renamedPath}","maxBytes":4096}}\n`,
       )
       await waitFor(() => socket.send.mock.calls.length > 1)
       const patchPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
@@ -707,14 +732,14 @@ describe('startAppServerDevBridge', () => {
       const socket = createMockSocket()
       onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
-      socket.emitMessage('{"jsonrpc":"2.0","id":346,"method":"bridge/readDiffSummary","params":{"maxFiles":256}}\n')
+      socket.emitMessage('{"jsonrpc":"2.0","id":346,"method":"bridge/reviewGit/readDiffSummary","params":{"maxFiles":256}}\n')
       await waitFor(() => socket.send.mock.calls.length > 0)
       const summaryPayload = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
       const targetPath = (summaryPayload.result?.files ?? []).find((file: any) => file.path.includes('foo'))?.path
       expect(targetPath).toBe('foo => bar.txt')
 
       socket.emitMessage(
-        '{"jsonrpc":"2.0","id":347,"method":"bridge/readDiffFilePatch","params":{"path":"foo => bar.txt","maxBytes":4096}}\n',
+        '{"jsonrpc":"2.0","id":347,"method":"bridge/reviewGit/readDiffFilePatch","params":{"path":"foo => bar.txt","maxBytes":4096}}\n',
       )
       await waitFor(() => socket.send.mock.calls.length > 1)
       const patchPayload = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))

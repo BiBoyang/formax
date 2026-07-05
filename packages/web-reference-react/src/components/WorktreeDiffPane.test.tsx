@@ -183,7 +183,7 @@ describe('WorktreeDiffPane', () => {
 
     await clickFileToggle(0)
     expect(screen.getByTestId('worktree-diff-image-preview-loading')).toHaveTextContent('Loading image preview...')
-    expect(onRequestPreview).toHaveBeenCalledWith('images/a.webp')
+    expect(onRequestPreview).toHaveBeenCalledWith('images/a.webp', { kind: 'unstaged' })
     expect(onRequestPatch).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -309,7 +309,7 @@ describe('WorktreeDiffPane', () => {
 
     await clickFileToggle()
     await waitFor(() => {
-      expect(onRequestPatch).toHaveBeenCalledWith('images/a.webp')
+      expect(onRequestPatch).toHaveBeenCalledWith('images/a.webp', { kind: 'unstaged' })
     })
     expect(screen.queryByTestId('worktree-diff-image-preview-loading')).not.toBeInTheDocument()
   }, TEST_TIMEOUT_MS)
@@ -423,7 +423,7 @@ describe('WorktreeDiffPane', () => {
     expect(onRequestPatch).not.toHaveBeenCalled()
     await clickFileToggle()
     await waitFor(() => {
-      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy.ts')
+      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy.ts', { kind: 'unstaged' })
     })
     await expectDiffShadowText('new')
     expect(onRequestPatch).toHaveBeenCalledTimes(1)
@@ -652,7 +652,7 @@ describe('WorktreeDiffPane', () => {
       )
 
       fireEvent.click(screen.getByTestId('worktree-diff-file-toggle'))
-      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy-warmup.ts')
+      expect(onRequestPatch).toHaveBeenCalledWith('src/lazy-warmup.ts', { kind: 'unstaged' })
       expect(screen.getByTestId('worktree-diff-file-card')).toHaveAttribute('data-expanded', 'false')
 
       await act(async () => {
@@ -846,7 +846,7 @@ describe('WorktreeDiffPane', () => {
     expect(onRequestPatch).not.toHaveBeenCalled()
     await clickFileToggle()
     await waitFor(() => {
-      expect(onRequestPatch).toHaveBeenCalledWith('src/counts.ts')
+      expect(onRequestPatch).toHaveBeenCalledWith('src/counts.ts', { kind: 'unstaged' })
     })
     await expectDiffShadowText('three')
 
@@ -1172,47 +1172,80 @@ describe('WorktreeDiffPane', () => {
     expectNoDiffShadowText('stale')
   }, TEST_TIMEOUT_MS)
 
-  it('refreshes diff from header control', () => {
+  it('switches between unstaged and staged review sources', async () => {
     const onRefreshDiff = vi.fn()
-    renderPane(
+    const view = renderPane(
       <WorktreeDiffPane
         diffSnapshot={{
           cwd: '/repo',
-          generatedAt: '2026-02-09T00:00:00.000Z',
-          hasChanges: false,
-          truncated: false,
-          files: [],
-        }}
-        onRefreshDiff={onRefreshDiff}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh diff' }))
-    expect(onRefreshDiff).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('No unstaged changes')).toBeInTheDocument()
-    expect(screen.getByText('Code changes will appear here')).toBeInTheDocument()
-  }, TEST_TIMEOUT_MS)
-
-  it('scaffolds disabled review source entries beyond unstaged', async () => {
-    renderPane(
-      <WorktreeDiffPane
-        diffSnapshot={{
-          cwd: '/repo',
+          source: { kind: 'unstaged' },
+          sourceKey: 'git:unstaged',
           generatedAt: '2026-02-09T00:00:00.000Z',
           hasChanges: true,
           truncated: false,
-          files: [{ path: 'src/example.ts', additions: 1, deletions: 0 }],
+          files: [
+            { path: 'src/example.ts', additions: 1, deletions: 0 },
+            { path: 'src/unstaged-only.ts', additions: 1, deletions: 0 },
+          ],
         }}
+        onRefreshDiff={onRefreshDiff}
       />,
     )
 
     openDropdown(screen.getByRole('button', { name: /Unstaged/ }))
 
     expect(screen.getAllByText('Unstaged').length).toBeGreaterThanOrEqual(2)
-    expect((await screen.findByText('Staged')).closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+    fireEvent.click(await screen.findByText('Staged'))
+    expect(onRefreshDiff).toHaveBeenCalledWith({ kind: 'staged' })
+    expect(screen.getByRole('button', { name: /Staged/ }).textContent).not.toContain('2')
+
+    view.rerender(
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo',
+            source: { kind: 'staged' },
+            sourceKey: 'git:staged',
+            generatedAt: '2026-02-09T00:00:01.000Z',
+            hasChanges: true,
+            truncated: false,
+            files: [{ path: 'src/staged-only.ts', additions: 1, deletions: 0 }],
+          }}
+          onRefreshDiff={onRefreshDiff}
+        />
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('button', { name: /Staged/ }).textContent).toContain('1')
+
+    openDropdown(screen.getByRole('button', { name: /Staged/ }))
     expect(screen.getByText('Commit').closest('[data-slot="dropdown-menu-sub-trigger"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Branch').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Previous conversation').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' })
+
+    view.rerender(
+      <I18nProvider language="en-US">
+        <WorktreeDiffPane
+          diffSnapshot={{
+            cwd: '/repo-other',
+            source: { kind: 'unstaged' },
+            sourceKey: 'git:unstaged',
+            generatedAt: '2026-02-09T00:00:02.000Z',
+            hasChanges: false,
+            truncated: false,
+            files: [],
+          }}
+          onRefreshDiff={onRefreshDiff}
+        />
+      </I18nProvider>,
+    )
+    openDropdown(screen.getByRole('button', { name: /Unstaged/ }))
+    expect(screen.getByText('Staged').closest('[data-slot="dropdown-menu-item"]')?.textContent).not.toContain('1')
+    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' })
+
+    openDropdown(screen.getByRole('button', { name: 'More review options' }))
+    fireEvent.click(await screen.findByText('Refresh diff'))
+    expect(onRefreshDiff).toHaveBeenLastCalledWith({ kind: 'unstaged' })
   }, TEST_TIMEOUT_MS)
 
   it('opens review more menu with refresh active and future options disabled', async () => {
@@ -1234,15 +1267,66 @@ describe('WorktreeDiffPane', () => {
     fireEvent.click(await screen.findByText('Refresh diff'))
 
     expect(onRefreshDiff).toHaveBeenCalledTimes(1)
+    expect(onRefreshDiff).toHaveBeenCalledWith({ kind: 'unstaged' })
 
     openDropdown(screen.getByRole('button', { name: 'More review options' }))
 
-    expect((await screen.findByText('Enable word wrap')).closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+    const wordWrapItem = await screen.findByRole('menuitemcheckbox', { name: 'Enable word wrap' })
+    expect(wordWrapItem).toHaveAttribute('aria-checked', 'false')
+    expect(wordWrapItem).not.toHaveAttribute('data-disabled')
     expect(screen.getByText('Do not load full file').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Enable rich text preview').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Enable word diff').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Hide whitespace').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Copy git apply command').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+  }, TEST_TIMEOUT_MS)
+
+  it('disables menu refresh when refresh is unavailable', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{ path: 'src/example.ts', additions: 1, deletions: 0 }],
+        }}
+      />,
+    )
+
+    openDropdown(screen.getByRole('button', { name: 'More review options' }))
+
+    expect((await screen.findByText('Refresh diff')).closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+  }, TEST_TIMEOUT_MS)
+
+  it('toggles word wrap as a local review display option', async () => {
+    renderPane(
+      <WorktreeDiffPane
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{
+            path: 'src/example.ts',
+            additions: 1,
+            deletions: 0,
+            patch: `diff --git a/src/example.ts b/src/example.ts\n@@ -0,0 +1 @@\n+${'long '.repeat(40)}`,
+          }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    await findDiffShadowRoot()
+    expect(screen.getByTestId('pierre-diff-view')).toHaveAttribute('data-word-wrap', 'false')
+
+    openDropdown(screen.getByRole('button', { name: 'More review options' }))
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Enable word wrap' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pierre-diff-view')).toHaveAttribute('data-word-wrap', 'true')
+    })
   }, TEST_TIMEOUT_MS)
 
   it('renders long file paths through the outer file card header', async () => {

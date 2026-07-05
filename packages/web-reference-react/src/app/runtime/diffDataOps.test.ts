@@ -19,9 +19,11 @@ describe('diffDataOps', () => {
   it('refreshes workspace diff with loading state transitions', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffSummary') {
+        if (method === 'bridge/reviewGit/readDiffSummary') {
           return Promise.resolve({
             cwd: '/repo',
+            source: { kind: 'unstaged' },
+            sourceKey: 'git:unstaged',
             generatedAt: '2026-02-15T00:00:00.000Z',
             hasChanges: true,
             truncated: false,
@@ -37,9 +39,15 @@ describe('diffDataOps', () => {
 
     expect(ctx.setIsRefreshingDiff).toHaveBeenNthCalledWith(1, true)
     expect(ctx.setIsRefreshingDiff).toHaveBeenLastCalledWith(false)
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffSummary', { maxFiles: 600, cwd: '/repo' })
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffSummary', {
+      source: { kind: 'unstaged' },
+      maxFiles: 600,
+      cwd: '/repo',
+    })
     expect(ctx.setDiffSnapshot).toHaveBeenCalledWith({
       cwd: '/repo',
+      source: { kind: 'unstaged' },
+      sourceKey: 'git:unstaged',
       generatedAt: '2026-02-15T00:00:00.000Z',
       hasChanges: true,
       truncated: false,
@@ -47,20 +55,41 @@ describe('diffDataOps', () => {
     })
   })
 
-  it('falls back to bridge/readDiff when summary method is unavailable', async () => {
+  it('drops summary results that do not match the requested review source', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffSummary') {
-          return Promise.reject(new Error('method not found'))
-        }
-        if (method === 'bridge/readDiff') {
+        if (method === 'bridge/reviewGit/readDiffSummary') {
           return Promise.resolve({
             cwd: '/repo',
+            source: { kind: 'unstaged' },
+            sourceKey: 'git:unstaged',
             generatedAt: '2026-02-15T00:00:00.000Z',
             hasChanges: true,
             truncated: false,
-            files: [{ path: 'src/b.ts', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' }],
+            files: [{ path: 'src/unstaged.ts', additions: 1, deletions: 0 }],
           })
+        }
+        return Promise.resolve({})
+      }),
+    })
+    const ops = createDiffDataOps(ctx)
+
+    await ops.refreshWorkspaceDiff(undefined, { kind: 'staged' })
+
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffSummary', {
+      source: { kind: 'staged' },
+      maxFiles: 600,
+      cwd: '/repo',
+    })
+    expect(ctx.setDiffSnapshot).not.toHaveBeenCalled()
+    expect(ctx.setIsRefreshingDiff).toHaveBeenLastCalledWith(false)
+  })
+
+  it('keeps loading state balanced when source-aware summary is unavailable', async () => {
+    const ctx = createBaseContext({
+      request: vi.fn((method: string) => {
+        if (method === 'bridge/reviewGit/readDiffSummary') {
+          return Promise.reject(new Error('method not found'))
         }
         return Promise.resolve({})
       }),
@@ -69,38 +98,30 @@ describe('diffDataOps', () => {
 
     await ops.refreshWorkspaceDiff()
 
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffSummary', { maxFiles: 600, cwd: '/repo' })
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiff', { maxBytes: 180 * 1024, cwd: '/repo' })
-    expect(ctx.setDiffSnapshot).toHaveBeenCalledWith({
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffSummary', {
+      source: { kind: 'unstaged' },
+      maxFiles: 600,
       cwd: '/repo',
-      generatedAt: '2026-02-15T00:00:00.000Z',
-      hasChanges: true,
-      truncated: false,
-      files: [{ path: 'src/b.ts', additions: 2, deletions: 1, patch: '@@ -1 +1 @@', untracked: undefined }],
     })
+    expect(ctx.request).toHaveBeenCalledTimes(1)
+    expect(ctx.setDiffSnapshot).not.toHaveBeenCalled()
+    expect(ctx.setIsRefreshingDiff).toHaveBeenLastCalledWith(false)
   })
 
-  it('falls back to bridge/readDiff when summary reports git diff error marker', async () => {
+  it('does not accept summary results with the git diff error marker', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffSummary') {
+        if (method === 'bridge/reviewGit/readDiffSummary') {
           return Promise.resolve({
             cwd: '/repo',
+            source: { kind: 'unstaged' },
+            sourceKey: 'git:unstaged',
             generatedAt: '2026-02-15T00:00:00.000Z',
             hasChanges: true,
             truncated: false,
             files: [{ path: 'git-diff-error', additions: 0, deletions: 0 }],
           })
         }
-        if (method === 'bridge/readDiff') {
-          return Promise.resolve({
-            cwd: '/repo',
-            generatedAt: '2026-02-15T00:00:01.000Z',
-            hasChanges: true,
-            truncated: false,
-            files: [{ path: 'src/fallback.ts', additions: 1, deletions: 1, patch: '@@ -1 +1 @@' }],
-          })
-        }
         return Promise.resolve({})
       }),
     })
@@ -108,21 +129,19 @@ describe('diffDataOps', () => {
 
     await ops.refreshWorkspaceDiff()
 
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffSummary', { maxFiles: 600, cwd: '/repo' })
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiff', { maxBytes: 180 * 1024, cwd: '/repo' })
-    expect(ctx.setDiffSnapshot).toHaveBeenCalledWith({
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffSummary', {
+      source: { kind: 'unstaged' },
+      maxFiles: 600,
       cwd: '/repo',
-      generatedAt: '2026-02-15T00:00:01.000Z',
-      hasChanges: true,
-      truncated: false,
-      files: [{ path: 'src/fallback.ts', additions: 1, deletions: 1, patch: '@@ -1 +1 @@', untracked: undefined }],
     })
+    expect(ctx.request).toHaveBeenCalledTimes(1)
+    expect(ctx.setDiffSnapshot).not.toHaveBeenCalled()
   })
 
-  it('requests single file patch via bridge/readDiffFilePatch', async () => {
+  it('requests single file patch via bridge/reviewGit/readDiffFilePatch', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffFilePatch') {
+        if (method === 'bridge/reviewGit/readDiffFilePatch') {
           return Promise.resolve({
             path: 'src/a.ts',
             found: true,
@@ -142,7 +161,8 @@ describe('diffDataOps', () => {
 
     const result = await ops.requestDiffFilePatch('src/a.ts')
 
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffFilePatch', {
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffFilePatch', {
+      source: { kind: 'unstaged' },
       path: 'src/a.ts',
       maxBytes: 220 * 1024,
       cwd: '/repo',
@@ -158,10 +178,10 @@ describe('diffDataOps', () => {
     })
   })
 
-  it('requests image preview via bridge/readDiffFilePreview', async () => {
+  it('requests image preview via bridge/reviewGit/readDiffFilePreview', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffFilePreview') {
+        if (method === 'bridge/reviewGit/readDiffFilePreview') {
           return Promise.resolve({
             path: 'images/a.webp',
             found: true,
@@ -180,7 +200,8 @@ describe('diffDataOps', () => {
 
     const result = await ops.requestDiffFilePreview('images/a.webp')
 
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffFilePreview', {
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffFilePreview', {
+      source: { kind: 'unstaged' },
       path: 'images/a.webp',
       maxBytes: 8 * 1024 * 1024,
       cwd: '/repo',
@@ -202,7 +223,7 @@ describe('diffDataOps', () => {
     const ctx = createBaseContext({
       resolveDiffCwd: vi.fn(() => null),
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffFilePatch') {
+        if (method === 'bridge/reviewGit/readDiffFilePatch') {
           return Promise.resolve({
             path: 'src/a.ts',
             found: true,
@@ -222,7 +243,8 @@ describe('diffDataOps', () => {
 
     const result = await ops.requestDiffFilePatch('src/a.ts')
 
-    expect(ctx.request).toHaveBeenCalledWith('bridge/readDiffFilePatch', {
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffFilePatch', {
+      source: { kind: 'unstaged' },
       path: 'src/a.ts',
       maxBytes: 220 * 1024,
     })
@@ -247,7 +269,7 @@ describe('diffDataOps', () => {
   it('drops late diff results when request ownership has been invalidated', async () => {
     const ctx = createBaseContext({
       request: vi.fn((method: string) => {
-        if (method === 'bridge/readDiffSummary') {
+        if (method === 'bridge/reviewGit/readDiffSummary') {
           return Promise.resolve({
             cwd: '/repo',
             generatedAt: '2026-02-15T00:00:00.000Z',

@@ -1,4 +1,10 @@
-import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot } from '../../components/diff/diffTypes'
+import type {
+  DiffFilePatchPayload,
+  DiffFilePreviewPayload,
+  DiffSnapshot,
+  ReviewGitSource,
+  ReviewGitSourceKey,
+} from '../../components/diff/diffTypes'
 
 export type DiffDataOpsContext = {
   request: (method: string, params?: unknown) => Promise<unknown>
@@ -11,10 +17,26 @@ export type DiffDataOpsContext = {
   shouldAcceptDiffResult: (args: { requestId: number; cwd: string | null }) => boolean
 }
 
+const DEFAULT_REVIEW_SOURCE: ReviewGitSource = { kind: 'unstaged' }
+
+function getReviewSourceKey(source: ReviewGitSource): ReviewGitSourceKey {
+  return `git:${source.kind}`
+}
+
+function normalizeReviewSource(value?: ReviewGitSource | null): ReviewGitSource {
+  return value?.kind === 'staged' ? { kind: 'staged' } : DEFAULT_REVIEW_SOURCE
+}
+
+function isExpectedReviewSource(snapshot: DiffSnapshot, expectedSourceKey: ReviewGitSourceKey): boolean {
+  return snapshot.sourceKey === expectedSourceKey
+}
+
 function asDiffSnapshot(value: unknown): DiffSnapshot | null {
   if (!value || typeof value !== 'object') return null
   const raw = value as Record<string, unknown>
   if (!Array.isArray(raw.files)) return null
+  const source = normalizeReviewSource(raw.source as ReviewGitSource | null)
+  const sourceKey = raw.sourceKey === 'git:staged' || raw.sourceKey === 'git:unstaged' ? raw.sourceKey : getReviewSourceKey(source)
   const files = raw.files
     .map((entry) => {
       if (!entry || typeof entry !== 'object') return null
@@ -32,6 +54,8 @@ function asDiffSnapshot(value: unknown): DiffSnapshot | null {
 
   return {
     cwd: typeof raw.cwd === 'string' ? raw.cwd : '',
+    source,
+    sourceKey,
     generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : new Date().toISOString(),
     hasChanges: raw.hasChanges === true,
     truncated: raw.truncated === true,
@@ -85,7 +109,10 @@ function asDiffFilePreviewPayload(value: unknown): DiffFilePreviewPayload | null
   const rawPreview = preview as Record<string, unknown>
   const kind = rawPreview.kind === 'image' ? 'image' : null
   if (!kind) return null
-  const source = rawPreview.source === 'head' || rawPreview.source === 'working_tree' ? rawPreview.source : undefined
+  const source =
+    rawPreview.source === 'head' || rawPreview.source === 'working_tree' || rawPreview.source === 'index'
+      ? rawPreview.source
+      : undefined
   const changeKind =
     rawPreview.changeKind === 'added' || rawPreview.changeKind === 'modified' || rawPreview.changeKind === 'deleted'
       ? rawPreview.changeKind
@@ -106,31 +133,25 @@ function asDiffFilePreviewPayload(value: unknown): DiffFilePreviewPayload | null
 }
 
 export function createDiffDataOps(ctx: DiffDataOpsContext) {
-  const refreshWorkspaceDiff = async (cwdOverride?: string | null) => {
+  const refreshWorkspaceDiff = async (cwdOverride?: string | null, sourceInput?: ReviewGitSource | null) => {
     if (!ctx.canRefreshDiff()) return
+    const source = normalizeReviewSource(sourceInput)
     const requestId = ctx.beginDiffRequest()
     ctx.setIsRefreshingDiff(true)
     try {
       const cwd = cwdOverride ?? ctx.resolveDiffCwd()
-      const summaryParams = { maxFiles: 600, ...(cwd ? { cwd } : {}) }
-      const summaryResult = await ctx.request('bridge/readDiffSummary', summaryParams).catch(() => null)
+      const expectedSourceKey = getReviewSourceKey(source)
+      const summaryParams = { source, maxFiles: 600, ...(cwd ? { cwd } : {}) }
+      const summaryResult = await ctx.request('bridge/reviewGit/readDiffSummary', summaryParams).catch(() => null)
       const summarySnapshot = asDiffSnapshot(summaryResult)
       if (
         summarySnapshot &&
+        isExpectedReviewSource(summarySnapshot, expectedSourceKey) &&
         !hasDiffErrorMarker(summarySnapshot) &&
         ctx.shouldAcceptDiffResult({ requestId, cwd: summarySnapshot.cwd || cwd })
       ) {
         ctx.setDiffSnapshot(summarySnapshot)
         return
-      }
-      if (!ctx.shouldAcceptDiffResult({ requestId, cwd })) {
-        return
-      }
-
-      const legacyResult = await ctx.request('bridge/readDiff', { maxBytes: 180 * 1024, ...(cwd ? { cwd } : {}) })
-      const legacySnapshot = asDiffSnapshot(legacyResult)
-      if (legacySnapshot && ctx.shouldAcceptDiffResult({ requestId, cwd: legacySnapshot.cwd || cwd })) {
-        ctx.setDiffSnapshot(legacySnapshot)
       }
     } finally {
       if (ctx.isCurrentDiffRequest(requestId)) {
@@ -139,26 +160,36 @@ export function createDiffDataOps(ctx: DiffDataOpsContext) {
     }
   }
 
-  const requestDiffFilePatch = async (filePath: string, cwdOverride?: string | null): Promise<DiffFilePatchPayload | null> => {
+  const requestDiffFilePatch = async (
+    filePath: string,
+    cwdOverride?: string | null,
+    sourceInput?: ReviewGitSource | null,
+  ): Promise<DiffFilePatchPayload | null> => {
     const path = filePath.trim()
     if (!path) return null
     if (!ctx.canRefreshDiff()) return null
     const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+    const source = normalizeReviewSource(sourceInput)
     const result = await ctx
-      .request('bridge/readDiffFilePatch', { path, maxBytes: 220 * 1024, ...(cwd ? { cwd } : {}) })
+      .request('bridge/reviewGit/readDiffFilePatch', { source, path, maxBytes: 220 * 1024, ...(cwd ? { cwd } : {}) })
       .catch(() => null)
     const payload = asDiffFilePatchPayload(result)
     if (!payload) return null
     return payload
   }
 
-  const requestDiffFilePreview = async (filePath: string, cwdOverride?: string | null): Promise<DiffFilePreviewPayload | null> => {
+  const requestDiffFilePreview = async (
+    filePath: string,
+    cwdOverride?: string | null,
+    sourceInput?: ReviewGitSource | null,
+  ): Promise<DiffFilePreviewPayload | null> => {
     const path = filePath.trim()
     if (!path) return null
     if (!ctx.canRefreshDiff()) return null
     const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+    const source = normalizeReviewSource(sourceInput)
     const result = await ctx
-      .request('bridge/readDiffFilePreview', { path, maxBytes: 8 * 1024 * 1024, ...(cwd ? { cwd } : {}) })
+      .request('bridge/reviewGit/readDiffFilePreview', { source, path, maxBytes: 8 * 1024 * 1024, ...(cwd ? { cwd } : {}) })
       .catch(() => null)
     return asDiffFilePreviewPayload(result)
   }

@@ -301,7 +301,7 @@ describe('devBridge helper hooks', () => {
     }
   })
 
-  it('reads deleted image previews from the HEAD blob', async () => {
+  it('reads deleted image previews from the index blob for unstaged source', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-preview-deleted-'))
     try {
       runGit(dir, ['init'])
@@ -324,7 +324,7 @@ describe('devBridge helper hooks', () => {
       expect(result.preview?.mimeType).toBe('image/webp')
       expect(result.preview?.dataUrl).toBe(`data:image/webp;base64,${bytes.toString('base64')}`)
       expect(result.preview?.sizeBytes).toBe(bytes.byteLength)
-      expect(result.preview?.source).toBe('head')
+      expect(result.preview?.source).toBe('index')
       expect(result.preview?.changeKind).toBe('deleted')
     } finally {
       await rm(dir, { recursive: true, force: true })
@@ -420,6 +420,103 @@ describe('devBridge helper hooks', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it('separates unstaged and staged tracked changes', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-review-source-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(dir, 'tracked.txt'), 'one\n', 'utf8')
+      await writeFile(path.join(dir, 'staged-only.txt'), 'old\n', 'utf8')
+      runGit(dir, ['add', 'tracked.txt', 'staged-only.txt'])
+      runGit(dir, ['commit', '-m', 'init'])
+
+      await writeFile(path.join(dir, 'tracked.txt'), 'one\nstaged\n', 'utf8')
+      await writeFile(path.join(dir, 'staged-only.txt'), 'new\n', 'utf8')
+      runGit(dir, ['add', 'tracked.txt', 'staged-only.txt'])
+      await writeFile(path.join(dir, 'tracked.txt'), 'one\nstaged\nunstaged\n', 'utf8')
+      await writeFile(path.join(dir, 'untracked.txt'), 'new\n', 'utf8')
+
+      const unstagedSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
+        source: { kind: 'unstaged' },
+        maxFiles: 100,
+      })
+      expect(unstagedSummary.sourceKey).toBe('git:unstaged')
+      expect(unstagedSummary.files.map((file) => file.path)).toContain('tracked.txt')
+      expect(unstagedSummary.files.map((file) => file.path)).toContain('untracked.txt')
+      expect(unstagedSummary.files.map((file) => file.path)).not.toContain('staged-only.txt')
+      expect(unstagedSummary.files.find((file) => file.path === 'tracked.txt')).toMatchObject({
+        additions: 1,
+        deletions: 0,
+      })
+
+      const stagedSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
+        source: { kind: 'staged' },
+        maxFiles: 100,
+      })
+      expect(stagedSummary.sourceKey).toBe('git:staged')
+      expect(stagedSummary.files.map((file) => file.path)).toContain('tracked.txt')
+      expect(stagedSummary.files.map((file) => file.path)).toContain('staged-only.txt')
+      expect(stagedSummary.files.map((file) => file.path)).not.toContain('untracked.txt')
+
+      const unstagedPatch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, {
+        source: { kind: 'unstaged' },
+        path: 'tracked.txt',
+        maxBytes: 200_000,
+      })
+      expect(unstagedPatch.file?.patch).toContain('+unstaged')
+      expect(unstagedPatch.file?.patch).not.toContain('+staged')
+
+      const stagedPatch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, {
+        source: { kind: 'staged' },
+        path: 'tracked.txt',
+        maxBytes: 200_000,
+      })
+      expect(stagedPatch.file?.patch).toContain('+staged')
+      expect(stagedPatch.file?.patch).not.toContain('+unstaged')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('marks staged image preview unavailable without reading the worktree image', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-staged-preview-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await mkdir(path.join(dir, 'images'))
+      await writeFile(path.join(dir, 'images', 'a.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46]))
+      runGit(dir, ['add', 'images/a.webp'])
+
+      await writeFile(path.join(dir, 'images', 'a.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46, 0xff]))
+
+      const result = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        source: { kind: 'staged' },
+        path: 'images/a.webp',
+        maxBytes: 1024,
+      })
+
+      expect(result).toMatchObject({
+        sourceKey: 'git:staged',
+        found: true,
+        preview: null,
+        error: 'unsupported_source',
+      })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid git review source parameters', async () => {
+    await expect(
+      __devBridgeTestHooks.readWorkspaceDiffSummary('/tmp', {
+        source: { kind: 'branch' },
+        maxFiles: 100,
+      }),
+    ).rejects.toThrow('Invalid Git review source.')
   })
 
   it('handles fallback branches for diff/sum/patch helper readers via injected git responses', async () => {

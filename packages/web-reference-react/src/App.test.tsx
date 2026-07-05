@@ -334,7 +334,7 @@ describe('App thread history integration', () => {
     window.localStorage.removeItem(RIGHT_RAIL_WIDTH_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1902,7 +1902,7 @@ describe('App thread history integration', () => {
   it('loads stale inputs from thread/resume without rendering pending list in right rail', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',

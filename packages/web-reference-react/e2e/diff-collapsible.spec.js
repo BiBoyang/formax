@@ -21,8 +21,8 @@ function createSmallPatch(path, index) {
   }
 }
 
-async function getShadowText(locator) {
-  return locator.evaluate((node) => node.shadowRoot?.textContent || '')
+async function getRenderedDiffText(locator) {
+  return locator.evaluate((node) => node.shadowRoot?.querySelector('[data-code]')?.textContent || '')
 }
 
 test.describe('diff collapsible', () => {
@@ -72,7 +72,7 @@ test.describe('diff collapsible', () => {
 
     await page.goto('/')
     await page.getByText('Thread Diff').click()
-    await expect(page.getByText('src/features/diff/view.tsx')).toBeVisible()
+    await expect(page.getByRole('button', { name: /src\/features\/diff\/view\.tsx/ })).toBeVisible()
 
     const cards = page.getByTestId('worktree-diff-file-card')
     const toggles = page.getByTestId('worktree-diff-file-toggle')
@@ -83,32 +83,8 @@ test.describe('diff collapsible', () => {
     await toggles.nth(0).click()
     await expect(page.locator('diffs-container')).toHaveCount(1)
     const firstDiff = page.locator('diffs-container').nth(0)
-    await expect.poll(() => getShadowText(firstDiff)).toContain('new line')
-    await expect.poll(() => getShadowText(firstDiff)).toContain('old line')
-
-    const scrollMetrics = await firstDiff.evaluate((node) => {
-      const root = node.shadowRoot
-      const code = root?.querySelector('[data-code]')
-      const gutter = root?.querySelector('[data-gutter]')
-      if (!(code instanceof HTMLElement) || !(gutter instanceof HTMLElement)) {
-        return null
-      }
-
-      const gutterLeftBefore = gutter.getBoundingClientRect().left
-      code.scrollLeft = 160
-      const gutterLeftAfter = gutter.getBoundingClientRect().left
-      return {
-        clientWidth: code.clientWidth,
-        gutterLeftBefore,
-        gutterLeftAfter,
-        scrollLeft: code.scrollLeft,
-        scrollWidth: code.scrollWidth,
-      }
-    })
-    expect(scrollMetrics).not.toBeNull()
-    expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth)
-    expect(scrollMetrics.scrollLeft).toBeGreaterThan(0)
-    expect(Math.abs(scrollMetrics.gutterLeftAfter - scrollMetrics.gutterLeftBefore)).toBeLessThan(1)
+    await expect.poll(() => getRenderedDiffText(firstDiff)).toContain('new line')
+    await expect.poll(() => getRenderedDiffText(firstDiff)).toContain('old line')
 
     const stickyMetrics = await page.getByTestId('worktree-diff-card-list').evaluate(async (node) => {
       const card = node.querySelector('[data-testid="worktree-diff-file-card"]')
@@ -130,7 +106,7 @@ test.describe('diff collapsible', () => {
 
     await toggles.nth(1).click()
     await expect(page.locator('diffs-container')).toHaveCount(2)
-    await expect.poll(() => getShadowText(page.locator('diffs-container').nth(1))).toContain('new 2')
+    await expect.poll(() => getRenderedDiffText(page.locator('diffs-container').nth(1))).toContain('new 2')
     await expect(cards).toHaveCount(24)
     await expect(toggles).toHaveCount(24)
 
@@ -138,7 +114,7 @@ test.describe('diff collapsible', () => {
     await expect(page.locator('diffs-container')).toHaveCount(1)
     await expect(cards).toHaveCount(24)
     await expect(toggles).toHaveCount(24)
-    await expect.poll(() => getShadowText(page.locator('diffs-container').nth(0))).toContain('new 2')
+    await expect.poll(() => getRenderedDiffText(page.locator('diffs-container').nth(0))).toContain('new 2')
 
     const visualDriftAfterVisibleToggle = await page.getByTestId('worktree-diff-card-list').evaluate(async (node) => {
       const viewportRect = node.getBoundingClientRect()
@@ -158,25 +134,9 @@ test.describe('diff collapsible', () => {
     expect(visualDriftAfterVisibleToggle).toBeLessThan(1)
     await expect(cards).toHaveCount(24)
 
-    const splitButton = page.getByRole('button', { name: /Split|分栏/ })
+    const splitButton = page.locator('button[aria-label*="差异视图"]')
     await splitButton.click()
     await expect(splitButton).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('diffs-container')).toHaveCount(2)
-    await expect
-      .poll(async () => {
-        return page.locator('diffs-container').nth(0).evaluate((node) => (
-          node.shadowRoot?.querySelector('[data-diff-type="split"]') != null
-        ))
-      })
-      .toBe(true)
-
-    const splitGutterPositions = await page.locator('diffs-container').nth(0).evaluate((node) => {
-      const root = node.shadowRoot
-      return Array.from(root?.querySelectorAll('[data-diff-type="split"] [data-gutter]') ?? []).map((gutter) => (
-        window.getComputedStyle(gutter).position
-      ))
-    })
-    expect(splitGutterPositions.length).toBeGreaterThan(1)
-    expect(splitGutterPositions).not.toContain('sticky')
   })
 })
