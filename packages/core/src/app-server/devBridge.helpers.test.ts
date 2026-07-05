@@ -242,6 +242,17 @@ describe('devBridge helper hooks', () => {
       const link = await __devBridgeTestHooks.buildUntrackedDiffFile(dir, 'link.txt')
       expect(link.patch).toContain('new file mode 120000')
 
+      const summary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, 'a.txt')
+      expect(summary).toMatchObject({ path: 'a.txt', additions: 2, deletions: 0, untracked: true })
+
+      const imagePath = 'preview.webp'
+      await writeFile(path.join(dir, imagePath), Buffer.from([0x52, 0x49, 0x46, 0x46]))
+      const imageSummary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, imagePath)
+      expect(imageSummary).toMatchObject({ path: imagePath, additions: 0, deletions: 0, untracked: true })
+
+      const linkSummary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, 'link.txt')
+      expect(linkSummary).toMatchObject({ path: 'link.txt', additions: 1, deletions: 0, untracked: true })
+
       const linkUnavailable = await __devBridgeTestHooks.buildUntrackedDiffFile(dir, 'link.txt', {
         readlinkFn: async () => {
           throw new Error('readlink boom')
@@ -374,6 +385,13 @@ describe('devBridge helper hooks', () => {
       expect(summary.files.length).toBe(20)
       expect(summary.files.some((file) => file.path === unicodePath)).toBe(true)
       expect(summary.files.some((file) => file.path.includes('\\345'))).toBe(false)
+
+      const fullSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, { maxFiles: 100 })
+      expect(fullSummary.files.find((file) => file.path === 'new.txt')).toMatchObject({
+        additions: 1,
+        deletions: 0,
+        untracked: true,
+      })
 
       const patch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, { path: 'tracked.txt', maxBytes: 200_000 })
       expect(patch.found).toBe(true)

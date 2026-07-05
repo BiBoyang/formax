@@ -144,6 +144,8 @@ const IMAGE_PREVIEW_MIME_BY_EXTENSION: Record<string, string> = {
   webp: 'image/webp',
 }
 
+const SUMMARY_NON_TEXT_EXTENSIONS = new Set([...Object.keys(IMAGE_PREVIEW_MIME_BY_EXTENSION), 'pdf'])
+
 const SETUP_PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic' },
   { id: 'openai', label: 'OpenAI-compatible' },
@@ -568,6 +570,72 @@ async function buildUntrackedDiffFile(
   }
 }
 
+async function buildUntrackedSummaryFile(
+  cwd: string,
+  filePath: string,
+  deps?: {
+    readlinkFn?: typeof readlink
+  },
+): Promise<BridgeDiffSummaryFile> {
+  const absPath = path.resolve(cwd, filePath)
+  const readlinkFn = deps?.readlinkFn ?? readlink
+  try {
+    const stats = await lstat(absPath)
+    if (stats.isSymbolicLink()) {
+      const linkTarget = await readlinkFn(absPath).catch(() => null)
+      return {
+        path: filePath,
+        additions: linkTarget ? 1 : 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    if (!stats.isFile()) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+    if (SUMMARY_NON_TEXT_EXTENSIONS.has(ext)) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    const raw = await readFile(absPath)
+    if (raw.includes(0)) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    return {
+      path: filePath,
+      additions: countContentLines(raw.toString('utf8')),
+      deletions: 0,
+      untracked: true,
+    }
+  } catch {
+    return {
+      path: filePath,
+      additions: 0,
+      deletions: 0,
+      untracked: true,
+    }
+  }
+}
+
 async function readWorkspaceDiff(
   cwd: string,
   params: BridgeReadDiffParams | undefined,
@@ -665,9 +733,11 @@ async function readWorkspaceDiffSummary(
   params: BridgeReadDiffSummaryParams | undefined,
   deps?: {
     runGitFn?: typeof runGit
+    buildUntrackedSummaryFileFn?: typeof buildUntrackedSummaryFile
   },
 ): Promise<BridgeReadDiffSummaryResult> {
   const runGitFn = deps?.runGitFn ?? runGit
+  const buildUntrackedSummaryFileFn = deps?.buildUntrackedSummaryFileFn ?? buildUntrackedSummaryFile
   const maxFiles = normalizeMaxFiles(params?.maxFiles)
   const generatedAt = new Date().toISOString()
 
@@ -712,7 +782,11 @@ async function readWorkspaceDiffSummary(
 
   const merged = mergeSummaryFiles(trackedFiles, untrackedPaths)
   const truncated = merged.length > maxFiles
-  const files = truncated ? merged.slice(0, maxFiles) : merged
+  const files = await Promise.all(
+    (truncated ? merged.slice(0, maxFiles) : merged).map((file) =>
+      file.untracked ? buildUntrackedSummaryFileFn(cwd, file.path) : file,
+    ),
+  )
   return {
     cwd,
     generatedAt,
@@ -1332,6 +1406,7 @@ export const __devBridgeTestHooks = {
   appendDiffFileWithinBudget,
   countContentLines,
   buildUntrackedDiffFile,
+  buildUntrackedSummaryFile,
   readWorkspaceDiff,
   readWorkspaceDiffSummary,
   findPatchByRequestedPath,
