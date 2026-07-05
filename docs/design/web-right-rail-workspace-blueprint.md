@@ -78,23 +78,37 @@ Target controls:
 
 Initial functional subset:
 
-- Source dropdown only exposes `Unstaged`.
+- Source dropdown exposes the target source map, but only `Unstaged` is functional.
 - File count and aggregate additions/deletions are derived from the current worktree diff snapshot.
 - Expand / collapse all controls the open state of file cards.
 - Unified / split toggle uses the existing diff view mode state.
 - More menu may be scaffolded with only low-risk actions such as refresh; complex actions stay deferred.
 
+Review source map:
+
+- `Unstaged`: active now. Shows the current unstaged worktree diff.
+- `Staged`: disabled placeholder. Future source for `git diff --cached`.
+- `Commit`: disabled placeholder. This means inspecting the file diff for an existing commit; it is not the commit/push action.
+- `Branch`: disabled placeholder. Future source for comparing against another branch or base.
+- `Previous conversation`: disabled placeholder. Future source for reviewing a previous conversation's captured diff.
+
+Review more menu map:
+
+- `Refresh`: active now. Reloads the current worktree diff snapshot.
+- `Enable word wrap`: disabled placeholder. Future renderer display option.
+- `Do not load full file`: disabled placeholder. Future file-context loading policy.
+- `Enable rich text preview`: disabled placeholder. Future preview mode for rich text formats.
+- `Enable word diff`: disabled placeholder. Future inline word-level diff option.
+- `Hide whitespace`: disabled placeholder. Future whitespace display option.
+- `Copy git apply command`: disabled placeholder. Future clipboard helper for applying the current patch.
+
 Deferred Review Toolbar controls:
 
-- Staged source.
-- Commit source.
-- Branch source.
-- Previous conversation source.
 - Show in folder.
 - Commit or push.
 - Create pull request.
-- Copy git apply command.
-- Rich text preview toggle, full-file loading toggle, whitespace toggle, text-diff toggle, and auto-wrap toggle unless the renderer has stable behavior and tests.
+- Functional staged/commit/branch/previous-conversation sources.
+- Functional rich text preview, full-file loading, whitespace, text-diff, and auto-wrap toggles unless the renderer has stable behavior and tests.
 
 ##### Review Body
 

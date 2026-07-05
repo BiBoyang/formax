@@ -1,4 +1,17 @@
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import {
+  AlignJustify,
+  Check,
+  ChevronDown,
+  Clipboard,
+  EyeOff,
+  FileText,
+  GitBranch,
+  GitCommitHorizontal,
+  Image,
+  MoreHorizontal,
+  Pilcrow,
+  RefreshCw,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkerPoolOptions } from '@pierre/diffs/react'
 import { useI18n } from '../app/i18n/I18nProvider'
@@ -12,6 +25,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import {
@@ -805,6 +822,27 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                     <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{files.length}</span>
                     <Check className="ml-1 h-4 w-4" />
                   </DropdownMenuItem>
+                  <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                    <span className="flex-1">{t('worktreeDiff.sourceStaged')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger disabled className="ui-composer-menu-item ui-text-base">
+                      <GitCommitHorizontal className="size-4" />
+                      <span className="flex-1">{t('worktreeDiff.sourceCommit')}</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="ui-menu-content w-[260px] p-1">
+                      <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                        {t('worktreeDiff.sourceCommitPlaceholder')}
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                    <GitBranch className="size-4" />
+                    <span className="flex-1">{t('worktreeDiff.sourceBranch')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                    <span className="flex-1">{t('worktreeDiff.sourcePreviousConversation')}</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <span className="mr-1 inline-flex shrink-0 select-none items-center gap-1 font-mono text-size-chat tabular-nums tracking-tight">
@@ -815,6 +853,57 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
           </div>
 
           <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('worktreeDiff.moreMenu')}
+                  className="inline-flex h-token-button-composer aspect-square items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground data-[state=open]:bg-muted/55 data-[state=open]:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={6} className="ui-menu-content w-[280px] p-1">
+                <DropdownMenuItem
+                  className="ui-composer-menu-item ui-text-base"
+                  onSelect={() => {
+                    onRefreshDiff?.()
+                  }}
+                >
+                  <RefreshCw className={cn('size-4', isRefreshingDiff && 'animate-spin')} />
+                  <span className="flex-1">{t('worktreeDiff.refresh')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <AlignJustify className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.enableAutoWrap')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <FileText className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.disableFullFileLoad')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <Image className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.enableRichPreview')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <Pilcrow className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.enableWordDiff')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <EyeOff className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.hideWhitespace')}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                  <Clipboard className="size-4" />
+                  <span className="flex-1">{t('worktreeDiff.copyGitApplyCommand')}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <button
               type="button"
               aria-label={expandCollapseAllLabel}
