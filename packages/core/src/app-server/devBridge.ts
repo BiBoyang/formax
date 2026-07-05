@@ -145,6 +145,7 @@ const IMAGE_PREVIEW_MIME_BY_EXTENSION: Record<string, string> = {
 }
 
 const SUMMARY_NON_TEXT_EXTENSIONS = new Set([...Object.keys(IMAGE_PREVIEW_MIME_BY_EXTENSION), 'pdf'])
+const SUMMARY_TEXT_MAX_BYTES = 256 * 1024
 
 const SETUP_PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic' },
@@ -610,6 +611,15 @@ async function buildUntrackedSummaryFile(
       }
     }
 
+    if (stats.size > SUMMARY_TEXT_MAX_BYTES) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
     const raw = await readFile(absPath)
     if (raw.includes(0)) {
       return {
@@ -782,11 +792,10 @@ async function readWorkspaceDiffSummary(
 
   const merged = mergeSummaryFiles(trackedFiles, untrackedPaths)
   const truncated = merged.length > maxFiles
-  const files = await Promise.all(
-    (truncated ? merged.slice(0, maxFiles) : merged).map((file) =>
-      file.untracked ? buildUntrackedSummaryFileFn(cwd, file.path) : file,
-    ),
-  )
+  const files: BridgeDiffSummaryFile[] = []
+  for (const file of truncated ? merged.slice(0, maxFiles) : merged) {
+    files.push(file.untracked ? await buildUntrackedSummaryFileFn(cwd, file.path) : file)
+  }
   return {
     cwd,
     generatedAt,

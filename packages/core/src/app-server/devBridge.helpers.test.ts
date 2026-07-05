@@ -245,6 +245,11 @@ describe('devBridge helper hooks', () => {
       const summary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, 'a.txt')
       expect(summary).toMatchObject({ path: 'a.txt', additions: 2, deletions: 0, untracked: true })
 
+      const largePath = 'large.log'
+      await writeFile(path.join(dir, largePath), Buffer.alloc(260 * 1024, 0x61))
+      const largeSummary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, largePath)
+      expect(largeSummary).toMatchObject({ path: largePath, additions: 0, deletions: 0, untracked: true })
+
       const imagePath = 'preview.webp'
       await writeFile(path.join(dir, imagePath), Buffer.from([0x52, 0x49, 0x46, 0x46]))
       const imageSummary = await __devBridgeTestHooks.buildUntrackedSummaryFile(dir, imagePath)
@@ -508,6 +513,35 @@ describe('devBridge helper hooks', () => {
     }
     const patch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch('/tmp', { path: 'x.ts', maxBytes: 64 * 1024 }, { runGitFn: runGitPatchNoPatch })
     expect(patch.found).toBe(false)
+  })
+
+  it('builds untracked summary entries sequentially to avoid read spikes', async () => {
+    let activeBuilds = 0
+    let maxActiveBuilds = 0
+    const runGitFn = async (_cwd: string, args: string[]) => {
+      if (args[0] === 'ls-files') return { ok: true as const, stdout: 'a.txt\nb.txt\nc.txt\n' }
+      return { ok: true as const, stdout: '' }
+    }
+    const buildUntrackedSummaryFileFn = async (_cwd: string, filePath: string) => {
+      activeBuilds += 1
+      maxActiveBuilds = Math.max(maxActiveBuilds, activeBuilds)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      activeBuilds -= 1
+      return {
+        path: filePath,
+        additions: 1,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    const summary = await __devBridgeTestHooks.readWorkspaceDiffSummary('/tmp', { maxFiles: 20 }, {
+      runGitFn,
+      buildUntrackedSummaryFileFn,
+    })
+
+    expect(summary.files).toHaveLength(3)
+    expect(maxActiveBuilds).toBe(1)
   })
 
   it('handles readWorkspaceDiffFilePatch with non-string path and untracked fallback builder', async () => {
