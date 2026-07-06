@@ -30,6 +30,13 @@ async function findDiffShadowText(container: HTMLElement) {
   return container.querySelector('diffs-container')?.shadowRoot?.textContent ?? ''
 }
 
+async function findDiffShadowRoot(container: HTMLElement) {
+  await findDiffShadowText(container)
+  const shadowRoot = container.querySelector('diffs-container')?.shadowRoot
+  expect(shadowRoot).not.toBeNull()
+  return shadowRoot
+}
+
 async function expectUnavailable(container: HTMLElement, reason: DiffPreviewUnavailableReason) {
   await act(async () => {
     await vi.dynamicImportSettled()
@@ -63,6 +70,40 @@ describe('DiffPatchView', () => {
     const scroller = container.querySelector('[data-testid="pierre-diff-view"]')
     expect(scroller).not.toBeNull()
     expect(scroller?.className).toContain('max-h-[40px]')
+    expect(scroller?.className).toContain('overflow-x-hidden')
+    expect(scroller?.className).toContain('overflow-y-auto')
+  })
+
+  it('keeps the file header visible by default for standalone previews', async () => {
+    const patch = [
+      'diff --git a/src/example.ts b/src/example.ts',
+      '--- a/src/example.ts',
+      '+++ b/src/example.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n')
+
+    const { container } = renderDiff(patch)
+    const shadowText = await findDiffShadowText(container)
+    expect(shadowText).toContain('src/example.ts')
+  })
+
+  it('delegates horizontal scrolling to the diff code area', async () => {
+    const patch = [
+      'diff --git a/src/example.ts b/src/example.ts',
+      '--- a/src/example.ts',
+      '+++ b/src/example.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n')
+
+    const { container } = renderDiff(patch)
+    const shadowRoot = await findDiffShadowRoot(container)
+    await waitFor(() => {
+      expect(shadowRoot?.querySelector('[data-overflow="scroll"]')).not.toBeNull()
+    }, { timeout: 10_000 })
   })
 
   it('renders a modified file patch with additions and deletions', async () => {
@@ -79,6 +120,22 @@ describe('DiffPatchView', () => {
     const shadowText = await findDiffShadowText(container)
     expect(shadowText).toContain('old')
     expect(shadowText).toContain('new')
+  })
+
+  it('renders markdown patches with the plain-text language override', async () => {
+    const patch = [
+      'diff --git a/CODEMAP.md b/CODEMAP.md',
+      '--- a/CODEMAP.md',
+      '+++ b/CODEMAP.md',
+      '@@ -1 +1 @@',
+      '-old docs',
+      '+new docs',
+    ].join('\n')
+
+    const { container } = renderDiff(patch, { path: 'CODEMAP.md' })
+    const shadowText = await findDiffShadowText(container)
+    expect(shadowText).toContain('old docs')
+    expect(shadowText).toContain('new docs')
   })
 
   it('renders an added file patch', async () => {
@@ -222,5 +279,32 @@ describe('DiffPatchView', () => {
       expect(shadowText).toContain('second')
       expect(shadowText).not.toContain('first')
     }, { timeout: 10_000 })
+  })
+
+  it('keeps the diff element mounted when switching unified and split modes', async () => {
+    const patch = [
+      'diff --git a/src/example.ts b/src/example.ts',
+      '--- a/src/example.ts',
+      '+++ b/src/example.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+    ].join('\n')
+
+    const { container, rerender } = renderDiff(patch, { diffStyle: 'unified' })
+    await findDiffShadowText(container)
+    const initialDiffElement = container.querySelector('diffs-container')
+    expect(initialDiffElement).not.toBeNull()
+
+    rerender(
+      <I18nProvider language="en-US">
+        <DiffPatchView path="src/example.ts" patch={patch} additions={1} deletions={1} diffStyle="split" />
+      </I18nProvider>,
+    )
+
+    await waitFor(() => {
+      expect(container.querySelector('diffs-container')?.shadowRoot?.querySelector('[data-diff-type="split"]')).not.toBeNull()
+    }, { timeout: 10_000 })
+    expect(container.querySelector('diffs-container')).toBe(initialDiffElement)
   })
 })

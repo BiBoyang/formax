@@ -16,6 +16,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Serve runtime launcher (`formax serve`, WebSocket bridge): `packages/core/src/runtime/serve/localServer.ts`
 - Web UI runtime launcher (`formax web`, bridge + static host): `packages/core/src/runtime/web/localUi.ts`
 - App-server dev bridge entrypoint (WebSocket -> stdio loop): `packages/core/src/entrypoints/app-server-bridge.ts`
+- Git-backed Review source command planning (unstaged/staged/commit source keys and git diff args): `packages/core/src/app-server/gitReviewOperations.ts`
 - App-server web reference entrypoint (bridge + React UI dev server): `packages/core/src/entrypoints/app-server-web-reference.ts`
 - Desktop Electron shell (orchestrator + main/preload): `packages/desktop-electron/scripts/run.mjs`, `packages/desktop-electron/src/main.ts`, `packages/desktop-electron/src/preload.ts`
 - Transcript perf playground: `packages/core/src/entrypoints/perf-transcript.tsx`
@@ -29,6 +30,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Input lifecycle helpers: `packages/core/src/app-server/turn/inputId.ts`, `packages/core/src/app-server/turn/inputStore.ts`
 - Stdio JSONL transport: `packages/core/src/app-server/transport/stdio.ts`
 - Dev bridge (WebSocket fan-in/fan-out to app-server loop): `packages/core/src/app-server/devBridge.ts`
+- Dev bridge Git Review operations (source-aware diff summary/file patch/image preview/full-file content planning): `packages/core/src/app-server/gitReviewOperations.ts`, `packages/core/src/app-server/devBridge.ts`
 - Serve command parsing/help text: `packages/core/src/runtime/cli/serveCommand.ts`
 - Web command parsing/help text: `packages/core/src/runtime/cli/webCommand.ts`
 - Shared web/bridge network + security helpers (host/port/url/origin/token): `packages/core/src/runtime/network/runtime.ts`

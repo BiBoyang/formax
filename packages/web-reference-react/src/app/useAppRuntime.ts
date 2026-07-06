@@ -21,6 +21,7 @@ import { usePaneLayout } from './ui/usePaneLayout'
 import { createDefaultRuntimePorts, type RuntimePorts } from './ports'
 import { applyRpcQueueMetricsDelta } from './runtime/rpcQueueMetrics'
 import type { SelectThreadOptions } from './runtime/threadActions'
+import type { ReviewGitSource } from '../components/diff/diffTypes'
 import { usePendingInputUiState } from './runtime/usePendingInputUiState'
 import { createThreadDataOps } from './runtime/threadDataOps'
 import { createDiffDataOps } from './runtime/diffDataOps'
@@ -123,6 +124,13 @@ function parseEffectiveProfileProvider(value: unknown): string | null {
   return typeof provider === 'string' ? provider : null
 }
 
+const DEFAULT_REVIEW_SOURCE: ReviewGitSource = { kind: 'unstaged' }
+
+function normalizeReviewSource(value?: ReviewGitSource | null): ReviewGitSource {
+  if (value?.kind === 'commit' && value.sha.trim()) return { kind: 'commit', sha: value.sha.trim().toLowerCase() }
+  return value?.kind === 'staged' ? { kind: 'staged' } : DEFAULT_REVIEW_SOURCE
+}
+
 export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const runtimePorts = useMemo(() => ports ?? createDefaultRuntimePorts(), [ports])
   const devRuntime = useMemo(() => isDevRuntime(), [])
@@ -136,6 +144,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
   const [newThreadDraftRuntimePreferences, setNewThreadDraftRuntimePreferences] = useState<Partial<RuntimePreferenceView>>({})
   const [runtimePreferenceRevision, setRuntimePreferenceRevision] = useState(0)
   const [state, dispatch] = useReducer(appReducer, initialAppState)
+  const activeReviewSourceRef = useRef<ReviewGitSource>(DEFAULT_REVIEW_SOURCE)
   const { isSidebarOpen, setIsSidebarOpen, sidebarWidth, setSidebarWidth, isRightRailOpen, setIsRightRailOpen, rightRailWidth, setRightRailWidth, isSettingsOpen, setIsSettingsOpen } =
     usePaneLayout()
   const { userSettings, updateUserSetting } = useUserSettings()
@@ -482,7 +491,13 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     [log, request, setDurableSnipByThreadId, setHiddenGroupCwdsStable, setLatestRequestCollapseByThreadId],
   )
 
-  const { refreshWorkspaceDiff, requestDiffFilePatch } = useMemo(
+  const {
+    refreshWorkspaceDiff: refreshWorkspaceDiffForSource,
+    requestDiffFilePatch,
+    requestDiffFilePreview,
+    requestDiffFileFullContent,
+    listReviewCommits,
+  } = useMemo(
     () =>
       createDiffDataOps({
         request,
@@ -504,6 +519,15 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         },
       }),
     [request, resolveThreadOwnedDiffCwd, setIsRefreshingDiffStable],
+  )
+
+  const refreshWorkspaceDiff = useCallback(
+    (cwdOverride?: string | null, sourceInput?: ReviewGitSource | null) => {
+      const source = normalizeReviewSource(sourceInput ?? activeReviewSourceRef.current)
+      activeReviewSourceRef.current = source
+      return refreshWorkspaceDiffForSource(cwdOverride, source)
+    },
+    [refreshWorkspaceDiffForSource],
   )
 
   const hideThreadGroup = useCallback(
@@ -965,9 +989,12 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       createDiffUiHandlers({
         refreshWorkspaceDiff,
         requestDiffFilePatch,
+        requestDiffFilePreview,
+        requestDiffFileFullContent,
+        listReviewCommits,
         runAsyncSafely,
       }),
-    [refreshWorkspaceDiff, requestDiffFilePatch],
+    [listReviewCommits, refreshWorkspaceDiff, requestDiffFileFullContent, requestDiffFilePatch, requestDiffFilePreview],
   )
 
   const threadSection = useMemo<BuildAppShellPropsArgs['thread']>(
@@ -1114,6 +1141,9 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       diffSnapshot,
       onRefreshDiff: diffUiHandlers.onRefreshDiff,
       onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
+      onRequestDiffPreview: diffUiHandlers.onRequestDiffPreview,
+      onRequestDiffFullContent: diffUiHandlers.onRequestDiffFullContent,
+      onListReviewCommits: diffUiHandlers.onListReviewCommits,
       isRefreshingDiff,
     }),
     [diffSnapshot, diffUiHandlers, isRefreshingDiff],

@@ -317,7 +317,7 @@ describe('App thread history integration', () => {
     window.localStorage.removeItem(LEFT_RAIL_OPEN_BY_CWD_STORAGE_KEY)
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -727,7 +727,7 @@ describe('App thread history integration', () => {
   it('does not leak previous thread mode while next thread replay is still hydrating', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -831,7 +831,7 @@ describe('App thread history integration', () => {
   it('hydrates mode from thread replay state snapshot', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -938,7 +938,7 @@ describe('App thread history integration', () => {
   it('includes active thread cwd on turn/start and command/dispatch requests', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo-alpha',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1152,7 +1152,7 @@ describe('App thread history integration', () => {
   it('enters draft surface without creating a thread when clicking New thread', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo-alpha',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1248,7 +1248,7 @@ describe('App thread history integration', () => {
 
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return new Promise((resolve) => {
           resolveDiff = resolve
         })
@@ -1312,7 +1312,7 @@ describe('App thread history integration', () => {
   it('prefills cwd from folder quick action and creates the thread on first send', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo-alpha',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1402,7 +1402,7 @@ describe('App thread history integration', () => {
     expect(
       rpcMock.requests.some(
         (entry) =>
-          entry.method === 'bridge/readDiff' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
+          entry.method === 'bridge/reviewGit/readDiffSummary' && (entry.params as { cwd?: string } | undefined)?.cwd === '/repo-beta',
       ),
     ).toBe(false)
 
@@ -1442,7 +1442,7 @@ describe('App thread history integration', () => {
         (entry.params as any)?.input?.text === 'draft hello',
     )
     const refreshBetweenDraftCreateAndFirstTurn = rpcMock.requests.slice(threadStartIndex + 1, firstTurnStartIndex).some((entry) => {
-      return entry.method === 'thread/list' || entry.method === 'bridge/readDiff'
+      return entry.method === 'thread/list' || entry.method === 'bridge/reviewGit/readDiffSummary'
     })
 
     expect(threadStartIndex).toBeGreaterThanOrEqual(0)
@@ -1467,7 +1467,7 @@ describe('App thread history integration', () => {
   it('hides folders provided by thread/list hiddenGroupCwds', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo-alpha',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1523,7 +1523,7 @@ describe('App thread history integration', () => {
   it('persists folder hide marker through thread/group/hide rpc', async () => {
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo-alpha',
           generatedAt: '2026-02-10T00:00:00.000Z',
@@ -1708,7 +1708,7 @@ describe('App thread history integration', () => {
     let created = 0
     rpcMock.setRequestImpl((method, params) => {
       if (method === 'initialize') return {}
-      if (method === 'bridge/readDiff') {
+      if (method === 'bridge/reviewGit/readDiffSummary') {
         return {
           cwd: '/repo',
           generatedAt: '2026-02-10T00:00:00.000Z',

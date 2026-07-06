@@ -21,6 +21,31 @@ import {
   type BridgeSecurityOptions,
 } from '../runtime/network/runtime.js'
 import { runAppServer } from './index.js'
+import {
+  buildGitReviewNameStatusArgs,
+  buildGitReviewCommitListArgs,
+  buildGitReviewNumstatArgs,
+  buildGitReviewPatchArgs,
+  buildGitReviewUntrackedArgs,
+  getDeletedImageBlobRef,
+  getGitReviewSourceKey,
+  mergeSummaryFiles,
+  normalizeGitReviewCommitLimit,
+  normalizeGitReviewSource,
+  normalizeNumstatPath,
+  parseGitReviewCommitList,
+  parseNumstatFiles,
+  parsePatchFiles,
+  parseRenamePairs,
+  shouldIncludeUntrackedFiles,
+  supportsImagePreview,
+  type GitReviewDiffFile,
+  type GitReviewDiffSummaryFile,
+  type GitReviewCommit,
+  type GitRenamePair,
+  type GitReviewSource,
+  type GitReviewSourceKey,
+} from './gitReviewOperations.js'
 
 export type AppServerDevBridgeOptions = {
   host?: string
@@ -40,9 +65,12 @@ export type AppServerDevBridgeOptions = {
   defaultInputTtlMs?: number
   setupMode?: 'require-config' | 'allow'
   rpcOverrides?: {
+    listCommits?: (cwd: string, params: BridgeListCommitsParams | undefined) => Promise<BridgeListCommitsResult>
     readDiff?: (cwd: string, params: BridgeReadDiffParams | undefined) => Promise<BridgeReadDiffResult>
     readDiffSummary?: (cwd: string, params: BridgeReadDiffSummaryParams | undefined) => Promise<BridgeReadDiffSummaryResult>
     readDiffFilePatch?: (cwd: string, params: BridgeReadDiffFilePatchParams | undefined) => Promise<BridgeReadDiffFilePatchResult>
+    readDiffFilePreview?: (cwd: string, params: BridgeReadDiffFilePreviewParams | undefined) => Promise<BridgeReadDiffFilePreviewResult>
+    readDiffFileFullContent?: (cwd: string, params: BridgeReadDiffFileFullContentParams | undefined) => Promise<BridgeReadDiffFileFullContentResult>
   }
 }
 
@@ -54,31 +82,63 @@ export type AppServerDevBridgeHandle = {
 type BridgeReadDiffParams = {
   maxBytes?: number
   cwd?: string
+  source?: unknown
+}
+
+type BridgeListCommitsParams = {
+  limit?: number
+  cwd?: string
 }
 
 type BridgeReadDiffSummaryParams = {
   maxFiles?: number
   cwd?: string
+  source?: unknown
 }
 
 type BridgeReadDiffFilePatchParams = {
   path?: string
   maxBytes?: number
   cwd?: string
+  source?: unknown
 }
 
-type BridgeDiffFile = {
-  path: string
-  additions: number
-  deletions: number
-  patch: string
-  untracked?: boolean
+type BridgeReadDiffFilePreviewParams = {
+  path?: string
+  maxBytes?: number
+  cwd?: string
+  source?: unknown
 }
 
-type BridgeDiffSummaryFile = Omit<BridgeDiffFile, 'patch'>
+type BridgeReadDiffFileFullContentParams = {
+  path?: string
+  maxBytes?: number
+  cwd?: string
+  source?: unknown
+}
+
+type BridgeListCommitsResult = {
+  cwd: string
+  generatedAt: string
+  commits: GitReviewCommit[]
+}
+
+type BridgeReviewGitResult =
+  | BridgeListCommitsResult
+  | BridgeReadDiffResult
+  | BridgeReadDiffSummaryResult
+  | BridgeReadDiffFilePatchResult
+  | BridgeReadDiffFilePreviewResult
+  | BridgeReadDiffFileFullContentResult
+
+type BridgeDiffFile = GitReviewDiffFile
+
+type BridgeDiffSummaryFile = GitReviewDiffSummaryFile
 
 type BridgeReadDiffResult = {
   cwd: string
+  source: GitReviewSource
+  sourceKey: GitReviewSourceKey
   generatedAt: string
   hasChanges: boolean
   truncated: boolean
@@ -87,6 +147,8 @@ type BridgeReadDiffResult = {
 
 type BridgeReadDiffSummaryResult = {
   cwd: string
+  source: GitReviewSource
+  sourceKey: GitReviewSourceKey
   generatedAt: string
   hasChanges: boolean
   truncated: boolean
@@ -95,6 +157,8 @@ type BridgeReadDiffSummaryResult = {
 
 type BridgeReadDiffFilePatchResult = {
   cwd: string
+  source: GitReviewSource
+  sourceKey: GitReviewSourceKey
   generatedAt: string
   path: string
   found: boolean
@@ -102,11 +166,77 @@ type BridgeReadDiffFilePatchResult = {
   file: BridgeDiffFile | null
 }
 
+type BridgeImagePreview = {
+  kind: 'image'
+  mimeType: string
+  dataUrl: string
+  sizeBytes: number
+  source: 'working_tree' | 'head' | 'index' | 'commit'
+  changeKind: 'added' | 'modified' | 'deleted'
+}
+
+type BridgeReadDiffFilePreviewResult = {
+  cwd: string
+  source: GitReviewSource
+  sourceKey: GitReviewSourceKey
+  generatedAt: string
+  path: string
+  found: boolean
+  preview: BridgeImagePreview | null
+  error?:
+    | 'missing_path'
+    | 'outside_workspace'
+    | 'not_found'
+    | 'not_file'
+    | 'not_image'
+    | 'too_large'
+    | 'read_failed'
+    | 'unsupported_source'
+}
+
+type BridgeFullFileContent = {
+  before: string
+  after: string
+}
+
+type BridgeReadDiffFileFullContentResult = {
+  cwd: string
+  source: GitReviewSource
+  sourceKey: GitReviewSourceKey
+  generatedAt: string
+  path: string
+  found: boolean
+  content: BridgeFullFileContent | null
+  error?:
+    | 'missing_path'
+    | 'outside_workspace'
+    | 'not_found'
+    | 'not_file'
+    | 'binary'
+    | 'too_large'
+    | 'read_failed'
+    | 'unsupported_source'
+}
+
 type BridgeAuditEntry = {
   ts: string
   event: string
   details?: Record<string, unknown>
 }
+
+const IMAGE_PREVIEW_MIME_BY_EXTENSION: Record<string, string> = {
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  ico: 'image/x-icon',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+}
+
+const SUMMARY_NON_TEXT_EXTENSIONS = new Set([...Object.keys(IMAGE_PREVIEW_MIME_BY_EXTENSION), 'pdf'])
+const SUMMARY_TEXT_MAX_BYTES = 256 * 1024
 
 const SETUP_PROVIDERS: SetupProviderOption[] = [
   { id: 'anthropic', label: 'Anthropic' },
@@ -126,11 +256,61 @@ function normalizeMaxFiles(value: unknown, fallback = 600): number {
   return Math.max(20, Math.min(Math.floor(parsed), 5000))
 }
 
+function normalizePreviewMaxBytes(value: unknown, fallback = 8 * 1024 * 1024): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(32 * 1024, Math.min(Math.floor(parsed), 8 * 1024 * 1024))
+}
+
+function normalizeFullContentMaxBytes(value: unknown, fallback = 512 * 1024): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(32 * 1024, Math.min(Math.floor(parsed), 2 * 1024 * 1024))
+}
+
 function resolveDiffCwd(defaultCwd: string, requestedCwd: unknown): string {
   if (typeof requestedCwd !== 'string') return defaultCwd
   const trimmed = requestedCwd.trim()
   if (!trimmed) return defaultCwd
   return path.resolve(trimmed)
+}
+
+function isPathInsideCwd(cwd: string, absPath: string): boolean {
+  const relative = path.relative(cwd, absPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function getImagePreviewMimeType(filePath: string): string | null {
+  const ext = path.extname(filePath).slice(1).toLowerCase()
+  return IMAGE_PREVIEW_MIME_BY_EXTENSION[ext] ?? null
+}
+
+function getImagePreviewChangeKind(file: BridgeDiffFile | null, isUntracked: boolean): BridgeImagePreview['changeKind'] {
+  if (isUntracked) return 'added'
+  const patch = file?.patch ?? ''
+  if (/^deleted file mode /m.test(patch) || /^\+\+\+ \/dev\/null$/m.test(patch)) return 'deleted'
+  if (/^new file mode /m.test(patch) || /^--- \/dev\/null$/m.test(patch)) return 'added'
+  return 'modified'
+}
+
+function getPatchChangeKind(file: BridgeDiffFile | null, isUntracked: boolean): 'added' | 'modified' | 'deleted' {
+  return getImagePreviewChangeKind(file, isUntracked)
+}
+
+function getRenameOldPath(file: BridgeDiffFile | null): string | null {
+  const patch = file?.patch ?? ''
+  const match = /^rename from (.+)$/m.exec(patch)
+  return match?.[1]?.trim() || null
+}
+
+function findRenameOldPathForRequestedPath(renamePairs: GitRenamePair[], requestedPath: string): string | null {
+  const exact = renamePairs.find((pair) => pair.newPath === requestedPath)
+  if (exact) return exact.oldPath
+  const suffix = renamePairs.find((pair) => (
+    pair.newPath.endsWith(`/${requestedPath}`) ||
+    requestedPath.endsWith(`/${pair.newPath}`)
+  ))
+  return suffix?.oldPath ?? null
 }
 
 function writeJsonlLine(stream: PassThrough, text: string): void {
@@ -243,7 +423,7 @@ async function runGit(
   return new Promise((resolve) => {
     execFileFn(
       'git',
-      ['-C', cwd, ...args],
+      ['-C', cwd, '-c', 'core.quotepath=false', ...args],
       { maxBuffer: 4 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
@@ -256,110 +436,29 @@ async function runGit(
   })
 }
 
-function parsePatchFiles(diffText: string): BridgeDiffFile[] {
-  if (!diffText.trim()) return []
-  const chunks = diffText.split(/(?=^diff --git )/gm).filter((chunk) => chunk.trim())
-  const files: BridgeDiffFile[] = []
-  for (const chunk of chunks) {
-    const lines = chunk.split('\n')
-    const first = lines[0]
-    const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(first.trim())
-    const path = match ? match[2] : 'unknown'
-    let additions = 0
-    let deletions = 0
-    for (const line of lines) {
-      if (line.startsWith('+++') || line.startsWith('---')) continue
-      if (line.startsWith('+')) additions += 1
-      if (line.startsWith('-')) deletions += 1
-    }
-    files.push({
-      path,
-      additions,
-      deletions,
-      patch: chunk.trimEnd(),
-    })
-  }
-  return files
-}
-
-type GitRenamePair = {
-  oldPath: string
-  newPath: string
-}
-
-function parseRenamePairs(nameStatusText: string): GitRenamePair[] {
-  if (!nameStatusText.trim()) return []
-  const out: GitRenamePair[] = []
-  for (const rawLine of nameStatusText.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line) continue
-    const parts = line.split('\t')
-    if (parts.length < 3) continue
-    const status = parts[0]
-    if (!status.startsWith('R')) continue
-    const oldPath = parts[1]?.trim()
-    const newPath = parts[2]?.trim()
-    if (!oldPath || !newPath) continue
-    out.push({ oldPath, newPath })
-  }
-  return out
-}
-
-function parseNumstatFiles(diffText: string, renamePairs: GitRenamePair[]): BridgeDiffSummaryFile[] {
-  if (!diffText.trim()) return []
-  const files: BridgeDiffSummaryFile[] = []
-  for (const rawLine of diffText.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line) continue
-    const match = /^([0-9-]+)\t([0-9-]+)\t(.+)$/.exec(line)
-    if (!match) continue
-    const [, addText, delText, rawPath] = match
-    const filePath = normalizeNumstatPath(rawPath, renamePairs)
-    files.push({
-      path: filePath,
-      additions: addText === '-' ? 0 : Number(addText),
-      deletions: delText === '-' ? 0 : Number(delText),
-    })
-  }
-  return files
-}
-
-function normalizeNumstatPath(rawPath: string, renamePairs: GitRenamePair[]): string {
-  if (!rawPath.includes(' => ')) return rawPath
-  if (renamePairs.length === 0) return rawPath
-
-  // Plain rename shape: old/path.ts => new/path.ts
-  const direct = renamePairs.find((pair) => `${pair.oldPath} => ${pair.newPath}` === rawPath)
-  if (direct) return direct.newPath
-
-  // Brace shape: path/{old => new}.ts or {old => new}/path.ts.
-  const braceExpanded = rawPath.replace(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2')
-  if (braceExpanded !== rawPath) {
-    const matched = renamePairs.find((pair) => pair.newPath === braceExpanded)
-    if (matched) return matched.newPath
-  }
-
-  return rawPath
-}
-
-function mergeSummaryFiles(
-  tracked: BridgeDiffSummaryFile[],
-  untrackedPaths: string[],
-): BridgeDiffSummaryFile[] {
-  const merged = new Map<string, BridgeDiffSummaryFile>()
-  for (const file of tracked) {
-    merged.set(file.path, file)
-  }
-  for (const filePath of untrackedPaths) {
-    if (merged.has(filePath)) continue
-    merged.set(filePath, {
-      path: filePath,
-      additions: 0,
-      deletions: 0,
-      untracked: true,
-    })
-  }
-  return Array.from(merged.values())
+async function runGitBuffer(
+  cwd: string,
+  args: string[],
+  options?: {
+    maxBuffer?: number
+    execFileFn?: typeof execFile
+  },
+): Promise<{ ok: true; stdout: Buffer } | { ok: false; error: string }> {
+  const execFileFn = options?.execFileFn ?? execFile
+  return new Promise((resolve) => {
+    execFileFn(
+      'git',
+      ['-C', cwd, '-c', 'core.quotepath=false', ...args],
+      { encoding: 'buffer', maxBuffer: options?.maxBuffer ?? 4 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          resolve({ ok: false, error: String(stderr || error.message || 'git command failed') })
+          return
+        }
+        resolve({ ok: true, stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout) })
+      },
+    )
+  })
 }
 
 function estimateDiffFileBaseBytes(filePath: string): number {
@@ -483,6 +582,81 @@ async function buildUntrackedDiffFile(
   }
 }
 
+async function buildUntrackedSummaryFile(
+  cwd: string,
+  filePath: string,
+  deps?: {
+    readlinkFn?: typeof readlink
+  },
+): Promise<BridgeDiffSummaryFile> {
+  const absPath = path.resolve(cwd, filePath)
+  const readlinkFn = deps?.readlinkFn ?? readlink
+  try {
+    const stats = await lstat(absPath)
+    if (stats.isSymbolicLink()) {
+      const linkTarget = await readlinkFn(absPath).catch(() => null)
+      return {
+        path: filePath,
+        additions: linkTarget ? 1 : 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    if (!stats.isFile()) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+    if (SUMMARY_NON_TEXT_EXTENSIONS.has(ext)) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    if (stats.size > SUMMARY_TEXT_MAX_BYTES) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    const raw = await readFile(absPath)
+    if (raw.includes(0)) {
+      return {
+        path: filePath,
+        additions: 0,
+        deletions: 0,
+        untracked: true,
+      }
+    }
+
+    return {
+      path: filePath,
+      additions: countContentLines(raw.toString('utf8')),
+      deletions: 0,
+      untracked: true,
+    }
+  } catch {
+    return {
+      path: filePath,
+      additions: 0,
+      deletions: 0,
+      untracked: true,
+    }
+  }
+}
+
 async function readWorkspaceDiff(
   cwd: string,
   params: BridgeReadDiffParams | undefined,
@@ -493,21 +667,26 @@ async function readWorkspaceDiff(
 ): Promise<BridgeReadDiffResult> {
   const runGitFn = deps?.runGitFn ?? runGit
   const buildUntrackedDiffFileFn = deps?.buildUntrackedDiffFileFn ?? buildUntrackedDiffFile
+  const source = normalizeGitReviewSource(params?.source)
+  const sourceKey = getGitReviewSourceKey(source)
   const maxBytes = normalizeMaxBytes(params?.maxBytes)
   const generatedAt = new Date().toISOString()
 
-  const [diffFromHead, fallbackDiff, untracked] = await Promise.all([
-    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames']),
-    runGitFn(cwd, ['diff', '--no-color', '--patch', '--find-renames']),
-    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard']),
+  const [trackedDiff, untracked] = await Promise.all([
+    runGitFn(cwd, buildGitReviewPatchArgs(source)),
+    shouldIncludeUntrackedFiles(source)
+      ? runGitFn(cwd, buildGitReviewUntrackedArgs())
+      : Promise.resolve({ ok: true as const, stdout: '' }),
   ])
 
-  if (!diffFromHead.ok && !fallbackDiff.ok && !untracked.ok) {
-    const firstError = [diffFromHead, fallbackDiff, untracked]
+  if (!trackedDiff.ok && !untracked.ok) {
+    const firstError = [trackedDiff, untracked]
       .filter((result): result is { ok: false; error: string } => !result.ok)
       .map((result) => result.error)[0]
     return {
       cwd,
+      source,
+      sourceKey,
       generatedAt,
       hasChanges: false,
       truncated: false,
@@ -522,12 +701,7 @@ async function readWorkspaceDiff(
     }
   }
 
-  const diffText =
-    (diffFromHead.ok && diffFromHead.stdout.trim()
-      ? diffFromHead.stdout
-      : fallbackDiff.ok
-        ? fallbackDiff.stdout
-        : '') || ''
+  const diffText = trackedDiff.ok ? trackedDiff.stdout : ''
   const trackedFiles = parsePatchFiles(diffText)
   const untrackedPaths = untracked.ok
     ? untracked.stdout
@@ -568,10 +742,31 @@ async function readWorkspaceDiff(
 
   return {
     cwd,
+    source,
+    sourceKey,
     generatedAt,
     hasChanges: trackedFiles.length + untrackedPaths.length > 0,
     truncated,
     files,
+  }
+}
+
+async function listWorkspaceReviewCommits(
+  cwd: string,
+  params: BridgeListCommitsParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+  },
+): Promise<BridgeListCommitsResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const limit = normalizeGitReviewCommitLimit(params?.limit)
+  const generatedAt = new Date().toISOString()
+  const result = await runGitFn(cwd, buildGitReviewCommitListArgs(limit))
+
+  return {
+    cwd,
+    generatedAt,
+    commits: result.ok ? parseGitReviewCommitList(result.stdout).slice(0, limit) : [],
   }
 }
 
@@ -580,23 +775,29 @@ async function readWorkspaceDiffSummary(
   params: BridgeReadDiffSummaryParams | undefined,
   deps?: {
     runGitFn?: typeof runGit
+    buildUntrackedSummaryFileFn?: typeof buildUntrackedSummaryFile
   },
 ): Promise<BridgeReadDiffSummaryResult> {
   const runGitFn = deps?.runGitFn ?? runGit
+  const buildUntrackedSummaryFileFn = deps?.buildUntrackedSummaryFileFn ?? buildUntrackedSummaryFile
+  const source = normalizeGitReviewSource(params?.source)
+  const sourceKey = getGitReviewSourceKey(source)
   const maxFiles = normalizeMaxFiles(params?.maxFiles)
   const generatedAt = new Date().toISOString()
 
-  const [diffFromHeadNumstat, fallbackDiffNumstat, diffFromHeadNameStatus, fallbackDiffNameStatus, untracked] = await Promise.all([
-    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--numstat', '--find-renames']),
-    runGitFn(cwd, ['diff', '--no-color', '--numstat', '--find-renames']),
-    runGitFn(cwd, ['diff', 'HEAD', '--name-status', '--find-renames']),
-    runGitFn(cwd, ['diff', '--name-status', '--find-renames']),
-    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard']),
+  const [trackedNumstat, trackedNameStatus, untracked] = await Promise.all([
+    runGitFn(cwd, buildGitReviewNumstatArgs(source)),
+    runGitFn(cwd, buildGitReviewNameStatusArgs(source)),
+    shouldIncludeUntrackedFiles(source)
+      ? runGitFn(cwd, buildGitReviewUntrackedArgs())
+      : Promise.resolve({ ok: true as const, stdout: '' }),
   ])
 
-  if (!diffFromHeadNumstat.ok && !fallbackDiffNumstat.ok && !untracked.ok) {
+  if (!trackedNumstat.ok && !untracked.ok) {
     return {
       cwd,
+      source,
+      sourceKey,
       generatedAt,
       hasChanges: true,
       truncated: false,
@@ -604,18 +805,8 @@ async function readWorkspaceDiffSummary(
     }
   }
 
-  const trackedDiff =
-    (diffFromHeadNumstat.ok && diffFromHeadNumstat.stdout.trim()
-      ? diffFromHeadNumstat.stdout
-      : fallbackDiffNumstat.ok
-        ? fallbackDiffNumstat.stdout
-        : '') || ''
-  const renameStatusText =
-    (diffFromHeadNameStatus.ok && diffFromHeadNameStatus.stdout.trim()
-      ? diffFromHeadNameStatus.stdout
-      : fallbackDiffNameStatus.ok
-        ? fallbackDiffNameStatus.stdout
-        : '') || ''
+  const trackedDiff = trackedNumstat.ok ? trackedNumstat.stdout : ''
+  const renameStatusText = trackedNameStatus.ok ? trackedNameStatus.stdout : ''
   const renamePairs = parseRenamePairs(renameStatusText)
   const trackedFiles = parseNumstatFiles(trackedDiff, renamePairs)
   const untrackedPaths = untracked.ok
@@ -627,9 +818,14 @@ async function readWorkspaceDiffSummary(
 
   const merged = mergeSummaryFiles(trackedFiles, untrackedPaths)
   const truncated = merged.length > maxFiles
-  const files = truncated ? merged.slice(0, maxFiles) : merged
+  const files: BridgeDiffSummaryFile[] = []
+  for (const file of truncated ? merged.slice(0, maxFiles) : merged) {
+    files.push(file.untracked ? await buildUntrackedSummaryFileFn(cwd, file.path) : file)
+  }
   return {
     cwd,
+    source,
+    sourceKey,
     generatedAt,
     hasChanges: merged.length > 0,
     truncated,
@@ -672,12 +868,16 @@ async function readWorkspaceDiffFilePatch(
 ): Promise<BridgeReadDiffFilePatchResult> {
   const runGitFn = deps?.runGitFn ?? runGit
   const buildUntrackedDiffFileFn = deps?.buildUntrackedDiffFileFn ?? buildUntrackedDiffFile
+  const source = normalizeGitReviewSource(params?.source)
+  const sourceKey = getGitReviewSourceKey(source)
   const generatedAt = new Date().toISOString()
   const requestedPath = typeof params?.path === 'string' ? params.path.trim() : ''
   const maxBytes = normalizeMaxBytes(params?.maxBytes, 256 * 1024)
   if (!requestedPath) {
     return {
       cwd,
+      source,
+      sourceKey,
       generatedAt,
       path: '',
       found: false,
@@ -686,18 +886,14 @@ async function readWorkspaceDiffFilePatch(
     }
   }
 
-  const [diffFromHead, fallbackDiff, untracked] = await Promise.all([
-    runGitFn(cwd, ['diff', 'HEAD', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
-    runGitFn(cwd, ['diff', '--no-color', '--patch', '--find-renames', '--', requestedPath]),
-    runGitFn(cwd, ['ls-files', '--others', '--exclude-standard', '--', requestedPath]),
+  const [trackedDiff, untracked] = await Promise.all([
+    runGitFn(cwd, buildGitReviewPatchArgs(source, requestedPath)),
+    shouldIncludeUntrackedFiles(source)
+      ? runGitFn(cwd, buildGitReviewUntrackedArgs(requestedPath))
+      : Promise.resolve({ ok: true as const, stdout: '' }),
   ])
 
-  const trackedPatch =
-    (diffFromHead.ok && diffFromHead.stdout.trim()
-      ? diffFromHead.stdout
-      : fallbackDiff.ok
-        ? fallbackDiff.stdout
-        : '') || ''
+  const trackedPatch = trackedDiff.ok ? trackedDiff.stdout : ''
 
   let file: BridgeDiffFile | null = null
   if (trackedPatch.trim()) {
@@ -719,6 +915,8 @@ async function readWorkspaceDiffFilePatch(
   if (!file) {
     return {
       cwd,
+      source,
+      sourceKey,
       generatedAt,
       path: requestedPath,
       found: false,
@@ -730,11 +928,343 @@ async function readWorkspaceDiffFilePatch(
   const clipped = clipDiffFileWithinBudget(file, maxBytes)
   return {
     cwd,
+    source,
+    sourceKey,
     generatedAt,
     path: requestedPath,
     found: true,
     truncated: clipped.truncated,
     file: clipped.file,
+  }
+}
+
+async function readWorkspaceDiffFilePreview(
+  cwd: string,
+  params: BridgeReadDiffFilePreviewParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+    runGitBufferFn?: typeof runGitBuffer
+  },
+): Promise<BridgeReadDiffFilePreviewResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const runGitBufferFn = deps?.runGitBufferFn ?? runGitBuffer
+  const source = normalizeGitReviewSource(params?.source)
+  const sourceKey = getGitReviewSourceKey(source)
+  const generatedAt = new Date().toISOString()
+  const requestedPath = typeof params?.path === 'string' ? params.path.trim() : ''
+  if (!requestedPath) {
+    return { cwd, source, sourceKey, generatedAt, path: '', found: false, preview: null, error: 'missing_path' }
+  }
+
+  const mimeType = getImagePreviewMimeType(requestedPath)
+  if (!mimeType) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'not_image' }
+  }
+
+  const absPath = path.resolve(cwd, requestedPath)
+  if (!isPathInsideCwd(cwd, absPath)) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'outside_workspace' }
+  }
+
+  const [trackedDiff, untracked] = await Promise.all([
+    runGitFn(cwd, buildGitReviewPatchArgs(source, requestedPath)),
+    shouldIncludeUntrackedFiles(source)
+      ? runGitFn(cwd, buildGitReviewUntrackedArgs(requestedPath))
+      : Promise.resolve({ ok: true as const, stdout: '' }),
+  ])
+  const trackedPatch = trackedDiff.ok ? trackedDiff.stdout : ''
+  const trackedFile = trackedPatch.trim() ? findPatchByRequestedPath(parsePatchFiles(trackedPatch), requestedPath) : null
+  const untrackedPaths = untracked.ok
+    ? untracked.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    : []
+  const isUntracked = untrackedPaths.includes(requestedPath)
+  if (!trackedFile && !isUntracked) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'not_found' }
+  }
+
+  if (!supportsImagePreview(source)) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'unsupported_source' }
+  }
+
+  const maxBytes = normalizePreviewMaxBytes(params?.maxBytes)
+  const changeKind = getImagePreviewChangeKind(trackedFile, isUntracked)
+  if (source.kind === 'commit') {
+    const blobRef = changeKind === 'deleted' ? `${source.sha}^:${requestedPath}` : `${source.sha}:${requestedPath}`
+    const sizeResult = await runGitFn(cwd, ['cat-file', '-s', blobRef])
+    const sizeBytes = sizeResult.ok ? Number(sizeResult.stdout.trim()) : Number.NaN
+    if (!Number.isFinite(sizeBytes)) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    if (sizeBytes > maxBytes) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'too_large' }
+    }
+    const blobResult = await runGitBufferFn(cwd, ['show', blobRef], { maxBuffer: maxBytes + 1024 })
+    if (!blobResult.ok) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    return {
+      cwd,
+      source,
+      sourceKey,
+      generatedAt,
+      path: requestedPath,
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType,
+        dataUrl: `data:${mimeType};base64,${blobResult.stdout.toString('base64')}`,
+        sizeBytes,
+        source: 'commit',
+        changeKind,
+      },
+    }
+  }
+
+  if (changeKind === 'deleted') {
+    const blob = getDeletedImageBlobRef(source, requestedPath)
+    if (!blob) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'unsupported_source' }
+    }
+    const blobRef = blob.ref
+    const sizeResult = await runGitFn(cwd, ['cat-file', '-s', blobRef])
+    const sizeBytes = sizeResult.ok ? Number(sizeResult.stdout.trim()) : Number.NaN
+    if (!Number.isFinite(sizeBytes)) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    if (sizeBytes > maxBytes) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'too_large' }
+    }
+    const blobResult = await runGitBufferFn(cwd, ['show', blobRef], { maxBuffer: maxBytes + 1024 })
+    if (!blobResult.ok) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    return {
+      cwd,
+      source,
+      sourceKey,
+      generatedAt,
+      path: requestedPath,
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType,
+        dataUrl: `data:${mimeType};base64,${blobResult.stdout.toString('base64')}`,
+        sizeBytes,
+        source: blob.source,
+        changeKind,
+      },
+    }
+  }
+
+  try {
+    const stats = await lstat(absPath)
+    if (!stats.isFile()) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'not_file' }
+    }
+
+    if (stats.size > maxBytes) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'too_large' }
+    }
+
+    const raw = await readFile(absPath)
+    return {
+      cwd,
+      source,
+      sourceKey,
+      generatedAt,
+      path: requestedPath,
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType,
+        dataUrl: `data:${mimeType};base64,${raw.toString('base64')}`,
+        sizeBytes: raw.byteLength,
+        source: 'working_tree',
+        changeKind,
+      },
+    }
+  } catch {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'not_found' }
+  }
+}
+
+async function readTextBlob(
+  cwd: string,
+  blobRef: string,
+  maxBytes: number,
+  deps?: {
+    runGitFn?: typeof runGit
+    runGitBufferFn?: typeof runGitBuffer
+  },
+): Promise<{ ok: true; text: string } | { ok: false; error: 'not_found' | 'binary' | 'too_large' | 'read_failed' }> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const runGitBufferFn = deps?.runGitBufferFn ?? runGitBuffer
+  const sizeResult = await runGitFn(cwd, ['cat-file', '-s', blobRef])
+  if (!sizeResult.ok) return { ok: false, error: 'not_found' }
+  const sizeBytes = Number(sizeResult.stdout.trim())
+  if (!Number.isFinite(sizeBytes)) return { ok: false, error: 'read_failed' }
+  if (sizeBytes > maxBytes) return { ok: false, error: 'too_large' }
+  const blobResult = await runGitBufferFn(cwd, ['show', blobRef], { maxBuffer: maxBytes + 1024 })
+  if (!blobResult.ok) return { ok: false, error: 'read_failed' }
+  if (blobResult.stdout.includes(0)) return { ok: false, error: 'binary' }
+  return { ok: true, text: blobResult.stdout.toString('utf8') }
+}
+
+async function readTextWorktreeFile(
+  cwd: string,
+  filePath: string,
+  maxBytes: number,
+): Promise<{ ok: true; text: string } | { ok: false; error: 'outside_workspace' | 'not_file' | 'binary' | 'too_large' | 'read_failed' | 'not_found' }> {
+  const absPath = path.resolve(cwd, filePath)
+  if (!isPathInsideCwd(cwd, absPath)) return { ok: false, error: 'outside_workspace' }
+  try {
+    const stats = await lstat(absPath)
+    if (!stats.isFile()) return { ok: false, error: 'not_file' }
+    if (stats.size > maxBytes) return { ok: false, error: 'too_large' }
+    const raw = await readFile(absPath)
+    if (raw.includes(0)) return { ok: false, error: 'binary' }
+    return { ok: true, text: raw.toString('utf8') }
+  } catch {
+    return { ok: false, error: 'not_found' }
+  }
+}
+
+function getFullContentRefs(
+  source: GitReviewSource,
+  requestedPath: string,
+  trackedFile: BridgeDiffFile | null,
+  isUntracked: boolean,
+  renameOldPath: string | null = null,
+): {
+  before: { kind: 'empty' } | { kind: 'blob'; ref: string } | { kind: 'worktree'; path: string }
+  after: { kind: 'empty' } | { kind: 'blob'; ref: string } | { kind: 'worktree'; path: string }
+} | null {
+  const oldPath = renameOldPath ?? getRenameOldPath(trackedFile) ?? requestedPath
+  const changeKind = oldPath !== requestedPath ? 'modified' : getPatchChangeKind(trackedFile, isUntracked)
+
+  if (isUntracked) {
+    return {
+      before: { kind: 'empty' },
+      after: { kind: 'worktree', path: requestedPath },
+    }
+  }
+
+  if (!trackedFile) return null
+
+  if (source.kind === 'unstaged') {
+    return {
+      before: changeKind === 'added' ? { kind: 'empty' } : { kind: 'blob', ref: `:${oldPath}` },
+      after: changeKind === 'deleted' ? { kind: 'empty' } : { kind: 'worktree', path: requestedPath },
+    }
+  }
+
+  if (source.kind === 'staged') {
+    return {
+      before: changeKind === 'added' ? { kind: 'empty' } : { kind: 'blob', ref: `HEAD:${oldPath}` },
+      after: changeKind === 'deleted' ? { kind: 'empty' } : { kind: 'blob', ref: `:${requestedPath}` },
+    }
+  }
+
+  if (source.kind === 'commit') {
+    return {
+      before: changeKind === 'added' ? { kind: 'empty' } : { kind: 'blob', ref: `${source.sha}^:${oldPath}` },
+      after: changeKind === 'deleted' ? { kind: 'empty' } : { kind: 'blob', ref: `${source.sha}:${requestedPath}` },
+    }
+  }
+
+  return null
+}
+
+async function readFullContentSide(
+  cwd: string,
+  side: { kind: 'empty' } | { kind: 'blob'; ref: string } | { kind: 'worktree'; path: string },
+  maxBytes: number,
+  deps?: {
+    runGitFn?: typeof runGit
+    runGitBufferFn?: typeof runGitBuffer
+  },
+): Promise<{ ok: true; text: string } | { ok: false; error: BridgeReadDiffFileFullContentResult['error'] }> {
+  if (side.kind === 'empty') return { ok: true, text: '' }
+  if (side.kind === 'worktree') return readTextWorktreeFile(cwd, side.path, maxBytes)
+  return readTextBlob(cwd, side.ref, maxBytes, deps)
+}
+
+async function readWorkspaceDiffFileFullContent(
+  cwd: string,
+  params: BridgeReadDiffFileFullContentParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+    runGitBufferFn?: typeof runGitBuffer
+  },
+): Promise<BridgeReadDiffFileFullContentResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const source = normalizeGitReviewSource(params?.source)
+  const sourceKey = getGitReviewSourceKey(source)
+  const generatedAt = new Date().toISOString()
+  const requestedPath = typeof params?.path === 'string' ? params.path.trim() : ''
+  if (!requestedPath) {
+    return { cwd, source, sourceKey, generatedAt, path: '', found: false, content: null, error: 'missing_path' }
+  }
+
+  const absPath = path.resolve(cwd, requestedPath)
+  if (!isPathInsideCwd(cwd, absPath)) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, content: null, error: 'outside_workspace' }
+  }
+
+  const [trackedDiff, trackedNameStatus, untracked] = await Promise.all([
+    runGitFn(cwd, buildGitReviewPatchArgs(source, requestedPath)),
+    runGitFn(cwd, buildGitReviewNameStatusArgs(source)),
+    shouldIncludeUntrackedFiles(source)
+      ? runGitFn(cwd, buildGitReviewUntrackedArgs(requestedPath))
+      : Promise.resolve({ ok: true as const, stdout: '' }),
+  ])
+  const trackedPatch = trackedDiff.ok ? trackedDiff.stdout : ''
+  const trackedFile = trackedPatch.trim() ? findPatchByRequestedPath(parsePatchFiles(trackedPatch), requestedPath) : null
+  const untrackedPaths = untracked.ok
+    ? untracked.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    : []
+  const isUntracked = untrackedPaths.includes(requestedPath)
+  if (!trackedFile && !isUntracked) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, content: null, error: 'not_found' }
+  }
+
+  const renameOldPath = trackedNameStatus.ok
+    ? findRenameOldPathForRequestedPath(parseRenamePairs(trackedNameStatus.stdout), requestedPath)
+    : null
+  const refs = getFullContentRefs(source, requestedPath, trackedFile, isUntracked, renameOldPath)
+  if (!refs) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, content: null, error: 'unsupported_source' }
+  }
+
+  const maxBytes = normalizeFullContentMaxBytes(params?.maxBytes)
+  const [before, after] = await Promise.all([
+    readFullContentSide(cwd, refs.before, maxBytes, deps),
+    readFullContentSide(cwd, refs.after, maxBytes, deps),
+  ])
+  if (before.ok === false) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, content: null, error: before.error }
+  }
+  if (after.ok === false) {
+    return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, content: null, error: after.error }
+  }
+
+  return {
+    cwd,
+    source,
+    sourceKey,
+    generatedAt,
+    path: requestedPath,
+    found: true,
+    content: {
+      before: before.text,
+      after: after.text,
+    },
   }
 }
 
@@ -982,9 +1512,12 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
 
         if (
           isRequest &&
-          (parsed.method === 'bridge/readDiff' ||
-            parsed.method === 'bridge/readDiffSummary' ||
-            parsed.method === 'bridge/readDiffFilePatch')
+          (parsed.method === 'bridge/reviewGit/listCommits' ||
+            parsed.method === 'bridge/reviewGit/readDiff' ||
+            parsed.method === 'bridge/reviewGit/readDiffSummary' ||
+            parsed.method === 'bridge/reviewGit/readDiffFilePatch' ||
+            parsed.method === 'bridge/reviewGit/readDiffFilePreview' ||
+            parsed.method === 'bridge/reviewGit/readDiffFileFullContent')
         ) {
           audit.write({
             ts: new Date().toISOString(),
@@ -997,18 +1530,47 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
           const baseCwd = options.cwd ?? process.cwd()
           const rawParams = (parsed.params ?? {}) as { cwd?: unknown }
           const diffCwd = resolveDiffCwd(baseCwd, rawParams.cwd)
-          const rpcPromise =
-            parsed.method === 'bridge/readDiff'
-              ? (options.rpcOverrides?.readDiff ?? readWorkspaceDiff)(diffCwd, (parsed.params ?? {}) as BridgeReadDiffParams)
-              : parsed.method === 'bridge/readDiffSummary'
-                ? (options.rpcOverrides?.readDiffSummary ?? readWorkspaceDiffSummary)(
-                    diffCwd,
-                    (parsed.params ?? {}) as BridgeReadDiffSummaryParams,
-                  )
-                : (options.rpcOverrides?.readDiffFilePatch ?? readWorkspaceDiffFilePatch)(
-                    diffCwd,
-                    (parsed.params ?? {}) as BridgeReadDiffFilePatchParams,
-                  )
+          let rpcPromise: Promise<BridgeReviewGitResult>
+          switch (parsed.method) {
+            case 'bridge/reviewGit/listCommits':
+              rpcPromise = (options.rpcOverrides?.listCommits ?? listWorkspaceReviewCommits)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeListCommitsParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiff':
+              rpcPromise = (options.rpcOverrides?.readDiff ?? readWorkspaceDiff)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffSummary':
+              rpcPromise = (options.rpcOverrides?.readDiffSummary ?? readWorkspaceDiffSummary)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffSummaryParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffFilePatch':
+              rpcPromise = (options.rpcOverrides?.readDiffFilePatch ?? readWorkspaceDiffFilePatch)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffFilePatchParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffFilePreview':
+              rpcPromise = (options.rpcOverrides?.readDiffFilePreview ?? readWorkspaceDiffFilePreview)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffFilePreviewParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffFileFullContent':
+              rpcPromise = (options.rpcOverrides?.readDiffFileFullContent ?? readWorkspaceDiffFileFullContent)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffFileFullContentParams,
+              )
+              break
+            default:
+              continue
+          }
 
           void rpcPromise
             .then((result) => {
@@ -1113,11 +1675,21 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
 export const __devBridgeTestHooks = {
   normalizeMaxBytes,
   normalizeMaxFiles,
+  normalizePreviewMaxBytes,
+  normalizeFullContentMaxBytes,
   resolveDiffCwd,
+  isPathInsideCwd,
+  getImagePreviewMimeType,
+  getPatchChangeKind,
+  getRenameOldPath,
+  findRenameOldPathForRequestedPath,
   writeJsonlLine,
   broadcastLine,
   createBridgeAuditWriter,
   runGit,
+  normalizeGitReviewCommitLimit,
+  buildGitReviewCommitListArgs,
+  parseGitReviewCommitList,
   parsePatchFiles,
   parseRenamePairs,
   parseNumstatFiles,
@@ -1127,9 +1699,13 @@ export const __devBridgeTestHooks = {
   appendDiffFileWithinBudget,
   countContentLines,
   buildUntrackedDiffFile,
+  buildUntrackedSummaryFile,
+  listWorkspaceReviewCommits,
   readWorkspaceDiff,
   readWorkspaceDiffSummary,
   findPatchByRequestedPath,
   clipDiffFileWithinBudget,
   readWorkspaceDiffFilePatch,
+  readWorkspaceDiffFilePreview,
+  readWorkspaceDiffFileFullContent,
 }

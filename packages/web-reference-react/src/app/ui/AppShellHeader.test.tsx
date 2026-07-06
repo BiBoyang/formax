@@ -3,19 +3,17 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n/I18nProvider'
 import { AppShellHeader } from './AppShellHeader'
+import { AppShellTopRightControls } from './AppShellTopRightControls'
+import { RightRailWorkspaceHeader } from './RightRailWorkspaceHeader'
 
 function renderHeader(
   language: 'zh-CN' | 'en-US' = 'en-US',
-  showContextMeter = true,
   overrides: Partial<ComponentProps<typeof AppShellHeader>> = {},
 ) {
   const onOpenFolderInTarget = vi.fn()
   const renderResult = render(
     <I18nProvider language={language}>
       <AppShellHeader
-        isRightRailOpen={false}
-        showRightRailDivider={false}
-        showRightRailToggle={true}
         isDesktopClient={true}
         isSidebarOpen={true}
         activeThreadTitle="Thread title"
@@ -31,28 +29,11 @@ function renderHeader(
           estimatedTokensSaved: 64,
           recapFingerprint: 'fp-1',
         }}
-        activeContextMeter={{
-          available: true,
-          source: 'usage',
-          usedTokens: 1000,
-          limitTokens: 95000,
-          percentUsed: 1,
-          percentRemaining: 99,
-          shouldAutoCompact: false,
-          label: '1% used (1k/95k, usage)',
-          tone: 'normal',
-        }}
-        showContextMeter={showContextMeter}
-        activeWorkspaceLabel="workspace"
         showDevLoadAllButton={false}
         devLoadAllDisabled={true}
-        onOpenSettings={vi.fn()}
         openFolderCwd={null}
         onOpenFolderInTarget={onOpenFolderInTarget}
         openFolderActionLabel="Open"
-        onToggleTerminal={vi.fn()}
-        canToggleTerminal={false}
-        onToggleRightRail={vi.fn()}
         onToggleSidebar={vi.fn()}
         activeTurnId={null}
         {...overrides}
@@ -60,6 +41,25 @@ function renderHeader(
     </I18nProvider>
   )
   return { ...renderResult, onOpenFolderInTarget }
+}
+
+function renderTopRightControls(props: ComponentProps<typeof AppShellTopRightControls>) {
+  return render(
+    <I18nProvider language="en-US">
+      <AppShellTopRightControls {...props} />
+    </I18nProvider>,
+  )
+}
+
+function renderRightRailWorkspaceHeader(props: ComponentProps<typeof AppShellTopRightControls>) {
+  return render(
+    <I18nProvider language="en-US">
+      <RightRailWorkspaceHeader
+        isDesktopClient={props.isDesktopClient}
+        controls={<AppShellTopRightControls {...props} />}
+      />
+    </I18nProvider>,
+  )
 }
 
 describe('AppShellHeader', () => {
@@ -88,14 +88,13 @@ describe('AppShellHeader', () => {
   })
 
   it('does not render context meter in header', () => {
-    renderHeader('en-US', true)
+    renderHeader('en-US')
 
     expect(screen.queryByTestId('app-shell-context-meter')).toBeNull()
   })
 
   it('disables open-folder affordance when there is no current folder owner', () => {
-    renderHeader('en-US', true, {
-      activeWorkspaceLabel: null,
+    renderHeader('en-US', {
       openFolderCwd: null,
     })
 
@@ -104,7 +103,7 @@ describe('AppShellHeader', () => {
   })
 
   it('opens the current owner folder when an explicit open-folder cwd is available', () => {
-    const { onOpenFolderInTarget } = renderHeader('en-US', true, {
+    const { onOpenFolderInTarget } = renderHeader('en-US', {
       openFolderCwd: '/repo-draft',
     })
 
@@ -113,21 +112,96 @@ describe('AppShellHeader', () => {
     expect(onOpenFolderInTarget).toHaveBeenCalledWith('/repo-draft')
   })
 
-  it('renders right-rail diff stats from props instead of hardcoded values', () => {
-    renderHeader('en-US', true, {
-      rightRailDiffStats: { additions: 210, deletions: 88 },
-    })
+  it('does not render right-rail diff stats in the center header', () => {
+    renderHeader('en-US')
 
-    expect(screen.getByText('+210')).toBeInTheDocument()
-    expect(screen.getByText('-88')).toBeInTheDocument()
+    expect(screen.queryByText('+210')).toBeNull()
+    expect(screen.queryByText('-88')).toBeNull()
   })
 
-  it('hides right-rail diff stats when there are no changes', () => {
-    renderHeader('en-US', true, {
-      rightRailDiffStats: { additions: 0, deletions: 0 },
-    })
+  it('renders stable terminal and right-rail toggles in the right rail header', () => {
+    renderRightRailWorkspaceHeader(
+      {
+        isRightRailOpen: true,
+        isTerminalOpen: false,
+        isDesktopClient: true,
+        canToggleTerminal: true,
+        onToggleTerminal: vi.fn(),
+        onToggleRightRail: vi.fn(),
+      },
+    )
+
+    expect(screen.getByTestId('right-rail-workspace-header')).toBeInTheDocument()
+    expect(screen.getByText('Review')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add right rail feature' })).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-top-right-controls')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-terminal-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-right-rail-toggle')).toBeInTheDocument()
+    expect(screen.queryByText('+210')).toBeNull()
+    expect(screen.queryByText('-88')).toBeNull()
+  })
+
+  it('does not render right-rail diff stats in the right rail header', () => {
+    renderRightRailWorkspaceHeader(
+      {
+        isRightRailOpen: true,
+        isTerminalOpen: false,
+        isDesktopClient: true,
+        canToggleTerminal: true,
+        onToggleTerminal: vi.fn(),
+        onToggleRightRail: vi.fn(),
+      },
+    )
 
     expect(screen.queryByText('+0')).toBeNull()
     expect(screen.queryByText('-0')).toBeNull()
+  })
+
+  it('keeps the right-rail toggle available when the right rail is closed', () => {
+    renderTopRightControls(
+      {
+        isRightRailOpen: false,
+        isTerminalOpen: false,
+        isDesktopClient: true,
+        canToggleTerminal: true,
+        onToggleTerminal: vi.fn(),
+        onToggleRightRail: vi.fn(),
+      },
+    )
+
+    expect(screen.getByTestId('app-shell-top-right-controls')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-terminal-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-right-rail-toggle')).toBeInTheDocument()
+    expect(screen.queryByText('Review')).toBeNull()
+  })
+
+  it('reflects terminal open state on the terminal toggle', () => {
+    const { rerender } = renderTopRightControls(
+      {
+        isRightRailOpen: false,
+        isTerminalOpen: false,
+        isDesktopClient: true,
+        canToggleTerminal: true,
+        onToggleTerminal: vi.fn(),
+        onToggleRightRail: vi.fn(),
+      },
+    )
+
+    expect(screen.getByTestId('app-shell-terminal-toggle')).toHaveAttribute('aria-pressed', 'false')
+
+    rerender(
+      <I18nProvider language="en-US">
+        <AppShellTopRightControls
+          isRightRailOpen={false}
+          isTerminalOpen
+          isDesktopClient
+          canToggleTerminal
+          onToggleTerminal={vi.fn()}
+          onToggleRightRail={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByTestId('app-shell-terminal-toggle')).toHaveAttribute('aria-pressed', 'true')
   })
 })

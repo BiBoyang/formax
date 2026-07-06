@@ -172,7 +172,7 @@ export function TerminalPane(props: TerminalPaneProps) {
       lineHeight: 1.25,
       scrollback: 5000,
       fontFamily:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        '"JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       theme: resolveTerminalThemeFromCss(),
     })
     const fitAddon = new FitAddon()

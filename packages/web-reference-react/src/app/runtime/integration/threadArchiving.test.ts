@@ -25,6 +25,13 @@ function buildThread(id: string, updatedAt: string, cwd: string): ThreadSummary 
   }
 }
 
+function getReviewSource(params: unknown): { kind: 'unstaged' | 'staged' } {
+  if (!params || typeof params !== 'object') return { kind: 'unstaged' }
+  const source = (params as { source?: unknown }).source
+  if (!source || typeof source !== 'object') return { kind: 'unstaged' }
+  return (source as { kind?: unknown }).kind === 'staged' ? { kind: 'staged' } : { kind: 'unstaged' }
+}
+
 vi.mock('../../../rpcClient', () => {
   class MockRpcClient {
     connect(
@@ -51,14 +58,18 @@ vi.mock('../../../rpcClient', () => {
           return {}
         case 'thread/list':
           return { data: rpcState.threads }
-        case 'bridge/readDiffSummary':
+        case 'bridge/reviewGit/readDiffSummary': {
+          const source = getReviewSource(params)
           return {
             cwd: typeof (params as { cwd?: unknown } | null)?.cwd === 'string' ? (params as { cwd: string }).cwd : '/repo',
+            source,
+            sourceKey: `git:${source.kind}`,
             generatedAt: '2026-02-22T00:00:00.000Z',
             hasChanges: false,
             truncated: false,
             files: [],
           }
+        }
         case 'thread/replay':
           return { data: [], nextCursor: 0, latestCursor: 0, hasGap: false, state: null }
         case 'thread/messages':
@@ -156,11 +167,11 @@ describe('Thread Archiving Integration', () => {
 
     await waitFor(() => {
       expect(
-        rpcState.requestLog.filter(({ method }) => method === 'bridge/readDiffSummary').length,
+        rpcState.requestLog.filter(({ method }) => method === 'bridge/reviewGit/readDiffSummary').length,
       ).toBeGreaterThan(0)
     })
     const diffRequestCountBeforeArchive = rpcState.requestLog.filter(
-      ({ method }) => method === 'bridge/readDiffSummary',
+      ({ method }) => method === 'bridge/reviewGit/readDiffSummary',
     ).length
 
     act(() => {
@@ -177,7 +188,7 @@ describe('Thread Archiving Integration', () => {
       expect(result.current.sortedThreads).toEqual([])
     })
     expect(
-      rpcState.requestLog.filter(({ method }) => method === 'bridge/readDiffSummary').length,
+      rpcState.requestLog.filter(({ method }) => method === 'bridge/reviewGit/readDiffSummary').length,
     ).toBe(diffRequestCountBeforeArchive)
   })
 
@@ -209,6 +220,55 @@ describe('Thread Archiving Integration', () => {
       expect(result.current.visibleSurface).toBe('newThreadDraft')
       expect(result.current.selectedCwd).toBeNull()
       expect(result.current.diffSnapshot).toBeNull()
+    })
+  })
+
+  it('keeps the active review source for notification-triggered diff refreshes', async () => {
+    rpcState.threads = [buildThread('thread-1', '2026-02-22T01:00:00Z', '/repo-1')]
+
+    const { result } = renderHook(() => useAppRuntime())
+
+    await waitFor(() => {
+      expect(result.current.sortedThreads.map((thread) => thread.id)).toEqual(['thread-1'])
+    })
+
+    act(() => {
+      result.current.onSelectThread('thread-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1')
+      expect(result.current.diffSnapshot?.cwd).toBe('/repo-1')
+    })
+
+    await act(async () => {
+      result.current.onRefreshDiff({ kind: 'staged' })
+    })
+
+    await waitFor(() => {
+      const stagedRequests = rpcState.requestLog.filter(({ method, params }) => {
+        return method === 'bridge/reviewGit/readDiffSummary' && getReviewSource(params).kind === 'staged'
+      })
+      expect(stagedRequests.length).toBeGreaterThan(0)
+    })
+
+    const stagedRequestCountBeforeNotification = rpcState.requestLog.filter(({ method, params }) => {
+      return method === 'bridge/reviewGit/readDiffSummary' && getReviewSource(params).kind === 'staged'
+    }).length
+
+    act(() => {
+      rpcState.handlers?.onNotification({
+        jsonrpc: '2.0',
+        method: 'turn/completed',
+        params: { threadId: 'thread-1', turn: { id: 'turn-1' } },
+      })
+    })
+
+    await waitFor(() => {
+      const stagedRequestCount = rpcState.requestLog.filter(({ method, params }) => {
+        return method === 'bridge/reviewGit/readDiffSummary' && getReviewSource(params).kind === 'staged'
+      }).length
+      expect(stagedRequestCount).toBeGreaterThan(stagedRequestCountBeforeNotification)
     })
   })
 

@@ -13,21 +13,46 @@ describe('diffUiHandlers', () => {
       deletions: 0,
       untracked: undefined,
     }
+    const previewPayload = {
+      path: 'images/a.webp',
+      found: true,
+      preview: {
+        kind: 'image' as const,
+        mimeType: 'image/webp',
+        dataUrl: 'data:image/webp;base64,abc',
+        sizeBytes: 3,
+      },
+    }
     const refreshWorkspaceDiff = vi.fn(() => refreshPromise)
     const requestDiffFilePatch = vi.fn(async () => patchPayload)
+    const requestDiffFilePreview = vi.fn(async () => previewPayload)
+    const requestDiffFileFullContent = vi.fn(async () => null)
+    const listReviewCommits = vi.fn(async () => [])
     const runAsyncSafely = vi.fn()
     const handlers = createDiffUiHandlers({
       refreshWorkspaceDiff,
       requestDiffFilePatch,
+      requestDiffFilePreview,
+      requestDiffFileFullContent,
+      listReviewCommits,
       runAsyncSafely,
     })
 
     handlers.onRefreshDiff()
     const result = await handlers.onRequestDiffPatch('src/a.ts')
+    const previewResult = await handlers.onRequestDiffPreview('images/a.webp')
+    const fullContentResult = await handlers.onRequestDiffFullContent('src/a.ts')
+    const commits = await handlers.onListReviewCommits()
 
-    expect(refreshWorkspaceDiff).toHaveBeenCalledWith()
+    expect(refreshWorkspaceDiff).toHaveBeenCalledWith(undefined, undefined)
     expect(runAsyncSafely).toHaveBeenCalledWith(refreshPromise)
-    expect(requestDiffFilePatch).toHaveBeenCalledWith('src/a.ts')
+    expect(requestDiffFilePatch).toHaveBeenCalledWith('src/a.ts', undefined, undefined)
     expect(result).toEqual(patchPayload)
+    expect(requestDiffFilePreview).toHaveBeenCalledWith('images/a.webp', undefined, undefined)
+    expect(previewResult).toEqual(previewPayload)
+    expect(requestDiffFileFullContent).toHaveBeenCalledWith('src/a.ts', undefined, undefined)
+    expect(fullContentResult).toBeNull()
+    expect(listReviewCommits).toHaveBeenCalledWith()
+    expect(commits).toEqual([])
   })
 })

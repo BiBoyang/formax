@@ -43,7 +43,7 @@ test.describe('pane resize', () => {
     await expect(page.getByTestId('right-rail')).toBeVisible()
 
     const handles = page.locator('[data-slot="resizable-handle"]')
-    await expect(handles).toHaveCount(2)
+    await expect(handles).toHaveCount(3)
 
     const leftBefore = await page.getByTestId('left-rail').evaluate(width)
     const rightBefore = await page.getByTestId('right-rail').evaluate(width)

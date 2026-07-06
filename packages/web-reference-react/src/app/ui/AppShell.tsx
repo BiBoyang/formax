@@ -1,12 +1,19 @@
 import { memo, useCallback, useMemo, useRef } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
-import { PanelLeft } from 'lucide-react'
 import type { ImperativePanelGroupHandle } from 'react-resizable-panels'
 import { InputApprovalDock } from '../../components/InputApprovalDock'
 import { LeftRail } from '../../components/LeftRail'
 import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
-import { WorktreeDiffPane, type DiffFilePatchPayload, type DiffSnapshot } from '../../components/WorktreeDiffPane'
+import { WorktreeDiffPane } from '../../components/WorktreeDiffPane'
+import type {
+  DiffFileFullContentPayload,
+  DiffFilePatchPayload,
+  DiffFilePreviewPayload,
+  DiffSnapshot,
+  ReviewGitCommit,
+  ReviewGitSource,
+} from '../../components/diff/diffTypes'
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
@@ -28,8 +35,10 @@ import type { ReplMode } from '../../semantics'
 import type { RuntimeModelTier, RuntimeThinkingEffort } from '../runtime/runtimePreferences'
 import { RIGHT_RAIL_MAX_SIZE, RIGHT_RAIL_MIN_SIZE, SIDEBAR_MAX_SIZE, SIDEBAR_MIN_SIZE } from '../core/constants'
 import { selectThreadTitle } from '../core/threadViewModel'
-import { folderNameFromCwd } from '../../components/left-rail/utils'
 import { AppShellHeader } from './AppShellHeader'
+import { AppShellPaneToggleIcon } from './AppShellPaneToggleIcon'
+import { AppShellTopRightControls } from './AppShellTopRightControls'
+import { RightRailWorkspaceHeader } from './RightRailWorkspaceHeader'
 import { useDesktopBridge } from './useDesktopBridge'
 import { usePanelDragCommit } from './usePanelDragCommit'
 import { TERMINAL_MAX_SIZE, TERMINAL_MIN_SIZE, useTerminalVisibility } from './useTerminalVisibility'
@@ -39,6 +48,7 @@ const MemoLeftRail = memo(LeftRail)
 const MemoTranscriptPane = memo(TranscriptPane)
 const MemoInputApprovalDock = memo(InputApprovalDock)
 const MemoWorktreeDiffPane = memo(WorktreeDiffPane)
+const TOP_RIGHT_CONTROLS_OVERLAY_WIDTH = 104
 
 function isDraftPendingTurnActive(activeTurnId: string | null, pendingTurns: PendingTurnRuntime[]): boolean {
   if (!activeTurnId) return false
@@ -124,8 +134,11 @@ export type AppShellProps = {
   onAskDraftChange: (fieldId: string, value: string) => void
   onSubmitInput: (inputId: string, answers: Record<string, string>) => void
   diffSnapshot: DiffSnapshot | null
-  onRefreshDiff: () => void
-  onRequestDiffPatch: (filePath: string) => Promise<DiffFilePatchPayload | null>
+  onRefreshDiff: (source?: ReviewGitSource | null) => void
+  onRequestDiffPatch: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
+  onRequestDiffPreview: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
+  onRequestDiffFullContent: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFileFullContentPayload | null>
+  onListReviewCommits: () => Promise<ReviewGitCommit[]>
   isRefreshingDiff: boolean
   noticeMessage: string | null
   userSettings: UserSettings
@@ -167,26 +180,10 @@ export function AppShell(props: AppShellProps) {
     : props.selectedCwd ?? props.activeThread?.cwd ?? null
   const headerOpenFolderCwd = headerWorkspaceCwd
   const showThreadRightRail = isThreadSurface && props.isRightRailOpen
-  const rightRailDiffStats = useMemo(() => {
-    if (!isThreadSurface) return null
-    const snapshot = props.diffSnapshot
-    if (!snapshot || !snapshot.hasChanges) return null
-    return snapshot.files.reduce(
-      (acc, file) => {
-        acc.additions += file.additions
-        acc.deletions += file.deletions
-        return acc
-      },
-      { additions: 0, deletions: 0 },
-    )
-  }, [isThreadSurface, props.diffSnapshot])
   const showDevLoadAllButton = isThreadSurface && props.devLoadAllEnabled === true
   const sidebarPanelSize = props.isSidebarOpen ? sidebarPercent : 0
   const centerDefaultSize = 100 - sidebarPanelSize
   const devLoadAllDisabled = !props.activeThreadId || !props.onDevLoadAllEarlier || props.devLoadAllRunning === true
-  const activeWorkspaceLabel = useMemo(() => {
-    return headerWorkspaceCwd ? folderNameFromCwd(headerWorkspaceCwd) : null
-  }, [headerWorkspaceCwd])
   const {
     canToggleTerminal,
     onCloseTerminalPane,
@@ -285,11 +282,9 @@ export function AppShell(props: AppShellProps) {
     }),
     [
       props.activeThreadId,
-      props.activeThread,
       props.hiddenGroupCwds,
       props.isThreadActionBusy,
       props.onArchiveThread,
-      props.onDraftCwdChange,
       props.onEnterNewThreadDraft,
       props.onEnterNewThreadDraftInCwd,
       props.onHideThreadGroup,
@@ -302,7 +297,6 @@ export function AppShell(props: AppShellProps) {
       props.isSettingsOpen,
       isDesktopClient,
       isWindowTransparent,
-      desktopBridge,
       leftRailCurrentGroupCwd,
       onOpenFolderInTarget,
       openFolderActionLabel,
@@ -426,20 +420,28 @@ export function AppShell(props: AppShellProps) {
 
   const worktreeDiffPaneProps = useMemo(
     () => ({
+      activeThreadId: isThreadSurface ? props.activeThreadId : null,
       diffSnapshot: isThreadSurface ? props.diffSnapshot : null,
       latestRequestCollapse: isThreadSurface ? props.activeThreadLatestRequestCollapse : null,
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
+      onRequestPreview: props.onRequestDiffPreview,
+      onRequestFullContent: props.onRequestDiffFullContent,
+      onListCommits: props.onListReviewCommits,
       isRefreshingDiff: isThreadSurface ? props.isRefreshingDiff : false,
       showHeader: true as const,
     }),
     [
+      props.activeThreadId,
       isThreadSurface,
       props.activeThreadLatestRequestCollapse,
       props.diffSnapshot,
       props.isRefreshingDiff,
       props.onRefreshDiff,
       props.onRequestDiffPatch,
+      props.onRequestDiffPreview,
+      props.onRequestDiffFullContent,
+      props.onListReviewCommits,
     ],
   )
 
@@ -447,6 +449,23 @@ export function AppShell(props: AppShellProps) {
     <ResizablePanelGroup ref={rightRailPanelGroupRef} direction="horizontal" className="flex-1 min-h-0 min-w-0">
       <ResizablePanel defaultSize={props.isRightRailOpen ? centerPercent : 100} minSize={35}>
         <div data-testid="center-pane-host" className="h-full min-w-0 relative flex flex-col">
+          <AppShellHeader
+            isDesktopClient={isDesktopClient}
+            isSidebarOpen={props.isSidebarOpen}
+            activeThreadTitle={isThreadSurface ? props.activeThreadTitle : selectThreadTitle(undefined)}
+            activeThreadLatestCompactBoundary={isThreadSurface ? props.activeThreadLatestCompactBoundary : null}
+            activeThreadLatestRequestCollapse={isThreadSurface ? props.activeThreadLatestRequestCollapse : null}
+            showDevLoadAllButton={showDevLoadAllButton}
+            devLoadAllDisabled={devLoadAllDisabled}
+            devLoadAllRunning={props.devLoadAllRunning}
+            onDevLoadAllEarlier={onDevLoadAllEarlier}
+            openFolderCwd={headerOpenFolderCwd}
+            onOpenFolderInTarget={onOpenFolderInTarget}
+            openFolderActionLabel={openFolderActionLabel}
+            onToggleSidebar={onToggleSidebar}
+            activeTurnId={isThreadSurface ? props.activeTurnId : null}
+            rightOverlayInset={isThreadSurface && !showThreadRightRail ? TOP_RIGHT_CONTROLS_OVERLAY_WIDTH : 0}
+          />
           {props.noticeMessage ? (
             <div className="pointer-events-none absolute left-1/2 top-3 z-40 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2">
               <Alert className="pointer-events-auto border-border/70 bg-background/95 shadow-sm backdrop-blur">
@@ -482,11 +501,31 @@ export function AppShell(props: AppShellProps) {
         <div
           data-testid="right-rail"
           className={cn(
-            'h-full min-w-0 app-shell-right-rail overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
+            'h-full min-w-0 flex flex-col overflow-hidden overflow-x-hidden app-shell-sidebar-content-motion',
+            showThreadRightRail && 'app-shell-right-rail',
             showThreadRightRail ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4',
           )}
         >
-          {isThreadSurface ? <MemoWorktreeDiffPane {...worktreeDiffPaneProps} /> : null}
+          {isThreadSurface && showThreadRightRail ? (
+            <>
+              <RightRailWorkspaceHeader
+                isDesktopClient={isDesktopClient}
+                controls={
+                  <AppShellTopRightControls
+                    isRightRailOpen={showThreadRightRail}
+                    isTerminalOpen={showTerminalPane}
+                    isDesktopClient={isDesktopClient}
+                    onToggleRightRail={onToggleRightRail}
+                    onToggleTerminal={onToggleTerminal}
+                    canToggleTerminal={canToggleTerminal}
+                  />
+                }
+              />
+              <div className="min-h-0 min-w-0 flex-1">
+                <MemoWorktreeDiffPane {...worktreeDiffPaneProps} />
+              </div>
+            </>
+          ) : null}
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
@@ -537,44 +576,14 @@ export function AppShell(props: AppShellProps) {
         />
 
         <ResizablePanel defaultSize={centerDefaultSize} minSize={35} className="relative z-20 app-shell-panel-motion">
-              <div
-                className={cn(
-                  'h-full min-w-0 flex flex-col',
-                  props.isSidebarOpen
-                    ? 'rounded-tl-[22px] rounded-bl-[22px] app-shell-right-surface overflow-hidden'
-                    : 'app-shell-right-surface',
-                )}
-              >
-            {!props.isSettingsOpen ? (
-              <AppShellHeader
-                isRightRailOpen={showThreadRightRail}
-                showRightRailDivider={showThreadRightRail}
-                showRightRailToggle={isThreadSurface}
-                rightRailDiffStats={rightRailDiffStats}
-                isDesktopClient={isDesktopClient}
-                isSidebarOpen={props.isSidebarOpen}
-                activeThreadTitle={isThreadSurface ? props.activeThreadTitle : selectThreadTitle(undefined)}
-                activeThreadLatestCompactBoundary={isThreadSurface ? props.activeThreadLatestCompactBoundary : null}
-                activeThreadLatestRequestCollapse={isThreadSurface ? props.activeThreadLatestRequestCollapse : null}
-                activeContextMeter={props.activeContextMeter}
-                showContextMeter={isThreadSurface && props.showContextMeter}
-                activeWorkspaceLabel={activeWorkspaceLabel}
-                showDevLoadAllButton={showDevLoadAllButton}
-                devLoadAllDisabled={devLoadAllDisabled}
-                devLoadAllRunning={props.devLoadAllRunning}
-                onDevLoadAllEarlier={onDevLoadAllEarlier}
-                onOpenSettings={onOpenSettings}
-                openFolderCwd={headerOpenFolderCwd}
-                onOpenFolderInTarget={onOpenFolderInTarget}
-                openFolderActionLabel={openFolderActionLabel}
-                onToggleTerminal={onToggleTerminal}
-                canToggleTerminal={canToggleTerminal}
-                onToggleRightRail={onToggleRightRail}
-                onToggleSidebar={onToggleSidebar}
-                activeTurnId={isThreadSurface ? props.activeTurnId : null}
-              />
-            ) : null}
-
+          <div
+            className={cn(
+              'relative h-full min-w-0 flex flex-col',
+              props.isSidebarOpen
+                ? 'rounded-tl-[22px] rounded-bl-[22px] app-shell-right-surface overflow-hidden'
+                : 'app-shell-right-surface',
+            )}
+          >
             {props.isSettingsOpen ? (
               <div className="flex-1 min-h-0 min-w-0 flex flex-col">
                 <header
@@ -599,12 +608,7 @@ export function AppShell(props: AppShellProps) {
                       onClick={onToggleSidebar}
                       aria-label={t('appShell.toggleSidebar')}
                     >
-                      <PanelLeft
-                        className={cn(
-                          'h-4 w-4 app-shell-header-icon-motion',
-                          !props.isSidebarOpen && 'rotate-180',
-                        )}
-                      />
+                      <AppShellPaneToggleIcon side="left" isOpen={props.isSidebarOpen} />
                     </Button>
                   </div>
                 </header>
@@ -667,6 +671,25 @@ export function AppShell(props: AppShellProps) {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      {!props.isSettingsOpen && isThreadSurface && !showThreadRightRail ? (
+        <div
+          className={cn(
+            'absolute right-0 top-0 z-[300] h-[var(--desktop-chrome-height)]',
+            isDesktopClient && 'app-shell-drag-region',
+          )}
+          style={{ width: TOP_RIGHT_CONTROLS_OVERLAY_WIDTH }}
+        >
+          <AppShellTopRightControls
+            isRightRailOpen={showThreadRightRail}
+            isTerminalOpen={showTerminalPane}
+            isDesktopClient={isDesktopClient}
+            onToggleRightRail={onToggleRightRail}
+            onToggleTerminal={onToggleTerminal}
+            canToggleTerminal={canToggleTerminal}
+            className="h-full px-4"
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

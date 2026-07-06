@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type SetStateAction } from 'react'
-import { type DiffSnapshot } from '../../components/WorktreeDiffPane'
+import type { DiffSnapshot } from '../../components/diff/diffTypes'
 import type { ReplMode } from '../../semantics'
 import type {
   CompactBoundarySummary,

@@ -24,6 +24,18 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => undefined
 }
 
+if (!Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = function scrollTo(options?: ScrollToOptions | number) {
+    if (typeof options === 'number') {
+      ;(this as Element & { scrollTop?: number }).scrollTop = options
+      return undefined
+    }
+    ;(this as Element & { scrollTop?: number }).scrollTop = Number(options?.top ?? 0)
+    ;(this as Element & { scrollLeft?: number }).scrollLeft = Number(options?.left ?? 0)
+    return undefined
+  }
+}
+
 if (typeof ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {
     constructor(_callback?: ResizeObserverCallback) {}

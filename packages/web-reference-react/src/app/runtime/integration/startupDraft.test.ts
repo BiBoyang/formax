@@ -71,6 +71,6 @@ describe('Startup Draft Integration', () => {
       expect(result.current.diffSnapshot).toBeNull()
     })
 
-    expect(rpcState.requestLog.some(({ method }) => method === 'bridge/readDiffSummary')).toBe(false)
+    expect(rpcState.requestLog.some(({ method }) => method === 'bridge/reviewGit/readDiffSummary')).toBe(false)
   })
 })

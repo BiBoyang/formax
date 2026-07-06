@@ -26,6 +26,32 @@ export async function installMockRpc(page, scenario) {
       }
 
       const keyForCursor = (cursor) => (cursor == null ? '__null__' : String(cursor))
+      const reviewSourceFromParams = (params) => {
+        const source = params && typeof params === 'object' ? params.source : null
+        if (source && typeof source === 'object' && source.kind === 'staged') {
+          return { kind: 'staged' }
+        }
+        return { kind: 'unstaged' }
+      }
+
+      const buildDiffSummary = (params) => {
+        const source = reviewSourceFromParams(params)
+        const snapshot = scenarioConfig.diffSnapshot || {}
+        return {
+          cwd: typeof params.cwd === 'string' ? params.cwd : '/tmp/formax',
+          source,
+          sourceKey: `git:${source.kind}`,
+          generatedAt: new Date().toISOString(),
+          hasChanges: false,
+          truncated: false,
+          files: [],
+          ...snapshot,
+          source: snapshot.source && typeof snapshot.source === 'object' ? snapshot.source : source,
+          sourceKey: snapshot.sourceKey === 'git:staged' || snapshot.sourceKey === 'git:unstaged'
+            ? snapshot.sourceKey
+            : `git:${source.kind}`,
+        }
+      }
 
       const resolveRequest = (message) => {
         const method = String(message.method || '')
@@ -80,16 +106,8 @@ export async function installMockRpc(page, scenario) {
             return {
               ok: true,
             }
-          case 'bridge/readDiff':
-            return (
-              scenarioConfig.diffSnapshot || {
-                cwd: '/tmp/formax',
-                generatedAt: new Date().toISOString(),
-                hasChanges: false,
-                truncated: false,
-                files: [],
-              }
-            )
+          case 'bridge/reviewGit/readDiffSummary':
+            return buildDiffSummary(params)
           case 'turn/input/submit':
             state.submissions.push(params)
             return scenarioConfig.submitResult || { status: 'submitted' }
