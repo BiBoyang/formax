@@ -44,6 +44,8 @@ type FormaxDesktopBridge = {
   setup?: {
     complete?: () => Promise<boolean>
     cancel?: () => Promise<boolean>
+    openMain?: () => Promise<boolean>
+    subscribe?: (listener: (event: { action: 'complete' | 'open-main'; ok: boolean }) => void) => () => void
   }
   openTargets?: {
     listAvailable?: () => Promise<Array<{

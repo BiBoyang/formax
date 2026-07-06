@@ -16,8 +16,6 @@ const MANAGED_RUNTIME_WAIT_POLL_MS = 250
 const MANAGED_RUNTIME_KILL_GRACE_MS = 4_000
 const MAIN_WINDOW_WIDTH = 1440
 const MAIN_WINDOW_HEIGHT = 920
-const SETUP_WINDOW_WIDTH = 800
-const SETUP_WINDOW_HEIGHT = 600
 const WINDOW_TRANSPARENCY_FADE_SETTLE_MS = 160
 const DESKTOP_CHROME_HEIGHT_PX = 56
 const MAC_TRAFFIC_LIGHT_SAFE_HEIGHT_PX = 20
@@ -42,6 +40,7 @@ const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 const TERMINAL_CHANNEL = 'formax:desktop:terminal'
 const TERMINAL_EVENT_CHANNEL = 'formax:desktop:terminal:event'
 const SETUP_CHANNEL = 'formax:desktop:setup'
+const SETUP_EVENT_CHANNEL = 'formax:desktop:setup:event'
 const TERMINAL_OUTPUT_MAX_BYTES = 512 * 1024
 const DEFAULT_TERMINAL_COLS = 120
 const DEFAULT_TERMINAL_ROWS = 36
@@ -51,7 +50,7 @@ type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 type DesktopTerminalAction = 'ensure-session' | 'get-snapshot' | 'write' | 'resize' | 'destroy-session'
-type DesktopSetupAction = 'complete' | 'cancel'
+type DesktopSetupAction = 'complete' | 'cancel' | 'open-main'
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -817,14 +816,6 @@ function buildSetupStatusUrl(startUrl: string): string {
   return parsed.toString()
 }
 
-function isSetupWindowUrl(startUrl: string): boolean {
-  try {
-    return new URL(startUrl).pathname.endsWith('/setup')
-  } catch {
-    return false
-  }
-}
-
 function resolveUrlBasePath(pathname: string): string {
   if (pathname.endsWith('/')) return pathname
   const lastSegment = pathname.split('/').pop() ?? ''
@@ -832,7 +823,7 @@ function resolveUrlBasePath(pathname: string): string {
   return pathname
 }
 
-async function shouldOpenSetupWindow(startUrl: string): Promise<boolean> {
+async function shouldLoadSetupRoute(startUrl: string): Promise<boolean> {
   if (!isAllowedLocalUrl(startUrl)) return false
   // Temporary local-dev escape hatch: remove once the Vite dev entry serves
   // /__formax/setup/status as JSON or the Electron dev runner probes setup over
@@ -851,8 +842,8 @@ async function shouldOpenSetupWindow(startUrl: string): Promise<boolean> {
   }
 }
 
-async function resolveInitialWindowUrl(startUrl: string): Promise<string> {
-  return (await shouldOpenSetupWindow(startUrl)) ? buildSetupUrl(startUrl) : startUrl
+async function resolveInitialRouteUrl(startUrl: string): Promise<string> {
+  return (await shouldLoadSetupRoute(startUrl)) ? buildSetupUrl(startUrl) : startUrl
 }
 
 async function startManagedRuntimeIfNeeded(startUrl: string, setupMode: 'require-config' | 'allow' = 'require-config'): Promise<void> {
@@ -1073,6 +1064,40 @@ async function loadWindowWithRetry(window: BrowserWindow, startUrl: string): Pro
   throw lastError instanceof Error ? lastError : new Error('Failed to load window URL')
 }
 
+function sendSetupHandoffResult(
+  webContents: Electron.WebContents,
+  action: DesktopSetupAction,
+  ok: boolean,
+): void {
+  if (webContents.isDestroyed()) return
+  webContents.send(SETUP_EVENT_CHANNEL, { action, ok })
+}
+
+function scheduleWindowLoad(
+  window: BrowserWindow | null,
+  url: string,
+  errorPrefix: string,
+  resultTarget?: { webContents: Electron.WebContents; action: DesktopSetupAction },
+): void {
+  setImmediate(() => {
+    void (async () => {
+      try {
+        if (window && !window.isDestroyed()) {
+          await window.loadURL(url)
+          window.show()
+          window.focus()
+        } else {
+          await createMainWindow(url)
+        }
+        if (resultTarget) sendSetupHandoffResult(resultTarget.webContents, resultTarget.action, true)
+      } catch (error) {
+        process.stderr.write(`${errorPrefix}: ${String(error)}\n`)
+        if (resultTarget) sendSetupHandoffResult(resultTarget.webContents, resultTarget.action, false)
+      }
+    })()
+  })
+}
+
 function resolveOwnerWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
   return (
     BrowserWindow.fromWebContents(event.sender) ??
@@ -1187,32 +1212,32 @@ function registerDesktopIpcHandlers(): void {
       ownerWindow?.close()
       return true
     }
+    if (action === 'open-main') {
+      const startUrl = getStartUrl()
+      scheduleWindowLoad(ownerWindow, startUrl, '[formax-desktop] setup handoff failed', {
+        webContents: event.sender,
+        action,
+      })
+      return true
+    }
     if (action !== 'complete') return false
 
     const startUrl = getStartUrl()
     const child = managedRuntimeChild
-    ownerWindow?.hide()
     try {
       const exitPromise = waitForManagedRuntimeExit(child)
       requestManagedRuntimeShutdown()
       await exitPromise
       await startManagedRuntimeIfNeeded(startUrl, 'require-config')
-      const nextUrl = await resolveInitialWindowUrl(startUrl)
+      const nextUrl = await resolveInitialRouteUrl(startUrl)
       if (nextUrl === buildSetupUrl(startUrl)) {
-        if (ownerWindow && !ownerWindow.isDestroyed()) {
-          await ownerWindow.loadURL(nextUrl)
-          ownerWindow.show()
-        } else {
-          await createMainWindow(nextUrl)
-        }
+        scheduleWindowLoad(ownerWindow, nextUrl, '[formax-desktop] setup recovery load failed')
         return false
       }
-      await createMainWindow(nextUrl)
-      if (ownerWindow && !ownerWindow.isDestroyed()) {
-        setImmediate(() => {
-          if (!ownerWindow.isDestroyed()) ownerWindow.close()
-        })
-      }
+      scheduleWindowLoad(ownerWindow, nextUrl, '[formax-desktop] setup completion load failed', {
+        webContents: event.sender,
+        action,
+      })
       return true
     } catch (error) {
       process.stderr.write(`[formax-desktop] setup completion failed: ${String(error)}\n`)
@@ -1220,7 +1245,7 @@ function registerDesktopIpcHandlers(): void {
         if (isSetupRequiredManagedRuntimeError(error)) {
           try {
             await startManagedRuntimeIfNeeded(startUrl, 'allow')
-            await ownerWindow.loadURL(buildSetupUrl(startUrl))
+            scheduleWindowLoad(ownerWindow, buildSetupUrl(startUrl), '[formax-desktop] setup recovery failed')
           } catch (recoveryError) {
             process.stderr.write(`[formax-desktop] setup recovery failed: ${String(recoveryError)}\n`)
           }
@@ -1375,32 +1400,18 @@ function wireNavigationGuards(window: BrowserWindow): void {
 
 async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
   const preloadPath = path.join(__dirname, 'preload.js')
-  const isSetupWindow = isSetupWindowUrl(startUrl)
   const supportsWindowTransparency = process.platform === 'darwin' || process.platform === 'win32'
 
   const window = new BrowserWindow({
-    width: isSetupWindow ? SETUP_WINDOW_WIDTH : MAIN_WINDOW_WIDTH,
-    height: isSetupWindow ? SETUP_WINDOW_HEIGHT : MAIN_WINDOW_HEIGHT,
-    ...(isSetupWindow
-      ? {
-          resizable: false,
-          maximizable: false,
-          fullscreenable: false,
-        }
-      : {}),
-    ...(!isSetupWindow && supportsWindowTransparency ? { transparent: true, backgroundColor: '#00000000' } : {}),
-    ...(process.platform === 'darwin' && !isSetupWindow
+    width: MAIN_WINDOW_WIDTH,
+    height: MAIN_WINDOW_HEIGHT,
+    ...(supportsWindowTransparency ? { transparent: true, backgroundColor: '#00000000' } : {}),
+    ...(process.platform === 'darwin'
       ? {
           frame: false,
           titleBarStyle: 'hidden',
           visualEffectState: 'active',
           vibrancy: initialWindowAppearanceState.windowTransparencyEnabled ? 'sidebar' : undefined,
-        }
-      : {}),
-    ...(process.platform === 'darwin' && isSetupWindow
-      ? {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
         }
       : {}),
     webPreferences: {
@@ -1422,7 +1433,7 @@ async function createMainWindow(startUrl: string): Promise<BrowserWindow> {
     windowAppearanceQueueByWebContentsId.delete(webContentsId)
   })
 
-  if (process.platform === 'darwin' && !isSetupWindow && typeof window.setWindowButtonPosition === 'function') {
+  if (process.platform === 'darwin' && typeof window.setWindowButtonPosition === 'function') {
     window.setWindowButtonPosition(MAC_TRAFFIC_LIGHT_POSITION)
   }
 
@@ -1468,11 +1479,16 @@ async function bootstrap(): Promise<void> {
   process.env.FORMAX_ELECTRON_MANAGED_RUNTIME_ACTIVE =
     managedRuntimeChild && managedRuntimeChild.exitCode == null && !managedRuntimeChild.killed ? '1' : '0'
 
-  await createMainWindow(await resolveInitialWindowUrl(startUrl))
+  await createMainWindow(await resolveInitialRouteUrl(startUrl))
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length > 0) return
-    void resolveInitialWindowUrl(startUrl).then((url) => createMainWindow(url))
+    const existing = BrowserWindow.getAllWindows()[0]
+    if (existing) {
+      if (existing.isMinimized()) existing.restore()
+      existing.focus()
+      return
+    }
+    void resolveInitialRouteUrl(startUrl).then((url) => createMainWindow(url))
   })
 
   app.on('before-quit', () => {

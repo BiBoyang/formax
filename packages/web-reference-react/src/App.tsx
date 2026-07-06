@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppShell } from './app/ui/AppShell'
 import { I18nProvider } from './app/i18n/I18nProvider'
 import { useAppRuntime } from './app/useAppRuntime'
@@ -7,12 +7,14 @@ import { RpcClient } from './rpcClient'
 import {
   MODEL_TIERS,
   SetupRestartRequired,
+  SetupShell,
   SetupWizardScreen,
   setupModelInputValue,
   type SetupAction,
   type SetupRestartRequiredKind,
   type SetupSessionView,
 } from './setup/SetupWizardScreen'
+import { Button } from './components/ui/button'
 
 type SetupStatusResult = {
   ok: boolean
@@ -57,6 +59,10 @@ function isDesktopSetupHost(): boolean {
   return typeof window !== 'undefined' && Boolean(window.formaxDesktop)
 }
 
+function isManagedDesktopSetupHost(): boolean {
+  return typeof window !== 'undefined' && window.formaxDesktop?.managedRuntime === true
+}
+
 function readSetupRestartRequired(): SetupRestartRequiredKind | null {
   if (typeof window === 'undefined') return null
   try {
@@ -88,6 +94,41 @@ export function resolveRuntimeRouteAfterSetup(): string {
   return `${runtimePath}${search}${hash}`
 }
 
+type DesktopSetupHandoffKind = 'already-configured' | 'setup-unavailable'
+type DesktopSetupHandoffAction = 'open-main' | 'complete'
+
+type DesktopSetupHandoffState = {
+  kind: DesktopSetupHandoffKind
+  action: DesktopSetupHandoffAction
+  status: 'pending' | 'failed'
+  message: string
+}
+
+function SetupDesktopHostHandoff({
+  state,
+  onRetry,
+}: {
+  state: DesktopSetupHandoffState
+  onRetry: () => void
+}) {
+  const title = state.kind === 'already-configured' ? 'Setup is ready' : 'Setup unavailable'
+  return (
+    <SetupShell>
+      <main data-testid="setup-desktop-handoff" className="flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-col items-center gap-1">
+          <h1 className="text-[20px] font-bold tracking-tight">{title}</h1>
+          <p className="ui-text-meta text-muted-foreground" role={state.status === 'failed' ? 'alert' : undefined}>
+            {state.message}
+          </p>
+        </div>
+        {state.status === 'failed' ? (
+          <Button type="button" size="sm" onClick={onRetry}>Retry</Button>
+        ) : null}
+      </main>
+    </SetupShell>
+  )
+}
+
 function SetupEntrypoint() {
   const client = useMemo(() => new RpcClient(), [])
   const [status, setStatus] = useState('connecting')
@@ -99,13 +140,69 @@ function SetupEntrypoint() {
   const [setupWritten, setSetupWritten] = useState(false)
   const [setupUnavailable, setSetupUnavailable] = useState(false)
   const [setupRestartRequired, setSetupRestartRequired] = useState<SetupRestartRequiredKind | null>(null)
+  const [desktopHandoff, setDesktopHandoff] = useState<DesktopSetupHandoffState | null>(null)
   const [transitionPending, setTransitionPending] = useState(false)
+  const [commitPending, setCommitPending] = useState(false)
   const sessionIdRef = useRef<string | null>(null)
   const sessionRef = useRef<SetupSessionView | null>(null)
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve())
   const transitionPendingRef = useRef(false)
+  const commitPendingRef = useRef(false)
+  const desktopHandoffPendingRef = useRef(false)
   const baseUrlValueRef = useRef('')
   const modelValueRef = useRef('')
+
+  const requestManagedDesktopHandoff = useCallback(async (
+    kind: DesktopSetupHandoffKind,
+    action: DesktopSetupHandoffAction,
+  ) => {
+    if (!isManagedDesktopSetupHost()) return false
+    if (desktopHandoffPendingRef.current) return true
+    desktopHandoffPendingRef.current = true
+    setDesktopHandoff({
+      kind,
+      action,
+      status: 'pending',
+      message: 'Opening Formax...',
+    })
+    const failHandoff = (message: string) => {
+      setDesktopHandoff({
+        kind,
+        action,
+        status: 'failed',
+        message,
+      })
+      desktopHandoffPendingRef.current = false
+    }
+    const unsubscribe = window.formaxDesktop?.setup?.subscribe?.((event) => {
+      if (event.action !== action) return
+      unsubscribe?.()
+      if (event.ok === true) {
+        desktopHandoffPendingRef.current = false
+        return
+      }
+      failHandoff('Desktop handoff failed. Retry setup handoff.')
+    })
+    const handoff = action === 'complete'
+      ? window.formaxDesktop?.setup?.complete?.()
+      : window.formaxDesktop?.setup?.openMain?.()
+    if (!handoff) {
+      unsubscribe?.()
+      failHandoff('Desktop handoff failed. Retry setup handoff.')
+      return true
+    }
+    void handoff
+      .then((accepted) => {
+        if (accepted === true) return
+        unsubscribe?.()
+        failHandoff('Desktop handoff failed. Retry setup handoff.')
+      })
+      .catch((err) => {
+        unsubscribe?.()
+        failHandoff(err instanceof Error ? err.message : String(err))
+      })
+    return true
+  }, [])
 
   useEffect(() => {
     sessionRef.current = session
@@ -132,16 +229,22 @@ function SetupEntrypoint() {
               client.disconnect()
               if (status.restartRequired === true) {
                 if (isDesktopSetupHost()) {
-                  if (window.formaxDesktop?.managedRuntime !== true) {
+                  if (window.formaxDesktop?.managedRuntime === true) {
+                    void requestManagedDesktopHandoff('already-configured', 'complete')
+                  } else {
                     setSetupRestartRequiredStorage('desktop')
                     setSetupRestartRequired('desktop')
-                    return null
                   }
+                  return null
                 } else {
                   setSetupRestartRequiredStorage('browser')
                   setSetupRestartRequired('browser')
                   return null
                 }
+              }
+              if (isManagedDesktopSetupHost()) {
+                void requestManagedDesktopHandoff('already-configured', 'open-main')
+                return null
               }
               if (readSetupRestartRequired()) {
                 setSetupRestartRequiredStorage(null)
@@ -163,6 +266,10 @@ function SetupEntrypoint() {
             const errorMessage = err instanceof Error ? err.message : String(err)
             if (errorMessage.includes('Setup mode is not enabled')) {
               client.disconnect()
+              if (isManagedDesktopSetupHost()) {
+                void requestManagedDesktopHandoff('setup-unavailable', 'open-main')
+                return
+              }
               setSetupUnavailable(true)
               return
             }
@@ -186,7 +293,7 @@ function SetupEntrypoint() {
         client.disconnect()
       }
     }
-  }, [client])
+  }, [client, requestManagedDesktopHandoff])
 
   useEffect(() => {
     setApiKeyValue('')
@@ -220,9 +327,9 @@ function SetupEntrypoint() {
     setModelValue(setupModelInputValue(session))
   }, [session?.id, session?.step, session?.draft.modelMode, session?.modelTier])
 
-  const runAction = async (action: SetupAction) => {
+  const runAction = async (action: SetupAction): Promise<SetupSessionView | null> => {
     const sessionId = sessionIdRef.current
-    if (!sessionId) return
+    if (!sessionId) return null
     setMessage('')
     try {
       const result = await client.request('bridge/setup/session/action', { sessionId, action })
@@ -233,7 +340,7 @@ function SetupEntrypoint() {
           setSession(replacement)
         }
         setMessage(String(result.message || 'Setup action failed'))
-        return
+        return null
       }
       const nextSession = result.session as SetupSessionView
       const previousSession = sessionRef.current
@@ -257,19 +364,21 @@ function SetupEntrypoint() {
       }
       setSession(nextSession)
       setSetupWritten(false)
+      return nextSession
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err))
+      return null
     }
   }
 
-  const applyAction = (action: SetupAction): Promise<void> => {
+  const applyAction = (action: SetupAction): Promise<SetupSessionView | null> => {
     const next = actionQueueRef.current.then(() => runAction(action))
-    actionQueueRef.current = next.catch(() => undefined)
+    actionQueueRef.current = next.then(() => undefined, () => undefined)
     return next
   }
 
-  const applyTransition = (action: SetupAction): Promise<void> => {
-    if (transitionPendingRef.current) return Promise.resolve()
+  const applyTransition = (action: SetupAction): Promise<SetupSessionView | null> => {
+    if (transitionPendingRef.current) return Promise.resolve(null)
     transitionPendingRef.current = true
     setTransitionPending(true)
     const next = applyAction(action).finally(() => {
@@ -285,7 +394,9 @@ function SetupEntrypoint() {
   }, [session?.id, session?.step])
 
   const commit = async () => {
-    if (!session || transitionPendingRef.current) return
+    if (!session || transitionPendingRef.current || commitPendingRef.current) return
+    commitPendingRef.current = true
+    setCommitPending(true)
     try {
       setMessage('')
       if (!setupWritten) {
@@ -315,14 +426,29 @@ function SetupEntrypoint() {
       setMessage('Setup was written. Restart the web server, then refresh this page.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      commitPendingRef.current = false
+      setCommitPending(false)
     }
   }
 
   const canEditModelFields = session?.step !== 'confirm' && session?.step !== 'write'
   const canEditConnectionFields = canEditModelFields && session?.step !== 'modelMode' && session?.step !== 'model'
+  const setupOperationPending = transitionPending || commitPending
 
   if (setupRestartRequired) {
     return <SetupRestartRequired kind={setupRestartRequired} />
+  }
+
+  if (desktopHandoff) {
+    return (
+      <SetupDesktopHostHandoff
+        state={desktopHandoff}
+        onRetry={() => {
+          void requestManagedDesktopHandoff(desktopHandoff.kind, desktopHandoff.action)
+        }}
+      />
+    )
   }
 
   if (setupUnavailable) {
@@ -341,7 +467,7 @@ function SetupEntrypoint() {
       apiKeyValue={apiKeyValue}
       baseUrlValue={baseUrlValue}
       modelValue={modelValue}
-      transitionPending={transitionPending}
+      operationPending={setupOperationPending}
       canEditConnectionFields={canEditConnectionFields}
       canEditModelFields={canEditModelFields}
       onAction={applyAction}

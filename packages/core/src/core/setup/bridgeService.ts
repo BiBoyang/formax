@@ -1,9 +1,10 @@
-import { loadRuntimeConfig, type RuntimeConfig } from '../../config/config.js'
+import { loadRuntimeConfig } from '../../config/config.js'
 import { getConfigPaths } from '../../config/configPaths.js'
 import type { FileStore } from '../../config/settings/fileStore.js'
 import type { Platform } from '../../config/settings/paths.js'
 import { configShow } from '../../config/settings/show.js'
 import type { CapabilitySource, ModelTier, ProviderId } from '../../config/settings/schema.js'
+import { getSetupConfiguredReason, type SetupStatusReason } from './configuredStatus.js'
 import { createSetupSession, type ConnectionTester, type SetupSession, type SetupSessionState } from './session.js'
 import type {
   SetupAnthropicVendor,
@@ -14,12 +15,7 @@ import type {
 
 export type WebSetupMode = 'require-config' | 'allow'
 
-export type SetupStatusReason =
-  | 'configured'
-  | 'missing_api_key'
-  | 'missing_base_url'
-  | 'missing_model'
-  | 'invalid_config'
+export type { SetupStatusReason } from './configuredStatus.js'
 
 export type SetupAuthSource = 'env' | 'auth_store' | 'none'
 
@@ -126,13 +122,6 @@ function redactState(id: string, state: SetupSessionState): SetupSessionView {
       ...redactApiKey(state.draft.apiKey),
     },
   }
-}
-
-function completeReason(runtime: RuntimeConfig): SetupStatusReason {
-  if (!runtime.llm.apiKey.trim()) return 'missing_api_key'
-  if (!runtime.llm.baseUrl.trim()) return 'missing_base_url'
-  if (!runtime.llm.model.trim()) return 'missing_model'
-  return 'configured'
 }
 
 function mapAuthSource(args: { env: NodeJS.ProcessEnv; authSource: string | undefined; apiKey: string }): SetupAuthSource {
@@ -299,7 +288,7 @@ export function createSetupBridgeService(args: {
           homedir: args.homedir,
         }),
       ])
-      const reason = completeReason(runtime)
+      const reason = getSetupConfiguredReason({ runtime })
       return {
         schemaVersion: 1,
         complete: reason === 'configured',

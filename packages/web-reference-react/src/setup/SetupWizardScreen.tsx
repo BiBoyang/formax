@@ -38,11 +38,11 @@ type SetupWizardScreenProps = {
   apiKeyValue: string
   baseUrlValue: string
   modelValue: string
-  transitionPending: boolean
+  operationPending: boolean
   canEditConnectionFields: boolean
   canEditModelFields: boolean
-  onAction: (action: SetupAction) => Promise<void>
-  onTransition: (action: SetupAction) => Promise<void>
+  onAction: (action: SetupAction) => Promise<SetupSessionView | null>
+  onTransition: (action: SetupAction) => Promise<SetupSessionView | null>
   onCommit: () => Promise<void>
   onApiKeyValueChange: (value: string) => void
   onBaseUrlValueChange: (value: string) => void
@@ -68,7 +68,7 @@ function isMacDesktopHost(): boolean {
   return platform.includes('mac') || userAgent.includes('mac os')
 }
 
-function SetupShell({ children }: { children: ReactNode }) {
+export function SetupShell({ children }: { children: ReactNode }) {
   const desktopBridge = typeof window === 'undefined' ? undefined : window.formaxDesktop
   const showCustomWindowControls = Boolean(desktopBridge) && !isMacDesktopHost()
   const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties
@@ -268,20 +268,24 @@ export function setupModelInputValue(session: SetupSessionView): string {
 
 export function SetupWizardScreen(props: SetupWizardScreenProps) {
   const step = props.session?.step ?? null
-  const isWriteStep = step === 'write'
+  const isCredentialsStep = step === 'baseUrl' || step === 'apiKey' || step === 'test'
+  const isReviewStep = step === 'confirm' || step === 'write'
   const isAutoAdvancingWelcome = step === 'welcome'
   const title = setupTitleForStep(step)
   const subtitle = setupSubtitleForStep(step)
   const error = props.session?.error || props.message
   const canGoBack = Boolean(props.session && step !== 'provider' && step !== 'welcome')
+  const primaryActionLabel = isReviewStep ? 'Save' : 'Next'
 
   const advanceModelStep = async () => {
     if (!props.session) return
     if (props.session.draft.modelMode === 'quick') {
       if (props.session.step === 'modelMode') {
-        await props.onTransition({ type: 'next' })
+        const nextSession = await props.onTransition({ type: 'next' })
+        if (nextSession?.step !== 'model') return
       }
-      await props.onTransition({ type: 'next' })
+      const nextSession = await props.onTransition({ type: 'next' })
+      if (nextSession?.step !== 'confirm') return
       return
     }
 
@@ -292,17 +296,40 @@ export function SetupWizardScreen(props: SetupWizardScreenProps) {
           currentTier === 'haiku' ? 3 :
             3
     if (props.session.step === 'modelMode') {
-      await props.onTransition({ type: 'next' })
+      const nextSession = await props.onTransition({ type: 'next' })
+      if (nextSession?.step !== 'model') return
     }
     for (let i = 0; i < remainingModelSteps; i += 1) {
-      await props.onTransition({ type: 'next' })
+      const nextSession = await props.onTransition({ type: 'next' })
+      const expectedStep = i === remainingModelSteps - 1 ? 'confirm' : 'model'
+      if (nextSession?.step !== expectedStep) return
     }
+  }
+
+  const advanceCredentialsPage = async () => {
+    if (!props.session) return
+    if (props.session.step === 'baseUrl') {
+      const nextSession = await props.onTransition({ type: 'next' })
+      if (nextSession?.step !== 'apiKey') return
+      await props.onTransition({ type: 'next' })
+      return
+    }
+    await props.onTransition({ type: 'next' })
+  }
+
+  const commitReviewPage = async () => {
+    if (step === 'confirm') {
+      const nextSession = await props.onTransition({ type: 'next' })
+      if (nextSession?.step !== 'write') return
+    }
+    await props.onCommit()
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (props.transitionPending) return
-    if (isWriteStep) void props.onCommit()
+    if (props.operationPending) return
+    if (isReviewStep) void commitReviewPage()
+    else if (isCredentialsStep) void advanceCredentialsPage()
     else if (step === 'modelMode' || step === 'model') void advanceModelStep()
     else void props.onTransition({ type: 'next' })
   }
@@ -347,13 +374,20 @@ export function SetupWizardScreen(props: SetupWizardScreenProps) {
               type="button"
               variant="outline"
               size="sm"
-              disabled={!canGoBack || isAutoAdvancingWelcome || props.transitionPending}
+              disabled={!canGoBack || isAutoAdvancingWelcome || props.operationPending}
               onClick={() => void props.onTransition({ type: 'back' })}
             >
               Back
             </Button>
-            <Button type="submit" size="sm" disabled={!props.session || isAutoAdvancingWelcome || props.transitionPending}>
-              {isWriteStep ? 'Save' : 'Next'}
+            <Button
+              type="submit"
+              size="sm"
+              data-testid="setup-primary-action"
+              aria-busy={props.operationPending || undefined}
+              disabled={!props.session || isAutoAdvancingWelcome || props.operationPending}
+            >
+              {primaryActionLabel}
+              {props.operationPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
             </Button>
           </div>
         </div>
@@ -369,7 +403,7 @@ function SetupStepContent(props: {
   modelValue: string
   canEditConnectionFields: boolean
   canEditModelFields: boolean
-  onAction: (action: SetupAction) => Promise<void>
+  onAction: (action: SetupAction) => Promise<SetupSessionView | null>
   onApiKeyValueChange: (value: string) => void
   onBaseUrlValueChange: (value: string) => void
   onModelValueChange: (value: string) => void

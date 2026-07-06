@@ -8,6 +8,7 @@ import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/se
 import { shouldPersistContextWindowSource } from '../../config/modelCapability.js'
 import type {
   CapabilitySource,
+  ModelTier,
   ProviderId,
   TierContextWindowBindingMapping,
   TierContextWindowConfidenceMapping,
@@ -15,6 +16,8 @@ import type {
   TierContextWindowSourceMapping,
   TierModelMapping,
 } from '../../config/settings/schema.js'
+
+const SETUP_MODEL_TIERS: ModelTier[] = ['haiku', 'sonnet', 'opus']
 
 export type WriteSetupFilesResult = {
   configPath: string
@@ -104,6 +107,20 @@ function filterPersistableTierMetadata<T extends TierContextWindowSourceMapping 
   return Object.keys(out).length > 0 ? (out as T) : undefined
 }
 
+function normalizeSetupTierModels(
+  tierModels: TierModelMapping | undefined,
+  fallbackModel: string,
+): TierModelMapping | undefined {
+  const fallback = fallbackModel.trim()
+  const hasTierModel = SETUP_MODEL_TIERS.some((tier) => tierModels?.[tier]?.trim())
+  if (!fallback && !hasTierModel) return undefined
+  const out = {} as TierModelMapping
+  for (const tier of SETUP_MODEL_TIERS) {
+    out[tier] = tierModels?.[tier]?.trim() || fallback
+  }
+  return out
+}
+
 export async function writeSetupFiles(args: {
   fileStore: FileStore
   cwd?: string
@@ -138,7 +155,6 @@ export async function writeSetupFiles(args: {
   const logsDir = path.join(paths.globalConfigDir, 'logs')
 
   const existing = await readJsonIfExists(args.fileStore, configPath, 'config', warnings)
-  const tierModels = args.tierModels
   const tierContextWindowSources = filterPersistableTierMetadata({
     values: args.tierContextWindowSources,
     sources: args.tierContextWindowSources,
@@ -155,8 +171,9 @@ export async function writeSetupFiles(args: {
     values: args.tierContextWindowBindings,
     sources: args.tierContextWindowSources,
   })
-  const modelFromTier = tierModels?.sonnet?.trim() || ''
+  const modelFromTier = args.tierModels?.sonnet?.trim() || ''
   const resolvedModel = args.model.trim() || modelFromTier
+  const tierModels = normalizeSetupTierModels(args.tierModels, resolvedModel)
   const nextPatch = {
     version: 1,
     llm: {

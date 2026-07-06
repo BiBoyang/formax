@@ -36,6 +36,45 @@ function createSetupSessionView(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function createCompleteSetupDraft(overrides: Record<string, unknown> = {}) {
+  return {
+    provider: 'anthropic',
+    anthropicVendor: 'deepseek',
+    baseUrl: 'https://api.example.com',
+    apiKeyPresent: true,
+    modelMode: 'quick',
+    model: 'sonnet-model',
+    tierModels: { haiku: '', sonnet: '', opus: '' },
+    ...overrides,
+  }
+}
+
+function installDesktopBridge(overrides: Partial<FormaxDesktopBridge> = {}): () => void {
+  const originalDesktopBridge = window.formaxDesktop
+  const { setup: setupOverrides, ...bridgeOverrides } = overrides
+  window.formaxDesktop = {
+    mode: 'dev',
+    startUrl: 'http://127.0.0.1:3781',
+    managedRuntime: true,
+    windowControls: {},
+    ...bridgeOverrides,
+    setup: {
+      complete: vi.fn(async () => true),
+      cancel: vi.fn(async () => true),
+      openMain: vi.fn(async () => true),
+      ...setupOverrides,
+    },
+  }
+
+  return () => {
+    if (originalDesktopBridge) {
+      window.formaxDesktop = originalDesktopBridge
+    } else {
+      delete window.formaxDesktop
+    }
+  }
+}
+
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>()
   return {
@@ -799,16 +838,99 @@ describe('App thread history integration', () => {
     expect(rpcMock.disconnects.length).toBeGreaterThan(0)
   })
 
-  it('opens runtime at root in desktop when setup mode is allowed and setup status is complete', async () => {
-    const runtimeWindow = window as Window & { __FORMAX_SETUP_MODE__?: string }
+  it('hands off explicit setup route to managed desktop when status is already complete', async () => {
+    window.history.replaceState(null, '', '/setup')
+    const complete = vi.fn(async () => true)
+    const openMain = vi.fn(async () => true)
+    const restoreDesktopBridge = installDesktopBridge({ setup: { complete, openMain } })
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: true }
+      if (method === 'bridge/setup/session/create') throw new Error('should not create setup session')
+      return {}
+    })
+
+    try {
+      render(<App />)
+
+      expect(await screen.findByTestId('setup-desktop-handoff')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(openMain).toHaveBeenCalledTimes(1)
+      })
+      expect(complete).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+      expect(rpcMock.requests.some((request) => request.method === 'bridge/setup/session/create')).toBe(false)
+      expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
+    } finally {
+      restoreDesktopBridge()
+    }
+  })
+
+  it('keeps already-configured desktop handoff retryable when opening the main route fails', async () => {
+    window.history.replaceState(null, '', '/setup')
+    const complete = vi.fn(async () => true)
+    const openMain = vi.fn(async () => false)
+    const restoreDesktopBridge = installDesktopBridge({ setup: { complete, openMain } })
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: true }
+      if (method === 'bridge/setup/session/create') throw new Error('should not create setup session')
+      return {}
+    })
+
+    try {
+      render(<App />)
+
+      await waitFor(() => {
+        expect(openMain).toHaveBeenCalledTimes(1)
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent('Desktop handoff failed')
+      expect(screen.getByTestId('setup-window-drag-region')).toBeInTheDocument()
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+      expect(complete).not.toHaveBeenCalled()
+      expect(rpcMock.requests.some((request) => request.method === 'bridge/setup/session/create')).toBe(false)
+      expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
+    } finally {
+      restoreDesktopBridge()
+    }
+  })
+
+  it('keeps managed desktop setup-unavailable handoff retryable when opening the main route fails', async () => {
+    window.history.replaceState(null, '', '/setup')
+    const complete = vi.fn(async () => true)
+    const openMain = vi.fn(async () => false)
+    const restoreDesktopBridge = installDesktopBridge({ setup: { complete, openMain } })
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') throw new Error('Setup mode is not enabled for this bridge.')
+      return {}
+    })
+
+    try {
+      render(<App />)
+
+      await waitFor(() => {
+        expect(openMain).toHaveBeenCalledTimes(1)
+      })
+      expect(await screen.findByRole('alert')).toHaveTextContent('Desktop handoff failed')
+      expect(screen.getByTestId('setup-window-drag-region')).toBeInTheDocument()
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+      expect(complete).not.toHaveBeenCalled()
+      expect(rpcMock.requests.some((request) => request.method === 'initialize')).toBe(false)
+    } finally {
+      restoreDesktopBridge()
+    }
+  })
+
+  it('restarts managed desktop when setup mode is allowed and setup status requires restart', async () => {
+    window.history.replaceState(null, '', '/setup')
     const originalDesktopBridge = window.formaxDesktop
-    runtimeWindow.__FORMAX_SETUP_MODE__ = 'allow'
+    const complete = vi.fn(async () => true)
+    const openMain = vi.fn(async () => true)
     window.formaxDesktop = {
       mode: 'dev',
       startUrl: 'http://127.0.0.1:3781',
       managedRuntime: true,
       windowControls: {},
-      setup: { complete: vi.fn(async () => true), cancel: vi.fn(async () => true) },
+      setup: { complete, cancel: vi.fn(async () => true), openMain },
     }
     const previousRequestImpl = rpcMock.getRequestImpl()
     rpcMock.setRequestImpl((method, params) => {
@@ -817,11 +939,15 @@ describe('App thread history integration', () => {
     })
     try {
       render(<App />)
-      expect(await screen.findByTestId('app-shell')).toBeInTheDocument()
+      expect(await screen.findByTestId('setup-desktop-handoff')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(complete).toHaveBeenCalledTimes(1)
+      })
+      expect(openMain).not.toHaveBeenCalled()
       expect(screen.queryByTestId('setup-entrypoint')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
       expect(rpcMock.disconnects.length).toBeGreaterThan(0)
     } finally {
-      delete runtimeWindow.__FORMAX_SETUP_MODE__
       window.formaxDesktop = originalDesktopBridge
     }
   })
@@ -1068,6 +1194,129 @@ describe('App thread history integration', () => {
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Model mode')).not.toBeDisabled()
     expect(screen.getByLabelText('Model')).not.toBeDisabled()
+  })
+
+  it('advances a complete credentials page to model setup with one Next click', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let nextCount = 0
+    const credentialsDraft = createCompleteSetupDraft({
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      model: '',
+      tierModels: { haiku: '', sonnet: '', opus: '' },
+    })
+    const selectedModelDraft = createCompleteSetupDraft({
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      model: 'deepseek-chat',
+      tierModels: { haiku: 'deepseek-chat', sonnet: 'deepseek-chat', opus: 'deepseek-chat' },
+    })
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'baseUrl',
+          draft: credentialsDraft,
+        })
+      }
+      if (method === 'bridge/setup/session/action') {
+        const action = (params as { action?: { type?: string } }).action
+        if (action?.type === 'next') nextCount += 1
+        if (nextCount === 1) {
+          return {
+            ok: true,
+            session: createSetupSessionView({
+              step: 'apiKey',
+              draft: credentialsDraft,
+            }),
+          }
+        }
+        return {
+          ok: true,
+          session: createSetupSessionView({
+            step: 'modelMode',
+            availableModels: ['deepseek-chat'],
+            draft: selectedModelDraft,
+          }),
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Credentials' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByRole('heading', { name: 'Model' })).toBeInTheDocument()
+    expect(nextCount).toBe(2)
+  })
+
+  it('stops credentials one-click advance when the setup session expires', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let createCount = 0
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        createCount += 1
+        if (createCount === 1) {
+          return createSetupSessionView({
+            id: 'setup-expired',
+            step: 'baseUrl',
+            draft: createCompleteSetupDraft({
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              model: '',
+            }),
+          })
+        }
+        return createSetupSessionView({ id: 'setup-replacement', step: 'provider' })
+      }
+      if (method === 'bridge/setup/session/action') {
+        return {
+          ok: false,
+          code: 'session_not_found',
+          message: 'Setup session was not found or has expired.',
+        }
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Credentials' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByRole('heading', { name: 'Provider' })).toBeInTheDocument()
+    expect(rpcMock.requests.filter((request) => request.method === 'bridge/setup/session/action')).toHaveLength(1)
+  })
+
+  it('shows loading while a setup transition is pending', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let resolveNext: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') return createSetupSessionView({ step: 'provider' })
+      if (method === 'bridge/setup/session/action') {
+        return new Promise((resolve) => {
+          resolveNext = resolve
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    const primaryAction = screen.getByTestId('setup-primary-action')
+    await waitFor(() => {
+      expect(primaryAction).toBeDisabled()
+      expect(primaryAction).toHaveAttribute('aria-busy', 'true')
+    })
+
+    await act(async () => {
+      resolveNext?.({ ok: true, session: createSetupSessionView({ step: 'anthropicVendor' }) })
+    })
+    expect(await screen.findByRole('heading', { name: 'Vendor' })).toBeInTheDocument()
   })
 
   it('shows a default model selection and expands all advanced tiers', async () => {
@@ -1503,15 +1752,7 @@ describe('App thread history integration', () => {
       if (method === 'bridge/setup/session/create') {
         return createSetupSessionView({
           step: 'write',
-          draft: {
-            provider: 'anthropic',
-            anthropicVendor: 'deepseek',
-            baseUrl: 'https://api.example.com',
-            apiKeyPresent: true,
-            modelMode: 'quick',
-            model: 'sonnet-model',
-            tierModels: { haiku: '', sonnet: '', opus: '' },
-          },
+          draft: createCompleteSetupDraft(),
         })
       }
       if (method === 'bridge/setup/session/commit') throw new Error('commit transport failed')
@@ -1524,6 +1765,125 @@ describe('App thread history integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('commit transport failed')
+  })
+
+  it('commits a complete review page with one Save click', async () => {
+    window.history.replaceState(null, '', '/setup')
+    const completeDraft = createCompleteSetupDraft()
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'confirm',
+          draft: completeDraft,
+        })
+      }
+      if (method === 'bridge/setup/session/action') {
+        return {
+          ok: true,
+          session: createSetupSessionView({
+            step: 'write',
+            draft: completeDraft,
+          }),
+        }
+      }
+      if (method === 'bridge/setup/session/commit') return { ok: true }
+      return {}
+    })
+
+    render(<App />)
+    expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Restart the web server')
+    expect(
+      rpcMock.requests
+        .filter((request) =>
+          request.method === 'bridge/setup/session/action' ||
+          request.method === 'bridge/setup/session/commit'
+        )
+        .map((request) => request.method)
+    ).toEqual(['bridge/setup/session/action', 'bridge/setup/session/commit'])
+    expect(
+      (rpcMock.requests.find((request) => request.method === 'bridge/setup/session/action')?.params as {
+        action?: unknown
+      }).action
+    ).toEqual({ type: 'next' })
+  })
+
+  it('does not commit the review page when the confirm transition expires', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let createCount = 0
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        createCount += 1
+        if (createCount === 1) {
+          return createSetupSessionView({
+            id: 'setup-expired',
+            step: 'confirm',
+            draft: createCompleteSetupDraft(),
+          })
+        }
+        return createSetupSessionView({ id: 'setup-replacement', step: 'provider' })
+      }
+      if (method === 'bridge/setup/session/action') {
+        return {
+          ok: false,
+          code: 'session_not_found',
+          message: 'Setup session was not found or has expired.',
+        }
+      }
+      if (method === 'bridge/setup/session/commit') throw new Error('should not commit after expired transition')
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Review' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('heading', { name: 'Provider' })).toBeInTheDocument()
+    expect(rpcMock.requests.filter((request) => request.method === 'bridge/setup/session/commit')).toHaveLength(0)
+  })
+
+  it('shows loading while setup commit is pending', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let resolveCommit: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'write',
+          draft: createCompleteSetupDraft(),
+        })
+      }
+      if (method === 'bridge/setup/session/commit') {
+        return new Promise((resolve) => {
+          resolveCommit = resolve
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+    expect(await screen.findByTestId('setup-entrypoint')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    const primaryAction = screen.getByTestId('setup-primary-action')
+    await waitFor(() => {
+      expect(primaryAction).toBeDisabled()
+      expect(primaryAction).toHaveAttribute('aria-busy', 'true')
+    })
+
+    await act(async () => {
+      resolveCommit?.({ ok: true })
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Restart the web server')
   })
 
   it('keeps browser setup on the setup page after a successful write', async () => {
@@ -1976,7 +2336,8 @@ describe('App thread history integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Alpha Session/i }))
 
     await screen.findByText('alpha reply')
-    expect(screen.getByText('Uncommitted worktree changes')).toBeInTheDocument()
+    expect(await screen.findByTestId('worktree-diff-pane')).toBeInTheDocument()
+    expect(screen.getByText('No unstaged changes')).toBeInTheDocument()
     expect(screen.queryByText(/Recovered \(Expired\/Resolved\)/i)).not.toBeInTheDocument()
     expect(screen.queryByText('approval-9')).not.toBeInTheDocument()
 

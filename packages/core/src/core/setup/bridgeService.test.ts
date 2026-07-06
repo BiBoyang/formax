@@ -42,6 +42,38 @@ async function withTempDir<T>(name: string, fn: (dir: string) => Promise<T>): Pr
   }
 }
 
+async function createStatusServiceFromGlobalConfig(
+  dir: string,
+  llm: Record<string, unknown>,
+): Promise<ReturnType<typeof createSetupBridgeService>> {
+  const store = createNodeFileStore()
+  const globalConfigDir = path.join(dir, 'global')
+  const projectDir = path.join(dir, 'repo')
+  await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+    version: 1,
+    llm,
+  })
+  await store.writeJsonAtomic(path.join(globalConfigDir, 'auth.json'), {
+    version: 1,
+    providers: {
+      anthropic: {
+        default: { apiKey: 'sk-auth-secret' },
+      },
+    },
+  })
+  return createSetupBridgeService({
+    providers: PROVIDERS,
+    fileStore: store,
+    testConnection: vi.fn(async () => ok(['claude-sonnet'])),
+    writeSetup: vi.fn(),
+    createSessionId: createSessionIdFactory(),
+    cwd: projectDir,
+    homedir: dir,
+    platform: 'linux',
+    env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+  })
+}
+
 describe('createSetupBridgeService', () => {
   it('reports setup status without exposing secrets', async () => {
     await withTempDir('formax-setup-bridge-status-', async (dir) => {
@@ -154,6 +186,53 @@ describe('createSetupBridgeService', () => {
       expect(status.reason).toBe('configured')
       expect(status.effective.apiKeySource).toBe('auth_store')
       expect(JSON.stringify(status)).not.toContain('sk-auth-secret')
+    })
+  })
+
+  it('reports missing base URL even when API key and model are configured', async () => {
+    await withTempDir('formax-setup-bridge-missing-base-url-', async (dir) => {
+      const service = await createStatusServiceFromGlobalConfig(dir, {
+        provider: 'anthropic',
+        model: 'claude-sonnet',
+      })
+
+      await expect(service.status()).resolves.toMatchObject({
+        complete: false,
+        reason: 'missing_base_url',
+      })
+    })
+  })
+
+  it('reports missing model for default-only model fallback', async () => {
+    await withTempDir('formax-setup-bridge-default-model-', async (dir) => {
+      const service = await createStatusServiceFromGlobalConfig(dir, {
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+      })
+
+      await expect(service.status()).resolves.toMatchObject({
+        complete: false,
+        reason: 'missing_model',
+      })
+    })
+  })
+
+  it('reports missing model for non-sonnet tier with only legacy llm.model', async () => {
+    await withTempDir('formax-setup-bridge-non-sonnet-legacy-model-', async (dir) => {
+      const service = await createStatusServiceFromGlobalConfig(dir, {
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        defaultTier: 'haiku',
+        model: 'claude-sonnet',
+      })
+
+      await expect(service.status()).resolves.toMatchObject({
+        complete: false,
+        reason: 'missing_model',
+        effective: {
+          model: 'claude-3-5-haiku-latest',
+        },
+      })
     })
   })
 

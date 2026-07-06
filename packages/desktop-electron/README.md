@@ -59,12 +59,14 @@ npm --prefix packages/desktop-electron run build:mac
 
 ## First-run setup
 
-The desktop shell uses the existing Web renderer and opens a separate setup window when the managed runtime reports incomplete setup.
+The desktop shell uses the existing Web renderer and routes the unified desktop window to setup when the managed runtime reports incomplete setup.
 
 - Normal managed runtime startup uses `formax web --setup-mode require-config`.
 - If startup fails because setup is required or config is repairable through setup, Electron retries the managed runtime with `--setup-mode allow` and loads `/setup`.
 - Setup business logic stays in the core runtime through `bridge/setup/*`; Electron main only owns window orchestration and `formaxDesktop.setup.complete()/cancel()` IPC.
-- After setup commit, Electron restarts the managed runtime in `require-config` mode, re-checks setup status, and opens the main window only after setup is complete.
+- Setup and main use the same default resizable BrowserWindow; `/setup` is a route, not a separate native setup shell.
+- After setup commit, Electron restarts the managed runtime in `require-config` mode, re-checks setup status, and loads the main route only after setup is complete.
+- Configured setup requires a usable API key, base URL, and explicit model configuration for the active/default model tier; built-in default model fallback is not enough.
 - Browser-only `formax web --setup-mode allow` cannot restart its own server. After commit it shows restart guidance and waits for a restarted server before entering the main app.
 
 ## Environment variables
@@ -90,4 +92,4 @@ The desktop shell uses the existing Web renderer and opens a separate setup wind
 - Navigation is restricted to local URLs (`127.0.0.1`, `localhost`, `::1`); external links open in system browser.
 - `build:mac` disables identity auto discovery to keep local packaging deterministic (`CSC_IDENTITY_AUTO_DISCOVERY=false`).
 - `build:*` scripts now build a self-contained desktop CLI bundle into embedded runtime (`runtime/cli.mjs`) and copy web assets (`runtime/web/*`).
-- Packaged app launch attempts to auto-start embedded runtime; if setup is incomplete it opens setup recovery, and for non-setup startup failures the window renders a fallback guidance page instead of entering a broken main app.
+- Packaged app launch attempts to auto-start embedded runtime; if setup is incomplete it loads setup recovery in the unified desktop window, and for non-setup startup failures the window renders a fallback guidance page instead of entering a broken main app.

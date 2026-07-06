@@ -9,13 +9,15 @@ const OPEN_TARGETS_CHANNEL = 'formax:desktop:open-targets'
 const TERMINAL_CHANNEL = 'formax:desktop:terminal'
 const TERMINAL_EVENT_CHANNEL = 'formax:desktop:terminal:event'
 const SETUP_CHANNEL = 'formax:desktop:setup'
+const SETUP_EVENT_CHANNEL = 'formax:desktop:setup:event'
 
 type DesktopWindowControl = 'close' | 'minimize' | 'toggle-maximize'
 type DesktopWindowAppearanceAction = 'get-state' | 'set-window-transparency'
 type DesktopPowerManagementAction = 'get-prevent-sleep' | 'set-prevent-sleep'
 type DesktopOpenTargetsAction = 'list-available' | 'open-path'
 type DesktopTerminalAction = 'ensure-session' | 'get-snapshot' | 'write' | 'resize' | 'destroy-session'
-type DesktopSetupAction = 'complete' | 'cancel'
+type DesktopSetupAction = 'complete' | 'cancel' | 'open-main'
+type DesktopSetupEvent = { action: DesktopSetupAction; ok: boolean }
 
 type OpenTargetDescriptor = {
   id: 'vscode' | 'cursor' | 'antigravity' | 'finder' | 'terminal' | 'iterm2' | 'xcode'
@@ -77,6 +79,8 @@ type FormaxDesktopRuntimeInfo = {
   setup: {
     complete: () => Promise<boolean>
     cancel: () => Promise<boolean>
+    openMain: () => Promise<boolean>
+    subscribe: (listener: (event: DesktopSetupEvent) => void) => () => void
   }
 }
 
@@ -316,6 +320,19 @@ function createSetupBridge(): FormaxDesktopRuntimeInfo['setup'] {
   return Object.freeze({
     complete: async () => ipcRenderer.invoke(SETUP_CHANNEL, 'complete' satisfies DesktopSetupAction),
     cancel: async () => ipcRenderer.invoke(SETUP_CHANNEL, 'cancel' satisfies DesktopSetupAction),
+    openMain: async () => ipcRenderer.invoke(SETUP_CHANNEL, 'open-main' satisfies DesktopSetupAction),
+    subscribe: (listener: (event: DesktopSetupEvent) => void) => {
+      const handleEvent = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        if (!payload || typeof payload !== 'object') return
+        const event = payload as Partial<DesktopSetupEvent>
+        if ((event.action !== 'complete' && event.action !== 'open-main') || typeof event.ok !== 'boolean') return
+        listener({ action: event.action, ok: event.ok })
+      }
+      ipcRenderer.on(SETUP_EVENT_CHANNEL, handleEvent)
+      return () => {
+        ipcRenderer.removeListener(SETUP_EVENT_CHANNEL, handleEvent)
+      }
+    },
   })
 }
 

@@ -72,6 +72,43 @@ describe('writeSetupFiles', () => {
     }
   })
 
+  it('maps a quick setup model to every tier so existing non-sonnet defaults remain configured', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-quick-tier-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      await store.writeJsonAtomic(path.join(globalConfigDir, 'config.json'), {
+        version: 1,
+        llm: {
+          defaultTier: 'haiku',
+        },
+      })
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-test',
+        model: 'claude-3-5-sonnet-latest',
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.defaultTier).toBe('haiku')
+      expect(config.llm.tierModels).toEqual({
+        haiku: 'claude-3-5-sonnet-latest',
+        sonnet: 'claude-3-5-sonnet-latest',
+        opus: 'claude-3-5-sonnet-latest',
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('preserves existing auth entry when API key persistence is disabled', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-env-auth-'))
     try {

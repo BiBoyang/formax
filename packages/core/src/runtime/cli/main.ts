@@ -20,6 +20,7 @@ import type { PolicyRule } from '../../core/policy/schema.js'
 import { loadPolicyRules, savePolicyRules } from '../../core/policy/store.js'
 import type { PolicyAction } from '../../core/policy/types.js'
 import type { ConnectionTestResult } from '../../core/setup/types.js'
+import { getSetupConfiguredReason } from '../../core/setup/configuredStatus.js'
 import { loadRuntimeConfig } from '../../config/config.js'
 import { getConfigPaths } from '../../config/configPaths.js'
 import { parseCliArgs } from './args.js'
@@ -66,6 +67,11 @@ function resolveTarGz(tarGz?: (args: { sourceDir: string; outPath: string }) => 
 function isLoopbackHost(host: string): boolean {
   const normalized = host.trim().toLowerCase()
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]'
+}
+
+function formatWebSetupRequiredMessage(reason: ReturnType<typeof getSetupConfiguredReason>): string {
+  const reasonLine = reason === 'configured' ? '' : `Reason: ${reason}.\n`
+  return `Formax Web UI requires setup first.\n${reasonLine}Run \`formax setup\` in your terminal, then retry \`formax web\`.\n`
 }
 
 function okJson(command: string, data: unknown, warnings: string[] = [], meta?: Record<string, unknown>): string {
@@ -403,13 +409,19 @@ export async function dispatchCli(
     }
 
     if (parsedWeb.options.setupMode === 'require-config') {
-      const runtime = await loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir })
-      if (!runtime.llm.apiKey.trim()) {
+      let reason: ReturnType<typeof getSetupConfiguredReason>
+      try {
+        const runtime = await loadRuntimeConfig(env, cwd, { fileStore: store, platform, homedir })
+        reason = getSetupConfiguredReason({ runtime })
+      } catch (err) {
+        reason = getSetupConfiguredReason({ configLoadError: err })
+      }
+      if (reason !== 'configured') {
         return {
           kind: 'handled',
           exitCode: ExitCode.Error,
           stdout: '',
-          stderr: 'Formax Web UI requires setup first.\nRun `formax setup` in your terminal, then retry `formax web`.\n',
+          stderr: formatWebSetupRequiredMessage(reason),
         }
       }
     } else if (!isLoopbackHost(parsedWeb.options.host)) {

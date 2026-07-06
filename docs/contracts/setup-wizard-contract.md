@@ -14,20 +14,28 @@
 
 ## Required Config Gate
 
-- 没有可用配置或没有可用 API key 时，Electron 不能打开主页面。
+- 没有可用配置、没有可用 API key、没有 base URL、或没有 active/default tier 的显式 model 配置时，Electron 不能打开主页面。
 - 已配置完成时，Electron 才能打开当前主页面。
-- 配置不完整时，Electron 必须进入 SetupWizard 窗口或 setup recovery/retry 状态。
+- 配置不完整时，Electron 必须进入 SetupWizard route 或 setup recovery/retry 状态。
 - `formax web` 默认仍然是 `require-config` 行为，不能因为浏览器 setup 支持而静默变成 first-run setup server。
 - `--setup-mode allow` 和 `--allow-setup` 是显式 setup-capable 启动模式；其中 `--allow-setup` 只是 shorthand，不是新的产品语义。
+
+## Configured Status Semantics
+
+- Setup configured 的唯一长期定义是：API key 可用、base URL 非空、且 active/default tier 有显式 model 配置。
+- 显式 model source 包括 `tier_env`、`tier_model`，以及 active/default tier 为 `sonnet` 时的 `legacy_sonnet_model`。
+- 内置 default model fallback（`default_model`）不算 configured，必须映射为 `missing_model`。
+- active/default tier 为 `haiku` 或 `opus` 时，仅配置 legacy `llm.model` 不配置对应 tier model，仍然是 `missing_model`。
+- CLI `formax web --setup-mode require-config`、`bridge/setup/status`、Electron setup handoff re-probe 必须共享同一 configured-status 判定；不得各自手写 API-key-only 或其它局部判断。
 
 ## Electron Runtime Orchestration
 
 - Electron managed runtime 正常启动必须使用 `setupMode='require-config'`。
 - 只有当正常 `require-config` 启动无法满足 first-run/setup recovery 时，Electron 才能启动 `setupMode='allow'` 的 setup-capable runtime。
 - Setup 成功后，Electron main process 必须重启 managed runtime，并恢复为 `setupMode='require-config'`。
-- Setup 成功后的 handoff 由 Electron main process 负责：重新 probe status、打开 main window、再异步关闭 setup window。
+- Setup 成功后的 handoff 由 Electron main process 负责：重启 managed runtime、重新 probe status，然后在 desktop host 中加载 main route；实现可以复用同一个 BrowserWindow，也可以在原窗口不存在时创建替代窗口。
 - Electron renderer 在 setup 成功后不得自行 redirect 到 RuntimeApp。
-- 如果 setup 成功后重新 probe 仍然显示 incomplete，必须回到/focus setup，而不是打开 main window。
+- 如果 setup 成功后重新 probe 仍然显示 incomplete，必须回到/focus setup route，而不是打开 main route。
 - 非 local desktop start URL 不做 setup-status probe，也不合成 setup endpoint；它按外部/远端 runtime 处理。
 
 ## Setup Status Probe
@@ -73,6 +81,7 @@
 ## Web Setup UI Semantics
 
 - `/setup` 顶层 route 必须先于 `RuntimeApp` 和 `useAppRuntime` 初始化。
+- Managed desktop `/setup` 收到 complete 或 setup mutation unavailable 时，不得从 `SetupEntrypoint` 直接渲染 `RuntimeApp`；必须停在 host-handoff/already-configured 或 setup-unavailable 状态，让 Electron main process 拥有 managed handoff。
 - provider、vendor、base URL、API key 在 connection test 通过并进入 model/modelMode 阶段后应锁定，避免 post-test mutation 绕过验证。
 - model mode/model selection 可以在 confirm/write 前继续编辑，但 commit 必须重新基于 session state 做 server-side validation。
 - 文本输入必须防旧 RPC echo 回写覆盖用户较新的本地输入。
