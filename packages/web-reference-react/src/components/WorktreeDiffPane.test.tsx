@@ -117,6 +117,9 @@ describe('WorktreeDiffPane', () => {
     expect(screen.getByText('Unstaged')).toBeInTheDocument()
     expect(screen.getByText('Changes: 1')).toBeInTheDocument()
     expect(screen.getAllByTestId('worktree-diff-file-card')).toHaveLength(1)
+    const fileCard = screen.getByTestId('worktree-diff-file-card')
+    expect(fileCard).not.toHaveClass('overflow-clip')
+    expect(fileCard.querySelector('[role="button"]')).toHaveClass('sticky', 'top-0')
     expect(screen.getByText('packages/web-reference-react/src/App.tsx')).toBeInTheDocument()
     expect(document.querySelectorAll('diffs-container')).toHaveLength(0)
     await clickFileToggle()
@@ -1451,7 +1454,8 @@ describe('WorktreeDiffPane', () => {
     const wordWrapItem = await screen.findByRole('menuitemcheckbox', { name: 'Enable word wrap' })
     expect(wordWrapItem).toHaveAttribute('aria-checked', 'false')
     expect(wordWrapItem).not.toHaveAttribute('data-disabled')
-    expect(screen.getByText('Do not load full file').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
+    const fullFileItem = screen.getByRole('menuitem', { name: 'Load full file' })
+    expect(fullFileItem).not.toHaveAttribute('data-disabled')
     expect(screen.getByText('Enable rich text preview').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Enable word diff').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
     expect(screen.getByText('Hide whitespace').closest('[data-slot="dropdown-menu-item"]')).toHaveAttribute('data-disabled')
@@ -1504,6 +1508,45 @@ describe('WorktreeDiffPane', () => {
     await waitFor(() => {
       expect(screen.getByTestId('pierre-diff-view')).toHaveAttribute('data-word-wrap', 'true')
     })
+  }, TEST_TIMEOUT_MS)
+
+  it('requests full file content for expanded text files only when full-file loading is enabled', async () => {
+    const onRequestFullContent = vi.fn(async () => ({
+      path: 'src/example.ts',
+      found: true,
+      content: {
+        before: 'old\n',
+        after: 'old\nnew\n',
+      },
+    }))
+    renderPane(
+      <WorktreeDiffPane
+        onRequestFullContent={onRequestFullContent}
+        diffSnapshot={{
+          cwd: '/repo',
+          generatedAt: '2026-02-09T00:00:00.000Z',
+          hasChanges: true,
+          truncated: false,
+          files: [{
+            path: 'src/example.ts',
+            additions: 1,
+            deletions: 0,
+            patch: 'diff --git a/src/example.ts b/src/example.ts\n@@ -1 +1,2 @@\n old\n+new',
+          }],
+        }}
+      />,
+    )
+
+    await clickFileToggle()
+    expect(onRequestFullContent).not.toHaveBeenCalled()
+
+    openDropdown(screen.getByRole('button', { name: 'More review options' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Load full file' }))
+
+    await waitFor(() => {
+      expect(onRequestFullContent).toHaveBeenCalledTimes(1)
+    })
+    expect(onRequestFullContent).toHaveBeenCalledWith('src/example.ts', { kind: 'unstaged' })
   }, TEST_TIMEOUT_MS)
 
   it('renders long file paths through the outer file card header', async () => {

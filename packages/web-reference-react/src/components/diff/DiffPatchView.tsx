@@ -11,6 +11,8 @@ import type { FileDiff as FileDiffType } from '@pierre/diffs/react'
 
 export const DIFF_RENDER_MAX_PATCH_BYTES = 256_000
 export const DIFF_RENDER_MAX_LINES = 4_000
+const DIFF_RENDER_MAX_FULL_CONTENT_BYTES = 512_000
+const DIFF_RENDER_MAX_FULL_CONTENT_LINES = DIFF_RENDER_MAX_LINES
 
 export type DiffPreviewUnavailableReason =
   | 'invalid_patch'
@@ -33,10 +35,14 @@ export type DiffPatchViewProps = {
   diffStyle?: DiffRenderStyle
   wordWrap?: boolean
   showFileHeader?: boolean
+  fullContent?: {
+    before: string
+    after: string
+  } | null
 }
 
 type ValidationResult =
-  | { ok: true; renderKey: string; fileDiff: FileDiffMetadata }
+  | { ok: true; renderKey: string; fileDiff: FileDiffMetadata; fullContentApplied: boolean }
   | { ok: false; reason: DiffPreviewUnavailableReason }
 
 type PierreDiffsModules = {
@@ -214,8 +220,20 @@ function getPatchLineCount(patch: string): number {
   return patch.split('\n').length
 }
 
+function isFullContentWithinRenderBudget(fullContent: NonNullable<DiffPatchViewProps['fullContent']>): boolean {
+  const totalBytes = getPatchByteLength(fullContent.before) + getPatchByteLength(fullContent.after)
+  if (totalBytes > DIFF_RENDER_MAX_FULL_CONTENT_BYTES) return false
+
+  const totalLines = getPatchLineCount(fullContent.before) + getPatchLineCount(fullContent.after)
+  return totalLines <= DIFF_RENDER_MAX_FULL_CONTENT_LINES
+}
+
 function getPatchRenderKey(path: string | undefined, patch: string): string {
   return `${path ?? 'diff'}:${patch.length}:${getPatchHash(patch)}`
+}
+
+function getFullContentRenderKey(path: string | undefined, patch: string, fullContent: NonNullable<DiffPatchViewProps['fullContent']>): string {
+  return `${getPatchRenderKey(path, patch)}:full:${fullContent.before.length}:${getPatchHash(fullContent.before)}:${fullContent.after.length}:${getPatchHash(fullContent.after)}`
 }
 
 function getPatchHash(patch: string): number {
@@ -245,6 +263,121 @@ function getPreflightUnavailableReason(props: DiffPatchViewProps): DiffPreviewUn
   return null
 }
 
+function splitFileLines(content: string): string[] {
+  if (!content) return []
+  const lines = content.match(/[^\n]*(?:\n|$)/g) ?? []
+  if (lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
+function linesMatch(left: string[], right: string[], leftStart: number, rightStart: number, count: number): boolean {
+  for (let index = 0; index < count; index += 1) {
+    if (left[leftStart + index] !== right[rightStart + index]) return false
+  }
+  return true
+}
+
+function buildFullContentMetadata(
+  fileDiff: FileDiffMetadata,
+  fullContent: NonNullable<DiffPatchViewProps['fullContent']>,
+  cacheKey: string,
+): FileDiffMetadata | null {
+  const deletionLines = splitFileLines(fullContent.before)
+  const additionLines = splitFileLines(fullContent.after)
+  let splitLineCount = 0
+  let unifiedLineCount = 0
+  let previousAdditionEnd = 0
+  let previousDeletionEnd = 0
+
+  const hunks: FileDiffMetadata['hunks'] = []
+
+  for (const hunk of fileDiff.hunks) {
+    const additionLineIndex = Math.max(hunk.additionStart - 1, 0)
+    const deletionLineIndex = Math.max(hunk.deletionStart - 1, 0)
+    const additionCollapsedBefore = additionLineIndex - previousAdditionEnd
+    const deletionCollapsedBefore = deletionLineIndex - previousDeletionEnd
+
+    if (
+      additionCollapsedBefore < 0 ||
+      deletionCollapsedBefore < 0 ||
+      additionCollapsedBefore !== deletionCollapsedBefore ||
+      additionLineIndex + hunk.additionCount > additionLines.length ||
+      deletionLineIndex + hunk.deletionCount > deletionLines.length
+    ) {
+      return null
+    }
+
+    if (!linesMatch(deletionLines, additionLines, previousDeletionEnd, previousAdditionEnd, additionCollapsedBefore)) {
+      return null
+    }
+
+    let nextAdditionLineIndex = additionLineIndex
+    let nextDeletionLineIndex = deletionLineIndex
+    const hunkContent: FileDiffMetadata['hunks'][number]['hunkContent'] = []
+
+    for (const content of hunk.hunkContent) {
+      const additionCount = content.type === 'context' ? content.lines : content.additions
+      const deletionCount = content.type === 'context' ? content.lines : content.deletions
+
+      if (
+        !linesMatch(fileDiff.additionLines, additionLines, content.additionLineIndex, nextAdditionLineIndex, additionCount) ||
+        !linesMatch(fileDiff.deletionLines, deletionLines, content.deletionLineIndex, nextDeletionLineIndex, deletionCount)
+      ) {
+        return null
+      }
+
+      hunkContent.push({
+        ...content,
+        additionLineIndex: nextAdditionLineIndex,
+        deletionLineIndex: nextDeletionLineIndex,
+      })
+      nextAdditionLineIndex += additionCount
+      nextDeletionLineIndex += deletionCount
+    }
+
+    hunks.push({
+      ...hunk,
+      collapsedBefore: additionCollapsedBefore,
+      additionLineIndex,
+      deletionLineIndex,
+      hunkContent,
+      splitLineStart: splitLineCount + additionCollapsedBefore,
+      unifiedLineStart: unifiedLineCount + additionCollapsedBefore,
+    })
+
+    splitLineCount += additionCollapsedBefore + hunk.splitLineCount
+    unifiedLineCount += additionCollapsedBefore + hunk.unifiedLineCount
+    previousAdditionEnd = additionLineIndex + hunk.additionCount
+    previousDeletionEnd = deletionLineIndex + hunk.deletionCount
+  }
+
+  if (hunks.length > 0) {
+    const additionTrailing = additionLines.length - previousAdditionEnd
+    const deletionTrailing = deletionLines.length - previousDeletionEnd
+    if (
+      additionTrailing < 0 ||
+      deletionTrailing < 0 ||
+      additionTrailing !== deletionTrailing ||
+      !linesMatch(deletionLines, additionLines, previousDeletionEnd, previousAdditionEnd, additionTrailing)
+    ) {
+      return null
+    }
+    splitLineCount += additionTrailing
+    unifiedLineCount += additionTrailing
+  }
+
+  return {
+    ...fileDiff,
+    hunks,
+    splitLineCount,
+    unifiedLineCount,
+    isPartial: false,
+    deletionLines,
+    additionLines,
+    cacheKey,
+  }
+}
+
 function validatePatch(props: DiffPatchViewProps, modules: PierreDiffsModules): ValidationResult {
   const patch = props.patch
   try {
@@ -254,10 +387,22 @@ function validatePatch(props: DiffPatchViewProps, modules: PierreDiffsModules): 
     if (parsedFiles.every((file) => file.hunks.length === 0)) {
       return { ok: false, reason: 'unsupported_patch' }
     }
-    const fileDiff = shouldUsePlainTextLanguageOverride(props.path)
-      ? modules.setLanguageOverride(parsedFiles[0], 'text')
-      : parsedFiles[0]
-    return { ok: true, renderKey: getPatchRenderKey(props.path, patch), fileDiff }
+    const fullContent = props.fullContent && isFullContentWithinRenderBudget(props.fullContent) ? props.fullContent : null
+    const fullContentRenderKey = fullContent ? getFullContentRenderKey(props.path, patch, fullContent) : null
+    const fullContentFileDiff = fullContent
+      ? buildFullContentMetadata(parsedFiles[0], fullContent, fullContentRenderKey ?? getPatchRenderKey(props.path, patch))
+      : null
+    const fullContentApplied = fullContentFileDiff != null
+    const fileDiff = fullContentFileDiff ?? parsedFiles[0]
+    const normalizedFileDiff = shouldUsePlainTextLanguageOverride(props.path)
+      ? modules.setLanguageOverride(fileDiff, 'text')
+      : fileDiff
+    return {
+      ok: true,
+      renderKey: fullContentApplied && fullContentRenderKey ? fullContentRenderKey : getPatchRenderKey(props.path, patch),
+      fileDiff: normalizedFileDiff,
+      fullContentApplied,
+    }
   } catch {
     return { ok: false, reason: 'invalid_patch' }
   }
@@ -359,7 +504,7 @@ export function DiffPatchView(props: DiffPatchViewProps) {
   const validation = useMemo(() => {
     if (!modules) return null
     return validatePatch(props, modules)
-  }, [modules, props.patch, props.path, props.truncated])
+  }, [modules, props.fullContent, props.patch, props.path, props.truncated])
   const validationRenderKey = validation?.ok ? validation.renderKey : null
   const renderCompletionKey = validationRenderKey
     ? `${validationRenderKey}:${diffStyle}:${wordWrap ? 'wrap' : 'scroll'}:${showFileHeader ? 'header' : 'body'}`
@@ -439,7 +584,10 @@ export function DiffPatchView(props: DiffPatchViewProps) {
             options={{
               diffStyle,
               disableFileHeader: !showFileHeader,
-              hunkSeparators: 'line-info-basic',
+              hunkSeparators: validation.fullContentApplied ? 'line-info' : 'line-info-basic',
+              expandUnchanged: false,
+              collapsedContextThreshold: 6,
+              expansionLineCount: 20,
               lineDiffType: 'none',
               overflow: 'scroll',
               theme: 'pierre-light-soft',

@@ -7,6 +7,7 @@ import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
 import { WorktreeDiffPane } from '../../components/WorktreeDiffPane'
 import type {
+  DiffFileFullContentPayload,
   DiffFilePatchPayload,
   DiffFilePreviewPayload,
   DiffSnapshot,
@@ -117,6 +118,7 @@ export type AppShellProps = {
   onRefreshDiff: (source?: ReviewGitSource | null) => void
   onRequestDiffPatch: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
   onRequestDiffPreview: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
+  onRequestDiffFullContent: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFileFullContentPayload | null>
   onListReviewCommits: () => Promise<ReviewGitCommit[]>
   isRefreshingDiff: boolean
   noticeMessage: string | null
@@ -399,6 +401,7 @@ export function AppShell(props: AppShellProps) {
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
       onRequestPreview: props.onRequestDiffPreview,
+      onRequestFullContent: props.onRequestDiffFullContent,
       onListCommits: props.onListReviewCommits,
       isRefreshingDiff: isThreadSurface ? props.isRefreshingDiff : false,
       showHeader: true as const,
@@ -412,6 +415,7 @@ export function AppShell(props: AppShellProps) {
       props.onRefreshDiff,
       props.onRequestDiffPatch,
       props.onRequestDiffPreview,
+      props.onRequestDiffFullContent,
       props.onListReviewCommits,
     ],
   )

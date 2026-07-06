@@ -1,89 +1,72 @@
-# Git Commit Review Source Todo
+# Git Full-File Diff Expansion Todo
 
-Current status: first-round commit source behavior is implemented and targeted tests/type-check/build pass. Codex review is intentionally skipped per the active user goal; the user will run external AI review.
+Current status: implementation, docs, targeted tests, and type-check are complete. `codex review` is intentionally skipped per the active user goal: finish the todo first and do not review yet.
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] The Review source selector currently supports Git-backed `Unstaged` and `Staged` sources.
-- [x] The Review source selector has disabled placeholders for future sources including `Commit`.
-- [x] The Git Review operation layer now lives in `packages/core/src/app-server/gitReviewOperations.ts` and should own Git command planning/parsing.
-- [x] The Web runtime already sends source-aware summary, lazy patch, and preview requests through `bridge/reviewGit/*` routes.
-- [x] The user wants `Commit` to mean inspecting the file diff for an existing Git commit, not creating a new commit and not pushing.
-- [x] The commit submenu should list recent commits and use a first-round limit of 10.
-- [x] The active toolbar shape for a selected commit should match the reference: source label `Commit`, truncated commit subject, aggregate `+/-` stats, and the existing Review toolbar actions.
-- [x] Merge commits should use first-parent semantics in the first implementation.
-- [x] Root commits are the first commits in a repository and should be supported as empty-tree-to-commit diffs.
-- [x] Commit image previews should be supported by reading Git historical blobs, not by reading the current worktree file.
-- [x] Commit submenu is desktop-only and should open from hover in the Review source menu.
-- [x] Commit list results may be cached after the first successful load; refreshing the current commit diff does not need to refresh the commit list.
-- [x] The selected commit row should show a trailing checkmark, but selection alone should not apply a persistent row background; only hover should show the hover background.
+- [x] The existing Review view renders source-aware Git diffs for `unstaged`, `staged`, and selected `commit` sources.
+- [x] `@pierre/diffs` supports expandable unchanged-line separators when it receives complete file metadata instead of partial patch-only metadata.
+- [x] Codex keeps the first expanded-file view visually close to normal patch rendering, but clickable separators can reveal hidden unchanged context.
+- [x] Codex appears to reveal a bounded amount of unchanged context per click, roughly up to 20 lines per side / 40 total depending on available hidden lines.
+- [x] The separator DOM and click behavior should come from `@pierre/diffs`; we should not hand-roll separator rows.
+- [x] Full-file loading must be lazy and file-scoped, not a source-wide eager load.
+- [x] Full-file mode is a Review toolbar option, not a new Review source.
+- [x] Binary files, image previews, and unavailable blobs should keep their current fallback behavior.
 
 ### 0.2 Goals
-- [x] Add a functional `Commit` Review source that lists the latest 10 commits and shows a selected commit's file diff.
-- [x] Extend Git Review source semantics without adding ad hoc Git commands in Web UI code.
-- [x] Preserve existing `Unstaged` and `Staged` behavior while adding source-key isolation for `Commit`.
-- [x] Support commit image preview by reading the correct Git blob for added/modified/deleted/root-commit files.
-- [x] Keep the first version focused, testable, and aligned with the existing Review toolbar design.
+- [x] Add a `Load full file` / `Do not load full file` Review option.
+- [x] When enabled, expanded text file cards can request full before/after file content for the active Git source.
+- [x] Feed full-file metadata into `@pierre/diffs` so unchanged-line separators become expandable.
+- [x] Preserve the normal partial-patch path when full-file mode is disabled or full content is unavailable.
+- [x] Keep source semantics correct for `unstaged`, `staged`, and `commit`.
 
 ### 0.3 Non-goals
-- [x] Do not implement creating commits, pushing commits, or the `Commit or Push` button in this task.
-- [x] Do not implement commit search, pagination, or full history browsing in this task.
-- [x] Do not implement arbitrary commit ranges.
-- [x] Do not implement branch compare in this task.
-- [x] Do not implement previous conversation / agent-turn diff capture in this task.
-- [x] Do not implement parent selection for merge commits in this task.
-- [x] Do not implement rich text, PDF, or generic binary preview for commit sources in this task.
-- [x] Do not refactor file icon mapping, general file card visuals, or unrelated right-rail layout.
+- [x] Do not implement our own custom unchanged-line expander UI.
+- [x] Do not load full content for all files when a source opens.
+- [x] Do not change image preview behavior in this task.
+- [x] Do not implement rich Markdown rendering; Markdown remains raw text diff rendering.
+- [x] Do not add branch compare or previous-conversation diff semantics.
+- [x] Do not make full-file mode the default in the first implementation.
 
 ### 0.4 Spec lock and review-scope
-- [x] Spec lock required: this task extends app-server bridge semantics, Git command planning, Web source state, and source selector UI.
-- [x] Review findings log required if `codex review` reports findings or if more than one review pass is needed.
+- [x] Spec lock required: this crosses Git object access, bridge RPC, Web runtime cache identity, and diff renderer behavior.
 - [x] Review findings must be classified before code changes.
 - [x] Current-loop review is scoped by each loop's `Loop Contract`.
 - [x] Later-loop findings are logged, not chased in the current loop.
-- [x] Spec ambiguity stops implementation until this todo, a canonical doc, or user alignment is updated.
+- [x] Spec ambiguity stops implementation until this todo or user alignment is updated.
 - [x] Use the repository review profile as the single source of truth; do not redefine review model, reasoning, or timeout here.
 
 ## 1. Definitions First
 
 ### 1.1 Canonical docs
-- [x] Update `docs/design/web-right-rail-workspace-blueprint.md` to move `Commit` from disabled placeholder to first-round functional Review source.
-- [x] Document the first-round commit semantics: latest 10 commits, single commit diff, first-parent merge handling, root commit support, image preview through Git blobs.
-- [x] Update `CODEMAP.md` only if new long-lived Git Review operation entrypoints or ownership points are added.
-- [x] Decide after implementation whether commit-source bridge semantics should be promoted to a canonical app-server contract. First-round decision: keep in the design doc unless the interface stabilizes enough to promote.
+- [x] Update `docs/design/web-right-rail-workspace-blueprint.md` with the full-file option semantics after implementation stabilizes.
+- [x] Update `CODEMAP.md` only if a new long-lived Git Review operation or ownership point is introduced.
+- [x] Add or update a pitfall note only if implementation confirms a new renderer/server boundary gotcha.
 
 ### 1.2 Data model
-- [x] Extend Git Review source from `unstaged | staged` to include `commit` with a commit SHA.
-- [x] Define commit source key as `git:commit:<sha>`.
-- [x] Define a lightweight commit list item with at least `sha`, `shortSha`, `subject`, and relative/display time metadata.
-- [x] Define selected commit toolbar display data: source label `Commit`, truncated subject, aggregate additions/deletions.
-- [x] Keep untracked files excluded from commit source; commit source is entirely Git object based.
-- [x] Define merge commit diff as selected commit vs first parent.
-- [x] Define root commit diff as empty tree vs selected commit.
-- [x] Define commit image preview blob selection: added/modified reads selected commit blob; deleted reads first parent blob; root added reads selected commit blob.
+- [x] Define a source-aware full-file request payload: `source`, `path`, optional old path metadata, `cwd`, and byte/line caps.
+- [x] Define a full-file response that can represent: available text sides, unavailable, too large, binary, not in diff, and read error.
+- [x] Define per-file full-content cache identity using active source key, snapshot key, cwd, path, and mode flags.
+- [x] Define unsupported cases to fail closed instead of reading arbitrary filesystem paths.
 
-### 1.3 Types / Interfaces
-- [x] Extend app-server `GitReviewSource` and Web `ReviewGitSource` types for commit sources.
-- [x] Extend `GitReviewSourceKey` / `ReviewGitSourceKey` to represent commit source keys safely.
-- [x] Add a source-aware commit list RPC, for example `bridge/reviewGit/listCommits`.
-- [x] Add parser/normalizer coverage for commit source payloads and invalid SHA payloads.
-- [x] Extend Web diff data ops to request commit lists and selected commit summaries.
-- [x] Ensure source-aware lazy patch and preview requests carry `{ kind: 'commit', sha }`.
-- [x] Ensure patch, preview, expansion, and stale-response guards include `git:commit:<sha>`.
+### 1.3 Git semantics
+| Source | Before side | After side | Notes |
+|---|---|---|---|
+| `unstaged` tracked | index blob | worktree file | Includes worktree-vs-index changes. |
+| `unstaged` untracked | empty | worktree file | Only if the path belongs to the current unstaged diff set. |
+| `staged` tracked | `HEAD` blob | index blob | Index-vs-HEAD changes. |
+| `staged` root/new | empty | index blob | Root commit / new file support should be explicit. |
+| `commit` normal | first parent blob | selected commit blob | First-parent merge behavior remains accepted. |
+| `commit` root | empty | selected commit blob | Root commit support remains accepted. |
+| deleted file | previous blob | empty | Applies per source. |
 
-### 1.4 Semantic decision table
-| Decision | Accepted rule | Alternatives rejected / deferred | Contract target | Test implication |
-|---|---|---|---|---|
-| Commit menu size | List latest 10 commits | Pagination/full history/search | Web source selector + app-server list API | commit list request uses limit 10 |
-| Commit diff scope | Single selected commit | arbitrary ranges | Git Review operation layer | summary/patch match selected commit only |
-| Merge commit diff | Compare commit to first parent | combined diff or parent selector | Git Review operation layer | merge test proves first-parent args/behavior |
-| Root commit diff | Compare empty tree to selected commit | show unavailable for root commit | Git Review operation layer | root commit summary/patch works |
-| Commit image preview | Read Git blobs for supported images | read current worktree file, or disable all commit previews | Git Review preview operation | worktree mutation cannot affect commit preview |
-| Commit source key | `git:commit:<sha>` | reuse `git:staged`/`git:unstaged` keys | Web runtime/UI state | switching commits cannot reuse cached file bodies |
-| Toolbar display | Source label `Commit`, truncated subject, aggregate stats | replace source label with full subject | Review toolbar UI | component test covers label/subject/stats |
-| Commit submenu interaction | Desktop hover opens submenu; selected row uses checkmark only | mobile/touch behavior or persistent selected background | Review source selector UI | component test covers hover submenu and selected checkmark |
-| Commit or push button | Out of scope | implement submit/push flow now | Deferred toolbar action | no code path for creating commits |
+### 1.4 Renderer semantics
+- [x] Keep partial-patch rendering as the default path.
+- [x] When full content is available, construct complete file metadata for the selected file and let `@pierre/diffs` own separator expansion.
+- [x] Use `hunkSeparators` mode that exposes line-info expansion controls.
+- [x] Use bounded expansion per click rather than expanding all hidden context by default.
+- [x] Preserve current safeguards for large diffs and word-diff disabling.
 
 ### 1.5 Review finding triage policy
 - [x] Classify every review finding as `true blocker`, `valid but later-loop`, `spec ambiguity`, `reviewer preference`, or `conflicts with accepted contract`.
@@ -92,134 +75,115 @@ Current status: first-round commit source behavior is implemented and targeted t
 - [x] For spec ambiguity, stop implementation and update contracts/todo or ask the user before editing code.
 - [x] For reviewer preference, do not adopt unless it is low-risk, local to the current loop, and does not change behavior or scope.
 - [x] For contract conflicts, do not implement the finding; cite the accepted contract and add a focused regression test if needed.
-- [x] Codex review is skipped for this task per the active user goal; external review remains the next review gate.
 
 ## 2. Runtime / Platform
-- [x] Add commit source support to `gitReviewOperations.ts` command planning.
-- [x] Add commit list operation using latest 10 by default or by requested capped limit.
-- [x] Add commit source summary support with numstat/name-status parsing.
-- [x] Add commit source file patch support.
-- [x] Add root commit support through empty-tree or equivalent Git command handling.
-- [x] Add first-parent merge semantics for commit source commands.
-- [x] Add commit source image preview support through Git blob reads.
-- [x] Keep staged and unstaged behavior unchanged.
-- [x] Keep old source-less `bridge/readDiff*` routes inactive.
-- [x] Add source-aware bridge routing for commit listing.
+- [x] Add a Git Review operation for source-aware full-file content reads.
+- [x] Validate the requested path belongs to the active source's diff set before reading content.
+- [x] Enforce byte caps before returning full content.
+- [x] Return structured unavailable states for binary, too-large, missing, or unsupported rename cases.
+- [x] Add a `bridge/reviewGit/*` RPC route for full-file content.
+- [x] Keep existing summary, patch, image preview, and commit list routes unchanged.
 
 ## 3. Frontend Boundary
-- [x] Extend Web `DiffSnapshot` source/sourceKey parsing for commit source.
-- [x] Add commit list request support in Web diff data ops.
-- [x] Make Review Source Selector `Commit` submenu functional and lazily load recent commits.
-- [x] Show loading and error/empty states in the commit submenu.
-- [x] Cache successfully loaded commit menu results until a deliberate future refresh-list action exists.
-- [x] Render selected commit rows with a trailing checkmark and no persistent selected-row background.
-- [x] On commit selection, refresh Review data with `{ kind: 'commit', sha }`.
-- [x] Render active commit toolbar state as `Commit`, truncated subject, and aggregate stats.
-- [x] Ensure changing between commits resets or source-scopes expansion state.
-- [x] Ensure lazy patch and image preview requests use the selected commit source.
-- [x] Keep Branch and Previous Conversation disabled placeholders.
+- [x] Add full-file mode state owned by the Review toolbar/workspace, default off.
+- [x] Wire the More menu item label between `Load full file` and `Do not load full file`.
+- [x] Request full content lazily only when a text file card is expanded and full-file mode is enabled.
+- [x] Scope full-content loading, cache, and stale-response guards by source key and snapshot key.
+- [x] Keep normal patch display while full content is loading or unavailable.
+- [x] Pass complete metadata/options to `DiffPatchView` only when full content is available.
+- [x] Ensure file collapse/expand still works without double-click or stale body states.
 
 ## 4. Tests
-- [x] Add core operation tests for commit list parsing/limit behavior.
-- [x] Add core operation tests for normal commit summary and file patch.
-- [x] Add core operation tests for merge commit first-parent behavior.
-- [x] Add core operation tests for root commit behavior.
-- [x] Add core operation tests for commit image preview blob selection, including deleted images.
-- [x] Add bridge RPC tests for `bridge/reviewGit/listCommits`.
-- [x] Add Web runtime tests for commit source summary, patch, and preview request payloads.
-- [x] Add Web runtime stale-response/cache tests for switching between two commit sources.
-- [x] Add WorktreeDiffPane tests for commit submenu loading, hover-open behavior, selection checkmark, toolbar display, and disabled non-implemented sources.
+- [x] Add core Git operation tests for unstaged tracked, unstaged untracked, staged, commit, root commit, and deleted file full-content reads.
+- [x] Add bridge tests for the new full-content route and path-in-diff validation.
+- [x] Add Web runtime tests for request payload, source key scoping, and stale response handling.
+- [x] Add component tests for toggling full-file mode and requesting full content only for expanded text files.
+- [x] Add renderer-facing tests that prove full metadata enables expandable separators without custom separator DOM.
 - [x] Run targeted core tests.
 - [x] Run targeted Web runtime/component tests.
 - [x] Run `bun run type-check`.
-- [x] Run build only after targeted tests pass if touched package confidence requires it.
 
 ## 5. Recommended Execution Order
 
-### Loop 1: Commit Source Model and Core Git Operations
+### Loop 1: Full-Content Contract and Core Git Reads
 #### Loop Contract
-- Purpose: extend the Git Review operation layer to understand commit sources without touching UI polish.
-- In scope: source types, source keys, commit list, commit summary, commit file patch, merge/root semantics.
-- Out of scope: Web dropdown UI, commit image preview, branch/range sources.
-- Blocking findings: commit source uses current worktree data; merge commit does not use first parent; root commit fails; unstaged/staged regress.
-- Non-blocking / later-loop findings: pagination/search UX, commit date formatting preferences, branch-source suggestions.
-- Known unresolved semantics: none after this todo is accepted.
-- Required targeted tests: core operation/helper tests and bridge routing tests for commit list and commit diff.
-- Review prompt scope: review commit source model and core Git operation semantics only.
-- Exit criteria: core can list recent commits and return summary/patch for selected commit source with targeted tests passing.
+- Purpose: create the safe source-aware backend capability without changing UI behavior.
+- In scope: operation type, Git read planning, path-in-diff validation, byte caps, bridge route, core/bridge tests.
+- Out of scope: toolbar menu UI, renderer expansion, visual polish.
+- Blocking findings: arbitrary filesystem reads, wrong source side selection, no path-in-diff validation, uncapped large reads.
+- Non-blocking / later-loop findings: rename UX polish, richer error copy.
+- Known unresolved semantics: exact rename full-content handling may be unavailable in first pass if existing metadata is insufficient.
+- Required targeted tests: core Git Review operation tests and devBridge route tests.
+- Review prompt scope: backend/RPC safety and source semantics only.
+- Exit criteria: full-content route safely returns before/after text or structured unavailable states.
 
-- [x] extend Git Review source/type model for commit sources.
-- [x] implement commit list operation capped to 10 for first-round UI use.
-- [x] implement commit summary command planning/parsing.
-- [x] implement commit file patch command planning/parsing.
-- [x] implement merge first-parent and root commit handling.
-- [x] add/update core and bridge tests.
+- [x] define full-content request/response types.
+- [x] implement source-aware Git full-content operation.
+- [x] add bridge route.
+- [x] add core/bridge tests.
 - [x] run targeted core/bridge tests.
-- [x] No review findings to triage because Codex review is intentionally skipped per the active user goal.
-- [x] Skip `codex review` for this loop per the active user goal; targeted verification passed.
+- [x] no review findings to triage because `codex review` is intentionally skipped per the active user goal.
+- [x] skip `codex review` for this loop per the active user goal; targeted verification passed.
 
-### Loop 2: Web Runtime and Commit Source Selector
+### Loop 2: Web State and Lazy Full-Content Loading
 #### Loop Contract
-- Purpose: wire commit source into Web runtime requests and source selector UI.
-- In scope: Web source types, commit list request, lazy submenu loading, commit selection, toolbar display, source-key cache isolation.
-- Out of scope: image preview blob support, commit search/pagination, commit-or-push actions.
-- Blocking findings: selecting a commit requests unstaged/staged data; sourceKey does not include SHA; commit submenu eagerly blocks normal Review rendering; toolbar display conflicts with accepted screenshot shape.
-- Non-blocking / later-loop findings: menu animation/spacing polish beyond current Codex parity, richer commit metadata.
+- Purpose: wire the option and lazy file-scoped loading without changing renderer internals.
+- In scope: toolbar option, runtime request, file-card state, cache identity, stale guards, fallback behavior.
+- Out of scope: custom separator implementation, image preview changes, default-on behavior.
+- Blocking findings: eager loading all files, source cache leaks, double-click expansion regressions, broken partial fallback.
+- Non-blocking / later-loop findings: final icon/copy polish.
+- Known unresolved semantics: none after Loop 1.
+- Required targeted tests: Web runtime and `WorktreeDiffPane` tests.
+- Review prompt scope: Web state ownership and lazy loading only.
+- Exit criteria: enabling full-file mode triggers safe lazy requests for expanded text files and preserves existing patch rendering fallback.
+
+- [x] add full-file mode state and More menu label/action.
+- [x] add Web data op for the new route.
+- [x] add per-file loading/loaded/unavailable states.
+- [x] scope cache and stale guards by source/snapshot/path.
+- [x] add/update Web tests.
+- [x] run targeted Web tests.
+- [x] no review findings to triage because `codex review` is intentionally skipped per the active user goal.
+- [x] skip `codex review` for this loop per the active user goal; targeted verification passed.
+
+### Loop 3: Renderer Integration and Expansion Behavior
+#### Loop Contract
+- Purpose: use full content to unlock `@pierre/diffs` native unchanged-context expansion.
+- In scope: full metadata construction, `DiffPatchView` options, bounded separator expansion, renderer tests.
+- Out of scope: hand-written separator DOM, rich Markdown rendering, image/PDF preview.
+- Blocking findings: custom expander duplicates library behavior, full metadata mismatches patch context, renderer crash regression, massive context expansion by default.
+- Non-blocking / later-loop findings: exact Codex pixel parity for separator hover state.
 - Known unresolved semantics: none.
-- Required targeted tests: Web runtime tests and `WorktreeDiffPane.test.tsx` source selector tests.
-- Review prompt scope: review Web runtime/source selector state ownership only.
-- Exit criteria: user can select one of the latest 10 commits and see its diff with isolated caches.
+- Required targeted tests: `DiffPatchView` tests plus relevant `WorktreeDiffPane` tests.
+- Review prompt scope: renderer integration and expansion behavior only.
+- Exit criteria: clickable unchanged separators work through `@pierre/diffs` and partial rendering remains stable.
 
-- [x] extend Web source/sourceKey types and parsers.
-- [x] add Web diff data op for listing commits.
-- [x] make `Commit` submenu load and show latest 10 commits.
-- [x] implement commit selection refresh.
-- [x] show active commit subject and aggregate stats in Review toolbar.
-- [x] ensure patch/preview/expansion cache identity includes commit SHA.
-- [x] update Web runtime and component tests.
-- [x] run targeted Web runtime/component tests.
-- [x] No review findings to triage because Codex review is intentionally skipped per the active user goal.
-- [x] Skip `codex review` for this loop per the active user goal; targeted verification passed.
+- [x] build complete diff metadata from full before/after content.
+- [x] configure `@pierre/diffs` separator expansion options.
+- [x] preserve large-diff/word-diff safeguards.
+- [x] add renderer-facing tests.
+- [x] run targeted renderer/component tests.
+- [x] run `bun run type-check`.
+- [x] no review findings to triage because `codex review` is intentionally skipped per the active user goal.
+- [x] skip `codex review` for this loop per the active user goal; targeted verification passed.
 
-### Loop 3: Commit Image Preview
+### Loop 4: Documentation and Convergence
 #### Loop Contract
-- Purpose: extend existing image preview behavior to selected commit sources using Git blobs.
-- In scope: added/modified/deleted/root commit image preview, size caps, error states, Web preview payload handling.
-- Out of scope: PDF/rich-text previews, generic binary preview, current worktree fallbacks.
-- Blocking findings: commit preview reads the worktree file; deleted image preview cannot read parent blob; preview bypasses size cap; staged/unstaged preview regresses.
-- Non-blocking / later-loop findings: richer metadata labels or preview dimensions.
-- Known unresolved semantics: rename behavior should use parsed diff path metadata where available; if exact rename preview is ambiguous, prefer unavailable over wrong file content.
-- Required targeted tests: core preview tests plus Web preview request tests.
-- Review prompt scope: review commit image preview blob selection and safety only.
-- Exit criteria: supported commit image previews load from Git objects and targeted tests pass.
-
-- [x] implement commit image preview blob selection for added/modified/deleted files.
-- [x] implement root commit added-image preview behavior.
-- [x] preserve size caps and image mime checks.
-- [x] return unavailable/error states instead of reading worktree fallback when blob resolution fails.
-- [x] update core/Web tests.
-- [x] run targeted preview tests.
-- [x] No review findings to triage because Codex review is intentionally skipped per the active user goal.
-- [x] Skip `codex review` for this loop per the active user goal; targeted verification passed.
-
-### Loop 4: Documentation and Final Convergence
-#### Loop Contract
-- Purpose: align docs and clean up the final patch for review/commit.
-- In scope: design doc updates, CODEMAP update if needed, dead helper cleanup, final targeted tests/type-check.
-- Out of scope: new Git sources, commit search/pagination, push/PR actions.
-- Blocking findings: docs still call Commit disabled; todo accepted rules conflict with code; old placeholders become accidentally clickable without data; type-check fails.
-- Non-blocking / later-loop findings: future source roadmap detail beyond this implementation.
+- Purpose: align docs, remove temporary code, and prepare for commit.
+- In scope: design doc, CODEMAP if needed, pitfall note if confirmed, cleanup, final targeted verification.
+- Out of scope: new Git sources or additional preview types.
+- Blocking findings: docs contradict behavior, dead debug code remains, type-check fails, targeted regressions fail.
+- Non-blocking / later-loop findings: future branch/previous-conversation source design.
 - Known unresolved semantics: none.
 - Required targeted tests: repeat affected targeted tests and `bun run type-check`.
-- Review prompt scope: review final commit-source architecture, docs, and cleanup consistency.
-- Exit criteria: todo items are complete, tests pass, docs are aligned, and review findings are classified.
+- Review prompt scope: final architecture and cleanup consistency.
+- Exit criteria: todo complete, tests pass, docs align, review findings classified.
 
-- [x] update `docs/design/web-right-rail-workspace-blueprint.md` with final commit source behavior.
-- [x] update `CODEMAP.md` if new ownership points were introduced.
-- [x] remove dead placeholders or helpers introduced during implementation.
-- [x] run targeted tests affected by final cleanup.
+- [x] update `docs/design/web-right-rail-workspace-blueprint.md`.
+- [x] update `CODEMAP.md` if ownership points changed.
+- [x] add/update pitfall note only if a new reproducible gotcha was confirmed.
+- [x] remove temporary instrumentation or scaffolding.
+- [x] run final targeted tests.
 - [x] run `bun run type-check`.
-- [x] run build if not already run after final touched files.
-- [x] No review findings to triage because Codex review is intentionally skipped per the active user goal.
-- [x] Skip `codex review` for this loop per the active user goal; targeted verification passed.
-- [x] Keep `docs/todolist.md` as the external-review handoff until the user accepts deletion.
+- [x] no review findings to triage because `codex review` is intentionally skipped per the active user goal.
+- [x] skip `codex review` for this loop per the active user goal; targeted verification passed.

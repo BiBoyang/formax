@@ -1,5 +1,6 @@
 import type {
   DiffFilePatchPayload,
+  DiffFileFullContentPayload,
   DiffFilePreviewPayload,
   DiffSnapshot,
   ReviewGitCommit,
@@ -168,6 +169,31 @@ function asDiffFilePreviewPayload(value: unknown): DiffFilePreviewPayload | null
   }
 }
 
+function asDiffFileFullContentPayload(value: unknown): DiffFileFullContentPayload | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  const content = raw.content
+  if (!content || typeof content !== 'object') {
+    return {
+      path: typeof raw.path === 'string' ? raw.path : '',
+      found: raw.found === true,
+      content: null,
+      error: typeof raw.error === 'string' ? raw.error as DiffFileFullContentPayload['error'] : undefined,
+    }
+  }
+  const rawContent = content as Record<string, unknown>
+  if (typeof rawContent.before !== 'string' || typeof rawContent.after !== 'string') return null
+  return {
+    path: typeof raw.path === 'string' ? raw.path : '',
+    found: raw.found === true,
+    content: {
+      before: rawContent.before,
+      after: rawContent.after,
+    },
+    error: typeof raw.error === 'string' ? raw.error as DiffFileFullContentPayload['error'] : undefined,
+  }
+}
+
 export function createDiffDataOps(ctx: DiffDataOpsContext) {
   const refreshWorkspaceDiff = async (cwdOverride?: string | null, sourceInput?: ReviewGitSource | null) => {
     if (!ctx.canRefreshDiff()) return
@@ -230,6 +256,27 @@ export function createDiffDataOps(ctx: DiffDataOpsContext) {
     return asDiffFilePreviewPayload(result)
   }
 
+  const requestDiffFileFullContent = async (
+    filePath: string,
+    cwdOverride?: string | null,
+    sourceInput?: ReviewGitSource | null,
+  ): Promise<DiffFileFullContentPayload | null> => {
+    const path = filePath.trim()
+    if (!path) return null
+    if (!ctx.canRefreshDiff()) return null
+    const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+    const source = normalizeReviewSource(sourceInput)
+    const result = await ctx
+      .request('bridge/reviewGit/readDiffFileFullContent', {
+        source,
+        path,
+        maxBytes: 512 * 1024,
+        ...(cwd ? { cwd } : {}),
+      })
+      .catch(() => null)
+    return asDiffFileFullContentPayload(result)
+  }
+
   const listReviewCommits = async (cwdOverride?: string | null): Promise<ReviewGitCommit[]> => {
     if (!ctx.canRefreshDiff()) return []
     const cwd = cwdOverride ?? ctx.resolveDiffCwd()
@@ -243,6 +290,7 @@ export function createDiffDataOps(ctx: DiffDataOpsContext) {
     refreshWorkspaceDiff,
     requestDiffFilePatch,
     requestDiffFilePreview,
+    requestDiffFileFullContent,
     listReviewCommits,
   }
 }

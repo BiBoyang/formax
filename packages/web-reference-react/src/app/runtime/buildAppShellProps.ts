@@ -93,6 +93,7 @@ type DiffSection = Pick<
   | 'onRefreshDiff'
   | 'onRequestDiffPatch'
   | 'onRequestDiffPreview'
+  | 'onRequestDiffFullContent'
   | 'onListReviewCommits'
   | 'isRefreshingDiff'
 >

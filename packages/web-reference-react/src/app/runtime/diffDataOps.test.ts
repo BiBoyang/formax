@@ -252,6 +252,43 @@ describe('diffDataOps', () => {
     })
   })
 
+  it('requests full file content via bridge/reviewGit/readDiffFileFullContent', async () => {
+    const ctx = createBaseContext({
+      request: vi.fn((method: string) => {
+        if (method === 'bridge/reviewGit/readDiffFileFullContent') {
+          return Promise.resolve({
+            path: 'src/a.ts',
+            found: true,
+            content: {
+              before: 'old\n',
+              after: 'old\nnew\n',
+            },
+          })
+        }
+        return Promise.resolve({})
+      }),
+    })
+    const ops = createDiffDataOps(ctx)
+
+    const result = await ops.requestDiffFileFullContent('src/a.ts')
+
+    expect(ctx.request).toHaveBeenCalledWith('bridge/reviewGit/readDiffFileFullContent', {
+      source: { kind: 'unstaged' },
+      path: 'src/a.ts',
+      maxBytes: 512 * 1024,
+      cwd: '/repo',
+    })
+    expect(result).toEqual({
+      path: 'src/a.ts',
+      found: true,
+      content: {
+        before: 'old\n',
+        after: 'old\nnew\n',
+      },
+      error: undefined,
+    })
+  })
+
   it('requests commit patch and preview with the selected commit source', async () => {
     const sha = '0123456789abcdef'
     const ctx = createBaseContext({

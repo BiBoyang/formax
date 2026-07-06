@@ -182,6 +182,9 @@ describe('devBridge helper hooks', () => {
 
     const renames = __devBridgeTestHooks.parseRenamePairs(['R100\told.ts\tnew.ts', 'M\told.ts\tnew.ts', 'M\tnope'].join('\n'))
     expect(renames).toEqual([{ oldPath: 'old.ts', newPath: 'new.ts' }])
+    expect(__devBridgeTestHooks.findRenameOldPathForRequestedPath(renames, 'new.ts')).toBe('old.ts')
+    expect(__devBridgeTestHooks.findRenameOldPathForRequestedPath([{ oldPath: 'src/old.ts', newPath: 'src/new.ts' }], 'new.ts')).toBe('src/old.ts')
+    expect(__devBridgeTestHooks.findRenameOldPathForRequestedPath(renames, 'other.ts')).toBeNull()
     expect(__devBridgeTestHooks.parseRenamePairs('')).toEqual([])
     expect(__devBridgeTestHooks.parseRenamePairs('R100\told-only')).toEqual([])
     expect(__devBridgeTestHooks.parseRenamePairs('R100\t\tnew.ts')).toEqual([])
@@ -442,6 +445,32 @@ describe('devBridge helper hooks', () => {
       const untrackedPatch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, { path: 'new.txt', maxBytes: 200_000 })
       expect(untrackedPatch.found).toBe(true)
       expect(untrackedPatch.file?.untracked).toBe(true)
+
+      const fullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        path: 'tracked.txt',
+        maxBytes: 200_000,
+      })
+      expect(fullContent.found).toBe(true)
+      expect(fullContent.content).toEqual({
+        before: 'one\n',
+        after: 'one\ntwo\n',
+      })
+
+      const untrackedFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        path: 'new.txt',
+        maxBytes: 200_000,
+      })
+      expect(untrackedFullContent.found).toBe(true)
+      expect(untrackedFullContent.content).toEqual({
+        before: '',
+        after: 'new\n',
+      })
+
+      const missingFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        path: 'missing.txt',
+        maxBytes: 200_000,
+      })
+      expect(missingFullContent.found).toBe(false)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -501,6 +530,72 @@ describe('devBridge helper hooks', () => {
       })
       expect(stagedPatch.file?.patch).toContain('+staged')
       expect(stagedPatch.file?.patch).not.toContain('+unstaged')
+
+      const unstagedFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        source: { kind: 'unstaged' },
+        path: 'tracked.txt',
+        maxBytes: 200_000,
+      })
+      expect(unstagedFullContent.content).toEqual({
+        before: 'one\nstaged\n',
+        after: 'one\nstaged\nunstaged\n',
+      })
+
+      const stagedFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        source: { kind: 'staged' },
+        path: 'tracked.txt',
+        maxBytes: 200_000,
+      })
+      expect(stagedFullContent.content).toEqual({
+        before: 'one\n',
+        after: 'one\nstaged\n',
+      })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses name-status rename metadata for staged full-content before refs', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-fullcontent-rename-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await writeFile(path.join(dir, 'old-name.txt'), 'one\ntwo\n', 'utf8')
+      runGit(dir, ['add', 'old-name.txt'])
+      runGit(dir, ['commit', '-m', 'init'])
+
+      runGit(dir, ['mv', 'old-name.txt', 'new-name.txt'])
+      await writeFile(path.join(dir, 'new-name.txt'), 'one\nTWO\n', 'utf8')
+      runGit(dir, ['add', '-A'])
+
+      const pathScopedPatch = execFileSync('git', [
+        '-C',
+        dir,
+        '-c',
+        'core.quotepath=false',
+        'diff',
+        '--cached',
+        '--no-color',
+        '--patch',
+        '--find-renames',
+        '--',
+        'new-name.txt',
+      ], { encoding: 'utf8' })
+      expect(pathScopedPatch).toContain('new file mode')
+      expect(pathScopedPatch).not.toContain('rename from old-name.txt')
+
+      const fullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        source: { kind: 'staged' },
+        path: 'new-name.txt',
+        maxBytes: 200_000,
+      })
+
+      expect(fullContent.found).toBe(true)
+      expect(fullContent.content).toEqual({
+        before: 'one\ntwo\n',
+        after: 'one\nTWO\n',
+      })
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -552,11 +647,31 @@ describe('devBridge helper hooks', () => {
       expect(secondPatch.found).toBe(true)
       expect(secondPatch.file?.patch).toContain('+second')
 
+      const secondFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        source: { kind: 'commit', sha: secondSha },
+        path: 'root.txt',
+        maxBytes: 200_000,
+      })
+      expect(secondFullContent.content).toEqual({
+        before: 'root\n',
+        after: 'root\nsecond\n',
+      })
+
       const rootSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
         source: { kind: 'commit', sha: rootSha },
         maxFiles: 100,
       })
       expect(rootSummary.files).toEqual([{ path: 'root.txt', additions: 1, deletions: 0 }])
+
+      const rootFullContent = await __devBridgeTestHooks.readWorkspaceDiffFileFullContent(dir, {
+        source: { kind: 'commit', sha: rootSha },
+        path: 'root.txt',
+        maxBytes: 200_000,
+      })
+      expect(rootFullContent.content).toEqual({
+        before: '',
+        after: 'root\n',
+      })
 
       const mergeSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
         source: { kind: 'commit', sha: mergeSha },

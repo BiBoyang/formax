@@ -34,8 +34,10 @@ import {
 } from './ui/dropdown-menu'
 import {
   type DiffFilePatchPayload,
+  type DiffFileFullContentPayload,
   type DiffFilePreviewPayload,
   type DiffFileViewModel,
+  type FullContentState,
   type DiffSnapshot,
   type ImagePreviewState,
   type PatchErrorKind,
@@ -54,6 +56,7 @@ export type WorktreeDiffPaneProps = {
   onRefreshDiff?: (source?: ReviewGitSource | null) => void
   onRequestPatch?: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
   onRequestPreview?: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
+  onRequestFullContent?: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFileFullContentPayload | null>
   onListCommits?: () => Promise<ReviewGitCommit[]>
   isRefreshingDiff?: boolean
   showHeader?: boolean
@@ -513,6 +516,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     onRefreshDiff,
     onRequestPatch,
     onRequestPreview,
+    onRequestFullContent,
     onListCommits,
     isRefreshingDiff = false,
     showHeader = true,
@@ -552,6 +556,9 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const [patchLoadingByPath, setPatchLoadingByPath] = useState<Record<string, boolean>>({})
   const [patchErrorByPath, setPatchErrorByPath] = useState<Record<string, PatchErrorKind>>({})
   const [previewByPath, setPreviewByPath] = useState<Record<string, ImagePreviewState>>({})
+  const [fullContentByPath, setFullContentByPath] = useState<Record<string, FullContentState>>({})
+  const [loadFullFiles, setLoadFullFiles] = useState(false)
+  const fullContentByPathRef = useRef(fullContentByPath)
   const [diffViewMode, setDiffViewMode] = useState<DiffRenderStyle>('unified')
   const [wrapDiffLines, setWrapDiffLines] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
@@ -616,8 +623,13 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     setPatchLoadingByPath({})
     setPatchErrorByPath({})
     setPreviewByPath({})
+    setFullContentByPath({})
     requestedPatchPathsRef.current.clear()
   }, [fileSetKey, snapshotKey])
+
+  useEffect(() => {
+    fullContentByPathRef.current = fullContentByPath
+  }, [fullContentByPath])
 
   useEffect(() => {
     const previousExpansionScopeKey = expansionScopeKeyRef.current
@@ -708,6 +720,30 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       setPreviewByPath((prev) => ({ ...prev, [filePath]: { status: 'error', requestKey, error: 'load_failed' } }))
     }
   }, [activeReviewSource, canPreviewImage, onRequestPreview, previewByPath])
+
+  const requestFullContent = useCallback(async (filePath: string) => {
+    if (!onRequestFullContent || canPreviewImage(filePath)) return
+    const requestSnapshotKey = snapshotKeyRef.current
+    const requestKey = `${requestSnapshotKey}\0${filePath}`
+    const current = fullContentByPathRef.current[filePath]
+    if (current?.status === 'ready' && current.requestKey === requestKey) return
+    if (current?.status === 'loading' && current.requestKey === requestKey) return
+    setFullContentByPath((prev) => ({ ...prev, [filePath]: { status: 'loading', requestKey } }))
+
+    try {
+      const payload = await onRequestFullContent(filePath, activeReviewSource)
+      if (snapshotKeyRef.current !== requestSnapshotKey) return
+      const content = payload?.content
+      if (!payload?.found || !content) {
+        setFullContentByPath((prev) => ({ ...prev, [filePath]: { status: 'error', requestKey, error: 'unavailable' } }))
+        return
+      }
+      setFullContentByPath((prev) => ({ ...prev, [filePath]: { status: 'ready', requestKey, content } }))
+    } catch {
+      if (snapshotKeyRef.current !== requestSnapshotKey) return
+      setFullContentByPath((prev) => ({ ...prev, [filePath]: { status: 'error', requestKey, error: 'load_failed' } }))
+    }
+  }, [activeReviewSource, canPreviewImage, onRequestFullContent])
 
   const requestPatchIfNeeded = useCallback((file: DiffFile) => {
     if (canPreviewImage(file.path)) return
@@ -1043,9 +1079,16 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                   <span className="flex-1">{t('worktreeDiff.enableAutoWrap')}</span>
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                <DropdownMenuItem
+                  className="ui-composer-menu-item ui-text-base"
+                  onSelect={() => {
+                    setLoadFullFiles((current) => !current)
+                  }}
+                >
                   <FileText className="size-4" />
-                  <span className="flex-1">{t('worktreeDiff.disableFullFileLoad')}</span>
+                  <span className="flex-1">
+                    {t(loadFullFiles ? 'worktreeDiff.disableFullFileLoad' : 'worktreeDiff.enableFullFileLoad')}
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
                   <Image className="size-4" />
@@ -1192,6 +1235,9 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                           isImagePreview={isImagePreview}
                           previewState={previewByPath[file.path] ?? { status: 'idle' }}
                           patch={patch}
+                          fullContentState={fullContentByPath[file.path] ?? { status: 'idle' }}
+                          loadFullContent={loadFullFiles}
+                          onRequestFullContent={onRequestFullContent ? requestFullContent : undefined}
                           additions={additions}
                           deletions={deletions}
                           truncated={truncated}

@@ -95,7 +95,7 @@ Review source map:
 
 Git review source semantics:
 
-- `sourceKey` partitions snapshot, lazy patch, preview, and file expansion identity. Initial keys are `git:unstaged` and `git:staged`.
+- `sourceKey` partitions snapshot, lazy patch, preview, full-file content, and file expansion identity. Active keys include `git:unstaged`, `git:staged`, and `git:commit:<sha>`.
 - `Unstaged` uses `git diff` for tracked files and separately appends safe untracked summaries/patches.
 - `Staged` uses `git diff --cached` for tracked/index files and excludes untracked files.
 - Staged image preview is intentionally unavailable in the first implementation; it must not read the worktree file as a fallback.
@@ -103,13 +103,17 @@ Git review source semantics:
 - Merge commits are shown against the first parent.
 - Root commits are shown as empty-tree-to-commit diffs.
 - Commit image preview reads Git historical blobs, not the current worktree file.
+- Full-file content reads are source-aware and file-scoped. The bridge must first prove the requested path belongs to the active diff source before reading worktree, index, HEAD, or commit blob content.
+- Full-file content for `Unstaged` reads index-vs-worktree sides; untracked files use empty-before/worktree-after.
+- Full-file content for `Staged` reads HEAD-vs-index sides.
+- Full-file content for `Commit` reads first-parent-vs-selected-commit sides, with root commits using empty-before.
 - Future branch review sources should extend the Git review operation layer instead of adding ad hoc git commands in the Web UI.
 
 Review more menu map:
 
 - `Refresh`: active now. Reloads the current worktree diff snapshot.
 - `Enable word wrap`: active now. Local Review display state only; default remains horizontal scrolling.
-- `Do not load full file`: disabled placeholder. Future file-context loading policy.
+- `Load full file` / `Do not load full file`: active now. Local Review display state; when enabled, expanded text file cards lazily request full before/after content so native `@pierre/diffs` unchanged-line separators can expand hidden context.
 - `Enable rich text preview`: disabled placeholder. Future preview mode for rich text formats.
 - `Enable word diff`: disabled placeholder. Future inline word-level diff option.
 - `Hide whitespace`: disabled placeholder. Future whitespace display option.
@@ -121,7 +125,7 @@ Deferred Review Toolbar controls:
 - Commit or push.
 - Create pull request.
 - Functional branch/previous-conversation sources.
-- Functional rich text preview, full-file loading, whitespace, and text-diff toggles unless the renderer has stable behavior and tests.
+- Functional rich text preview, whitespace, and text-diff toggles unless the renderer has stable behavior and tests.
 
 ##### Review Body
 
@@ -132,11 +136,20 @@ Current supported body types:
 - Patch diff body.
 - Split or unified diff rendering.
 - Image preview body for previewable image files when the preview handler exists.
+- Full-file-backed patch diff body for text files when full-file loading is enabled and content is available.
 - Unavailable / loading / error states for files that cannot render.
+
+Full-file expansion performance contract:
+
+- Opening a Diff File Card must render the existing patch first. It must not block on full before/after content.
+- `Load full file` enables expandable unchanged-line separators; it is not permission to eagerly load all full file contents.
+- Full content requests are file-scoped and post-mount lazy. A text Diff File Body may request full content after the patch body first renders, but the request must be scheduled after the opening paint so card toggle remains responsive.
+- Full content is used to complete `@pierre/diffs` metadata from the existing parsed patch: full `additionLines` / `deletionLines`, updated hunk line indexes, and `isPartial: false`.
+- Prefer direct reconciliation with the existing parsed patch metadata. If reconciliation fails, a bounded renderer-library fallback may derive metadata from the already capped full content; do not add an uncapped source-wide full-diff recomputation path.
+- If full content cannot be reconciled with the patch metadata, keep the partial patch rendering instead of failing the file body.
 
 Future body types:
 
-- Full-file view around a diff.
 - Binary file summaries.
 - PDF preview.
 - Other file-specific previewers.

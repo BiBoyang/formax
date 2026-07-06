@@ -468,6 +468,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     refreshWorkspaceDiff: refreshWorkspaceDiffForSource,
     requestDiffFilePatch,
     requestDiffFilePreview,
+    requestDiffFileFullContent,
     listReviewCommits,
   } = useMemo(
     () =>
@@ -913,10 +914,11 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         refreshWorkspaceDiff,
         requestDiffFilePatch,
         requestDiffFilePreview,
+        requestDiffFileFullContent,
         listReviewCommits,
         runAsyncSafely,
       }),
-    [listReviewCommits, refreshWorkspaceDiff, requestDiffFilePatch, requestDiffFilePreview],
+    [listReviewCommits, refreshWorkspaceDiff, requestDiffFileFullContent, requestDiffFilePatch, requestDiffFilePreview],
   )
 
   const threadSection = useMemo<BuildAppShellPropsArgs['thread']>(
@@ -1063,6 +1065,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       onRefreshDiff: diffUiHandlers.onRefreshDiff,
       onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
       onRequestDiffPreview: diffUiHandlers.onRequestDiffPreview,
+      onRequestDiffFullContent: diffUiHandlers.onRequestDiffFullContent,
       onListReviewCommits: diffUiHandlers.onListReviewCommits,
       isRefreshingDiff,
     }),

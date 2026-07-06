@@ -21,12 +21,12 @@ export function DiffFileCard(props: {
       data-testid="worktree-diff-file-card"
       data-review-path={props.filePath}
       data-expanded={props.expanded ? 'true' : 'false'}
-      className="group/file-diff flex min-w-0 flex-col overflow-clip bg-background"
+      className="group/file-diff flex min-w-0 flex-col bg-background"
     >
       <div
         role="button"
         tabIndex={0}
-        className="cursor-pointer select-none bg-background focus-visible:outline-none"
+        className="sticky top-0 z-20 cursor-pointer select-none bg-background focus-visible:outline-none"
         onClick={props.onToggle}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return

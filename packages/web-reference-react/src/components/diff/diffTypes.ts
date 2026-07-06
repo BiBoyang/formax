@@ -40,6 +40,32 @@ export type DiffFilePreviewPayload = {
   error?: string
 }
 
+export type DiffFileFullContentPayload = {
+  path: string
+  found: boolean
+  content: {
+    before: string
+    after: string
+  } | null
+  error?:
+    | 'missing_path'
+    | 'outside_workspace'
+    | 'not_found'
+    | 'not_file'
+    | 'binary'
+    | 'too_large'
+    | 'read_failed'
+    | 'unsupported_source'
+}
+
+export type FullContentErrorKind = 'unavailable' | 'load_failed'
+
+export type FullContentState =
+  | { status: 'idle' }
+  | { status: 'loading'; requestKey: string }
+  | { status: 'ready'; requestKey: string; content: NonNullable<DiffFileFullContentPayload['content']> }
+  | { status: 'error'; requestKey: string; error: FullContentErrorKind }
+
 export type ImagePreviewState =
   | { status: 'idle' }
   | { status: 'loading'; requestKey: string }

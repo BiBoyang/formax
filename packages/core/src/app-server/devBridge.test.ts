@@ -511,6 +511,15 @@ describe('startAppServerDevBridge', () => {
           truncated: false,
           file: { path: 'x.ts', additions: 1, deletions: 0, patch: 'p' },
         }),
+        readDiffFileFullContent: async () => ({
+          cwd: '/tmp',
+          source: { kind: 'unstaged' },
+          sourceKey: 'git:unstaged',
+          generatedAt: new Date().toISOString(),
+          path: 'x.ts',
+          found: true,
+          content: { before: 'old\n', after: 'new\n' },
+        }),
       },
     })
     const onConnection = getConnectionHandler()
@@ -522,19 +531,23 @@ describe('startAppServerDevBridge', () => {
     socket.emitMessage('{"jsonrpc":"2.0","id":301,"method":"bridge/reviewGit/readDiffFilePatch"}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":302,"method":"bridge/reviewGit/readDiffSummary","params":{"source":{"kind":"staged"}}}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":303,"method":"bridge/reviewGit/readDiffFilePatch","params":{"source":{"kind":"staged"}}}\n')
-    await waitFor(() => socket.send.mock.calls.length >= 5)
+    socket.emitMessage('{"jsonrpc":"2.0","id":304,"method":"bridge/reviewGit/readDiffFileFullContent"}\n')
+    await waitFor(() => socket.send.mock.calls.length >= 6)
 
     const first = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
     const second = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
     const third = JSON.parse(String(socket.send.mock.calls[2]?.[0] ?? '{}'))
     const fourth = JSON.parse(String(socket.send.mock.calls[3]?.[0] ?? '{}'))
     const fifth = JSON.parse(String(socket.send.mock.calls[4]?.[0] ?? '{}'))
+    const sixth = JSON.parse(String(socket.send.mock.calls[5]?.[0] ?? '{}'))
     expect(first.id).toBe(299)
     expect(first.result.commits[0]).toMatchObject({ shortSha: '0123456', subject: 'feat: test' })
     expect(second.id).toBe(300)
     expect(third.id).toBe(301)
     expect(fourth.id).toBe(302)
     expect(fifth.id).toBe(303)
+    expect(sixth.id).toBe(304)
+    expect(sixth.result.content).toEqual({ before: 'old\n', after: 'new\n' })
     await bridge.close()
   })
 
