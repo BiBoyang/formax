@@ -2,8 +2,12 @@ import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode
 import { useI18n } from '../../app/i18n/I18nProvider'
 import type { GuiMessageKey } from '../../app/i18n/messages'
 import { cn } from '../../lib/utils'
-import type { parsePatchFiles as parsePatchFilesType } from '@pierre/diffs'
-import type { PatchDiff as PatchDiffType } from '@pierre/diffs/react'
+import type {
+  FileDiffMetadata,
+  parsePatchFiles as parsePatchFilesType,
+  setLanguageOverride as setLanguageOverrideType,
+} from '@pierre/diffs'
+import type { FileDiff as FileDiffType } from '@pierre/diffs/react'
 
 export const DIFF_RENDER_MAX_PATCH_BYTES = 256_000
 export const DIFF_RENDER_MAX_LINES = 4_000
@@ -32,12 +36,13 @@ export type DiffPatchViewProps = {
 }
 
 type ValidationResult =
-  | { ok: true; renderKey: string }
+  | { ok: true; renderKey: string; fileDiff: FileDiffMetadata }
   | { ok: false; reason: DiffPreviewUnavailableReason }
 
 type PierreDiffsModules = {
   parsePatchFiles: typeof parsePatchFilesType
-  PatchDiff: typeof PatchDiffType
+  setLanguageOverride: typeof setLanguageOverrideType
+  FileDiff: typeof FileDiffType
 }
 
 type DiffPatchViewErrorBoundaryProps = {
@@ -54,6 +59,7 @@ const BINARY_PATCH_PATTERN = /(^|\n)(Binary files .+ differ|GIT binary patch)(\n
 const SHOULD_INJECT_UNSAFE_CSS = import.meta.env.MODE !== 'test'
 const DIFF_RENDER_LINE_HEIGHT_PX = 23
 const DIFF_RENDER_HEADER_HEIGHT_PX = 36
+const PLAIN_TEXT_DIFF_EXTENSIONS = new Set(['md', 'markdown', 'mdc', 'mdx', 'mmd', 'mermaid'])
 let pierreDiffsModulePromise: Promise<PierreDiffsModules> | null = null
 
 const PREVIEW_UNAVAILABLE_MESSAGE_KEYS: Record<DiffPreviewUnavailableReason, GuiMessageKey> = {
@@ -176,12 +182,24 @@ function loadPierreDiffsModules(): Promise<PierreDiffsModules> {
     import('@pierre/diffs/react'),
   ]).then(([diffs, reactDiffs]) => ({
     parsePatchFiles: diffs.parsePatchFiles,
-    PatchDiff: reactDiffs.PatchDiff,
+    setLanguageOverride: diffs.setLanguageOverride,
+    FileDiff: reactDiffs.FileDiff,
   })).catch((error) => {
     pierreDiffsModulePromise = null
     throw error
   })
   return pierreDiffsModulePromise
+}
+
+function getPathExtension(path: string | undefined): string {
+  const fileName = path?.split(/[\\/]/).pop() ?? ''
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex < 0 || dotIndex === fileName.length - 1) return ''
+  return fileName.slice(dotIndex + 1).toLowerCase()
+}
+
+function shouldUsePlainTextLanguageOverride(path: string | undefined): boolean {
+  return PLAIN_TEXT_DIFF_EXTENSIONS.has(getPathExtension(path))
 }
 
 function getPatchByteLength(patch: string): number {
@@ -227,20 +245,22 @@ function getPreflightUnavailableReason(props: DiffPatchViewProps): DiffPreviewUn
   return null
 }
 
-function validatePatch(props: DiffPatchViewProps, parsePatchFiles: typeof parsePatchFilesType): ValidationResult {
+function validatePatch(props: DiffPatchViewProps, modules: PierreDiffsModules): ValidationResult {
   const patch = props.patch
   try {
-    const parsedPatches = parsePatchFiles(patch, getPatchRenderKey(props.path, patch), true)
+    const parsedPatches = modules.parsePatchFiles(patch, getPatchRenderKey(props.path, patch), true)
     const parsedFiles = parsedPatches.flatMap((parsedPatch) => parsedPatch.files)
-    if (parsedFiles.length === 0) return { ok: false, reason: 'invalid_patch' }
+    if (parsedFiles.length !== 1) return { ok: false, reason: 'invalid_patch' }
     if (parsedFiles.every((file) => file.hunks.length === 0)) {
       return { ok: false, reason: 'unsupported_patch' }
     }
+    const fileDiff = shouldUsePlainTextLanguageOverride(props.path)
+      ? modules.setLanguageOverride(parsedFiles[0], 'text')
+      : parsedFiles[0]
+    return { ok: true, renderKey: getPatchRenderKey(props.path, patch), fileDiff }
   } catch {
     return { ok: false, reason: 'invalid_patch' }
   }
-
-  return { ok: true, renderKey: getPatchRenderKey(props.path, patch) }
 }
 
 function DiffPreviewLoading(props: { maxHeightClassName?: string }) {
@@ -308,6 +328,10 @@ function DiffPreviewUnavailable(props: {
 export function DiffPatchView(props: DiffPatchViewProps) {
   const [modules, setModules] = useState<PierreDiffsModules | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [renderedPatchKey, setRenderedPatchKey] = useState<string | null>(null)
+  const diffStyle = props.diffStyle ?? 'unified'
+  const showFileHeader = props.showFileHeader ?? true
+  const wordWrap = props.wordWrap ?? false
   const preflightUnavailableReason = useMemo(
     () => getPreflightUnavailableReason(props),
     [props.patch, props.truncated],
@@ -330,12 +354,16 @@ export function DiffPatchView(props: DiffPatchViewProps) {
     return () => {
       cancelled = true
     }
-  }, [preflightUnavailableReason])
+  }, [preflightUnavailableReason, props.patch, props.path])
 
   const validation = useMemo(() => {
     if (!modules) return null
-    return validatePatch(props, modules.parsePatchFiles)
+    return validatePatch(props, modules)
   }, [modules, props.patch, props.path, props.truncated])
+  const validationRenderKey = validation?.ok ? validation.renderKey : null
+  const renderCompletionKey = validationRenderKey
+    ? `${validationRenderKey}:${diffStyle}:${wordWrap ? 'wrap' : 'scroll'}:${showFileHeader ? 'header' : 'body'}`
+    : null
 
   const unavailableFallback = (
     <DiffPreviewUnavailable
@@ -379,16 +407,15 @@ export function DiffPatchView(props: DiffPatchViewProps) {
     )
   }
 
-  const LoadedPatchDiff = modules.PatchDiff
-  const diffStyle = props.diffStyle ?? 'unified'
-  const showFileHeader = props.showFileHeader ?? true
-  const wordWrap = props.wordWrap ?? false
+  const LoadedFileDiff = modules.FileDiff
+  const isRendered = renderedPatchKey === renderCompletionKey
   const unsafeCSS = wordWrap
     ? `${DIFFS_UNSAFE_CSS}\n${DIFFS_WORD_WRAP_UNSAFE_CSS}`
     : DIFFS_UNSAFE_CSS
 
   return (
     <div className="bg-muted/35 rounded-b-[10px] overflow-hidden">
+      {!isRendered ? <DiffPreviewLoading maxHeightClassName={props.maxHeightClassName} /> : null}
       <div
         data-testid="pierre-diff-view"
         data-word-wrap={wordWrap ? 'true' : 'false'}
@@ -398,9 +425,9 @@ export function DiffPatchView(props: DiffPatchViewProps) {
         )}
       >
         <DiffPatchViewErrorBoundary key={validation.renderKey} fallback={unavailableFallback}>
-          <LoadedPatchDiff
+          <LoadedFileDiff
             key={`${validation.renderKey}:${wordWrap ? 'wrap' : 'scroll'}`}
-            patch={props.patch}
+            fileDiff={validation.fileDiff}
             metrics={{
               hunkLineCount: 50,
               lineHeight: DIFF_RENDER_LINE_HEIGHT_PX,
@@ -413,13 +440,17 @@ export function DiffPatchView(props: DiffPatchViewProps) {
               diffStyle,
               disableFileHeader: !showFileHeader,
               hunkSeparators: 'line-info-basic',
-              lineDiffType: 'word',
+              lineDiffType: 'none',
               overflow: 'scroll',
               theme: 'pierre-light-soft',
               themeType: 'light',
               tokenizeMaxLength: 40_000,
               tokenizeMaxLineLength: 1_000,
               unsafeCSS: SHOULD_INJECT_UNSAFE_CSS ? unsafeCSS : undefined,
+              onPostRender: (_node, _instance, phase) => {
+                if (phase === 'unmount' || !renderCompletionKey) return
+                setRenderedPatchKey(renderCompletionKey)
+              },
             }}
           />
         </DiffPatchViewErrorBoundary>

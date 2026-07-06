@@ -98,6 +98,7 @@ describe('buildAppShellProps', () => {
         onRefreshDiff: vi.fn(),
         onRequestDiffPatch: vi.fn(async () => null),
         onRequestDiffPreview: vi.fn(async () => null),
+        onListReviewCommits: vi.fn(async () => []),
         isRefreshingDiff: false,
       },
       feedback: {

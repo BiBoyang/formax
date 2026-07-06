@@ -23,14 +23,17 @@ import {
 import { runAppServer } from './index.js'
 import {
   buildGitReviewNameStatusArgs,
+  buildGitReviewCommitListArgs,
   buildGitReviewNumstatArgs,
   buildGitReviewPatchArgs,
   buildGitReviewUntrackedArgs,
   getDeletedImageBlobRef,
   getGitReviewSourceKey,
   mergeSummaryFiles,
+  normalizeGitReviewCommitLimit,
   normalizeGitReviewSource,
   normalizeNumstatPath,
+  parseGitReviewCommitList,
   parseNumstatFiles,
   parsePatchFiles,
   parseRenamePairs,
@@ -38,6 +41,7 @@ import {
   supportsImagePreview,
   type GitReviewDiffFile,
   type GitReviewDiffSummaryFile,
+  type GitReviewCommit,
   type GitReviewSource,
   type GitReviewSourceKey,
 } from './gitReviewOperations.js'
@@ -60,6 +64,7 @@ export type AppServerDevBridgeOptions = {
   defaultInputTtlMs?: number
   setupMode?: 'require-config' | 'allow'
   rpcOverrides?: {
+    listCommits?: (cwd: string, params: BridgeListCommitsParams | undefined) => Promise<BridgeListCommitsResult>
     readDiff?: (cwd: string, params: BridgeReadDiffParams | undefined) => Promise<BridgeReadDiffResult>
     readDiffSummary?: (cwd: string, params: BridgeReadDiffSummaryParams | undefined) => Promise<BridgeReadDiffSummaryResult>
     readDiffFilePatch?: (cwd: string, params: BridgeReadDiffFilePatchParams | undefined) => Promise<BridgeReadDiffFilePatchResult>
@@ -76,6 +81,11 @@ type BridgeReadDiffParams = {
   maxBytes?: number
   cwd?: string
   source?: unknown
+}
+
+type BridgeListCommitsParams = {
+  limit?: number
+  cwd?: string
 }
 
 type BridgeReadDiffSummaryParams = {
@@ -97,6 +107,19 @@ type BridgeReadDiffFilePreviewParams = {
   cwd?: string
   source?: unknown
 }
+
+type BridgeListCommitsResult = {
+  cwd: string
+  generatedAt: string
+  commits: GitReviewCommit[]
+}
+
+type BridgeReviewGitResult =
+  | BridgeListCommitsResult
+  | BridgeReadDiffResult
+  | BridgeReadDiffSummaryResult
+  | BridgeReadDiffFilePatchResult
+  | BridgeReadDiffFilePreviewResult
 
 type BridgeDiffFile = GitReviewDiffFile
 
@@ -138,7 +161,7 @@ type BridgeImagePreview = {
   mimeType: string
   dataUrl: string
   sizeBytes: number
-  source: 'working_tree' | 'head' | 'index'
+  source: 'working_tree' | 'head' | 'index' | 'commit'
   changeKind: 'added' | 'modified' | 'deleted'
 }
 
@@ -668,6 +691,25 @@ async function readWorkspaceDiff(
   }
 }
 
+async function listWorkspaceReviewCommits(
+  cwd: string,
+  params: BridgeListCommitsParams | undefined,
+  deps?: {
+    runGitFn?: typeof runGit
+  },
+): Promise<BridgeListCommitsResult> {
+  const runGitFn = deps?.runGitFn ?? runGit
+  const limit = normalizeGitReviewCommitLimit(params?.limit)
+  const generatedAt = new Date().toISOString()
+  const result = await runGitFn(cwd, buildGitReviewCommitListArgs(limit))
+
+  return {
+    cwd,
+    generatedAt,
+    commits: result.ok ? parseGitReviewCommitList(result.stdout).slice(0, limit) : [],
+  }
+}
+
 async function readWorkspaceDiffSummary(
   cwd: string,
   params: BridgeReadDiffSummaryParams | undefined,
@@ -889,6 +931,38 @@ async function readWorkspaceDiffFilePreview(
 
   const maxBytes = normalizePreviewMaxBytes(params?.maxBytes)
   const changeKind = getImagePreviewChangeKind(trackedFile, isUntracked)
+  if (source.kind === 'commit') {
+    const blobRef = changeKind === 'deleted' ? `${source.sha}^:${requestedPath}` : `${source.sha}:${requestedPath}`
+    const sizeResult = await runGitFn(cwd, ['cat-file', '-s', blobRef])
+    const sizeBytes = sizeResult.ok ? Number(sizeResult.stdout.trim()) : Number.NaN
+    if (!Number.isFinite(sizeBytes)) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    if (sizeBytes > maxBytes) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: true, preview: null, error: 'too_large' }
+    }
+    const blobResult = await runGitBufferFn(cwd, ['show', blobRef], { maxBuffer: maxBytes + 1024 })
+    if (!blobResult.ok) {
+      return { cwd, source, sourceKey, generatedAt, path: requestedPath, found: false, preview: null, error: 'read_failed' }
+    }
+    return {
+      cwd,
+      source,
+      sourceKey,
+      generatedAt,
+      path: requestedPath,
+      found: true,
+      preview: {
+        kind: 'image',
+        mimeType,
+        dataUrl: `data:${mimeType};base64,${blobResult.stdout.toString('base64')}`,
+        sizeBytes,
+        source: 'commit',
+        changeKind,
+      },
+    }
+  }
+
   if (changeKind === 'deleted') {
     const blob = getDeletedImageBlobRef(source, requestedPath)
     if (!blob) {
@@ -1201,7 +1275,8 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
 
         if (
           isRequest &&
-          (parsed.method === 'bridge/reviewGit/readDiff' ||
+          (parsed.method === 'bridge/reviewGit/listCommits' ||
+            parsed.method === 'bridge/reviewGit/readDiff' ||
             parsed.method === 'bridge/reviewGit/readDiffSummary' ||
             parsed.method === 'bridge/reviewGit/readDiffFilePatch' ||
             parsed.method === 'bridge/reviewGit/readDiffFilePreview')
@@ -1217,23 +1292,41 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
           const baseCwd = options.cwd ?? process.cwd()
           const rawParams = (parsed.params ?? {}) as { cwd?: unknown }
           const diffCwd = resolveDiffCwd(baseCwd, rawParams.cwd)
-          const rpcPromise =
-            parsed.method === 'bridge/reviewGit/readDiff'
-              ? (options.rpcOverrides?.readDiff ?? readWorkspaceDiff)(diffCwd, (parsed.params ?? {}) as BridgeReadDiffParams)
-              : parsed.method === 'bridge/reviewGit/readDiffSummary'
-                ? (options.rpcOverrides?.readDiffSummary ?? readWorkspaceDiffSummary)(
-                    diffCwd,
-                    (parsed.params ?? {}) as BridgeReadDiffSummaryParams,
-                  )
-                : parsed.method === 'bridge/reviewGit/readDiffFilePatch'
-                  ? (options.rpcOverrides?.readDiffFilePatch ?? readWorkspaceDiffFilePatch)(
-                      diffCwd,
-                      (parsed.params ?? {}) as BridgeReadDiffFilePatchParams,
-                    )
-                  : (options.rpcOverrides?.readDiffFilePreview ?? readWorkspaceDiffFilePreview)(
-                      diffCwd,
-                      (parsed.params ?? {}) as BridgeReadDiffFilePreviewParams,
-                    )
+          let rpcPromise: Promise<BridgeReviewGitResult>
+          switch (parsed.method) {
+            case 'bridge/reviewGit/listCommits':
+              rpcPromise = (options.rpcOverrides?.listCommits ?? listWorkspaceReviewCommits)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeListCommitsParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiff':
+              rpcPromise = (options.rpcOverrides?.readDiff ?? readWorkspaceDiff)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffSummary':
+              rpcPromise = (options.rpcOverrides?.readDiffSummary ?? readWorkspaceDiffSummary)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffSummaryParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffFilePatch':
+              rpcPromise = (options.rpcOverrides?.readDiffFilePatch ?? readWorkspaceDiffFilePatch)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffFilePatchParams,
+              )
+              break
+            case 'bridge/reviewGit/readDiffFilePreview':
+              rpcPromise = (options.rpcOverrides?.readDiffFilePreview ?? readWorkspaceDiffFilePreview)(
+                diffCwd,
+                (parsed.params ?? {}) as BridgeReadDiffFilePreviewParams,
+              )
+              break
+            default:
+              continue
+          }
 
           void rpcPromise
             .then((result) => {
@@ -1346,6 +1439,9 @@ export const __devBridgeTestHooks = {
   broadcastLine,
   createBridgeAuditWriter,
   runGit,
+  normalizeGitReviewCommitLimit,
+  buildGitReviewCommitListArgs,
+  parseGitReviewCommitList,
   parsePatchFiles,
   parseRenamePairs,
   parseNumstatFiles,
@@ -1356,6 +1452,7 @@ export const __devBridgeTestHooks = {
   countContentLines,
   buildUntrackedDiffFile,
   buildUntrackedSummaryFile,
+  listWorkspaceReviewCommits,
   readWorkspaceDiff,
   readWorkspaceDiffSummary,
   findPatchByRequestedPath,

@@ -26,7 +26,7 @@ export function DiffFileCard(props: {
       <div
         role="button"
         tabIndex={0}
-        className="sticky top-0 z-10 cursor-pointer select-none bg-background/90 backdrop-blur-sm focus-visible:outline-none"
+        className="cursor-pointer select-none bg-background focus-visible:outline-none"
         onClick={props.onToggle}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return

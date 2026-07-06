@@ -474,11 +474,24 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
-  it('uses summary and file-patch rpc overrides when provided', async () => {
+  it('uses review git rpc overrides when provided', async () => {
     const bridge = await startAppServerDevBridge({
       host: '127.0.0.1',
       port: 3777,
       rpcOverrides: {
+        listCommits: async () => ({
+          cwd: '/tmp',
+          generatedAt: new Date().toISOString(),
+          commits: [
+            {
+              sha: '0123456789abcdef',
+              shortSha: '0123456',
+              subject: 'feat: test',
+              committedAt: '2023-11-14T22:13:20.000Z',
+              committedAtUnixSeconds: 1700000000,
+            },
+          ],
+        }),
         readDiffSummary: async () => ({
           cwd: '/tmp',
           source: { kind: 'unstaged' },
@@ -504,20 +517,24 @@ describe('startAppServerDevBridge', () => {
     const socket = createMockSocket()
     onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
 
+    socket.emitMessage('{"jsonrpc":"2.0","id":299,"method":"bridge/reviewGit/listCommits","params":{"limit":10}}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":300,"method":"bridge/reviewGit/readDiffSummary"}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":301,"method":"bridge/reviewGit/readDiffFilePatch"}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":302,"method":"bridge/reviewGit/readDiffSummary","params":{"source":{"kind":"staged"}}}\n')
     socket.emitMessage('{"jsonrpc":"2.0","id":303,"method":"bridge/reviewGit/readDiffFilePatch","params":{"source":{"kind":"staged"}}}\n')
-    await waitFor(() => socket.send.mock.calls.length >= 4)
+    await waitFor(() => socket.send.mock.calls.length >= 5)
 
     const first = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
     const second = JSON.parse(String(socket.send.mock.calls[1]?.[0] ?? '{}'))
     const third = JSON.parse(String(socket.send.mock.calls[2]?.[0] ?? '{}'))
     const fourth = JSON.parse(String(socket.send.mock.calls[3]?.[0] ?? '{}'))
-    expect(first.id).toBe(300)
-    expect(second.id).toBe(301)
-    expect(third.id).toBe(302)
-    expect(fourth.id).toBe(303)
+    const fifth = JSON.parse(String(socket.send.mock.calls[4]?.[0] ?? '{}'))
+    expect(first.id).toBe(299)
+    expect(first.result.commits[0]).toMatchObject({ shortSha: '0123456', subject: 'feat: test' })
+    expect(second.id).toBe(300)
+    expect(third.id).toBe(301)
+    expect(fourth.id).toBe(302)
+    expect(fifth.id).toBe(303)
     await bridge.close()
   })
 

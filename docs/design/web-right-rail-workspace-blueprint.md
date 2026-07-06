@@ -22,7 +22,8 @@ Deferred feature families:
 - Browser tab.
 - Files tab.
 - Side chat tab.
-- Commit / push and pull request flows.
+- Commit-source review is active for inspecting existing commits.
+- Commit / push and pull request action flows.
 
 ## Concept Model
 
@@ -88,7 +89,7 @@ Review source map:
 
 - `Unstaged`: active now. Shows tracked worktree-vs-index changes plus untracked files.
 - `Staged`: active now. Shows index-vs-HEAD changes and never includes untracked files.
-- `Commit`: disabled placeholder. This means inspecting the file diff for an existing commit; it is not the commit/push action.
+- `Commit`: active now. Lists the latest 10 commits and shows a selected commit's file diff; it is not the commit/push action.
 - `Branch`: disabled placeholder. Future source for comparing against another branch or base.
 - `Previous conversation`: disabled placeholder. Future source for reviewing a previous conversation's captured diff.
 
@@ -98,7 +99,11 @@ Git review source semantics:
 - `Unstaged` uses `git diff` for tracked files and separately appends safe untracked summaries/patches.
 - `Staged` uses `git diff --cached` for tracked/index files and excludes untracked files.
 - Staged image preview is intentionally unavailable in the first implementation; it must not read the worktree file as a fallback.
-- Future commit/branch review sources should extend the Git review operation layer instead of adding ad hoc git commands in the Web UI.
+- Commit source uses `git show --first-parent --root` style semantics through the Git review operation layer.
+- Merge commits are shown against the first parent.
+- Root commits are shown as empty-tree-to-commit diffs.
+- Commit image preview reads Git historical blobs, not the current worktree file.
+- Future branch review sources should extend the Git review operation layer instead of adding ad hoc git commands in the Web UI.
 
 Review more menu map:
 
@@ -115,7 +120,7 @@ Deferred Review Toolbar controls:
 - Show in folder.
 - Commit or push.
 - Create pull request.
-- Functional commit/branch/previous-conversation sources.
+- Functional branch/previous-conversation sources.
 - Functional rich text preview, full-file loading, whitespace, and text-diff toggles unless the renderer has stable behavior and tests.
 
 ##### Review Body
@@ -212,7 +217,8 @@ Review source:
 - Owned by the Review feature boundary.
 - Initial value is Unstaged.
 - Supported Git values are Unstaged and Staged.
-- Commit/branch/previous-conversation entries must remain disabled until those data sources exist.
+- Commit is functional for the latest 10 Git commits.
+- Branch/previous-conversation entries must remain disabled until those data sources exist.
 
 Diff view mode:
 
@@ -284,8 +290,7 @@ Extraction guidance:
 
 ## Non-goals For The First Implementation Pass
 
-- Implementing staged diff review.
-- Implementing commit / push.
+- Implementing commit / push action flow.
 - Implementing pull request creation.
 - Implementing browser/files/side-chat tabs.
 - Moving terminal rendering into the right rail tab system.

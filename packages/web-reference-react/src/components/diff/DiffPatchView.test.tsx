@@ -122,6 +122,22 @@ describe('DiffPatchView', () => {
     expect(shadowText).toContain('new')
   })
 
+  it('renders markdown patches with the plain-text language override', async () => {
+    const patch = [
+      'diff --git a/CODEMAP.md b/CODEMAP.md',
+      '--- a/CODEMAP.md',
+      '+++ b/CODEMAP.md',
+      '@@ -1 +1 @@',
+      '-old docs',
+      '+new docs',
+    ].join('\n')
+
+    const { container } = renderDiff(patch, { path: 'CODEMAP.md' })
+    const shadowText = await findDiffShadowText(container)
+    expect(shadowText).toContain('old docs')
+    expect(shadowText).toContain('new docs')
+  })
+
   it('renders an added file patch', async () => {
     const patch = [
       'diff --git a/dev/null b/src/new.ts',

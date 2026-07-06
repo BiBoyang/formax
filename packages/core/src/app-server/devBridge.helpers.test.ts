@@ -139,6 +139,31 @@ describe('devBridge helper hooks', () => {
   })
 
   it('parses patch/rename/numstat formats', () => {
+    expect(__devBridgeTestHooks.normalizeGitReviewCommitLimit('x')).toBe(10)
+    expect(__devBridgeTestHooks.normalizeGitReviewCommitLimit(0)).toBe(1)
+    expect(__devBridgeTestHooks.normalizeGitReviewCommitLimit(99)).toBe(50)
+    expect(__devBridgeTestHooks.buildGitReviewCommitListArgs(99)).toEqual([
+      'log',
+      '--max-count=50',
+      '--format=%H%x1f%h%x1f%ct%x1f%s',
+    ])
+    expect(
+      __devBridgeTestHooks.parseGitReviewCommitList(
+        [
+          '0123456789abcdef\x1f0123456\x1f1700000000\x1ffeat: one',
+          'bad\x1fline',
+        ].join('\n'),
+      ),
+    ).toEqual([
+      {
+        sha: '0123456789abcdef',
+        shortSha: '0123456',
+        subject: 'feat: one',
+        committedAt: '2023-11-14T22:13:20.000Z',
+        committedAtUnixSeconds: 1700000000,
+      },
+    ])
+
     expect(__devBridgeTestHooks.parsePatchFiles('')).toEqual([])
     const parsed = __devBridgeTestHooks.parsePatchFiles([
       'diff --git a/a.ts b/a.ts',
@@ -481,6 +506,68 @@ describe('devBridge helper hooks', () => {
     }
   })
 
+  it('reads commit review sources and recent commit list from git repos', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-commit-source-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+
+      await writeFile(path.join(dir, 'root.txt'), 'root\n', 'utf8')
+      runGit(dir, ['add', 'root.txt'])
+      runGit(dir, ['commit', '-m', 'root commit'])
+      const rootSha = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+
+      await writeFile(path.join(dir, 'root.txt'), 'root\nsecond\n', 'utf8')
+      runGit(dir, ['commit', '-am', 'second commit'])
+      const secondSha = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+
+      runGit(dir, ['checkout', '-b', 'side', 'HEAD~1'])
+      await writeFile(path.join(dir, 'side.txt'), 'side\n', 'utf8')
+      runGit(dir, ['add', 'side.txt'])
+      runGit(dir, ['commit', '-m', 'side commit'])
+      runGit(dir, ['checkout', 'master'])
+      runGit(dir, ['merge', '--no-ff', 'side', '-m', 'merge commit'])
+      const mergeSha = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+
+      const commits = await __devBridgeTestHooks.listWorkspaceReviewCommits(dir, { limit: 10 })
+      expect(commits.commits[0]?.subject).toBe('merge commit')
+      expect(commits.commits.map((commit) => commit.subject)).toEqual(
+        expect.arrayContaining(['merge commit', 'side commit', 'second commit', 'root commit']),
+      )
+      expect(commits.commits[0]?.sha).toBe(mergeSha)
+
+      const secondSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
+        source: { kind: 'commit', sha: secondSha },
+        maxFiles: 100,
+      })
+      expect(secondSummary.sourceKey).toBe(`git:commit:${secondSha}`)
+      expect(secondSummary.files).toEqual([{ path: 'root.txt', additions: 1, deletions: 0 }])
+
+      const secondPatch = await __devBridgeTestHooks.readWorkspaceDiffFilePatch(dir, {
+        source: { kind: 'commit', sha: secondSha },
+        path: 'root.txt',
+        maxBytes: 200_000,
+      })
+      expect(secondPatch.found).toBe(true)
+      expect(secondPatch.file?.patch).toContain('+second')
+
+      const rootSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
+        source: { kind: 'commit', sha: rootSha },
+        maxFiles: 100,
+      })
+      expect(rootSummary.files).toEqual([{ path: 'root.txt', additions: 1, deletions: 0 }])
+
+      const mergeSummary = await __devBridgeTestHooks.readWorkspaceDiffSummary(dir, {
+        source: { kind: 'commit', sha: mergeSha },
+        maxFiles: 100,
+      })
+      expect(mergeSummary.files).toEqual([{ path: 'side.txt', additions: 1, deletions: 0 }])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('marks staged image preview unavailable without reading the worktree image', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-staged-preview-'))
     try {
@@ -505,6 +592,82 @@ describe('devBridge helper hooks', () => {
         preview: null,
         error: 'unsupported_source',
       })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('reads commit image previews from git blobs instead of the worktree', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'formax-devbridge-commit-preview-'))
+    try {
+      runGit(dir, ['init'])
+      runGit(dir, ['config', 'user.email', 'devbridge@example.com'])
+      runGit(dir, ['config', 'user.name', 'Dev Bridge'])
+      await mkdir(path.join(dir, 'images'))
+      await writeFile(path.join(dir, 'images', 'keep.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46]))
+      await writeFile(path.join(dir, 'images', 'delete.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46, 0x01]))
+      runGit(dir, ['add', 'images'])
+      runGit(dir, ['commit', '-m', 'root images'])
+      const rootSha = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+
+      await writeFile(path.join(dir, 'images', 'keep.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46, 0x02]))
+      runGit(dir, ['rm', 'images/delete.webp'])
+      runGit(dir, ['commit', '-am', 'change images'])
+      const sha = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+
+      await writeFile(path.join(dir, 'images', 'keep.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46, 0xff]))
+
+      const rootAdded = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        source: { kind: 'commit', sha: rootSha },
+        path: 'images/keep.webp',
+        maxBytes: 1024,
+      })
+      expect(rootAdded).toMatchObject({
+        sourceKey: `git:commit:${rootSha}`,
+        found: true,
+        preview: {
+          kind: 'image',
+          mimeType: 'image/webp',
+          sizeBytes: 4,
+          source: 'commit',
+          changeKind: 'added',
+        },
+      })
+      expect(rootAdded.preview?.dataUrl).toBe(`data:image/webp;base64,${Buffer.from([0x52, 0x49, 0x46, 0x46]).toString('base64')}`)
+
+      const modified = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        source: { kind: 'commit', sha },
+        path: 'images/keep.webp',
+        maxBytes: 1024,
+      })
+      expect(modified).toMatchObject({
+        sourceKey: `git:commit:${sha}`,
+        found: true,
+        preview: {
+          kind: 'image',
+          mimeType: 'image/webp',
+          sizeBytes: 5,
+          source: 'commit',
+          changeKind: 'modified',
+        },
+      })
+      expect(modified.preview?.dataUrl).toBe(`data:image/webp;base64,${Buffer.from([0x52, 0x49, 0x46, 0x46, 0x02]).toString('base64')}`)
+
+      const deleted = await __devBridgeTestHooks.readWorkspaceDiffFilePreview(dir, {
+        source: { kind: 'commit', sha },
+        path: 'images/delete.webp',
+        maxBytes: 1024,
+      })
+      expect(deleted).toMatchObject({
+        found: true,
+        preview: {
+          kind: 'image',
+          source: 'commit',
+          changeKind: 'deleted',
+          sizeBytes: 5,
+        },
+      })
+      expect(deleted.preview?.dataUrl).toBe(`data:image/webp;base64,${Buffer.from([0x52, 0x49, 0x46, 0x46, 0x01]).toString('base64')}`)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

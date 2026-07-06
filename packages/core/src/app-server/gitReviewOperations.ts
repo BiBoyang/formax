@@ -1,10 +1,19 @@
-export type GitReviewSourceKind = 'unstaged' | 'staged'
+export type GitReviewSourceKind = 'unstaged' | 'staged' | 'commit'
 
-export type GitReviewSource = {
-  kind: GitReviewSourceKind
+export type GitReviewSource =
+  | { kind: 'unstaged' }
+  | { kind: 'staged' }
+  | { kind: 'commit'; sha: string }
+
+export type GitReviewSourceKey = 'git:unstaged' | 'git:staged' | `git:commit:${string}`
+
+export type GitReviewCommit = {
+  sha: string
+  shortSha: string
+  subject: string
+  committedAt: string
+  committedAtUnixSeconds: number
 }
-
-export type GitReviewSourceKey = `git:${GitReviewSourceKind}`
 
 export type GitReviewDiffFile = {
   path: string
@@ -29,11 +38,16 @@ export function normalizeGitReviewSource(value: unknown): GitReviewSource {
   if (typeof value === 'object') {
     const kind = (value as { kind?: unknown }).kind
     if (kind === 'unstaged' || kind === 'staged') return { kind }
+    if (kind === 'commit') {
+      const sha = typeof (value as { sha?: unknown }).sha === 'string' ? (value as { sha: string }).sha.trim() : ''
+      if (/^[0-9a-fA-F]{7,64}$/.test(sha)) return { kind, sha: sha.toLowerCase() }
+    }
   }
   throw Object.assign(new Error('Invalid Git review source.'), { code: -32602 })
 }
 
 export function getGitReviewSourceKey(source: GitReviewSource): GitReviewSourceKey {
+  if (source.kind === 'commit') return `git:commit:${source.sha}`
   return `git:${source.kind}`
 }
 
@@ -59,16 +73,55 @@ export function buildGitReviewUntrackedArgs(filePath?: string): string[] {
   return args
 }
 
+export function normalizeGitReviewCommitLimit(value: unknown, fallback = 10): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.max(1, Math.min(50, Math.floor(value)))
+}
+
+export function buildGitReviewCommitListArgs(limit: number): string[] {
+  return [
+    'log',
+    `--max-count=${normalizeGitReviewCommitLimit(limit)}`,
+    '--format=%H%x1f%h%x1f%ct%x1f%s',
+  ]
+}
+
+export function parseGitReviewCommitList(stdout: string): GitReviewCommit[] {
+  if (!stdout.trim()) return []
+  const commits: GitReviewCommit[] = []
+  for (const rawLine of stdout.split(/\r?\n/)) {
+    if (!rawLine.trim()) continue
+    const [sha, shortSha, unixText, ...subjectParts] = rawLine.split('\x1f')
+    const subject = subjectParts.join('\x1f').trim()
+    const committedAtUnixSeconds = Number(unixText)
+    if (!sha || !shortSha || !Number.isFinite(committedAtUnixSeconds)) continue
+    commits.push({
+      sha,
+      shortSha,
+      subject: subject || shortSha,
+      committedAt: new Date(committedAtUnixSeconds * 1000).toISOString(),
+      committedAtUnixSeconds,
+    })
+  }
+  return commits
+}
+
 export function getDeletedImageBlobRef(source: GitReviewSource, filePath: string): { ref: string; source: 'index' } | null {
   if (source.kind !== 'unstaged') return null
   return { ref: `:${filePath}`, source: 'index' }
 }
 
 export function supportsImagePreview(source: GitReviewSource): boolean {
-  return source.kind === 'unstaged'
+  return source.kind === 'unstaged' || source.kind === 'commit'
 }
 
 function buildGitDiffArgs(source: GitReviewSource, format: '--patch' | '--numstat' | '--name-status', filePath?: string): string[] {
+  if (source.kind === 'commit') {
+    const args = ['show', '--format=', '--no-color', format, '--find-renames', '--first-parent', '--root', source.sha]
+    if (filePath) args.push('--', filePath)
+    return args
+  }
+
   const args = ['diff']
   if (source.kind === 'staged') args.push('--cached')
   args.push('--no-color', format, '--find-renames')

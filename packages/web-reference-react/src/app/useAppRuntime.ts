@@ -106,6 +106,7 @@ function parseEffectiveProfileProvider(value: unknown): string | null {
 const DEFAULT_REVIEW_SOURCE: ReviewGitSource = { kind: 'unstaged' }
 
 function normalizeReviewSource(value?: ReviewGitSource | null): ReviewGitSource {
+  if (value?.kind === 'commit' && value.sha.trim()) return { kind: 'commit', sha: value.sha.trim().toLowerCase() }
   return value?.kind === 'staged' ? { kind: 'staged' } : DEFAULT_REVIEW_SOURCE
 }
 
@@ -467,6 +468,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
     refreshWorkspaceDiff: refreshWorkspaceDiffForSource,
     requestDiffFilePatch,
     requestDiffFilePreview,
+    listReviewCommits,
   } = useMemo(
     () =>
       createDiffDataOps({
@@ -911,9 +913,10 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
         refreshWorkspaceDiff,
         requestDiffFilePatch,
         requestDiffFilePreview,
+        listReviewCommits,
         runAsyncSafely,
       }),
-    [refreshWorkspaceDiff, requestDiffFilePatch, requestDiffFilePreview],
+    [listReviewCommits, refreshWorkspaceDiff, requestDiffFilePatch, requestDiffFilePreview],
   )
 
   const threadSection = useMemo<BuildAppShellPropsArgs['thread']>(
@@ -1060,6 +1063,7 @@ export function useAppRuntime(ports?: RuntimePorts): AppShellProps {
       onRefreshDiff: diffUiHandlers.onRefreshDiff,
       onRequestDiffPatch: diffUiHandlers.onRequestDiffPatch,
       onRequestDiffPreview: diffUiHandlers.onRequestDiffPreview,
+      onListReviewCommits: diffUiHandlers.onListReviewCommits,
       isRefreshingDiff,
     }),
     [diffSnapshot, diffUiHandlers, isRefreshingDiff],

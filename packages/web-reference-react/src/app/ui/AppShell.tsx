@@ -6,7 +6,13 @@ import { LeftRail } from '../../components/LeftRail'
 import { TerminalPane } from '../../components/TerminalPane'
 import { TranscriptPane } from '../../components/TranscriptPane'
 import { WorktreeDiffPane } from '../../components/WorktreeDiffPane'
-import type { DiffFilePatchPayload, DiffFilePreviewPayload, DiffSnapshot, ReviewGitSource } from '../../components/diff/diffTypes'
+import type {
+  DiffFilePatchPayload,
+  DiffFilePreviewPayload,
+  DiffSnapshot,
+  ReviewGitCommit,
+  ReviewGitSource,
+} from '../../components/diff/diffTypes'
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert'
 import { Button } from '../../components/ui/button'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable'
@@ -111,6 +117,7 @@ export type AppShellProps = {
   onRefreshDiff: (source?: ReviewGitSource | null) => void
   onRequestDiffPatch: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
   onRequestDiffPreview: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
+  onListReviewCommits: () => Promise<ReviewGitCommit[]>
   isRefreshingDiff: boolean
   noticeMessage: string | null
   userSettings: UserSettings
@@ -392,6 +399,7 @@ export function AppShell(props: AppShellProps) {
       onRefreshDiff: props.onRefreshDiff,
       onRequestPatch: props.onRequestDiffPatch,
       onRequestPreview: props.onRequestDiffPreview,
+      onListCommits: props.onListReviewCommits,
       isRefreshingDiff: isThreadSurface ? props.isRefreshingDiff : false,
       showHeader: true as const,
     }),
@@ -404,6 +412,7 @@ export function AppShell(props: AppShellProps) {
       props.onRefreshDiff,
       props.onRequestDiffPatch,
       props.onRequestDiffPreview,
+      props.onListReviewCommits,
     ],
   )
 

@@ -6,13 +6,22 @@ export type DiffFileViewModel = {
   untracked?: boolean
 }
 
-export type ReviewGitSourceKind = 'unstaged' | 'staged'
+export type ReviewGitSourceKind = 'unstaged' | 'staged' | 'commit'
 
-export type ReviewGitSource = {
-  kind: ReviewGitSourceKind
+export type ReviewGitSource =
+  | { kind: 'unstaged' }
+  | { kind: 'staged' }
+  | { kind: 'commit'; sha: string }
+
+export type ReviewGitSourceKey = 'git:unstaged' | 'git:staged' | `git:commit:${string}`
+
+export type ReviewGitCommit = {
+  sha: string
+  shortSha: string
+  subject: string
+  committedAt: string
+  committedAtUnixSeconds: number
 }
-
-export type ReviewGitSourceKey = `git:${ReviewGitSourceKind}`
 
 export type PatchErrorKind = 'unavailable' | 'load_failed'
 export type PreviewErrorKind = 'unavailable' | 'load_failed'
@@ -25,7 +34,7 @@ export type DiffFilePreviewPayload = {
     mimeType: string
     dataUrl: string
     sizeBytes: number
-    source?: 'working_tree' | 'head' | 'index'
+    source?: 'working_tree' | 'head' | 'index' | 'commit'
     changeKind?: 'added' | 'modified' | 'deleted'
   } | null
   error?: string

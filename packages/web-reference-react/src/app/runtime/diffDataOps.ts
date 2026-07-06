@@ -2,6 +2,7 @@ import type {
   DiffFilePatchPayload,
   DiffFilePreviewPayload,
   DiffSnapshot,
+  ReviewGitCommit,
   ReviewGitSource,
   ReviewGitSourceKey,
 } from '../../components/diff/diffTypes'
@@ -20,11 +21,16 @@ export type DiffDataOpsContext = {
 const DEFAULT_REVIEW_SOURCE: ReviewGitSource = { kind: 'unstaged' }
 
 function getReviewSourceKey(source: ReviewGitSource): ReviewGitSourceKey {
+  if (source.kind === 'commit') return `git:commit:${source.sha}`
   return `git:${source.kind}`
 }
 
 function normalizeReviewSource(value?: ReviewGitSource | null): ReviewGitSource {
-  return value?.kind === 'staged' ? { kind: 'staged' } : DEFAULT_REVIEW_SOURCE
+  if (value?.kind === 'staged') return { kind: 'staged' }
+  if (value?.kind === 'commit' && typeof value.sha === 'string' && value.sha.trim()) {
+    return { kind: 'commit', sha: value.sha.trim().toLowerCase() }
+  }
+  return DEFAULT_REVIEW_SOURCE
 }
 
 function isExpectedReviewSource(snapshot: DiffSnapshot, expectedSourceKey: ReviewGitSourceKey): boolean {
@@ -36,7 +42,10 @@ function asDiffSnapshot(value: unknown): DiffSnapshot | null {
   const raw = value as Record<string, unknown>
   if (!Array.isArray(raw.files)) return null
   const source = normalizeReviewSource(raw.source as ReviewGitSource | null)
-  const sourceKey = raw.sourceKey === 'git:staged' || raw.sourceKey === 'git:unstaged' ? raw.sourceKey : getReviewSourceKey(source)
+  const sourceKey =
+    raw.sourceKey === 'git:staged' || raw.sourceKey === 'git:unstaged' || isCommitSourceKey(raw.sourceKey)
+      ? raw.sourceKey
+      : getReviewSourceKey(source)
   const files = raw.files
     .map((entry) => {
       if (!entry || typeof entry !== 'object') return null
@@ -61,6 +70,30 @@ function asDiffSnapshot(value: unknown): DiffSnapshot | null {
     truncated: raw.truncated === true,
     files,
   }
+}
+
+function isCommitSourceKey(value: unknown): value is `git:commit:${string}` {
+  return typeof value === 'string' && /^git:commit:[0-9a-f]{7,64}$/.test(value)
+}
+
+function asReviewGitCommitList(value: unknown): ReviewGitCommit[] {
+  if (!value || typeof value !== 'object') return []
+  const raw = value as Record<string, unknown>
+  if (!Array.isArray(raw.commits)) return []
+  return raw.commits
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+      const commit = entry as Record<string, unknown>
+      if (typeof commit.sha !== 'string' || typeof commit.shortSha !== 'string') return null
+      return {
+        sha: commit.sha,
+        shortSha: commit.shortSha,
+        subject: typeof commit.subject === 'string' && commit.subject.trim() ? commit.subject : commit.shortSha,
+        committedAt: typeof commit.committedAt === 'string' ? commit.committedAt : '',
+        committedAtUnixSeconds: typeof commit.committedAtUnixSeconds === 'number' ? commit.committedAtUnixSeconds : 0,
+      }
+    })
+    .filter((commit): commit is ReviewGitCommit => commit !== null)
 }
 
 function hasDiffErrorMarker(snapshot: DiffSnapshot): boolean {
@@ -110,7 +143,10 @@ function asDiffFilePreviewPayload(value: unknown): DiffFilePreviewPayload | null
   const kind = rawPreview.kind === 'image' ? 'image' : null
   if (!kind) return null
   const source =
-    rawPreview.source === 'head' || rawPreview.source === 'working_tree' || rawPreview.source === 'index'
+    rawPreview.source === 'head' ||
+    rawPreview.source === 'working_tree' ||
+    rawPreview.source === 'index' ||
+    rawPreview.source === 'commit'
       ? rawPreview.source
       : undefined
   const changeKind =
@@ -194,9 +230,19 @@ export function createDiffDataOps(ctx: DiffDataOpsContext) {
     return asDiffFilePreviewPayload(result)
   }
 
+  const listReviewCommits = async (cwdOverride?: string | null): Promise<ReviewGitCommit[]> => {
+    if (!ctx.canRefreshDiff()) return []
+    const cwd = cwdOverride ?? ctx.resolveDiffCwd()
+    const result = await ctx
+      .request('bridge/reviewGit/listCommits', { limit: 10, ...(cwd ? { cwd } : {}) })
+      .catch(() => null)
+    return asReviewGitCommitList(result)
+  }
+
   return {
     refreshWorkspaceDiff,
     requestDiffFilePatch,
     requestDiffFilePreview,
+    listReviewCommits,
   }
 }

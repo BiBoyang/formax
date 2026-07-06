@@ -26,17 +26,20 @@ describe('diffUiHandlers', () => {
     const refreshWorkspaceDiff = vi.fn(() => refreshPromise)
     const requestDiffFilePatch = vi.fn(async () => patchPayload)
     const requestDiffFilePreview = vi.fn(async () => previewPayload)
+    const listReviewCommits = vi.fn(async () => [])
     const runAsyncSafely = vi.fn()
     const handlers = createDiffUiHandlers({
       refreshWorkspaceDiff,
       requestDiffFilePatch,
       requestDiffFilePreview,
+      listReviewCommits,
       runAsyncSafely,
     })
 
     handlers.onRefreshDiff()
     const result = await handlers.onRequestDiffPatch('src/a.ts')
     const previewResult = await handlers.onRequestDiffPreview('images/a.webp')
+    const commits = await handlers.onListReviewCommits()
 
     expect(refreshWorkspaceDiff).toHaveBeenCalledWith(undefined, undefined)
     expect(runAsyncSafely).toHaveBeenCalledWith(refreshPromise)
@@ -44,5 +47,7 @@ describe('diffUiHandlers', () => {
     expect(result).toEqual(patchPayload)
     expect(requestDiffFilePreview).toHaveBeenCalledWith('images/a.webp', undefined, undefined)
     expect(previewResult).toEqual(previewPayload)
+    expect(listReviewCommits).toHaveBeenCalledWith()
+    expect(commits).toEqual([])
   })
 })

@@ -12,9 +12,9 @@ import {
   Pilcrow,
   RefreshCw,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { WorkerPoolOptions } from '@pierre/diffs/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '../app/i18n/I18nProvider'
+import type { UiLanguage } from '../app/core/userSettings'
 import type { RequestCollapseSummary } from '../types'
 import { cn } from '../lib/utils'
 import { CodexFileTreeIconSprite } from './diff/CodexFileTreeIconSprite'
@@ -39,6 +39,7 @@ import {
   type DiffSnapshot,
   type ImagePreviewState,
   type PatchErrorKind,
+  type ReviewGitCommit,
   type ReviewGitSource,
   type ReviewGitSourceKey,
 } from './diff/diffTypes'
@@ -53,19 +54,14 @@ export type WorktreeDiffPaneProps = {
   onRefreshDiff?: (source?: ReviewGitSource | null) => void
   onRequestPatch?: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePatchPayload | null>
   onRequestPreview?: (filePath: string, source?: ReviewGitSource | null) => Promise<DiffFilePreviewPayload | null>
+  onListCommits?: () => Promise<ReviewGitCommit[]>
   isRefreshingDiff?: boolean
   showHeader?: boolean
 }
 
 const MAX_RENDERABLE_DIFF_FILES = 120
-const DIFF_WORKER_POOL_PROVIDER_SETTLE_MS = 50
 const PREVIEWABLE_IMAGE_EXTENSIONS = new Set(['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'webp'])
 const DEFAULT_REVIEW_SOURCE: ReviewGitSource = { kind: 'unstaged' }
-type DiffWorkerPoolModuleState = {
-  status: 'ready'
-  Provider: typeof import('@pierre/diffs/react').WorkerPoolContextProvider
-  poolOptions: WorkerPoolOptions
-} | { status: 'failed' }
 
 type FileDisplayParts = {
   dir: string
@@ -475,6 +471,7 @@ function isPreviewableImagePath(filePath: string): boolean {
 }
 
 function getReviewSourceKey(source: ReviewGitSource): ReviewGitSourceKey {
+  if (source.kind === 'commit') return `git:commit:${source.sha}`
   return `git:${source.kind}`
 }
 
@@ -491,24 +488,51 @@ function SourceCountBadge(props: { count: number | undefined }) {
   )
 }
 
+type CommitMenuState =
+  | { status: 'idle'; scopeKey: string; commits: ReviewGitCommit[] }
+  | { status: 'loading'; scopeKey: string; commits: ReviewGitCommit[] }
+  | { status: 'ready'; scopeKey: string; commits: ReviewGitCommit[] }
+  | { status: 'error'; scopeKey: string; commits: ReviewGitCommit[] }
+
+function formatCommitRelativeTime(commit: ReviewGitCommit, language: UiLanguage): string {
+  const ts = Date.parse(commit.committedAt)
+  if (!Number.isFinite(ts)) return ''
+  const minutes = Math.max(1, Math.floor((Date.now() - ts) / 60_000))
+  if (minutes < 60) return language === 'zh-CN' ? `${minutes} 分前` : `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return language === 'zh-CN' ? `${hours} 小时前` : `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return language === 'zh-CN' ? `${days} 天前` : `${days}d ago`
+}
+
 export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const {
     diffSnapshot = null,
     latestRequestCollapse = null,
     onRefreshDiff,
     onRequestPatch,
     onRequestPreview,
+    onListCommits,
     isRefreshingDiff = false,
     showHeader = true,
   } = props
+  const threadScopeKey = props.activeThreadId ?? ''
+  const sourceCountScopeKey = `${threadScopeKey}\0${diffSnapshot?.cwd ?? ''}`
+  const commitMenuScopeKey = sourceCountScopeKey
   const [activeReviewSource, setActiveReviewSource] = useState<ReviewGitSource>(diffSnapshot?.source ?? DEFAULT_REVIEW_SOURCE)
   const [sourceFileCountByScopedKey, setSourceFileCountByScopedKey] = useState<Record<string, number>>({})
+  const [commitMenuState, setCommitMenuState] = useState<CommitMenuState>({
+    status: 'idle',
+    scopeKey: commitMenuScopeKey,
+    commits: [],
+  })
+  const [commitBySha, setCommitBySha] = useState<Record<string, ReviewGitCommit>>({})
+  const [commitSubmenuOpen, setCommitSubmenuOpen] = useState(false)
   const activeReviewSourceKey = getReviewSourceKey(activeReviewSource)
   const snapshotSourceKey = getSnapshotSourceKey(diffSnapshot)
   const activeDiffSnapshot = snapshotSourceKey === activeReviewSourceKey ? diffSnapshot : null
   const files = activeDiffSnapshot?.files ?? []
-  const sourceCountScopeKey = `${props.activeThreadId ?? ''}\0${diffSnapshot?.cwd ?? ''}`
   const getSourceCountScopedKey = (sourceKey: ReviewGitSourceKey) => `${sourceCountScopeKey}\0${sourceKey}`
   const activeSourceCount =
     sourceFileCountByScopedKey[getSourceCountScopedKey(activeReviewSourceKey)] ?? activeDiffSnapshot?.files.length
@@ -518,7 +542,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     activeReviewSource.kind === 'unstaged' ? unstagedSourceCount ?? activeSourceCount : unstagedSourceCount
   const displayedStagedSourceCount =
     activeReviewSource.kind === 'staged' ? stagedSourceCount ?? activeSourceCount : stagedSourceCount
-  const threadScopeKey = props.activeThreadId ?? ''
+  const activeCommit = activeReviewSource.kind === 'commit' ? commitBySha[activeReviewSource.sha] : null
   const cwdKey = activeDiffSnapshot?.cwd ?? diffSnapshot?.cwd ?? ''
   const filePathsKey = files.map((file) => file.path).join('\0')
   const expansionScopeKey = `${threadScopeKey}\0${cwdKey}\0${activeReviewSourceKey}`
@@ -531,13 +555,10 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   const [diffViewMode, setDiffViewMode] = useState<DiffRenderStyle>('unified')
   const [wrapDiffLines, setWrapDiffLines] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
-  const [workerPoolEnabled, setWorkerPoolEnabled] = useState(false)
-  const [workerPoolReady, setWorkerPoolReady] = useState(false)
   const snapshotKeyRef = useRef<string>(snapshotKey)
   const expansionScopeKeyRef = useRef<string>('')
+  const commitMenuScopeKeyRef = useRef<string>(commitMenuScopeKey)
   const requestedPatchPathsRef = useRef<Set<string>>(new Set())
-  const pendingFirstTogglePathRef = useRef<string | null>(null)
-  const pendingScopeEffectHasRunRef = useRef(false)
   const exceedsRenderFileLimit = files.length > MAX_RENDERABLE_DIFF_FILES
   const isLargeChangeSet = Boolean(activeDiffSnapshot && activeDiffSnapshot.hasChanges && exceedsRenderFileLimit)
   const hasTruncatedPreview = Boolean(activeDiffSnapshot?.truncated)
@@ -552,6 +573,10 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     nextDiffViewMode === 'unified' ? 'worktreeDiff.switchToUnified' : 'worktreeDiff.switchToSplit',
   )
   const canRefreshDiff = Boolean(onRefreshDiff) && !isRefreshingDiff
+  const activeReviewSourceLabel =
+    activeReviewSource.kind === 'commit'
+      ? t('worktreeDiff.sourceCommit')
+      : t(activeReviewSource.kind === 'staged' ? 'worktreeDiff.sourceStaged' : 'worktreeDiff.sourceUnstaged')
   const collapsePhaseLabel =
     latestRequestCollapse?.phase === 'reactive_retry'
       ? t('appShell.collapsePhase.reactiveRetry')
@@ -565,6 +590,15 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       setActiveReviewSource(diffSnapshot.source)
     }
   }, [diffSnapshot?.sourceKey])
+
+  useEffect(() => {
+    commitMenuScopeKeyRef.current = commitMenuScopeKey
+    setCommitMenuState((prev) => {
+      if (prev.scopeKey === commitMenuScopeKey) return prev
+      return { status: 'idle', scopeKey: commitMenuScopeKey, commits: [] }
+    })
+    setCommitBySha({})
+  }, [commitMenuScopeKey])
 
   useEffect(() => {
     if (!diffSnapshot) return
@@ -624,7 +658,9 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
 
     try {
       const payload = await onRequestPatch(filePath, activeReviewSource)
-      if (snapshotKeyRef.current !== requestSnapshotKey) return
+      if (snapshotKeyRef.current !== requestSnapshotKey) {
+        return
+      }
       if (!payload || !payload.found || !payload.patch) {
         allowRetry = true
         setPatchErrorByPath((prev) => ({ ...prev, [filePath]: 'unavailable' }))
@@ -647,7 +683,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
         return next
       })
     }
-  }, [activeReviewSource, onRequestPatch])
+  }, [activeReviewSource, files.length, onRequestPatch])
 
   const requestPreview = useCallback(async (filePath: string) => {
     if (!onRequestPreview || !canPreviewImage(filePath)) return
@@ -688,6 +724,7 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   }, [canPreviewImage, previewByPath, requestPreview])
 
   const applyFileToggle = useCallback((file: DiffFile, options?: { requestPatch?: boolean }) => {
+    const isExpanded = expandedPaths.has(file.path)
     setExpandedPaths((prev) => {
       const next = new Set(prev)
       if (next.has(file.path)) {
@@ -696,49 +733,28 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       }
 
       next.add(file.path)
-      if (canPreviewImage(file.path)) {
-        requestPreviewIfNeeded(file)
-      } else if (options?.requestPatch !== false) {
-        requestPatchIfNeeded(file)
-      }
       return next
     })
-  }, [canPreviewImage, requestPatchIfNeeded, requestPreviewIfNeeded])
 
-  const clearPendingFirstToggle = useCallback(() => {
-    pendingFirstTogglePathRef.current = null
-  }, [])
+    if (isExpanded) return
+    if (canPreviewImage(file.path)) {
+      requestPreviewIfNeeded(file)
+    } else if (options?.requestPatch !== false) {
+      requestPatchIfNeeded(file)
+    }
+  }, [canPreviewImage, expandedPaths, requestPatchIfNeeded, requestPreviewIfNeeded])
 
   const toggleFile = useCallback((file: DiffFile) => {
-    if (canPreviewImage(file.path)) {
-      clearPendingFirstToggle()
-      applyFileToggle(file)
-      return
-    }
-
-    if (!workerPoolReady && typeof Worker === 'function') {
-      setWorkerPoolEnabled(true)
-      requestPatchIfNeeded(file)
-      if (pendingFirstTogglePathRef.current === file.path) return
-      pendingFirstTogglePathRef.current = file.path
-      return
-    }
-
-    clearPendingFirstToggle()
     applyFileToggle(file)
-  }, [applyFileToggle, canPreviewImage, clearPendingFirstToggle, requestPatchIfNeeded, workerPoolReady])
+  }, [applyFileToggle])
 
   const toggleAllFiles = useCallback(() => {
     if (!hasExpandableFiles) return
-    clearPendingFirstToggle()
     if (allFilesExpanded) {
       setExpandedPaths(new Set())
       return
     }
 
-    if (typeof Worker === 'function') {
-      setWorkerPoolEnabled(true)
-    }
     for (const file of files) {
       if (canPreviewImage(file.path)) {
         requestPreviewIfNeeded(file)
@@ -750,7 +766,6 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
   }, [
     allFilesExpanded,
     canPreviewImage,
-    clearPendingFirstToggle,
     files,
     hasExpandableFiles,
     requestPatchIfNeeded,
@@ -766,10 +781,6 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     return t('worktreeDiff.patchUnavailable')
   }, [onRequestPatch, patchErrorByPath, patchLoadingByPath, t])
 
-  const markWorkerPoolReady = useCallback(() => {
-    setWorkerPoolReady(true)
-  }, [])
-
   const selectReviewSource = useCallback((source: ReviewGitSource) => {
     const nextSourceKey = getReviewSourceKey(source)
     if (nextSourceKey === activeReviewSourceKey) return
@@ -777,6 +788,45 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
     setExpandedPaths(new Set())
     onRefreshDiff?.(source)
   }, [activeReviewSourceKey, onRefreshDiff])
+
+  const loadCommitMenu = useCallback(async () => {
+    if (!onListCommits) return
+    if (
+      commitMenuState.scopeKey === commitMenuScopeKey
+      && (commitMenuState.status === 'loading' || commitMenuState.status === 'ready')
+    ) {
+      return
+    }
+    const requestScopeKey = commitMenuScopeKey
+    commitMenuScopeKeyRef.current = requestScopeKey
+    setCommitMenuState((prev) => ({
+      status: 'loading',
+      scopeKey: requestScopeKey,
+      commits: prev.scopeKey === requestScopeKey ? prev.commits : [],
+    }))
+    try {
+      const commits = await onListCommits()
+      if (commitMenuScopeKeyRef.current !== requestScopeKey) return
+      setCommitBySha((prev) => {
+        const next = { ...prev }
+        for (const commit of commits) next[commit.sha] = commit
+        return next
+      })
+      setCommitMenuState({ status: 'ready', scopeKey: requestScopeKey, commits })
+    } catch {
+      if (commitMenuScopeKeyRef.current !== requestScopeKey) return
+      setCommitMenuState((prev) => ({
+        status: 'error',
+        scopeKey: requestScopeKey,
+        commits: prev.scopeKey === requestScopeKey ? prev.commits : [],
+      }))
+    }
+  }, [commitMenuScopeKey, commitMenuState.scopeKey, commitMenuState.status, onListCommits])
+
+  const selectCommitSource = useCallback((commit: ReviewGitCommit) => {
+    setCommitBySha((prev) => ({ ...prev, [commit.sha]: commit }))
+    selectReviewSource({ kind: 'commit', sha: commit.sha })
+  }, [selectReviewSource])
 
   useEffect(() => {
     if (!onRequestPatch || expandedPaths.size === 0) return
@@ -799,27 +849,6 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
       void requestPreview(file.path)
     }
   }, [canPreviewImage, expandedPaths, files, onRequestPreview, previewByPath, requestPreview, snapshotKey])
-
-  useEffect(() => clearPendingFirstToggle, [clearPendingFirstToggle])
-
-  useEffect(() => {
-    if (!pendingScopeEffectHasRunRef.current) {
-      pendingScopeEffectHasRunRef.current = true
-      return
-    }
-    clearPendingFirstToggle()
-  }, [clearPendingFirstToggle, fileSetKey, snapshotKey])
-
-  useEffect(() => {
-    if (!workerPoolReady) return
-    const pendingPath = pendingFirstTogglePathRef.current
-    if (!pendingPath) return
-    pendingFirstTogglePathRef.current = null
-    const pendingFile = files.find((file) => file.path === pendingPath)
-    if (pendingFile) {
-      applyFileToggle(pendingFile, { requestPatch: false })
-    }
-  }, [applyFileToggle, files, workerPoolReady])
 
   const collapseSummary = latestRequestCollapse ? (
     <div
@@ -863,17 +892,19 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
         <div className="grid h-[var(--review-toolbar-height)] grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-border/70 px-2 text-muted-foreground [container-name:review-header] [container-type:inline-size]">
           <div className="flex w-full min-w-0 flex-col overflow-hidden text-size-chat">
             <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-              <DropdownMenu>
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  if (!open) setCommitSubmenuOpen(false)
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
                     className="flex h-token-button-composer w-fit max-w-[320px] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-1.5 text-foreground transition-colors hover:bg-muted/55 data-[state=open]:bg-muted/55"
                   >
                     <span className="flex max-w-full min-w-0 items-center gap-1.5 truncate">
-                      <span className="min-w-0 truncate font-semibold">
-                        {t(activeReviewSource.kind === 'staged' ? 'worktreeDiff.sourceStaged' : 'worktreeDiff.sourceUnstaged')}
-                      </span>
-                      <SourceCountBadge count={activeSourceCount} />
+                      <span className="min-w-0 truncate font-semibold">{activeReviewSourceLabel}</span>
+                      {activeReviewSource.kind === 'commit' ? null : <SourceCountBadge count={activeSourceCount} />}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   </button>
@@ -903,15 +934,56 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                       <Check className="ml-1 h-4 w-4" />
                     ) : null}
                   </DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger disabled className="ui-composer-menu-item ui-text-base">
+                  <DropdownMenuSub open={commitSubmenuOpen} onOpenChange={setCommitSubmenuOpen}>
+                    <DropdownMenuSubTrigger
+                      className="ui-composer-menu-item ui-text-base"
+                      onPointerEnter={() => {
+                        setCommitSubmenuOpen(true)
+                        void loadCommitMenu()
+                      }}
+                      onFocus={() => {
+                        setCommitSubmenuOpen(true)
+                        void loadCommitMenu()
+                      }}
+                    >
                       <GitCommitHorizontal className="size-4" />
                       <span className="flex-1">{t('worktreeDiff.sourceCommit')}</span>
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="ui-menu-content w-[260px] p-1">
-                      <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
-                        {t('worktreeDiff.sourceCommitPlaceholder')}
-                      </DropdownMenuItem>
+                    <DropdownMenuSubContent className="ui-menu-content w-[min(720px,calc(100vw-48px))] p-1">
+                      {!onListCommits ? (
+                        <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                          {t('worktreeDiff.sourceCommitPlaceholder')}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {onListCommits && commitMenuState.status === 'loading' ? (
+                        <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                          {t('worktreeDiff.sourceCommitLoading')}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {onListCommits && commitMenuState.status === 'error' ? (
+                        <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                          {t('worktreeDiff.sourceCommitLoadFailed')}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {onListCommits && commitMenuState.status === 'ready' && commitMenuState.commits.length === 0 ? (
+                        <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
+                          {t('worktreeDiff.sourceCommitEmpty')}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {commitMenuState.commits.map((commit) => {
+                        const selected = activeReviewSource.kind === 'commit' && activeReviewSource.sha === commit.sha
+                        return (
+                          <DropdownMenuItem
+                            key={commit.sha}
+                            className="ui-composer-menu-item ui-text-base"
+                            onSelect={() => selectCommitSource(commit)}
+                          >
+                            <span className="min-w-0 flex-1 truncate">{commit.subject}</span>
+                            <span className="shrink-0 text-muted-foreground">{formatCommitRelativeTime(commit, language)}</span>
+                            {selected ? <Check className="ml-1 h-4 w-4 shrink-0" /> : <span className="ml-1 h-4 w-4 shrink-0" />}
+                          </DropdownMenuItem>
+                        )
+                      })}
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuItem disabled className="ui-composer-menu-item ui-text-base">
@@ -924,6 +996,11 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
               <span className="mr-1 inline-flex shrink-0 select-none items-center gap-1 font-mono text-size-chat tabular-nums tracking-tight">
+                {activeCommit ? (
+                  <span className="mr-2 max-w-[320px] truncate font-sans text-size-chat font-normal text-muted-foreground">
+                    {activeCommit.subject}
+                  </span>
+                ) : null}
                 <span className="flex shrink-0 items-center ui-text-diff-add">+{totalAdditions}</span>
                 <span className="flex shrink-0 items-center ui-text-diff-del">-{totalDeletions}</span>
               </span>
@@ -1057,80 +1134,78 @@ export function WorktreeDiffPane(props: WorktreeDiffPaneProps) {
               </div>
             </div>
           ) : (
-            <DiffWorkerPoolBoundary enabled={workerPoolEnabled} onReady={markWorkerPoolReady}>
-              <div
-                id="review-diffs-collapsed"
-                data-testid="worktree-diff-card-list"
-                data-app-action-review-scroll=""
-                data-thread-find-target="review"
-                className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-8 [overflow-anchor:none]"
-              >
-                <div className="flex w-full flex-col">
-                  <span
-                    aria-hidden="true"
-                    data-review-diff-metrics-probe=""
-                    className="pointer-events-none invisible absolute left-0 top-0 block whitespace-pre"
-                    style={{
-                      fontFamily: 'var(--diffs-font-family)',
-                      fontSize: 'var(--diffs-font-size)',
-                      height: 'var(--diffs-line-height)',
-                      lineHeight: 'var(--diffs-line-height)',
-                    }}
-                  />
-                  <CodexFileTreeIconSprite />
-                  {collapseSummary}
-                  {hasTruncatedPreview ? (
-                    <div className="mx-3 mb-2 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-2">
-                      <div className="ui-text-meta ui-text-secondary">{t('worktreeDiff.partialPreview')}</div>
-                    </div>
-                  ) : null}
-                  <div className="flex flex-col">
-                    {files.map((file) => {
-                      const loadedPatch = patchByPath[file.path]
-                      const patch = file.patch ?? loadedPatch?.patch ?? ''
-                      const expanded = expandedPaths.has(file.path)
-                      const additions = loadedPatch?.additions ?? file.additions
-                      const deletions = loadedPatch?.deletions ?? file.deletions
-                      const truncated = loadedPatch?.truncated
-                      const isImagePreview = canPreviewImage(file.path)
-                      const fileParts = getFileDisplayParts(file.path)
-                      const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(file.path)
+            <div
+              id="review-diffs-collapsed"
+              data-testid="worktree-diff-card-list"
+              data-app-action-review-scroll=""
+              data-thread-find-target="review"
+              className="flex h-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-8 [overflow-anchor:none]"
+            >
+              <div className="flex w-full flex-col">
+                <span
+                  aria-hidden="true"
+                  data-review-diff-metrics-probe=""
+                  className="pointer-events-none invisible absolute left-0 top-0 block whitespace-pre"
+                  style={{
+                    fontFamily: 'var(--diffs-font-family)',
+                    fontSize: 'var(--diffs-font-size)',
+                    height: 'var(--diffs-line-height)',
+                    lineHeight: 'var(--diffs-line-height)',
+                  }}
+                />
+                <CodexFileTreeIconSprite />
+                {collapseSummary}
+                {hasTruncatedPreview ? (
+                  <div className="mx-3 mb-2 flex-none rounded-[10px] border border-border/65 ui-surface-subtle px-3.5 py-2">
+                    <div className="ui-text-meta ui-text-secondary">{t('worktreeDiff.partialPreview')}</div>
+                  </div>
+                ) : null}
+                <div className="flex flex-col">
+                  {files.map((file) => {
+                    const loadedPatch = patchByPath[file.path]
+                    const patch = file.patch ?? loadedPatch?.patch ?? ''
+                    const expanded = expandedPaths.has(file.path)
+                    const additions = loadedPatch?.additions ?? file.additions
+                    const deletions = loadedPatch?.deletions ?? file.deletions
+                    const truncated = loadedPatch?.truncated
+                    const isImagePreview = canPreviewImage(file.path)
+                    const fileParts = getFileDisplayParts(file.path)
+                    const { className: fileIconClassName, token: fileIconToken } = getFileIconMeta(file.path)
 
-                      return (
-                        <DiffFileCard
-                          key={file.path}
-                          filePath={file.path}
-                          pathDir={fileParts.dir}
-                          pathName={fileParts.name}
-                          fileIconClassName={fileIconClassName}
-                          fileIconToken={fileIconToken}
-                          untracked={file.untracked}
-                          expanded={expanded}
+                    return (
+                      <DiffFileCard
+                        key={file.path}
+                        filePath={file.path}
+                        pathDir={fileParts.dir}
+                        pathName={fileParts.name}
+                        fileIconClassName={fileIconClassName}
+                        fileIconToken={fileIconToken}
+                        untracked={file.untracked}
+                        expanded={expanded}
+                        additions={additions}
+                        deletions={deletions}
+                        toggleLabel={t('worktreeDiff.toggleFile')}
+                        onToggle={() => toggleFile(file)}
+                      >
+                        <WorktreeDiffFileBody
+                          path={file.path}
+                          isImagePreview={isImagePreview}
+                          previewState={previewByPath[file.path] ?? { status: 'idle' }}
+                          patch={patch}
                           additions={additions}
                           deletions={deletions}
-                          toggleLabel={t('worktreeDiff.toggleFile')}
-                          onToggle={() => toggleFile(file)}
-                        >
-                          <WorktreeDiffFileBody
-                            path={file.path}
-                            isImagePreview={isImagePreview}
-                            previewState={previewByPath[file.path] ?? { status: 'idle' }}
-                            patch={patch}
-                            additions={additions}
-                            deletions={deletions}
-                            truncated={truncated}
-                            diffViewMode={diffViewMode}
-                            wrapDiffLines={wrapDiffLines}
-                            statusMessage={isImagePreview || patch ? '' : getPatchStatusMessage(file.path)}
-                            imageLabels={imagePreviewLabels}
-                          />
-                        </DiffFileCard>
-                      )
-                    })}
-                  </div>
+                          truncated={truncated}
+                          diffViewMode={diffViewMode}
+                          wrapDiffLines={wrapDiffLines}
+                          statusMessage={isImagePreview || patch ? '' : getPatchStatusMessage(file.path)}
+                          imageLabels={imagePreviewLabels}
+                        />
+                      </DiffFileCard>
+                    )
+                  })}
                 </div>
               </div>
-            </DiffWorkerPoolBoundary>
+            </div>
           )}
         </div>
       </div>
@@ -1177,56 +1252,5 @@ function ReviewViewModeIcon(props: { mode: DiffRenderStyle }) {
         </>
       )}
     </svg>
-  )
-}
-
-function DiffWorkerPoolBoundary(props: { enabled: boolean; onReady: () => void; children: ReactNode }) {
-  const [moduleState, setModuleState] = useState<DiffWorkerPoolModuleState | null>(null)
-
-  useEffect(() => {
-    if (!props.enabled || moduleState) return
-    let cancelled = false
-    void Promise.all([
-      import('@pierre/diffs/react'),
-      import('@pierre/diffs/worker/worker.js?url'),
-    ]).then(([reactModule, workerModule]) => {
-      if (cancelled) return
-      setModuleState({
-        status: 'ready',
-        Provider: reactModule.WorkerPoolContextProvider,
-        poolOptions: {
-          poolSize: 2,
-          workerFactory: () => new Worker(workerModule.default, { type: 'module' }),
-        },
-      })
-    }).catch(() => {
-      if (cancelled) return
-      setModuleState({ status: 'failed' })
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [moduleState, props.enabled])
-
-  useEffect(() => {
-    if (!moduleState) return
-    if (moduleState.status === 'failed') {
-      props.onReady()
-      return
-    }
-    const handle = window.setTimeout(() => {
-      props.onReady()
-    }, DIFF_WORKER_POOL_PROVIDER_SETTLE_MS)
-    return () => {
-      window.clearTimeout(handle)
-    }
-  }, [moduleState, props.onReady])
-
-  if (!props.enabled || !moduleState || moduleState.status === 'failed') return <>{props.children}</>
-  const Provider = moduleState.Provider
-  return (
-    <Provider poolOptions={moduleState.poolOptions} highlighterOptions={{}}>
-      {props.children}
-    </Provider>
   )
 }

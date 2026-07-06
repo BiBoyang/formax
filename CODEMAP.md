@@ -16,7 +16,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Serve runtime launcher (`formax serve`, WebSocket bridge): `packages/core/src/runtime/serve/localServer.ts`
 - Web UI runtime launcher (`formax web`, bridge + static host): `packages/core/src/runtime/web/localUi.ts`
 - App-server dev bridge entrypoint (WebSocket -> stdio loop): `packages/core/src/entrypoints/app-server-bridge.ts`
-- Git-backed Review source command planning (unstaged/staged source keys and git diff args): `packages/core/src/app-server/gitReviewOperations.ts`
+- Git-backed Review source command planning (unstaged/staged/commit source keys and git diff args): `packages/core/src/app-server/gitReviewOperations.ts`
 - App-server web reference entrypoint (bridge + React UI dev server): `packages/core/src/entrypoints/app-server-web-reference.ts`
 - Desktop Electron shell (orchestrator + main/preload): `packages/desktop-electron/scripts/run.mjs`, `packages/desktop-electron/src/main.ts`, `packages/desktop-electron/src/preload.ts`
 - Transcript perf playground: `packages/core/src/entrypoints/perf-transcript.tsx`
