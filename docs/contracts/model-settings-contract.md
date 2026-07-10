@@ -84,6 +84,7 @@ capability source taxonomy MUST 为：
 - `catalog`
 - `heuristic`
 - `known_model_map`
+- `manual`
 
 `MODEL-104`  
 config/runtime budget source taxonomy MUST 至少覆盖：
@@ -149,6 +150,9 @@ setup MUST 保留 detection provenance；detected / catalog / heuristic MUST NOT
 
 `MODEL-305`  
 heuristic fallback MUST NOT 默认持久化为 authoritative snapshot。catalog snapshot 若持久化，MUST 同时带 source 与 binding。
+
+`MODEL-306`  
+当 setup 无法从 provider list、model detail、catalog 或 known model map 获得 authoritative context window 时，GUI setup MAY 显示手动 context window 输入。用户提交的正整数 MUST 以 `manual` source 持久化，并 MUST 绑定当前 `provider + normalized baseUrl + model alias`；未手动确认的 heuristic 值 MUST 继续保持不持久化。
 
 ## 5. Runtime Ownership
 

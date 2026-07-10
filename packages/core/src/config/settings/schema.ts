@@ -22,6 +22,7 @@ export const CapabilitySourceSchema = z.enum([
   'catalog',
   'heuristic',
   'known_model_map',
+  'manual',
 ])
 export type CapabilitySource = z.infer<typeof CapabilitySourceSchema>
 

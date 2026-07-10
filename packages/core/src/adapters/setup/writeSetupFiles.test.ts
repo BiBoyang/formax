@@ -480,6 +480,79 @@ describe('writeSetupFiles', () => {
     }
   })
 
+  it('persists manual context window snapshots with alias bindings', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-manual-context-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const binding = {
+        provider: 'anthropic' as const,
+        baseUrl: 'https://proxy.example.com/v1',
+        model: 'pa/claude-sonnet-4-6-ppinfra',
+      }
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: binding.baseUrl,
+        apiKey: 'sk-test',
+        model: binding.model,
+        contextWindowTokens: 200000,
+        contextWindowSource: 'manual',
+        tierModels: {
+          haiku: binding.model,
+          sonnet: binding.model,
+          opus: binding.model,
+        },
+        tierContextWindowTokens: {
+          haiku: 200000,
+          sonnet: 200000,
+          opus: 200000,
+        },
+        tierContextWindowSources: {
+          haiku: 'manual',
+          sonnet: 'manual',
+          opus: 'manual',
+        },
+        tierContextWindowConfidence: {
+          haiku: 'detected',
+          sonnet: 'detected',
+          opus: 'detected',
+        },
+        tierContextWindowBindings: {
+          haiku: binding,
+          sonnet: binding,
+          opus: binding,
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBe(200000)
+      expect(config.llm.tierContextWindowTokens).toEqual({
+        haiku: 200000,
+        sonnet: 200000,
+        opus: 200000,
+      })
+      expect(config.llm.tierContextWindowSources).toEqual({
+        haiku: 'manual',
+        sonnet: 'manual',
+        opus: 'manual',
+      })
+      expect(config.llm.tierContextWindowBindings).toEqual({
+        haiku: binding,
+        sonnet: binding,
+        opus: binding,
+      })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('persists setup tier snapshots per tier source instead of keying off sonnet only', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-mixed-tier-source-'))
     try {
@@ -652,6 +725,202 @@ describe('writeSetupFiles', () => {
       expect(config.llm.tierContextWindowSources).toBeUndefined()
       expect(config.llm.tierContextWindowConfidence).toBeUndefined()
       expect(config.llm.tierContextWindowBindings).toBeUndefined()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves matching manual snapshots when rerun setup only has heuristics', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-preserve-manual-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const model = 'pa/claude-sonnet-4-6-ppinfra'
+      const binding = {
+        provider: 'anthropic' as const,
+        baseUrl: 'https://proxy.example.com/v1',
+        model,
+      }
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'anthropic',
+            baseUrl: binding.baseUrl,
+            model,
+            contextWindowTokens: 200000,
+            tierModels: { haiku: model, sonnet: model, opus: model },
+            tierContextWindowTokens: { haiku: 200000, sonnet: 200000, opus: 200000 },
+            tierContextWindowSources: { haiku: 'manual', sonnet: 'manual', opus: 'manual' },
+            tierContextWindowConfidence: { haiku: 'detected', sonnet: 'detected', opus: 'detected' },
+            tierContextWindowBindings: { haiku: binding, sonnet: binding, opus: binding },
+          },
+        }),
+        'utf8',
+      )
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: binding.baseUrl,
+        apiKey: 'sk-new',
+        model,
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierModels: { haiku: model, sonnet: model, opus: model },
+        tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 32768 },
+        tierContextWindowSources: { haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowConfidence: { haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowBindings: { haiku: binding, sonnet: binding, opus: binding },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBe(200000)
+      expect(config.llm.tierContextWindowTokens).toEqual({ haiku: 200000, sonnet: 200000, opus: 200000 })
+      expect(config.llm.tierContextWindowSources).toEqual({ haiku: 'manual', sonnet: 'manual', opus: 'manual' })
+      expect(config.llm.tierContextWindowBindings).toEqual({ haiku: binding, sonnet: binding, opus: binding })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('removes matching manual snapshots when setup explicitly clears them', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-clear-manual-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const model = 'pa/claude-sonnet-4-6-ppinfra'
+      const binding = {
+        provider: 'anthropic' as const,
+        baseUrl: 'https://proxy.example.com/v1',
+        model,
+      }
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'anthropic',
+            baseUrl: binding.baseUrl,
+            model,
+            contextWindowTokens: 200000,
+            tierModels: { haiku: model, sonnet: model, opus: model },
+            tierContextWindowTokens: { haiku: 200000, sonnet: 200000, opus: 200000 },
+            tierContextWindowSources: { haiku: 'manual', sonnet: 'manual', opus: 'manual' },
+            tierContextWindowConfidence: { haiku: 'detected', sonnet: 'detected', opus: 'detected' },
+            tierContextWindowBindings: { haiku: binding, sonnet: binding, opus: binding },
+          },
+        }),
+        'utf8',
+      )
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: binding.baseUrl,
+        apiKey: 'sk-new',
+        model,
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierModels: { haiku: model, sonnet: model, opus: model },
+        tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 32768 },
+        tierContextWindowSources: { haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowConfidence: { haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowBindings: { haiku: binding, sonnet: binding, opus: binding },
+        tierContextWindowManualClears: { haiku: binding, sonnet: binding, opus: binding },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowTokens).toBeUndefined()
+      expect(config.llm.tierContextWindowSources).toBeUndefined()
+      expect(config.llm.tierContextWindowConfidence).toBeUndefined()
+      expect(config.llm.tierContextWindowBindings).toBeUndefined()
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves matching manual snapshots alongside newly detected tier metadata', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'formax-setup-write-preserve-manual-mixed-'))
+    try {
+      const store = createNodeFileStore()
+      const globalConfigDir = path.join(dir, 'global')
+      const cwd = path.join(dir, 'repo')
+      const sonnetModel = 'pa/claude-sonnet-4-6-ppinfra'
+      const haikuModel = 'detected-haiku'
+      const sonnetBinding = {
+        provider: 'anthropic' as const,
+        baseUrl: 'https://proxy.example.com/v1',
+        model: sonnetModel,
+      }
+      const haikuBinding = {
+        provider: 'anthropic' as const,
+        baseUrl: 'https://proxy.example.com/v1',
+        model: haikuModel,
+      }
+      await fs.mkdir(globalConfigDir, { recursive: true })
+      await fs.writeFile(
+        path.join(globalConfigDir, 'config.json'),
+        JSON.stringify({
+          version: 1,
+          llm: {
+            provider: 'anthropic',
+            baseUrl: sonnetBinding.baseUrl,
+            model: sonnetModel,
+            contextWindowTokens: 200000,
+            tierModels: { haiku: sonnetModel, sonnet: sonnetModel, opus: sonnetModel },
+            tierContextWindowTokens: { sonnet: 200000 },
+            tierContextWindowSources: { sonnet: 'manual' },
+            tierContextWindowConfidence: { sonnet: 'detected' },
+            tierContextWindowBindings: { sonnet: sonnetBinding },
+          },
+        }),
+        'utf8',
+      )
+
+      const res = await writeSetupFiles({
+        fileStore: store,
+        cwd,
+        env: { FORMAX_CONFIG_DIR: globalConfigDir } as any,
+        platform: 'linux',
+        homedir: '/home/alice',
+        provider: 'anthropic',
+        baseUrl: sonnetBinding.baseUrl,
+        apiKey: 'sk-new',
+        model: sonnetModel,
+        contextWindowTokens: 32768,
+        contextWindowSource: 'heuristic',
+        tierModels: { haiku: haikuModel, sonnet: sonnetModel, opus: sonnetModel },
+        tierContextWindowTokens: { haiku: 64000, sonnet: 32768, opus: 32768 },
+        tierContextWindowSources: { haiku: 'provider_detail', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowConfidence: { haiku: 'detected', sonnet: 'heuristic', opus: 'heuristic' },
+        tierContextWindowBindings: {
+          haiku: haikuBinding,
+          sonnet: sonnetBinding,
+          opus: sonnetBinding,
+        },
+      })
+
+      const config = JSON.parse(await fs.readFile(res.configPath, 'utf8'))
+      expect(config.llm.contextWindowTokens).toBe(200000)
+      expect(config.llm.tierContextWindowTokens).toEqual({ haiku: 64000, sonnet: 200000 })
+      expect(config.llm.tierContextWindowSources).toEqual({ haiku: 'provider_detail', sonnet: 'manual' })
+      expect(config.llm.tierContextWindowConfidence).toEqual({ haiku: 'detected', sonnet: 'detected' })
+      expect(config.llm.tierContextWindowBindings).toEqual({ haiku: haikuBinding, sonnet: sonnetBinding })
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

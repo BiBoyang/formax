@@ -6,6 +6,8 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  useEffect,
+  useState,
 } from 'react'
 import { I18nProvider } from '../app/i18n/I18nProvider'
 import { Button } from '../components/ui/button'
@@ -17,6 +19,8 @@ export type SetupSessionView = {
   step: string
   error: string | null
   availableModels: string[]
+  modelContextWindows: Record<string, number>
+  modelContextWindowMetadata: Record<string, { tokens: number; source: string; confidence: string }>
   modelTier: 'haiku' | 'sonnet' | 'opus' | null
   draft: {
     provider: string | null
@@ -26,6 +30,8 @@ export type SetupSessionView = {
     modelMode: 'quick' | 'advanced'
     model: string
     tierModels: Record<'haiku' | 'sonnet' | 'opus', string>
+    tierContextWindowTokens: Partial<Record<'haiku' | 'sonnet' | 'opus', number>>
+    tierContextWindowSources?: Partial<Record<'haiku' | 'sonnet' | 'opus', string>>
   }
 }
 
@@ -50,6 +56,13 @@ type SetupWizardScreenProps = {
 }
 
 export const MODEL_TIERS = ['haiku', 'sonnet', 'opus'] as const
+type SetupModelTier = (typeof MODEL_TIERS)[number]
+const AUTHORITATIVE_CONTEXT_WINDOW_SOURCES = new Set([
+  'provider_list',
+  'provider_detail',
+  'catalog',
+  'known_model_map',
+])
 
 export type SetupRestartRequiredKind = 'browser' | 'desktop'
 
@@ -264,6 +277,84 @@ export function setupModelInputValue(session: SetupSessionView): string {
   return session.draft.modelMode === 'advanced' && session.modelTier
     ? session.draft.tierModels[session.modelTier]
     : session.draft.model
+}
+
+function selectedModelForTier(session: SetupSessionView, tier: SetupModelTier): string {
+  return session.draft.modelMode === 'quick' ? session.draft.model : session.draft.tierModels[tier]
+}
+
+function contextWindowSource(session: SetupSessionView, tier: SetupModelTier): string | undefined {
+  const model = selectedModelForTier(session, tier).trim()
+  if (!model) return undefined
+  const draftSource = session.draft.tierContextWindowSources?.[tier]
+  if (draftSource) return draftSource
+  const metadataSource = session.modelContextWindowMetadata[model]?.source
+  if (metadataSource) return metadataSource
+  const providerListTokens = session.modelContextWindows[model]
+  return Number.isFinite(providerListTokens) && providerListTokens > 0 ? 'provider_list' : undefined
+}
+
+function needsManualContextWindow(session: SetupSessionView, tier: SetupModelTier): boolean {
+  const model = selectedModelForTier(session, tier)
+  if (!model.trim()) return false
+  const source = contextWindowSource(session, tier)
+  return !source || !AUTHORITATIVE_CONTEXT_WINDOW_SOURCES.has(source)
+}
+
+function contextWindowInputValue(session: SetupSessionView, tier: SetupModelTier): string {
+  return session.draft.tierContextWindowSources?.[tier] === 'manual'
+    ? String(session.draft.tierContextWindowTokens?.[tier] ?? '')
+    : ''
+}
+
+function contextWindowPlaceholder(session: SetupSessionView, tier: SetupModelTier): string {
+  const tokens = session.draft.tierContextWindowTokens?.[tier]
+  return Number.isFinite(tokens) && tokens ? `Inferred ${tokens}` : 'Tokens'
+}
+
+function parseContextWindowInput(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function ManualContextWindowInput(props: {
+  session: SetupSessionView
+  tier: SetupModelTier
+  ariaLabel: string
+  disabled: boolean
+  onAction: (action: SetupAction) => Promise<void>
+}) {
+  const serverValue = contextWindowInputValue(props.session, props.tier)
+  const selectedModel = selectedModelForTier(props.session, props.tier)
+  const [value, setValue] = useState(serverValue)
+
+  useEffect(() => {
+    setValue(serverValue)
+  }, [props.session.id, props.session.draft.modelMode, props.tier, selectedModel, serverValue])
+
+  return (
+    <SetupInput
+      aria-label={props.ariaLabel}
+      type="number"
+      min={1}
+      step={1}
+      inputMode="numeric"
+      value={value}
+      placeholder={contextWindowPlaceholder(props.session, props.tier)}
+      disabled={props.disabled}
+      onChange={(event) => {
+        const nextValue = event.target.value
+        setValue(nextValue)
+        void props.onAction({
+          type: 'setTierContextWindowTokens',
+          tier: props.tier,
+          tokens: parseContextWindowInput(nextValue),
+        })
+      }}
+    />
+  )
 }
 
 export function SetupWizardScreen(props: SetupWizardScreenProps) {
@@ -535,6 +626,30 @@ function SetupStepContent(props: {
             </SetupSelect>
           </SetupFieldRow>
         )}
+        {session.draft.modelMode === 'quick' && needsManualContextWindow(session, 'sonnet') ? (
+          <SetupFieldRow label="Context tokens">
+            <ManualContextWindowInput
+              session={session}
+              tier="sonnet"
+              ariaLabel="Context window tokens"
+              disabled={!props.canEditModelFields}
+              onAction={props.onAction}
+            />
+          </SetupFieldRow>
+        ) : null}
+        {session.draft.modelMode === 'advanced'
+          ? MODEL_TIERS.filter((tier) => needsManualContextWindow(session, tier)).map((tier) => (
+              <SetupFieldRow key={`${tier}-context`} label={`${tier[0].toUpperCase()}${tier.slice(1)} tokens`}>
+                <ManualContextWindowInput
+                  session={session}
+                  tier={tier}
+                  ariaLabel={`${tier} context window tokens`}
+                  disabled={!props.canEditModelFields}
+                  onAction={props.onAction}
+                />
+              </SetupFieldRow>
+            ))
+          : null}
       </SetupPanel>
     )
   }
@@ -546,6 +661,7 @@ function SetupStepContent(props: {
       <SetupSummaryRow label="Base URL" value={session.draft.baseUrl || 'None'} />
       <SetupSummaryRow label="API Key" value={session.draft.apiKeyPresent ? 'Saved' : 'None'} />
       <SetupSummaryRow label="Model" value={setupModelInputValue(session) || 'None'} />
+      <SetupSummaryRow label="Context" value={String(session.draft.tierContextWindowTokens?.sonnet ?? 'None')} />
     </SetupPanel>
   )
 }

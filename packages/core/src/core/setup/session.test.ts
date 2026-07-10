@@ -10,7 +10,12 @@ const PROVIDERS: SetupProviderOption[] = [
   { id: 'gemini', label: 'Gemini', disabled: true },
 ]
 
-const ok = (models: string[]): ConnectionTestResult => ({ ok: true, models })
+const okWithoutContext = (models: string[]): ConnectionTestResult => ({ ok: true, models })
+const ok = (models: string[]): ConnectionTestResult => ({
+  ok: true,
+  models,
+  modelContextWindows: Object.fromEntries(models.map((model) => [model, 32768])),
+})
 const okWithContext = (models: string[], modelContextWindows: Record<string, number>): ConnectionTestResult => ({
   ok: true,
   models,
@@ -337,6 +342,108 @@ describe('createSetupSession', () => {
     expect(draft.tierContextWindowTokens).toEqual({ haiku: 64000, sonnet: 64000, opus: 64000 })
     expect(draft.model).toBe('m1')
     expect(draft.contextWindowTokens).toBe(64000)
+  })
+
+  it('lets quick setup mark an alias context window as manual', async () => {
+    const testConnection = vi.fn(async () => okWithoutContext(['pa/claude-sonnet-4-6-ppinfra']))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    await s.next()
+    s.setModel('pa/claude-sonnet-4-6-ppinfra')
+    s.setTierContextWindowTokens('sonnet', 200000)
+    await s.next()
+    expect(s.getState().step).toBe('confirm')
+
+    const draft = s.getState().draft
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 200000, sonnet: 200000, opus: 200000 })
+    expect(draft.tierContextWindowSources).toEqual({ haiku: 'manual', sonnet: 'manual', opus: 'manual' })
+    expect(draft.tierContextWindowBindings?.sonnet).toEqual({
+      provider: 'anthropic',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      model: 'pa/claude-sonnet-4-6-ppinfra',
+    })
+  })
+
+  it('preserves manual context windows when switching model modes', async () => {
+    const alias = 'pa/claude-sonnet-4-6-ppinfra'
+    const testConnection = vi.fn(async () => okWithoutContext([alias]))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    await s.next()
+
+    s.setModel(alias)
+    s.setTierContextWindowTokens('sonnet', 200000)
+    s.setModelMode('advanced')
+
+    let draft = s.getState().draft
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 200000, sonnet: 200000, opus: 200000 })
+    expect(draft.tierContextWindowSources).toEqual({ haiku: 'manual', sonnet: 'manual', opus: 'manual' })
+    expect(draft.contextWindowTokens).toBe(200000)
+
+    s.setTierContextWindowTokens('sonnet', 240000)
+    s.setModelMode('quick')
+
+    draft = s.getState().draft
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 240000, sonnet: 240000, opus: 240000 })
+    expect(draft.tierContextWindowSources).toEqual({ haiku: 'manual', sonnet: 'manual', opus: 'manual' })
+    expect(draft.contextWindowTokens).toBe(240000)
+
+    s.setTierContextWindowTokens('sonnet', null)
+
+    draft = s.getState().draft
+    expect(draft.tierContextWindowTokens).toEqual({ haiku: 32768, sonnet: 32768, opus: 32768 })
+    expect(draft.tierContextWindowSources).toEqual({ haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' })
+    expect(draft.tierContextWindowManualClears).toEqual({
+      haiku: { provider: 'anthropic', baseUrl: 'https://api.deepseek.com/anthropic', model: alias },
+      sonnet: { provider: 'anthropic', baseUrl: 'https://api.deepseek.com/anthropic', model: alias },
+      opus: { provider: 'anthropic', baseUrl: 'https://api.deepseek.com/anthropic', model: alias },
+    })
+    expect(draft.contextWindowTokens).toBe(32768)
+  })
+
+  it('keeps manual sonnet context window when finishing advanced model selection', async () => {
+    const alias = 'pa/claude-sonnet-4-6-ppinfra'
+    const testConnection = vi.fn(async () => okWithoutContext([alias]))
+    const s = createSetupSession({ providers: PROVIDERS, testConnection })
+
+    await s.next()
+    s.setProvider('anthropic')
+    await s.next()
+    await s.next()
+    await s.next()
+    s.setApiKey('sk-test')
+    await s.next()
+    s.setModelMode('advanced')
+    await s.next()
+
+    s.setTierModel('haiku', alias)
+    s.setTierModel('sonnet', alias)
+    s.setTierModel('opus', alias)
+    s.setTierContextWindowTokens('sonnet', 200000)
+    await s.next()
+    await s.next()
+    await s.next()
+
+    const draft = s.getState().draft
+    expect(s.getState().step).toBe('confirm')
+    expect(draft.model).toBe(alias)
+    expect(draft.tierContextWindowTokens.sonnet).toBe(200000)
+    expect(draft.tierContextWindowSources?.sonnet).toBe('manual')
+    expect(draft.contextWindowTokens).toBe(200000)
   })
 
   it('recomputes tier context windows when switching advanced -> quick without reselecting model', async () => {

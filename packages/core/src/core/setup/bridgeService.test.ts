@@ -12,7 +12,12 @@ const PROVIDERS: SetupProviderOption[] = [
   { id: 'gemini', label: 'Gemini', disabled: true },
 ]
 
-const ok = (models: string[]): ConnectionTestResult => ({ ok: true, models })
+const okWithoutContext = (models: string[]): ConnectionTestResult => ({ ok: true, models })
+const ok = (models: string[]): ConnectionTestResult => ({
+  ok: true,
+  models,
+  modelContextWindows: Object.fromEntries(models.map((model) => [model, 32768])),
+})
 
 function createSessionIdFactory(): () => string {
   let next = 0
@@ -469,18 +474,87 @@ describe('createSetupBridgeService', () => {
           apiKey: 'sk-write-secret',
           baseUrl: 'https://api.deepseek.com/anthropic',
           model: 'model-a',
-          contextWindowTokens: undefined,
-          contextWindowBinding: undefined,
-          tierContextWindowTokens: {},
-          tierContextWindowSources: undefined,
-          tierContextWindowConfidence: undefined,
-          tierContextWindowBindings: undefined,
+          contextWindowTokens: 32768,
+          contextWindowBinding: {
+            provider: 'anthropic',
+            baseUrl: 'https://api.deepseek.com/anthropic',
+            model: 'model-a',
+          },
+          tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 32768 },
+          tierContextWindowSources: { haiku: 'provider_list', sonnet: 'provider_list', opus: 'provider_list' },
+          tierContextWindowConfidence: { haiku: 'detected', sonnet: 'detected', opus: 'detected' },
+          tierContextWindowBindings: {
+            haiku: {
+              provider: 'anthropic',
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              model: 'model-a',
+            },
+            sonnet: {
+              provider: 'anthropic',
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              model: 'model-a',
+            },
+            opus: {
+              provider: 'anthropic',
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              model: 'model-a',
+            },
+          },
         }),
         { persistApiKey: true, authRef: 'default' },
       )
 
       const afterCommit = await service.applyAction(session.id, { type: 'next' })
       expect(afterCommit).toMatchObject({ ok: false, code: 'session_not_found' })
+    })
+  })
+
+  it('commits manual context window tokens from setup actions', async () => {
+    await withTempDir('formax-setup-bridge-manual-context-', async (dir) => {
+      const writeSetup = vi.fn(async (_draft: SetupDraft) => ({
+        configPath: path.join(dir, 'global', 'config.json'),
+        authPath: path.join(dir, 'global', 'auth.json'),
+        logsDir: path.join(dir, 'global', 'logs'),
+        warnings: [],
+      }))
+      const service = createSetupBridgeService({
+        providers: PROVIDERS,
+        fileStore: createNodeFileStore(),
+        testConnection: vi.fn(async () => okWithoutContext(['pa/claude-sonnet-4-6-ppinfra'])),
+        writeSetup,
+        createSessionId: createSessionIdFactory(),
+        cwd: path.join(dir, 'repo'),
+        homedir: dir,
+        platform: 'linux',
+        env: { FORMAX_CONFIG_DIR: path.join(dir, 'global') } as any,
+      })
+      const session = service.createSession()
+
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'setProvider', provider: 'anthropic' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'setApiKey', apiKey: 'sk-write-secret' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'setModel', model: 'pa/claude-sonnet-4-6-ppinfra' })
+      await service.applyAction(session.id, {
+        type: 'setTierContextWindowTokens',
+        tier: 'sonnet',
+        tokens: 200000,
+      })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.applyAction(session.id, { type: 'next' })
+      await service.commit(session.id)
+
+      expect(writeSetup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tierContextWindowTokens: { haiku: 200000, sonnet: 200000, opus: 200000 },
+          tierContextWindowSources: { haiku: 'manual', sonnet: 'manual', opus: 'manual' },
+        }),
+        { persistApiKey: true, authRef: 'default' },
+      )
     })
   })
 

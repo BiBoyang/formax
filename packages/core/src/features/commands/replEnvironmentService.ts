@@ -29,6 +29,7 @@ const CAPABILITY_SOURCES = new Set<CapabilitySource>([
   'catalog',
   'heuristic',
   'known_model_map',
+  'manual',
 ])
 
 function isCapabilitySource(source: ConfigBudgetSource | CapabilitySource): source is CapabilitySource {

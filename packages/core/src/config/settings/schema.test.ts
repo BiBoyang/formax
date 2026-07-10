@@ -46,6 +46,25 @@ describe('FormaxConfigV1Schema', () => {
 
     expect(() => FormaxConfigV1Schema.parse({ llm: { thinkingEffort: 'minimal' } })).toThrow()
   })
+
+  it('accepts manual tier context window provenance', () => {
+    const cfg = FormaxConfigV1Schema.parse({
+      llm: {
+        tierContextWindowTokens: { sonnet: 200000 },
+        tierContextWindowSources: { sonnet: 'manual' },
+        tierContextWindowConfidence: { sonnet: 'detected' },
+        tierContextWindowBindings: {
+          sonnet: {
+            provider: 'anthropic',
+            baseUrl: 'https://proxy.example.com/v1',
+            model: 'proxy/claude-alias',
+          },
+        },
+      },
+    })
+
+    expect(cfg.llm.tierContextWindowSources?.sonnet).toBe('manual')
+  })
 })
 
 describe('AuthStoreV1Schema', () => {

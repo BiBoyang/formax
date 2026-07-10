@@ -1,5 +1,5 @@
 import type { ModelContextWindowMetadata } from '../../config/modelCapability.js'
-import { createModelContextWindowMetadata } from '../../config/modelCapability.js'
+import { createModelContextWindowMetadata, normalizeModelIdentity, sameModelIdentity } from '../../config/modelCapability.js'
 import { inferContextWindowTokens } from '../../config/modelContextWindow.js'
 import type { ModelTier, ProviderId } from '../../config/settings/schema.js'
 import type {
@@ -36,6 +36,7 @@ export type SetupSession = {
   setModelMode: (mode: SetupModelMode) => void
   setModel: (model: string) => void
   setTierModel: (tier: ModelTier, model: string) => void
+  setTierContextWindowTokens: (tier: ModelTier, tokens: number | null) => void
   back: () => void
   next: () => Promise<void>
 }
@@ -54,7 +55,6 @@ const ANTHROPIC_VENDOR_BASE_URL: Record<Exclude<SetupAnthropicVendor, 'custom'>,
 }
 
 const ADVANCED_MODEL_TIERS: ModelTier[] = ['haiku', 'sonnet', 'opus']
-
 function createEmptyTierModels(): SetupTierModels {
   return { haiku: '', sonnet: '', opus: '' }
 }
@@ -130,6 +130,7 @@ export function createSetupSession(args: {
     state.draft.tierContextWindowSources = undefined
     state.draft.tierContextWindowConfidence = undefined
     state.draft.tierContextWindowBindings = undefined
+    state.draft.tierContextWindowManualClears = undefined
     state.draft.contextWindowTokens = undefined
     state.draft.contextWindowBinding = undefined
     modelTierIndex = 0
@@ -199,6 +200,68 @@ export function createSetupSession(args: {
       nextBindings && Object.keys(nextBindings).length > 0 ? nextBindings : undefined
   }
 
+  const clearManualClearForTier = (tier: ModelTier) => {
+    const nextClears = state.draft.tierContextWindowManualClears
+      ? { ...state.draft.tierContextWindowManualClears }
+      : undefined
+    if (!nextClears) return
+    delete nextClears[tier]
+    state.draft.tierContextWindowManualClears = Object.keys(nextClears).length > 0 ? nextClears : undefined
+  }
+
+  const markManualClearForTier = (tier: ModelTier, model: string) => {
+    const key = String(model || '').trim()
+    if (!key || !state.draft.provider) return
+    const binding = normalizeModelIdentity({
+      provider: state.draft.provider,
+      baseUrl: state.draft.baseUrl,
+      model: key,
+    })
+    state.draft.tierContextWindowManualClears = {
+      ...(state.draft.tierContextWindowManualClears || {}),
+      [tier]: binding,
+    }
+  }
+
+  const getDraftMetadataForTier = (tier: ModelTier, model: string): ModelContextWindowMetadata | null => {
+    const key = String(model || '').trim()
+    if (!key || !state.draft.provider) return null
+    const tokens = state.draft.tierContextWindowTokens[tier]
+    const source = state.draft.tierContextWindowSources?.[tier]
+    const confidence = state.draft.tierContextWindowConfidence?.[tier]
+    const binding = state.draft.tierContextWindowBindings?.[tier]
+    if (!Number.isFinite(tokens) || !tokens || !source || !confidence || !binding) return null
+    if (!sameModelIdentity(binding, { provider: state.draft.provider, baseUrl: state.draft.baseUrl, model: key })) {
+      return null
+    }
+    return { tokens, source, confidence, binding }
+  }
+
+  const createManualMetadata = (model: string, tokens: number): ModelContextWindowMetadata | null => {
+    const key = String(model || '').trim()
+    if (!key || !state.draft.provider) return null
+    return createModelContextWindowMetadata({
+      provider: state.draft.provider,
+      baseUrl: state.draft.baseUrl,
+      model: key,
+      tokens,
+      source: 'manual',
+      confidence: 'detected',
+    })
+  }
+
+  const applyAutomaticMetadataToTier = (tier: ModelTier) => {
+    const model = state.draft.tierModels[tier] || (tier === 'sonnet' ? state.draft.model : '')
+    const metadata = getMetadataForModel(model)
+    state.draft.tierContextWindowTokens = {
+      ...state.draft.tierContextWindowTokens,
+      [tier]: metadata?.tokens ?? inferContextWindowTokens(model),
+    }
+    if (metadata) applyMetadataToTier(tier, metadata)
+    else clearMetadataForTier(tier)
+    if (tier === 'sonnet') updateDraftContextWindow(state.draft.model)
+  }
+
   const updateDraftContextWindow = (model: string) => {
     const key = String(model || '').trim()
     if (!key) {
@@ -209,6 +272,16 @@ export function createSetupSession(args: {
     const metadata = getMetadataForModel(key)
     state.draft.contextWindowTokens = metadata?.tokens ?? inferContextWindowTokens(key)
     state.draft.contextWindowBinding = metadata?.binding
+  }
+
+  const syncDraftContextWindowFromSonnetTier = () => {
+    const metadata = getDraftMetadataForTier('sonnet', state.draft.model)
+    if (metadata) {
+      state.draft.contextWindowTokens = metadata.tokens
+      state.draft.contextWindowBinding = metadata.binding
+      return
+    }
+    updateDraftContextWindow(state.draft.model)
   }
 
   const inferWindowForModel = (model: string): number => {
@@ -291,12 +364,24 @@ export function createSetupSession(args: {
 
     const tierModels = { ...state.draft.tierModels }
     if (nextMode === 'quick') {
-      const quickModel =
-        state.draft.model.trim() || tierModels.sonnet.trim() || tierModels.haiku.trim() || tierModels.opus.trim()
+      let quickModel = state.draft.model.trim()
+      let quickSourceTier: ModelTier = 'sonnet'
+      if (!quickModel) {
+        quickModel = tierModels.sonnet.trim()
+        quickSourceTier = 'sonnet'
+      }
+      if (!quickModel) {
+        quickModel = tierModels.haiku.trim()
+        quickSourceTier = 'haiku'
+      }
+      if (!quickModel) {
+        quickModel = tierModels.opus.trim()
+        quickSourceTier = 'opus'
+      }
       if (quickModel) {
         state.draft.model = quickModel
         state.draft.tierModels = { haiku: quickModel, sonnet: quickModel, opus: quickModel }
-        const metadata = getMetadataForModel(quickModel)
+        const metadata = getDraftMetadataForTier(quickSourceTier, quickModel) ?? getMetadataForModel(quickModel)
         const windowTokens = metadata?.tokens ?? inferContextWindowTokens(quickModel)
         state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
         state.draft.tierContextWindowSources = metadata
@@ -324,7 +409,7 @@ export function createSetupSession(args: {
           sonnet: pickTierModel(tierModels.sonnet, seed),
           opus: pickTierModel(tierModels.opus, seed),
         }
-        const metadata = getMetadataForModel(seed)
+        const metadata = getDraftMetadataForTier('sonnet', seed) ?? getMetadataForModel(seed)
         if (metadata) {
           state.draft.tierContextWindowTokens = {
             haiku: metadata.tokens,
@@ -352,7 +437,7 @@ export function createSetupSession(args: {
     }
 
     modelTierIndex = 0
-    updateDraftContextWindow(state.draft.model)
+    syncDraftContextWindowFromSonnetTier()
     syncModelTierState()
     setError(null)
   }
@@ -401,6 +486,69 @@ export function createSetupSession(args: {
   const setTierModel = (tier: ModelTier, model: string) => {
     if (!ADVANCED_MODEL_TIERS.includes(tier)) return
     applyAdvancedTierModel(tier, model)
+    setError(null)
+  }
+
+  const setTierContextWindowTokens = (tier: ModelTier, tokens: number | null) => {
+    if (!ADVANCED_MODEL_TIERS.includes(tier)) return
+    if (tokens == null) {
+      if (state.draft.modelMode === 'quick') {
+        const model = state.draft.model.trim()
+        const metadata = getMetadataForModel(model)
+        const windowTokens = metadata?.tokens ?? inferContextWindowTokens(model)
+        state.draft.tierContextWindowTokens = { haiku: windowTokens, sonnet: windowTokens, opus: windowTokens }
+        state.draft.tierContextWindowSources = metadata
+          ? { haiku: metadata.source, sonnet: metadata.source, opus: metadata.source }
+          : undefined
+        state.draft.tierContextWindowConfidence = metadata
+          ? { haiku: metadata.confidence, sonnet: metadata.confidence, opus: metadata.confidence }
+          : undefined
+        state.draft.tierContextWindowBindings = metadata
+          ? { haiku: metadata.binding, sonnet: metadata.binding, opus: metadata.binding }
+          : undefined
+        markManualClearForTier('haiku', model)
+        markManualClearForTier('sonnet', model)
+        markManualClearForTier('opus', model)
+        updateDraftContextWindow(model)
+        setError(null)
+        return
+      }
+      const model = state.draft.tierModels[tier] || (tier === 'sonnet' ? state.draft.model : '')
+      applyAutomaticMetadataToTier(tier)
+      markManualClearForTier(tier, model)
+      setError(null)
+      return
+    }
+    if (!Number.isFinite(tokens) || !Number.isInteger(tokens) || tokens <= 0) {
+      setError('Enter a positive integer context window')
+      return
+    }
+    const model = state.draft.tierModels[tier] || (tier === 'sonnet' ? state.draft.model : '')
+    const metadata = createManualMetadata(model, tokens)
+    if (!metadata) {
+      setError(`Select a model for ${tier}`)
+      return
+    }
+    applyMetadataToTier(tier, metadata)
+    if (state.draft.modelMode === 'quick') {
+      state.draft.tierContextWindowTokens = { haiku: tokens, sonnet: tokens, opus: tokens }
+      state.draft.tierContextWindowSources = { haiku: 'manual', sonnet: 'manual', opus: 'manual' }
+      state.draft.tierContextWindowConfidence = { haiku: 'detected', sonnet: 'detected', opus: 'detected' }
+      state.draft.tierContextWindowBindings = {
+        haiku: metadata.binding,
+        sonnet: metadata.binding,
+        opus: metadata.binding,
+      }
+      clearManualClearForTier('haiku')
+      clearManualClearForTier('sonnet')
+      clearManualClearForTier('opus')
+    } else {
+      clearManualClearForTier(tier)
+    }
+    if (tier === 'sonnet') {
+      state.draft.contextWindowTokens = tokens
+      state.draft.contextWindowBinding = metadata.binding
+    }
     setError(null)
   }
 
@@ -566,7 +714,6 @@ export function createSetupSession(args: {
         setError(`Select a model for ${tier}`)
         return
       }
-
       if (modelTierIndex < ADVANCED_MODEL_TIERS.length - 1) {
         modelTierIndex += 1
         syncModelTierState()
@@ -574,7 +721,7 @@ export function createSetupSession(args: {
       }
 
       state.draft.model = state.draft.tierModels.sonnet.trim()
-      updateDraftContextWindow(state.draft.model)
+      syncDraftContextWindowFromSonnetTier()
       state.step = 'confirm'
       syncModelTierState()
       return
@@ -600,6 +747,7 @@ export function createSetupSession(args: {
     setModelMode,
     setModel,
     setTierModel,
+    setTierContextWindowTokens,
     back,
     next,
   }

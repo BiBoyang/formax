@@ -355,6 +355,13 @@ function parseSetupAction(value: unknown): SetupBridgeAction | null {
       return isModelTier(action.tier) && typeof action.model === 'string'
         ? { type: 'setTierModel', tier: action.tier, model: action.model }
         : null
+    case 'setTierContextWindowTokens': {
+      const tokens = action.tokens
+      if (!isModelTier(action.tier)) return null
+      if (typeof tokens === 'number') return { type: 'setTierContextWindowTokens', tier: action.tier, tokens }
+      if (tokens === null) return { type: 'setTierContextWindowTokens', tier: action.tier, tokens: null }
+      return null
+    }
     case 'next':
       return { type: 'next' }
     case 'back':
@@ -1312,6 +1319,7 @@ export async function startAppServerDevBridge(options: AppServerDevBridgeOptions
         tierContextWindowSources: draft.tierContextWindowSources,
         tierContextWindowConfidence: draft.tierContextWindowConfidence,
         tierContextWindowBindings: draft.tierContextWindowBindings,
+        tierContextWindowManualClears: draft.tierContextWindowManualClears,
         contextWindowTokens: draft.contextWindowTokens,
         contextWindowSource: draft.tierContextWindowSources?.sonnet,
       })

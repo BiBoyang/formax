@@ -18,7 +18,7 @@ vi.mock('../../adapters/fs/nodeFileStore', () => ({
 vi.mock('../../adapters/fs/workspaceRoots', () => ({
   detectWorkspaceRoots: mocks.detectWorkspaceRoots,
 }))
-vi.mock('../../chat/context/modelWindow', () => ({
+vi.mock('../../config/modelContextWindow', () => ({
   getKnownContextWindowTokens: mocks.getKnownContextWindowTokens,
 }))
 vi.mock('../../config/config', () => ({
@@ -211,6 +211,39 @@ describe('replEnvironmentService', () => {
     await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
 
     expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves matching manual tier context window metadata during /model sync', async () => {
+    mocks.loadRuntimeConfig.mockResolvedValueOnce({
+      llm: {
+        provider: 'anthropic',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'sk-test',
+        model: 'pa/claude-sonnet-4-6-ppinfra',
+        defaultTier: 'sonnet',
+        contextWindowTokens: 200000,
+        contextWindowTokensSource: 'manual',
+        tierContextWindowTokens: { sonnet: 200000 },
+        tierContextWindowSources: { sonnet: 'manual' },
+        tierContextWindowConfidence: { sonnet: 'detected' },
+        tierContextWindowBindings: {
+          sonnet: {
+            provider: 'anthropic',
+            baseUrl: 'https://example.com/v1',
+            model: 'pa/claude-sonnet-4-6-ppinfra',
+          },
+        },
+      },
+    })
+
+    await persistDefaultModelTier({ nextTier: 'sonnet', cwd: '/repo', env: { FORMAX_CONFIG_DIR: '/cfg' } })
+
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledTimes(1)
+    expect(mocks.updateConfigPatchFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextPatch: { llm: { defaultTier: 'sonnet' } },
+      }),
+    )
   })
 
   it('preserves matching tier bindings when /model sync sees a tier_config budget', async () => {

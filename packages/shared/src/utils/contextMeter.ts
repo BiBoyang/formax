@@ -29,6 +29,7 @@ export type ContextMeterBudgetRaw = {
     | 'catalog'
     | 'heuristic'
     | 'known_model_map'
+    | 'manual'
   boundModel?: string | null
   profileFingerprint?: string | null
 }

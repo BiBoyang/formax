@@ -5,8 +5,9 @@ import type { Platform } from '../fs/configPaths.js'
 import { getConfigPaths } from '../fs/configPaths.js'
 import { authSet } from '../../core/auth/index.js'
 import { FormaxConfigV1PatchSchema, FormaxConfigV1Schema } from '../../config/settings/schema.js'
-import { shouldPersistContextWindowSource } from '../../config/modelCapability.js'
+import { sameModelIdentity, shouldPersistContextWindowSource } from '../../config/modelCapability.js'
 import type {
+  CapabilityConfidence,
   CapabilitySource,
   ModelTier,
   ProviderId,
@@ -121,6 +122,68 @@ function normalizeSetupTierModels(
   return out
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object')
+}
+
+function isCapabilityConfidence(value: unknown): value is CapabilityConfidence {
+  return value === 'detected' || value === 'catalog' || value === 'heuristic' || value === 'known'
+}
+
+function preserveMatchingManualTierContext(args: {
+  llm: Record<string, unknown>
+  provider: ProviderId
+  baseUrl: string
+  resolvedModel: string
+  tierModels?: TierModelMapping
+  manualClears?: TierContextWindowBindingMapping
+}): {
+  tokens: TierContextWindowMapping
+  sources: TierContextWindowSourceMapping
+  confidence: TierContextWindowConfidenceMapping
+  bindings: TierContextWindowBindingMapping
+} | undefined {
+  const tokensMap = isRecord(args.llm.tierContextWindowTokens) ? args.llm.tierContextWindowTokens : {}
+  const sourcesMap = isRecord(args.llm.tierContextWindowSources) ? args.llm.tierContextWindowSources : {}
+  const confidenceMap = isRecord(args.llm.tierContextWindowConfidence) ? args.llm.tierContextWindowConfidence : {}
+  const bindingsMap = isRecord(args.llm.tierContextWindowBindings) ? args.llm.tierContextWindowBindings : {}
+  const tokens: TierContextWindowMapping = {}
+  const sources: TierContextWindowSourceMapping = {}
+  const confidence: TierContextWindowConfidenceMapping = {}
+  const bindings: TierContextWindowBindingMapping = {}
+
+  for (const tier of SETUP_MODEL_TIERS) {
+    if (sourcesMap[tier] !== 'manual') continue
+    const tokenValue = tokensMap[tier]
+    if (typeof tokenValue !== 'number' || !Number.isFinite(tokenValue) || tokenValue <= 0) continue
+    const binding = bindingsMap[tier]
+    if (!isRecord(binding)) continue
+    const tierModel = args.tierModels?.[tier]?.trim() || (tier === 'sonnet' ? args.resolvedModel : '')
+    if (!tierModel) continue
+    const identity = {
+      provider: args.provider,
+      baseUrl: args.baseUrl,
+      model: tierModel,
+    }
+    const clearBinding = args.manualClears?.[tier]
+    if (clearBinding && sameModelIdentity(clearBinding, identity)) continue
+    if (!sameModelIdentity(binding as TierContextWindowBindingMapping[ModelTier], identity)) {
+      continue
+    }
+    tokens[tier] = Math.round(tokenValue)
+    sources[tier] = 'manual'
+    confidence[tier] = isCapabilityConfidence(confidenceMap[tier]) ? confidenceMap[tier] : 'detected'
+    bindings[tier] = binding as TierContextWindowBindingMapping[ModelTier]
+  }
+
+  return Object.keys(tokens).length > 0 ? { tokens, sources, confidence, bindings } : undefined
+}
+
+function mergeTierMapping<T extends Record<string, unknown>>(preserved?: T, next?: T): T | undefined {
+  const out = { ...(preserved ?? {}), ...(next ?? {}) } as T
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 export async function writeSetupFiles(args: {
   fileStore: FileStore
   cwd?: string
@@ -137,6 +200,7 @@ export async function writeSetupFiles(args: {
   tierContextWindowSources?: TierContextWindowSourceMapping
   tierContextWindowConfidence?: TierContextWindowConfidenceMapping
   tierContextWindowBindings?: TierContextWindowBindingMapping
+  tierContextWindowManualClears?: TierContextWindowBindingMapping
   contextWindowTokens?: number
   contextWindowSource?: CapabilitySource
   authRef?: string
@@ -174,6 +238,8 @@ export async function writeSetupFiles(args: {
   const modelFromTier = args.tierModels?.sonnet?.trim() || ''
   const resolvedModel = args.model.trim() || modelFromTier
   const tierModels = normalizeSetupTierModels(args.tierModels, resolvedModel)
+  const existingLlm =
+    isRecord(existing) && isRecord(existing.llm) ? existing.llm : {}
   const nextPatch = {
     version: 1,
     llm: {
@@ -197,22 +263,52 @@ export async function writeSetupFiles(args: {
   const merged = mergeConfigPatches(existing, nextPatch, warnings)
   const mergedLlm =
     merged.llm && typeof merged.llm === 'object' ? (merged.llm as Record<string, unknown>) : ((merged.llm = {}), merged.llm as Record<string, unknown>)
-  if (args.contextWindowSource === 'heuristic') {
-    delete mergedLlm.contextWindowTokens
-  }
   const hasTierContextWindowInputs =
     args.tierContextWindowTokens !== undefined ||
     args.tierContextWindowSources !== undefined ||
     args.tierContextWindowConfidence !== undefined ||
-    args.tierContextWindowBindings !== undefined
+    args.tierContextWindowBindings !== undefined ||
+    args.tierContextWindowManualClears !== undefined
+  const preservedManualTierContextWindows =
+    hasTierContextWindowInputs
+      ? preserveMatchingManualTierContext({
+          llm: existingLlm,
+          provider: args.provider,
+          baseUrl: args.baseUrl,
+          resolvedModel,
+          tierModels,
+          manualClears: args.tierContextWindowManualClears,
+        })
+      : undefined
+  if (args.contextWindowSource === 'heuristic') {
+    const preservedSonnetTokens = preservedManualTierContextWindows?.tokens.sonnet
+    if (preservedSonnetTokens) mergedLlm.contextWindowTokens = preservedSonnetTokens
+    else delete mergedLlm.contextWindowTokens
+  }
   if (hasTierContextWindowInputs) {
-    if (tierContextWindowTokens) mergedLlm.tierContextWindowTokens = tierContextWindowTokens
+    const effectiveTierContextWindowTokens = mergeTierMapping(
+      preservedManualTierContextWindows?.tokens,
+      tierContextWindowTokens,
+    )
+    const effectiveTierContextWindowSources = mergeTierMapping(
+      preservedManualTierContextWindows?.sources,
+      tierContextWindowSources,
+    )
+    const effectiveTierContextWindowConfidence = mergeTierMapping(
+      preservedManualTierContextWindows?.confidence,
+      tierContextWindowConfidence,
+    )
+    const effectiveTierContextWindowBindings = mergeTierMapping(
+      preservedManualTierContextWindows?.bindings,
+      tierContextWindowBindings,
+    )
+    if (effectiveTierContextWindowTokens) mergedLlm.tierContextWindowTokens = effectiveTierContextWindowTokens
     else delete mergedLlm.tierContextWindowTokens
-    if (tierContextWindowSources) mergedLlm.tierContextWindowSources = tierContextWindowSources
+    if (effectiveTierContextWindowSources) mergedLlm.tierContextWindowSources = effectiveTierContextWindowSources
     else delete mergedLlm.tierContextWindowSources
-    if (tierContextWindowConfidence) mergedLlm.tierContextWindowConfidence = tierContextWindowConfidence
+    if (effectiveTierContextWindowConfidence) mergedLlm.tierContextWindowConfidence = effectiveTierContextWindowConfidence
     else delete mergedLlm.tierContextWindowConfidence
-    if (tierContextWindowBindings) mergedLlm.tierContextWindowBindings = tierContextWindowBindings
+    if (effectiveTierContextWindowBindings) mergedLlm.tierContextWindowBindings = effectiveTierContextWindowBindings
     else delete mergedLlm.tierContextWindowBindings
   }
   const validated = FormaxConfigV1Schema.parse(merged)

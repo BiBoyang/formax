@@ -293,6 +293,48 @@ describe('startAppServerDevBridge', () => {
     await bridge.close()
   })
 
+  it('accepts setup tier context window actions over JSON-RPC', async () => {
+    const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
+    const onConnection = getConnectionHandler()
+    const socket = createMockSocket()
+    onConnection?.(socket, { url: '/ws', headers: { origin: 'http://localhost:3781' } })
+
+    socket.emitMessage('{"jsonrpc":"2.0","id":1,"method":"bridge/setup/session/create"}\n')
+    await waitFor(() => socket.send.mock.calls.length > 0)
+    const created = JSON.parse(String(socket.send.mock.calls[0]?.[0] ?? '{}'))
+    const sessionId = created.result.id
+
+    for (const [id, action] of [
+      [2, { type: 'setProvider', provider: 'anthropic' }],
+      [3, { type: 'setModel', model: 'pa/claude-sonnet-4-6-ppinfra' }],
+      [4, { type: 'setTierContextWindowTokens', tier: 'sonnet', tokens: 200000 }],
+    ] as const) {
+      socket.emitMessage(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          method: 'bridge/setup/session/action',
+          params: { sessionId, action },
+        }) + '\n',
+      )
+    }
+
+    await waitFor(() => socket.send.mock.calls.length > 3)
+    const action = JSON.parse(String(socket.send.mock.calls[3]?.[0] ?? '{}'))
+    expect(action.error).toBeUndefined()
+    expect(action.result).toMatchObject({
+      ok: true,
+      session: {
+        draft: {
+          tierContextWindowTokens: { sonnet: 200000 },
+          tierContextWindowSources: { sonnet: 'manual' },
+        },
+      },
+    })
+
+    await bridge.close()
+  })
+
   it('rejects setup session mutations from websockets that did not create the session', async () => {
     const bridge = await startAppServerDevBridge({ host: '127.0.0.1', port: 3777, setupMode: 'allow' })
     const onConnection = getConnectionHandler()

@@ -139,7 +139,7 @@ describe('rpcContracts', () => {
           effectiveContextWindowPercent: 0.95,
           autoCompactLimitPercent: 0.9,
           baselineTokens: 12000,
-          source: 'provider_detail',
+          source: 'manual',
           boundModel: 'claude-test',
           profileFingerprint: 'profile:1',
         },
@@ -158,7 +158,7 @@ describe('rpcContracts', () => {
       }),
     ).toMatchObject({
       model: 'claude-test',
-      budgetRaw: { contextWindowTokens: 100000, source: 'provider_detail', boundModel: 'claude-test' },
+      budgetRaw: { contextWindowTokens: 100000, source: 'manual', boundModel: 'claude-test' },
       snapshotRaw: { totalTokens: 100 },
     })
     expect(parseProviderUsageRaw({ input_tokens: 1, output_tokens: 2, cache_deleted_input_tokens: 9 })).toEqual({

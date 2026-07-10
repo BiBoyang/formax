@@ -39,6 +39,7 @@ export type SetupDraft = {
   tierContextWindowSources?: Partial<Record<ModelTier, CapabilitySource>>
   tierContextWindowConfidence?: Partial<Record<ModelTier, CapabilityConfidence>>
   tierContextWindowBindings?: Partial<Record<ModelTier, ModelIdentity>>
+  tierContextWindowManualClears?: Partial<Record<ModelTier, ModelIdentity>>
   contextWindowTokens?: number
   contextWindowBinding?: ModelIdentity
 }

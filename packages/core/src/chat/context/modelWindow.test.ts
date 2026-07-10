@@ -5,10 +5,14 @@ describe('modelWindow', () => {
   it('returns 200k for Claude 3 family', () => {
     expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'claude-3-5-sonnet-latest' })).toBe(200_000)
     expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'claude-3-haiku-latest' })).toBe(200_000)
+    expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'gateway/claude-3-haiku-latest' })).toBe(200_000)
+    expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'gateway/claude-opus-4-1-20250805' })).toBe(200_000)
+    expect(getKnownContextWindowTokens({ provider: 'anthropic', model: 'gateway/claude-opus-4-1-ppinfra' })).toBeNull()
   })
 
   it('returns known OpenAI context windows', () => {
     expect(getKnownContextWindowTokens({ provider: 'openai', model: 'gpt-4o' })).toBe(128_000)
+    expect(getKnownContextWindowTokens({ provider: 'openai', model: 'openrouter/gpt-4o' })).toBe(128_000)
     expect(getKnownContextWindowTokens({ provider: 'openai', model: 'gpt-4-turbo' })).toBe(128_000)
     expect(getKnownContextWindowTokens({ provider: 'openai', model: 'gpt-3.5-turbo' })).toBe(16_385)
   })

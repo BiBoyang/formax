@@ -717,7 +717,8 @@ export function parseContextMeterBudgetRaw(value: unknown): ContextMeterBudgetRa
     record.source === 'provider_detail' ||
     record.source === 'catalog' ||
     record.source === 'heuristic' ||
-    record.source === 'known_model_map'
+    record.source === 'known_model_map' ||
+    record.source === 'manual'
       ? record.source
       : null
   const boundModel =

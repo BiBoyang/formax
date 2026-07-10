@@ -52,6 +52,7 @@ export type SetupBridgeAction =
   | { type: 'setModelMode'; mode: SetupModelMode }
   | { type: 'setModel'; model: string }
   | { type: 'setTierModel'; tier: ModelTier; model: string }
+  | { type: 'setTierContextWindowTokens'; tier: ModelTier; tokens: number | null }
   | { type: 'next' }
   | { type: 'back' }
 
@@ -416,6 +417,9 @@ export function createSetupBridgeService(args: {
           break
         case 'setTierModel':
           entry.session.setTierModel(action.tier, action.model)
+          break
+        case 'setTierContextWindowTokens':
+          entry.session.setTierContextWindowTokens(action.tier, action.tokens)
           break
         case 'next':
           await entry.session.next()

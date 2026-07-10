@@ -22,6 +22,8 @@ function createSetupSessionView(overrides: Record<string, unknown> = {}) {
     step: 'provider',
     error: null,
     availableModels: [],
+    modelContextWindows: {},
+    modelContextWindowMetadata: {},
     modelTier: null,
     draft: {
       provider: null,
@@ -31,6 +33,8 @@ function createSetupSessionView(overrides: Record<string, unknown> = {}) {
       modelMode: 'quick',
       model: '',
       tierModels: { haiku: '', sonnet: '', opus: '' },
+      tierContextWindowTokens: {},
+      tierContextWindowSources: {},
     },
     ...overrides,
   }
@@ -1619,6 +1623,117 @@ describe('App thread history integration', () => {
       expect(screen.getByLabelText('sonnet model')).toHaveValue('fresh-model')
       expect(screen.getByLabelText('opus model')).toHaveValue('fresh-model')
     })
+  })
+
+  it('shows manual context window input only when setup has no authoritative model window', async () => {
+    window.history.replaceState(null, '', '/setup')
+    let resolveAction: ((value: unknown) => void) | null = null
+    rpcMock.setRequestImpl((method, params) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'model',
+          availableModels: ['pa/claude-sonnet-4-6-ppinfra'],
+          draft: {
+            provider: 'anthropic',
+            anthropicVendor: 'custom',
+            baseUrl: 'https://proxy.example.com/v1',
+            apiKeyPresent: true,
+            modelMode: 'quick',
+            model: 'pa/claude-sonnet-4-6-ppinfra',
+            tierModels: {
+              haiku: 'pa/claude-sonnet-4-6-ppinfra',
+              sonnet: 'pa/claude-sonnet-4-6-ppinfra',
+              opus: 'pa/claude-sonnet-4-6-ppinfra',
+            },
+            tierContextWindowTokens: { haiku: 32768, sonnet: 32768, opus: 32768 },
+            tierContextWindowSources: { haiku: 'heuristic', sonnet: 'heuristic', opus: 'heuristic' },
+          },
+        })
+      }
+      if (method === 'bridge/setup/session/action') {
+        const action = (params as any)?.action
+        return new Promise((resolve) => {
+          resolveAction = resolve
+        }).then(() => ({
+          ok: true,
+          session: createSetupSessionView({
+            step: 'model',
+            availableModels: ['pa/claude-sonnet-4-6-ppinfra'],
+            draft: {
+              provider: 'anthropic',
+              anthropicVendor: 'custom',
+              baseUrl: 'https://proxy.example.com/v1',
+              apiKeyPresent: true,
+              modelMode: 'quick',
+              model: 'pa/claude-sonnet-4-6-ppinfra',
+              tierModels: {
+                haiku: 'pa/claude-sonnet-4-6-ppinfra',
+                sonnet: 'pa/claude-sonnet-4-6-ppinfra',
+                opus: 'pa/claude-sonnet-4-6-ppinfra',
+              },
+              tierContextWindowTokens: { haiku: action.tokens, sonnet: action.tokens, opus: action.tokens },
+              tierContextWindowSources: { haiku: 'manual', sonnet: 'manual', opus: 'manual' },
+            },
+          }),
+        }))
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    const contextInput = await screen.findByLabelText('Context window tokens')
+    expect(contextInput).toHaveAttribute('placeholder', 'Inferred 32768')
+    fireEvent.change(contextInput, { target: { value: '200000' } })
+
+    expect(screen.getByLabelText('Context window tokens')).toHaveValue(200000)
+    await waitFor(() => {
+      expect(rpcMock.requests.some((request) => {
+        const action = (request.params as any)?.action
+        return request.method === 'bridge/setup/session/action' &&
+          action?.type === 'setTierContextWindowTokens' &&
+          action?.tier === 'sonnet' &&
+          action?.tokens === 200000
+      })).toBe(true)
+    })
+    expect(resolveAction).not.toBeNull()
+    await act(async () => {
+      resolveAction?.({})
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Context window tokens')).toHaveValue(200000)
+    })
+  })
+
+  it('hides manual context window input when provider metadata supplies the model window', async () => {
+    window.history.replaceState(null, '', '/setup')
+    rpcMock.setRequestImpl((method) => {
+      if (method === 'bridge/setup/status') return { ok: true, complete: false }
+      if (method === 'bridge/setup/session/create') {
+        return createSetupSessionView({
+          step: 'model',
+          availableModels: ['detected-model'],
+          modelContextWindows: { 'detected-model': 200000 },
+          draft: {
+            provider: 'anthropic',
+            anthropicVendor: 'custom',
+            baseUrl: 'https://proxy.example.com/v1',
+            apiKeyPresent: true,
+            modelMode: 'quick',
+            model: 'detected-model',
+            tierModels: { haiku: 'detected-model', sonnet: 'detected-model', opus: 'detected-model' },
+            tierContextWindowTokens: { haiku: 200000, sonnet: 200000, opus: 200000 },
+          },
+        })
+      }
+      return {}
+    })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('Model')).toHaveValue('detected-model')
+    expect(screen.queryByLabelText('Context window tokens')).not.toBeInTheDocument()
   })
 
   it('syncs setup base URL input after server normalization', async () => {
