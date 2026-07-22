@@ -50,7 +50,7 @@ This file is a “where to change what” index for quickly navigating the codeb
 - Controller/state (send/streaming/overlays): `packages/core/src/features/repl/useReplController.ts`, `packages/core/src/features/repl/controller/{send,streaming,canonical,session,ui,shared}/*`
 - Canonical event projection helper (hook-level orchestration): `packages/core/src/features/repl/controller/canonical/canonicalEventOrchestration.ts`
 - Session transition helpers (abort/new session): `packages/core/src/features/repl/controller/session/sessionTransitions.ts`
-- Session save/replay core (writer/reader + app tool-event payload mapping): `packages/core/src/features/repl/sessionSave/{writer,reader,appToolEventPayload}.ts`
+- Session save/replay core (writer/reader + app tool-event payload mapping + durable transcript turn snapshots): `packages/core/src/features/repl/sessionSave/{writer,reader,appToolEventPayload,transcriptTurnSnapshots}.ts`
 - REPL hotkeys / input routing (Ctrl+O Expanded Transcript, Ctrl+E fold history, etc.): `packages/core/src/screens/repl/hotkeys.ts`
 - Prompt mode gating (overlays/prompt blocks disable hotkeys): `packages/core/src/screens/repl/promptMode.ts`
 - Transcript renderers (Primary vs Expanded): `packages/core/src/screens/repl/transcript.tsx`

@@ -21,5 +21,5 @@ export async function initializeRuntime(args: InitializeRuntimeArgs): Promise<vo
   if (!activeThreadId) return
   await args.resumeThreadInputs(activeThreadId)
   if (args.shouldContinue && !args.shouldContinue()) return
-  await args.replayThreadEvents(activeThreadId)
+  await args.replayThreadEvents(activeThreadId, { fromStart: true })
 }

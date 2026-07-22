@@ -64,11 +64,17 @@ Web page shell MUST 保持 `thread-owned`、`draft-owned` 与 `workspace selecti
 ## 2. 历史回放适配（`eventAdapters.ts`）
 
 `WEB-101`  
-thread history hydrate MUST 通过以下路径完成：
-1. `thread/messages` 历史记录
-2. `mapHistoryMessagesToCanonicalEvents(...)`
-3. `reduceTranscriptProjection(...)`
-4. projection segments -> Web transcript items
+thread history hydrate MUST 按以下优先级完成：
+1. `thread/replay.state.projection` persisted/in-memory canonical baseline
+2. projection segments -> Web transcript items
+3. 仅当 replay 没有 projection baseline 时，使用 `thread/messages` compatibility history
+4. compatibility history 继续经过 `mapHistoryMessagesToCanonicalEvents(...)` 与 `reduceTranscriptProjection(...)`
+
+From-start replay 即使 `data=[]` 且 `latestCursor=0`，只要 `state.projection` 存在，也 MUST hydrate projection snapshot，不得先回退 `thread/messages`。
+
+普通重连若保留的本地 replay cursor 高于响应 `latestCursor`，且响应包含 projection baseline，MUST 将其视为 app-server replay epoch reset：hydrate projection、把 thread replay cursor 降到新的 `latestCursor`，并重置该 epoch 的 replay/live notification cursor gates。仅有 cursor 回退而没有 projection baseline 时，不得覆盖可能更新的 live runtime state。
+
+每次连接握手成功后的 active-thread 恢复 MUST 使用 staged full replay。这样没有 persisted projection 的 legacy thread 也会通过 `thread/messages` compatibility baseline 重置旧进程 cursor，而不是依赖数值回退猜测 server epoch。
 
 `WEB-102`  
 history adapter MUST 优先把 assistant / tool 历史行映射到 canonical projection 结果，而不是直接把 server history 文本原样视为最终渲染真值。

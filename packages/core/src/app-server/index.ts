@@ -399,6 +399,7 @@ export async function runAppServer(args?: {
           typeof threadStore.ensureThreadFile === 'function'
             ? ({ threadId, cwd: threadCwd }) => threadStore.ensureThreadFile!({ threadId, cwd: threadCwd })
             : undefined,
+        persistTranscriptTurnProjection: (projectionArgs) => server.persistTranscriptTurnProjection(projectionArgs),
       })
       turnRunnerByProfileFingerprint.set(runnerCacheKey, runner)
       if (resolverArgs?.threadId && existingThreadRunner && existingThreadRunner !== runner) {

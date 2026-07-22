@@ -34,7 +34,7 @@ describe('initializeRuntime', () => {
     expect(refreshThreads).toHaveBeenCalledTimes(1)
     expect(refreshWorkspaceDiff).toHaveBeenCalledTimes(1)
     expect(resumeThreadInputs).toHaveBeenCalledWith('thread-1')
-    expect(replayThreadEvents).toHaveBeenCalledWith('thread-1')
+    expect(replayThreadEvents).toHaveBeenCalledWith('thread-1', { fromStart: true })
     expect(calls).toEqual(['handshake', 'threads', 'diff', 'resume:thread-1', 'replay:thread-1'])
   })
 

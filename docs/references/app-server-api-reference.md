@@ -596,7 +596,7 @@ AskUserQuestion payload：
 
 说明：
 
-- `hasGap = true` 表示 `after` 指向的游标与服务端可重放窗口不连续（例如事件被裁剪）；客户端应丢弃本地增量缓存并改走 `thread/messages` 全量重建，再使用新的 `latestCursor` 继续增量同步。
+- `hasGap = true` 表示 `after` 指向的游标与服务端可重放窗口不连续（例如事件被裁剪）；客户端应丢弃本地增量缓存并优先使用 `state.projection` 重建。只有 projection 缺失时才允许改走 `thread/messages` compatibility hydrate。
 - `hasGap = false` 且 `data` 为空，表示当前仅“无新增事件”，不是错误。
 - `latestCompactBoundary` 现在也会进入 `thread/replay`，这样 replay / inspection path 不需要先走 `thread/read` 或 `thread/resume` 才能拿到最近一次 compact protocol fact。
 - 该字段继续使用 canonical replay-backed compact boundary 来源，不允许为 replay surface 重新推导第二套 compact summary。
@@ -605,12 +605,14 @@ AskUserQuestion payload：
 - `data[*].params` 是原始通知 `params`（包含完整 envelope 元字段），因此包含 `replaySeq/traceId/seq/ts/eventId/source`。
 - `data[*].replaySeq` 与 `data[*].params.replaySeq` 必须一致；前者作为分页游标字段保留，客户端应优先使用顶层 `replaySeq` 做排序与去重。
 - `state.toolNameByUseId` 是 replay state 的 sticky cache；当增量窗口首条是 tool update/end 且缺少名称时，客户端可用该映射恢复 toolName（服务端会保留最近窗口，避免无限增长）。
-- `state.projection` 仅在“首帧同步（`after` 缺省）”或“`hasGap=true`”时可能返回快照；普通增量拉取下通常为 `null`。
+- `state.projection` 在“首帧同步（`after` 缺省）”、“`hasGap=true`”，或冷进程从 persisted `app_transcript_turn_snapshot` 恢复且 replay page 为空时可能返回快照；普通增量拉取下通常为 `null`。
+- persisted cold projection 保持 canonical segment 顺序并固定返回 `lastReplaySeq = 0`，以允许新进程从 fresh live sequence 继续追加。
+- 当请求 `after > latestCursor` 且存在 persisted projection baseline 时，服务端会返回 projection 供客户端识别 replay epoch reset；客户端应 hydrate baseline 并把本地 cursor 重置为该响应的 `latestCursor`。
 - `state.invariantIssues` 仅在存在 projection 时可检测；当 projection 缺失时固定为空数组 `[]`。
 - `state.canonicalProtocolAnomalyCount` 为当前线程 strict-envelope 协议异常累计计数（缺失按 `0` 处理）。
 - `state.preferences` 是 thread runtime preference overrides；字段缺省表示继承 effective global/project/env config，清除后的字段不会以 `null` 形式返回。
 - `state.preferences` 可能在 projection-only fallback 或旧实现响应中省略；客户端应把省略视为 unavailable，而不是 `{}` clear。
-- `state = null` 条件：服务端当前无该线程 runtime state，且未命中 fallback 条件（`hasGap=true` 且存在 projection）。`state != null` 时上述字段全部可用。
+- `state = null` 条件：服务端当前无该线程 runtime state，且没有 in-memory / persisted projection baseline。`state != null` 时上述字段全部可用。
 
 ## 5.4.3 `thread/runtimeState/read`
 

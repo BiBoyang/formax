@@ -781,6 +781,44 @@ describe('appReducer', () => {
     })
   })
 
+  it('preserves cold assistant/tool order and accepts a fresh-process live sequence', () => {
+    let state = appReducer(initialAppState, {
+      type: 'hydrate_projection_snapshot',
+      threadId: 'thread-1',
+      snapshot: {
+        segments: [
+          { id: 'before', kind: 'assistant', turnId: 'turn-old', text: 'before' },
+          {
+            id: 'tool',
+            kind: 'tool',
+            turnId: 'turn-old',
+            toolUseId: 'tool-use',
+            toolName: 'Read',
+            status: 'completed',
+            summary: 'Read completed',
+            detailLines: [],
+          },
+          { id: 'after', kind: 'assistant', turnId: 'turn-old', text: 'after' },
+          { id: 'footer', kind: 'turn_footer', turnId: 'turn-old', status: 'completed' },
+        ],
+        lastReplaySeq: 0,
+        toolNameByUseId: { 'tool-use': 'Read' },
+        openAssistantSegmentIdByTurn: {},
+        openThinkingSegmentIdByTurn: {},
+      },
+    })
+
+    expect(state.logs.map((item) => item.kind)).toEqual(['message', 'tool_call', 'message', 'turn_footer'])
+    state = appReducer(state, {
+      type: 'apply_canonical_event',
+      event: createCanonicalEvent(
+        { replaySeq: 1, eventId: 'fresh-process-1' },
+        { kind: 'assistant_delta', turnId: 'turn-new', textDelta: 'new' },
+      ),
+    })
+    expect(state.logs[state.logs.length - 1]).toMatchObject({ kind: 'message', turnId: 'turn-new', text: 'new' })
+  })
+
   it('keeps hydrated user rows stable when canonical projection appends assistant deltas', () => {
     let state = appReducer(initialAppState, {
       type: 'hydrate_projection_snapshot',

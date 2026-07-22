@@ -133,6 +133,7 @@ function createReplayContext(overrides: Partial<ReplayThreadEventsContext> = {})
     setThreadTranscriptSource: vi.fn(),
     clearThreadHistoryCursor: vi.fn(),
     syncPendingInputsFromReplayState: vi.fn(),
+    resetReplayEpoch: vi.fn(),
     loadThreadHistory: vi.fn().mockResolvedValue(true),
     handleNotification: vi.fn(),
     log: vi.fn(),
@@ -584,6 +585,100 @@ describe('replayThreadEvents', () => {
   })
 
   describe('history paths', () => {
+    it('[cold-projection] hydrates an empty from-start replay snapshot before history fallback', async () => {
+      const projection = createProjectionSnapshot('cold rebuild')
+      const replayState = createReplayState({ projection })
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [],
+          nextCursor: 0,
+          latestCursor: 0,
+          state: replayState,
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        loadThreadHistory: vi.fn().mockResolvedValue(true),
+      })
+
+      const ok = await replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)
+
+      expect(ok).toBe(true)
+      expect(ctx.loadThreadHistory).not.toHaveBeenCalled()
+      expect(ctx.dispatch).toHaveBeenCalledWith({
+        type: 'hydrate_projection_snapshot',
+        threadId: TEST_THREAD_ID,
+        snapshot: projection,
+      })
+      expect(ctx.setThreadTranscriptSource).toHaveBeenCalledWith(TEST_THREAD_ID, 'replay')
+      expectReplayCursor(ctx, 0)
+    })
+
+    it('[cold-projection] resets a retained cursor to the restarted replay epoch and accepts its live tail', async () => {
+      const projection = createProjectionSnapshot('cold rebuild after restart')
+      projection.lastReplaySeq = 0
+      const replayState = createReplayState({ projection })
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [],
+          nextCursor: 1,
+          latestCursor: 1,
+          state: replayState,
+        }),
+        createReplayPage({
+          data: [createReplayTurnEvent(2)],
+          nextCursor: 2,
+          latestCursor: 2,
+          state: createReplayState(),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        replayCursorByThreadRef: { current: { [TEST_THREAD_ID]: 120 } },
+      })
+
+      await expect(replayThreadEvents(TEST_THREAD_ID, undefined, ctx)).resolves.toBe(true)
+
+      expectReplayPageRequestArgs({ request, nth: 1, afterCursor: 120 })
+      expect(ctx.dispatch).toHaveBeenCalledWith({
+        type: 'hydrate_projection_snapshot',
+        threadId: TEST_THREAD_ID,
+        snapshot: projection,
+      })
+      expect(ctx.resetReplayEpoch).toHaveBeenCalledWith(TEST_THREAD_ID)
+      expectReplayCursor(ctx, 1)
+
+      await expect(replayThreadEvents(TEST_THREAD_ID, undefined, ctx)).resolves.toBe(true)
+
+      expectReplayPageRequestArgs({ request, nth: 2, afterCursor: 1 })
+      expect(ctx.handleNotification).toHaveBeenCalledTimes(1)
+      expectReplayCursor(ctx, 2)
+    })
+
+    it('[cold-projection] hydrates a from-start baseline before consuming an already-buffered live tail', async () => {
+      const projection = createProjectionSnapshot('persisted history plus live tail')
+      projection.lastReplaySeq = 1
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [createReplayTurnEvent(1)],
+          nextCursor: 1,
+          latestCursor: 1,
+          state: createReplayState({ projection }),
+        }),
+      )
+      const ctx = createReplayContext({ request })
+
+      await expect(replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)).resolves.toBe(true)
+
+      expect(ctx.dispatch).toHaveBeenCalledWith({
+        type: 'hydrate_projection_snapshot',
+        threadId: TEST_THREAD_ID,
+        snapshot: projection,
+      })
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
+      expectReplayCursor(ctx, 1)
+    })
+
     it('[history] loads history and keeps cursor at zero for fromStart empty replay', async () => {
       const replayState = createReplayState()
       const request = createReplayPagesRequest(
@@ -1067,6 +1162,30 @@ describe('replayThreadEvents', () => {
       expect(ctx.clearThreadHistoryCursor).not.toHaveBeenCalled()
       expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
       expectRuntimeLastReplaySeq(ctx, REPLAY_SEQ_REBUILD_COMPLETE)
+    })
+
+    it('[rebuild] does not advance a cold replay when projection hydration is deferred', async () => {
+      const projection = createProjectionSnapshot('deferred cold baseline')
+      projection.lastReplaySeq = 1
+      const request = createReplayPagesRequest(
+        createReplayPage({
+          data: [createReplayTurnEvent(1)],
+          nextCursor: 1,
+          latestCursor: 1,
+          state: createReplayState({ projection }),
+        }),
+      )
+      const ctx = createReplayContext({
+        request,
+        activeThreadIdRef: { current: 'thread-2' },
+      })
+
+      await expect(replayThreadEvents(TEST_THREAD_ID, { fromStart: true }, ctx)).resolves.toBe(true)
+
+      expect(ctx.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'hydrate_projection_snapshot' }))
+      expect(ctx.handleNotification).not.toHaveBeenCalled()
+      expect(ctx.setThreadTranscriptSource).not.toHaveBeenCalled()
+      expectReplayCursor(ctx, INITIAL_REPLAY_CURSOR)
     })
 
     it('[rebuild] hydrates deferred projection after thread becomes active', async () => {

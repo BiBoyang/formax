@@ -182,6 +182,10 @@ Transcript 类型要求（必须可区分）：
 2. `traceId/seq` 仅用于诊断与同 turn 内定位，不能作为跨 turn 全序键。
 3. `thread/replay` 返回 `hasGap=true` 时，客户端必须触发重建路径，不允许继续用增量拼接。
 4. tool 展示的 `toolName` 采用 `toolUseId` 粘性规则；缺失 `toolUseId` 的历史记录按单条记录渲染，不做跨记录合并。
+5. 冷启动 `thread/replay` 若返回 persisted `state.projection`，客户端必须优先从该 canonical baseline 重建 transcript；即使 replay page 为空，也不得先回退到 `thread/messages`。
+6. 只有在 replay 不含 projection baseline 时，客户端才允许使用 `thread/messages` legacy compatibility hydrate。
+7. 普通重连若发现本地 replay cursor 高于响应 `latestCursor`，且响应包含 projection baseline，客户端必须按新 app-server replay epoch 重建 transcript，并将 replay/runtime/notification cursor gates 重置到新 epoch；不得继续持有旧进程的高位 cursor。
+8. 每次新连接完成握手后，active thread 必须执行 staged full replay；没有 projection 的 legacy thread 通过 `thread/messages` compatibility hydrate 建立新连接基线。
 
 ## 4. 必须保留的操作可见性
 

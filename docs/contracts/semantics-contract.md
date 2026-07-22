@@ -89,6 +89,12 @@ GUI MAY render a local pending user row immediately after submit, but that row i
 `SEM-205`  
 Runtime side-state notifications MUST honor `replaySeq` monotonicity. Older or duplicate runtime-state notifications MUST NOT overwrite newer per-thread preferences.
 
+`SEM-206` Durable Cold Projection Baseline
+App-server MAY persist terminal per-turn canonical projection snapshots for cross-process transcript recovery. A persisted snapshot MUST preserve canonical segment order and stable `turnId`; it MUST NOT be reconstructed by sorting UI rows by timestamp. Cold hydration MUST treat the assembled persisted projection as a baseline with `lastReplaySeq = 0`, so notifications from a new app-server process can continue from its fresh live sequence without being rejected by the old process cursor. When a client-retained `after` cursor is greater than the restarted server's `latestCursor` and replay returns a projection baseline, the client MUST treat that response as a replay epoch reset: hydrate the baseline and reset transcript, runtime-state, and notification cursor gates to the new `latestCursor`.
+
+`SEM-207` Transcript / Prompt-History Separation
+Persisted transcript projection snapshots describe UI transcript semantics only. They MUST NOT replace, rewrite, prune, compact, or otherwise become authority for model-facing prompt history. Conversely, compacted/model-facing `history_state` MUST NOT be treated as the complete UI transcript authority.
+
 ## 4. 变更流程（强约束）
 
 当变更语义行为（event mapping / projection / runtime state）时：

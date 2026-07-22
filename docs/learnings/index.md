@@ -22,6 +22,7 @@
 - `docs/learnings/2026-03-12-skill-preflight-protocolized-approval.md`
 - `docs/learnings/2026-06-12-ink-active-prompt-bottom-slot.md`
 - `docs/learnings/2026-06-12-interactive-prompt-descriptor-family-safety.md`
+- `docs/learnings/2026-07-10-cold-transcript-replay-order.md`
 
 ## Prompt / Capture / Tool Exposure
 

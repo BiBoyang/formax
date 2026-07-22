@@ -149,6 +149,31 @@ Preference replay MUST be latest-valid-wins by JSONL order. `null` in a valid pa
 `SES-110`
 Preference replay MUST be tolerant. Unknown `schemaVersion`, missing/invalid `threadId`, threadId mismatch, absent/non-object patch, invalid tier, non-boolean thinking value, invalid/malformed `thinkingEffort`, or unknown future facets MUST be ignored without clearing prior valid preference state. Old sessions with no preference events MUST reduce to no thread overrides and inherit the current effective config.
 
+`SES-111` Durable Transcript Turn Snapshot
+App-server terminal turns SHOULD append `app_transcript_turn_snapshot` to the existing session JSONL after the terminal notification has reduced through canonical semantics. The v1 stable payload is:
+1. `schemaVersion: 1`
+2. `threadId: string`
+3. `turnId: string`
+4. `segments: TranscriptSegment[]` in canonical display order, scoped to that turn
+
+The snapshot is UI transcript projection authority only; it MUST NOT mutate or replace `history_state` or model-facing history.
+
+`SES-112` Transcript Snapshot Replay
+Snapshot replay MUST be tolerant and deterministic:
+1. accept only `schemaVersion = 1`, matching non-empty `threadId` / `turnId`, and strictly valid supported segment shapes
+2. require every accepted segment to carry the record `turnId`
+3. use latest-valid-wins by JSONL order for repeated snapshots of the same `turnId`
+4. preserve first-valid turn position while replacing that turn's segments with a later valid snapshot
+5. ignore malformed or unknown-version records without clearing earlier valid turns
+6. assemble a cold projection with `lastReplaySeq = 0`, empty open assistant/thinking maps, and sticky tool names derived only from non-generic tool segments
+7. require the valid snapshot series to cover the session from its first transcript turn; if legacy transcript/history or an earlier app-server turn precedes the first valid snapshot, treat the series as partial and use the full legacy history fallback instead of showing a truncated transcript
+8. require every valid `app_turn_started.turnId` in the file to have a valid terminal snapshot; a crash-interrupted or otherwise incomplete snapshot series MUST use the legacy history fallback
+
+Old sessions with no valid transcript snapshot MUST remain readable through the existing `thread/messages` compatibility path. Absence of snapshots MUST NOT cause session migration, rewrite, or read failure.
+
+`SES-113` Snapshot Size Safety
+`app_transcript_turn_snapshot` MUST use the existing JSONL maximum-line boundary. Oversized encoding MUST preserve segment order and essential semantic fields (`id`, `kind`, `turnId`, message text subject to bounded truncation, tool identity/name/status/summary, footer status) before dropping renderer detail fields. If an essential ordered snapshot still cannot fit, the writer MUST emit the existing truncation diagnostic and readers MUST fall back to the legacy history path rather than accept a partial semantic snapshot.
+
 ## 3. SDK Resume 语义
 
 `SES-201`  
@@ -328,7 +353,7 @@ app-server 在 `thread/resume` 返回 stale input 后，MUST 记住这些 `input
 
 ## 6. 变更流程
 
-当修改 session 文件根目录、resume 选择逻辑、provisional thread 物化、stale input 恢复、thread runtime preference persistence 或 SDK session discovery 行为时：
+当修改 session 文件根目录、resume 选择逻辑、provisional thread 物化、stale input 恢复、thread runtime preference persistence、durable transcript projection persistence 或 SDK session discovery 行为时：
 1. 先更新本文件。
 2. 再更新 `docs/contracts/app-server-interaction-contract.md` 与 `docs/references/app-server-api-reference.md` 中受影响的摘要。
 3. 再更新 `packages/core/src/sdk/README.md` 等 code-local deep dive。

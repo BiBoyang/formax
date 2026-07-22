@@ -173,6 +173,12 @@
   - `durableSnip` 当前为可选 durable projection fact；若存在，它 MUST 与同一 thread 的 `thread/read` / `thread/messages` / `thread/resume` 使用相同 projection owner 来源。
   - `latestRequestCollapse` 当前为可选最小 request-time collapse 摘要。
   - 若存在，它 MUST 与同一 thread 的 `thread/read` / `thread/messages` / `thread/resume` 使用相同 persisted request-collapse event 来源，且 MUST NOT 改写 replay `data[]` item 语义。
+  - 当进程内 replay buffer / projection 为空、但 session JSONL 含有效 `app_transcript_turn_snapshot` 时，app-server MUST 用持久化 turn snapshots 组装 `state.projection` cold baseline。
+  - cold baseline MUST 保持持久化 canonical segment order，并将 `lastReplaySeq` 设为 `0`；它不得沿用旧进程的 cursor，也不得按 `ui_msg` / tool timestamp 重排。
+  - 若请求中的 `after` 高于当前进程的 `latestCursor`，且 server 可恢复 projection baseline，响应 MUST 包含该 projection，即使当前进程的 replay buffer 已有不晚于 `latestCursor` 的新记录；`hasGap` 继续只描述被裁剪的左侧窗口缺口。
+  - 当 runtime state 不可用而仅 projection 可恢复时，server MAY 构造最小 completed-thread snapshot state 以承载 `state.projection`，但 `state.preferences` MUST 省略，不能把未知偏好报告为 `{}`。
+  - persisted snapshot series 只有在覆盖 session 第一条 transcript turn 时才可作为完整 cold baseline；混合版本 session 若含 snapshot 之前的 legacy turn，server MUST 不返回残缺 projection，并继续使用完整 `thread/messages` compatibility fallback。
+  - 若 session 不含有效 snapshot，现有 `thread/messages` compatibility fallback MUST 保持可用。
 
 ## 2.5 turn/start
 

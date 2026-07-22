@@ -51,6 +51,68 @@ async function ensureThreadSessionFile(args: {
 }
 
 describe('ThreadStore', () => {
+  it('persists and reloads a terminal canonical turn projection snapshot', async () => {
+    const { store } = await createStore()
+    const thread = await store.startThread({})
+    const segments = [
+      { id: 'a-before', kind: 'assistant' as const, turnId: 'turn-1', text: 'before' },
+      {
+        id: 'tool-1',
+        kind: 'tool' as const,
+        turnId: 'turn-1',
+        toolUseId: 'tool-use-1',
+        toolName: 'Read',
+        status: 'completed' as const,
+        summary: 'Read completed',
+        detailLines: [],
+      },
+      { id: 'a-after', kind: 'assistant' as const, turnId: 'turn-1', text: 'after' },
+      { id: 'footer-1', kind: 'turn_footer' as const, turnId: 'turn-1', status: 'completed' as const },
+    ]
+
+    await store.writeTranscriptTurnSnapshot({
+      threadId: thread.id,
+      turnId: 'turn-1',
+      segments,
+    })
+    const projection = await store.readTranscriptProjectionSnapshot(thread.id)
+
+    expect(projection?.segments).toEqual(segments)
+    expect(projection?.lastReplaySeq).toBe(0)
+    expect(projection?.toolNameByUseId).toEqual({ 'tool-use-1': 'Read' })
+  })
+
+  it('returns no cold projection for a legacy session without turn snapshots', async () => {
+    const { cwd, env, store } = await createStore()
+    const thread = await store.startThread({})
+    await ensureThreadSessionFile({ cwd, env, threadId: thread.id })
+
+    await expect(store.readTranscriptProjectionSnapshot(thread.id)).resolves.toBeNull()
+  })
+
+  it('reloads a transcript projection from a thread workspace outside the store cwd', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-thread-store-default-cwd-'))
+    const threadCwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-thread-store-thread-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-thread-store-cross-workspace-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const store = new ThreadStore({ cwd, env })
+    const thread = await store.startThread({ cwd: threadCwd })
+    await store.writeTranscriptTurnSnapshot({
+      threadId: thread.id,
+      turnId: 'turn-1',
+      cwd: threadCwd,
+      segments: [
+        { id: 'answer-1', kind: 'assistant', turnId: 'turn-1', text: 'cross-workspace answer' },
+        { id: 'footer-1', kind: 'turn_footer', turnId: 'turn-1', status: 'completed' },
+      ],
+    })
+
+    const reopened = new ThreadStore({ cwd, env })
+    const projection = await reopened.readTranscriptProjectionSnapshot(thread.id)
+
+    expect(projection?.segments.map((segment) => segment.id)).toEqual(['answer-1', 'footer-1'])
+  })
+
   it('covers threadStore helper edge branches', async () => {
     expect(
       __threadStoreTestOnly.toThreadSummaryFromProvisional(

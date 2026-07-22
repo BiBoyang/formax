@@ -127,6 +127,7 @@ export type TurnRunnerOptions = {
   defaultInputTtlMs?: number
   maxPendingInputsPerThread?: number
   ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
+  persistTranscriptTurnProjection?: (args: { threadId: string; turnId: string; cwd: string }) => Promise<void>
   runtimeFlags?: RuntimeFlags
 }
 
@@ -352,6 +353,7 @@ export class TurnRunner {
   private readonly defaultInputTtlMs: number
   private readonly maxPendingInputsPerThread: number
   private readonly ensureThreadFilePath?: (args: { threadId: string; cwd: string }) => Promise<string>
+  private readonly persistTranscriptTurnProjection?: (args: { threadId: string; turnId: string; cwd: string }) => Promise<void>
   private readonly runtimeFlags: RuntimeFlags
   private readonly runtimeFlagFingerprint: string
   private readonly threadFilePathById = new Map<string, string>()
@@ -377,6 +379,7 @@ export class TurnRunner {
       DEFAULT_MAX_PENDING_INPUTS_PER_THREAD,
     )
     this.ensureThreadFilePath = args.ensureThreadFilePath
+    this.persistTranscriptTurnProjection = args.persistTranscriptTurnProjection
     this.runtimeFlags = args.runtimeFlags ?? createRuntimeFlags(this.env ?? process.env)
     this.runtimeFlagFingerprint = JSON.stringify(this.runtimeFlags)
   }
@@ -1231,6 +1234,7 @@ export class TurnRunner {
           status,
         },
       })
+      await this.persistTerminalTranscriptProjection(running)
       return
     }
 
@@ -1242,6 +1246,16 @@ export class TurnRunner {
       },
       error: String(errorMessage),
     })
+    await this.persistTerminalTranscriptProjection(running)
+  }
+
+  private async persistTerminalTranscriptProjection(running: RunningTurn): Promise<void> {
+    if (!this.persistTranscriptTurnProjection) return
+    await this.persistTranscriptTurnProjection({
+      threadId: running.threadId,
+      turnId: running.turnId,
+      cwd: running.cwd,
+    }).catch(() => undefined)
   }
 
   private resolvePromptBudgetConfig(runtimeProfile: RuntimeModelProfile): ContextBudgetConfig | null {

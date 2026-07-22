@@ -1,6 +1,7 @@
 import { truncateUtf8WithMarker } from './truncate'
 import type { HistoryStateRecord, SessionEventRecord, SessionRecord, UiMsgRecord } from './records'
 import type { ChatHistory, Msg } from './types'
+import { APP_TRANSCRIPT_TURN_SNAPSHOT_EVENT_NAME } from './transcriptTurnSnapshots'
 
 function safeStringify(record: SessionRecord): string {
   return JSON.stringify(record)
@@ -201,6 +202,72 @@ function buildAppToolEventTrimCandidates(args: {
   ]
 }
 
+function sanitizeTranscriptSnapshotSegment(
+  value: unknown,
+  options: { textBytes: number; detailLineBytes: number; maxDetailLines: number; keepInput: boolean },
+): unknown {
+  if (!isPlainObject(value)) return value
+  const next: Record<string, unknown> = { ...value }
+  for (const key of ['summary']) {
+    const text = truncateTextValue(next[key], 128)
+    if (text !== undefined) next[key] = text
+  }
+  for (const key of ['text', 'message', 'result', 'expandInfo', 'paramsText']) {
+    const text = truncateTextValue(next[key], options.textBytes)
+    if (text !== undefined) next[key] = text
+  }
+  if (Array.isArray(next.detailLines)) {
+    next.detailLines = next.detailLines
+      .filter((line): line is string => typeof line === 'string')
+      .slice(0, options.maxDetailLines)
+      .map((line) => truncateUtf8WithMarker(line, options.detailLineBytes).text)
+  }
+  delete next.middleLines
+  delete next.transcriptLines
+  delete next.nestedTools
+  delete next.usage
+  if (options.keepInput && isPlainObject(next.input)) {
+    next.input = compactInputObjectForEvent({ input: next.input, maxEntries: 12, maxStringBytes: options.textBytes })
+  } else {
+    delete next.input
+  }
+  return next
+}
+
+function buildTranscriptTurnSnapshotTrimCandidates(args: {
+  record: SessionEventRecord
+  maxLineBytes: number
+}): SessionEventRecord[] {
+  if (!isPlainObject(args.record.data) || !Array.isArray(args.record.data.segments)) return []
+  const data = args.record.data
+  const segments = data.segments as unknown[]
+  const segmentCount = Math.max(1, segments.length)
+  const build = (options: { fraction: number; maxDetailLines: number; keepInput: boolean }): SessionEventRecord => {
+    const textBytes = Math.max(48, Math.floor((args.maxLineBytes * options.fraction) / segmentCount))
+    return {
+      ...args.record,
+      data: {
+        schemaVersion: data.schemaVersion,
+        threadId: data.threadId,
+        turnId: data.turnId,
+        segments: segments.map((segment) =>
+          sanitizeTranscriptSnapshotSegment(segment, {
+            textBytes,
+            detailLineBytes: Math.max(32, Math.floor(textBytes / 2)),
+            maxDetailLines: options.maxDetailLines,
+            keepInput: options.keepInput,
+          }),
+        ),
+      },
+    }
+  }
+  return [
+    build({ fraction: 0.55, maxDetailLines: 8, keepInput: true }),
+    build({ fraction: 0.35, maxDetailLines: 2, keepInput: false }),
+    build({ fraction: 0.2, maxDetailLines: 0, keepInput: false }),
+  ]
+}
+
 function encodeRecord(record: SessionRecord, maxLineBytes: number): { line: string; truncated: boolean } {
   const tryEncode = (rec: SessionRecord): { json: string; bytes: number } => {
     const json = safeStringify(rec)
@@ -246,6 +313,14 @@ function encodeRecord(record: SessionRecord, maxLineBytes: number): { line: stri
     }
   }
 
+  if (record.type === 'event' && record.name === APP_TRANSCRIPT_TURN_SNAPSHOT_EVENT_NAME) {
+    const candidates = buildTranscriptTurnSnapshotTrimCandidates({ record, maxLineBytes })
+    for (const candidate of candidates) {
+      ;({ json, bytes } = tryEncode(candidate))
+      if (bytes <= maxLineBytes) return { line: json + '\n', truncated: true }
+    }
+  }
+
   // Fallback: emit a small event that we had to drop an oversized record.
   const ev: SessionEventRecord = {
     type: 'event',
@@ -270,6 +345,6 @@ export {
   sanitizeAppToolEventData,
   buildEssentialAppToolEventData,
   buildAppToolEventTrimCandidates,
+  buildTranscriptTurnSnapshotTrimCandidates,
   encodeRecord,
 }
-

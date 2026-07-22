@@ -2,7 +2,10 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
   buildThreadRuntimeStatePatchEventData,
+  buildPersistedTranscriptTurnSnapshotData,
+  APP_TRANSCRIPT_TURN_SNAPSHOT_EVENT_NAME,
   readSessionFile,
+  readPersistedTranscriptProjectionSnapshot,
   readSessionPreview,
   readSessionSummary,
   readThreadRuntimePreferencesFromSession,
@@ -11,6 +14,7 @@ import {
   THREAD_RUNTIME_STATE_PATCH_EVENT_NAME,
   type ThreadRuntimeStatePatchEventSource,
 } from '../features/repl/sessionSave/index.js'
+import type { ProjectionSnapshot, TranscriptSegment } from '@formax/semantics'
 import {
   persistSessionMemoryFromHistory,
   resolveSessionMemoryRestoreArtifacts,
@@ -621,6 +625,35 @@ export class ThreadStore {
     }
 
     throw new Error(`Thread not found: ${params.threadId}`)
+  }
+
+  async writeTranscriptTurnSnapshot(args: {
+    threadId: string
+    turnId: string
+    cwd?: string
+    segments: TranscriptSegment[]
+  }): Promise<void> {
+    const filePath = await this.ensureThreadFile({ threadId: args.threadId, cwd: args.cwd })
+    const writer = await SessionWriter.openExisting({ filePath })
+    try {
+      await writer.appendEvent(APP_TRANSCRIPT_TURN_SNAPSHOT_EVENT_NAME, {
+        ...buildPersistedTranscriptTurnSnapshotData(args),
+      })
+    } finally {
+      await writer.shutdown()
+    }
+  }
+
+  async readTranscriptProjectionSnapshot(threadId: string): Promise<ProjectionSnapshot | null> {
+    const filePath = await this.archiveStore.locateThreadFile({
+      cwd: this.cwd,
+      sessionId: threadId,
+      env: this.env,
+      platform: this.platform,
+      homedir: this.homedir,
+    })
+    if (!filePath) return null
+    return readPersistedTranscriptProjectionSnapshot({ filePath, threadId })
   }
 
   async resumeThread(threadId: string): Promise<ThreadResumeResult> {

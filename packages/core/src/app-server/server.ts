@@ -52,7 +52,9 @@ import {
   normalizeReplMode,
   reduceTranscriptProjection,
   resolveCommandRouting,
+  selectTurnSegments,
   shouldInjectExitPlanReminder,
+  type ProjectionSnapshot,
   type TranscriptProjectionState,
 } from '@formax/semantics'
 import { buildReplayStateSnapshot, type ReplayStateSnapshot } from './replayStateSnapshot.js'
@@ -96,7 +98,7 @@ export type AppServerState = {
 export type AppServerOptions = {
   info: AppServerInfo
   threadStore?: Pick<ThreadStore, 'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'> &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState' | 'writeTranscriptTurnSnapshot' | 'readTranscriptProjectionSnapshot'>>
   turnRunner?: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'>
   resolveTurnRunner?: (args?: {
     cwd?: string
@@ -168,7 +170,7 @@ export class AppServer {
     ThreadStore,
     'startThread' | 'resumeThread' | 'listThreads' | 'readThread' | 'listThreadMessages'
   > &
-    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState'>>
+    Partial<Pick<ThreadStore, 'renameThread' | 'archiveThread' | 'unarchiveThread' | 'hideThreadGroup' | 'patchThreadRuntimeState' | 'writeTranscriptTurnSnapshot' | 'readTranscriptProjectionSnapshot'>>
   private turnRunner: Pick<TurnRunner, 'startTurn' | 'interruptTurn' | 'submitInput'> | null
   private readonly resolveTurnRunner?: (args?: {
     cwd?: string
@@ -194,6 +196,7 @@ export class AppServer {
   private readonly replayTrimmedBeforeByThreadId = new Map<string, number>()
   private readonly runtimeStateByThreadId = new Map<string, ThreadRuntimeState>()
   private readonly transcriptProjectionByThreadId = new Map<string, TranscriptProjectionState>()
+  private readonly transcriptSnapshotWriteByThreadId = new Map<string, Promise<void>>()
   private readonly canonicalProtocolAnomalyCountByThreadId = new Map<string, number>()
   private readonly latestCompactBoundaryByThreadId = new Map<string, CompactBoundaryMeta | null>()
   private readonly durableSnipByThreadId = new Map<string, ThreadDurableSnipSummary | null>()
@@ -239,6 +242,32 @@ export class AppServer {
 
   getState(): AppServerState {
     return { ...this.state }
+  }
+
+  async persistTranscriptTurnProjection(args: { threadId: string; turnId: string; cwd?: string }): Promise<void> {
+    const writeTranscriptTurnSnapshot = this.threadStore.writeTranscriptTurnSnapshot?.bind(this.threadStore)
+    if (!writeTranscriptTurnSnapshot) return
+    const projection = this.transcriptProjectionByThreadId.get(args.threadId)
+    if (!projection) return
+    const segments = selectTurnSegments(projection.segments, args.turnId)
+    if (segments.length === 0 || !segments.some((segment) => segment.kind === 'turn_footer')) return
+    const previous = this.transcriptSnapshotWriteByThreadId.get(args.threadId) ?? Promise.resolve()
+    const pending = previous
+      .catch(() => undefined)
+      .then(() => writeTranscriptTurnSnapshot({
+        threadId: args.threadId,
+        turnId: args.turnId,
+        ...(args.cwd ? { cwd: args.cwd } : {}),
+        segments,
+      }))
+    this.transcriptSnapshotWriteByThreadId.set(args.threadId, pending)
+    try {
+      await pending
+    } finally {
+      if (this.transcriptSnapshotWriteByThreadId.get(args.threadId) === pending) {
+        this.transcriptSnapshotWriteByThreadId.delete(args.threadId)
+      }
+    }
   }
 
   async handleMessage(msg: ParsedRpcMessage): Promise<Array<JsonRpcSuccessResponse | JsonRpcErrorResponse>> {
@@ -1043,20 +1072,30 @@ export class AppServer {
     const latestCursor = entries.length > 0 ? entries[entries.length - 1]!.replaySeq : 0
     const trimmedBefore = this.replayTrimmedBeforeByThreadId.get(args.threadId) ?? 0
     const hasGap = args.after != null && args.after < trimmedBefore
+    const replayCursorEpochReset = args.after != null && args.after > latestCursor
     const state = this.runtimeStateByThreadId.get(args.threadId) ?? null
-    const projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
+    let projection = this.transcriptProjectionByThreadId.get(args.threadId) ?? null
+    const shouldReadPersistedProjection = !projection || args.after === 0 || replayCursorEpochReset
+    if (shouldReadPersistedProjection && this.threadStore.readTranscriptProjectionSnapshot) {
+      const persisted = await this.threadStore.readTranscriptProjectionSnapshot(args.threadId).catch(() => null)
+      if (persisted) {
+        projection = this.mergePersistedTranscriptProjection(args.threadId, persisted, projection)
+        this.transcriptProjectionByThreadId.set(args.threadId, projection)
+      }
+    }
     const canonicalProtocolAnomalyCount = this.canonicalProtocolAnomalyCountByThreadId.get(args.threadId) ?? 0
     const pendingLiveCompactBoundary = this.liveCompactBoundaryByThreadId.get(args.threadId) ?? null
     const latestProjectionFacts = await this.resolveLatestProjectionFactsForReplay(args.threadId)
     const persistedPreferences = state ? null : await this.resolveRuntimePreferencesForReplay(args.threadId)
+    const lastTerminalTurn = projection ? this.readLastTerminalTurn(projection) : null
     const fallbackSnapshotState: ThreadRuntimeState | null =
-      !state && hasGap && projection
+      !state && projection
         ? {
             threadId: args.threadId,
             mode: 'normal',
             activeTurnId: null,
-            lastTurnId: null,
-            lastTurnStatus: null,
+            lastTurnId: lastTerminalTurn?.turnId ?? null,
+            lastTurnStatus: lastTerminalTurn?.status ?? null,
             pendingInputs: {},
             toolNameByUseId: { ...projection.toolNameByUseId },
             preferences: {},
@@ -1066,7 +1105,8 @@ export class AppServer {
           }
         : null
     const stateForSnapshot = state ?? fallbackSnapshotState
-    const shouldIncludeProjectionSnapshot = Boolean(projection) && (hasGap || args.after == null)
+    const shouldIncludeProjectionSnapshot = Boolean(projection) &&
+      (hasGap || replayCursorEpochReset || args.after == null || args.after === 0 || entries.length === 0)
     const stateSnapshot = buildReplayStateSnapshot({
       stateForSnapshot,
       projection,
@@ -1141,6 +1181,57 @@ export class AppServer {
       latestRequestCollapse,
       pendingSessionMemoryRestore: this.getPendingSessionMemoryRestore(args.threadId),
     }
+  }
+
+  private toTranscriptProjectionState(threadId: string, snapshot: ProjectionSnapshot): TranscriptProjectionState {
+    return {
+      threadId,
+      segments: snapshot.segments.map((segment) => ({ ...segment })),
+      seenEventIds: new Set<string>(),
+      lastReplaySeq: 0,
+      toolNameByUseId: { ...snapshot.toolNameByUseId },
+      openAssistantSegmentIdByTurn: {},
+      openThinkingSegmentIdByTurn: {},
+    }
+  }
+
+  private mergePersistedTranscriptProjection(
+    threadId: string,
+    persisted: ProjectionSnapshot,
+    current: TranscriptProjectionState | null,
+  ): TranscriptProjectionState {
+    const baseline = this.toTranscriptProjectionState(threadId, persisted)
+    if (!current) return baseline
+    const currentSegmentById = new Map(current.segments.map((segment) => [segment.id, segment]))
+    const seenSegmentIds = new Set<string>()
+    const segments = baseline.segments.map((segment) => {
+      seenSegmentIds.add(segment.id)
+      return currentSegmentById.get(segment.id) ?? segment
+    })
+    for (const segment of current.segments) {
+      if (seenSegmentIds.has(segment.id)) continue
+      seenSegmentIds.add(segment.id)
+      segments.push(segment)
+    }
+    return {
+      ...current,
+      segments,
+      toolNameByUseId: {
+        ...baseline.toolNameByUseId,
+        ...current.toolNameByUseId,
+      },
+    }
+  }
+
+  private readLastTerminalTurn(projection: TranscriptProjectionState): {
+    turnId: string
+    status: 'completed' | 'failed' | 'interrupted'
+  } | null {
+    for (let index = projection.segments.length - 1; index >= 0; index -= 1) {
+      const segment = projection.segments[index]
+      if (segment?.kind === 'turn_footer') return { turnId: segment.turnId, status: segment.status }
+    }
+    return null
   }
 
   private rememberDurableSnip(threadId: string, durableSnip: ThreadDurableSnipSummary | null | undefined): void {

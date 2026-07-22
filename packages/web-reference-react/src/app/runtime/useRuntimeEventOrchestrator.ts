@@ -535,6 +535,10 @@ export function useRuntimeEventOrchestrator(args: UseRuntimeEventOrchestratorArg
         clearThreadHistoryCursor: (nextThreadId) => stage(() => clearThreadHistoryCursor(nextThreadId)),
         syncPendingInputsFromReplayState: (nextThreadId, replayState) =>
           stage(() => syncPendingInputsFromReplayState(nextThreadId, replayState)),
+        resetReplayEpoch: (nextThreadId) => {
+          resetSequencedNotificationOwner({ kind: 'thread-replay', threadId: nextThreadId })
+          resetSequencedNotificationOwner({ kind: 'live-stream' })
+        },
         loadThreadHistory: async (nextThreadId) => {
           if (!isFullReplay) return loadThreadHistory(nextThreadId)
           try {

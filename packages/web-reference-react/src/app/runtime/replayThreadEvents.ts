@@ -93,6 +93,7 @@ export type ReplayThreadEventsContext = {
   setThreadTranscriptSource: (threadId: string, source: ThreadTranscriptSource) => void
   clearThreadHistoryCursor: (threadId: string) => void
   syncPendingInputsFromReplayState: (threadId: string, replayState: ReplayStateSnapshot | null) => void
+  resetReplayEpoch?: (threadId: string) => void
   loadThreadHistory: (threadId: string) => Promise<boolean>
   handleNotification: (notification: { jsonrpc: '2.0'; method: string; params?: unknown }) => void
   log: (text: string, level?: 'info' | 'warn' | 'error', turnId?: string) => void
@@ -112,6 +113,7 @@ export async function replayThreadEvents(
   let pageCount = 0
   let hasLoggedInvariantIssues = false
   let maxCanonicalProtocolAnomalyCountObserved = 0
+  let hydratedProjectionReplaySeq: number | null = null
 
   const getNewerRuntimeState = (latestReplayCursor: number): ThreadRuntimeState | null => {
     const existing = ctx.runtimeStateByThreadRef.current[threadId]
@@ -121,8 +123,12 @@ export async function replayThreadEvents(
     return null
   }
 
-  const hydrateRuntimeState = (state: ReplayStateSnapshot, latestReplayCursor: number): void => {
-    const newerRuntimeState = getNewerRuntimeState(latestReplayCursor)
+  const hydrateRuntimeState = (
+    state: ReplayStateSnapshot,
+    latestReplayCursor: number,
+    options?: { forceReplayEpochReset?: boolean },
+  ): void => {
+    const newerRuntimeState = options?.forceReplayEpochReset ? null : getNewerRuntimeState(latestReplayCursor)
     if (newerRuntimeState) {
       ctx.runtimeStateByThreadRef.current[threadId] = newerRuntimeState
       return
@@ -310,6 +316,13 @@ export async function replayThreadEvents(
   while (pageCount < 100) {
     pageCount += 1
     const replay = await fetchReplayPage(after)
+    const replayCursorEpochReset = after > replay.latestCursor && Boolean(replay.state?.projection)
+    if (replayCursorEpochReset) {
+      if (ctx.runtimeStateBaselineByThreadRef) {
+        delete ctx.runtimeStateBaselineByThreadRef.current[threadId]
+      }
+      ctx.resetReplayEpoch?.(threadId)
+    }
     if (Object.prototype.hasOwnProperty.call(replay, 'preferences')) {
       ctx.cacheThreadRuntimePreferences?.(threadId, replay.preferences)
     }
@@ -318,7 +331,9 @@ export async function replayThreadEvents(
       replayState = replay.state
       maybeLogInvariantIssues(replay.state)
       observeCanonicalProtocolAnomalies(replay.state)
-      hydrateRuntimeState(replay.state, replay.latestCursor)
+      hydrateRuntimeState(replay.state, replay.latestCursor, {
+        forceReplayEpochReset: replayCursorEpochReset,
+      })
     }
 
     if (replay.hasGap) {
@@ -326,6 +341,26 @@ export async function replayThreadEvents(
       await handleHasGapReplay(replay)
       flushCanonicalProtocolAnomaliesLog()
       return true
+    }
+
+    if ((fromStart || replayCursorEpochReset) && replay.state?.projection) {
+      cacheThreadCompressionProjectionFacts(replay)
+      hydratedProjectionReplaySeq = replay.state.projection.lastReplaySeq
+      const hydration = commitGapRebuild({
+        state: replay.state,
+        replayCursor: replay.latestCursor,
+        stateReplayCursor: replay.latestCursor,
+        projectionSnapshot: replay.state.projection,
+        clearActiveLogs: false,
+      })
+      if (hydration === 'deferred') {
+        flushCanonicalProtocolAnomaliesLog()
+        return true
+      }
+      if (replay.data.length === 0) {
+        flushCanonicalProtocolAnomaliesLog()
+        return true
+      }
     }
 
     if (shouldUseHistoryFallbackOnEmptyReplayPage({ fromStart, replay })) {
@@ -345,7 +380,9 @@ export async function replayThreadEvents(
       return true
     }
 
-    const incrementalEntries = shouldUseIncrementalReplayData(replay) ? replay.data : []
+    const incrementalEntries = shouldUseIncrementalReplayData(replay)
+      ? replay.data.filter((entry) => hydratedProjectionReplaySeq == null || entry.replaySeq > hydratedProjectionReplaySeq)
+      : []
     const replayCompactBoundaryTurnIds = new Set<string>()
     for (const entry of incrementalEntries) {
       receivedEntries = true

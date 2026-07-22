@@ -110,6 +110,36 @@ async function readAppToolEvents(filePath: string): Promise<Array<Record<string,
 }
 
 describe('TurnRunner', () => {
+  it('awaits terminal transcript projection persistence after emitting completion', async () => {
+    const fixture = await createThreadFixture()
+    const notifications: Notification[] = []
+    const persisted: Array<{ threadId: string; turnId: string; cwd: string }> = []
+    const runner = new TurnRunner({
+      engine: {
+        async runTurn(args) {
+          args.onEvent({ type: 'assistant_delta', text: 'done' })
+          return [...args.history, args.user] as ChatHistory
+        },
+      },
+      tools: [],
+      allowedSubagents: [],
+      model: 'test-model',
+      cwd: fixture.cwd,
+      env: fixture.env,
+      emitNotification(method, params) {
+        notifications.push({ method, params })
+      },
+      async persistTranscriptTurnProjection(args) {
+        expect(notifications.some((notification) => notification.method === 'turn/completed')).toBe(true)
+        persisted.push(args)
+      },
+    })
+
+    const started = await runner.startTurn({ threadId: fixture.threadId, input: { text: 'hello' } })
+    await waitForNotification(notifications, (notification) => notification.method === 'turn/completed')
+    await vi.waitFor(() => expect(persisted).toEqual([{ threadId: fixture.threadId, turnId: started.turn.id, cwd: fixture.cwd }]))
+  })
+
   it('covers turnRunner helper edge branches', () => {
     expect(__turnRunnerTestOnly.flattenPromptText('not-array')).toBe('')
     expect(__turnRunnerTestOnly.compactParamsText(null)).toBeUndefined()

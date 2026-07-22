@@ -3291,6 +3291,189 @@ describe('AppServer', () => {
     expect(result.hasGap).toBe(false)
   })
 
+  it('hydrates a cold replay projection from persisted turn snapshots and accepts new live events', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cold-replay-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cold-replay-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadStore = new ThreadStore({ cwd, env })
+    const thread = await threadStore.startThread({})
+    await threadStore.writeTranscriptTurnSnapshot({
+      threadId: thread.id,
+      turnId: 'turn-old',
+      segments: [
+        { id: 'old-before', kind: 'assistant', turnId: 'turn-old', text: 'before' },
+        {
+          id: 'old-tool',
+          kind: 'tool',
+          turnId: 'turn-old',
+          toolUseId: 'old-tool-use',
+          toolName: 'Read',
+          status: 'completed',
+          summary: 'Read completed',
+          detailLines: [],
+        },
+        { id: 'old-after', kind: 'assistant', turnId: 'turn-old', text: 'after' },
+        { id: 'old-footer', kind: 'turn_footer', turnId: 'turn-old', status: 'completed' },
+      ],
+    })
+
+    const server = new AppServer({ info: { name: 'formax', version: 'test' }, threadStore })
+    await server.handleMessage(request(1, 'initialize'))
+    const cold = await server.handleMessage(request(2, 'thread/replay', { threadId: thread.id, after: 0 }))
+    const coldResult = (cold[0] as any).result
+
+    expect(coldResult.data).toEqual([])
+    expect(coldResult.latestCursor).toBe(0)
+    expect(coldResult.state).not.toHaveProperty('preferences')
+    expect(coldResult.state.projection.lastReplaySeq).toBe(0)
+    expect(coldResult.state.projection.segments.map((segment: any) => segment.id)).toEqual([
+      'old-before',
+      'old-tool',
+      'old-after',
+      'old-footer',
+    ])
+
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: thread.id,
+      turnId: 'turn-new',
+      eventId: 'new-assistant-1',
+      source: 'engine',
+      ts: '2026-07-10T00:01:00.000Z',
+      event: { type: 'assistant_delta', text: 'new response' },
+    })
+    const withLiveTail = await server.handleMessage(request(3, 'thread/replay', { threadId: thread.id }))
+    expect((withLiveTail[0] as any).result.state.projection.segments.map((segment: any) => segment.id)).toEqual([
+      'old-before',
+      'old-tool',
+      'old-after',
+      'old-footer',
+      expect.stringContaining('turn-new'),
+    ])
+  })
+
+  it('returns a cold projection when a retained client cursor is ahead of the restarted replay epoch', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-replay-epoch-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-replay-epoch-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadStore = new ThreadStore({ cwd, env })
+    const thread = await threadStore.startThread({})
+    await threadStore.writeTranscriptTurnSnapshot({
+      threadId: thread.id,
+      turnId: 'turn-old',
+      segments: [
+        { id: 'old-answer', kind: 'assistant', turnId: 'turn-old', text: 'persisted answer' },
+        { id: 'old-footer', kind: 'turn_footer', turnId: 'turn-old', status: 'completed' },
+      ],
+    })
+
+    const server = new AppServer({ info: { name: 'formax', version: 'test' }, threadStore })
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('thread/updated', {
+      threadId: thread.id,
+      eventId: 'fresh-process-metadata-1',
+      source: 'system',
+      ts: '2026-07-10T00:01:00.000Z',
+    })
+
+    const replay = await server.handleMessage(request(2, 'thread/replay', { threadId: thread.id, after: 120 }))
+    const result = (replay[0] as any).result
+
+    expect(result.data).toEqual([])
+    expect(result.latestCursor).toBe(1)
+    expect(result.hasGap).toBe(false)
+    expect(result.state.projection.lastReplaySeq).toBe(0)
+    expect(result.state.projection.segments.map((segment: any) => segment.id)).toEqual([
+      'old-answer',
+      'old-footer',
+    ])
+  })
+
+  it('merges persisted history with live events that arrive before the first cold replay', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cold-live-tail-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-cold-live-tail-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadStore = new ThreadStore({ cwd, env })
+    const thread = await threadStore.startThread({})
+    await threadStore.writeTranscriptTurnSnapshot({
+      threadId: thread.id,
+      turnId: 'turn-old',
+      segments: [
+        { id: 'old-answer', kind: 'assistant', turnId: 'turn-old', text: 'persisted answer' },
+        { id: 'old-footer', kind: 'turn_footer', turnId: 'turn-old', status: 'completed' },
+      ],
+    })
+
+    const server = new AppServer({ info: { name: 'formax', version: 'test' }, threadStore })
+    await server.handleMessage(request(1, 'initialize'))
+    const emit = server.createTurnNotificationEmitter()
+    emit('turn/event', {
+      threadId: thread.id,
+      turnId: 'turn-new',
+      eventId: 'new-assistant-1',
+      source: 'engine',
+      ts: '2026-07-10T00:01:00.000Z',
+      event: { type: 'assistant_delta', text: 'fresh live tail' },
+    })
+
+    const replay = await server.handleMessage(request(2, 'thread/replay', { threadId: thread.id, after: 0 }))
+    const result = (replay[0] as any).result
+
+    expect(result.data).toHaveLength(1)
+    expect(result.latestCursor).toBe(1)
+    expect(result.state.projection.segments.map((segment: any) => segment.id)).toEqual([
+      'old-answer',
+      'old-footer',
+      expect.stringContaining('turn-new'),
+    ])
+    expect(result.state.projection.lastReplaySeq).toBe(1)
+  })
+
+  it('persists the terminal in-memory projection for a fresh server instance', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-persist-projection-cwd-'))
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tmp-app-server-persist-projection-config-'))
+    const env = { ...process.env, FORMAX_CONFIG_DIR: configDir }
+    const threadStore = new ThreadStore({ cwd, env })
+    const thread = await threadStore.startThread({})
+    await threadStore.ensureThreadFile({ threadId: thread.id })
+    const liveServer = new AppServer({ info: { name: 'formax', version: 'test' }, threadStore })
+    const emit = liveServer.createTurnNotificationEmitter()
+    const envelope = (eventId: string, ts: string) => ({ threadId: thread.id, turnId: 'turn-1', eventId, ts, source: 'engine' })
+    emit('turn/event', {
+      ...envelope('assistant-before', '2026-07-10T00:00:01.000Z'),
+      event: { type: 'assistant_delta', text: 'before' },
+    })
+    emit('turn/event', {
+      ...envelope('tool-start', '2026-07-10T00:00:02.000Z'),
+      event: { type: 'tool_start', id: 'tool-1', name: 'Read' },
+    })
+    emit('turn/event', {
+      ...envelope('tool-end', '2026-07-10T00:00:03.000Z'),
+      event: { type: 'tool_end', id: 'tool-1', result: { content: 'done', is_error: false } },
+    })
+    emit('turn/event', {
+      ...envelope('assistant-after', '2026-07-10T00:00:04.000Z'),
+      event: { type: 'assistant_delta', text: 'after' },
+    })
+    emit('turn/completed', {
+      ...envelope('turn-completed', '2026-07-10T00:00:05.000Z'),
+      turn: { id: 'turn-1', threadId: thread.id, status: 'completed' },
+    })
+    await liveServer.persistTranscriptTurnProjection({ threadId: thread.id, turnId: 'turn-1' })
+
+    const coldServer = new AppServer({ info: { name: 'formax', version: 'test' }, threadStore })
+    await coldServer.handleMessage(request(1, 'initialize'))
+    const replay = await coldServer.handleMessage(request(2, 'thread/replay', { threadId: thread.id, after: 0 }))
+
+    expect((replay[0] as any).result.state.projection.segments.map((segment: any) => segment.kind)).toEqual([
+      'assistant',
+      'tool',
+      'assistant',
+      'turn_footer',
+    ])
+  })
+
   it('keeps invariantIssues contract stable across empty, normal, and anomaly replay snapshots', async () => {
     const server = new AppServer({ info: { name: 'formax', version: 'test' } })
     await server.handleMessage(request(1, 'initialize'))
